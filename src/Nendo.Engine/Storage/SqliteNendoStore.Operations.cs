@@ -693,6 +693,14 @@ internal sealed partial class SqliteNendoStore
         };
     }
 
+    /// <summary>
+    /// Whether text is a timestamp a DateTime field stores: ISO 8601 with seconds and an explicit
+    /// zone. The compiler checks a declared literal by the same rule (ESM-05).
+    /// </summary>
+    internal static bool IsStoredTimestamp(string timestamp) =>
+        System.Text.RegularExpressions.Regex.IsMatch(timestamp, @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$", System.Text.RegularExpressions.RegexOptions.CultureInvariant) &&
+        DateTimeOffset.TryParse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
+
     private static object ConvertValue(FieldMapping field, JsonElement value)
     {
         if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
@@ -728,9 +736,7 @@ internal sealed partial class SqliteNendoStore
                 throw new NendoValidationException(
                     $"Value for field {field.FieldId} must use the yyyy-MM-dd date format.");
             }
-            if (field.StorageKind == NendoStorageKind.DateTime && converted is string timestamp &&
-                (!System.Text.RegularExpressions.Regex.IsMatch(timestamp, @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$", System.Text.RegularExpressions.RegexOptions.CultureInvariant) ||
-                 !DateTimeOffset.TryParse(timestamp, CultureInfo.InvariantCulture, DateTimeStyles.None, out _)))
+            if (field.StorageKind == NendoStorageKind.DateTime && converted is string timestamp && !IsStoredTimestamp(timestamp))
                 throw new NendoValidationException($"Value for field {field.FieldId} must be an ISO timestamp with an explicit timezone.");
             if (field.StorageKind == NendoStorageKind.Uuid && converted is string uuid && !Guid.TryParseExact(uuid, "D", out _))
                 throw new NendoValidationException($"Value for field {field.FieldId} must be a hyphenated UUID.");

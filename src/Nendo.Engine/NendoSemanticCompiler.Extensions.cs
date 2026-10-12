@@ -109,11 +109,15 @@ public sealed partial class NendoSemanticCompiler
     private static void ValidateFilters(IReadOnlyList<NendoUiNodeSnapshot> children,
         NendoEntitySnapshot nodes, NendoEntitySnapshot? edges, ICollection<NendoCompilerDiagnostic> diagnostics)
     {
+        // The view sends one record type's clauses in one query, so each type spends the query's
+        // filter ceiling on its own; nine on one type compiled and every load was refused (ESM-06).
+        var perType = new Dictionary<string, List<NendoUiNodeSnapshot>>(StringComparer.Ordinal);
         foreach (var clause in children.Where(child => child.Kind == "filterClause"))
         {
             var fieldId = clause.Properties["fieldId"].GetString()!;
             var comparison = clause.Properties["operator"].GetString()!;
-            var field = nodes.Fields.SingleOrDefault(f => f.FieldId == fieldId && !f.Retired)
+            var onNodes = nodes.Fields.SingleOrDefault(f => f.FieldId == fieldId && !f.Retired);
+            var field = onNodes
                 ?? edges?.Fields.SingleOrDefault(f => f.FieldId == fieldId && !f.Retired)
                 ?? throw Refused($"The filter field '{fieldId}' is not an active stored field of {Types(nodes, edges)}; a calculated field is shown, not filtered.");
             if (field.StorageKind == NendoStorageKind.Unsupported || field.UnsupportedStorageKind is not null)
@@ -126,7 +130,25 @@ public sealed partial class NendoSemanticCompiler
             if (clause.Properties.TryGetValue("valueKind", out var nullKind) && nullKind.GetString() == "null" && comparison is not ("isNull" or "isNotNull"))
                 throw Refused("A filter does not compare with the null value kind; use the operator isNull or isNotNull.");
             var literal = !clause.Properties.TryGetValue("valueKind", out var declared) || declared.GetString() == "literal";
+            if (!literal && comparison is not ("isNull" or "isNotNull") && declared.GetString() is { } moment)
+            {
+                if (clause.Properties.ContainsKey("value"))
+                    throw Refused($"'{moment}' does not take a value; remove the value, or use the literal value kind.");
+                if (MomentMismatch(moment, field.StorageKind) is { } mismatch)
+                    throw Refused($"The filter on '{field.DisplayName}': {mismatch} Use today on a Date or DateTime field and now on a DateTime field.");
+            }
             if (literal && clause.Properties.TryGetValue("value", out var value)) ValidateLiteral(clause, field, value, diagnostics);
+            var type = onNodes is not null ? nodes.EntityId : edges!.EntityId;
+            if (!perType.TryGetValue(type, out var clauses)) perType[type] = clauses = [];
+            clauses.Add(clause);
+        }
+        foreach (var (type, clauses) in perType.Where(pair => pair.Value.Count > NendoSemanticVocabulary.MaximumEffectiveFilters))
+        {
+            var name = type == nodes.EntityId ? nodes.DisplayName : edges!.DisplayName;
+            AddError(diagnostics, "NUI300",
+                $"This view's query of {name} composes {clauses.Count} effective filters, and one query carries at most {NendoSemanticVocabulary.MaximumEffectiveFilters}.",
+                clauses[NendoSemanticVocabulary.MaximumEffectiveFilters].NodeId, "filterClause",
+                $"Remove {clauses.Count - NendoSemanticVocabulary.MaximumEffectiveFilters} filterClause child on {name}, or narrow the records with a stored field instead.");
         }
     }
 

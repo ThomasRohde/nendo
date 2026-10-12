@@ -325,6 +325,15 @@ an undo; `data.undoRecordWrites` lets a view do both for a batch its own package
 compensated create stays declared irreversible: its record ID stays reserved in deletion
 history.
 
+A definition revision of one operation is compensated only while the definition stands as it
+left it. Most definition operations carry their expected revision; a screen edit
+(`ui.setProperty`, `ui.addNode`, `ui.moveNode`) does not, so its inverse compares the revision's
+own definition revision with the file's, and an added node is removed or a moved node put back
+to its retained parent and place only then. Going back over later edits could restore a binding
+a later revision retired. A compensation of the definition is also compiled before it commits,
+and refused if it would turn screens that compile into ones that do not: the state it returns
+to may be the middle of a proposal of several mutations, which was never compiled.
+
 ## Proposal lifecycle
 
 ```text

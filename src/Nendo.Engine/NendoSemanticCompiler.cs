@@ -182,6 +182,9 @@ public sealed partial class NendoSemanticCompiler
         return builder.ToString().TrimEnd('-');
     }
 
+    private static int ErrorCount(IEnumerable<NendoCompilerDiagnostic> diagnostics) =>
+        diagnostics.Count(diagnostic => diagnostic.Severity == NendoDiagnosticSeverity.Error);
+
     private static bool HasErrors(IEnumerable<NendoCompilerDiagnostic> diagnostics) =>
         diagnostics.Any(value => value.Severity == NendoDiagnosticSeverity.Error);
 

@@ -72,7 +72,7 @@ internal sealed partial class SqliteNendoStore
                 "This pre-semantic file has no compensatable revision metadata.");
         }
         const string revisionSql = """
-            SELECT description, lane, compensation_of_revision_id, origin, change_sequence
+            SELECT description, lane, compensation_of_revision_id, origin, change_sequence, definition_revision_after
             FROM __nendo_revision
             WHERE revision_id = @revisionId;
             """;
@@ -81,6 +81,7 @@ internal sealed partial class SqliteNendoStore
         bool isCompensation;
         string revisionOrigin;
         long changeSequence;
+        long definitionAfter;
         // A change the person folded away (ADR-0021) is gone from the file, and is said to be.
         var fold = await ReadLatestHistoryFoldAsync(null, cancellationToken);
         await using (var revision = Command(revisionSql, null))
@@ -100,6 +101,7 @@ internal sealed partial class SqliteNendoStore
             isCompensation = !reader.IsDBNull(2);
             revisionOrigin = reader.GetString(3);
             changeSequence = reader.GetInt64(4);
+            definitionAfter = reader.GetInt64(5);
         }
         // A view reverses only what its own package wrote, and redoes only an undo (ADR-0023).
         if (caller is not null && revisionOrigin != caller.Origin)
@@ -232,7 +234,11 @@ internal sealed partial class SqliteNendoStore
                 original.Evidence,
                 idempotencyKey,
                 exactReplay,
+                definitionAfter,
                 cancellationToken),
+            "ui.addNode" => await CreateAddUiNodeInverseAsync(original.Canonical, idempotencyKey, exactReplay, definitionAfter, cancellationToken),
+            "ui.moveNode" => await CreateMoveUiNodeInverseAsync(original.Canonical, original.Evidence, idempotencyKey, exactReplay,
+                definitionAfter, cancellationToken),
             "application.setPurpose" => CreatePurposeInverse(original.Canonical, original.Evidence, idempotencyKey),
             "application.setLook" => CreateLookInverse(original.Evidence, idempotencyKey),
             "application.setNewFileLabel" => CreateNewFileLabelInverse(original.Evidence, idempotencyKey),
@@ -502,11 +508,55 @@ internal sealed partial class SqliteNendoStore
             : throw new NendoCompensationNotSupportedException(
                 $"The {operationType} on record {recordId} retained no prior value, so it cannot be reversed.");
 
+    /// <summary>
+    /// A screen edit is reversed only while the definition still stands as that revision left
+    /// it, as every other definition inverse is. A screen operation carries no expected revision
+    /// of its own, so the revision's is compared here: going back over later edits could bring
+    /// back a field a later revision retired, and every custom screen with it (ESM-04).
+    /// </summary>
+    private async Task RequireDefinitionAsLeftAsync(long definitionAfter, CancellationToken cancellationToken)
+    {
+        var current = (await ReadManifestAsync(null, cancellationToken)).DefinitionRevision;
+        if (current != definitionAfter)
+            throw new NendoCompensationNotSupportedException(
+                $"The definition changed after the selected revision (it is at revision {current}, and the selected revision left it at {definitionAfter}), " +
+                "so this screen edit cannot be reversed safely. Change the screen in a new proposal instead.");
+    }
+
+    /// <summary>A node added on its own goes again, while nothing in the definition has changed since (ESM-12).</summary>
+    private async Task<RemoveUiNodeOperation> CreateAddUiNodeInverseAsync(string canonicalJson, string idempotencyKey, bool exactReplay,
+        long definitionAfter, CancellationToken cancellationToken)
+    {
+        using var canonical = JsonDocument.Parse(canonicalJson);
+        var payload = canonical.RootElement.GetProperty("payload");
+        if (!exactReplay) await RequireDefinitionAsLeftAsync(definitionAfter, cancellationToken);
+        return new RemoveUiNodeOperation(NendoCanonical.DeterministicId("operation", "studio.p2.compensation", idempotencyKey, 0),
+            payload.GetProperty("surfaceId").GetString()!, payload.GetProperty("nodeId").GetString()!);
+    }
+
+    /// <summary>A move goes back to the parent and position its evidence retained (ESM-12).</summary>
+    private async Task<MoveUiNodeOperation> CreateMoveUiNodeInverseAsync(string canonicalJson, string evidenceJson, string idempotencyKey,
+        bool exactReplay, long definitionAfter, CancellationToken cancellationToken)
+    {
+        using var canonical = JsonDocument.Parse(canonicalJson);
+        using var evidence = JsonDocument.Parse(evidenceJson);
+        var payload = canonical.RootElement.GetProperty("payload");
+        if (!evidence.RootElement.TryGetProperty("previousPosition", out var position) || !position.TryGetInt32(out var previousPosition))
+            throw new NendoCompensationNotSupportedException("The move retained no prior place, so it cannot be reversed.");
+        if (!exactReplay) await RequireDefinitionAsLeftAsync(definitionAfter, cancellationToken);
+        var parent = evidence.RootElement.TryGetProperty("previousParentNodeId", out var previous) && previous.ValueKind == JsonValueKind.String
+            ? previous.GetString()
+            : null;
+        return new MoveUiNodeOperation(NendoCanonical.DeterministicId("operation", "studio.p2.compensation", idempotencyKey, 0),
+            payload.GetProperty("surfaceId").GetString()!, payload.GetProperty("nodeId").GetString()!, parent, previousPosition);
+    }
+
     private async Task<SetUiPropertyOperation> CreateSetUiPropertyInverseAsync(
         string canonicalJson,
         string evidenceJson,
         string idempotencyKey,
         bool exactReplay,
+        long definitionAfter,
         CancellationToken cancellationToken)
     {
         using var canonical = JsonDocument.Parse(canonicalJson);
@@ -522,6 +572,7 @@ internal sealed partial class SqliteNendoStore
         var propertyName = payload.GetProperty("propertyName").GetString()!;
         if (!exactReplay)
         {
+            await RequireDefinitionAsLeftAsync(definitionAfter, cancellationToken);
             const string currentSql = """
             SELECT property.value_json
             FROM __nendo_ui_property property

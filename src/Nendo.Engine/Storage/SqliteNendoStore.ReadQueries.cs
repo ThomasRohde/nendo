@@ -543,8 +543,8 @@ internal sealed partial class SqliteNendoStore
                 r.operation_digest, r.proposal_id, r.proposal_digest, r.compensation_of_revision_id,
                 COUNT(o.operation_id),
                 -- Eligibility must match the operation TYPES CreateCompensationMutationAsync
-                -- actually reverses, not the reversibility class. A ui.moveNode or
-                -- general ui.removeNode is ReversibleWithRetainedState yet has no inverse, and a
+                -- actually reverses, not the reversibility class. A general ui.removeNode is
+                -- ReversibleWithRetainedState yet has no inverse, and a
                 -- multi-operation revision is reversed only when every operation is a data
                 -- write. A class-based flag offered a Compensate button the engine refused.
                 -- A ui.setProperty is reversed only when it retained a prior value: the
@@ -557,7 +557,7 @@ internal sealed partial class SqliteNendoStore
                             'schema.setChoiceMetadata', 'schema.setRetired', 'schema.setFieldRequired',
                             'schema.renameEntity', 'schema.renameField',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
-                            'ui.setProperty', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
+                            'ui.setProperty', 'ui.addNode', 'ui.moveNode', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
                             'schema.declareLinkRule', 'schema.removeLinkRule',
                             'application.setNewFileLabel', 'schema.setKeptInNewFiles', 'data.setKeptInNewFiles',
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
@@ -573,6 +573,11 @@ internal sealed partial class SqliteNendoStore
                         AND MIN(CASE WHEN o.reversibility = 'IrreversibleDeclared' THEN 1 ELSE 0 END) = 0
                         AND MIN(CASE WHEN o.operation_type = 'ui.setProperty'
                             AND json_extract(o.inverse_evidence_json, '$.previousValuePresent') IS NOT 1
+                            THEN 0 ELSE 1 END) = 1
+                        -- A screen edit carries no expected revision, so its inverse is refused once
+                        -- the definition has moved on; the offer says the same (ESM-04).
+                        AND MIN(CASE WHEN o.operation_type IN ('ui.setProperty', 'ui.addNode', 'ui.moveNode')
+                            AND r.definition_revision_after <> (SELECT definition_revision FROM __nendo_manifest WHERE singleton_id = 1)
                             THEN 0 ELSE 1 END) = 1)
                     OR
                     -- A package and its files arrive together and are reversed together.

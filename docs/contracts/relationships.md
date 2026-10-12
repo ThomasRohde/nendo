@@ -137,9 +137,11 @@ ladder, and a file that carries one needs host 1.45.0.
 
 - **What is checked.** A link whose source, target and kind are all set is allowed when a table
   record holds its source's kind, its target's kind and its kind, compared exactly as stored. An
-  end with no kind matches no row. A link missing its source, target or kind is not checked.
+  end with no kind, or with empty text as its kind, matches no row. A link missing its source, target or kind is not checked.
 - **Declaring checks the data.** Links that are not allowed are refused as `links-not-allowed`,
-  naming the first 20 and how many there are. Nothing is changed.
+  naming the first 20 and how many there are. Nothing is changed. A declaration in the same change
+  as its table type or an endpoint's kind field is checked once that change has made them, so the
+  table's rows come first.
 - **At the end of every mutation.** After its operations and automatic actions, before the
   revision is recorded, a mutation that leaves a link not allowed is refused whole as
   `link-not-allowed`. That covers a link created, restored, or given a new source, target or

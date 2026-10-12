@@ -119,7 +119,10 @@ internal static class CanonicalChangeSetRequestCompiler
                 String(request.Payload, "fieldId"), Boolean(request.Payload, "unique"), Long(request.Payload, "expectedDefinitionRevision")),
             "schema.setFieldSequence" => new SetFieldSequenceOperation(request.OperationId, String(request.Payload, "entityId"),
                 String(request.Payload, "fieldId"), OptionalString(request.Payload, "prefix", SetFieldSequenceOperation.MaximumPrefixLength),
-                OptionalLong(request.Payload, "width") is { } width ? checked((int)width) : null,
+                OptionalLong(request.Payload, "width") is { } width
+                    ? width is >= 1 and <= SetFieldSequenceOperation.MaximumWidth ? (int)width
+                        : throw new NendoValidationException($"Canonical operation property width requires an integer from 1 to {SetFieldSequenceOperation.MaximumWidth}.")
+                    : null,
                 Long(request.Payload, "expectedDefinitionRevision"), OptionalLong(request.Payload, "minimumNext")),
             "schema.removeHierarchy" => new RemoveHierarchyOperation(request.OperationId, String(request.Payload, "entityId"),
                 Long(request.Payload, "expectedDefinitionRevision")),
@@ -383,7 +386,9 @@ internal static class CanonicalChangeSetRequestCompiler
 
     private static int Integer(JsonElement source, string name)
     {
-        if (!source.TryGetProperty(name, out var value) || !value.TryGetInt32(out var result))
+        // TryGetInt32 throws rather than answering false for a string, null or object, which
+        // reached the agent as an internal error instead of this refusal (ESM-09).
+        if (!source.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var result))
         {
             throw new NendoValidationException($"Canonical operation property {name} requires an integer.");
         }
@@ -392,7 +397,7 @@ internal static class CanonicalChangeSetRequestCompiler
 
     private static long Long(JsonElement source, string name)
     {
-        if (!source.TryGetProperty(name, out var value) || !value.TryGetInt64(out var result))
+        if (!source.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out var result))
         {
             throw new NendoValidationException($"Canonical operation property {name} requires an integer.");
         }

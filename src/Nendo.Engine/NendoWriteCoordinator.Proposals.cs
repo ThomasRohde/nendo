@@ -52,7 +52,7 @@ public sealed partial class NendoWriteCoordinator
                 active.Manifest.InstanceId,
                 active.Manifest.DefinitionRevision,
                 CaptureTouchedRecords(changeSet, active),
-                SemanticDiff.From(changeSet, active));
+                SemanticDiff.From(changeSet, active, await store.GetBehaviourNamesAsync(cancellationToken)));
             _proposals.Add(proposalId, context);
             var failure = new ChangeSetFailureLocation();
             try

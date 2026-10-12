@@ -49,6 +49,9 @@ public sealed partial class NendoSemanticCompiler
                      .GroupBy(item => item.EntityId!, StringComparer.Ordinal)
                      .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
+            // Each record type is judged on its own errors, so one broken type does not hide the
+            // next one's until the author has fixed it and validated again (ESM-17).
+            var errorsBefore = ErrorCount(diagnostics);
             var entity = source.Entities.SingleOrDefault(value => value.EntityId == group.Key && !value.Retired);
             if (entity is null)
             {
@@ -65,7 +68,7 @@ public sealed partial class NendoSemanticCompiler
                     $"The entity has {duplicate.Count()} {duplicate.Key} roots, and at most {MaximumRootsPerEntity(duplicate.Key)} are accepted.",
                     entity.EntityId, null,
                     NendoSemanticVocabulary.RootCardinalityHint(duplicate.Key));
-            if (HasErrors(diagnostics)) continue;
+            if (ErrorCount(diagnostics) > errorsBefore) continue;
 
             var fields = entity.Fields.Where(field => !field.Retired).ToDictionary(field => field.FieldId, StringComparer.Ordinal);
             var derived = DerivedFieldsOf(entity);
@@ -78,7 +81,7 @@ public sealed partial class NendoSemanticCompiler
                 .ToArray();
 
             ValidateRecords(source.Records, entity, fields, diagnostics);
-            if (HasErrors(diagnostics)) continue;
+            if (ErrorCount(diagnostics) > errorsBefore) continue;
 
             var entityPlan = ToEntityPlan(entity);
             plans.Add(WithComposableDigest(new NendoApplicationPlan(
@@ -229,9 +232,9 @@ public sealed partial class NendoSemanticCompiler
         SurfaceContext scope,
         ICollection<NendoCompilerDiagnostic> diagnostics)
     {
-        if (node.Kind is "fieldBinding" or "relatedList")
+        if (node.Kind is "fieldBinding" or "relatedList" or NendoExtensionViewDefinition.PanelKind)
         {
-            AddError(diagnostics, "NUI398", $"A {node.Kind} needs a record in context, and the front page has none.",
+            AddError(diagnostics, "NUI398", $"{(node.Kind.StartsWith("e", StringComparison.Ordinal) ? "An" : "A")} {node.Kind} needs a record in context, and the front page has none.",
                 node.NodeId, "parentNodeId",
                 "Use a recentList to show records of one type on the front page, or move this onto that record type's own surface.");
             return null;
@@ -287,8 +290,9 @@ public sealed partial class NendoSemanticCompiler
 
     /// <summary>
     /// Identity, kind, property and parenting rules for contract version 3. Every
-    /// structural rule is read from the vocabulary table; depth is bounded by
-    /// which kinds may contain which, not by a constant.
+    /// structural rule is read from the vocabulary table, and depth by
+    /// <see cref="NendoSemanticVocabulary.MaximumNodeDepth"/>: a section may hold a section,
+    /// so without it a deep enough tree threw out of the digest or exhausted the stack (ESM-08).
     /// </summary>
     private static void ValidateComposableTree(
         IReadOnlyList<NendoUiNodeSnapshot> nodes,
@@ -348,15 +352,23 @@ public sealed partial class NendoSemanticCompiler
         {
             var seen = new HashSet<string>(StringComparer.Ordinal) { node.NodeId };
             var current = node;
+            var cycle = false;
             while (current.ParentNodeId is not null && byId.TryGetValue(current.ParentNodeId, out var parent))
             {
                 if (!seen.Add(parent.NodeId))
                 {
                     AddError(diagnostics, "NUI015", "The semantic node tree contains a parent cycle.", node.NodeId, "parentNodeId", "Break the cycle so every node reaches one root.");
+                    cycle = true;
                     break;
                 }
                 current = parent;
             }
+            // Only the first node past the bound is named, so one deep branch is one diagnostic.
+            if (!cycle && seen.Count == NendoSemanticVocabulary.MaximumNodeDepth + 1)
+                AddError(diagnostics, "NUI456",
+                    $"This node is {seen.Count} levels deep, and a surface nests at most {NendoSemanticVocabulary.MaximumNodeDepth}.",
+                    node.NodeId, "parentNodeId",
+                    "Move it up into a shallower section, or split the page into tabs rather than sections inside sections.");
         }
     }
 
@@ -658,6 +670,13 @@ public sealed partial class NendoSemanticCompiler
                 if (field.Options.Count > 0 &&
                     (value.ValueKind != JsonValueKind.String || !field.Options.Contains(value.GetString() ?? string.Empty, StringComparer.Ordinal)))
                     AddError(diagnostics, "NUI286", "The value is outside the field's declared choices.", node.NodeId, "value", "Use one of the ordered field choices.");
+                // Every write refuses a retired choice, so a step that sets one is refused on every
+                // press while its button still shows (ESM-05). A filter may still match one.
+                else if (value.ValueKind == JsonValueKind.String &&
+                         field.Choices.SingleOrDefault(choice => choice.Id == value.GetString()) is { Retired: true } retired)
+                    diagnostics.Add(new("NUI286", NendoDiagnosticSeverity.Warning,
+                        $"The choice '{retired.DisplayName}' is retired, so every press of this command will be refused.", node.NodeId, "value",
+                        "Set one of the field's available choices."));
                 break;
             case "today" when field.StorageKind is not (NendoStorageKind.Date or NendoStorageKind.DateTime):
                 AddError(diagnostics, "NUI287", "today can only be assigned to a date field.", node.NodeId, "valueKind", "Assign today to a Date or DateTime field.");
@@ -693,9 +712,6 @@ public sealed partial class NendoSemanticCompiler
         var calculated = fieldId is not null && derived.TryGetValue(fieldId, out var derivedField) ? derivedField : null;
         if (calculated is null && fieldId is not null && !fields.TryGetValue(fieldId, out _))
             AddError(diagnostics, "NUI272", $"Filter field '{fieldId}' does not exist or is retired.", node.NodeId, "fieldId", "Filter on an active field of this record type.");
-        if (calculated is not null && (comparison == "descendantOf" ||
-            (comparison == "contains" && calculated.ResultType != NendoBehaviourScalar.Text)))
-            RefuseCalculatedQueryField(node, "fieldId", fieldId, derived, $"take '{comparison}' on it", diagnostics);
         if (comparison is not null && !NendoSemanticVocabulary.FilterOperators.Contains(comparison))
             AddError(diagnostics, "NUI273", $"Filter operator '{comparison}' is not supported.", node.NodeId, "operator",
                 $"Use one of: {string.Join(", ", NendoSemanticVocabulary.FilterOperators.OrderBy(value => value, StringComparer.Ordinal))}.");
@@ -726,6 +742,21 @@ public sealed partial class NendoSemanticCompiler
                 "Use the operator isNull or isNotNull to match records with or without a value.");
             return;
         }
+        if (valueKind is "today" or "now")
+        {
+            // A command step already refused these (NUI287, NUI289); a filter compiled them and
+            // every read of the screen was then refused (ESM-03).
+            if (hasValue && value.ValueKind != JsonValueKind.Null)
+                diagnostics.Add(new("NUI458", NendoDiagnosticSeverity.Warning,
+                    $"'{valueKind}' takes no value, so the value beside it is ignored.", node.NodeId, "value",
+                    "Leave it, set it to null, or remove the clause and add it again without a value."));
+            var kind = fieldId is not null && fields.TryGetValue(fieldId, out var target) ? target.StorageKind
+                : calculated is not null ? Storage.SqliteNendoStore.KindOf(calculated.ResultType) : (NendoStorageKind?)null;
+            if (kind is { } storage && MomentMismatch(valueKind, storage) is { } mismatch)
+                AddError(diagnostics, "NUI457", mismatch, node.NodeId, "valueKind",
+                    "Use today on a Date or DateTime field and now on a DateTime field, or compare with a literal.");
+            return;
+        }
         if (valueKind == "literal" && !hasValue)
         {
             AddError(diagnostics, "NUI276", "The filter has no value to compare.", node.NodeId, "value", "Declare a literal value, or use isNull or isNotNull.");
@@ -738,7 +769,24 @@ public sealed partial class NendoSemanticCompiler
                 Storage.SqliteNendoStore.KindOf(calculated.ResultType), false, null, []), value, diagnostics);
     }
 
-    /// <summary>A literal must match the storage kind it is compared against.</summary>
+    /// <summary>
+    /// Why today or now cannot be compared with a field of this kind, or null when it can: today
+    /// is a date, and now an instant, as a command step assigns them.
+    /// </summary>
+    internal static string? MomentMismatch(string valueKind, NendoStorageKind kind) => valueKind switch
+    {
+        "today" when kind is not (NendoStorageKind.Date or NendoStorageKind.DateTime) =>
+            $"today is a date, and this field holds {kind} values.",
+        "now" when kind != NendoStorageKind.DateTime =>
+            $"now is a date and time, and this field holds {kind} values.",
+        _ => null,
+    };
+
+    /// <summary>
+    /// A literal must match the storage kind it is compared against, in the form storage
+    /// accepts it: a Date as yyyy-MM-dd, a DateTime as an ISO timestamp with its zone and a
+    /// Uuid hyphenated. Otherwise the definition compiled and every read refused it (ESM-05).
+    /// </summary>
     private static void ValidateLiteral(
         NendoUiNodeSnapshot node,
         NendoFieldSnapshot field,
@@ -755,9 +803,17 @@ public sealed partial class NendoSemanticCompiler
             _ => false,
         };
         if (!matches)
+        {
             AddError(diagnostics, "NUI277",
                 $"The value does not match the {field.StorageKind} field it is compared against.",
                 node.NodeId, "value", $"Declare a {field.StorageKind} literal.");
+            return;
+        }
+        if (value.ValueKind != JsonValueKind.String || LiteralFormat(field.StorageKind, value.GetString()!) is not { } form) return;
+        var text = value.GetString()!;
+        AddError(diagnostics, "NUI277",
+            $"The value '{(text.Length > 40 ? text[..40] + "…" : text)}' is not written as storage keeps a {field.StorageKind}.",
+            node.NodeId, "value", $"Write it as {form}.");
     }
 
     private static void ValidateOrdering(
@@ -918,6 +974,17 @@ public sealed partial class NendoSemanticCompiler
         }
         return target;
     }
+
+    /// <summary>The form a text literal must take for this kind, or null when the text already has it.</summary>
+    internal static string? LiteralFormat(NendoStorageKind kind, string text) => kind switch
+    {
+        NendoStorageKind.Date when !DateOnly.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out _) => "a date in the form yyyy-MM-dd, such as 2026-10-31",
+        NendoStorageKind.DateTime when !Storage.SqliteNendoStore.IsStoredTimestamp(text) =>
+            "an ISO timestamp with seconds and its zone, such as 2026-10-31T09:00:00Z",
+        NendoStorageKind.Uuid when !Guid.TryParseExact(text, "D", out _) => "a hyphenated UUID, such as 0f8fad5b-d9cb-469f-a165-70867728950e",
+        _ => null,
+    };
 
     private static NendoApplicationPlan WithComposableDigest(NendoApplicationPlan plan) => plan with
     {

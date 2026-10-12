@@ -76,6 +76,14 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
+    /// Every stored behaviour definition's display name by its ID, for a review line that names
+    /// an action or a definition rather than prettifying its ID (ESM-19).
+    /// </summary>
+    internal async Task<IReadOnlyDictionary<string, string>> GetBehaviourNamesAsync(CancellationToken cancellationToken) =>
+        (await ReadBehaviourDefinitionsAsync(null, cancellationToken))
+            .ToDictionary(pair => pair.Key, pair => SemanticDiff.BehaviourName(pair.Value), StringComparer.Ordinal);
+
+    /// <summary>
     /// Every stored definition, ordered by stable ID so a digest taken over the result
     /// never depends on how SQLite happened to return the rows.
     /// </summary>

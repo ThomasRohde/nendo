@@ -74,8 +74,10 @@ The view and the validator keep the rule (D-003's A). Every other path can write
 1. **The rule.** `schema.declareLinkRule { entityId, sourceFieldId, targetFieldId, kindFieldId,
    sourceKindFieldId, targetKindFieldId, tableEntityId, tableSourceFieldId, tableTargetFieldId,
    tableKindFieldId }` on a link record type; `schema.removeLinkRule { entityId }` takes it away.
-   One rule per link record type. Definition lane; `Reversible`: each is the other's inverse, and
-   removing keeps every record as it is.
+   One rule per link record type. Definition lane; `ReversibleWithRetainedState`: each is the
+   other's inverse, removing reads the rule it takes away from its retained evidence, and removing
+   keeps every record as it is. (Corrected 2026-10-12, ESM-23: this said `Reversible`, and the code
+   and the relationships contract have always declared the retained-state class.)
 2. **Its shape.** Source and target are bound references of the link type. The kind is a field of
    the link type; each endpoint kind is a field of the record type its reference points at. The
    table is another record type (not the link type, not an endpoint's), and each of its three
@@ -145,8 +147,15 @@ All four stages landed together. Details the code settled:
 - **Which links a mutation can have changed** is read from its operations: a create or restore of
   a link, a set of its source, target or kind, a set of either end's kind, and any write to the
   table, which checks every link. The named links are checked in slices of 400.
-- **A declaration in the mutation that creates its record types** has no data to check, and the
-  table's index is created when the mutation materializes its columns.
+- **A declaration in the mutation that creates its table type or an endpoint's kind field** is
+  checked at the end of that mutation, once its columns exist, and refused as any declaration is.
+  It used to be skipped, on the reasoning that such a mutation has no data to check; that holds only
+  when the link type itself is new, and an existing link type with links was declared over
+  unchecked (ESM-01, 2026-10-12). The table's index is created when the mutation materializes its
+  columns. So a table's rows are written before the declaration: in an earlier change, or in an
+  earlier mutation of the same change set, never after it.
+- **An empty kind is no kind.** Empty text at either end matches no row, as an end with no kind
+  does, and as empty text in the link's own kind leaves it unchecked (ESM-21, 2026-10-12).
 - **The refusal names records, never stored text**: for a reference kind, the kind records by ID
   (the MCP rule for audited messages); a text kind by its field only.
 

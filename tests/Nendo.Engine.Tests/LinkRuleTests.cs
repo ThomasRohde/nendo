@@ -369,11 +369,61 @@ public sealed class LinkRuleTests
         ]));
     }
 
+    /// <summary>
+    /// ESM-01: a declaration in the mutation that creates its table type, or an endpoint's kind
+    /// field, found no columns and checked nothing, so it was accepted over a link that breaks it.
+    /// </summary>
+    [TestMethod]
+    [DataRow("table")]
+    [DataRow("kindField")]
+    public async Task ADeclarationInTheMutationThatCreatesItsColumnsStillChecksTheLinks(string created)
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        var withoutCreated = created == "table" ? SchemaOperations.Where(op => op is not (CreateEntityOperation { EntityId: Allowed }) && !(op is AddFieldOperation { EntityId: Allowed }))
+            : SchemaOperations.Where(op => op is not AddFieldOperation { FieldId: "thing.kind" });
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Schema", [.. withoutCreated]));
+        foreach (var id in new[] { "a1", "r1" })
+            await service.CreateRecordAsync(new(Things, id, new Dictionary<string, object?> { ["thing.name"] = id }, Context(id)));
+        if (created == "kindField")
+            await service.CreateRecordAsync(new(Allowed, "allow", new Dictionary<string, object?> { ["allowed.from"] = "actor", ["allowed.to"] = "role", ["allowed.kind"] = "assign" }, Context("allow")));
+        await LinkAsync(service, "l1", "a1", "r1", "nonsense");
+
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var together = SchemaOperations.Except(withoutCreated).Append(new DeclareLinkRuleOperation("declare", Links, Rule, revision)).ToArray();
+        var refused = await Refused(() => coordinator.ApplyAsync(new("test", "together", "test", "Columns and rule", together)));
+        Assert.AreEqual("links-not-allowed", refused.Code, refused.Message);
+        StringAssert.Contains(refused.Message, "l1");
+        Assert.IsNull(Entity(await service.GetSnapshotAsync(), Links).LinkRule);
+    }
+
+    /// <summary>ESM-21: empty text at an end is no kind, so a table row of empty text allows nothing.</summary>
+    [TestMethod]
+    public async Task AnEndWhoseKindIsEmptyTextMatchesNoRow()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await SeedAsync(service);
+        foreach (var id in new[] { "e1", "e2" })
+            await service.CreateRecordAsync(new(Things, id, new Dictionary<string, object?> { ["thing.name"] = id, ["thing.kind"] = "" }, Context(id)));
+        await service.CreateRecordAsync(new(Allowed, "allow-empty", new Dictionary<string, object?> { ["allowed.from"] = "", ["allowed.to"] = "", ["allowed.kind"] = "uses" }, Context("allow-empty")));
+        await DeclareAsync(coordinator, service);
+
+        var refused = await Refused(() => LinkAsync(service, "l-empty", "e1", "e2", "uses"));
+        Assert.AreEqual("link-not-allowed", refused.Code, "A link between two ends with empty kinds was allowed by a row of empty text.");
+    }
+
     private static readonly NendoLinkRule Rule = new("link.source", "link.target", "link.kind", "thing.kind", "thing.kind", Allowed, "allowed.from", "allowed.to", "allowed.kind");
     private const System.Text.Json.JsonValueKind JsonValueKindNull = System.Text.Json.JsonValueKind.Null;
 
     private static async Task SchemaAsync(NendoWriteCoordinator coordinator) =>
-        await coordinator.ApplyAsync(new("test", "schema", "test", "Things and their links", [
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Things and their links", SchemaOperations));
+
+    private static readonly NendoOperation[] SchemaOperations =
+        [
             new CreateEntityOperation("e-things", Things, "Things", "things"),
             new AddFieldOperation("t-name", Things, "thing.name", "Name", "name", NendoStorageKind.Text, true),
             new AddFieldOperation("t-kind", Things, "thing.kind", "Kind", "kind", NendoStorageKind.Text, false),
@@ -391,7 +441,7 @@ public sealed class LinkRuleTests
             new AddFieldOperation("a-to", Allowed, "allowed.to", "To", "to_kind", NendoStorageKind.Text, true),
             new AddFieldOperation("a-kind", Allowed, "allowed.kind", "Kind", "kind", NendoStorageKind.Text, true),
             new AddFieldOperation("a-count", Allowed, "allowed.count", "Count", "count", NendoStorageKind.Integer, false),
-        ]));
+        ];
 
     /// <summary>Three things and the combinations they may be linked by.</summary>
     private static async Task SeedAsync(NendoApplicationService service)

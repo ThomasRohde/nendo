@@ -54,7 +54,7 @@ public sealed partial class NendoApplicationService
         var compilation = await CompileSemanticUiAsync(cancellationToken);
         var board = compilation.Applications
             .SelectMany(plan => plan.Surfaces)
-            .FirstOrDefault(node => node.Kind == "boardSurface");
+            .FirstOrDefault(node => node.Kind == "boardSurface" && node.SemanticId == IdeaGardenDefinition.BoardRootId);
         if (!compilation.IsValid || board is null)
         {
             throw new NendoPreconditionException(

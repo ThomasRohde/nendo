@@ -102,7 +102,8 @@ public sealed class SemanticDiffSummaryTests
         Assert.AreEqual("Add the section \"Details\".", entries[0].Summary,
             "A section is not a surface, and the accept gate should say which it is.");
         StringAssert.Contains(entries[1].Summary, "the section \"Details\"");
-        StringAssert.Contains(entries[1].Summary, "position 2");
+        // Stored position 2 is the third place; the line counts from one, as tabs do (ESM-19).
+        StringAssert.Contains(entries[1].Summary, "position 3");
     }
 
     // The accept gate must describe every contract version 3 kind, or a reviewer

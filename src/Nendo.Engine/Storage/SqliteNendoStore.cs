@@ -150,6 +150,12 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             await RequireSupportedWritableLayoutAsync(transaction, cancellationToken);
             await RequireRoomToGrowAsync(transaction, cancellationToken);
             var searchedBefore = await CaptureSearchedFieldsAsync(mutation.Operations, transaction, cancellationToken);
+            // A compensation is applied with no proposal and so no preview compile. Going back to
+            // an earlier state can land on one that never compiled, such as the middle of a
+            // proposal of several mutations, so the screens are compiled before and after here.
+            var screensCompiledBefore = replayingInverses && mutation.Operations[0].Lane == NendoRevisionLane.Definition
+                ? await CompileScreensAsync(transaction, cancellationToken)
+                : null;
             var evidence = new List<OperationEvidence>(mutation.Operations.Count);
             foreach (var operation in mutation.Operations)
             {
@@ -183,6 +189,14 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
 
             var lane = mutation.Operations[0].Lane;
             if (lane == NendoRevisionLane.Definition) await ValidateRetiredBindingsAsync(transaction, cancellationToken);
+            if (screensCompiledBefore is { IsValid: true } &&
+                await CompileScreensAsync(transaction, cancellationToken) is { IsValid: false } after)
+            {
+                var first = after.Diagnostics.First(diagnostic => diagnostic.Severity == NendoDiagnosticSeverity.Error);
+                throw new NendoCompensationNotSupportedException(
+                    $"Reversing this change would leave custom screens that do not compile ({first.Code}: {first.Message}), " +
+                    "so it is not reversed. Change the screens in a new proposal instead.");
+            }
             var definitionAfter = manifestBefore.DefinitionRevision +
                 (lane == NendoRevisionLane.Definition ? 1 : 0);
             var dataAfter = manifestBefore.DataRevision +
@@ -800,6 +814,31 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         }
     }
 
+    /// <summary>The file's custom screens compiled as they stand inside this transaction.</summary>
+    private async Task<NendoCompileResult> CompileScreensAsync(SqliteTransaction transaction, CancellationToken cancellationToken) =>
+        new NendoSemanticCompiler().Compile(
+            await ReadSessionSnapshotAsync("compensation", NendoSessionHealth.Normal, transaction, cancellationToken, includeRecords: false));
+
+    /// <summary>
+    /// An operation ID names one operation in the file's whole history, and the history table
+    /// holds it unique. A reused one used to fail at the insert as a raw SQLite error, which a
+    /// proposal reported as an internal failure rather than naming the operation (ESM-07).
+    /// </summary>
+    private async Task RequireUnusedOperationIdsAsync(IEnumerable<NendoOperation> operations, SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await using var query = Command("SELECT 1 FROM __nendo_operation WHERE operation_id = @id LIMIT 1;", transaction);
+        var id = query.Parameters.Add("@id", Microsoft.Data.Sqlite.SqliteType.Text);
+        foreach (var operation in operations)
+        {
+            id.Value = operation.OperationId;
+            if (await query.ExecuteScalarAsync(cancellationToken) is not null)
+                throw new NendoValidationException(
+                    $"The operation ID {operation.OperationId} ({operation.OperationType}) was used by an earlier change to this file, " +
+                    "and an operation ID is used once in a file's whole history. Give the operation a new ID, or leave operationId out where the host makes one.");
+        }
+    }
+
     private async Task<NendoApplyResult?> TryResolveReplayAsync(
         NendoMutation mutation,
         SqliteTransaction transaction,
@@ -857,6 +896,9 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         SqliteTransaction transaction,
         CancellationToken cancellationToken)
     {
+        // After the operations' own checks, so their refusals keep their codes; before the insert
+        // that would otherwise fail on the unique index.
+        await RequireUnusedOperationIdsAsync(evidence.Select(item => item.Operation), transaction, cancellationToken);
         const string revisionSql = """
             INSERT INTO __nendo_revision (
                 revision_id, created_at, origin, description, lane,

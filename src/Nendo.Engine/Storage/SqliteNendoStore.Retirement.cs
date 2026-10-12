@@ -112,9 +112,13 @@ internal sealed partial class SqliteNendoStore
         foreach (var node in await ReadUiNodesAsync(transaction, ct))
         foreach (var pair in node.Properties)
         {
-            var retired = pair.Key is "entityId" or "edgeEntityId" ? entities : fields;
-            if (pair.Key is not ("entityId" or "fieldId" or "groupByFieldId" or "cardFieldIds") &&
-                !(NendoExtensionViewDefinition.IsViewKind(node.Kind) && pair.Key is "edgeEntityId" or "labelFieldId" or "sourceFieldId" or "targetFieldId" or "statusFieldId")) continue;
+            // Every property that names one: an ordering, a date, an axis or a relation's target
+            // as well as a binding. Only four were read, so a retirement under any other bound
+            // field was accepted and every custom screen then failed to compile (ESM-04).
+            var namesEntity = pair.Key == "entityId" || pair.Key.EndsWith("EntityId", StringComparison.Ordinal);
+            var namesField = pair.Key is "fieldId" or "cardFieldIds" || pair.Key.EndsWith("FieldId", StringComparison.Ordinal);
+            if (!namesEntity && !namesField) continue;
+            var retired = namesEntity ? entities : fields;
             if ((pair.Value.ValueKind == JsonValueKind.String && retired.Contains(pair.Value.GetString()!)) ||
                 (pair.Value.ValueKind == JsonValueKind.Array && pair.Value.EnumerateArray().Any(value => value.ValueKind == JsonValueKind.String && retired.Contains(value.GetString()!))))
                 throw new NendoPreconditionException("retired-binding", "Remove or replace surface bindings to the retired definition in the same proposal.");

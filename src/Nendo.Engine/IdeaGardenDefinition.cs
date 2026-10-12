@@ -18,6 +18,14 @@ internal static class IdeaGardenDefinition
         NendoSessionSnapshot snapshot,
         string proposalId)
     {
+        // Said first: on a file this proposal already set up, the field check below refused the
+        // Title it had created itself instead (ESM-26).
+        if (snapshot.UiNodes.Count != 0)
+        {
+            throw new NendoPreconditionException(
+                "semantic-definition-exists",
+                "This file already contains semantic surfaces; use a focused surface proposal instead.");
+        }
         var definition = new List<NendoOperation>();
         var entity = snapshot.Entities.SingleOrDefault(value =>
             value.EntityId == NendoApplicationService.IdeaEntityId);
@@ -101,12 +109,6 @@ internal static class IdeaGardenDefinition
             "singleLine",
             []);
 
-        if (snapshot.UiNodes.Count != 0)
-        {
-            throw new NendoPreconditionException(
-                "semantic-definition-exists",
-                "This file already contains semantic surfaces; use a focused surface proposal instead.");
-        }
         AddSurfaceDefinition(definition, proposalId);
 
         var mutations = new List<NendoMutation>
@@ -355,8 +357,9 @@ internal static class IdeaGardenDefinition
     {
         var field = entity.Fields.SingleOrDefault(value => value.FieldId == fieldId)
             ?? throw new NendoPreconditionException("field-not-found", $"Required field {displayName} is missing.");
+        // The Title this proposal creates is single-line; an older file's has no presentation.
         var acceptedPresentation = fieldId == NendoApplicationService.IdeaTitleFieldId &&
-                                   field.Presentation is null && presentation is null;
+                                   field.Presentation is null or "singleLine" && presentation is null;
         if (field.DisplayName != displayName || field.StorageKind != storageKind ||
             field.Required != required ||
             (!acceptedPresentation && field.Presentation != presentation) ||

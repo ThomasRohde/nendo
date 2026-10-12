@@ -223,8 +223,8 @@ public static class NendoSemanticVocabulary
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
                 // The first charts, ADR-0004 2026-09-14 amendment (S1). Both are tiles
-                // in the sense a summaryTile is: accepted where it is accepted, scoped
-                // as it is scoped, and read over the records that scope covers.
+                // in the sense a summaryTile is: accepted where it is accepted, and read over the
+                // records where they sit; only a breakdownChart takes the scope property.
                 // entityId on a tile or a chart is the S4 addition: required under an
                 // overview, which has no record type of its own to lend one, and refused
                 // anywhere else, where it could only disagree with the surface it sits on.
@@ -529,6 +529,13 @@ public static class NendoSemanticVocabulary
     /// </summary>
     internal const int MaximumRecentListRows = 10;
 
+    /// <summary>
+    /// The most levels one surface nests, its root counted as the first (NUI456). A section may
+    /// hold a section. 28 levels compiled before there was a bound and 29 threw out of the plan
+    /// digest's JSON depth, so 24 refuses nothing that drew and stays inside it.
+    /// </summary>
+    internal const int MaximumNodeDepth = 24;
+
     /// <summary>The most levels an outline opens by itself when it first shows (ADR-0019).</summary>
     internal const int MaximumOutlineExpandDepth = 4;
 
@@ -597,6 +604,7 @@ public static class NendoSemanticVocabulary
             "the clauses of wherever it sits, as for a chart there, plus the two date bounds of its range, so two fewer declared clauses"),
         new("Ranked list", "its own clauses plus one predicate keeping the records that have a number to rank, so at most seven declared clauses"),
         new("Progress ring", "its own clauses over its scope for the numerator, and the scope alone for the denominator, as two counts"),
+        new("Custom view", "its filterClause children on each record type, one query per type: the node type's, and on a graph the edge type's"),
     ];
 
     /// <summary>
@@ -744,8 +752,8 @@ public static class NendoSemanticVocabulary
                 "A breakdownChart states one exact number per group of a closed grouping — a single-choice field's " +
                 "options in their configured order, or false and true for a Boolean — plus the unset group, over the " +
                 "records its scope covers; the grouping is not a filter. A progressTile states the records matching its " +
-                "own filterClause children over everything its scope covers, and needs at least one. Both take the " +
-                "scope a summaryTile takes and are accepted where it is. Every number is exact or absent; a value stored " +
+                "own filterClause children over the records where it sits, and needs at least one. Both are accepted " +
+                "where a summaryTile is; only a breakdownChart takes its scope property. Every number is exact or absent; a value stored " +
                 "outside the options is counted apart, never drawn as a group. The renderer shows the numbers beside the " +
                 "shape and a table of them behind one toggle."),
             Overview = new NendoOverviewDescription(
@@ -975,6 +983,9 @@ public sealed record NendoAuthoringLimits(
     int PropertiesPerNodeOperation,
     int ApplicationPurposeCharacters)
 {
+    /// <summary>The most levels one surface nests, its root counted as the first; deeper is NUI456.</summary>
+    public int NodeDepth { get; init; } = NendoSemanticVocabulary.MaximumNodeDepth;
+
     /// <summary>
     /// The enforcement points read these values rather than repeating them, so a
     /// published limit cannot drift from the limit that actually refuses.

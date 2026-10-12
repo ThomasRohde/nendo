@@ -239,8 +239,8 @@ public sealed partial class NendoSemanticCompiler
                 $"This grid is {rows + 1} rows by {columns + 1} columns, which is {cells} cells; one grouped read answers " +
                 $"at most {NendoSemanticVocabulary.MaximumAggregateGroups}.",
                 node.NodeId, "rowByFieldId",
-                "The unset lane on each axis is one row and one column of that total. Cross two fields with fewer options, " +
-                "or narrow one of them with a filterClause on the axis field, which removes its column as well as its records.");
+                "The unset lane on each axis is one row and one column of that total. Cross two fields with fewer options: " +
+                "the ceiling counts every option of both fields, and a filterClause narrows the records and the drawn lanes, not the ceiling.");
     }
 
     /// <summary>One axis of a matrix: the grouping rule a chart already uses, named for its side.</summary>

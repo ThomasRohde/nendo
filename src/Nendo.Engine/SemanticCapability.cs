@@ -113,6 +113,10 @@ internal static class NendoSemanticCapability
             for (NendoUiNodeSnapshot? at = node; at is not null;
                  at = at.ParentNodeId is not null && _byId.TryGetValue(at.ParentNodeId, out var parent) ? parent : null)
             {
+                // A view's filters are on stored fields of its node or edge type only, which the
+                // compiler checks; reading them against the node type alone counted an edge field
+                // as calculated and raised the file's minimum host (ESM-16).
+                if (NendoExtensionViewDefinition.IsViewKind(at.Kind)) return false;
                 var entityId = at.Kind == "relatedList" ? Text(at, "targetEntityId") : Text(at, "entityId");
                 if (entityId is null) continue;
                 return KnowsEntity(entityId) && StoredKind(entityId, fieldId) is null;

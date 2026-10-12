@@ -16,6 +16,17 @@ internal sealed partial class SqliteNendoStore
     {
         using var transaction = _authorityCache is not null ? _connection.BeginTransaction(deferred: true) : null;
         if (transaction is not null) _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
+        return await ReadSessionSnapshotAsync(fileName, health, transaction, cancellationToken, includeRecords);
+    }
+
+    /// <summary>The session snapshot read inside a transaction the caller holds.</summary>
+    private async Task<NendoSessionSnapshot> ReadSessionSnapshotAsync(
+        string fileName,
+        NendoSessionHealth health,
+        SqliteTransaction? transaction,
+        CancellationToken cancellationToken,
+        bool includeRecords)
+    {
         var manifest = await ReadManifestAsync(transaction, cancellationToken);
         var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
         var derived = await ReadDerivedFieldsAsync(transaction, cancellationToken);

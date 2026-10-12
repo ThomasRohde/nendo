@@ -791,7 +791,9 @@ package's name, and the person decides it in the ordinary review.
 - **Operations.** `operations` is a list of canonical operations,
   `{operationType, payload, operationId}`, the same vocabulary the Workbench's own
   proposals and MCP use (`nendo://application/vocabulary`). `operationId` is optional;
-  the broker makes one. The broker makes the proposal ID and the idempotency key, and
+  the broker makes one. An operation ID is used once in a file's whole history, so a
+  view that supplies its own must not repeat one an earlier change used; a repeat is
+  refused with a diagnostic naming it. The broker makes the proposal ID and the idempotency key, and
   sends the whole list as one mutation titled like the proposal. The host validates it
   exactly as it validates the Workbench's own, diagnostics included.
 - **The origin is the package.** The host admits the actor on
@@ -1510,10 +1512,14 @@ and read by nothing. `extensionView` never had pins and accepts none.
   operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull` and `isNotNull`, and
   the value kinds `literal`, `today`, `now` and `null`. `null` goes only with
   `isNull` and `isNotNull`, which match a missing value and take no value themselves;
-  with a comparing operator it is refused (`NUI455`). A literal must suit the field.
-- A view carries at most 64 `fieldBinding` and `filterClause` children together.
-  Every read under its filters meets the host's bound of eight filters in one
-  query.
+  with a comparing operator it is refused (`NUI455`). `today` goes only with a Date
+  or DateTime field and `now` only with a DateTime field; a value beside either is
+  ignored.
+  A literal must suit the field and be written as storage keeps it: a Date as
+  `yyyy-MM-dd`, a DateTime as an ISO timestamp with its zone, a Uuid hyphenated.
+- A view carries at most 64 `fieldBinding` and `filterClause` children together, and
+  at most eight `filterClause` children on one record type (`NUI300`): the view reads
+  each record type in one query, and one query carries eight filters.
 
 ### Configuration
 
@@ -1586,6 +1592,7 @@ A binding is not a permission. The view's code reads through the file's API.
 | --- | --- | --- |
 | `NUI450` | Error | The definition names a package, a record type, a label, fields or filters that do not exist or break the rules above. The message names which. "Name a package, a record type and fields that exist; the view's code reads the rest through the file's API." |
 | `NUI455` | Error | A filter clause compares (`eq`, `ne`, `lt` and the rest) with the `null` value kind, which has no value to compare. "Use the operator isNull or isNotNull to match records with or without a value." The same rule refuses such a clause in a custom view's filters |
+| `NUI300` | Error | More than eight `filterClause` children name fields of one record type. "Remove a filterClause child on ‹type›, or narrow the records with a stored field instead." |
 | `NUI452` | Warning | "The package ‹id› is not in this file, so the view has no code to run yet." Remedy: "Add the package to the file: Studio → Surfaces → Custom views → Import, or extension.setPackage and extension.putFile in this change set or a later one." The view says the same where it is shown. Validation compiles the change set after all its operations, so a package and the view naming it in one change set draw no `NUI452` (W-170) |
 | `NUI454` | Error | "The package ‹id› is a skill package, which holds text for an agent and never runs, so a view cannot use it." Remedy: "Name a view package, one created without kind skill, or remove the view." |
 | `NUI013` | Error | A child kind its parent does not take, as for every node |

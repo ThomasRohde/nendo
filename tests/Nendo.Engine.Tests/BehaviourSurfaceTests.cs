@@ -177,8 +177,12 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("filter-contains", "project-surface", "project-filter", "operator", "contains"),
             new SetUiPropertyOperation("filter-text", "project-surface", "project-filter", "value", "1"),
         ]));
-        var refused = AssertRefused(await service.CompileSemanticUiAsync(), "fieldId");
-        StringAssert.Contains(refused.Message, "take 'contains' on it", StringComparison.Ordinal);
+        // contains is no filter operator at all, so that is the one thing said (ESM-22).
+        var compiled = await service.CompileSemanticUiAsync();
+        Assert.IsFalse(compiled.IsValid);
+        Assert.IsNotNull(compiled.Diagnostics.SingleOrDefault(d => d.Code == "NUI273" && d.PropertyPath == "operator"));
+        Assert.IsFalse(compiled.Diagnostics.Any(d => d.PropertyPath == "fieldId"),
+            "A calculated field was also refused for an operator the vocabulary does not have.");
     }
 
     /// <summary>F-222's bound: a calculated filter reads every record it could match, so past the ceiling it refuses.</summary>

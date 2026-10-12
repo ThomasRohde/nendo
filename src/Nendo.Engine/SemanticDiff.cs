@@ -40,7 +40,30 @@ internal static class SemanticDiff
         IReadOnlyDictionary<string, string> Opens,
         IReadOnlyDictionary<string, NendoStorageKind> FieldKinds,
         IReadOnlyDictionary<string, Ordering> Orderings,
-        IReadOnlyDictionary<string, TileTerms> Tiles);
+        IReadOnlyDictionary<string, TileTerms> Tiles)
+    {
+        /// <summary>
+        /// Field and record type names as the active file has them, before a rename in this
+        /// change set overwrites them, so a rename can say what it renames (ESM-14).
+        /// </summary>
+        public IReadOnlyDictionary<string, string> ActiveFields { get; init; } = new Dictionary<string, string>();
+
+        /// <inheritdoc cref="ActiveFields"/>
+        public IReadOnlyDictionary<string, string> ActiveEntities { get; init; } = new Dictionary<string, string>();
+
+        /// <summary>Each choice option's name as the active file has it.</summary>
+        public IReadOnlyDictionary<(string FieldId, string ChoiceId), string> ActiveChoiceNames { get; init; } =
+            new Dictionary<(string FieldId, string ChoiceId), string>();
+
+        /// <summary>Each node's parent, active file first, so a removal can count what goes with it.</summary>
+        public IReadOnlyDictionary<string, string?> NodeParents { get; init; } = new Dictionary<string, string?>();
+
+        /// <summary>The record type each node names, where it names one; a record page's root among them.</summary>
+        public IReadOnlyDictionary<string, string> NodeEntities { get; init; } = new Dictionary<string, string>();
+
+        /// <summary>Behaviour definitions by ID: the active file's and this change set's, by their display names.</summary>
+        public IReadOnlyDictionary<string, string> DefinitionNames { get; init; } = new Dictionary<string, string>();
+    }
 
     /// <summary>The field and the direction an ordering is made of, gathered from the change set.</summary>
     private sealed record Ordering(string? FieldId, string? Direction);
@@ -52,11 +75,12 @@ internal static class SemanticDiff
     /// The three properties a filter clause is made of, gathered from the change set
     /// that adds it so the clause can be read as one statement.
     /// </summary>
-    private sealed record FilterTerms(string? FieldId, string? Operator, JsonElement? Value);
+    private sealed record FilterTerms(string? FieldId, string? Operator, JsonElement? Value, string? ValueKind = null);
 
-    internal static IReadOnlyList<NendoSemanticDiffEntry> From(NendoChangeSet changeSet, NendoSessionSnapshot active)
+    internal static IReadOnlyList<NendoSemanticDiffEntry> From(NendoChangeSet changeSet, NendoSessionSnapshot active,
+        IReadOnlyDictionary<string, string>? definitionNames = null)
     {
-        var names = Resolve(changeSet, active);
+        var names = Resolve(changeSet, active, definitionNames ?? new Dictionary<string, string>());
         var packages = new PackageState(active);
         var result = new List<NendoSemanticDiffEntry>();
         foreach (var operation in changeSet.Mutations.SelectMany(mutation => mutation.Operations))
@@ -104,7 +128,7 @@ internal static class SemanticDiff
             // the line that adds it: the field, the comparison and the value together,
             // where four lines used to open with one that said nothing. A property changed
             // on a clause the person already has keeps its own line.
-            if (operation is SetUiPropertyOperation { PropertyName: "fieldId" or "operator" or "value" } term &&
+            if (operation is SetUiPropertyOperation { PropertyName: "fieldId" or "operator" or "value" or "valueKind" } term &&
                 names.NodeKinds.GetValueOrDefault(term.NodeId, string.Empty) == "filterClause" &&
                 names.AddedNodes.Contains(term.NodeId))
             {
@@ -121,20 +145,34 @@ internal static class SemanticDiff
                 SetBehaviourDefinitionOperation value => Entry("setBehaviourDefinition", BehaviourSummary(names, value), value.Reversibility,
                     value.Definition.OwningEntityId is { } owner ? [owner, value.Definition.DefinitionId] : [value.Definition.DefinitionId]),
                 RemoveBehaviourDefinitionOperation value => Entry("removeBehaviourDefinition",
-                    $"Remove the {value.DefinitionKind.ToString().ToLowerInvariant()} {HumanId(value.DefinitionId)}; retain its definition in history.",
+                    $"Remove the {value.DefinitionKind.ToString().ToLowerInvariant()} {DefinitionName(names, value.DefinitionId)}; retain its definition in history.",
                     value.Reversibility, value.DefinitionId),
                 SetFieldRequiredOperation value => Entry("setFieldRequired", $"Make {FieldName(names, value.FieldId)} {(value.Required ? "required" : "optional")} after validating every retained record.", value.Reversibility, value.EntityId, value.FieldId),
-                BackfillRetiredFieldOperation value => Entry("backfillRetiredField", "Fill the explicitly selected retained field value.", value.Reversibility, value.Edit.EntityId, value.Edit.RecordId, value.Edit.FieldId),
-                SetRetiredOperation value => Entry("setRetired", $"{(value.Retired ? "Retire" : "Reactivate")} {(value.FieldId is null ? "record type" : "field")}; retain stored data.", value.Reversibility, value.EntityId, value.FieldId ?? value.EntityId),
+                BackfillRetiredFieldOperation value => Entry("backfillRetiredField",
+                    $"Fill the retired field {FieldName(names, value.Edit.FieldId)} on {EntityName(names, value.Edit.EntityId)} record {HumanId(value.Edit.RecordId)} with the value this proposal states.",
+                    value.Reversibility, value.Edit.EntityId, value.Edit.RecordId, value.Edit.FieldId),
+                SetRetiredOperation value => Entry("setRetired",
+                    value.FieldId is null
+                        ? $"{(value.Retired ? "Retire" : "Reactivate")} the record type {EntityName(names, value.EntityId)}; retain stored data."
+                        : $"{(value.Retired ? "Retire" : "Reactivate")} {FieldName(names, value.FieldId)} on {EntityName(names, value.EntityId)}; retain stored data.",
+                    value.Reversibility, value.EntityId, value.FieldId ?? value.EntityId),
                 DeleteRecordOperation value => Entry("deleteRecord", $"Delete record {HumanId(value.RecordId)}; retain values for guarded restoration.", value.Reversibility, value.EntityId, value.RecordId),
-                SetChoiceMetadataOperation value => Entry("setChoiceMetadata", $"Name choice {value.DisplayName}, mark it {(value.Retired ? "retired" : "available")} and {(value.Tone is null ? "give it no colour" : $"colour it {value.Tone}")}; preserve its stored ID.", value.Reversibility, value.EntityId, value.FieldId, value.ChoiceId),
+                SetChoiceMetadataOperation value => Entry("setChoiceMetadata", $"{ChoiceNaming(names, value)}, mark it {(value.Retired ? "retired" : "available")} and {(value.Tone is null ? "give it no colour" : $"colour it {value.Tone}")}; preserve its stored ID.", value.Reversibility, value.EntityId, value.FieldId, value.ChoiceId),
                 ConfigureReferenceOperation value => Entry("configureReference",
                     $"Point {FieldName(names, value.FieldId)} on {EntityName(names, value.EntityId)} at {EntityName(names, value.TargetEntityId)}, labelled by {FieldName(names, value.LabelFieldId)}.",
                     value.Reversibility, value.EntityId, value.FieldId, value.TargetEntityId, value.LabelFieldId),
                 ConvertLegacyReferenceOperation value => Entry("convertLegacyReference", $"Convert {value.Records.Count} explicitly mapped legacy reference values; retain original values in history. This conversion cannot be undone automatically.",
                     value.Reversibility, new[] { value.EntityId, value.FieldId, value.TargetEntityId }.Concat(value.Records.Select(row => row.RecordId)).ToArray()),
-                RenameEntityOperation value => Entry("renameEntity", $"Rename record type to {value.DisplayName}.", value.Reversibility, value.EntityId),
-                RenameFieldOperation value => Entry("renameField", $"Rename field to {value.DisplayName}.", value.Reversibility, value.EntityId, value.FieldId),
+                RenameEntityOperation value => Entry("renameEntity",
+                    names.ActiveEntities.TryGetValue(value.EntityId, out var formerType)
+                        ? $"Rename the record type {formerType} to {value.DisplayName}."
+                        : $"Rename the record type to {value.DisplayName}.",
+                    value.Reversibility, value.EntityId),
+                RenameFieldOperation value => Entry("renameField",
+                    names.ActiveFields.TryGetValue(value.FieldId, out var formerField)
+                        ? $"Rename {formerField} on {EntityName(names, value.EntityId)} to {value.DisplayName}."
+                        : $"Rename a field of {EntityName(names, value.EntityId)} to {value.DisplayName}.",
+                    value.Reversibility, value.EntityId, value.FieldId),
                 CreateEntityOperation value => Entry(
                     "addEntity",
                     $"Add {value.DisplayName} structure.",
@@ -166,7 +204,7 @@ internal static class SemanticDiff
                     value.NodeId),
                 RemoveUiNodeOperation value => Entry(
                     "removeUiNode",
-                    $"Remove {NodeDescription(names, value.NodeId)} from its surface.",
+                    $"Remove {NodeDescription(names, value.NodeId)} from its surface{Inside(names, value.NodeId)}.",
                     value.Reversibility,
                     value.SurfaceId,
                     value.NodeId),
@@ -401,8 +439,13 @@ internal static class SemanticDiff
         };
     }
 
-    private static DiffNames Resolve(NendoChangeSet changeSet, NendoSessionSnapshot active)
+    private static DiffNames Resolve(NendoChangeSet changeSet, NendoSessionSnapshot active,
+        IReadOnlyDictionary<string, string> definitionNames)
     {
+        var nodeParents = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var nodeEntities = new Dictionary<string, string>(StringComparer.Ordinal);
+        var activeChoices = new Dictionary<(string FieldId, string ChoiceId), string>();
+        var definitions = new Dictionary<string, string>(definitionNames, StringComparer.Ordinal);
         var fields = new Dictionary<string, string>(StringComparer.Ordinal);
         var entities = new Dictionary<string, string>(StringComparer.Ordinal);
         var nodeKinds = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -451,10 +494,12 @@ internal static class SemanticDiff
                 fields[field.FieldId] = field.DisplayName;
                 fieldKinds[field.FieldId] = field.StorageKind;
                 if (field.Reference is { } reference) referenceTargets[field.FieldId] = reference.TargetEntityId;
+                foreach (var choice in field.Choices) activeChoices[(field.FieldId, choice.Id)] = choice.DisplayName;
             }
             foreach (var field in entity.DerivedFields)
             {
                 fields[field.FieldId] = field.DisplayName;
+                fieldKinds[field.FieldId] = Storage.SqliteNendoStore.KindOf(field.ResultType);
                 calculated.Add(field.FieldId);
             }
         }
@@ -462,12 +507,19 @@ internal static class SemanticDiff
         {
             nodeKinds[node.NodeId] = node.Kind;
             nodeOrder.Add(node.NodeId);
+            nodeParents[node.NodeId] = node.ParentNodeId;
+            if (node.Properties.TryGetValue("entityId", out var named) && named.ValueKind == JsonValueKind.String &&
+                named.GetString() is { Length: > 0 } namedEntity)
+                nodeEntities[node.NodeId] = namedEntity;
             if (node.ParentNodeId is null) surfaceRoots[node.SurfaceId] = node.NodeId;
             foreach (var property in new[] { "title", "label" })
                 if (node.Properties.TryGetValue(property, out var stored) && stored.ValueKind == JsonValueKind.String &&
                     stored.GetString() is { Length: > 0 } existing)
                     nodeLabels[node.NodeId] = existing;
         }
+
+        var activeFields = new Dictionary<string, string>(fields, StringComparer.Ordinal);
+        var activeEntities = new Dictionary<string, string>(entities, StringComparer.Ordinal);
 
         // A proposal may name something it is creating in the same change set.
         foreach (var operation in changeSet.Mutations.SelectMany(mutation => mutation.Operations))
@@ -482,8 +534,12 @@ internal static class SemanticDiff
                     nodeKinds[value.NodeId] = value.Kind;
                     addedNodes.Add(value.NodeId);
                     nodeOrder.Add(value.NodeId);
+                    nodeParents[value.NodeId] = value.ParentNodeId;
                     if (value.ParentNodeId is null) surfaceRoots[value.SurfaceId] = value.NodeId;
                     break;
+                case MoveUiNodeOperation value: nodeParents[value.NodeId] = value.ParentNodeId; break;
+                // A node this change set removes is not counted again under a parent removed after it.
+                case RemoveUiNodeOperation value: nodeParents.Remove(value.NodeId); break;
                 case SetUiPropertyOperation { PropertyName: "fieldId" } value
                     when value.Value.ValueKind == JsonValueKind.String && value.Value.GetString() is { Length: > 0 } bound:
                     bindingFields[value.NodeId] = bound;
@@ -492,6 +548,10 @@ internal static class SemanticDiff
                 case SetUiPropertyOperation { PropertyName: "operator" } value
                     when value.Value.ValueKind == JsonValueKind.String && value.Value.GetString() is { Length: > 0 } comparison:
                     filters[value.NodeId] = (filters.GetValueOrDefault(value.NodeId) ?? new FilterTerms(null, null, null)) with { Operator = comparison };
+                    break;
+                case SetUiPropertyOperation { PropertyName: "valueKind" } value
+                    when value.Value.ValueKind == JsonValueKind.String && value.Value.GetString() is { Length: > 0 } valueKind:
+                    filters[value.NodeId] = (filters.GetValueOrDefault(value.NodeId) ?? new FilterTerms(null, null, null)) with { ValueKind = valueKind };
                     break;
                 case SetUiPropertyOperation { PropertyName: "value" } value:
                     filters[value.NodeId] = (filters.GetValueOrDefault(value.NodeId) ?? new FilterTerms(null, null, null)) with { Value = value.Value };
@@ -519,6 +579,7 @@ internal static class SemanticDiff
                 case SetUiPropertyOperation { PropertyName: "entityId" } value
                     when value.Value.ValueKind == JsonValueKind.String && value.Value.GetString() is { Length: > 0 } reads:
                     tiles[value.NodeId] = (tiles.GetValueOrDefault(value.NodeId) ?? new TileTerms(null, null, null)) with { EntityId = reads };
+                    nodeEntities[value.NodeId] = reads;
                     break;
                 case ConfigureReferenceOperation value: referenceTargets[value.FieldId] = value.TargetEntityId; break;
                 case SetChoiceMetadataOperation value: choiceNames[(value.FieldId, value.ChoiceId)] = value.DisplayName; break;
@@ -528,13 +589,74 @@ internal static class SemanticDiff
                     break;
                 case SetBehaviourDefinitionOperation { Definition: NendoCalculationDefinition value }:
                     fields[value.FieldId] = value.DisplayName;
+                    fieldKinds[value.FieldId] = Storage.SqliteNendoStore.KindOf(value.ResultType);
                     calculated.Add(value.FieldId);
+                    definitions[value.DefinitionId] = value.DisplayName;
+                    break;
+                case SetBehaviourDefinitionOperation { Definition: var value }:
+                    definitions[value.DefinitionId] = BehaviourName(value);
                     break;
             }
         }
 
         return new DiffNames(fields, entities, nodeKinds, nodeLabels, calculated, referenceTargets, choiceNames,
-            bindingFields, addedNodes, nodeOrder, surfaceRoots, filters, opens, fieldKinds, orderings, tiles);
+            bindingFields, addedNodes, nodeOrder, surfaceRoots, filters, opens, fieldKinds, orderings, tiles)
+        {
+            ActiveFields = activeFields,
+            ActiveEntities = activeEntities,
+            ActiveChoiceNames = activeChoices,
+            NodeParents = nodeParents,
+            NodeEntities = nodeEntities,
+            DefinitionNames = definitions,
+        };
+    }
+
+    /// <summary>A behaviour definition's own name, whichever kind it is.</summary>
+    internal static string BehaviourName(NendoBehaviourDefinition definition) => definition switch
+    {
+        NendoCalculationDefinition value => value.DisplayName,
+        NendoFunctionDefinition value => value.DisplayName,
+        NendoActionDefinition value => value.DisplayName,
+        NendoTriggerDefinition value => value.DisplayName,
+        _ => definition.DefinitionId,
+    };
+
+    /// <summary>
+    /// A definition by its name, or by its ID verbatim when neither the file nor this change set
+    /// names it. Its ID prettified into words read as a name the author chose and was not one.
+    /// </summary>
+    private static string DefinitionName(DiffNames names, string definitionId) =>
+        names.DefinitionNames.TryGetValue(definitionId, out var display) ? $"\"{display}\"" : $"with the ID {definitionId}";
+
+    /// <summary>A choice named in its field's terms, and renamed from what it was where it was something else.</summary>
+    private static string ChoiceNaming(DiffNames names, SetChoiceMetadataOperation operation) =>
+        names.ActiveChoiceNames.TryGetValue((operation.FieldId, operation.ChoiceId), out var former) &&
+        !string.Equals(former, operation.DisplayName, StringComparison.Ordinal)
+            ? $"Rename the {FieldName(names, operation.FieldId)} choice {former} to {operation.DisplayName}"
+            : $"Name the {FieldName(names, operation.FieldId)} choice {operation.DisplayName}";
+
+    /// <summary>What a removal takes with it: every node under the one removed, counted.</summary>
+    private static string Inside(DiffNames names, string nodeId)
+    {
+        var children = names.NodeParents
+            .Where(pair => pair.Value is not null)
+            .ToLookup(pair => pair.Value!, pair => pair.Key, StringComparer.Ordinal);
+        var count = 0;
+        var pending = new Stack<string>(children[nodeId]);
+        var seen = new HashSet<string>(StringComparer.Ordinal) { nodeId };
+        while (pending.Count > 0)
+        {
+            var next = pending.Pop();
+            if (!seen.Add(next)) continue;
+            count++;
+            foreach (var child in children[next]) pending.Push(child);
+        }
+        return count switch
+        {
+            0 => string.Empty,
+            1 => ", and the one node inside it",
+            _ => $", and the {count} nodes inside it",
+        };
     }
 
     /// <summary>
@@ -619,9 +741,9 @@ internal static class SemanticDiff
             NendoFunctionDefinition value =>
                 $"Define the reusable calculation {value.DisplayName}.",
             NendoActionDefinition value =>
-                $"Define the action {value.DisplayName}: {StepSummary(value)}.",
+                $"Define the action {value.DisplayName}: {StepSummary(names, value)}.",
             NendoTriggerDefinition value =>
-                $"Run {HumanId(value.ActionId)} automatically when a {EntityName(names, value.EntityId)} record is {EventSummary(value.Events)}" +
+                $"Run the action {DefinitionName(names, value.ActionId)} automatically when a {EntityName(names, value.EntityId)} record is {EventSummary(value.Events)}" +
                 (value.RelevantFieldIds.Count == 0
                     ? ""
                     : $" (updates to {string.Join(", ", value.RelevantFieldIds.Select(field => FieldName(names, field)))})") +
@@ -629,11 +751,11 @@ internal static class SemanticDiff
             _ => "Install a behaviour definition.",
         };
 
-    private static string StepSummary(NendoActionDefinition action) =>
+    private static string StepSummary(DiffNames names, NendoActionDefinition action) =>
         string.Join(", ", action.Steps.Select(step => step.Kind switch
         {
-            NendoActionStepKind.SetField => $"set {string.Join(" and ", step.Assignments.Select(assignment => HumanId(assignment.FieldId)))}",
-            NendoActionStepKind.CreateRecord => $"add a {HumanId(step.EntityId ?? "record")} record",
+            NendoActionStepKind.SetField => $"set {string.Join(" and ", step.Assignments.Select(assignment => FieldName(names, assignment.FieldId)))}",
+            NendoActionStepKind.CreateRecord => step.EntityId is { } created ? $"add a {EntityName(names, created)} record" : "add a record",
             NendoActionStepKind.DeleteRecord => "delete the related record",
             _ => "change data",
         }));
@@ -797,9 +919,14 @@ internal static class SemanticDiff
             var other => $"Summarise {field} by {other}",
         };
         var parentKind = operation.ParentNodeId is { } parent ? names.NodeKinds.GetValueOrDefault(parent, string.Empty) : string.Empty;
+        var pageType = parentKind is "detailSurface" or "recordForm" or "section" or "tabGroup" &&
+            names.SurfaceRoots.TryGetValue(operation.SurfaceId, out var root) &&
+            names.NodeKinds.GetValueOrDefault(root) is "detailSurface" or "recordForm" &&
+            names.NodeEntities.TryGetValue(root, out var page) ? page : null;
         var coverage = terms.Scope == "group" ? "in each column"
             : parentKind == "relatedList" ? "over every related record"
             : terms.EntityId is { } entityId ? $"over every {EntityName(names, entityId)} record"
+            : pageType is not null ? $"over every {EntityName(names, pageType)} record"
             : "over every record shown";
         var label = names.NodeLabels.TryGetValue(operation.NodeId, out var title)
             ? $" as \"{title}\"{Position(names, operation.NodeId, operation.Kind, title)}"
@@ -893,15 +1020,23 @@ internal static class SemanticDiff
     private static string FilterSentence(AddUiNodeOperation operation, DiffNames names, FilterTerms terms)
     {
         var field = terms.FieldId is { } fieldId ? FieldName(names, fieldId) : "a field";
-        var value = terms.Value is { } given ? Text(given, "blank") : "the value";
+        var value = terms.ValueKind switch
+        {
+            "today" => "today",
+            "now" => "now",
+            "null" => "empty",
+            _ => terms.Value is { } given ? Text(given, "blank") : "the value",
+        };
+        // A date is before or after another, not less or greater than it.
+        var dated = terms.FieldId is { } dateId && names.FieldKinds.GetValueOrDefault(dateId) is NendoStorageKind.Date or NendoStorageKind.DateTime;
         var condition = (terms.Operator ?? "eq") switch
         {
             "eq" => $"{field} is {value}",
             "ne" => $"{field} is not {value}",
-            "lt" => $"{field} is less than {value}",
-            "lte" => $"{field} is at most {value}",
-            "gt" => $"{field} is greater than {value}",
-            "gte" => $"{field} is at least {value}",
+            "lt" => dated ? $"{field} is before {value}" : $"{field} is less than {value}",
+            "lte" => dated ? $"{field} is on or before {value}" : $"{field} is at most {value}",
+            "gt" => dated ? $"{field} is after {value}" : $"{field} is greater than {value}",
+            "gte" => dated ? $"{field} is on or after {value}" : $"{field} is at least {value}",
             "isNull" => $"{field} is empty",
             "isNotNull" => $"{field} is set",
             var other => $"{field} is {other} {value}",
@@ -919,15 +1054,17 @@ internal static class SemanticDiff
     private static string MoveSummary(MoveUiNodeOperation operation, DiffNames names)
     {
         var node = NodeDescription(names, operation.NodeId);
+        // Positions are stored from zero and said from one, as tabs already were.
+        var place = operation.Position + 1;
         if (operation.ParentNodeId is null)
             return names.NodeKinds.GetValueOrDefault(operation.NodeId, string.Empty) == "section"
-                ? $"Move {node} out of its container to position {operation.Position} of its surface, where it is no longer a tab."
-                : $"Move {node} to position {operation.Position} of its surface.";
+                ? $"Move {node} out of its container to position {place} of its surface, where it is no longer a tab."
+                : $"Move {node} to position {place} of its surface.";
         var parentKind = names.NodeKinds.GetValueOrDefault(operation.ParentNodeId, string.Empty);
         var parent = NodeDescription(names, operation.ParentNodeId);
         return parentKind == "tabGroup"
             ? $"Make {node} tab {operation.Position + 1} of {parent}."
-            : $"Move {node} into {parent} at position {operation.Position}.";
+            : $"Move {node} into {parent} at position {place}.";
     }
 
     private static string SetPropertySummary(SetUiPropertyOperation operation, DiffNames names)
@@ -1014,6 +1151,13 @@ internal static class SemanticDiff
             {
                 "filterClause" => $"Compare against {Text(operation.Value, "blank")}.",
                 _ => $"Set the command value to {Text(operation.Value, "blank")}.",
+            },
+            "valueKind" when kind == "filterClause" => Text(operation.Value, "literal") switch
+            {
+                "today" => "Compare with today's date when the screen reads.",
+                "now" => "Compare with the date and time when the screen reads.",
+                "null" => "Compare with no value.",
+                _ => "Compare with the value stated.",
             },
             "valueKind" => Text(operation.Value, "literal") switch
             {

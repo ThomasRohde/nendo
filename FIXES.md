@@ -11,7 +11,7 @@ findings are verified.
 - Complete (2026-10-11). Round 1: 35 areas. Round 2: 6 areas the completeness critic opened on its gaps (adapter parity, ADR and vision conformance, locale and time, reversibility matrix, safe mode and file versions, several processes). Every finding had a skeptic vote; duplicates were folded.
 - Areas reported: 41. Raw findings: 708; kept after verification: 644 (595 after folding 49 duplicates); refuted: 64; awaiting verification: 0.
 - Kept by priority: P0 2, P1 4, P2 95, P3 494.
-- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. Fix pass 2026-10-12 (W-207): the 30 data view, form and markup findings are fixed, four in part. The other findings are open, planned as W-205 and W-208 to W-231 under I-009 in the Nendo Development planner; W-205's five decisions are accepted (D-005 to D-009).
+- Fix pass 2026-10-11: both P0 and all four P1 findings are fixed, and so are the five P2 findings in the security category (MHS-02, ESM-02, WMX-01, TGA-01, DAE-02), each with a guard seen to fail with the defect put back. See [Fix pass](#fix-pass). Fix pass 2026-10-12 (W-204): the nine P3 security findings are closed, eight with a falsified guard and BL-09 by a lock refresh, and DAE-08 with them. TST-02 is fixed too (gate harness). Fix pass 2026-10-12 (W-206): the 30 shell, focus and keyboard findings are fixed, two in part. Fix pass 2026-10-12 (W-207): the 30 data view, form and markup findings are fixed, four in part. Fix pass 2026-10-12 (W-208): the 21 semantic compiler, review-line and History findings are fixed, one in part. The other findings are open, planned as W-205 and W-209 to W-231 under I-009 in the Nendo Development planner; W-205's five decisions are accepted (D-005 to D-009).
 
 ## Method
 
@@ -9320,3 +9320,64 @@ the Markdown subset).
   checks) and the repository gate.
 - Installer: `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1` and
   `Test-NendoSetupIsolated.ps1` passed; the payload's Workbench bundle carries the changes.
+
+### Sixth pass: the semantic compiler, review lines and History (W-208)
+
+2026-10-12: the 21 findings planned as W-208 (7 P2, 14 P3) are fixed, one in part as said
+below. The guards are three new Engine test files, `SemanticCompilerReviewTests.cs`,
+`SemanticDiffReviewTests.cs` and `StorageReviewTests.cs`, and two cases added to
+`LinkRuleTests.cs`. Every guard failed with its defect put back; the quoted texts are from
+those runs. Copies of the five tracked workspace files still compile under the stricter rules;
+the planner, which was open, was read through MCP instead and uses none of them.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [ESM-01](#esm-01) | A link rule declared in the mutation that creates its table type or an endpoint's kind field is checked at the end of that mutation, once its columns exist, and refused as any declaration is (`SqliteNendoStore.LinkRules.cs`). ADR-0026's delivery note said such a declaration had no data to check, which held only for a new link type; corrected. | Both cases (table, kind field): `Expected exception type:<NendoPreconditionException> but no exception was thrown.` |
+| [ESM-03](#esm-03) | `today` compares only with a Date or DateTime field and `now` only with a DateTime (`NUI457`); a value beside either is ignored and warned about (`NUI458`). The same rules hold in a custom view's filters (`NUI450`). | `t-due lt now  compiled; every read of the list would refuse it.` (and for today on a Boolean and an Integer); the view: `A view filter Due lt now compiled`. |
+| [ESM-04](#esm-04) | A screen edit is reversed from History only while the definition stands as that revision left it, and History offers it only then; the retirement check reads every property that names a field or record type, not four (`SqliteNendoStore.Compensation.cs`, `.Retirement.cs`, `.ReadQueries.cs`). | `Expected exception type:<NendoPreconditionException> but no exception was thrown` (retiring the ordering field); with the revision guard alone removed the retirement check still refused it: `Actual exception type:<NendoPreconditionException>`; the offer: `History offered a reversal the engine refuses once the definition has moved on.` |
+| [ESM-05](#esm-05) | A literal is written as storage keeps it: a Date `yyyy-MM-dd`, a DateTime an ISO timestamp with its zone, a Uuid hyphenated (`NUI277`, one timestamp rule shared with storage). A command step that sets a retired choice is warned about (`NUI286`). | `t-due lt literal 2026/10/31 compiled`, `t-at lt literal 2026-10-01 compiled`, `t-key lt literal abc compiled`; `A step setting Due to 'tomorrow' compiled.`; `A step setting the retired choice compiled, and every press would be refused`. |
+| [ESM-06](#esm-06) | A custom view carries at most eight `filterClause` children on one record type (`NUI300`), as one query per type carries eight; the published contexts say so. | `A view with nine filters on one record type compiled, and every load would be refused`. |
+| [ESM-07](#esm-07) | An operation ID an earlier change used is refused naming it, before the insert that failed as a raw SQLite error (`SqliteNendoStore.cs`). The custom-views contract says an ID is used once. | `Expected exception type:<NendoValidationException>. Actual exception type:<Microsoft.Data.Sqlite.SqliteException>.` |
+| [ESM-08](#esm-08) | A surface nests at most 24 levels (`NUI456`, `limits.nodeDepth`), checked before any recursion. 28 compiled before and 29 threw out of the digest. | `Assert.IsFalse failed. … 'past.IsValid'`; a 1,000-deep front page: `Test host process crashed : Stack overflow.` |
+| [ESM-09](#esm-09) | An integer property of a canonical payload must be a JSON number, and a sequence width in range, or the refusal names the property. | `Actual exception type:<System.InvalidOperationException>` (four payloads); `<System.OverflowException>` (width). |
+| [ESM-12](#esm-12) | History reverses a `ui.addNode` (by removing it) and a `ui.moveNode` (to its retained parent and place), while the definition is unchanged since. A compensation of the definition is compiled before it commits and refused if it would leave screens that do not compile. Not done: `schema.setFieldPresentation` still declares `Reversible`, since ADR-0023 makes the class part of every stored operation's digest. | `History does not offer to reverse a move it declares reversible.`; the review's case: `Expected exception type:<NendoCompensationNotSupportedException> but no exception was thrown.` |
+| [ESM-13](#esm-13) | A filter clause added with a value kind is one line in its field's terms ("Due is before today", "Due is empty"); a value kind changed on an existing clause reads as a comparison, not a command step. | `…is before today.␍␊Compare with toda…` (the value kind's own line back); a calculated date: `Expected string length 52 but was 55`. |
+| [ESM-14](#esm-14) | Retire, rename, backfill, choice and removal lines name their subject: "Retire Notes on Client", "Rename Notes on Task to Comments", "Rename the Stage choice Done to Closed", and a removal counts the nodes inside it. | `Retire record type; reta…`; counted nodes already removed: `Expected string length 46 but was 73`. |
+| [ESM-16](#esm-16) | A custom view's filter never counts as a calculated-field filter in the capability ladder (`SemanticCapability.cs`). | `A filter on the edge type's stored Type field was counted as a calculated-field filter.` |
+| [ESM-17](#esm-17) | Each record type's surfaces are compiled on their own errors, so one validation reports every broken type. | `Expected:<2>. Actual:<1>.Only the first broken record type was reported`. |
+| [ESM-18](#esm-18) | A record panel on the front page is told it needs a record (`NUI398`). | `NUI392 [ov-panel/entityId] Required property 'entityId' is missing or invalid.` |
+| [ESM-19](#esm-19) | Action steps and triggers name fields, record types and actions by name (the store reads behaviour names for the review); a tile on a record page counts "every Task record"; positions count from one. | `…sh the task: set P9.␍␊Run the actio…` |
+| [ESM-20](#esm-20) | `NUI413`'s hint no longer offers a filterClause, which the ceiling does not count; the contract says so. | `String 'The unset lane on each axis is … or narrow one of them with a filterClause on the axis field…'` |
+| [ESM-21](#esm-21) | Empty text at either end of a link is no kind and matches no row. | `Expected exception type:<NendoPreconditionException> but no exception was thrown.` |
+| [ESM-22](#esm-22) | A calculated field with an operator the vocabulary does not have earns `NUI273` alone. | `A calculated field was also refused for an operator the vocabulary does not have.` |
+| [ESM-23](#esm-23) | ADR-0026 says `ReversibleWithRetainedState`, as the code always has. | Documentation. |
+| [ESM-24](#esm-24) | The vocabulary note and the contract say only a breakdownChart takes `scope`. | `Assert.DoesNotContain failed. String 'A breakdownChart states one exact number per group…` |
+| [ESM-26](#esm-26) | Running the Idea Garden proposal on a file it set up says the file has surfaces; its own single-line Title is accepted; the board rename reads the board it writes. | `Expected exception type:<NendoPreconditionException> but no exception was thrown.` |
+
+An independent review of the fixes found two defects and six smaller items, all fixed and
+guarded as quoted above: a stray value beside `today` (which no operation can remove) and a
+step setting a choice retired later were errors that took every custom screen down, now
+warnings, and the depth bound refused pages that drew; and a History reversal could land on
+the middle of a proposal of several mutations that never compiled, now compiled before it
+commits. Smaller: History offered reversals it then refused, a removal counted nodes already
+removed, a calculated date read "less than", a width message, two doc lines.
+
+Documents updated with the behaviour: `docs/contracts/semantic-surfaces.md` (depth, filter
+value kinds and literal forms, the front page's panel, progress scope, the matrix ceiling, the
+custom-view row), `docs/contracts/custom-views.md` (filters, the per-type ceiling, operation
+IDs, `NUI300`), `docs/contracts/relationships.md`, `docs/decisions/0026-allowed-links.md`
+(reversibility and the delivery notes) and `docs/architecture.md` (screen-edit compensation).
+
+Checks, on a locked workstation (LogonUI running):
+
+- `Test-Production.ps1 -SkipRestore` before the review's fixes: Workbench, the .NET build,
+  Engine 1172 of 1174 (2 skipped) and Local MCP 245 of 250 (5 skipped) passed. Desktop 454 of
+  455: `ViewsRunInlineIsolatedFromTheWorkbenchAndStopWhenSwitchedOff` stopped at its clipboard
+  probe ("Requested Clipboard operation did not succeed"), the locked-workstation interlock, after
+  its G8 to G33 checks had passed. The stages after .NET then ran from a copy of the gate without
+  the suites: tool and production boundaries and the custom-view presentation lanes passed up to
+  Garden, which failed on its graph-settling timing (`travelled 63, afterTwoSeconds 37`).
+- After the review's fixes: Engine 1176 of 1178 and Local MCP 245 of 250 passed; Desktop the
+  same one clipboard failure; `Review-AgentChat.ps1`, `Review-WorkbenchShell.ps1`,
+  `Review-Garden.ps1` (passed this time) and `Test-Repository.ps1` passed. The presentation lanes
+  before Garden were not rerun after the review's fixes, which change only the Engine.

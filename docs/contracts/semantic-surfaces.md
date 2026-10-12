@@ -28,6 +28,23 @@ groups, selected explicitly in Use. With zero custom nodes, permanent Studio
 remains. Board card fields come from ordered `fieldBinding` children. The
 parallel `cardFieldIds` property no longer exists.
 
+**A surface nests at most twenty-four levels**, its root counted as the first
+(`MaximumNodeDepth`, published as `limits.nodeDepth`). A section may hold a section,
+so without a bound a deep tree threw out of the plan digest or exhausted the
+compiler's stack; the first node past it is `NUI456`, said once per branch, before
+anything is compiled. Every record type's surfaces are compiled even when an
+earlier type's are broken, so one validation reports them all.
+
+**A filter clause compiles only if storage can read it.** `today` compares with a
+Date or DateTime field and `now` with a DateTime field; anything else is `NUI457`.
+Neither takes a `value`: one beside them is ignored and warned about (`NUI458`), as
+no operation removes a property. A literal must be written as storage keeps the
+field: a Date as `yyyy-MM-dd`, a DateTime as an ISO timestamp with seconds and its
+zone, a Uuid hyphenated (`NUI277`). The same rules hold for a custom view's
+filters, where `today` or `now` on the wrong field is refused as `NUI450` and a
+malformed literal as `NUI277`. A command step that sets a retired choice is warned
+about (`NUI286`), since every press would be refused; a filter may still match one.
+
 ## How many roots of a kind an entity may own
 
 Every kind that can be a root declares its ceiling in the vocabulary table. The
@@ -581,8 +598,8 @@ shape a range can read). The tile shows both ends or neither, because one end of
 a range is a bound. A set with no records has no range, and the tile says so; it
 does not read zero to zero.
 
-A `fieldBinding` and a `relatedList` need a current record, and the front page has
-none, so both are `NUI398`. A `visibleWhen` calculation answers per record and is
+A `fieldBinding`, a `relatedList` and a custom record panel need a current record,
+and the front page has none, so all three are `NUI398`. A `visibleWhen` calculation answers per record and is
 `NUI399` for the same reason. An overview with no `summaryTile`,
 `breakdownChart`, `progressTile`, `rangeTile`, `recentList`, `rankedList`,
 `trendChart` or `activityGrid` is `NUI400`. A heading over an empty space is not
@@ -686,7 +703,7 @@ Light and Dark colours behind it. So a hex value is refused by name, and so is
 
 The operation sets the whole of an option's metadata. A rename that carries the
 tone keeps it; a rename that omits the tone clears it. The review line says which:
-*Name choice Trying, mark it available and colour it teal; preserve its stored ID*
+*Name the Stage choice Trying, mark it available and colour it teal; preserve its stored ID*
 against *… and give it no colour*. Compensation of either puts the previous
 label, availability and tone back together.
 
@@ -747,7 +764,8 @@ are tiles in the same sense as a `summaryTile`:
   `boardSurface`, `gallerySurface`, `matrixSurface`, `overviewSurface`,
   `detailSurface` and `section`. They are not yet accepted inside
   a `relatedList`, where they are refused and not drawn empty.
-- They are scoped as a `summaryTile` is scoped.
+- A `breakdownChart` takes a summary tile's `scope`; a `progressTile` takes none,
+  and counts over the records where it sits.
 - They refuse the numbers it refuses, by the same codes.
 
 | Kind | Properties | Children | What it states |
@@ -914,6 +932,9 @@ nobody configured.
 
 **The cross product spends the group ceiling.** `MaximumAggregateGroups` is 366,
 and the two option sets plus their unset lanes must multiply to a value inside it.
+The ceiling counts every option of both fields: a surface's `eq` and `ne` clauses
+narrow the records and the lanes drawn, not the ceiling, so `NUI413` names fewer
+options as the remedy and not a filter.
 So the widest grid that fits is about nineteen by nineteen. A definition that is
 already over the ceiling is refused when it is authored (`NUI413`, which states
 the rows, the columns and the cells, unset lanes included). A definition that grows over the ceiling later is
@@ -1149,6 +1170,7 @@ refuses. Composition spends the budget as follows:
 | Board column chart | the board's clauses, the chart's own, and one column predicate |
 | Trend chart or activity grid | its context's clauses, its own, and the two date bounds of its range; at `group` scope, also one column predicate |
 | Progress ring | its own clauses over its scope, and the scope alone, as two counts |
+| Custom view | its `filterClause` children on each record type, one query per type: the node type's, and on a graph the edge type's |
 
 An over-budget definition is `NUI300`. The refusal names the node, the property
 path, the count it composes to and the source of each clause. The host never
