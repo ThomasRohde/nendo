@@ -9134,3 +9134,30 @@ that could not fail; the scheme is still read from the text.
   and its payload carries the fixes (`NendoMintedHandles` in `Nendo.LocalMcp.dll`,
   `FrameNavigation` in `Nendo.Desktop.dll`, the "Serve … instead of …" sentence in
   `Nendo.Engine.dll`, and "served as" and the menu window in the Workbench bundle).
+
+### TST-02: the gate's MCP handshake timeouts
+
+2026-10-12: [TST-02](#tst-02) is fixed. It surfaced in the third pass's first gate run, where
+`DesktopAgentSettingsTests.ARefusedExpiryCannotSaveTheChosenFilePortOrRestartItsListener` timed
+out on MCP initialization, as it had on 2026-10-05 and 2026-10-10.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [TST-02](#tst-02) | `Test-Production.ps1` runs the Engine, LocalMcp and Desktop suites one after another instead of all at once, and still runs all three when one fails. The Desktop test process sizes its thread pool as the LocalMcp one does (`DesktopTestHostThreads`, from the assembly's one initializer). The Desktop suite's three MCP client copies, each with a 5 s bound, are one helper with the LocalMcp suite's 10 s bound that says how long a slow handshake took and what the pool was doing (`DesktopMcpClient`). Guard: `TestHarnessShapeTests`, the pool's minimum, no test building its own MCP client, and the gate naming each suite and never `dotnet test Nendo.slnx`. | Pool sizing removed: `Actual value <22> is not greater than or equal to expected value <88>. … The pool's minimum is 22`. A 5 s client copy put back: `These tests build their own MCP client instead of DesktopMcpClient: DesktopAgentSettingsTests.cs`. The solution-wide run put back: `Assert.IsFalse failed. … The gate runs every suite at once again.` |
+
+Not done, from the finding's suggestions: capping MSTest workers per suite, and a `-Repeat`
+lane; two consecutive full runs stand in for the repeat as evidence, not as a lane.
+
+#### Checks run for TST-02
+
+Two consecutive `Test-Production.ps1 -SkipRestore` runs, with no MCP handshake timeout in
+either:
+
+- Run 1 passed, every stage including the binary-asset step (exit 0): Engine 1126 passed,
+  3 skipped (6 m 25 s); LocalMcp 245 passed, 5 skipped (2 m 17 s); Desktop 455 passed
+  (1 m 33 s).
+- Run 2: Engine 1127 passed, 2 skipped (1 m 58 s); LocalMcp 245 passed, 5 skipped (50 s);
+  Desktop 454 passed, 1 failed: the extension-view journey's clipboard probe, `Requested
+  Clipboard operation did not succeed`, with LogonUI running (the workstation had locked),
+  the interlock recorded in the earlier passes. The gate stopped there, after running all
+  three suites.

@@ -85,7 +85,18 @@ try {
     Invoke-Checked 'dotnet' @('build', 'Nendo.slnx', '--no-restore', '--nologo') '.NET build'
     if ($Inspector) { $env:NENDO_RUN_INSPECTOR = '1' }
     if ($Soak) { $env:NENDO_RUN_SOAK = '1' }
-    Invoke-Checked 'dotnet' @('test', 'Nendo.slnx', '--no-build', '--no-restore', '--nologo', '--logger', 'trx') '.NET tests'
+    # One suite at a time (TST-02). Run together, the three suites' parallel methods each start
+    # hosts, children and files at once, and a fresh MCP host's first answer queued behind them
+    # past its client's bound: "Initialization timed out" on 2026-10-05, 2026-10-10 and
+    # 2026-10-12, never with a suite alone. Each suite still runs its own methods in parallel.
+    # A failing suite does not stop the next, so one run still reports all three.
+    $failedSuites = @()
+    foreach ($suite in @('Nendo.Engine.Tests', 'Nendo.LocalMcp.Tests', 'Nendo.Desktop.Tests')) {
+        $project = Join-Path $repoRoot "tests/$suite/$suite.csproj"
+        & dotnet test $project --no-build --no-restore --nologo --logger trx
+        if ($LASTEXITCODE -ne 0) { $failedSuites += $suite }
+    }
+    if ($failedSuites.Count -gt 0) { throw ".NET tests failed in $($failedSuites -join ', ')." }
 
     Write-Host '== Tool boundaries =='
     Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs')) 'Package uploader and clipboard probe boundaries'

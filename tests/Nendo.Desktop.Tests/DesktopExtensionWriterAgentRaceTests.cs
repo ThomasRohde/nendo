@@ -99,18 +99,6 @@ public sealed class DesktopExtensionWriterAgentRaceTests
         return result.StructuredContent ?? throw new AssertFailedException($"{name} returned no structured content.");
     }
 
-    private static async Task<McpClient> ConnectAsync(string discoveryPath)
-    {
-        using var discovery = JsonDocument.Parse(await File.ReadAllTextAsync(discoveryPath));
-        var transport = new HttpClientTransport(new HttpClientTransportOptions
-        {
-            Endpoint = new Uri(discovery.RootElement.GetProperty("endpoint").GetString()!),
-            TransportMode = HttpTransportMode.StreamableHttp, ConnectionTimeout = TimeSpan.FromSeconds(5),
-        });
-        return await McpClient.CreateAsync(transport, new McpClientOptions
-        {
-            ClientInfo = new Implementation { Name = "nendo-desktop-agent-race-tests", Version = "1.0.0" },
-            ProtocolVersion = "2026-07-28", InitializationTimeout = TimeSpan.FromSeconds(5),
-        });
-    }
+    private static Task<McpClient> ConnectAsync(string discoveryPath) =>
+        DesktopMcpClient.ConnectFromDiscoveryAsync(discoveryPath, "nendo-desktop-agent-race-tests");
 }

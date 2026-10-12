@@ -20,6 +20,8 @@ public static class DesktopTestDeviceState
     [AssemblyInitialize]
     public static void IsolateDeviceState(TestContext _)
     {
+        // The assembly's one initializer, so the pool is sized here too (TST-02).
+        DesktopTestHostThreads.SizeThePool();
         _root = Path.Combine(Path.GetTempPath(), "nendo-desktop-tests", $"device-state-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_root);
         Environment.SetEnvironmentVariable("NENDO_DEVICE_STATE_ROOT", _root);

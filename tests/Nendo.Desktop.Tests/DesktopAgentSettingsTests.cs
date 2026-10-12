@@ -248,16 +248,7 @@ public sealed class DesktopAgentSettingsTests
 
     private static async Task<McpClient> AcquireLeaseAsync(string endpoint)
     {
-        var transport = new HttpClientTransport(new HttpClientTransportOptions
-        {
-            Endpoint = new Uri(endpoint), TransportMode = HttpTransportMode.StreamableHttp,
-            ConnectionTimeout = TimeSpan.FromSeconds(5),
-        });
-        var client = await McpClient.CreateAsync(transport, new McpClientOptions
-        {
-            ClientInfo = new Implementation { Name = "agent-settings-tests", Version = "1.0.0" },
-            ProtocolVersion = "2026-07-28", InitializationTimeout = TimeSpan.FromSeconds(5),
-        });
+        var client = await DesktopMcpClient.ConnectAsync(endpoint, "agent-settings-tests");
         var result = await client.CallToolAsync("nendo.lease.acquire", new Dictionary<string, object?>());
         Assert.AreNotEqual(true, result.IsError, JsonSerializer.Serialize(result.Content));
         return client;
