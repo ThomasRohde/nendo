@@ -9381,3 +9381,4 @@ Checks, on a locked workstation (LogonUI running):
   same one clipboard failure; `Review-AgentChat.ps1`, `Review-WorkbenchShell.ps1`,
   `Review-Garden.ps1` (passed this time) and `Test-Repository.ps1` passed. The presentation lanes
   before Garden were not rerun after the review's fixes, which change only the Engine.
+- On an unlocked desktop afterwards: Desktop 455 of 455 passed, the clipboard probe included.
