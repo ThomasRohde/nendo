@@ -27,7 +27,10 @@ public sealed class DesktopExtensionStateTests
         var read = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.ExtensionStateRead, new { viewId = "probe", key = "layout", actor = Actor }));
         Assert.IsTrue(read.Ok, read.Error?.Message);
         var entry = ((DesktopExtensionStateView)read.Result!).Entries.Single();
-        Assert.AreEqual(("layout", """{"zoom":1.5}""", 1L), (entry.Key, entry.Value!.Value.GetRawText(), entry.Version));
+        Assert.AreEqual(("layout", """{"zoom":1.5}"""), (entry.Key, entry.Value!.Value.GetRawText()));
+        // A state version is at least the change sequence of the write that set it (EXT-09), so a
+        // first write reads a positive number rather than 1.
+        Assert.IsGreaterThan(0L, entry.Version, "A kept value has no version.");
 
         // The package is the actor's: another package reads its own, empty, place.
         var other = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.ExtensionStateRead,

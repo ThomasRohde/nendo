@@ -595,12 +595,15 @@ try {
     return { layout, writes, has: ['state.get', 'state.set', 'state.delete', 'state.keys'].map(name => nendo.has(name)) };
   })()`, 30000);
   report.measurements.stateWritesMs = Date.now() - keptAt;
-  assert(kept.has.every(Boolean) && kept.layout?.version === 1 && kept.layout.value?.zoom === 2 && kept.layout.value?.pinned?.join() === 't1',
+  // A state version is at least the change sequence of the write that set it (EXT-09), so a
+  // first write reads a positive whole number, not 1.
+  assert(kept.has.every(Boolean) && Number.isInteger(kept.layout?.version) && kept.layout.version > 0 && kept.layout.value?.zoom === 2 && kept.layout.value?.pinned?.join() === 't1',
     'The view could not keep a value: ' + JSON.stringify(kept));
   assert(kept.writes.every(write => write?.value === 3), 'Coalesced writes did not all hear the last value: ' + JSON.stringify(kept.writes));
   const stateRows = (await gate('history.query', { limit: 20 })).items.filter(item => item.origin === 'extension:org.nendo.test.probe-a' && /^Keep (count|layout) for the view /.test(item.description));
   const countRows = stateRows.filter(item => item.description.startsWith('Keep count')).length;
-  assert(countRows === 1 && stateRows.length === 2 && kept.writes.every(write => write.version === 1),
+  assert(countRows === 1 && stateRows.length === 2 && kept.writes.every(write => write.version === kept.writes[0].version)
+      && kept.writes[0].version > kept.layout.version,
     'Three writes to one key sent together did not reach the file as one, or History does not name the package: ' + JSON.stringify(stateRows.map(item => item.description)));
   // The document about to go is marked, and only a ready document without the mark counts as
   // reloaded. reload() returns before the page unloads, so the old document can still answer
