@@ -152,13 +152,44 @@ internal static class NendoBehaviourCatalogue
                     "IsEmpty(x) ? fallback : x gives an empty value a default.",
                 TakesEmpty = true,
             },
+            // ADR-0008, 2026-10-13 amendment: Concat said to convert a number or a date first,
+            // and nothing in the catalogue could (R2AAV-05). One fixed spelling per kind, with
+            // no locale, so the same value always gives the same text: digits for a whole
+            // number, the stored digits of a decimal, and a date as yyyy-MM-dd. Yes and no
+            // have no single spelling to choose, so a Boolean is refused rather than guessed.
+            ["ToText"] = new("ToText", 1, 1,
+                types => types[0] switch
+                {
+                    NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal or NendoBehaviourScalar.Date => NendoBehaviourScalar.Text,
+                    NendoBehaviourScalar.Boolean => throw new NendoValidationException(
+                        "ToText writes a number or a date as text. A yes/no has no one spelling: choose it with x ? 'Yes' : 'No'."),
+                    NendoBehaviourScalar.Text => throw new NendoValidationException("ToText takes a number or a date; this value is already text."),
+                    _ => throw new NendoValidationException("ToText takes a number or a date."),
+                },
+                (args, budget) =>
+                {
+                    budget.SpendWork();
+                    var value = args[0];
+                    return BehaviourValue.Text(value.Type switch
+                    {
+                        NendoBehaviourScalar.Integer => value.AsInteger().ToString(CultureInfo.InvariantCulture),
+                        NendoBehaviourScalar.Decimal => value.AsDecimal().ToString(CultureInfo.InvariantCulture),
+                        _ => value.AsDate().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    }, budget.Limits);
+                })
+            {
+                ParameterTypes = ["date|decimal|integer"],
+                ResultType = "text",
+                Summary = "Writes a number or a date as text, the same way everywhere: 42, 12.50 as stored, a date as 2026-10-13. " +
+                    "A yes/no is refused; choose its words with x ? 'Yes' : 'No'.",
+            },
             ["Concat"] = new("Concat", 2, 8,
                 types =>
                 {
                     for (var index = 0; index < types.Count; index++)
                     {
                         if (types[index] != NendoBehaviourScalar.Text)
-                            throw new NendoValidationException("Concat joins text values; convert other values first.");
+                            throw new NendoValidationException("Concat joins text values; write a number or a date as text with ToText first.");
                     }
                     return NendoBehaviourScalar.Text;
                 },
@@ -180,7 +211,7 @@ internal static class NendoBehaviourCatalogue
                 ParameterTypes = ["text"],
                 Repeating = true,
                 ResultType = "text",
-                Summary = "Joins two to eight text values. It does not convert numbers or dates; convert those first.",
+                Summary = "Joins two to eight text values. It does not convert numbers or dates; ToText does.",
             },
         };
 

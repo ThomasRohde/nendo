@@ -370,7 +370,7 @@ public sealed class BehaviourSurfaceTests
     }
 
     [TestMethod]
-    public async Task CompensatingACreatedUiPropertyIsRefusedNotMisreportedAsInvalidJson()
+    public async Task CompensatingACreatedUiPropertyClearsItNotMisreportedAsInvalidJson()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
@@ -384,26 +384,22 @@ public sealed class BehaviourSurfaceTests
         Assert.IsFalse(await PreviousValuePresentAsync(workspace.FilePath, created.RevisionId),
             "A created UI property recorded a prior value that never existed.");
 
-        // Compensating it is genuinely unsupported — nothing removes a UI property row —
-        // so it must refuse with the typed exception, not throw JsonException on the empty
-        // string Convert.ToString produced for the absent prior value.
-        await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(
-            () => service.CompensateRevisionAsync(created.RevisionId, "undo-title"));
-
-        // And history must not offer what the engine refuses. The flag listed every
-        // ui.setProperty as compensable; it has to read the same retained evidence the
-        // inverse does. A second value for the same property does retain a prior one,
-        // so that revision is offered — the gate is the evidence, not the type.
+        // History offers it, and its undo clears the property with ui.removeProperty (ESM-11)
+        // rather than feeding the absent prior value to JsonDocument.Parse.
         var history = await service.QueryHistoryAsync(new(1));
         Assert.AreEqual(created.RevisionId, history.Items[0].RevisionId);
-        Assert.IsFalse(history.Items[0].CanRequestCompensation,
-            "History offered compensation for a property's first value, which the engine refuses.");
+        Assert.IsTrue(history.Items[0].CanRequestCompensation,
+            "History withheld the undo of a property's first value.");
+        await service.CompensateRevisionAsync(created.RevisionId, "undo-title");
+        Assert.IsFalse((await service.GetSnapshotAsync()).UiNodes.Single(node => node.NodeId == "project-list").Properties.ContainsKey("title"),
+            "Undoing a property's first value left the property on the node.");
+
         var renamed = await coordinator.ApplyAsync(new("test", "rename-title", "test", "Rename the list",
             [new SetUiPropertyOperation("list-title-2", "project-surface", "project-list", "title", "All projects")]));
         history = await service.QueryHistoryAsync(new(1));
         Assert.AreEqual(renamed.RevisionId, history.Items[0].RevisionId);
         Assert.IsTrue(history.Items[0].CanRequestCompensation,
-            "History withheld compensation for a property change that retained its prior value.");
+            "History withheld compensation for a property change.");
     }
 
     private static async Task<bool> PreviousValuePresentAsync(string path, string revisionId)

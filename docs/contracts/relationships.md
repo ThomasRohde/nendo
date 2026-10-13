@@ -11,7 +11,9 @@ assert it.
 A reference field targets exactly one stable entity ID and one text field that
 gives its readable label. Its stored value is the target record ID, never the
 label. A rename of the target type, the label field or the record label keeps
-the relationship. Duplicate target labels are allowed. Pickers use record IDs to
+the relationship. While a bound reference shows a target type by a field, that
+field cannot be retired (`reference-label-in-use`, ESS-09); no operation points a
+bound reference at another label yet. Duplicate target labels are allowed. Pickers use record IDs to
 disambiguate them. Lookups are bounded queries. Missing or retired targets
 cannot be assigned.
 

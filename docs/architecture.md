@@ -159,7 +159,10 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.46.0`, for a full-text index (ADR-0028). `1.45.0` is for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
+is `1.49.0`, for a formula that calls `ToText` (ADR-0008, 2026-10-13). `1.48.0` is for a
+cleared screen property (`ui.removeProperty`, ADR-0004, 2026-10-13), `1.47.0` for a create
+step's links, `IsEmpty` or a total over a calculation (ADR-0008, 2026-10-10), and `1.46.0`
+for a full-text index (ADR-0028). `1.45.0` is for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
 (W-173), and `1.43.0` for a package of kind skill (ADR-0024, W-160). `1.42.0` is for a custom view
 as a screen of the file (`extensionView`, ADR-0013 Phase 5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
 (ADR-0013, 2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
@@ -278,7 +281,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Thirty-nine operation types are the primitive: every type that a revision can
+Forty operation types are the primitive: every type that a revision can
 record, including the three that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
@@ -287,7 +290,7 @@ schema.createEntity         data.createRecord              ui.addNode
 schema.addField             data.setField                  ui.setProperty
 schema.renameEntity         data.deleteRecord              ui.moveNode
 schema.renameField          data.restoreDeletedRecord *    ui.removeNode
-schema.setFieldRequired     data.backfillRetiredField
+schema.setFieldRequired     data.backfillRetiredField      ui.removeProperty
 schema.setRetired           data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata    data.setKeptInNewFiles         behaviour.removeDefinition
 schema.configureReference   identity.transition *          application.setPurpose
@@ -303,7 +306,7 @@ schema.removeLinkRule
 
 `*` marks an operation that only host services create: a restore from deletion
 history, an identity transition, and a custom view's kept state (`nendo.state`,
-written through the application service). The other thirty-six are the closed union that
+written through the application service). The other thirty-seven are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
@@ -327,9 +330,10 @@ history.
 
 A definition revision of one operation is compensated only while the definition stands as it
 left it. Most definition operations carry their expected revision; a screen edit
-(`ui.setProperty`, `ui.addNode`, `ui.moveNode`) does not, so its inverse compares the revision's
-own definition revision with the file's, and an added node is removed or a moved node put back
-to its retained parent and place only then. Going back over later edits could restore a binding
+(`ui.setProperty`, `ui.removeProperty`, `ui.addNode`, `ui.moveNode`) does not, so its inverse
+compares the revision's own definition revision with the file's, and an added node is removed,
+a moved node put back to its retained parent and place, a property's first value cleared or a
+cleared property given back only then. Going back over later edits could restore a binding
 a later revision retired. A compensation of the definition is also compiled before it commits,
 and refused if it would turn screens that compile into ones that do not: the state it returns
 to may be the middle of a proposal of several mutations, which was never compiled.

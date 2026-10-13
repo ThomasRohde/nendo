@@ -79,6 +79,7 @@ The function set is closed:
 | `DaysBetween(start, end)` | Signed whole number of days |
 | `Concat(a, b, …)` | 2 to 8 texts joined |
 | `TextLength(text)` | Number of characters; empty text is 0 |
+| `ToText(value)` | A number or a date as text: `42`, `12.5`, `2026-10-13`. Use it inside `Concat`, as in `Concat('INV-', ToText(number))`. A yes/no is refused; write `paid ? 'Yes' : 'No'` |
 | `Refuse(text)` | No value; the calculation fails with your text as the reason |
 | `IsEmpty(value)` | True when the value is empty; never empty itself |
 

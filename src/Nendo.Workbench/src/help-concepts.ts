@@ -149,7 +149,7 @@ export const conceptHelp: HelpProvider = () => [
       'Creating, editing and deleting records, pasting and importing write straight to the file, one history entry per save. Every record carries a version. An edit made against an old version is refused rather than merged, so two edits never silently overwrite each other. A request repeated with the same key returns the original outcome instead of running again.',
     ] },
     { heading: 'The application lane', paragraphs: [
-      'Record types, fields, screens, calculations and commands change through a proposal. A proposal is a set of typed operations from a closed list — an agent can use thirty-six kinds — and nothing else can change the shape of an app. Nendo applies them to a private physical copy of your file, validates the result there, and shows you a readable diff.',
+      'Record types, fields, screens, calculations and commands change through a proposal. A proposal is a set of typed operations from a closed list — an agent can use thirty-seven kinds — and nothing else can change the shape of an app. Nendo applies them to a private physical copy of your file, validates the result there, and shows you a readable diff.',
       'When you accept, the same validated operations are replayed onto your real file after checking that nothing moved underneath them. The private copy never replaces your file, and rejecting leaves the file byte for byte as it was.',
     ] },
     { heading: 'What a review shows', paragraphs: [

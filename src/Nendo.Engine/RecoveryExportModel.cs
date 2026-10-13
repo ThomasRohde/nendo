@@ -9,14 +9,34 @@ public sealed record NendoRecoveryExportPlan(
     long ChangeSequence, int SourceRecordCount, int ExportedRecordCount,
     int OmittedRecordCount, IReadOnlyList<string> OmittedFieldIds,
     int SpreadsheetEscapedCells, int ByteCount, bool IsPartial,
-    IReadOnlyList<NendoOpenFinding> Findings);
+    IReadOnlyList<NendoOpenFinding> Findings)
+{
+    /// <summary>The record ID this part starts after, or null for the first part.</summary>
+    public string? AfterRecordId { get; init; }
+
+    /// <summary>Records the earlier parts of this export wrote.</summary>
+    public int PrecedingRecordCount { get; init; }
+
+    /// <summary>
+    /// Where the next part starts when this one reached its row or byte limit, or null when
+    /// nothing is left (R2SMA-13).
+    /// </summary>
+    public string? NextAfterRecordId { get; init; }
+}
 
 public sealed record NendoRecoveryExportResult(NendoRecoveryExportPlan Export, bool IsIdempotentReplay);
 
 internal sealed record RecoveryCsv(byte[] Bytes, int SourceRows, int ExportedRows,
     IReadOnlyList<string> OmittedFields, int EscapedCells, IReadOnlyList<NendoOpenFinding> Findings)
 {
-    internal bool IsPartial => ExportedRows != SourceRows || OmittedFields.Count != 0;
+    internal string? ContinueAfter { get; init; }
+
+    /// <summary>Records this part examined and left out: unsupported values, or too large for any part.</summary>
+    internal int OmittedRows { get; init; }
+
+    // Whether this part leaves anything out, or leaves records for a next part. The parts before
+    // it are the coordinator's to count, since only it knows what they wrote.
+    internal bool IsPartial => ContinueAfter is not null || OmittedRows != 0 || OmittedFields.Count != 0;
 }
 
 internal static class RecoveryCsvWriter
@@ -27,14 +47,19 @@ internal static class RecoveryCsvWriter
     private const int MaximumCellCharacters = 100_000;
 
     internal static RecoveryCsv Create(NendoEntitySnapshot entity, IReadOnlyList<NendoRecordSnapshot> records,
-        CancellationToken cancellationToken, int maximumBytes = MaximumBytes, int maximumRows = MaximumRows)
+        CancellationToken cancellationToken, int maximumBytes = MaximumBytes, int maximumRows = MaximumRows,
+        string? afterRecordId = null)
     {
         var fields = entity.Fields.Where(field => field.StorageKind is >= NendoStorageKind.Text and <= NendoStorageKind.Uuid)
             .OrderBy(field => field.FieldId, StringComparer.Ordinal).Take(MaximumFields).ToArray();
         var selectedIds = fields.Select(field => field.FieldId).ToHashSet(StringComparer.Ordinal);
         var omitted = entity.Fields.Where(field => !selectedIds.Contains(field.FieldId)).Select(field => field.FieldId)
             .Order(StringComparer.Ordinal).ToArray();
-        var rows = records.Where(record => record.EntityId == entity.EntityId).OrderBy(record => record.RecordId, StringComparer.Ordinal).ToArray();
+        var all = records.Where(record => record.EntityId == entity.EntityId).OrderBy(record => record.RecordId, StringComparer.Ordinal).ToArray();
+        // A later part starts after the last record an earlier part examined, so the parts
+        // together hold every record once, in the order the first part began (R2SMA-13).
+        var rows = afterRecordId is null ? all : all.Where(record => string.CompareOrdinal(record.RecordId, afterRecordId) > 0).ToArray();
+        string? lastExamined = null;
         using var output = new MemoryStream();
         output.Write([0xEF, 0xBB, 0xBF]);
         var escaped = 0;
@@ -45,6 +70,7 @@ internal static class RecoveryCsvWriter
         output.Write(header);
         var exported = 0;
         var unsupported = 0;
+        var oversize = 0;
         var limitReached = false;
         foreach (var record in rows)
         {
@@ -62,12 +88,20 @@ internal static class RecoveryCsvWriter
                 }
                 cells.Add(isText ? Protect(cell, ref escapedInRow) : cell);
             }
-            if (!valid) { unsupported++; continue; }
+            if (!valid) { unsupported++; lastExamined = record.RecordId; continue; }
             var bytes = Row(cells);
-            if (output.Length + bytes.Length > maximumBytes) { limitReached = true; break; }
+            if (output.Length + bytes.Length > maximumBytes)
+            {
+                // A record no part could hold is omitted and named as such, so the next part
+                // moves past it rather than starting on it again.
+                if (exported == 0) { oversize++; lastExamined = record.RecordId; continue; }
+                limitReached = true;
+                break;
+            }
             output.Write(bytes);
             escaped += escapedInRow;
             exported++;
+            lastExamined = record.RecordId;
         }
         var findings = new List<NendoOpenFinding>
         {
@@ -75,9 +109,14 @@ internal static class RecoveryCsvWriter
         };
         if (omitted.Length != 0) findings.Add(new("csv-omitted-fields", $"{omitted.Length} unsupported or over-limit field(s) were excluded. Their stable field identifiers are listed in the export review."));
         if (unsupported != 0) findings.Add(new("csv-unsupported-rows", $"{unsupported} record(s) with unsupported values or invalid record metadata were omitted; values were not silently truncated."));
-        if (limitReached) findings.Add(new("csv-limit", "The recovery export reached its row or byte limit. Remaining records were not exported."));
+        if (oversize != 0) findings.Add(new("csv-oversize-rows", $"{oversize} record(s) are larger than one CSV file may hold and were omitted; values were not silently truncated."));
+        if (limitReached) findings.Add(new("csv-limit", $"This part reached its row or byte limit after {exported} record(s). Export the next part to continue from where it stopped."));
         if (escaped != 0) findings.Add(new("csv-spreadsheet-protection", $"{escaped} text cell(s) were prefixed with an apostrophe to prevent spreadsheet formula interpretation. That prefix is part of the exported value."));
-        return new(output.ToArray(), rows.Length, exported, omitted, escaped, findings.AsReadOnly());
+        return new(output.ToArray(), all.Length, exported, omitted, escaped, findings.AsReadOnly())
+        {
+            ContinueAfter = limitReached ? lastExamined : null,
+            OmittedRows = unsupported + oversize,
+        };
     }
 
     private static bool TryCell(NendoStorageKind kind, JsonElement value, out string cell, out bool isText)

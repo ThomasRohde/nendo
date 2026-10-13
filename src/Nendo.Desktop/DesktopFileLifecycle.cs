@@ -163,8 +163,8 @@ internal sealed partial class DesktopSessionController
         QueryAsync(service => { RequireWritableLocation(path); return service.CreateNewFileAsync(path, requestId, cancellationToken); }, cancellationToken);
 
     internal Task<NendoRecoveryExportPlan> PrepareRecoveryExportAsync(string entityId, string path, string requestId,
-        CancellationToken cancellationToken = default) =>
-        QueryAsync(service => { RequireWritableLocation(path); return service.PrepareRecoveryExportAsync(entityId, path, requestId, cancellationToken); }, cancellationToken);
+        string? afterRecordId = null, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => { RequireWritableLocation(path); return service.PrepareRecoveryExportAsync(entityId, path, requestId, afterRecordId, cancellationToken); }, cancellationToken);
 
     internal Task<NendoRecoveryExportResult> CreateRecoveryExportAsync(string planId, bool confirmPartial,
         CancellationToken cancellationToken = default) =>

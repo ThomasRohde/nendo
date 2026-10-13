@@ -49,6 +49,10 @@ internal sealed partial class SqliteNendoStore
                 setUiProperty,
                 transaction,
                 cancellationToken),
+            RemoveUiPropertyOperation removeUiProperty => await ExecuteRemoveUiPropertyAsync(
+                removeUiProperty,
+                transaction,
+                cancellationToken),
             MoveUiNodeOperation moveUiNode => await ExecuteMoveUiNodeAsync(
                 moveUiNode,
                 transaction,
@@ -270,6 +274,41 @@ internal sealed partial class SqliteNendoStore
                 previousValuePresent = previousJson is not null,
                 previousValueJson = previousJson,
             })) { RequiredHostVersion = RequiredHostVersionFor(operation) };
+    }
+
+    private async Task<OperationEvidence> ExecuteRemoveUiPropertyAsync(
+        RemoveUiPropertyOperation operation,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        await RequireUiNodeAsync(operation.SurfaceId, operation.NodeId, transaction, cancellationToken);
+        string? previousJson;
+        await using (var select = Command("""
+            SELECT value_json FROM __nendo_ui_property WHERE node_id = @nodeId AND property_name = @propertyName;
+            """, transaction))
+        {
+            select.Parameters.AddWithValue("@nodeId", operation.NodeId);
+            select.Parameters.AddWithValue("@propertyName", operation.PropertyName);
+            var scalar = await select.ExecuteScalarAsync(cancellationToken);
+            previousJson = scalar is null or DBNull ? null : Convert.ToString(scalar, CultureInfo.InvariantCulture);
+        }
+        // Clearing what is not there would record a change that changed nothing, and its undo
+        // would set a value nobody gave.
+        if (previousJson is null)
+            throw new NendoPreconditionException("ui-property-absent",
+                $"The node {operation.NodeId} has no {operation.PropertyName} to remove.");
+        await using (var delete = Command("""
+            DELETE FROM __nendo_ui_property WHERE node_id = @nodeId AND property_name = @propertyName;
+            """, transaction))
+        {
+            delete.Parameters.AddWithValue("@nodeId", operation.NodeId);
+            delete.Parameters.AddWithValue("@propertyName", operation.PropertyName);
+            await delete.ExecuteNonQueryAsync(cancellationToken);
+        }
+        return new OperationEvidence(operation, Evidence(new { previousValueJson = previousJson }))
+        {
+            RequiredHostVersion = NendoFormat.UiPropertyRemovalMinimumHostVersion,
+        };
     }
 
     // A declared contract version pins the minimum host that may open the file.
@@ -666,14 +705,16 @@ internal sealed partial class SqliteNendoStore
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
+                var kind = Enum.Parse<NendoStorageKind>(reader.GetString(4), ignoreCase: false);
                 fields.Add(new FieldMapping(
                     reader.GetString(0),
                     reader.GetString(1),
                     reader.GetString(2),
                     reader.GetString(3),
-                    Enum.Parse<NendoStorageKind>(reader.GetString(4), ignoreCase: false),
+                    kind,
                     reader.GetInt64(5) == 1,
-                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    // As the snapshot reads it, so a write never refuses what a read offered (ESM-10).
+                    reader.IsDBNull(6) ? null : StoredPresentation(reader.GetString(6), kind),
                     ParseOptions(reader.GetString(7))));
             }
         }

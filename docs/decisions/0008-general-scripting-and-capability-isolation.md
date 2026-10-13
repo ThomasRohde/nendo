@@ -8,6 +8,28 @@
 - **Depends on:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0009 and ADR-0012.
 - **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-custom-views-with-code-in-the-file.md).
 
+### Accepted amendment — 2026-10-13 (a number or a date written as text)
+
+Accepted by the owner on 2026-10-12 for the broad review's finding R2AAV-05 (W-205).
+
+**Context.** `Concat` refused a number with "convert other values first", and its published
+summary said the same, but the closed catalogue had no function that turns a number or a date
+into text. Section 13's rule, that a capability is discoverable before an author relies on it,
+was broken by the catalogue's own words: a display code such as `INV-42` could not be written.
+
+**Decision.** One catalogue entry, `ToText(value)`, total and with no locale: a whole number as
+its digits, a decimal as its stored digits, a date as `yyyy-MM-dd`. It refuses a Boolean at
+installation, since yes and no have no one spelling (`x ? 'Yes' : 'No'` chooses the words), and
+refuses text, which needs no conversion. It costs one work unit, and its result is at most a few
+dozen characters, inside the text ceiling. `Concat`'s refusal and summary now name it.
+
+**Not changed.** Text still never coerces, `+` on text is still refused, and there is no format
+argument: a formula that wants thousands separators or another date order is out of scope.
+
+**Consequences.** A definition whose formula calls `ToText` needs host 1.49.0, stated by its
+operation's evidence. A test asserts that every function a catalogue summary names exists, so a
+published sentence cannot send an author to a function the catalogue lacks again.
+
 ### Accepted amendment — 2026-10-10 (a created record links back, a formula asks whether a value is there, and a total reads a calculation)
 
 Accepted on the owner's standing pre-acceptance of ADR changes, when the owner asked for the

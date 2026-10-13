@@ -132,7 +132,11 @@ reserved protected metadata namespace for Nendo state.
   field between `singleLine`, `longText` and `markdown`, the presentations that keep
   every value valid, so a long text field written earlier can be shown formatted;
   it is reversible and changes no value. Email, URL and color are still not
-  implemented.)
+  implemented. Note, 2026-10-13 (ESM-10): `singleLine` and `longText`, like
+  `markdown`, are presentations of a Text field only, and `schema.addField` refuses
+  them on any other storage kind. A file where an earlier host stored one on a
+  number, a yes/no, a date or a reference reads it as no presentation, so the field
+  draws its own input again; the stored row is left as it was.)
 - Scalar multi-choice, JSON-as-a-user-type and binary/asset fields are deferred.
   A package file's content is stored as a BLOB, but it is protected metadata, not
   a user field.

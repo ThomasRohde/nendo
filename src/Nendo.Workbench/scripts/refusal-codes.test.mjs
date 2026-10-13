@@ -58,7 +58,7 @@ const notSettled = new Set([
   'idea-field-conflict', 'inspection-not-required', 'invalid-cursor', 'invalid-limit', 'location-confirmation-context',
   'open-assessment-unavailable', 'partial-export-confirmation', 'proposal-exists', 'proposal-file-missing', 'proposal-not-previewable',
   'proposal-waiting', 'reopen-to-verify', 'required-field-needs-migration', 'stale-cursor', 'state-too-large', 'state-version-conflict',
-  'title-unchanged', 'ui-node-not-found', 'unknown-method',
+  'reference-label-in-use', 'title-unchanged', 'ui-node-not-found', 'ui-property-absent', 'unknown-method',
 ]);
 
 test('every refusal the Engine or the host raises is classified for the save journal', () => {

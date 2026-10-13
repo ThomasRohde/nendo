@@ -191,6 +191,11 @@ internal static class CanonicalChangeSetRequestCompiler
                 String(request.Payload, "nodeId"),
                 String(request.Payload, "propertyName", 100),
                 Value(request.Payload, "value")),
+            "ui.removeProperty" => new RemoveUiPropertyOperation(
+                request.OperationId,
+                String(request.Payload, "surfaceId"),
+                String(request.Payload, "nodeId"),
+                String(request.Payload, "propertyName", 100)),
             "ui.moveNode" => new MoveUiNodeOperation(
                 request.OperationId,
                 String(request.Payload, "surfaceId"),

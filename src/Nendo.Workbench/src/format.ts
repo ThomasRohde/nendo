@@ -151,6 +151,7 @@ export function operationLabel(value: string): string {
     'ui.addNode': 'Add to a screen',
     'ui.moveNode': 'Move on a screen',
     'ui.removeNode': 'Remove from a screen',
+    'ui.removeProperty': 'Clear a screen setting',
     'ui.setProperty': 'Change a screen',
   };
   return labels[value] ?? value;

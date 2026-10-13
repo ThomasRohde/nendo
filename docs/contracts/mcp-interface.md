@@ -648,15 +648,15 @@ that table serves two purposes. It is published at
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
 tool listing truncated it mid-token. The rules that stayed behind went the same
-way on 2026-09-27 and are now `authoringRules`. The union permits thirty-six of the Engine's
-thirty-nine canonical operations. `data.restoreDeletedRecord` and
+way on 2026-09-27 and are now `authoringRules`. The union permits thirty-seven of the Engine's
+forty canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
 services and are not MCP authoring primitives. `extension.setState` is written only
 by a custom view through `nendo.state`
 ([custom-view contract](custom-views.md#state)), never by a change set.
 
 `extension.setPackage`, `extension.putFile`, `extension.removeFile` and
-`extension.removePackage` are among the thirty-six. An agent therefore writes a
+`extension.removePackage` are among the thirty-seven. An agent therefore writes a
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
@@ -676,7 +676,7 @@ publishes the package bounds under `limits.extensions`:
 
 The bounds of a declared hierarchy are under `limits.hierarchy`: `maximumDepth` 32,
 `maximumDescendants` 10,000 and `orderGap` 1,024. `schema.declareHierarchy` and
-`schema.removeHierarchy` are among the thirty-six, and a record type's schema read carries
+`schema.removeHierarchy` are among the thirty-seven, and a record type's schema read carries
 its `hierarchy` (`parentFieldId`, `orderFieldId`), or null.
 
 `schema.setFieldUnique` and `schema.setFieldSequence` are among them too
@@ -704,7 +704,7 @@ joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
 arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-six,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-seven,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

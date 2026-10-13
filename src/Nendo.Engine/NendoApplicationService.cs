@@ -175,8 +175,8 @@ public sealed partial class NendoApplicationService
         _coordinator.QueryRevisionOperationsAsync(query, cancellationToken);
 
     public Task<NendoRecoveryExportPlan> PrepareRecoveryExportAsync(string entityId, string destinationPath,
-        string requestId, CancellationToken cancellationToken = default) =>
-        _coordinator.PrepareRecoveryExportAsync(entityId, destinationPath, requestId, cancellationToken);
+        string requestId, string? afterRecordId = null, CancellationToken cancellationToken = default) =>
+        _coordinator.PrepareRecoveryExportAsync(entityId, destinationPath, requestId, afterRecordId, cancellationToken);
 
     public Task<NendoRecoveryExportResult> CreateRecoveryExportAsync(string planId, bool confirmPartial,
         CancellationToken cancellationToken = default) =>

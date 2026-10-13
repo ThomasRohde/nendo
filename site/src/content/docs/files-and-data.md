@@ -145,7 +145,7 @@ Nendo never guesses a repair. It does not rewrite a file to make it open. Studio
 Health's **Recovery actions** are:
 
 - **Inspect Data** opens the Studio table.
-- **Export readable data…** writes the stored values of one record type to a CSV file. It is limited to 4 MiB and 10,000 rows, and it says so if the result is partial.
+- **Export readable data…** writes the stored values of one record type to a CSV file. One file holds at most 4 MiB and 10,000 rows. A larger record type is written in parts: after each part Nendo offers **Export next part**, which starts after the last record the part before it wrote, so the parts together hold every record once.
 - **Create backup…** and **Restore backup…**.
 - **Inspect file again** re-runs the checks, for example after you close the program that had the file busy.
 - **Save diagnostics…** writes a report you can share.

@@ -326,7 +326,21 @@ public static class NendoFormat
     /// </summary>
     public const string BehaviourLinksMinimumHostVersion = "1.47.0";
 
-    public const string CurrentHostVersion = BehaviourLinksMinimumHostVersion;
+    /// <summary>
+    /// ui.removeProperty (ADR-0004, 2026-10-13 amendment, ESM-11): an operation no older host
+    /// knows, stated by its evidence, as a new field operation's is. A file that never cleared a
+    /// property keeps the rung it had.
+    /// </summary>
+    public const string UiPropertyRemovalMinimumHostVersion = "1.48.0";
+
+    /// <summary>
+    /// A behaviour definition whose formula calls ToText (ADR-0008, 2026-10-13 amendment,
+    /// R2AAV-05), which an older host's closed catalogue refuses. Stated by the definition
+    /// operation's evidence; a file whose formulas never call it keeps the rung it had.
+    /// </summary>
+    public const string ToTextMinimumHostVersion = "1.49.0";
+
+    public const string CurrentHostVersion = ToTextMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

@@ -52,6 +52,15 @@ ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-
 ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
 ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
 
+- **ADR-0004, 2026-10-13 — a screen property can be cleared**: `ui.removeProperty` takes
+  one property off a node and is the undo of a property's first value, so History offers Undo
+  on every `ui.setProperty` (ESM-11, W-205). Host 1.48.0.
+- **ADR-0008, 2026-10-13 — a number or a date written as text**: `ToText(value)` writes an
+  integer, a decimal or a date as text with no locale, and refuses a Boolean (R2AAV-05, W-205).
+  Host 1.49.0.
+- **ADR-0008, 2026-10-10 — a created record links back, a formula asks whether a value is
+  there, and a total reads a calculation**: a `CreateRecord` step's `links`, `IsEmpty`, and a
+  `Sum` or `FilteredCount` over a calculation of each member. Host 1.47.0.
 - **ADR-0009, 2026-10-08 — every read is also a tool, and every tool answers within its
   request**: after an outside review from GitHub Copilot CLI, whose client calls tools and
   cannot read resources, `nendo.read.resource` and `nendo.read.list` serve every resource

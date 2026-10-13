@@ -208,6 +208,13 @@ public sealed record AddFieldOperation : NendoOperation
         {
             throw new ArgumentException("The markdown presentation requires Text storage.", nameof(Presentation));
         }
+        // A single line or long text drawn over a number, a yes/no or a date replaced its input with
+        // a text box, and setFieldPresentation changes only Text fields, so nothing could correct it
+        // afterwards (ESM-10).
+        if (Presentation is "singleLine" or "longText" && StorageKind != NendoStorageKind.Text)
+        {
+            throw new ArgumentException($"The {Presentation} presentation requires Text storage.", nameof(Presentation));
+        }
         ValidateScale();
     }
 
@@ -340,6 +347,38 @@ public sealed record SetUiPropertyOperation : NendoOperation
         writer.WriteString("surfaceId", SurfaceId);
         writer.WritePropertyName("value");
         Value.WriteTo(writer);
+        writer.WriteEndObject();
+    }
+}
+
+/// <summary>
+/// Clears one property of a screen node (ADR-0004, 2026-10-13 amendment): the property is gone,
+/// not set to null, so an optional property once given can be taken away again and the first
+/// value a property ever took can be undone (ESM-11).
+/// </summary>
+public sealed record RemoveUiPropertyOperation : NendoOperation
+{
+    public RemoveUiPropertyOperation(string operationId, string surfaceId, string nodeId, string propertyName)
+        : base(operationId)
+    {
+        SurfaceId = Require(surfaceId, nameof(surfaceId));
+        NodeId = Require(nodeId, nameof(nodeId));
+        PropertyName = Require(propertyName, nameof(propertyName));
+    }
+
+    public string SurfaceId { get; }
+    public string NodeId { get; }
+    public string PropertyName { get; }
+    public override string OperationType => "ui.removeProperty";
+    public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
+    public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
+
+    internal override void WritePayload(Utf8JsonWriter writer)
+    {
+        writer.WriteStartObject();
+        writer.WriteString("nodeId", NodeId);
+        writer.WriteString("propertyName", PropertyName);
+        writer.WriteString("surfaceId", SurfaceId);
         writer.WriteEndObject();
     }
 }

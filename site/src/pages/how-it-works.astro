@@ -23,7 +23,7 @@ const operations = [
   ['schema.addField', 'data.setField', 'ui.setProperty', 'extension.putFile'],
   ['schema.renameEntity', 'data.deleteRecord', 'ui.moveNode', 'extension.removeFile'],
   ['schema.renameField', 'data.setKeptInNewFiles', 'ui.removeNode', 'extension.removePackage'],
-  ['schema.setFieldRequired', 'data.backfillRetiredField', '', 'extension.setState †'],
+  ['schema.setFieldRequired', 'data.backfillRetiredField', 'ui.removeProperty', 'extension.setState †'],
   ['schema.setFieldPresentation', 'data.convertLegacyReference', 'behaviour.setDefinition', ''],
   ['schema.setFieldUnique', 'data.restoreDeletedRecord *', 'behaviour.removeDefinition', ''],
   ['schema.setFieldSequence', 'identity.transition *', '', ''],
@@ -114,7 +114,7 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Thirty-nine operations, thirty-six of them open to agents.</h2>
+    <h2>Forty operations, thirty-seven of them open to agents.</h2>
     <p class="lede">
       These are the only ways the file can change. There is no raw SQL and no
       general-purpose escape hatch. The two marked <code>*</code> are available only in

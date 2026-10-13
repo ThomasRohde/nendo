@@ -866,7 +866,8 @@ has already lost the precision.
 | `RoundAway(number, digits)` | decimal, 0–28 digits, halves away from zero |
 | `Date(text)` | invariant `yyyy-MM-dd`, a real calendar date |
 | `DaysBetween(start, end)` | signed whole-number day difference |
-| `Concat(a, b, …)` | 2–8 texts; joined size checked before allocating |
+| `Concat(a, b, …)` | 2–8 texts; joined size checked before allocating; write a number or a date as text with `ToText` first |
+| `ToText(value)` | an integer as its digits, a decimal as its stored digits, a date as `yyyy-MM-dd`; no locale; a Boolean or text is refused; an empty input stops the formula, as for other functions (host 1.49.0) |
 | `TextLength(text)` | how many characters a text value holds; empty text is zero |
 | `Refuse(text)` | no value; reports `calculation-refused` with the text, in one outcome of a choice |
 | `IsEmpty(value)` | any scalar; true when it is empty or an empty input stopped it; never empty itself |

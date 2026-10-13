@@ -10,6 +10,39 @@
 
 ## Context
 
+### Accepted amendment — 2026-10-13 (a screen property can be cleared)
+
+Accepted by the owner on 2026-10-12 for the broad review's finding ESM-11 (W-205).
+
+**What was wrong.** The canonical UI operations were `ui.addNode`, `ui.setProperty`,
+`ui.moveNode` and `ui.removeNode`. Nothing took a property away: a JSON null is stored as a
+present property, and every optional property's validator refuses null. An author who gave a
+node a `subtitleFieldId`, a `visibleWhen`, an `opens` or an ordering could not take it back
+without removing the node and everything under it, the compiler's hints told authors to
+"remove" a property no operation could remove, and History could not undo the first value a
+property ever took, because there was no earlier value to set it back to.
+
+**What it changes.** A fifth operation, `ui.removeProperty {surfaceId, nodeId, propertyName}`,
+on the definition lane and `ReversibleWithRetainedState`. It deletes the property's row, so the
+node behaves as if it had never been given it, and retains the removed value as evidence. It
+refuses a property the node does not carry (`ui-property-absent`), so no change is recorded
+that changed nothing. It is the inverse of a `ui.setProperty` that gave a property its first
+value, so History offers Undo on every `ui.setProperty`; the inverse of a `ui.removeProperty`
+is a `ui.setProperty` with the retained value. Both are refused, as every screen edit's inverse
+is, once the definition has moved on since. The compiler's hints name the operation.
+
+**Not changed.** A null value still means a present property whose value is null, and the
+validators keep refusing it: "empty means delete" was the alternative, and it would have given
+one operation two meanings in the history. The file's recorded minimum host never goes down,
+so clearing a property that raised a rung leaves the rung where it was.
+
+**Consequences.** A file that has cleared a property needs host 1.48.0, stated by the
+operation's evidence. Undoing a property's first value is itself a `ui.removeProperty`, so that
+Undo raises the file to 1.48.0 as well. History offers it as it offers every screen edit, and
+the compile check that guards every undo of the definition still refuses one that would leave
+screens that do not compile. `OperationGapReviewTests.ESM11_AnOptionalPropertyCanBeClearedAndItsFirstValueUndone`
+carries the obligations.
+
 ### Accepted amendment — 2026-10-06 (a Filter pick and Studio's query belong to the place)
 
 Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24), for review R-003.

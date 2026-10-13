@@ -236,6 +236,8 @@ internal sealed partial class SqliteNendoStore
                 exactReplay,
                 definitionAfter,
                 cancellationToken),
+            "ui.removeProperty" => await CreateRemoveUiPropertyInverseAsync(original.Canonical, original.Evidence, idempotencyKey, exactReplay,
+                definitionAfter, cancellationToken),
             "ui.addNode" => await CreateAddUiNodeInverseAsync(original.Canonical, idempotencyKey, exactReplay, definitionAfter, cancellationToken),
             "ui.moveNode" => await CreateMoveUiNodeInverseAsync(original.Canonical, original.Evidence, idempotencyKey, exactReplay,
                 definitionAfter, cancellationToken),
@@ -551,7 +553,7 @@ internal sealed partial class SqliteNendoStore
             payload.GetProperty("surfaceId").GetString()!, payload.GetProperty("nodeId").GetString()!, parent, previousPosition);
     }
 
-    private async Task<SetUiPropertyOperation> CreateSetUiPropertyInverseAsync(
+    private async Task<NendoOperation> CreateSetUiPropertyInverseAsync(
         string canonicalJson,
         string evidenceJson,
         string idempotencyKey,
@@ -562,11 +564,6 @@ internal sealed partial class SqliteNendoStore
         using var canonical = JsonDocument.Parse(canonicalJson);
         using var evidence = JsonDocument.Parse(evidenceJson);
         var payload = canonical.RootElement.GetProperty("payload");
-        if (!evidence.RootElement.GetProperty("previousValuePresent").GetBoolean())
-        {
-            throw new NendoCompensationNotSupportedException(
-                "A UI property with no retained prior value cannot be compensated.");
-        }
         var surfaceId = payload.GetProperty("surfaceId").GetString()!;
         var nodeId = payload.GetProperty("nodeId").GetString()!;
         var propertyName = payload.GetProperty("propertyName").GetString()!;
@@ -606,15 +603,50 @@ internal sealed partial class SqliteNendoStore
                     "The UI property changed after the selected revision and cannot be compensated safely.");
             }
         }
+        var operationId = NendoCanonical.DeterministicId("operation", "studio.p2.compensation", idempotencyKey, 0);
+        // The first value a property ever took is undone by clearing it again (ESM-11).
+        if (!evidence.RootElement.GetProperty("previousValuePresent").GetBoolean())
+            return new RemoveUiPropertyOperation(operationId, surfaceId, nodeId, propertyName);
         var previousJson = evidence.RootElement.GetProperty("previousValueJson").GetString()
             ?? throw new NendoCompensationNotSupportedException(
                 "The retained UI property state is unavailable.");
         using var previousValue = JsonDocument.Parse(previousJson);
-        return new SetUiPropertyOperation(
-            NendoCanonical.DeterministicId("operation", "studio.p2.compensation", idempotencyKey, 0),
-            surfaceId,
-            nodeId,
-            propertyName,
-            previousValue.RootElement);
+        return new SetUiPropertyOperation(operationId, surfaceId, nodeId, propertyName, previousValue.RootElement);
+    }
+
+    private async Task<SetUiPropertyOperation> CreateRemoveUiPropertyInverseAsync(
+        string canonicalJson,
+        string evidenceJson,
+        string idempotencyKey,
+        bool exactReplay,
+        long definitionAfter,
+        CancellationToken cancellationToken)
+    {
+        using var canonical = JsonDocument.Parse(canonicalJson);
+        using var evidence = JsonDocument.Parse(evidenceJson);
+        var payload = canonical.RootElement.GetProperty("payload");
+        var surfaceId = payload.GetProperty("surfaceId").GetString()!;
+        var nodeId = payload.GetProperty("nodeId").GetString()!;
+        var propertyName = payload.GetProperty("propertyName").GetString()!;
+        if (!exactReplay)
+        {
+            await RequireDefinitionAsLeftAsync(definitionAfter, cancellationToken);
+            await using var current = Command("""
+                SELECT EXISTS(SELECT 1 FROM __nendo_ui_property property
+                    JOIN __nendo_ui_node node ON node.node_id = property.node_id
+                    WHERE node.surface_id = @surfaceId AND node.node_id = @nodeId AND property.property_name = @propertyName);
+                """, null);
+            current.Parameters.AddWithValue("@surfaceId", surfaceId);
+            current.Parameters.AddWithValue("@nodeId", nodeId);
+            current.Parameters.AddWithValue("@propertyName", propertyName);
+            if (Convert.ToInt64(await current.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) != 0)
+                throw new NendoCompensationNotSupportedException(
+                    "The UI property was given again after the selected revision and cannot be compensated safely.");
+        }
+        var previousJson = evidence.RootElement.GetProperty("previousValueJson").GetString()
+            ?? throw new NendoCompensationNotSupportedException("The retained UI property state is unavailable.");
+        using var previousValue = JsonDocument.Parse(previousJson);
+        return new SetUiPropertyOperation(NendoCanonical.DeterministicId("operation", "studio.p2.compensation", idempotencyKey, 0),
+            surfaceId, nodeId, propertyName, previousValue.RootElement);
     }
 }

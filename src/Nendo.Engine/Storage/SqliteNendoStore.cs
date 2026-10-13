@@ -15,7 +15,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         evidence.Aggregate(current, (minimum, item) => NendoFormat.RequireAtLeast(minimum, item.RequiredHostVersion));
 
     private static bool TouchesUiNodes(IEnumerable<NendoOperation> operations) => operations.Any(operation =>
-        operation is AddUiNodeOperation or SetUiPropertyOperation or MoveUiNodeOperation or RemoveUiNodeOperation);
+        operation is AddUiNodeOperation or SetUiPropertyOperation or RemoveUiPropertyOperation or MoveUiNodeOperation or RemoveUiNodeOperation);
 
     /// <summary>
     /// The minimum host a mutation leaves the file needing. Per-operation evidence
@@ -144,7 +144,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 .Select(operation => operation.EntityId)
                 .ToHashSet(StringComparer.Ordinal);
             var requiresSemanticHost = mutation.Operations.Any(operation =>
-                operation is AddUiNodeOperation or SetUiPropertyOperation or MoveUiNodeOperation or RemoveUiNodeOperation ||
+                operation is AddUiNodeOperation or SetUiPropertyOperation or RemoveUiPropertyOperation or MoveUiNodeOperation or RemoveUiNodeOperation ||
                 operation is AddFieldOperation field &&
                     (!newEntityIds.Contains(field.EntityId) || field.Presentation is not null || field.Options.Count != 0));
             await RequireSupportedWritableLayoutAsync(transaction, cancellationToken);

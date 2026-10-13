@@ -35,7 +35,7 @@ public sealed partial class NendoSemanticCompiler
                      !NendoSemanticVocabulary.Kinds[root.Kind].Properties.Contains("entityId")))
             AddError(diagnostics, "NUI390", $"A {overview.Kind} belongs to the file, so it has no record type of its own.",
                 overview.NodeId, "entityId",
-                "Remove entityId from the root, and name the record type on each tile, chart and recent list inside it.");
+                "Clear entityId on the root with ui.removeProperty, and name the record type on each tile, chart and recent list inside it.");
         foreach (var duplicate in fileScoped.GroupBy(root => root.Kind, StringComparer.Ordinal)
                      .Where(items => items.Count() > MaximumRootsPerFile(items.Key)))
             AddError(diagnostics, "NUI391",
@@ -187,7 +187,7 @@ public sealed partial class NendoSemanticCompiler
         if (node.Properties.ContainsKey("visibleWhen"))
             AddError(diagnostics, "NUI399", "There is no record on the front page for a visibility calculation to read.",
                 node.NodeId, "visibleWhen",
-                "Remove visibleWhen. A calculated field answers per record, and the front page shows no single record.");
+                "Clear visibleWhen with ui.removeProperty. A calculated field answers per record, and the front page shows no single record.");
 
         var children = nodes
             .Where(value => value.ParentNodeId == node.NodeId && value.SurfaceId == node.SurfaceId)
@@ -320,7 +320,7 @@ public sealed partial class NendoSemanticCompiler
             foreach (var property in node.Properties.Keys
                          .Where(value => !rule.Properties.Contains(value))
                          .OrderBy(value => value, StringComparer.Ordinal))
-                AddError(diagnostics, "NUI090", $"Property '{property}' is not supported on '{node.Kind}'.", node.NodeId, property, "Remove renderer-specific or unknown state from the semantic definition.");
+                AddError(diagnostics, "NUI090", $"Property '{property}' is not supported on '{node.Kind}'.", node.NodeId, property, "Clear renderer-specific or unknown state from the semantic definition with ui.removeProperty.");
 
             foreach (var required in rule.RequiredProperties
                          .Where(value => !node.Properties.ContainsKey(value))
@@ -499,7 +499,7 @@ public sealed partial class NendoSemanticCompiler
             !scope.FileScoped && node.Properties.ContainsKey("entityId"))
             AddError(diagnostics, "NUI394", $"A {node.Kind} takes its record type from the surface it is on.",
                 node.NodeId, "entityId",
-                "Remove entityId. Only a tile on an overviewSurface names one, because the front page has no record type of its own.");
+                "Clear entityId with ui.removeProperty. Only a tile on an overviewSurface names one, because the front page has no record type of its own.");
 
         if (node.Kind is "recordList" or "boardSurface" or "calendarSurface" or "timelineSurface" or "gallerySurface" or "matrixSurface") ValidateOrdering(node, fields, derived, diagnostics);
 
@@ -689,7 +689,7 @@ public sealed partial class NendoSemanticCompiler
                 break;
             default:
                 if (valueKind != "literal" && hasValue)
-                    AddError(diagnostics, "NUI289", $"'{valueKind}' does not take a value.", node.NodeId, "value", "Remove the value, or use a literal.");
+                    AddError(diagnostics, "NUI289", $"'{valueKind}' does not take a value.", node.NodeId, "value", "Clear the value with ui.removeProperty, or use a literal.");
                 break;
         }
     }
@@ -731,7 +731,7 @@ public sealed partial class NendoSemanticCompiler
         if (presenceOnly)
         {
             if (hasValue)
-                AddError(diagnostics, "NUI275", $"'{comparison}' does not take a value.", node.NodeId, "value", "Remove the value, or use a comparing operator.");
+                AddError(diagnostics, "NUI275", $"'{comparison}' does not take a value.", node.NodeId, "value", "Clear the value with ui.removeProperty, or use a comparing operator.");
             return;
         }
         // "null" is a command step's word for clearing a field. With a comparing operator it compiled
@@ -895,7 +895,7 @@ public sealed partial class NendoSemanticCompiler
             AddError(diagnostics, "NUI313",
                 "A tab's body cannot say how it starts: the tab strip already opens and closes it.",
                 node.NodeId, "opens",
-                "Remove opens from this section, or put it on a section inside the tab.");
+                "Clear opens on this section with ui.removeProperty, or put it on a section inside the tab.");
     }
 
     private static string? BoundFieldId(NendoSurfaceNodePlan binding) =>

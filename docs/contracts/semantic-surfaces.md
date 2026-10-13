@@ -1215,7 +1215,7 @@ the shape cannot show (below). The ladder is:
 | An `extensionView` (a custom view as a screen of the file) | 1.42 |
 
 Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
-1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45 and 1.46 (`NendoFormat`).
+1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48 and 1.49 (`NendoFormat`).
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
 to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), `1.33.0` to a file
 that carries a custom-view package (ADR-0013), `1.35.0` to a file that declares a hierarchy
@@ -1224,8 +1224,11 @@ own look (ADR-0004, 2026-09-28), `1.39.0` to one whose older history was folded 
 checkpoint (ADR-0021), `1.41.0` to one that marks what a new file keeps, and to a file
 started with New (ADR-0022), `1.43.0` to one that carries a skill package (ADR-0024),
 `1.44.0` to one with a text field presented as Markdown (ADR-0003's named presentation),
-`1.45.0` to one that declares a link rule (ADR-0026), and `1.46.0` to one that built its
-full-text index (ADR-0028). Each operation declares that version on its own evidence; a
+`1.45.0` to one that declares a link rule (ADR-0026), `1.46.0` to one that built its
+full-text index (ADR-0028), `1.47.0` to one whose behaviour uses a create step's links,
+`IsEmpty` or a total over a calculation, `1.48.0` to one that cleared a screen property with
+`ui.removeProperty` (ADR-0004, 2026-10-13), and `1.49.0` to one whose formula calls `ToText`
+(ADR-0008, 2026-10-13). Each operation declares that version on its own evidence; a
 history fold, which is not an operation, states 1.39.0 in the manifest itself.
 
 Every row except the 1.27, 1.34 and 1.40 rows is a shape of the node tree. At 1.19 and 1.22 a
@@ -1292,6 +1295,13 @@ may omit `expectedDefinitionRevision` entirely. The MCP adapter then fills in th
 value for the position of that operation before it compiles. The stored canonical
 operation still carries an exact integer, so replay and promotion concurrency are
 unchanged.
+
+`ui.removeProperty {surfaceId, nodeId, propertyName}` takes one property off a node, so it
+behaves as if it had never been given it (ADR-0004, 2026-10-13): the way to clear an optional
+property such as `subtitleFieldId`, `visibleWhen`, `opens` or an ordering, which a null value
+does not do, since every validator refuses null. It refuses a property the node does not carry
+(`ui-property-absent`), retains the value it removed, and is the undo of a `ui.setProperty`
+that gave a property its first value.
 
 `ui.addNode` accepts an inline `properties` map over MCP. It is a boundary
 convenience, and nothing behind the boundary sees it. Before compilation, diff,

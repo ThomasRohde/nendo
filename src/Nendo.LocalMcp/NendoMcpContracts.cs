@@ -300,7 +300,7 @@ public sealed record NendoMcpSurfaceNode(
     public string? EntityId { get; init; }
     public string? CommandId { get; init; }
 
-    /// <summary>The surface the node is stored under: what ui.moveNode, ui.setProperty and ui.removeNode take.</summary>
+    /// <summary>The surface the node is stored under: what ui.moveNode, ui.setProperty, ui.removeProperty and ui.removeNode take.</summary>
     public string? SurfaceId { get; init; }
 
     /// <summary>The node it sits under, or null for a root.</summary>

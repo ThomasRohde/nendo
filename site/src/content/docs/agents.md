@@ -152,12 +152,12 @@ A proposal appears on the Agent page under **Pending changes**, with its title, 
 
 When accepting a proposal involves the file's automatic actions, both the queue and the review say so before you accept. A proposal that sets off actions this computer has not approved asks you to approve them on the Agent page first, and **Accept changes** stays unavailable until you do. A proposal that changes the actions says that editing pauses after you accept, until you approve them again. A proposal that both changes the actions and sets them off cannot be accepted as it stands, and the review asks for the actions first and the records after. An agent reads the same facts in the proposal's `behaviour`.
 
-A change set may contain 36 operation types, and nothing else:
+A change set may contain 37 operation types, and nothing else:
 
 - `schema.*` (16): create, rename and retire record types and fields; make a field required; show a text field as one line, long text or Markdown; make a field unique, so no two records can share a value, and have Nendo number it (T-001, T-002…) when a record is created without one; configure a reference; name and colour a choice; keep a record type a tree, and stop keeping it one; say which links a record type allows, from a table of allowed combinations, so Nendo refuses any other link whoever writes it; say whether a new file of the application keeps a record type's records.
 - `behaviour.setDefinition` and `behaviour.removeDefinition`: calculations, reusable functions, automatic actions and triggers.
 - `application.*` (4): say what the file is for; give the file its own icon colour and letter, the badge that tells it apart from other open files; name what a new file of it is called; build the file's search index, so its records can be found by any word in their text.
-- `ui.*` (4): add, set a property on, move and remove a screen node.
+- `ui.*` (5): add, set a property on, clear a property of, move and remove a screen node.
 - `data.*` (6): create, change and delete records, mark one for a new file, fill a value on a retired field, and convert an old text reference, carried in the same proposal.
 - `extension.*` (4): put a custom view's code into the file as a package and its files, and take them out again. See [Custom views](/nendo/docs/custom-views).
 
@@ -195,7 +195,7 @@ A refused call returns `CODE: message`. The code is stable. The message names wh
 ```text
 NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
 NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions, keptInNewFiles and references.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 36 it accepts under operations.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 37 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.

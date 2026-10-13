@@ -6,12 +6,21 @@ namespace Nendo.Engine;
 public sealed partial class NendoWriteCoordinator
 {
     private readonly Dictionary<string, RecoveryExportContext> _recoveryExports = new(StringComparer.Ordinal);
+
+    // Where each prepared part left off: the snapshot it read, and what the parts so far wrote and
+    // left out. A next part is only ever a continuation of one of these (R2SMA-13).
+    private readonly Dictionary<(string EntityId, string After), RecoveryContinuation> _recoveryContinuations = [];
+
+    private sealed record RecoveryContinuation(long ChangeSequence, int Written, int Omitted);
+
+    internal int RecoveryExportRowLimit { get; set; } = RecoveryCsvWriter.MaximumRows;
+    internal int RecoveryExportByteLimit { get; set; } = RecoveryCsvWriter.MaximumBytes;
     internal Action? BeforeRecoveryExportActivation { get; set; }
     internal Action? AfterRecoveryExportActivation { get; set; }
     internal Action? DuringRecoveryExportWrite { get; set; }
 
     public async Task<NendoRecoveryExportPlan> PrepareRecoveryExportAsync(string entityId, string destinationPath,
-        string requestId, CancellationToken cancellationToken = default)
+        string requestId, string? afterRecordId = null, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
         if (requestId.Length > 200) throw new NendoValidationException("The export request ID is too long.");
@@ -25,12 +34,16 @@ public sealed partial class NendoWriteCoordinator
             ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
             if (_recoveryExports.TryGetValue(requestId, out var previous))
             {
-                if (!string.Equals(previous.Destination, destination, StringComparison.OrdinalIgnoreCase) || previous.Plan.EntityId != entityId)
-                    throw new NendoIdempotencyConflictException("This export request already identifies a different table or destination.");
+                if (!string.Equals(previous.Destination, destination, StringComparison.OrdinalIgnoreCase) || previous.Plan.EntityId != entityId ||
+                    previous.Plan.AfterRecordId != afterRecordId)
+                    throw new NendoIdempotencyConflictException("This export request already identifies a different table, destination or part.");
                 return previous.Plan;
             }
             RequireRecoveryExport();
-            if (_recoveryExports.Count >= 32 || _recoveryExports.Values.Sum(value => value.Bytes?.Length ?? 0) >= 16 * 1024 * 1024)
+            // A saved part no longer holds its bytes or counts against the session, so a table is
+            // exported in as many parts as it needs (R2SMA-13).
+            if (_recoveryExports.Values.Count(value => value.ActivatedIdentity is null) >= 32 ||
+                _recoveryExports.Values.Sum(value => value.Bytes?.Length ?? 0) >= 16 * 1024 * 1024)
                 throw new NendoPreconditionException("export-session-limit", "Close and reopen the file before preparing more recovery exports.");
             RequireUnoccupiedBackupDestination(destination);
             NendoSessionSnapshot snapshot;
@@ -49,12 +62,37 @@ public sealed partial class NendoWriteCoordinator
             }
             var entity = snapshot.Entities.SingleOrDefault(value => value.EntityId == entityId)
                 ?? throw new NendoPreconditionException("entity-not-found", "Choose an available table to export.");
-            var csv = RecoveryCsvWriter.Create(entity, snapshot.Records, cancellationToken);
+            RecoveryContinuation earlier = new(snapshot.Manifest.ChangeSequence, 0, 0);
+            if (afterRecordId is not null)
+            {
+                earlier = _recoveryContinuations.GetValueOrDefault((entity.EntityId, afterRecordId))
+                    ?? throw new NendoPreconditionException("export-continuation-unknown",
+                        "No earlier part of this export ended there. Export again from the first part.");
+                // A part read from a later snapshot could miss a record added before the cursor,
+                // and count it as written by the parts before it.
+                if (earlier.ChangeSequence != snapshot.Manifest.ChangeSequence)
+                    throw new NendoPreconditionException("export-source-changed",
+                        "The file changed after the earlier parts were prepared, so a next part could miss records. Export again from the first part.");
+            }
+            var csv = RecoveryCsvWriter.Create(entity, snapshot.Records, cancellationToken,
+                RecoveryExportByteLimit, RecoveryExportRowLimit, afterRecordId);
+            var findings = csv.Findings;
+            if (earlier.Omitted != 0)
+                findings = [.. findings, new("csv-earlier-omissions", $"{earlier.Omitted} record(s) that earlier parts left out are in no part.")];
             if (_recoveryExports.Values.Sum(value => value.Bytes?.Length ?? 0) + csv.Bytes.Length > 16 * 1024 * 1024)
                 throw new NendoPreconditionException("export-session-limit", "Close and reopen the file before preparing more recovery exports.");
             var plan = new NendoRecoveryExportPlan($"export-{Guid.NewGuid():N}", entity.EntityId, entity.DisplayName,
                 Path.GetFileName(destination), snapshot.Manifest.ChangeSequence, csv.SourceRows, csv.ExportedRows,
-                csv.SourceRows - csv.ExportedRows, csv.OmittedFields, csv.EscapedCells, csv.Bytes.Length, csv.IsPartial, csv.Findings);
+                csv.SourceRows - earlier.Written - csv.ExportedRows, csv.OmittedFields, csv.EscapedCells, csv.Bytes.Length,
+                csv.IsPartial || earlier.Omitted != 0, findings)
+            {
+                AfterRecordId = afterRecordId,
+                PrecedingRecordCount = earlier.Written,
+                NextAfterRecordId = csv.ContinueAfter,
+            };
+            if (csv.ContinueAfter is { } next)
+                _recoveryContinuations[(entity.EntityId, next)] = new(earlier.ChangeSequence,
+                    earlier.Written + csv.ExportedRows, earlier.Omitted + csv.OmittedRows);
             _recoveryExports.Add(requestId, new(plan, destination, csv.Bytes, _authority));
             return plan;
         }

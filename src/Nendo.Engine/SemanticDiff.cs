@@ -196,6 +196,12 @@ internal static class SemanticDiff
                     value.Reversibility,
                     value.SurfaceId,
                     value.NodeId),
+                RemoveUiPropertyOperation value => Entry(
+                    "removeUiProperty",
+                    $"Clear {value.PropertyName} on {NodeDescription(names, value.NodeId)}{Inside(names, value.NodeId)}.",
+                    value.Reversibility,
+                    value.SurfaceId,
+                    value.NodeId),
                 MoveUiNodeOperation value => Entry(
                     "moveUiNode",
                     MoveSummary(value, names),

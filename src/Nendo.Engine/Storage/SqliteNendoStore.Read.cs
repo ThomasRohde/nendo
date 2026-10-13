@@ -236,7 +236,7 @@ internal sealed partial class SqliteNendoStore
                     reader.GetString(3),
                     knownKind ? kind : NendoStorageKind.Unsupported,
                     reader.GetInt64(5) == 1,
-                    reader.IsDBNull(6) ? null : reader.GetString(6),
+                    reader.IsDBNull(6) ? null : StoredPresentation(reader.GetString(6), knownKind ? kind : NendoStorageKind.Unsupported),
                     ParseOptions(reader.GetString(7))) { UnsupportedStorageKind = knownKind ? null : kindName });
             }
         }
@@ -266,6 +266,15 @@ internal sealed partial class SqliteNendoStore
             })
             .ToArray();
     }
+
+    /// <summary>
+    /// A text presentation stored on a field that is not Text, which schema.addField accepted
+    /// before ESM-10, is read as no presentation: the field draws its own input again and can
+    /// be made unique, and the stored row is left as it was.
+    /// </summary>
+    private static string? StoredPresentation(string presentation, NendoStorageKind kind) =>
+        kind is not (NendoStorageKind.Text or NendoStorageKind.Unsupported) &&
+        SetFieldPresentationOperation.TextPresentations.Contains(presentation) ? null : presentation;
 
     private async Task<IReadOnlyList<NendoRecordSnapshot>> ReadRecordsAsync(
         IReadOnlyList<EntityMapping> entities,

@@ -107,10 +107,10 @@ public sealed partial class NendoSemanticCompiler
             var endDateFieldId = HeaderField(node, "endDateFieldId");
             if (endDateFieldId is null)
                 AddError(diagnostics, "NUI372", "The end date must name a field.", node.NodeId, "endDateFieldId",
-                    "Set the fieldId of an active Date field, or remove endDateFieldId.");
+                    "Set the fieldId of an active Date field, or clear endDateFieldId with ui.removeProperty.");
             else if (endDateFieldId == dateFieldId)
                 AddError(diagnostics, "NUI372", "The end date repeats the start date.", node.NodeId, "endDateFieldId",
-                    "End each span at a different Date field, or remove endDateFieldId.");
+                    "End each span at a different Date field, or clear endDateFieldId with ui.removeProperty.");
             else if (!RefuseCalculatedQueryField(node, "endDateFieldId", endDateFieldId, derived, "end a span by it", diagnostics))
                 RequireActiveDateField(node, "endDateFieldId", endDateFieldId, fields, "NUI372",
                     "ends a span", "end a span", diagnostics);
@@ -191,13 +191,13 @@ public sealed partial class NendoSemanticCompiler
             var subtitle = HeaderField(node, "subtitleFieldId");
             if (subtitle is null)
                 AddError(diagnostics, "NUI341", "The page subtitle must name a field.", node.NodeId, "subtitleFieldId",
-                    "Set the fieldId of an active field, or remove subtitleFieldId.");
+                    "Set the fieldId of an active field, or clear subtitleFieldId with ui.removeProperty.");
             else if (!fields.ContainsKey(subtitle) && !derived.ContainsKey(subtitle))
                 AddError(diagnostics, "NUI341", $"Field '{subtitle}' does not exist or is retired.", node.NodeId, "subtitleFieldId",
                     "Set the fieldId of an active stored or calculated field of this record type.");
             else if (subtitle == title)
                 AddError(diagnostics, "NUI341", "The subtitle repeats the title.", node.NodeId, "subtitleFieldId",
-                    "Show a different field under the title, or remove subtitleFieldId.");
+                    "Show a different field under the title, or clear subtitleFieldId with ui.removeProperty.");
         }
 
         ValidateAccentField(node, fields, derived, PageAccent, diagnostics);
@@ -254,7 +254,7 @@ public sealed partial class NendoSemanticCompiler
         var title = HeaderField(node, "titleFieldId");
         if (title is null)
             AddError(diagnostics, wording.Code, $"{wording.Subject} must name a field.", node.NodeId, "titleFieldId",
-                "Set the fieldId of an active Text field, or remove titleFieldId.");
+                "Set the fieldId of an active Text field, or clear titleFieldId with ui.removeProperty.");
         else if (derived.ContainsKey(title))
             AddError(diagnostics, wording.Code, $"Field '{title}' is calculated, so it cannot {wording.Verb}.", node.NodeId, "titleFieldId",
                 wording.CalculatedHint);
@@ -278,7 +278,7 @@ public sealed partial class NendoSemanticCompiler
         var accent = HeaderField(node, "accentFieldId");
         if (accent is null)
             AddError(diagnostics, wording.Code, $"{wording.Subject} must name a field.", node.NodeId, "accentFieldId",
-                "Set the fieldId of an active single-choice field, or remove accentFieldId.");
+                "Set the fieldId of an active single-choice field, or clear accentFieldId with ui.removeProperty.");
         else if (derived.ContainsKey(accent))
             AddError(diagnostics, wording.Code, $"Field '{accent}' is calculated, so it cannot {wording.Verb}.", node.NodeId, "accentFieldId",
                 wording.CalculatedHint);

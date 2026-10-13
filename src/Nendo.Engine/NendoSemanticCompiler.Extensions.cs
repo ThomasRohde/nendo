@@ -86,7 +86,7 @@ public sealed partial class NendoSemanticCompiler
         foreach (var view in views) ValidateExtensionView(view, nodes, source, diagnostics);
         foreach (var second in views.Where(OpensFile).Skip(1))
             AddError(diagnostics, "NUI453", "Another view already opens the file, and a file opens on one screen.", second.NodeId, "opensFile",
-                "Keep opensFile on one extensionView and remove it from the others.");
+                "Keep opensFile on one extensionView and clear it from the others with ui.removeProperty.");
         return views.Select(view => new NendoSurfaceNodePlan(view.NodeId, AutomationTarget(view.NodeId), view.Kind, view.Properties, [])).ToArray();
     }
 

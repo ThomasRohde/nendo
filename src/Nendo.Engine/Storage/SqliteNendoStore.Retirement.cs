@@ -52,6 +52,7 @@ internal sealed partial class SqliteNendoStore
             ?? throw new NendoPreconditionException("field-not-found", "The field does not belong to this record type.");
         if (operation.Retired) RequireNotHierarchyField(entity, operation.FieldId, "retired");
         if (operation.Retired) await RequireNotLinkRuleFieldAsync(entity, operation.FieldId, "retired", transaction, ct);
+        if (operation.Retired && field is not null) await RequireNotReferenceLabelAsync(entity, field, transaction, ct);
         var previous = field?.Retired ?? entity.Retired;
         if (field is not null && entity.Retired) throw new NendoPreconditionException("entity-retired", "Reactivate the record type before changing field retirement.");
         if (field is null && operation.Retired)
@@ -80,6 +81,21 @@ internal sealed partial class SqliteNendoStore
             await RebuildRequiredConstraintsAsync(await GetEntityMappingAsync(entity.EntityId, transaction, ct), transaction, ct);
         return new(operation, Evidence(new { previousRetired = previous, appliedDefinitionRevision = manifest.DefinitionRevision + 1 }))
         { RequiredHostVersion = NendoFormat.RetirementMinimumHostVersion };
+    }
+
+    /// <summary>
+    /// A bound reference shows its target by a label field, and no operation points a bound
+    /// reference at another one, so retiring that field left every target created afterwards
+    /// with no label and a board grouped by it refusing with advice nobody could follow (ESS-09).
+    /// </summary>
+    private async Task RequireNotReferenceLabelAsync(EntityMapping entity, FieldMapping field,
+        SqliteTransaction transaction, CancellationToken ct)
+    {
+        foreach (var source in await ReadEntityMappingsAsync(transaction, ct))
+        foreach (var reference in source.Fields)
+            if (reference.Reference is { } bound && bound.TargetEntityId == entity.EntityId && bound.LabelFieldId == field.FieldId)
+                throw new NendoPreconditionException("reference-label-in-use",
+                    $"{source.DisplayName}.{reference.DisplayName} shows {entity.DisplayName} by {field.DisplayName}, so {field.DisplayName} cannot be retired.");
     }
 
     private async Task RebuildRequiredConstraintsAsync(EntityMapping entity, SqliteTransaction transaction, CancellationToken ct)

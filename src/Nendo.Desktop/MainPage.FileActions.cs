@@ -399,10 +399,27 @@ public sealed partial class MainPage
             if (await chooser.ShowAsync() != ContentDialogResult.Primary) return;
             entity = (NendoEntitySnapshot)selector.SelectedItem;
         }
-        var destination = await PickNewDestinationAsync("Export readable data", "nendo-recovery.csv", ".csv");
-        if (destination is null) return;
-        var plan = await _session.PrepareRecoveryExportAsync(entity.EntityId, destination, $"desktop-export-{Guid.NewGuid():N}");
-        var message = $"{plan.EntityName}: {plan.ExportedRecordCount} of {plan.SourceRecordCount} records from the inspected snapshot at change {plan.ChangeSequence}.\n\n" +
+        // A table over the row or byte limit is written in parts, each starting after the last
+        // record the part before it wrote (R2SMA-13).
+        string? after = null;
+        for (var part = 1; ; part++)
+        {
+            var saved = await ExportNativePartAsync(entity, part, after);
+            if (saved?.NextAfterRecordId is not { } next) return;
+            if (!await ConfirmNativeAsync($"Export part {part + 1}",
+                    $"The parts so far hold {saved.PrecedingRecordCount + saved.ExportedRecordCount} of {saved.SourceRecordCount} records. Export the next part to a new CSV file?",
+                    "Export next part")) return;
+            after = next;
+        }
+    }
+
+    private async Task<NendoRecoveryExportPlan?> ExportNativePartAsync(NendoEntitySnapshot entity, int part, string? after)
+    {
+        var destination = await PickNewDestinationAsync("Export readable data", part == 1 ? "nendo-recovery.csv" : $"nendo-recovery-part-{part}.csv", ".csv");
+        if (destination is null) return null;
+        var plan = await _session.PrepareRecoveryExportAsync(entity.EntityId, destination, $"desktop-export-{Guid.NewGuid():N}", afterRecordId: after);
+        var range = plan.PrecedingRecordCount == 0 ? "" : $" after the {plan.PrecedingRecordCount} in earlier parts";
+        var message = $"{plan.EntityName}: {plan.ExportedRecordCount} of {plan.SourceRecordCount} records{range} from the inspected snapshot at change {plan.ChangeSequence}.\n\n" +
             string.Join("\n\n", plan.Findings.Select(finding => finding.Message));
         if (plan.OmittedFieldIds.Count != 0)
             message += $"\n\nExcluded field IDs (first {Math.Min(20, plan.OmittedFieldIds.Count)} of {plan.OmittedFieldIds.Count}):\n" + string.Join("\n", plan.OmittedFieldIds.Take(20));
@@ -410,10 +427,11 @@ public sealed partial class MainPage
         var review = NativeDialog(plan.IsPartial ? "Review partial recovery export" : "Review recovery export", content);
         review.PrimaryButtonText = plan.IsPartial ? "Export partial CSV" : "Export CSV";
         review.CloseButtonText = "Cancel";
-        if (await review.ShowAsync() != ContentDialogResult.Primary) return;
+        if (await review.ShowAsync() != ContentDialogResult.Primary) return null;
         var result = await _session.CreateRecoveryExportAsync(plan.PlanId, plan.IsPartial);
-        NativeNotice($"{(result.Export.IsPartial ? "Partial CSV" : "CSV")} saved: {result.Export.ExportedRecordCount} of {result.Export.SourceRecordCount} records. This is not a backup. Your Nendo file was not changed.",
+        NativeNotice($"{(result.Export.IsPartial ? "Partial CSV" : "CSV")} saved: {result.Export.ExportedRecordCount} of {result.Export.SourceRecordCount} records{range}. This is not a backup. Your Nendo file was not changed.",
             result.Export.IsPartial ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
+        return result.Export;
     }
 
     private ContentDialog NativeDialog(string title, object content)

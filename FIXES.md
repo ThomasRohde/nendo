@@ -9461,3 +9461,70 @@ Checks, on an unlocked desktop:
   `Test-Production.ps1 -SkipRestore` then passed without exception: Engine 1177 of 1179, Local MCP
   245 of 250, Desktop 455 of 455, every lane, "Production verification passed."
 - `Test-Site.ps1`: the website build passed with the changed guides.
+
+### Eighth pass: the findings that needed a new operation or function (W-205)
+
+2026-10-13: the five findings planned as W-205 (2 P2, 3 P3) are fixed as the owner decided on
+2026-10-12, two of them under dated amendments to ADR-0004 and ADR-0008. The guards are a new
+Engine test class, `OperationGapReviewTests`, and one Workbench check that already ran; every
+guard failed with its defect put back, and the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [ESM-10](#esm-10) | `schema.addField` refuses `singleLine` and `longText` on any storage kind but Text, as it already refused `markdown`. A file where an older host stored one on a number, a yes/no, a date or a reference reads it as no presentation, so the field draws its own input and can be made unique; the stored row is left as it was (ADR-0003 note). | `A Integer field drawn as longText was accepted, and nothing could change it afterwards.`; the read: `A number stored as long text still reads as long text, so the form draws a text box over it.` |
+| [ESM-11](#esm-11) | A new canonical operation, `ui.removeProperty {surfaceId, nodeId, propertyName}`, takes one property off a node, retains it, and refuses a property the node does not carry. It is the undo of a property's first value, so History offers Undo on every `ui.setProperty`; its own undo gives the property back. The compiler's hints name it. Host 1.48.0 (ADR-0004, 2026-10-13). | The undo: `NendoCompensationNotSupportedException: A UI property with no retained prior value cannot be compensated.`; the delete: `The undo of a first-time property left it on the node.`; History's label: `History draws these as identifiers: ui.removeProperty` |
+| [ESS-09](#ess-09) | Retiring the field a bound reference shows its targets by is refused, naming the reference (`reference-label-in-use`). NUI239's hint says to reactivate the label field or group by another; `schema.setReferenceLabel` is on the roadmap. | `The label of a bound reference was retired, so every project created afterwards shows as a bare ID.` |
+| [R2AAV-05](#r2aav-05) | A catalogue function, `ToText(value)`: an integer as its digits, a decimal as its stored digits, a date as `yyyy-MM-dd`, no locale; a Boolean and text are refused at installation. `Concat`'s refusal and summary name it. A test asserts that every function a catalogue summary names exists. Host 1.49.0 (ADR-0008, 2026-10-13). | `Concat sends authors to a conversion the catalogue does not have.`; the summary: `Concat's summary names no conversion function.` |
+| [R2SMA-13](#r2sma-13) | A recovery export continues in parts: each starts after the last record the part before it examined, a record too large for any part is omitted and named rather than started on again, and a saved part no longer counts against the session's 32 exports. The Desktop offers **Export next part** after a part that reached its limit. | `The parts never reach the end of the table.`; the session: `NendoPreconditionException: Close and reopen the file before preparing more recovery exports.` |
+
+`BehaviourSurfaceTests.CompensatingACreatedUiPropertyIsRefusedNotMisreportedAsInvalidJson`
+asserted the refusal ESM-11 removes; renamed `…ClearsItNotMisreportedAsInvalidJson`, it now asserts that History offers the undo and that the
+undo clears the property, and keeps its original point, that the absent prior value never
+reaches `JsonDocument.Parse`.
+
+An independent review of the fixes found four defects and several smaller items, all fixed. A
+stored text presentation was read as none by the snapshot but not by the reader write operations
+use, so making such a number unique was still refused (`Count is long text. Only a single-line
+Text field or a plain Integer field can be unique.` with that reader put back). Each export part
+read a fresh snapshot, so in an editable session a record added before the cursor was in no part:
+a next part now continues only a part this session prepared, from the same change, or is refused
+(`export-source-changed`; with the check put back the test reads `A next part read a later
+snapshot, and r0, added before its cursor, is in no part.`). Once an earlier part had left a
+record out, later parts counted it as written and the last part read as complete; the coordinator
+now carries what the parts so far wrote and left out (`The last part reads as complete although
+r1 is in no part.`), and a record too large for any part has its own finding. The operation counts
+and lists in Help, the guides, `how-it-works`, the MCP contract and two authoring texts still said
+thirty-six; they now name `ui.removeProperty`. Smaller: the remaining "remove" hints name the
+operation; `reference-label-in-use` and `ui-property-absent` reach an MCP client with their own
+message; `relationships.md` states the new refusal; the `schema.addField` summary says the text
+presentations need text storage; ADR-0004 says an Undo of a first value raises the file to 1.48.0;
+the roadmap records that ToText's rung is found by name. The undo of a cleared property also
+refuses once the property was given again, but every `ui.setProperty` moves the definition on, so
+the definition guard refuses first; that check is defence in depth and no test can reach it alone.
+
+Documents updated with the behaviour: ADR-0004 and ADR-0008 (dated amendments), the ADR-0003
+note, the ADR index, `docs/architecture.md` (forty operation types; the host-version ladder to
+1.49.0, which also names 1.47.0, part of [DOC-02](#doc-02)), `docs/contracts/semantic-surfaces.md`,
+`docs/contracts/calculations-and-actions.md`, `docs/contracts/relationships.md`,
+`docs/contracts/mcp-interface.md`, `docs/roadmap.md` (three limitations left open), Help, and the
+site's `how-it-works` page and guides `agents`, `files-and-data` and `calculations-and-actions`.
+
+Checks:
+
+- Before the review's fixes, the whole Engine suite: 1187 of 1191 passed (2 skipped). The two
+  failures were the old first-value test, rewritten as above, and
+  `AReopenWaitsOutAHandleThatLetsGoAndNamesItsHolder`, which passed run again alone. The whole
+  Local MCP suite failed only `TheVocabularyPublishesEverythingAFormulaMaySay`, which lists the
+  catalogue's functions and now names `ToText`.
+- The first `Test-Production.ps1 -SkipRestore` after the review stopped at the Workbench's
+  refusal-code test, which wants every Engine refusal code classified for the save journal:
+  `reference-label-in-use` and `ui-property-absent` are now named there as raised by no journaled
+  write.
+- `Test-Production.ps1 -SkipRestore` then passed without exception: Workbench (type check, 602
+  behaviour tests, dependency verification, build), the .NET build, Engine 1190 of 1192 (2
+  skipped), Local MCP 245 of 250 (5 skipped), Desktop 455 of 455, the tool and production
+  boundaries, every custom-view presentation lane, the agent conversation, the Workbench shell
+  lane (39 checks) and the repository gate, ending "Production verification passed."
+- `Test-Site.ps1`: the website build passed with the changed guides and `how-it-works` page.
+- The installer was rebuilt (`Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1`) and
+  `Test-NendoSetupIsolated.ps1` passed against a task-owned root.

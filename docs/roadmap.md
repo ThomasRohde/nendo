@@ -491,6 +491,19 @@ What remains open:
   only for a client that sends neither. A 2026-07-28 client is named on every
   request. The transport still has no session, by design.
 
+## Left open by the broad review's decisions (2026-10-12)
+
+- **A bound reference keeps its label field.** Retiring the field a bound reference shows its
+  targets by is refused (`reference-label-in-use`, ESS-09), and no operation points a bound
+  reference at another label. A `schema.setReferenceLabel` operation would; it is not built.
+- **ToText has no format.** It writes digits, stored decimal digits and `yyyy-MM-dd`, the same
+  everywhere. Thousands separators, another date order or a currency need a format argument
+  that ADR-0008's 2026-10-13 amendment leaves out. Its rung is found by the name, as
+  `IsEmpty`'s is, so `ToText(` inside a text literal, or a function of the file named `ToText`,
+  also raises a file to 1.49.0 without needing it.
+- **A file's minimum host never goes down.** Clearing a property with `ui.removeProperty`, or
+  undoing the change that raised a rung, leaves the rung where it was.
+
 ## Left open by the 2026-09-12 vocabulary widening
 
 The amendment is delivered
