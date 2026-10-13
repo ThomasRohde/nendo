@@ -9528,3 +9528,102 @@ Checks:
 - `Test-Site.ps1`: the website build passed with the changed guides and `how-it-works` page.
 - The installer was rebuilt (`Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1`) and
   `Test-NendoSetupIsolated.ps1` passed against a task-owned root.
+
+### Ninth pass: public website (W-223)
+
+2026-10-13: the 28 site findings planned as W-223 (2 P2, 26 P3) are fixed. The site is outside
+the product gate (ADR-0018), so the guards sit in the lanes `tools/Test-Site.ps1` already runs:
+the unit tests (`site/scripts/docs-search.test.mjs` and a new `check-links.test.mjs`), the
+build's post-build checks (`check-links.mjs`, extended, and a new `check-dist.mjs`), and the
+browser lane `tools/Gate-SiteSearch.mjs`, which now measures layout, the header, contrast, focus
+rings, accessible names, the page without script, motion and the first download, and reports
+every failed check in one run. Every guard failed with its defect put back, except where the row
+says otherwise, and the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [SITE-01](#site-01) | A Sätteri hast plugin in `astro.config.mjs` wraps every markdown table in `.table-scroll`. Code in a guide's table cells and in running text may break anywhere, so a URI template no longer widens the column. | `SITE-01: on /docs/files-and-data/ at 375px a table right 530 past 359 (the column's edge or the On-this-page list).` |
+| [SITE-02](#site-02) | The `.table-scroll` rule moved from `Prose.astro` to `global.css`, so it works outside a Prose block; Status's copy is gone. Outside a guide, code in a table cell stays whole, so the operation names scroll with the table instead of breaking mid-name. | `SITE-01/02/25: /how-it-works/ scrolls sideways at 320px: the document is 365px wide in a 320px window.` |
+| [SITE-03](#site-03) | `compressHTML: false`. `check-dist.mjs` refuses a word glued to an inline element outside `<pre>`. | `/index.html: no space between a word and an inline element, so it reads "arenot"` |
+| [SITE-04](#site-04) | The header has two layouts, one row above 860px and two rows below, and an inline script writes its measured height to `--header-height`. `scroll-padding-top` and the docs rail's sticky top derive from it, with per-layout fallbacks for a page without script. The lane bounds the heading from both sides and reads positions only once scrolling has stopped. | `SITE-04: at 375px a link to #history-and-undo lands the heading at 89px, under the 98px header.` |
+| [SITE-05](#site-05) | Below 720px the GitHub label is hidden visually, not with `display: none`, so it stays the link's name. The lane reads each header control's computed name over CDP. | `SITE-05: on / at 375px a header control has no accessible name: <a class="repo-link" href="https://github.com/ThomasRohde/nendo" rel="noopener" .` |
+| [SITE-06](#site-06) | Code on the violet panel sits in a darker well, light `--healthy` is `#17733f`, dark `--violet` is `#a888f5`, and the search field has a 3:1 `--control-line` border. The lane measures every text element and form control on every page in both themes. It also found github-dark's comment colour at 3.05:1, now `#959da5`. | `SITE-06: light /: "reversible" (strong.) 3.82:1, needs 4.5: rgb(31, 138, 76) on rgb(237, 239, 251).` |
+| [SITE-07](#site-07) | The focus ring is white inside the violet panel. The lane tabs through the home page in both themes and measures each ring against what is behind it. It found the new video button's ring at 2.55:1 on the card, which is now fixed cobalt. | `SITE-07: light: the focus ring on "How it works" is 1.11:1 against what is behind it, under 3:1 (rgb(36, 88, 230) on rgb(122, 79, 224)).` |
+| [SITE-08](#site-08) | The field is a combobox with `aria-expanded` and `aria-controls`, results are a listbox, and a polite status line counts them. ArrowDown and ArrowUp move through the results, and Escape closes the panel, keeping the query and the focus. Focus leaving the combobox closes it; the results box is not a Tab stop of its own. | `Escape was left to the browser, whose default on a search field wipes the reader's query.` (unit); `SITE-08: Escape wiped the reader's query (the field reads "").` (lane) |
+| [SITE-09](#site-09) | A result links to its weightiest Pagefind section, with the heading in its title. The unindexed authored pages and the pager are left as the verifier narrowed them. | `SITE-09: searching "lease" links only to the tops of guides, not to the section "The lease": ["/nendo/docs/agents/","/nendo/docs/concepts/","/nendo/docs/files-and-data/","/nendo/docs/screens/"].` |
+| [SITE-10](#site-10) | The brand video has a Pause/Play button for everyone. The hero mark settles once and breathes only while the pointer rests on it; the settle stays in the hover list, so leaving the mark does not replay it. | `SITE-10: the looping brand video has no visible pause control.`; `SITE-10: the home page runs animation that never stops, with no control to stop it: brand-mark-breathe.` |
+| [SITE-11](#site-11) | No `autoplay`, and `preload="none"`: nothing loads until the card is near the screen, then the sting plays while it is in view. The first load at 375px is now 288 KB, none of it video. | `SITE-11: the home page fetched 3225802 bytes of the brand video on load, though it sits far below the first screen.` |
+| [SITE-12](#site-12) | Below 480px "Using Nendo" reads "Using" and the links are tighter, so all five fit at 375px; " Nendo" is hidden from sight only, so the link's name stays "Using Nendo". The current page's link scrolls into view, and the scrolling edge fades. | `SITE-12: on / at 375px the header's "Docs" link is cut off at the row's edge (right 397, row ends 359).` |
+| [SITE-13](#site-13) | Up to 1100px a collapsed "On this page" disclosure follows the lede. Up to 820px the guide list is a "Guides" disclosure that a script closes. The finding's bound, the title inside the first screen, passed against the defect (title at about 590px of 812), so the lane asks for the top half instead. | `SITE-13: /docs/agents/ at 1024px has no in-page link to 12 of its sections (connect-an-agent, launch-an-agent-from-nendo, access-levels).`; `SITE-13: on /docs/agents/ at 375px the title starts at 634px, below the top half of a 812px screen: the whole guide list comes first.` |
+| [SITE-14](#site-14) | Without `data-theme` the page follows the device: the dark tokens, Shiki's dark colours, the primary button and the screenshot choice repeat under `prefers-color-scheme`. `check-dist.mjs` holds the two token copies equal. The lane strips every script from the served HTML. | `SITE-14: without script, screenshot 1 on /how-it-works/ shows 2 image(s) (shot-light + shot-dark) instead of the light one alone.`; `SITE-14: without script and with a dark device preference, / paints rgb(237, 239, 251), not the dark canvas rgb(18, 22, 52).` |
+| [SITE-15](#site-15) | Getting started now says every kind of screen except the outline, and one custom view, the Systems Lens graph (the word docs/nendo-station.md uses). | No guard. A phrase check would guard the sentence, not the fact, and no lane can compare a guide with what the demo file holds; ADR-0018's re-read rule covers it. |
+| [SITE-16](#site-16) | Status has a "Reference MCP Inspector" row in plain words. `check-dist.mjs` requires a Status row for each area of the roadmap's Not qualified table, and `pages.yml` deploys on a roadmap change. | `/status/: the Not qualified table drops the roadmap's "Reference MCP Inspector" row` |
+| [SITE-17](#site-17) | Guides write `{{version}}` and `{{dotnetSdk}}`, filled at build time from `Directory.Build.props` and `global.json`. `pages.yml` deploys when either changes. `check-dist.mjs` compares the printed values with both files and reads the workflow's paths. | `/docs/roadmap/index.html: the roadmap's current version (Directory.Build.props) reads 0.18.0, but the repository says 0.19.0`; `.github/workflows/pages.yml: a push that changes only Directory.Build.props does not deploy the site, though the site prints what it says` |
+| [SITE-18](#site-18) | `check-links.mjs` checks same-page anchors, relative hrefs, every srcset candidate and a script's `src`, skips markup written inside scripts, and reports a malformed `%` escape instead of stopping. `check-links.test.mjs` runs it over a sound and a broken build of its own. | `A same-page link to an anchor that does not exist was not reported.` (with the old script) |
+| [SITE-19](#site-19) | The four unused PNGs and their two capture definitions are gone. `site/src/capture-set.json` lists the 11 names. `check-dist.mjs` fails on a committed capture outside that list or one no page shows. | `site/src/assets/screenshots/list-dark.png is committed and shipped, but no page shows it` |
+| [SITE-20](#site-20) | The capture script reads `capture-set.json` and fails unless it took every name in both themes with no skip. A new `-UpdateSite` switch copies a complete run into `site/src/assets/screenshots`, and Shot.astro's error names both. | Not run: the lane drives a real Nendo host. Checked by `node --check` (exit 0) and the PowerShell parser (0 errors) only. The site-side half is guarded under SITE-19. |
+| [SITE-21](#site-21) | Every page has an `og:image` and `twitter:image`: the mark at 512px, built by `getImage`, so no new file is committed. The card is `summary`. The 404 page has no canonical or `og:url` and says `noindex`. robots.txt is left as the verifier narrowed it. | `/index.html: no og:image, so a link preview has no picture although the card asks for a large one`; `/404.html: the not-found page declares a canonical URL, /nendo/404/, which is itself a 404` |
+| [SITE-22](#site-22) | Every internal href in the pages, the nav, the footer and docs-nav ends in a slash. A hast plugin adds it to guide links, `calculations-and-actions.md` included, without editing them. `check-links.mjs` refuses a link to a page without the slash. | `/docs/agents/index.html -> /nendo/docs/concepts — links to a page without the trailing slash; GitHub Pages answers /nendo/docs/concepts with a 301 redirect to /nendo/docs/concepts/` |
+| [SITE-23](#site-23) | The three 粘土 occurrences are `<span lang="ja">`. `check-dist.mjs` requires every Japanese run in dist to be marked. | `/index.html: 1 run(s) of Japanese text are not marked lang="ja", so a screen reader reads them in the English voice` |
+| [SITE-24](#site-24) | The guide list is `<nav aria-label="Guides">` and the On-this-page list is a `nav`. Group labels are not headings, so the title is the first heading. Checked in dist. | `/docs/agents/index.html: the list of guides is not a navigation landmark named Guides`; `/docs/agents/index.html: the first heading is an h2, not the page title's h1` |
+| [SITE-25](#site-25) | Every grid column minimum is `min(100%, Npx)`, the 380px ones included. The layout lane measures every page at 1440, 1024, 800, 375 and 320. | `SITE-01/02/25: /status/ scrolls sideways at 320px: the document is 356px wide in a 320px window.` |
+| [SITE-26](#site-26) | `.hero-mark` has `overflow-x: clip`. An init script samples the overflow on every frame of the first 1.5 s. | `SITE-26: the home page was 8px wider than a 1024px window during its first second.` |
+| [SITE-27](#site-27) | A failed Pagefind load is forgotten, so the next keystroke tries again. The built site says "Search could not load. Try again."; the dev wording stays behind a `data-dev` flag. | `After one failed load of Pagefind, search stayed dead until the page was reloaded: the next keystroke never reached Pagefind.` |
+| [SITE-29](#site-29) | `global.css` names Mica with tabs. `tokens.css` says the inline script stamps `data-theme`, and that a no-script page falls back to the device. | No guard: comments only. |
+
+Astro 7's default Markdown processor is Sätteri, which runs no rehype plugins, so the three
+plugins are Sätteri hast plugins passed through `satteri()` from `@astrojs/markdown-satteri`.
+`site/package.json` declares it at 0.4.1, the version astro pins, through `npm install`.
+
+An independent review of the fixes found one defect in the lane and several smaller items, all
+fixed. Test-Site failed for the reviewer with `SITE-04: at 800px a link to #history-and-undo
+lands the heading at -248px, under the 98px header.` The cause was in the lane, not the page.
+It opened the same URL with the same fragment at each width, which is a same-document jump,
+not a load. So at 800px it measured the 860px page, whose guide list closed under it at the
+resize. Each width now loads its own URL. The guide list now closes from an inline script
+directly after it, during parsing, not from a deferred module script. The lane records whether
+the list was still open when the parser reached the fragment's target. With the deferred script
+put back the heading still landed in place, because Chromium kept the scroll anchored, but that
+record failed: `SITE-04: at 800px the guide list was still open (true) when the page reached
+#history-and-undo, so closing it afterwards moves the heading the browser scrolled to.` The
+heading is now bounded from both sides (`SITE-04: at 1440px a link to #history-and-undo lands
+the heading at 183px, not just below the 63px header.` with 120px of scroll padding put back),
+and the rail is read after an instant scroll has settled (`SITE-04: at 860px the docs rail
+sticks at 78px, under the 98px header, hiding its search field.`).
+
+The review's smaller items, each with the failure seen with it put back:
+- Leaving the hero mark replayed its entrance from opacity 0: `SITE-10: leaving the hero mark
+  replays its entrance, fading it to opacity 0.00.`
+- Clipping the whole hero cut the buttons' focus rings, so the mark's column is clipped instead,
+  and the lane now fails on any focus ring an ancestor clips: `SITE-07: light: the focus ring on
+  "Why this exists" is cut off by its ancestor .page hero.`
+- The first-load guard counted bytes only for finished requests, so it missed a partly fetched
+  video. It now counts the bytes that arrive, and that showed `preload="metadata"` still
+  fetching 1 MB. With it put back: `SITE-11: the home page fetched 1048576 bytes of the brand
+  video on load, though it sits far below the first screen.`
+- Operation names broke mid-name at 320–375px: `SITE-02: on /how-it-works/ at 375px 40
+  operation name(s) break across lines instead of the table scrolling: schema.createEntity,
+  data.createRecord, ui.addNode.`
+- The cached guide kept an old version after a version change, because the cache key leaves out
+  plugin functions. check-dist now names the two folders to clear: `… reads 0.18.0, but the
+  repository says 0.19.0. If the guide writes the {{fact}} token, the content cache is stale:
+  clear site/.astro and site/node_modules/.astro and build again`.
+- Tabbing out of the search field left it open: `The focus left the search field and the
+  results stayed open.` (unit) and `SITE-08: tabbing out of the search field left its results
+  open (hidden false, aria-expanded true).` (lane).
+- The phone label lost its full name: `SITE-12: on / at 375px the shortened "Using" link lost
+  its full name; the header's names are ["nendo","Concept","How it works","Using","Status",
+  "Docs","System","Light","Dark","GitHub"].`
+- check-links crashed on a malformed escape (`URIError: URI malformed`) and ignored a script's
+  `src`: `A script whose src does not exist was not reported.`
+
+Left open from the review: fixed waits elsewhere in the browser lane, a poster frame for the
+brand video (without script, or before it loads, the card is empty), and `-UpdateSite`, which
+checks every file is present before copying but is not atomic if a copy fails partway.
+
+`Test-Site.ps1 -SkipInstall` then passed twice in a row: `astro check` 0 errors, 14 of 14 unit
+tests, every internal reference resolving, `check-dist: 15 page(s) say what they must.`, and
+the browser lane complete.
+
+Not run: `tools/Capture-SiteScreenshots.ps1`, which drives a real host. Its new completeness
+assertion and `-UpdateSite` copy were checked by parsing only, and no screenshot was retaken.

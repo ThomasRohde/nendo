@@ -13,7 +13,7 @@ This guide takes you from a clone of the repository to a file with your own reco
 | --- | --- |
 | Windows x64 | Nendo runs on Windows only. There is no ARM64 build. |
 | WebView2 Evergreen runtime | The app draws its interface in WebView2. Most Windows 11 computers already have it. |
-| .NET SDK | The version pinned in [`global.json`](https://github.com/ThomasRohde/nendo/blob/main/global.json) (10.0.204, later feature bands are accepted). |
+| .NET SDK | The version pinned in [`global.json`](https://github.com/ThomasRohde/nendo/blob/main/global.json) ({{dotnetSdk}}, later feature bands are accepted). |
 | Node.js 22.12 or later | Declared under `engines` in `src/Nendo.Workbench/package.json`. The build uses `npm`. |
 | PowerShell 7 | The build and test scripts are `.ps1` files run with `pwsh`. |
 | NSIS | Only to package the installer (`makensis` on your `PATH`). Where winget is disabled, the portable NuGet package `NSIS-Tool` works too, put on `PATH` for the build shell only; [architecture.md](https://github.com/ThomasRohde/nendo/blob/main/docs/architecture.md#nsis-without-winget) has the steps. |
@@ -116,11 +116,11 @@ Nendo has no built-in agent. A coding agent such as Claude Code or Codex connect
 
 ## Try Nendo Station
 
-Nendo Station is a demonstration file: a fictional orbital habitat with nine record types (Modules, Systems, Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about 500 records and every kind of screen Nendo draws. It is in the repository at [`workspace/Nendo Station.nendo`](https://github.com/ThomasRohde/nendo/blob/main/workspace/Nendo%20Station.nendo).
+Nendo Station is a demonstration file: a fictional orbital habitat with nine record types (Modules, Systems, Components, Feeds, Readings, Incidents, Maintenance, Experiments, Crew), about 500 records and every kind of screen Nendo draws except the outline, which needs a hierarchy the station does not have. It has one custom view, the Systems Lens graph. It is in the repository at [`workspace/Nendo Station.nendo`](https://github.com/ThomasRohde/nendo/blob/main/workspace/Nendo%20Station.nendo).
 
 To look around, open the file. It starts on the **Station status** front page. The file has automatic actions, so editing stays off until you choose **Approve automatic actions** under **Health**. Reading works without it.
 
-The **Systems Lens** schematic is a custom view, a screen of Components, and the file carries its code. If the repository has a newer version of the view, pick `extensions/systems-lens/nendo-package.json` in **Studio › Screens › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
+The **Systems Lens** graph is a custom view, a screen of Components, and the file carries its code. If the repository has a newer version of the view, pick `extensions/systems-lens/nendo-package.json` in **Studio › Screens › Custom views › Import package…** and accept the proposal. See [Custom views](/nendo/docs/custom-views).
 
 To keep the tracked file unchanged, open it and use **Duplicate…** from the file menu, then work in the copy. A copy asks for the approval of automatic actions again.
 

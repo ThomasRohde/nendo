@@ -75,7 +75,7 @@ const outOfScope = [
         operations. Nothing is generated and nothing is built.
       </p>
       <p>
-        <em>Nendo</em> (粘土) is Japanese for clay, and the name is the idea: clay holds a
+        <em>Nendo</em> (<span lang="ja">粘土</span>) is Japanese for clay, and the name is the idea: clay holds a
         shape and can take a new one without being thrown away.
       </p>
     </Prose>
@@ -168,7 +168,7 @@ const outOfScope = [
           focused surface, reviews and accepts the semantic change, restarts offline, and
           recovers the data without that surface.
         </p>
-        <p><a href={`${base}/how-it-works`}>How it works →</a></p>
+        <p><a href={`${base}/how-it-works/`}>How it works →</a></p>
       </div>
     </div>
   </section>
@@ -181,7 +181,7 @@ const outOfScope = [
     padding: 0;
     display: grid;
     gap: 14px;
-    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
   }
 
   .axioms li {
@@ -225,7 +225,7 @@ const outOfScope = [
   .scope {
     display: grid;
     gap: 30px;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
     margin-top: 26px;
   }
 

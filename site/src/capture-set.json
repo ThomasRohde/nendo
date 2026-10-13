@@ -1,0 +1,16 @@
+{
+  "about": "The screenshots the site shows, each captured in a light and a dark file. tools/Capture-SiteScreenshots.mjs captures exactly these and fails on any it cannot take; scripts/check-dist.mjs fails when site/src/assets/screenshots holds a different set or a page shows none of one.",
+  "names": [
+    "overview",
+    "board",
+    "calendar",
+    "timeline",
+    "gallery",
+    "matrix",
+    "record-page",
+    "studio-data",
+    "studio-structure",
+    "studio-history",
+    "agent"
+  ]
+}

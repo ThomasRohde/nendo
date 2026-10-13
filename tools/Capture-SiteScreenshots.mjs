@@ -15,6 +15,10 @@ const layoutHeight = Number(heightArgument ?? 1000);
 const deviceScale = Number(scaleArgument ?? 2);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const assert = (value, message) => { if (!value) throw new Error(message); };
+// The names the site shows. A run captures each in both themes or fails: a partial
+// set copied over the site's captures would mix two builds of the application.
+const captureSet = JSON.parse(await fs.readFile(new URL('../site/src/capture-set.json', import.meta.url), 'utf8')).names;
+const expectedFiles = captureSet.flatMap(name => ['light', 'dark'].map(theme => `${name}-${theme}.png`));
 let socket;
 const pending = new Map();
 const pageErrors = [];
@@ -86,6 +90,7 @@ const captured = [];
 const skipped = [];
 async function shot(name, theme, prepare) {
   const file = `${name}-${theme}.png`;
+  assert(captureSet.includes(name), `${name} is captured but is not in site/src/capture-set.json.`);
   try {
     await prepare();
     await settle();
@@ -208,7 +213,6 @@ try {
     ['timeline', k => k.includes('timeline')],
     ['gallery', k => k.includes('gallery')],
     ['matrix', k => k.includes('matrix')],
-    ['list', k => k.includes('list') && !k.includes('rank')],
   ];
 
   for (const theme of ['light', 'dark']) {
@@ -257,7 +261,6 @@ try {
     const areas = [
       ['studio-data', '#nav-data', '[data-testid="application-data-state"], [data-testid="valid-empty-state"]'],
       ['studio-structure', '#nav-structure', '.structure-page'],
-      ['studio-surfaces', '#nav-surfaces', '.studio-page:not(.structure-page):not(.history-page)'],
       ['studio-history', '#nav-history', '.history-page'],
     ];
     for (const [name, nav, marker] of areas) {
@@ -289,9 +292,12 @@ try {
 
   await fs.writeFile(path.join(output, 'manifest.json'), JSON.stringify({ captured, skipped, pageErrors }, null, 2));
   assert(pageErrors.length === 0, `Unhandled page errors: ${pageErrors.join(' | ')}`);
-  assert(captured.length >= 8, `Only ${captured.length} shot(s) captured. Skipped: ${JSON.stringify(skipped)}`);
-  console.log(`Captured ${captured.length} screenshot(s); skipped ${skipped.length}.`);
   for (const entry of skipped) console.log(`  skipped ${entry.file}: ${entry.reason}`);
+  const missing = expectedFiles.filter(file => !captured.includes(file));
+  const extra = captured.filter(file => !expectedFiles.includes(file));
+  assert(skipped.length === 0 && missing.length === 0 && extra.length === 0,
+    `The capture set is incomplete, so nothing may be copied to the site: missing ${JSON.stringify(missing)}, not in the set ${JSON.stringify(extra)}, skipped ${JSON.stringify(skipped)}.`);
+  console.log(`Captured all ${captured.length} screenshot(s) the site shows.`);
 } catch (error) {
   try {
     await screenshot('failure.png');

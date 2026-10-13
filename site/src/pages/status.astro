@@ -4,8 +4,10 @@ import Page from '../layouts/Page.astro';
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
 
 
-// Condensed from the "Not qualified" table in docs/roadmap.md, in plainer words.
-// Keep its distinction between what a test measured and what a person reported.
+// Condensed from the "Not qualified" table in docs/roadmap.md, in plainer words, one
+// row for each of its rows (ADR-0018: the site reproduces that table and does not
+// summarise it away; scripts/check-dist.mjs holds the two to the same areas). Keep
+// its distinction between what a test measured and what a person reported.
 const notQualified = [
   { area: 'Public distribution, code signing, ARM64', status: 'Not started.' },
   { area: 'Clean-machine install', status: 'Reported as passing by the author, on a machine since used for everything else. There is no automated test, and none is planned.' },
@@ -13,6 +15,7 @@ const notQualified = [
   { area: 'Human usability and accessibility', status: 'Reported by the author. Scaling, keyboard and focus, and screen-reader checks were done by hand, not measured.' },
   { area: 'Cloud sync and live-root writes', status: 'Unsupported. Nendo warns about known sync folders but makes no claim that syncing is safe.' },
   { area: 'Physical power loss', status: 'Not tested.' },
+  { area: 'Reference MCP Inspector', status: "Never passed. An optional test compares Nendo's list of tools with what the reference MCP Inspector reads, but the Inspector is not installed on the development machine, so the test has only ever reported Inconclusive. The regular tests check four of the Inspector's rules instead." },
   { area: 'Broad MCP client parity', status: 'Not promised. Claude Code and Codex both connect with just the address, checked by optional tests against installed clients. Other clients are untested.' },
   { area: 'Launched agents', status: 'Built, with limits. Tests drive a stand-in agent, not a real one, and no test journey runs the whole path through the app. One live check with GitHub Copilot CLI was observed, not automated. A conversation cannot be resumed, and Nendo cannot confine the program it starts.' },
   { area: 'Account boundary on a shared machine', status: 'Not provided. While agent access is on, any program on this computer can connect, and there is no plan to change that.' },
@@ -79,7 +82,7 @@ const gaps = [
       </p>
       <p>
         The only way to find out is for other people to use it. The
-        <a href={`${base}/use`}>walkthrough on Using Nendo</a> goes through the whole core
+        <a href={`${base}/use/`}>walkthrough on Using Nendo</a> goes through the whole core
         loop and is the place to start. If you get lost along the way, that is exactly what
         the project needs to hear.
       </p>
@@ -98,16 +101,8 @@ const gaps = [
     font-size: 0.94rem;
   }
 
-  .table-scroll {
-    margin-top: 24px;
-    overflow-x: auto;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface-raised);
-  }
-
-  .table-scroll table { margin: 0; }
-  .table-scroll tr:last-child td { border-bottom: 0; }
+  /* The box is the shared .table-scroll in global.css. */
+  .table-scroll { margin: 24px 0 0; }
   .table-scroll td { font-size: 0.92rem; }
 
   .gaps {
@@ -116,7 +111,7 @@ const gaps = [
     list-style: none;
     display: grid;
     gap: 8px;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr));
   }
 
   .gaps li {

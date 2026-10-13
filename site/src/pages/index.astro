@@ -51,10 +51,10 @@ const showcase = [
         boards, record pages and history. Nothing is generated or built, and changing it
         never means starting over.
       </p>
-      <p class="clay"><em>Nendo</em> (粘土) is Japanese for clay.</p>
+      <p class="clay"><em>Nendo</em> (<span lang="ja">粘土</span>) is Japanese for clay.</p>
       <div class="hero-actions">
-        <a class="button button-primary" href={`${base}/concept`}>Why this exists</a>
-        <a class="button button-quiet" href={`${base}/use`}>Using Nendo</a>
+        <a class="button button-primary" href={`${base}/concept/`}>Why this exists</a>
+        <a class="button button-quiet" href={`${base}/use/`}>Using Nendo</a>
         <a class="button button-quiet" href={repository} rel="noopener">Source on GitHub</a>
       </div>
     </div>
@@ -98,7 +98,7 @@ const showcase = [
           operations. Nendo's own screens and an agent connected over MCP use the same
           operations and the same validation.
         </p>
-        <p><a href={`${base}/how-it-works`}>How it works</a></p>
+        <p><a href={`${base}/how-it-works/`}>How it works</a></p>
       </div>
     </div>
   </section>
@@ -205,32 +205,58 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
           table view, can't be removed. Changes are previewed on a copy, never on your
           data. Every operation states whether it can be undone.
         </p>
-        <p><a href={`${base}/concept`}>Read all eight axioms</a></p>
+        <p><a href={`${base}/concept/`}>Read all eight axioms</a></p>
       </div>
-      <div class="brand-video">
+      <div class="brand-video" data-brand-video>
         <video
           src={`${base}/brand/nendo.mp4`}
           muted
           loop
           playsinline
-          autoplay
-          preload="metadata"
+          preload="none"
           aria-label="The Nendo mark, animated"
         ></video>
+        <button type="button" class="video-toggle" data-video-toggle hidden>Play</button>
       </div>
     </div>
     <script is:inline>
-      // autoplay is an attribute, so it cannot be withheld per reader. Stop it for
-      // anyone who asked for less motion, and leave the first frame on the card.
+      // No autoplay attribute: it fetches the whole 3 MB file at load, though the card
+      // sits far below the fold on a phone, and even preload="metadata" fetched 1 MB.
+      // Nothing loads until the card is near the screen; then the sting plays while it
+      // is in view and has a Pause button for everyone. A reader who asked for less
+      // motion gets the first frame and the button.
       (() => {
-        const video = document.querySelector('.brand-video video');
-        if (!video) return;
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          video.removeAttribute('autoplay');
-          video.removeAttribute('loop');
-          video.controls = true;
-          video.pause();
+        const root = document.querySelector('[data-brand-video]');
+        const video = root?.querySelector('video');
+        const toggle = root?.querySelector('[data-video-toggle]');
+        if (!video || !toggle) return;
+        let wanted = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let visible = false;
+        const label = () => {
+          const playing = !video.paused;
+          toggle.textContent = playing ? 'Pause' : 'Play';
+          toggle.setAttribute('aria-label', playing ? 'Pause the animation' : 'Play the animation');
+        };
+        const apply = () => {
+          if (wanted && visible) video.play().catch(() => {});
+          else video.pause();
+        };
+        video.addEventListener('play', label);
+        video.addEventListener('pause', label);
+        toggle.addEventListener('click', () => {
+          wanted = video.paused;
+          if (wanted) video.play().catch(() => {});
+          else video.pause();
+        });
+        if ('IntersectionObserver' in window) {
+          new IntersectionObserver(entries => {
+            visible = entries[entries.length - 1].isIntersecting;
+            if (visible && video.preload === 'none') video.preload = 'metadata';
+            apply();
+          }, { rootMargin: '400px 0px' }).observe(video);
         }
+        toggle.hidden = false;
+        label();
       })();
     </script>
   </section>
@@ -248,7 +274,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
         <strong>not</strong> supported. Every usability, scaling and accessibility result
         so far comes from the author's own testing; nobody else has evaluated it yet.
       </p>
-      <p><a href={`${base}/status`}>Full status, including what hasn't been tested</a></p>
+      <p><a href={`${base}/status/`}>Full status, including what hasn't been tested</a></p>
     </div>
   </section>
 </Base>
@@ -313,7 +339,11 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     margin-top: 28px;
   }
 
+  /* The mark's settle animation scales it past its column for a moment; without the
+     clip that flashes a horizontal scrollbar between about 860 and 1150px. Clipping
+     the whole hero instead cut the buttons' focus rings at its left edge. */
   .hero-mark {
+    overflow-x: clip;
     position: relative;
     justify-self: center;
     width: min(440px, 100%);
@@ -336,7 +366,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
   .split {
     display: grid;
     gap: 22px;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   }
 
   .split h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); }
@@ -350,8 +380,9 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
   .panel-violet .eyebrow,
   .panel-violet a { color: var(--on-violet); }
 
+  /* A white tint on the slab left white code at 3.9:1; a darker well keeps it above 7:1. */
   .panel-violet code {
-    background: rgba(255, 255, 255, 0.16);
+    background: color-mix(in srgb, var(--violet-slab) 80%, #000000);
     border-color: transparent;
     color: var(--on-violet);
   }
@@ -514,7 +545,27 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     line-height: 0;
   }
 
+  .brand-video { position: relative; }
   .brand-video video { display: block; width: 100%; height: auto; }
+
+  /* The card stays near-white in both themes, so its focus ring does too. */
+  .brand-video :focus-visible { outline-color: #2458e6; }
+
+  .video-toggle {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    padding: 6px 14px;
+    border: 1px solid var(--control-line);
+    border-radius: 999px;
+    background: var(--surface-raised);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 650;
+    line-height: 1.4;
+    cursor: pointer;
+  }
 
   .status-band h2 { max-width: 20ch; }
   .status-band p { max-width: 62ch; }

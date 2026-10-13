@@ -44,7 +44,7 @@ const demo = [
     <div class="note note-warning">
       <p>
         <strong>Experimental.</strong> Nendo is a research prototype, not a product. Read
-        <a href={`${base}/status`}>Status</a> before you rely on it for anything.
+        <a href={`${base}/status/`}>Status</a> before you rely on it for anything.
       </p>
     </div>
   </section>
@@ -153,7 +153,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     <p class="lede">
       Five parts that take you through the whole loop, from an empty file to recovery.
       Start here if you have never opened a <code>.nendo</code> file;
-      <a href={`${base}/docs/getting-started`}>Getting started</a> covers the first part
+      <a href={`${base}/docs/getting-started/`}>Getting started</a> covers the first part
       step by step.
     </p>
     <ol class="journey">
@@ -198,7 +198,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
           hundred rows, and an agent import saves fifty rows per revision. Each accepted
           batch is recorded.
         </p>
-        <p><a href={`${base}/docs/files-and-data`}>Files and data →</a></p>
+        <p><a href={`${base}/docs/files-and-data/`}>Files and data →</a></p>
       </article>
       <article class="panel">
         <h3>Custom views</h3>
@@ -208,7 +208,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
           screen is shown, with nothing to install and nothing to allow. Two switches on
           this computer turn views off, for every file or for one.
         </p>
-        <p><a href={`${base}/docs/custom-views`}>Custom views →</a></p>
+        <p><a href={`${base}/docs/custom-views/`}>Custom views →</a></p>
       </article>
       <article class="panel">
         <h3>It keeps running</h3>
@@ -235,7 +235,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
   .steps {
     display: grid;
     gap: 20px;
-    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr));
     margin-top: 24px;
   }
 
@@ -331,7 +331,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
     display: grid;
     gap: 26px;
     margin-top: 30px;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
   }
 
   .extras { margin-top: 24px; }

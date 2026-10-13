@@ -11,7 +11,11 @@ param(
     # rendered with. The image is Width x Scale by Height x Scale.
     [int] $Width = 1600,
     [int] $Height = 1000,
-    [ValidateRange(1, 3)][int] $Scale = 2
+    [ValidateRange(1, 3)][int] $Scale = 2,
+    # After a complete run, replace the site's committed captures with this run's.
+    # The capture script fails unless it took every name in site/src/capture-set.json
+    # in both themes, so the site never mixes two runs.
+    [switch] $UpdateSite
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -93,3 +97,14 @@ finally {
     if (Test-Path -LiteralPath $runRoot) { Remove-Item -LiteralPath $runRoot -Recurse -Force -ErrorAction SilentlyContinue }
 }
 Write-Host "Captured $(@(Get-ChildItem -LiteralPath $output -Filter *.png).Count) screenshot(s) into $output"
+if ($UpdateSite) {
+    $siteShots = Join-Path $repoRoot 'site/src/assets/screenshots'
+    $names = (Get-Content -LiteralPath (Join-Path $repoRoot 'site/src/capture-set.json') -Raw | ConvertFrom-Json).names
+    $files = foreach ($name in $names) { foreach ($theme in 'light', 'dark') { "$name-$theme.png" } }
+    foreach ($file in $files) {
+        if (-not (Test-Path -LiteralPath (Join-Path $output $file) -PathType Leaf)) { throw "The run has no $file, so the site's captures were left as they were." }
+    }
+    Get-ChildItem -LiteralPath $siteShots -Filter *.png | Remove-Item
+    foreach ($file in $files) { Copy-Item -LiteralPath (Join-Path $output $file) -Destination (Join-Path $siteShots $file) }
+    Write-Host "Replaced the site's captures with $(@($files).Count) file(s) in $siteShots. Rebuild the site with tools/Test-Site.ps1."
+}

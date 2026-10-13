@@ -4,7 +4,9 @@ import { Image } from 'astro:assets';
 // Every screenshot was captured in both themes in the same run, so the page can show
 // whichever one matches the reader's choice rather than showing a dark application
 // on a light page. Both are in the markup; CSS picks. Captured by
-// tools/Capture-SiteScreenshots.ps1 from workspace/Nendo Station.nendo.
+// tools/Capture-SiteScreenshots.ps1 -UpdateSite from workspace/Nendo Station.nendo;
+// the names it must capture are listed in src/capture-set.json, and
+// scripts/check-dist.mjs fails on a committed capture no page shows.
 const shots = import.meta.glob<{ default: ImageMetadata }>('../assets/screenshots/*.png', { eager: true });
 
 interface Props {
@@ -18,7 +20,7 @@ const { name, alt, caption, priority = false } = Astro.props;
 const pick = (theme: string) => {
   const key = `../assets/screenshots/${name}-${theme}.png`;
   const entry = shots[key];
-  if (!entry) throw new Error(`No ${theme} capture named ${name}. Run tools/Capture-SiteScreenshots.ps1.`);
+  if (!entry) throw new Error(`No ${theme} capture named ${name}. List "${name}" in site/src/capture-set.json and run tools/Capture-SiteScreenshots.ps1 -UpdateSite, which writes the captures into site/src/assets/screenshots.`);
   return entry.default;
 };
 const light = pick('light');
@@ -54,6 +56,13 @@ const dark = pick('dark');
 
   :root[data-theme='light'] .shot-dark,
   :root[data-theme='dark'] .shot-light { display: none; }
+
+  /* No script, no data-theme: follow the device rather than showing both. */
+  :root:not([data-theme]) .shot-dark { display: none; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) .shot-dark { display: block; }
+    :root:not([data-theme]) .shot-light { display: none; }
+  }
 
   figcaption {
     margin-top: 12px;

@@ -33,23 +33,13 @@ const { class: className = '' } = Astro.props;
   .prose li > ul,
   .prose li > ol { margin-top: 0.45em; }
 
+  /* The .table-scroll box itself is styled in global.css, so it works outside a
+     Prose block too (How it works and Status use it on their own). */
   .prose table,
   .prose pre,
   .prose figure,
+  .prose .table-scroll,
   .prose .full-width { max-width: none; }
-
-  .prose .table-scroll {
-    max-width: none;
-    overflow-x: auto;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--surface-raised);
-  }
-
-  .prose .table-scroll table { margin: 0; }
-  .prose .table-scroll th,
-  .prose .table-scroll td { white-space: normal; }
-  .prose .table-scroll tr:last-child td { border-bottom: 0; }
 
   /* Headings in rendered documents carry their own anchor. */
   .prose :is(h2, h3, h4) > a[href^='#'] {

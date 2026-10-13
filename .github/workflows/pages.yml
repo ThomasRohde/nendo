@@ -10,6 +10,12 @@ on:
       - 'site/**'
       - 'docs/assets/brand/**'
       - 'src/Nendo.Desktop/Assets/AppIcon.ico'
+      # The site prints the product version (site/src/version.ts) and the pinned SDK
+      # (getting-started), so a version cut alone has to redeploy it.
+      - 'Directory.Build.props'
+      - 'global.json'
+      # The Status page's Not qualified table reproduces this one.
+      - 'docs/roadmap.md'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 

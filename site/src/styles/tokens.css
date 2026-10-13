@@ -2,7 +2,10 @@
    the application's working surfaces. Cobalt and violet are the two clays of the
    mark; the grounds are tinted toward them so the neutrals read as chosen. The
    screenshots still show the application's own tokens, framed like pressed clay.
-   Light in :root, dark under [data-theme="dark"], which Base.astro always stamps. */
+   Light in :root, dark under [data-theme="dark"], which the inline script in
+   Base.astro stamps before first paint. A page that runs no script has no
+   data-theme, so the same dark block is repeated under prefers-color-scheme for
+   :root:not([data-theme]); scripts/check-dist.mjs holds the two copies equal. */
 
 @import '@fontsource-variable/bricolage-grotesque/opsz.css';
 @import '@fontsource-variable/figtree/wght.css';
@@ -17,12 +20,14 @@
   --muted: #555c86;
   --line: #d6dbf0;
   --line-strong: #c3c9e6;
+  /* A control's boundary: 3:1 against the canvas and its own fill (WCAG 1.4.11). */
+  --control-line: #767da6;
   --cobalt: #2458e6;
   --cobalt-soft: #e2e8fd;
   --violet: #7a4fe0;
   --violet-slab: #7a4fe0;
   --on-violet: #ffffff;
-  --healthy: #1f8a4c;
+  --healthy: #17733f;
   --warning: #b56a13;
   --danger: #c5364f;
   --healthy-soft: #e2f4ea;
@@ -65,9 +70,10 @@
   --muted: #aab0d8;
   --line: #2c3270;
   --line-strong: #3a4190;
+  --control-line: #6b73b8;
   --cobalt: #6f98ff;
   --cobalt-soft: #1e2d6e;
-  --violet: #9a73f0;
+  --violet: #a888f5;
   --violet-slab: #6441c9;
   --on-violet: #ffffff;
   --healthy: #58d895;
@@ -89,4 +95,43 @@
   --tone-blue: #7ba6ff;
   --tone-violet: #b39dff;
   --tone-grey: #a3adc0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --canvas: #121634;
+    --surface: #161a3e;
+    --surface-raised: #1c2150;
+    --surface-soft: #232862;
+    --ink: #eef0ff;
+    --muted: #aab0d8;
+    --line: #2c3270;
+    --line-strong: #3a4190;
+    --control-line: #6b73b8;
+    --cobalt: #6f98ff;
+    --cobalt-soft: #1e2d6e;
+    --violet: #a888f5;
+    --violet-slab: #6441c9;
+    --on-violet: #ffffff;
+    --healthy: #58d895;
+    --warning: #f0b15f;
+    --danger: #ff8aa0;
+    --healthy-soft: rgba(88, 216, 149, 0.12);
+
+    --press: #0e1230;
+    --edge: rgba(0, 0, 0, 0.35);
+    --glow: rgba(111, 152, 255, 0.2);
+    --shadow: 0 40px 80px -30px var(--glow), 0 12px 30px var(--edge);
+    --shadow-soft: inset 0 -5px 0 var(--edge);
+
+    --tone-red: #ff7b8c;
+    --tone-orange: #ff9a5c;
+    --tone-amber: #f2c14e;
+    --tone-green: #5ed48a;
+    --tone-teal: #4dd0c8;
+    --tone-blue: #7ba6ff;
+    --tone-violet: #b39dff;
+    --tone-grey: #a3adc0;
+  }
 }

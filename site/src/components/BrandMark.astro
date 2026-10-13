@@ -29,10 +29,18 @@ const { width = 92, animate = true, class: className = '' } = Astro.props;
     transform-origin: 50% 88%;
   }
 
+  /* It settles once and then holds still. The breathing that followed ran for as long
+     as the page was open, with no way to stop it (WCAG 2.2.2), so it now plays only
+     while the pointer rests on the mark. The settle stays first in the hover list:
+     dropped from it, it would restart from opacity 0 when the pointer leaves. */
   .brand-mark-animated {
+    animation: brand-mark-settle 900ms cubic-bezier(0.22, 1.35, 0.36, 1) both;
+  }
+
+  .brand-mark-animated:hover {
     animation:
       brand-mark-settle 900ms cubic-bezier(0.22, 1.35, 0.36, 1) both,
-      brand-mark-breathe 6s 900ms ease-in-out infinite;
+      brand-mark-breathe 6s ease-in-out infinite;
   }
 
   @keyframes brand-mark-settle {

@@ -32,7 +32,7 @@ export async function docGroups(): Promise<DocGroup[]> {
       .sort((a, b) => a.data.order - b.data.order)
       .map(entry => ({
         id: entry.id,
-        href: `${base}/docs/${entry.id}`,
+        href: `${base}/docs/${entry.id}/`,
         title: entry.data.title,
         summary: entry.data.description,
       })),

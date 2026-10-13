@@ -1,16 +1,25 @@
 ---
+import { getImage } from 'astro:assets';
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
+import mark from '../assets/brand/nendo-mark.png';
 
 interface Props {
   title: string;
   description: string;
   wide?: boolean;
+  // The 404 page is served for every missing URL, so it names no address of its own.
+  indexable?: boolean;
 }
-const { title, description, wide = false } = Astro.props;
+const { title, description, wide = false, indexable = true } = Astro.props;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
-const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://thomasrohde.github.io');
+const site = Astro.site ?? 'https://thomasrohde.github.io';
+const canonical = new URL(Astro.url.pathname, site);
+// A link preview shows the mark: a square image, so the card is 'summary' rather
+// than 'summary_large_image', which would ask for a wide picture the site lacks.
+const shareImage = await getImage({ src: mark, width: 512, format: 'png' });
+const shareImageUrl = new URL(shareImage.src, site).href;
 ---
 
 <!doctype html>
@@ -20,13 +29,16 @@ const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://thomasrohde
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonical.href} />
+    {indexable ? <link rel="canonical" href={canonical.href} /> : <meta name="robots" content="noindex" />}
     <link rel="icon" href={`${base}/favicon.ico`} sizes="any" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
-    <meta property="og:url" content={canonical.href} />
-    <meta name="twitter:card" content="summary_large_image" />
+    {indexable && <meta property="og:url" content={canonical.href} />}
+    <meta property="og:image" content={shareImageUrl} />
+    <meta property="og:image:alt" content="The Nendo mark" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:image" content={shareImageUrl} />
     <meta name="generator" content={Astro.generator} />
     <script is:inline>
       // Before first paint, so an explicit Light or Dark choice never flashes the

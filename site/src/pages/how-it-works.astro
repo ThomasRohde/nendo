@@ -259,7 +259,7 @@ const screens = [
         agent is doing.
       </p>
       <p>
-        <a href={`${base}/docs/agents`}>The agents guide</a>
+        <a href={`${base}/docs/agents/`}>The agents guide</a>
         lists every resource and tool, and what each refusal means.
       </p>
     </Prose>
@@ -380,7 +380,7 @@ const screens = [
     margin-top: 26px;
     display: grid;
     gap: 18px;
-    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 290px), 1fr));
   }
 
   .kind-notes p { margin: 0; color: var(--muted); font-size: 0.94rem; }
@@ -390,7 +390,7 @@ const screens = [
     display: grid;
     gap: 26px;
     margin-top: 26px;
-    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
   }
 
   .levels {

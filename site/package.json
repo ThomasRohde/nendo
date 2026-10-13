@@ -9,13 +9,15 @@
     "sync": "node scripts/sync-repo-assets.mjs",
     "dev": "npm run sync && astro dev",
     "check": "npm run sync && astro check",
-    "build": "npm run sync && astro build && pagefind --site dist && npm run check:links",
+    "build": "npm run sync && astro build && pagefind --site dist && npm run check:links && npm run check:dist",
     "check:links": "node scripts/check-links.mjs",
+    "check:dist": "node scripts/check-dist.mjs",
     "test": "node --test scripts/*.test.mjs",
     "preview": "astro preview"
   },
   "devDependencies": {
     "@astrojs/check": "0.9.10",
+    "@astrojs/markdown-satteri": "0.4.1",
     "astro": "7.3.3",
     "pagefind": "1.5.2",
     "typescript": "6.0.3"
