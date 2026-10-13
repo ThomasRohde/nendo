@@ -98,7 +98,17 @@ One protected table holds all four kinds. The key is the stable definition ID.
 | Trigger | Entity ID, display name, subscribed events, optional relevant stored-field IDs, optional Boolean condition with its own bindings, and the action it runs |
 
 Stable IDs use letters, digits, hyphen, underscore and dot, and are at most 128
-characters. Display names are 1–200 characters. An expression never binds to a
+characters. A name that a formula reads — a binding alias, a function parameter
+or a call alias — uses letters, digits and underscore only, and does not start
+with a digit, because a formula reads `unit-price` as `unit` minus `price` and
+refuses `line.total`. This is checked when a definition is installed or changed,
+not when a stored one is read, so a file written before the rule still opens and
+History can still put such a definition back (2026-10-13, EBH-16). The same holds for
+every install rule added since: a compensation that puts back a definition History
+recorded is not held to the traversal, relevant-field, duplicate-calculation and
+action-pair rules of EBH-03, EBH-04, EBH-06, EBH-07 and EBH-08, only to the ones
+every definition has always met. Display names
+are 1–200 characters. An expression never binds to a
 display name, so a rename of a record type or a field changes no stored
 definition.
 
@@ -118,7 +128,9 @@ A binding is the only way for a name in an expression to reach a value. Every
 binding kind carries explicit stable entity, field and relationship IDs.
 
 Every binding carries `bindingId`, `kind` and `entityId`. Its other keys depend
-on the shape. The table is `NendoBindingShape.All`. The codec refuses against
+on the shape. `kind`, `aggregate`, `resultType` and the other named values take a
+name the contract defines, never a number: `"9"` or `"0"` is refused with the names
+that are allowed (EBH-13). The table is `NendoBindingShape.All`. The codec refuses against
 this table, the vocabulary publishes it, and a test keeps the two in agreement.
 A key that is published is accepted, and a key that is accepted is published.
 
@@ -230,7 +242,14 @@ create step takes links, a field is written once per step, and a step without
 links stores the body it stored before links existed.
 
 A trigger subscribes to any of created, updated and deleted. Relevant field IDs
-narrow an update subscription, and therefore they require it. `events` is text,
+narrow an update subscription, and therefore they require it. Each one names an
+active stored field of the record type the trigger listens to. An unknown ID is
+refused with `field-not-found`, and a calculated field with `field-calculated`,
+whose sentence lists the stored fields its formula reads: a calculated field is
+never stored, so it never changes, and the trigger would never run on an update
+(EBH-08). `conditionExpression` is text, or null or left out for a trigger with no
+condition; `false`, a number or an object is refused rather than read as no
+condition (EBH-14). `events` is text,
 `"Created, Updated"`, as the canonical body stores it, or a list of the names, as
 an author sends it. A list a body has nothing in, such as `bindings`,
 `callAliases`, `relevantFieldIds` or `conditionBindings`, may be left out.
@@ -313,7 +332,14 @@ are properties of the graph. Installation refuses when:
 - definitions call each other in a loop, or nest more than 8 deep;
 - a binding names a missing field, a field of a different stored type, a
   relationship that points at another record type, or an unbound reference;
-- a binding reads an optional field without declaring itself nullable;
+- a binding reads an optional field without declaring itself nullable, or
+  follows an optional reference without declaring itself nullable. An unset
+  reference reads as empty, so `IsEmpty(x) ? 0 : x` then gives the default
+  (EBH-07);
+- a trigger's relevant field is not an active stored field of its record type
+  (EBH-08);
+- a name a formula reads is not letters, digits and underscore, or starts with a
+  digit (EBH-16);
 - the ID of a calculated field collides with a stored field on the same record
   type, or two calculations of one record type share a field ID (EBH-06; the
   same ID on two record types is two fields). `schema.addField` refuses an ID a
@@ -328,12 +354,14 @@ raised the trigger would roll back on the retired target. The check runs over th
 final candidate, so the same proposal may rewire or remove that behaviour and
 retire its target ([relationships](relationships.md#labels-choices-and-retirement)).
 A create step's links count as uses of the reference they set and of the
-reference they follow (EBH-09).
+reference they follow (EBH-09). A trigger's relevant field counts as a use too,
+since a retired field never changes again (EBH-08).
 
 A requirement change is checked from the other side as well (2026-10-13, EBH-09).
 `schema.setFieldRequired` refuses with `field-requirement-in-use` when a field
-becomes optional while a binding reads it without accepting an empty value, or a
-total or filtered count reads it from each member, and when a field becomes
+becomes optional while a binding reads it without accepting an empty value
+(the reference a traversal follows included, EBH-07), or a total or filtered
+count reads it from each member, and when a field becomes
 required while a triggered create step leaves it empty. The refusal names the
 definition and the field. Only the fields the change touches are checked, over
 the final candidate, so one proposal may rewire the behaviour and change the
@@ -361,6 +389,19 @@ stale number beside a broken input causes people to trust a wrong figure. One
 failing calculation does not affect the other fields of the record or its
 validity. A zero denominator saves the input and shows an error. When the input
 is corrected, the calculation recovers with no repair step.
+
+A failed dependency is named by its display name, and an empty input by the
+field it reads, or the calculated field, as the person sees them: "This depends on
+'Hours spread', which could not be calculated." and "'Doubled estimate' is empty,
+and this formula needs a value for it." Both once named the author's IDs (EBH-20).
+
+A trigger condition, an action's input and a calculated member of a total work a
+calculation out the same way. A dependency that failed, with any code, makes its
+dependant report `calculation-dependency-failed`, whatever the dependant declares,
+and each calculation is worked out once per evaluation. Before, a required dependency
+stopped by an empty input reached a dependant that allows an empty result as that
+empty result, so a condition saw an empty value where the record page showed an
+error (EBH-17).
 
 Every read route computes in the same way and agrees. A full snapshot, a bounded
 query and a read-only open all report the same result for the same record.
@@ -420,8 +461,14 @@ everything, including earlier steps that already succeeded and the edit itself:
 - cancellation.
 
 No success receipt exists for a chain that did not commit. The refusal names the
-action, the step and the field that it could not write, and states that nothing
-changed. The Workbench receives it under the code of the calculation. An agent
+action, the trigger that ran it, the step and the field that it could not write,
+and states that nothing changed. This holds for every refusal inside a step: a
+formula, the budget, and the write itself, such as a create step's required
+field, a date that is not a date, or a delete blocked by references. The refusal
+keeps its own type and code, so every surface maps it as before (2026-10-13,
+EBH-05). A ceiling says which allowance ran out: a save's, one record's read, or
+one formula's check. An action that starts itself again until the change limit
+is told so (EBH-20). The Workbench receives it under the code of the calculation. An agent
 receives it as `NENDO_CALCULATION_*` with the same sentence. Before this rule, an
 assignment could bind to the event record while it wrote to the referenced
 record. The published example warns about this mistake. Such an assignment
@@ -521,7 +568,11 @@ cannot get ahead of a withdrawal.
 
 **What refusal looks like.** The file stays fully readable, keeps its bounded
 calculations, and can be exported and backed up. Only editing is withheld, with
-the precondition code `behaviour-not-approved`. The trigger is never disabled
+the precondition code `behaviour-not-approved`. Undo is not withheld: History's
+Undo and an agent's `nendo.data.undo_revision` of its own revision still work
+while the actions await approval. An undo puts back what a revision recorded and
+runs no action, so it is how a person recovers from an action whose approval they
+have just withdrawn (accepted by the owner 2026-10-13, EBH-11). The trigger is never disabled
 silently to let the save continue. A file that silently stops doing what it says
 it does is worse than a file that asks a question.
 
@@ -561,7 +612,9 @@ inside one transaction:
 - the identity of the file;
 - its definition revision;
 - the records that the change set touches;
-- **the records that a condition only read**;
+- **the records that a condition only read**, a field read across a reference
+  included, and the record a create step's formulas read, which is the record
+  that raised the event (EBH-23);
 - **the data revision**.
 
 Per-operation version checks cannot see the last two. A total that was correct
@@ -740,6 +793,9 @@ versions that the file holds now. If something else changed a record since, the
 compensation therefore reports a conflict. An exact retry after a lost response
 rebuilds the same compensation, and not a different one.
 
+A record is found by its record type and ID together, since a record ID is unique
+only within its type: a task and a project may both be `1` (EBH-12).
+
 The actions do not run again over the reversal. If they did, they would compute
 a stored field from a state that the reversal had not finished producing. They
 would then write that value on top of the operation that is being undone.
@@ -892,6 +948,11 @@ or to a reusable function.
 | `and` `or` | true/false | true/false, short-circuiting |
 | `not` `-` (unary) | true/false, number | the same kind |
 
+A refusal at validation names the formula it is about: a calculation or
+function by its ID, "The condition of trigger 't'", or "The formula for 'total' in
+step '10-set' of action 'set'". A formula the parser cannot read says where, as
+"Parenthesis not closed at line 1, character 13" (EBH-15).
+
 Everything else refuses at validation: power, shifts, bitwise, `in`, `like`,
 lists, member access, and any name that is not declared or catalogued. Text and
 true/false values never become numbers. So `'2' + 1` and `true + 1` are refused.
@@ -914,7 +975,7 @@ has already lost the precision.
 | `DaysBetween(start, end)` | signed whole-number day difference |
 | `Concat(a, b, …)` | 2–8 texts; joined size checked before allocating; write a number or a date as text with `ToText` first |
 | `ToText(value)` | an integer as its digits, a decimal as its stored digits, a date as `yyyy-MM-dd`; no locale; a Boolean or text is refused; an empty input stops the formula, as for other functions (host 1.49.0) |
-| `TextLength(text)` | how many characters a text value holds; empty text is zero |
+| `TextLength(text)` | how many UTF-16 code units a text value holds: most characters count as one, one outside the Basic Multilingual Plane, such as most emoji, as two (EBH-19); empty text is zero |
 | `Refuse(text)` | no value; reports `calculation-refused` with the text, in one outcome of a choice |
 | `IsEmpty(value)` | any scalar; true when it is empty or an empty input stopped it; never empty itself |
 
@@ -1028,11 +1089,11 @@ raises them.
 | Stable ID or alias length | 128 | Before compilation |
 | Work units | 16,384 | Charged per visit, call, scan and change |
 | Function calls | 64 | One counter across nested calls |
-| Text length | 4,096 | On input, and before `Concat` allocates |
-| Cached expressions | 16 | Cleared on reaching the cap |
-| Related rows per chain | 256 | SQL LIMIT plus a charge per row read. A plain count on a read reads no row and is not charged against it |
+| Text length | 4,096 UTF-16 code units | On input, and before `Concat` allocates |
+| Cached expressions | 16 | Cleared on reaching the cap. A save evaluates the conditions and assignments compiled with the file's behaviour and does not check them again on its own budget, so what it is charged does not depend on the cache (EBH-22) |
+| Related rows per chain | 256 | SQL LIMIT plus a charge per row read. A plain count on a read reads no row and is not charged against it. A record the request names is read for its events only when a trigger listens to its type (EBH-21) |
 | Generated changes per chain | 64 | Before each generated write |
-| Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded. Trailing zeros that only a mixed scale added are shed first, so `decimal.MaxValue + 0.0` is `decimal.MaxValue` |
+| Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded. A calculated `Sum` folds the same way and refuses such a total as `calculation-overflow` (EBH-18). Trailing zeros that only a mixed scale added are shed first, so `decimal.MaxValue + 0.0` is `decimal.MaxValue` |
 
 One budget spans an entire evaluation, every nested call and a whole causal
 transaction. A deep call chain or a chain of triggers therefore gets no extra

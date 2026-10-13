@@ -31,7 +31,7 @@ import { startTitleBar } from './title-bar';
 import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
 import { refreshExtensionSettings } from './extension-settings';
-import { capitalise, messageFor } from './format';
+import { capitalise, messageFor, undoAllowedWhileUnapproved } from './format';
 import {
   CellStyleModule,
   ClientSideRowModelModule,
@@ -167,6 +167,8 @@ function render(): void {
       if (control.closest('[data-view-toolbar]') !== null) continue;
       // A conversation is not an edit to the file; the agent's writes meet the access level.
       if (control.closest('[data-agent-chat]') !== null) continue;
+      // An undo runs no automatic action, so it stays available while they await approval.
+      if (!awaitingSave && control.matches('[data-compensate]') && undoAllowedWhileUnapproved(state.session)) continue;
       control.disabled = true;
     }
   }

@@ -113,6 +113,62 @@ internal sealed class NendoExpressionAdapter
         var key = CacheKey(formula, budget.Limits);
         if (_cache.TryGetValue(key, out var cached)) return cached;
 
+        ValidatedExpression validated;
+        try
+        {
+            validated = ValidateUncached(formula, budget, key);
+        }
+        catch (NendoValidationException exception)
+        {
+            // Every refusal names the formula it is about. An action of six assignments with
+            // one unclosed parenthesis was refused with "This formula could not be read" and
+            // nothing said which assignment (EBH-15).
+            throw new NendoValidationException($"{OwnerOf(formula.FormulaId)}: {exception.Message}");
+        }
+
+        // Clearing on reaching the cap keeps a bounded, predictable footprint without
+        // a recency structure whose cost would itself need bounding.
+        if (_cache.Count >= budget.Limits.CacheEntries) _cache.Clear();
+        _cache[key] = validated;
+        return validated;
+    }
+
+    /// <summary>
+    /// Who a formula belongs to, in words, from its formula ID: a calculation's or a
+    /// function's own ID, <c>trigger:condition</c>, or <c>action:step:field</c>. A stable ID
+    /// holds no colon, so the parts cannot be confused.
+    /// </summary>
+    internal static string OwnerOf(string formulaId) => formulaId.Split(':') switch
+    {
+        [var trigger, "condition"] => $"The condition of trigger '{trigger}'",
+        [var action, var step, var field] => $"The formula for '{field}' in step '{step}' of action '{action}'",
+        _ => $"The formula of '{formulaId}'",
+    };
+
+    /// <summary>
+    /// The parser's own reason and position, as "Parenthesis not closed at line 1, character
+    /// 13". The parser reports both, and the refusal used to drop them (EBH-15).
+    /// </summary>
+    private static string ParseProblem(Exception? failure)
+    {
+        // The position is on the parser's own exception, which the library wraps.
+        for (var current = failure; current is not null; current = current.InnerException)
+        {
+            if (Located(current.Message) is { } located) return located;
+        }
+        return "This formula could not be read. Check its syntax.";
+    }
+
+    private static string? Located(string parserMessage)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(parserMessage, @"^(?<reason>.*?)\.?\s*at position \((?<line>\d+):(?<column>\d+)\)");
+        return match.Success
+            ? $"This formula could not be read: {match.Groups["reason"].Value.Trim()} at line {match.Groups["line"].Value}, character {match.Groups["column"].Value}. Check its syntax."
+            : null;
+    }
+
+    private ValidatedExpression ValidateUncached(BehaviourFormula formula, BehaviourBudget budget, string key)
+    {
         NendoBehaviourPreflight.Check(formula.Source, budget);
 
         var expression = new Expression(formula.Source, _configuration, new ExpressionContext(), Culture, null);
@@ -126,11 +182,11 @@ internal sealed class NendoExpressionAdapter
             // A cancelled parse can surface as a parse error, so cancellation is
             // rechecked before this is reported as the author's mistake.
             budget.CancellationToken.ThrowIfCancellationRequested();
-            throw new NendoValidationException("This formula could not be read. Check its syntax.");
+            throw new NendoValidationException(ParseProblem(exception));
         }
         budget.CancellationToken.ThrowIfCancellationRequested();
         if (ast is null || expression.Error is not null)
-            throw new NendoValidationException("This formula could not be read. Check its syntax.");
+            throw new NendoValidationException(ParseProblem(expression.Error));
 
         var parameters = new Dictionary<string, BehaviourParameter>(StringComparer.Ordinal);
         if (formula.Parameters.Count > budget.Limits.Parameters)
@@ -145,14 +201,8 @@ internal sealed class NendoExpressionAdapter
         foreach (var alias in formula.Calls.Keys) NendoBehaviourValidation.RequireIdentifier(alias, "function alias");
 
         var resultType = NendoBehaviourAnalyzer.Analyze(ast, parameters, formula.Calls, budget);
-        var validated = new ValidatedExpression(
+        return new ValidatedExpression(
             formula.FormulaId, ast, formula.Parameters, formula.Calls, resultType, formula.ResultNullable, key);
-
-        // Clearing on reaching the cap keeps a bounded, predictable footprint without
-        // a recency structure whose cost would itself need bounding.
-        if (_cache.Count >= budget.Limits.CacheEntries) _cache.Clear();
-        _cache[key] = validated;
-        return validated;
     }
 
     /// <summary>
@@ -189,7 +239,8 @@ internal sealed class NendoExpressionAdapter
                 // definition was fine; this record's data is not.
                 if (value.IsNull && !parameter.Nullable)
                     throw new NendoCalculationException(NendoCalculationCodes.MissingInput,
-                        $"'{parameter.Name}' is empty, and this formula needs a value for it.");
+                        $"'{parameter.Name}' is empty, and this formula needs a value for it.")
+                    { EmptyInput = (expression.FormulaId, parameter.Name) };
                 context.Parameters[parameter.Name] = value.Boxed;
             }
 

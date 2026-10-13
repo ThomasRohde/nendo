@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentAccessMode, type AgentActivity, type ApplicationPlan, type BlockedCondition, type RevisionSummary } from './host-types';
+import { WorkbenchHostError, type AgentAccessMode, type AgentActivity, type ApplicationPlan, type BlockedCondition, type DesktopSessionView, type RevisionSummary } from './host-types';
 import { derivedField } from './calculated-fields';
 import { exactNumberText } from './scalars';
 
@@ -124,6 +124,18 @@ export function reversibilityLabel(value: string | number): string {
 /** A count and its noun, singular for one: "1 revisions shown" read wrong after every first edit (UX-16). */
 export function counted(count: number, singular: string, plural = `${singular}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
+}
+
+/**
+ * Whether History's Undo stays available although the file cannot be edited: only when the one
+ * thing withholding edits is approval of its automatic actions. An undo puts back what a
+ * revision recorded and runs no action, so it is how a person recovers from an action they
+ * have just withdrawn approval from (EBH-11, accepted 2026-10-13). A read-only or damaged file
+ * keeps Undo off.
+ */
+export function undoAllowedWhileUnapproved(session: Pick<DesktopSessionView, 'health' | 'capabilities' | 'behaviourTrust'>): boolean {
+  return session.health === 'normal' && !session.capabilities.mutate &&
+    session.behaviourTrust?.requiresApproval === true && !session.behaviourTrust.isApproved;
 }
 
 // The history a caller already holds decides this, not a module-level snapshot:

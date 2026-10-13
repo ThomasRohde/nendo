@@ -64,4 +64,11 @@ public sealed class NendoCalculationException(string code, string message) : Nen
     /// (ADR-0008 §6, EBH-02).
     /// </summary>
     internal bool ExhaustedBudget { get; init; }
+
+    /// <summary>
+    /// The formula and the declared value whose empty input stopped it, so a reader that knows
+    /// which field the value comes from can name that field instead of the author's alias
+    /// (EBH-20). Null for every other failure.
+    /// </summary>
+    internal (string FormulaId, string Parameter)? EmptyInput { get; init; }
 }

@@ -8,6 +8,25 @@
 - **Depends on:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0009 and ADR-0012.
 - **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-custom-views-with-code-in-the-file.md).
 
+### Accepted amendment — 2026-10-13 (an undo is not withheld while actions await approval)
+
+Accepted by the owner on 2026-10-13 for the broad review's finding EBH-11 (W-209).
+
+**Context.** Section 10 says to refuse new writes after revocation. A compensation is a new
+revision, but the Engine applied History's Undo and an agent's `nendo.data.undo_revision`
+while every ordinary write was refused with `behaviour-not-approved`: a compensation runs no
+action, so the one gate, which sits where the actions run, was never reached. Nothing said
+whether that was meant.
+
+**Decision.** An undo is allowed while a file's actions await approval, after a revocation
+included. It puts back what a revision recorded, runs no action, and is the way back from
+what an action did after its approval is withdrawn. The Workbench keeps History's Undo
+available in that state alone. Every other write is still refused, a read-only or damaged
+file still offers no undo, and an agent still undoes only its own origin's revisions.
+
+**Not changed.** Approval itself, what it binds, the check at the commit boundary for a save
+that runs actions, and that nothing fires on open, render or approval.
+
 ### Accepted amendment — 2026-10-13 (a number or a date written as text)
 
 Accepted by the owner on 2026-10-12 for the broad review's finding R2AAV-05 (W-205).
@@ -489,6 +508,8 @@ A copied file does not carry local approval to another device or person. Duplica
 Review acceptance and local approval are separate storage operations. If the host stops between them, use the safer state: the definition can be installed while editing remains blocked until approval.
 
 The person can revoke approval at any time. Refuse new writes after revocation. Check approval again before commit. An in-flight operation must not commit under a revoked grant.
+
+*Note, 2026-10-13: an undo is not withheld after revocation; see the amendment of this date (EBH-11).*
 
 Emergency suspension makes normal editing unavailable. Permanently disabling a trigger is a reviewed definition change. Its consequences must be visible. It must not become a hidden bypass for required behaviour.
 

@@ -198,7 +198,9 @@ public static class NendoBehaviourVocabulary
         Describe(NendoBehaviourLimits.Default),
         "Calculations read; actions write only through the same typed record operations a person's edit uses. " +
         "There is no clock, no file, no network and no host service reachable from a formula, and the function " +
-        "set above is closed: a name that is not in it is refused rather than resolved.");
+        "set above is closed: a name that is not in it is refused rather than resolved. A name a formula reads, " +
+        "a binding's bindingId, a function parameter or a call alias, uses letters, digits and underscore and does " +
+        "not start with a digit, since a formula reads 'unit-price' as unit minus price.");
 
     // The rule the planner applies, stated where an author reads. A target that selects
     // no record is not an error: the step writes nothing, the save still commits, and

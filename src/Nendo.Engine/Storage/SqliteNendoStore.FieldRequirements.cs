@@ -92,7 +92,9 @@ internal sealed partial class SqliteNendoStore
                 var promised = binding.Kind switch
                 {
                     NendoBindingKind.SameRecordField when !binding.Nullable => [Field(binding.EntityId, binding.FieldId)],
-                    NendoBindingKind.ReferenceTraversal when !binding.Nullable => [Field(binding.RelatedEntityId, binding.FieldId)],
+                    // The reference it follows too: an unset reference is an empty value (EBH-07).
+                    NendoBindingKind.ReferenceTraversal when !binding.Nullable =>
+                        [Field(binding.RelatedEntityId, binding.FieldId), Field(binding.EntityId, binding.ReferenceFieldId)],
                     NendoBindingKind.RelatedAggregate => [Field(binding.RelatedEntityId, binding.PredicateFieldId), Field(binding.RelatedEntityId, binding.ValueFieldId)],
                     NendoBindingKind.SubtreeAggregate => [Field(binding.EntityId, binding.PredicateFieldId), Field(binding.EntityId, binding.ValueFieldId)],
                     _ => Array.Empty<FieldMapping?>(),

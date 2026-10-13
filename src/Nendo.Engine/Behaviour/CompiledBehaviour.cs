@@ -6,11 +6,15 @@ internal sealed record CompiledCalculation(
     ValidatedExpression Expression);
 
 /// <summary>
-/// What an action assignment's formula produces, kept so the install check can compare it
-/// with the field it writes (EBH-04). <paramref name="Whole"/> is true when the formula is a
-/// rounding to 0 digits, the one decimal result that always fits a whole-number field.
+/// An action assignment's validated formula, kept so the install check can compare what it
+/// produces with the field it writes (EBH-04) and so a save evaluates it without validating it
+/// again (EBH-22). <paramref name="Whole"/> is true when the formula is a rounding to 0 digits,
+/// the one decimal result that always fits a whole-number field.
 /// </summary>
-internal sealed record CompiledAssignment(NendoBehaviourScalar ResultType, bool Whole);
+internal sealed record CompiledAssignment(NendoBehaviourScalar ResultType, bool Whole)
+{
+    internal ValidatedExpression? Expression { get; init; }
+}
 
 /// <summary>
 /// Every definition in a file, validated once and held immutably.
@@ -29,13 +33,15 @@ internal sealed class CompiledBehaviour
         IReadOnlyDictionary<string, ValidatedExpression> functions,
         IReadOnlyDictionary<string, CompiledCalculation> calculations,
         IReadOnlyDictionary<string, IReadOnlyList<CompiledCalculation>> byEntity,
-        IReadOnlyDictionary<string, CompiledAssignment>? assignments = null)
+        IReadOnlyDictionary<string, CompiledAssignment>? assignments = null,
+        IReadOnlyDictionary<string, ValidatedExpression>? conditions = null)
     {
         Definitions = definitions;
         Functions = functions;
         Calculations = calculations;
         CalculationsByEntity = byEntity;
         Assignments = assignments ?? new Dictionary<string, CompiledAssignment>(StringComparer.Ordinal);
+        Conditions = conditions ?? new Dictionary<string, ValidatedExpression>(StringComparer.Ordinal);
     }
 
     internal static CompiledBehaviour Empty { get; } = new(
@@ -61,6 +67,14 @@ internal sealed class CompiledBehaviour
     /// </summary>
     internal IReadOnlyDictionary<string, CompiledAssignment> Assignments { get; }
 
+    /// <summary>
+    /// Each trigger condition, validated, keyed by the trigger's ID. A save evaluates these and
+    /// assignments as compiled rather than validating them again on its own budget: a revalidation
+    /// was charged only when the expression cache had lost the formula, so whether a save near
+    /// the work ceiling was refused depended on how warm the cache happened to be (EBH-22).
+    /// </summary>
+    internal IReadOnlyDictionary<string, ValidatedExpression> Conditions { get; }
+
     internal bool IsEmpty => Definitions.Count == 0;
 
     /// <summary>
@@ -85,7 +99,7 @@ internal sealed class CompiledBehaviour
         // cache hit skips the charge. A single formula stays bounded by its own limits;
         // the set is bounded by the Definitions ceiling the graph check above enforces —
         // CatalogueSize counts functions only, so it never bounded the whole compile.
-        BehaviourBudget FormulaBudget() => new(budget.Limits, budget.CancellationToken);
+        BehaviourBudget FormulaBudget() => new(budget.Limits, budget.CancellationToken, BehaviourBudgetUse.Check);
 
         var functions = new Dictionary<string, ValidatedExpression>(StringComparer.Ordinal);
         foreach (var definitionId in TopologicalOrder(definitions))
@@ -130,6 +144,7 @@ internal sealed class CompiledBehaviour
         // trigger condition that cannot be validated refuses at installation rather
         // than in the middle of somebody's save.
         var assignments = new Dictionary<string, CompiledAssignment>(StringComparer.Ordinal);
+        var conditions = new Dictionary<string, ValidatedExpression>(StringComparer.Ordinal);
         foreach (var definition in definitions.Values)
         {
             switch (definition)
@@ -145,6 +160,7 @@ internal sealed class CompiledBehaviour
                     if (validated.ResultType != NendoBehaviourScalar.Boolean)
                         throw new NendoValidationException(
                             $"The condition of '{trigger.DefinitionId}' must produce a true/false value.");
+                    conditions[trigger.DefinitionId] = validated;
                     break;
                 }
                 case NendoActionDefinition action:
@@ -161,7 +177,8 @@ internal sealed class CompiledBehaviour
                                     .ToArray(),
                                 Resolve(assignment.CallAliases, functions, action.DefinitionId)), FormulaBudget());
                             assignments[formulaId] = new CompiledAssignment(
-                                validated.ResultType, NendoBehaviourAnalyzer.IsWholeRounding(validated.Ast, assignment.CallAliases));
+                                validated.ResultType, NendoBehaviourAnalyzer.IsWholeRounding(validated.Ast, assignment.CallAliases))
+                            { Expression = validated };
                         }
                     }
                     break;
@@ -176,7 +193,7 @@ internal sealed class CompiledBehaviour
                 group => (IReadOnlyList<CompiledCalculation>)Ordered(group).ToArray(),
                 StringComparer.Ordinal);
 
-        return new CompiledBehaviour(definitions, functions, calculations, byEntity, assignments);
+        return new CompiledBehaviour(definitions, functions, calculations, byEntity, assignments, conditions);
     }
 
     private static IReadOnlyDictionary<string, ValidatedExpression> Resolve(

@@ -149,9 +149,21 @@ internal static class NendoBehaviourCodec
                     throw Refuse($"{_subject} needs every relevantFieldIds entry as a field ID in text.");
                 relevant.Add(element.GetString()!);
             }
-            var condition = body.TryGetProperty("conditionExpression", out var expression) && expression.ValueKind == JsonValueKind.String
-                ? expression.GetString()
-                : null;
+            // Text, or absent or null for a trigger with no condition. Anything else was read as
+            // absent, so "conditionExpression": false, sent to keep a deleting action dormant,
+            // stored a trigger that ran it on every matching event (EBH-14).
+            string? condition = null;
+            if (body.TryGetProperty("conditionExpression", out var expression))
+            {
+                condition = expression.ValueKind switch
+                {
+                    JsonValueKind.String => expression.GetString(),
+                    JsonValueKind.Null => null,
+                    _ => throw Refuse(
+                        $"{_subject} needs conditionExpression as text, or null or left out for a trigger that runs on every matching event. " +
+                        "A trigger is not switched off by a value there; remove the trigger, or give it a condition that holds only when it should run."),
+                };
+            }
             return new NendoTriggerDefinition(
                 definitionId,
                 Text(body, "entityId"),
@@ -204,8 +216,8 @@ internal static class NendoBehaviourCodec
                 var events = NendoTriggerEvents.None;
                 foreach (var item in list.EnumerateArray())
                 {
-                    if (item.ValueKind != JsonValueKind.String || !System.Enum.TryParse<NendoTriggerEvents>(item.GetString(), false, out var one) ||
-                        one == NendoTriggerEvents.None || item.GetString()!.Contains(',', StringComparison.Ordinal))
+                    if (item.ValueKind != JsonValueKind.String || !IsName<NendoTriggerEvents>(item.GetString()!) ||
+                        !System.Enum.TryParse<NendoTriggerEvents>(item.GetString(), false, out var one) || one == NendoTriggerEvents.None)
                         throw Refuse($"{_subject} lists an event this contract does not define. Use Created, Updated or Deleted.");
                     events |= one;
                 }
@@ -435,10 +447,23 @@ internal static class NendoBehaviourCodec
             return value.GetBoolean();
         }
 
+        /// <summary>
+        /// Whether text is one name the enum defines. <see cref="System.Enum.TryParse{TEnum}(string?, bool, out TEnum)"/>
+        /// also takes digits and comma lists, so "9" parsed as a binding kind no table holds and
+        /// escaped as an internal error, and "0" quietly meant the first member (EBH-13).
+        /// </summary>
+        private static bool IsName<TValue>(string text) where TValue : struct, Enum =>
+            System.Enum.GetNames<TValue>().Contains(text, StringComparer.Ordinal);
+
         private TValue Enum<TValue>(JsonElement element, string property) where TValue : struct, Enum
         {
             var text = Text(element, property);
-            return System.Enum.TryParse<TValue>(text, ignoreCase: false, out var parsed)
+            // A flags value, the trigger's events, is its names joined by commas, as the
+            // canonical body stores it; every other value is exactly one name.
+            var names = typeof(TValue).IsDefined(typeof(FlagsAttribute), inherit: false)
+                ? text.Split(',', StringSplitOptions.TrimEntries)
+                : [text];
+            return names.All(IsName<TValue>) && System.Enum.TryParse<TValue>(text, ignoreCase: false, out var parsed)
                 ? parsed
                 : throw Refuse(
                     $"{_subject} has {property} '{text}', which is not one this contract defines. " +

@@ -113,7 +113,10 @@ internal static class NendoBehaviourCatalogue
             {
                 ParameterTypes = ["text"],
                 ResultType = "integer",
-                Summary = "How many characters a text value holds. Empty text is zero, which is an answer rather than a missing one.",
+                // UTF-16 code units, as the text ceiling counts: a character outside the Basic
+                // Multilingual Plane, such as most emoji, counts as two. The summary said
+                // "characters" with no unit (EBH-19).
+                Summary = "How many UTF-16 code units a text value holds: most characters count as one, and one outside the Basic Multilingual Plane, such as most emoji, counts as two. Empty text is zero, which is an answer rather than a missing one.",
             },
             // ADR-0008, 2026-09-20 amendment: a formula can refuse by name. The entry
             // produces no value. The analyzer types it from the other outcome of the

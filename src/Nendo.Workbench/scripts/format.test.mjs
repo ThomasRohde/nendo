@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {blockedConditionsNotice,releasedByNextInteraction,originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {blockedConditionsNotice,undoAllowedWhileUnapproved,releasedByNextInteraction,originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const plan={entity:{fields:[{semanticId:'name',displayName:'Name'}],derivedFields:[{semanticId:'total',displayName:'Total'}]}};
 const revision=(revisionId,canRequestCompensation=true)=>({revisionId,canRequestCompensation,compensationOfRevisionId:null});
@@ -16,6 +16,16 @@ test('a value is shown exactly as stored, and an exact number never goes through
  assert.equal(valueDisplay(true),'Yes');
  assert.equal(valueDisplay(false),'No');
  assert.equal(valueDisplay(null),'');
+});
+
+test('History keeps Undo while only approval of automatic actions withholds edits (EBH-11)',()=>{
+ const session=(health,mutate,requiresApproval,isApproved)=>({health,capabilities:{mutate},behaviourTrust:{requiresApproval,isApproved}});
+ assert.equal(undoAllowedWhileUnapproved(session('normal',false,true,false)),true,
+  "Withdrawing approval of an automatic action also took away History's Undo, the way back from what that action did.");
+ assert.equal(undoAllowedWhileUnapproved(session('normal',true,true,true)),false);
+ assert.equal(undoAllowedWhileUnapproved(session('readOnly',false,true,false)),false,'A read-only file offered Undo.');
+ assert.equal(undoAllowedWhileUnapproved(session('normal',false,false,false)),false);
+ assert.equal(undoAllowedWhileUnapproved({health:'normal',capabilities:{mutate:false}}),false);
 });
 
 test('a save that did not run an automatic action says which one and why (EBH-01)',()=>{

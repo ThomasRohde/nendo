@@ -44,6 +44,10 @@ internal sealed partial class SqliteNendoStore
             foreach (var key in before.Keys.OrderBy(key => key.EntityId, StringComparer.Ordinal)
                          .ThenBy(key => key.RecordId, StringComparer.Ordinal))
             {
+                // A record no trigger listens to raises nothing, so it is not read. Reading it
+                // spent the save's related-row allowance on every record the request named, and a
+                // batch of untriggered writes left too few rows for the one trigger's total (EBH-21).
+                if (!Watched(key.EntityId)) continue;
                 var raised = await DeriveAsync(key, before[key], cancellationToken);
                 if (raised is not null) context.Pending.Enqueue(raised);
             }
@@ -59,6 +63,11 @@ internal sealed partial class SqliteNendoStore
                 }
             }
         }
+
+        /// <summary>Whether any trigger listens to a record type's events.</summary>
+        private bool Watched(string entityId) =>
+            context.Behaviour.Definitions.Values.OfType<NendoTriggerDefinition>()
+                .Any(trigger => string.Equals(trigger.EntityId, entityId, StringComparison.Ordinal));
 
         /// <summary>
         /// The triggers one event selects, by stable ID in ordinal order so two
@@ -144,16 +153,20 @@ internal sealed partial class SqliteNendoStore
                     : await source.ResolveAsync(binding, raised.Key.RecordId, context.Budget, cancellationToken);
             }
             await ObserveAsync(raised.Key, cancellationToken);
-            var expression = store.BehaviourAdapter.Validate(
-                new BehaviourFormula(
-                    $"{trigger.DefinitionId}:condition",
-                    trigger.ConditionExpression!,
-                    trigger.ConditionBindings
-                        .Select(binding => new BehaviourParameter(binding.BindingId, binding.ResultType, binding.Nullable))
-                        .ToArray(),
-                    Resolve(trigger.CallAliases)),
-                context.Budget);
-            var result = store.BehaviourAdapter.Calculate(expression, values, context.Budget);
+            // Compile validates every condition of the set it holds, so one missing here is a
+            // broken invariant, not an author's mistake to report.
+            var expression = context.Behaviour.Conditions.TryGetValue(trigger.DefinitionId, out var compiled)
+                ? compiled
+                : throw new InvalidOperationException($"The condition of '{trigger.DefinitionId}' was not compiled with the file's behaviour.");
+            BehaviourValue result;
+            try
+            {
+                result = store.BehaviourAdapter.Calculate(expression, values, context.Budget);
+            }
+            catch (NendoCalculationException exception)
+            {
+                throw NendoCalculationService.Named(exception, expression.FormulaId, trigger.ConditionBindings, source, context.Behaviour);
+            }
             return !result.IsNull && result.AsBoolean();
         }
 
@@ -188,12 +201,64 @@ internal sealed partial class SqliteNendoStore
             return targets;
         }
 
+        /// <summary>
+        /// Runs one step, and attributes any refusal inside it, whether evaluating, charging the
+        /// budget or writing, to the action, the step and the field. Only an assignment's formula
+        /// was attributed: a create step that missed a required field refused the save with
+        /// "Required field taskTitle needs a value.", naming a field the person never saw and no
+        /// action, and a delete blocked by references named a record the person did not delete
+        /// (EBH-05). The refusal keeps its type and code, so every surface maps it as before.
+        /// </summary>
         private async Task RunStepAsync(
             NendoTriggerDefinition trigger,
             NendoActionDefinition action,
             NendoActionStep step,
             string targetRecordId,
             RecordEvent raised,
+            CancellationToken cancellationToken)
+        {
+            string? field = null;
+            try
+            {
+                await RunStepAsync(trigger, action, step, targetRecordId, raised, value => field = value, cancellationToken);
+            }
+            catch (NendoException exception) when (exception is NendoCalculationException or NendoValidationException or NendoPreconditionException)
+            {
+                var entityId = step.Kind == NendoActionStepKind.CreateRecord ? step.EntityId! : TargetEntityId(step, trigger);
+                // By display name, as the person sees them, and by ID where the schema has no such name.
+                var entity = mappings.SingleOrDefault(candidate => string.Equals(candidate.EntityId, entityId, StringComparison.Ordinal));
+                var type = entity?.DisplayName ?? entityId;
+                var named = field is null
+                    ? null
+                    : entity?.Fields.SingleOrDefault(candidate => string.Equals(candidate.FieldId, field, StringComparison.Ordinal))?.DisplayName ?? field;
+                var what = step.Kind switch
+                {
+                    NendoActionStepKind.CreateRecord when named is not null => $"create a '{type}' record with '{named}'",
+                    NendoActionStepKind.CreateRecord => $"create a '{type}' record",
+                    NendoActionStepKind.DeleteRecord => $"delete a '{type}' record",
+                    _ when named is not null => $"write '{named}' of a '{type}' record",
+                    _ => $"change a '{type}' record",
+                };
+                var message = $"The automatic action '{action.DisplayName}' (run by '{trigger.DisplayName}') could not {what} " +
+                    $"(step {step.StepId}): {exception.Message} The save was refused, so nothing changed.";
+                throw exception switch
+                {
+                    NendoCalculationException calculation => new NendoCalculationException(calculation.Code, message)
+                    { ExhaustedBudget = calculation.ExhaustedBudget },
+                    NendoPreconditionException precondition => new NendoPreconditionException(precondition.Code, message)
+                    { RecordId = precondition.RecordId },
+                    _ => new NendoValidationException(message),
+                };
+            }
+        }
+
+        private async Task RunStepAsync(
+            NendoTriggerDefinition trigger,
+            NendoActionDefinition action,
+            NendoActionStep step,
+            string targetRecordId,
+            RecordEvent raised,
+            Action<string?> writing,
             CancellationToken cancellationToken)
         {
             var attribution = new BehaviourAttribution(
@@ -221,21 +286,12 @@ internal sealed partial class SqliteNendoStore
                     var written = new HashSet<string>(StringComparer.Ordinal);
                     foreach (var assignment in step.Assignments)
                     {
-                        BehaviourValue value;
-                        try
-                        {
-                            value = await EvaluateAssignmentAsync(action, step, assignment, entityId, targetRecordId, cancellationToken);
-                        }
-                        catch (NendoCalculationException exception)
-                        {
-                            // The save is refused whole, and the refusal says which
-                            // action could not run and where. Without this the person
-                            // saw "a value this formula needs is empty" with no formula
-                            // in sight, and an agent saw an internal error.
-                            throw new NendoCalculationException(exception.Code,
-                                $"The automatic action '{action.DisplayName}' could not write {assignment.FieldId} " +
-                                $"(step {step.StepId}): {exception.Message} The save was refused, so nothing changed.");
-                        }
+                        // The save is refused whole, and the refusal says which action could
+                        // not run and where. Without this the person saw "a value this formula
+                        // needs is empty" with no formula in sight, and an agent saw an internal
+                        // error.
+                        writing(assignment.FieldId);
+                        var value = await EvaluateAssignmentAsync(action, step, assignment, entityId, targetRecordId, cancellationToken);
                         // A value that is already what it should be is not a change:
                         // writing it would burn a record version, raise an event and
                         // potentially start a chain that never settles.
@@ -248,6 +304,7 @@ internal sealed partial class SqliteNendoStore
                         written.Add(assignment.FieldId);
                         current = await ReadRecordAsync(key, cancellationToken) ?? current;
                     }
+                    writing(null);
                     // What this step actually wrote, and nothing else. A step that
                     // changed nothing raises nothing; one that changed two fields says
                     // those two. Saying "everything changed" would make a field
@@ -280,9 +337,13 @@ internal sealed partial class SqliteNendoStore
                     var values = new Dictionary<string, object?>(StringComparer.Ordinal);
                     foreach (var assignment in step.Assignments)
                     {
+                        // A create step's bindings start from the record that raised the event,
+                        // so that record is the one read and observed (EBH-23).
+                        writing(assignment.FieldId);
                         values[assignment.FieldId] = Unbox(
-                            await EvaluateAssignmentAsync(action, step, assignment, entityId, raised.Key.RecordId, cancellationToken));
+                            await EvaluateAssignmentAsync(action, step, assignment, trigger.EntityId, raised.Key.RecordId, cancellationToken));
                     }
+                    writing(null);
                     // A link sets a reference of the new record to the record that raised the
                     // event, or to the one its reference names now (before it, for a deletion),
                     // at the version it has now, as a person's own create names it.
@@ -330,26 +391,18 @@ internal sealed partial class SqliteNendoStore
                     : await source.ResolveAsync(binding, recordId, context.Budget, cancellationToken);
             }
             await ObserveAsync(new RecordKey(entityId, recordId), cancellationToken);
-            var expression = store.BehaviourAdapter.Validate(
-                new BehaviourFormula(
-                    $"{action.DefinitionId}:{step.StepId}:{assignment.FieldId}",
-                    assignment.Expression,
-                    assignment.Bindings
-                        .Select(binding => new BehaviourParameter(binding.BindingId, binding.ResultType, binding.Nullable))
-                        .ToArray(),
-                    Resolve(assignment.CallAliases)),
-                context.Budget);
-            return store.BehaviourAdapter.Calculate(expression, values, context.Budget);
-        }
-
-        private IReadOnlyDictionary<string, ValidatedExpression> Resolve(IReadOnlyList<NendoFunctionCallAlias> aliases)
-        {
-            var resolved = new Dictionary<string, ValidatedExpression>(StringComparer.Ordinal);
-            foreach (var alias in aliases)
+            var formulaId = $"{action.DefinitionId}:{step.StepId}:{assignment.FieldId}";
+            var expression = context.Behaviour.Assignments.TryGetValue(formulaId, out var compiled) && compiled.Expression is { } ready
+                ? ready
+                : throw new InvalidOperationException($"The formula '{formulaId}' was not compiled with the file's behaviour.");
+            try
             {
-                if (context.Behaviour.Functions.TryGetValue(alias.FunctionId, out var function)) resolved[alias.Alias] = function;
+                return store.BehaviourAdapter.Calculate(expression, values, context.Budget);
             }
-            return resolved;
+            catch (NendoCalculationException exception)
+            {
+                throw NendoCalculationService.Named(exception, formulaId, assignment.Bindings, source, context.Behaviour);
+            }
         }
 
         /// <summary>
@@ -374,7 +427,7 @@ internal sealed partial class SqliteNendoStore
             IReadOnlyDictionary<string, JsonElement>? before,
             CancellationToken cancellationToken)
         {
-            if (changed.Count == 0) return;
+            if (changed.Count == 0 || !Watched(key.EntityId)) return;
             var after = await ReadRecordAsync(key, cancellationToken);
             if (after is null) return;
             context.Pending.Enqueue(new RecordEvent(key, NendoRecordEventKind.Updated, before, after, changed));
@@ -383,6 +436,7 @@ internal sealed partial class SqliteNendoStore
         /// <summary>A record an action created. Every field of it is new, so all of them are the change.</summary>
         private async Task RaiseCreatedAsync(RecordKey key, CancellationToken cancellationToken)
         {
+            if (!Watched(key.EntityId)) return;
             var after = await ReadRecordAsync(key, cancellationToken);
             if (after is null) return;
             context.Pending.Enqueue(new RecordEvent(key, NendoRecordEventKind.Created, null, after,

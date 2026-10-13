@@ -55,6 +55,9 @@ ADRs from ADR-0018 on, whose rows in the table above say what each has delivered
 - **ADR-0004, 2026-10-13 — a screen property can be cleared**: `ui.removeProperty` takes
   one property off a node and is the undo of a property's first value, so History offers Undo
   on every `ui.setProperty` (ESM-11, W-205). Host 1.48.0.
+- **ADR-0008, 2026-10-13 — an undo is not withheld while actions await approval**: History's
+  Undo and an agent's `nendo.data.undo_revision` still apply after approval of a file's
+  actions is withdrawn, since an undo runs no action (EBH-11, W-209).
 - **ADR-0008, 2026-10-13 — a number or a date written as text**: `ToText(value)` writes an
   integer, a decimal or a date as text with no locale, and refuses a Boolean (R2AAV-05, W-205).
   Host 1.49.0.

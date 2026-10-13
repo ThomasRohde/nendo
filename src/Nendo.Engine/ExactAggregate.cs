@@ -112,6 +112,13 @@ internal sealed class ExactAggregate
         return JsonSerializer.SerializeToElement(Compose(_sum, _scale));
     }
 
+    /// <summary>
+    /// The exact sum as a decimal: zero over a set that contributed nothing, and refused as
+    /// <c>aggregate-not-representable</c> when a decimal cannot hold every digit, never rounded.
+    /// A calculated total folds through this, so it agrees with a summary tile (EBH-18).
+    /// </summary>
+    internal decimal ExactSum() => _contributing == 0 ? 0m : Compose(_sum, _scale);
+
     /// <summary>Reads a stored column value, or null when the field is unset.</summary>
     internal static decimal? Read(object? stored) => stored switch
     {

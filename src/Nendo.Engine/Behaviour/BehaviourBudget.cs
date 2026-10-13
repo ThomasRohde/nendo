@@ -1,6 +1,23 @@
 namespace Nendo.Engine;
 
 /// <summary>
+/// What a budget pays for, so a ceiling it reaches says which allowance ran out: a save's,
+/// one record's read, or one formula's check. Every ceiling once said "for a single save",
+/// also on a list read and on an install (EBH-20).
+/// </summary>
+internal enum BehaviourBudgetUse
+{
+    /// <summary>One save and every action it runs.</summary>
+    Save,
+
+    /// <summary>The calculated fields of one record, on a read.</summary>
+    Read,
+
+    /// <summary>Checking one formula when a definition is installed or compiled.</summary>
+    Check,
+}
+
+/// <summary>
 /// The single spend counter for one evaluation or one causal transaction.
 /// <para>
 /// One instance spans nested function calls, every related-record scan and every
@@ -24,11 +41,17 @@ internal sealed class BehaviourBudget
     private int _scans;
     private int _changes;
 
-    internal BehaviourBudget(NendoBehaviourLimits limits, CancellationToken cancellationToken = default)
+    internal BehaviourBudget(
+        NendoBehaviourLimits limits,
+        CancellationToken cancellationToken = default,
+        BehaviourBudgetUse use = BehaviourBudgetUse.Save)
     {
         Limits = (limits ?? throw new ArgumentNullException(nameof(limits))).Validate();
         _cancellationToken = cancellationToken;
+        Use = use;
     }
+
+    internal BehaviourBudgetUse Use { get; }
 
     internal NendoBehaviourLimits Limits { get; }
 
@@ -91,8 +114,18 @@ internal sealed class BehaviourBudget
     /// <summary>Rows a related read may still ask SQLite for, so the LIMIT is real.</summary>
     internal int RemainingScanAllowance => Math.Max(0, Limits.RelatedRows - _scans);
 
-    private static NendoCalculationException Exhausted(string what) =>
-        new(NendoCalculationCodes.LimitReached,
-            $"This calculation reached the {what} limit for a single save. Simplify the formula or narrow what it reads.")
+    /// <summary>The refusal for an allowance of this budget that ran out, worded for what the budget pays for.</summary>
+    internal NendoCalculationException Exhausted(string what) =>
+        new(NendoCalculationCodes.LimitReached, Use switch
+        {
+            BehaviourBudgetUse.Read =>
+                $"This calculation reached the {what} limit for one record. Simplify the formula or narrow what it reads.",
+            BehaviourBudgetUse.Check =>
+                $"This formula reached the {what} limit for checking one formula. Shorten or simplify it.",
+            _ => what == "automatic change"
+                ? "This save reached the automatic change limit: its actions changed more records than one save may. " +
+                  "An action that starts itself again, directly or through another trigger, runs until this limit; narrow its trigger or condition."
+                : $"This calculation reached the {what} limit for a single save. Simplify the formula or narrow what it reads.",
+        })
         { ExhaustedBudget = true };
 }

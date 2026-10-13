@@ -32,6 +32,39 @@ internal static class NendoBehaviourValidation
         }
     }
 
+    /// <summary>
+    /// A name a formula reads: a binding alias, a function parameter or a call alias. Held to
+    /// the formula grammar's identifier, letters, digits and underscore and not starting with a
+    /// digit, when a definition is installed or changed. A stable ID may hold a hyphen or a dot,
+    /// and a formula read 'unit-price' as unit minus price and 'line.total' as a syntax error;
+    /// with aliases a, b and a-b, 'a-b' silently computed a minus b (EBH-16). A stored
+    /// definition is not checked, so a file written before this rule still opens.
+    /// </summary>
+    internal static void RequireFormulaName(string value, string what)
+    {
+        var valid = value.Length > 0 && value[0] is not (>= '0' and <= '9') &&
+            value.All(character => character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' or '_');
+        if (!valid)
+            throw new NendoValidationException(
+                $"'{value}' is a {what} a formula reads, and a formula reads only names of letters, digits and underscore that do not start " +
+                $"with a digit: a hyphen reads as minus and a dot is refused. Rename it, for example to '{Suggest(value)}'.");
+    }
+
+    private static string Suggest(string value)
+    {
+        var replaced = new string(value.Select(character => character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9' ? character : '_').ToArray());
+        return replaced.Length > 0 && replaced[0] is >= '0' and <= '9' ? "_" + replaced : replaced;
+    }
+
+    /// <summary>Every name a formula of this definition reads, held to <see cref="RequireFormulaName"/>.</summary>
+    internal static void RequireFormulaNames(NendoBehaviourDefinition definition)
+    {
+        foreach (var binding in definition.AllBindings) RequireFormulaName(binding.BindingId, "binding alias");
+        foreach (var alias in definition.ReferencedAliases) RequireFormulaName(alias.Alias, "function alias");
+        if (definition is NendoFunctionDefinition function)
+            foreach (var parameter in function.Parameters) RequireFormulaName(parameter.ParameterId, "parameter");
+    }
+
     internal static void RequireLabel(string value, string what)
     {
         if (string.IsNullOrWhiteSpace(value))

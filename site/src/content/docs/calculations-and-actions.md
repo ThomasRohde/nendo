@@ -28,7 +28,7 @@ Numbers stay exact from the file to the screen and to an agent. A decimal total 
 
 ### Bindings
 
-A formula cannot name a field directly. Each name in a formula is a binding, and the binding states where the value comes from by stable ID. A rename of a record type or a field therefore changes no formula.
+A formula cannot name a field directly. Each name in a formula is a binding, and the binding states where the value comes from by stable ID. A rename of a record type or a field therefore changes no formula. A binding's name, like a function's parameters and call aliases, uses letters, digits and underscore and does not start with a digit: a formula would read `unit-price` as `unit` minus `price`. A binding that follows an optional reference must accept an empty value, and `IsEmpty(x) ? 0 : x` then gives the default.
 
 | Binding | Reads |
 | --- | --- |
@@ -78,7 +78,7 @@ The function set is closed:
 | `Date(text)` | A date from `yyyy-MM-dd` text; an invalid date is an error |
 | `DaysBetween(start, end)` | Signed whole number of days |
 | `Concat(a, b, …)` | 2 to 8 texts joined |
-| `TextLength(text)` | Number of characters; empty text is 0 |
+| `TextLength(text)` | Number of UTF-16 code units: most characters count as 1, an emoji outside the Basic Multilingual Plane as 2; empty text is 0 |
 | `ToText(value)` | A number or a date as text: `42`, `12.5`, `2026-10-13`. Use it inside `Concat`, as in `Concat('INV-', ToText(number))`. A yes/no is refused; write `paid ? 'Yes' : 'No'` |
 | `Refuse(text)` | No value; the calculation fails with your text as the reason |
 | `IsEmpty(value)` | True when the value is empty; never empty itself |
@@ -128,9 +128,9 @@ A save and every change its actions make are one transaction and one revision. A
 4. Writes made by actions raise their own events, which join the same queue.
 5. Nendo commits once.
 
-If an action cannot complete, if a limit is reached, or if the save is cancelled, nothing is saved. The refusal names the action, the step and the field. If only a trigger's condition cannot be evaluated, that action does not run and the edit still commits. The save then says which action did not run and why, after a custom view's write too (`blockedConditions` over MCP). A save that runs out of its own budget inside a condition still saves nothing; a limit the data itself reaches, such as a subtree past the hierarchy's descendant bound, only stops that action.
+If an action cannot complete, if a limit is reached, or if the save is cancelled, nothing is saved. The refusal names the action, the trigger that ran it, the step and the field, whatever stopped it: a formula, a limit, or the write itself, such as a required field or a delete that other records block. If only a trigger's condition cannot be evaluated, that action does not run and the edit still commits. The save then says which action did not run and why, after a custom view's write too (`blockedConditions` over MCP). A save that runs out of its own budget inside a condition still saves nothing; a limit the data itself reaches, such as a subtree past the hierarchy's descendant bound, only stops that action.
 
-Nendo checks an action against the schema when it is installed, so a step that could never run is refused then rather than at the next save. It refuses a binding that starts from a record the step does not read, a result that can never be stored in its field (such as text into a number, or a decimal into a whole number unless the formula rounds to 0 digits), and a `CreateRecord` step that leaves a required field empty. A later change that makes a field optional under a formula that needs a value, or makes a step have to fill a field it leaves empty (by requiring it, making it active again or removing its sequence), is refused too.
+Nendo checks an action against the schema when it is installed, so a step that could never run is refused then rather than at the next save. It refuses a binding that starts from a record the step does not read, a relevant field that is not a stored field of the trigger's record type, a result that can never be stored in its field (such as text into a number, or a decimal into a whole number unless the formula rounds to 0 digits), and a `CreateRecord` step that leaves a required field empty. A later change that makes a field optional under a formula that needs a value, or makes a step have to fill a field it leaves empty (by requiring it, making it active again or removing its sequence), is refused too.
 
 The save result lists every other record that the actions changed (`alsoChanged` over MCP). History records which trigger, action and step produced each change: open the entry with **View changes**, and each change an action made reads "made by the automatic action" and the trigger's name. Reversing the save reverses the edit and every change its actions made, and does not run the actions again.
 
@@ -220,7 +220,7 @@ The limits belong to the host. A file cannot raise them.
 | Definitions in a file, of all kinds | 256 |
 | Bindings or parameters in one formula | 16 |
 | Stable ID or alias length | 128 characters |
-| Text value length | 4,096 characters |
+| Text value length | 4,096 UTF-16 code units |
 | Work units per evaluation or save | 16,384 |
 | Function calls per evaluation or save | 64 |
 | Related rows read per evaluation or save | 256 |
@@ -262,7 +262,7 @@ A file that carries a trigger cannot be edited until a person approves its actio
 
 **Why.** Actions change data without a person pressing anything. A file you receive can carry actions that somebody else wrote. Nendo does not let them run until you have seen what they may do: add records, change records or delete records.
 
-**Until you approve.** The file opens, reads, calculates, exports and backs up. Only editing is off, for people and agents alike. The status pill reads *Approval needed*. Nendo never switches a trigger off to let a save through.
+**Until you approve.** The file opens, reads, calculates, exports and backs up. Only editing is off, for people and agents alike. Undo in History still works, and so does an agent's undo of its own change: an undo runs no action, so it is the way back from what an action did after you withdraw its approval. The status pill reads *Approval needed*. Nendo never switches a trigger off to let a save through.
 
 **Where to approve.** Use *Approve automatic actions* under Health (in File status) or on the Agent page. A proposal's review says beforehand whether accepting it needs approval first, or pauses editing until you approve. *Withdraw approval* takes it back. The panel shows a short digest of the rules, so two different sets of rules look different.
 

@@ -157,13 +157,21 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 ? await CompileScreensAsync(transaction, cancellationToken)
                 : null;
             var evidence = new List<OperationEvidence>(mutation.Operations.Count);
-            foreach (var operation in mutation.Operations)
+            _replayingRecordedOperations = replayingInverses;
+            try
             {
-                evidence.Add(await ExecuteOperationMetadataOrDataAsync(
-                    operation,
-                    newEntityIds,
-                    transaction,
-                    cancellationToken));
+                foreach (var operation in mutation.Operations)
+                {
+                    evidence.Add(await ExecuteOperationMetadataOrDataAsync(
+                        operation,
+                        newEntityIds,
+                        transaction,
+                        cancellationToken));
+                }
+            }
+            finally
+            {
+                _replayingRecordedOperations = false;
             }
             // After the operations' own checks, so their refusals keep their own codes; still
             // in this transaction, so nothing that removed the package can land in between. A

@@ -168,6 +168,11 @@ internal sealed partial class SqliteNendoStore
         foreach (var definition in definitions.Values)
         {
             if (definition.OwningEntityId is { } owner && entities.Contains(owner)) throw Refuse(definition, owner);
+            // A retired relevant field never changes again, so the trigger would never run on an
+            // update (EBH-08).
+            if (definition is NendoTriggerDefinition listening &&
+                listening.RelevantFieldIds.FirstOrDefault(fields.Contains) is { } relevant)
+                throw Refuse(definition, relevant);
             foreach (var binding in BindingsOf(definition))
             {
                 foreach (var entityId in new[] { binding.EntityId, binding.RelatedEntityId })

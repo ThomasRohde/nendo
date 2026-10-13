@@ -9,6 +9,12 @@ internal sealed partial class SqliteNendoStore
     private bool? _behaviourTablePresent;
 
     /// <summary>
+    /// True while a compensation's operations run: what they install was recorded by History,
+    /// not authored now, so an authoring rule added since does not refuse it (EBH-16).
+    /// </summary>
+    private bool _replayingRecordedOperations;
+
+    /// <summary>
     /// Whether this file holds any behaviour at all, remembered per open store.
     /// <para>
     /// This is asked on every record read and every write, and for the overwhelming
@@ -95,7 +101,7 @@ internal sealed partial class SqliteNendoStore
             return _compiledBehaviour;
         var definitions = await ReadBehaviourDefinitionsAsync(transaction, cancellationToken);
         var compiled = CompiledBehaviour.Compile(
-            definitions, BehaviourAdapter, new BehaviourBudget(_behaviourLimits, cancellationToken));
+            definitions, BehaviourAdapter, new BehaviourBudget(_behaviourLimits, cancellationToken, BehaviourBudgetUse.Check));
         _compiledBehaviour = compiled;
         _compiledAtDefinitionRevision = manifest.DefinitionRevision;
         return compiled;
@@ -162,7 +168,7 @@ internal sealed partial class SqliteNendoStore
             {
                 Calculations = await service.EvaluateRecordAsync(
                     behaviour, record.EntityId, record.RecordId, source,
-                    new BehaviourBudget(_behaviourLimits, cancellationToken), cancellationToken),
+                    new BehaviourBudget(_behaviourLimits, cancellationToken, BehaviourBudgetUse.Read), cancellationToken),
             });
         }
         return results;
@@ -190,6 +196,25 @@ internal sealed partial class SqliteNendoStore
         /// reads through this same source, so a save sees its staged rows and observes them.
         /// </summary>
         internal Func<string, string, BehaviourBudget, CancellationToken, Task<BehaviourValue>>? Calculate { get; set; }
+
+        /// <summary>
+        /// The field a binding reads, by its display name, so an empty input is named as the
+        /// person sees it rather than by the author's alias (EBH-20). Null for a binding that
+        /// reads no single field.
+        /// </summary>
+        public string? Describe(NendoBehaviourBinding binding)
+        {
+            string? Name(string? entityId, string? fieldId) =>
+                mappings.SingleOrDefault(candidate => string.Equals(candidate.EntityId, entityId, StringComparison.Ordinal))?
+                    .Fields.SingleOrDefault(candidate => string.Equals(candidate.FieldId, fieldId, StringComparison.Ordinal))?.DisplayName;
+            return binding.Kind switch
+            {
+                NendoBindingKind.SameRecordField => Name(binding.EntityId, binding.FieldId),
+                NendoBindingKind.ReferenceTraversal when Name(binding.RelatedEntityId, binding.FieldId) is { } field =>
+                    Name(binding.EntityId, binding.ReferenceFieldId) is { } reference ? $"{field} of {reference}" : field,
+                _ => null,
+            };
+        }
 
         public async Task<BehaviourValue> ResolveAsync(
             NendoBehaviourBinding binding,
@@ -238,14 +263,19 @@ internal sealed partial class SqliteNendoStore
         {
             var (entity, field) = Locate(entityId, fieldId);
             budget.SpendScan();
+            // The record's version comes back with the value. A reviewed plan is valid only while
+            // a record it read still says what it said, and a field read across a reference never
+            // reached the plan's read set, so a project's rate a condition read was not checked
+            // when the proposal was accepted (EBH-23).
             await using var command = store.Command(
-                $"SELECT {Quote(field.PhysicalColumnName)} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
+                $"SELECT {Quote(field.PhysicalColumnName)}, {Quote("__nendo_record_version")} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
                 transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             await using var rows = await command.ExecuteReaderAsync(cancellationToken);
             if (!await rows.ReadAsync(cancellationToken))
                 throw new NendoCalculationException(NendoCalculationCodes.RelatedUnavailable,
                     "A record this calculation reads is no longer there.");
+            observe?.Invoke(new RecordKey(entityId, recordId), rows.GetInt64(1));
             return rows.IsDBNull(0)
                 ? BehaviourValue.Empty(binding.ResultType)
                 : Convert(rows.GetValue(0), field.StorageKind, binding.ResultType, budget);
@@ -261,13 +291,14 @@ internal sealed partial class SqliteNendoStore
             var (entity, field) = Locate(entityId, referenceFieldId);
             budget.SpendScan();
             await using var command = store.Command(
-                $"SELECT {Quote(field.PhysicalColumnName)} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
+                $"SELECT {Quote(field.PhysicalColumnName)}, {Quote("__nendo_record_version")} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
                 transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             await using var rows = await command.ExecuteReaderAsync(cancellationToken);
             if (!await rows.ReadAsync(cancellationToken))
                 throw new NendoCalculationException(NendoCalculationCodes.RelatedUnavailable,
                     "A record this calculation reads is no longer there.");
+            observe?.Invoke(new RecordKey(entityId, recordId), rows.GetInt64(1));
             return rows.IsDBNull(0) ? null : rows.GetString(0);
         }
 
@@ -306,10 +337,7 @@ internal sealed partial class SqliteNendoStore
             RequireCalculator(binding);
 
             var allowance = budget.RemainingScanAllowance;
-            if (allowance <= 0)
-                throw new NendoCalculationException(NendoCalculationCodes.LimitReached,
-                    "This calculation reached the related record limit for a single save.")
-                { ExhaustedBudget = true };
+            if (allowance <= 0) throw budget.Exhausted("related record");
             var selection = member is null ? "1" : Quote(member.PhysicalColumnName);
             // The row's identity and version come back with its value. A record that was
             // only counted still decided what an action wrote, so a reviewed plan is
@@ -457,7 +485,11 @@ internal sealed partial class SqliteNendoStore
             var memberEntityId = binding.Kind == NendoBindingKind.SubtreeAggregate ? binding.EntityId : binding.RelatedEntityId!;
             var count = 0L;
             var integerTotal = 0L;
-            var decimalTotal = 0m;
+            // A decimal total is folded exactly, as a summary tile folds one. Adding decimals
+            // rounds once the exact total needs more digits than a decimal holds, so a total of
+            // 100000000000000000000 and 0.0000000001 read 100000000000000000000.00000000 where
+            // the contract promises the exact total (EBH-18).
+            var decimalTotal = new ExactAggregate("sum", integral: false);
             var rowsRead = 0;
             await using (var rows = await command.ExecuteReaderAsync(cancellationToken))
             {
@@ -501,7 +533,7 @@ internal sealed partial class SqliteNendoStore
                             {
                                 if (binding.ResultType == NendoBehaviourScalar.Integer)
                                     integerTotal = checked(integerTotal + value.AsInteger());
-                                else decimalTotal += value.AsDecimal();
+                                else decimalTotal.Add(value.AsDecimal());
                             }
                             catch (OverflowException)
                             {
@@ -522,8 +554,22 @@ internal sealed partial class SqliteNendoStore
                 NendoAggregateFunction.Count or NendoAggregateFunction.FilteredCount => BehaviourValue.Integer(count),
                 NendoAggregateFunction.Sum when binding.ResultType == NendoBehaviourScalar.Integer =>
                     BehaviourValue.Integer(integerTotal),
-                _ => BehaviourValue.Decimal(decimalTotal),
+                _ => BehaviourValue.Decimal(ExactDecimalTotal(decimalTotal)),
             };
+        }
+
+        /// <summary>The exact decimal total, or a refusal when a decimal cannot hold every digit of it.</summary>
+        private static decimal ExactDecimalTotal(ExactAggregate total)
+        {
+            try
+            {
+                return total.ExactSum();
+            }
+            catch (NendoPreconditionException)
+            {
+                throw new NendoCalculationException(NendoCalculationCodes.Overflow,
+                    "The exact total of these related records needs more digits than a calculation can hold, so no total is shown rather than a rounded one.");
+            }
         }
 
         private void RequireCalculator(NendoBehaviourBinding binding)

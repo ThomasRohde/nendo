@@ -57,6 +57,9 @@ internal interface IBehaviourRecordSource
         string recordId,
         BehaviourBudget budget,
         CancellationToken cancellationToken);
+
+    /// <summary>The field a binding reads, by its display name, or null when it reads no single field.</summary>
+    string? Describe(NendoBehaviourBinding binding) => null;
 }
 
 /// <summary>
@@ -110,8 +113,7 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
                 .FirstOrDefault(failed.ContainsKey);
             if (dependency is not null)
             {
-                results.Add(Failure(definition, NendoCalculationCodes.DependencyFailed,
-                    $"This depends on {dependency}, which could not be calculated."));
+                results.Add(Failure(definition, NendoCalculationCodes.DependencyFailed, DependsOn(behaviour, dependency)));
                 failed[definition.DefinitionId] = NendoCalculationCodes.DependencyFailed;
                 continue;
             }
@@ -146,7 +148,7 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
                 // field of the record — and the record itself — stays exactly as valid
                 // as it was.
                 failed[definition.DefinitionId] = exception.Code;
-                results.Add(Failure(definition, exception.Code, exception.Message));
+                results.Add(Failure(definition, exception.Code, Named(exception, calculation.Expression.FormulaId, definition.Bindings, source, behaviour).Message));
             }
         }
         return results;
@@ -155,35 +157,122 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
     /// <summary>
     /// One calculation for one record, used where a trigger condition or an action
     /// input needs a single derived value rather than the whole set.
+    /// <para>
+    /// It answers exactly as the record read does (EBH-17). A dependency that failed, with any
+    /// code, makes its dependant report <c>calculation-dependency-failed</c>, whatever the
+    /// dependant declares: before, a required dependency stopped by an empty input reached a
+    /// dependant that allows an empty result as that empty result, so a condition saw an empty
+    /// value where the record page showed an error. Each calculation is worked out once per call,
+    /// so a dependency two others read, and the related records it totals, is read once.
+    /// </para>
     /// </summary>
-    internal async Task<BehaviourValue> EvaluateAsync(
+    internal Task<BehaviourValue> EvaluateAsync(
         CompiledBehaviour behaviour,
         string calculationId,
         string recordId,
         IBehaviourRecordSource source,
         BehaviourBudget budget,
+        CancellationToken cancellationToken) =>
+        EvaluateAsync(behaviour, calculationId, recordId, source, budget,
+            new Dictionary<string, (BehaviourValue? Value, NendoCalculationException? Failure)>(StringComparer.Ordinal), cancellationToken);
+
+    private async Task<BehaviourValue> EvaluateAsync(
+        CompiledBehaviour behaviour,
+        string calculationId,
+        string recordId,
+        IBehaviourRecordSource source,
+        BehaviourBudget budget,
+        Dictionary<string, (BehaviourValue? Value, NendoCalculationException? Failure)> worked,
         CancellationToken cancellationToken)
     {
+        if (worked.TryGetValue(calculationId, out var known))
+            return known.Value ?? throw known.Failure!;
         if (!behaviour.Calculations.TryGetValue(calculationId, out var calculation))
             throw new NendoValidationException($"'{calculationId}' is not a calculated field in this file.");
-        var values = new Dictionary<string, BehaviourValue>(StringComparer.Ordinal);
         try
         {
-            foreach (var binding in calculation.Definition.Bindings)
+            var value = await ComputeAsync(behaviour, calculation, recordId, source, budget, worked, cancellationToken);
+            worked[calculationId] = (value, null);
+            return value;
+        }
+        catch (NendoCalculationException exception) when (!exception.ExhaustedBudget)
+        {
+            // A spent budget is the save's, not this calculation's, and leaves untouched.
+            var named = Named(exception, calculation.Expression.FormulaId, calculation.Definition.Bindings, source, behaviour);
+            worked[calculationId] = (null, named);
+            throw named;
+        }
+    }
+
+    private async Task<BehaviourValue> ComputeAsync(
+        CompiledBehaviour behaviour,
+        CompiledCalculation calculation,
+        string recordId,
+        IBehaviourRecordSource source,
+        BehaviourBudget budget,
+        Dictionary<string, (BehaviourValue? Value, NendoCalculationException? Failure)> worked,
+        CancellationToken cancellationToken)
+    {
+        var values = new Dictionary<string, BehaviourValue>(StringComparer.Ordinal);
+        foreach (var binding in calculation.Definition.Bindings)
+        {
+            if (binding.CalculationId is { } read)
             {
-                values[binding.BindingId] = binding.CalculationId is { } read
-                    ? await EvaluateAsync(behaviour, read, recordId, source, budget, cancellationToken)
-                    : await source.ResolveAsync(binding, recordId, budget, cancellationToken);
+                try
+                {
+                    values[binding.BindingId] = await EvaluateAsync(behaviour, read, recordId, source, budget, worked, cancellationToken);
+                }
+                catch (NendoCalculationException exception) when (!exception.ExhaustedBudget)
+                {
+                    throw new NendoCalculationException(NendoCalculationCodes.DependencyFailed, DependsOn(behaviour, read));
+                }
+                continue;
+            }
+            try
+            {
+                values[binding.BindingId] = await source.ResolveAsync(binding, recordId, budget, cancellationToken);
+            }
+            catch (NendoCalculationException exception)
+                when (exception.Code == NendoCalculationCodes.MissingInput && calculation.Definition.ResultNullable)
+            {
+                // The same rule the record-wide read applies: a related total that cannot
+                // be read is an empty input, and the declaration decides what that means.
+                return BehaviourValue.Empty(calculation.Definition.ResultType);
             }
         }
-        catch (NendoCalculationException exception)
-            when (exception.Code == NendoCalculationCodes.MissingInput && calculation.Definition.ResultNullable)
-        {
-            // The same rule the record-wide read applies: a related total that cannot
-            // be read is an empty input, and the declaration decides what that means.
-            return BehaviourValue.Empty(calculation.Definition.ResultType);
-        }
         return adapter.Calculate(calculation.Expression, values, budget);
+    }
+
+    /// <summary>
+    /// The sentence for a dependency that could not be worked out, naming it as the person sees
+    /// it. It named the calculation's definition ID, such as <c>calc.projectHours</c> (EBH-20).
+    /// </summary>
+    private static string DependsOn(CompiledBehaviour behaviour, string dependencyId) =>
+        $"This depends on '{(behaviour.Calculations.TryGetValue(dependencyId, out var dependency) ? dependency.Definition.DisplayName : dependencyId)}', which could not be calculated.";
+
+    /// <summary>
+    /// An empty input named by the field it reads rather than by the author's alias, which
+    /// means something to the author and nothing to the person reading the screen (EBH-20).
+    /// Anything else, and an input this source cannot name, comes back unchanged.
+    /// </summary>
+    internal static NendoCalculationException Named(
+        NendoCalculationException exception,
+        string formulaId,
+        IEnumerable<NendoBehaviourBinding> bindings,
+        IBehaviourRecordSource source,
+        CompiledBehaviour behaviour)
+    {
+        // Only this formula's own declared value: an empty argument inside a function it calls
+        // carries the function's parameter name, which may match an unrelated binding here.
+        if (exception.EmptyInput is not { } empty || !string.Equals(empty.FormulaId, formulaId, StringComparison.Ordinal)) return exception;
+        var binding = bindings.FirstOrDefault(candidate => string.Equals(candidate.BindingId, empty.Parameter, StringComparison.Ordinal));
+        // Another calculated field of the record is named as it is shown, by its display name.
+        var field = binding?.CalculationId is { } read && behaviour.Calculations.TryGetValue(read, out var calculated)
+            ? calculated.Definition.DisplayName
+            : binding is null ? null : source.Describe(binding);
+        return field is not null
+            ? new NendoCalculationException(exception.Code, $"'{field}' is empty, and this formula needs a value for it.")
+            : exception;
     }
 
     private static NendoCalculationResult Success(NendoCalculationDefinition definition, BehaviourValue value) =>

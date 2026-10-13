@@ -175,6 +175,15 @@ internal sealed partial class SqliteNendoStore
                 $"'{definition.DefinitionId}' is already a {previous.Kind.ToString().ToLowerInvariant()}. Remove it before defining a {definition.Kind.ToString().ToLowerInvariant()} with the same ID.");
         }
 
+        // A name a formula reads is held to the formula grammar's own identifier when a
+        // definition is installed or changed. Putting back a definition History recorded is
+        // not authoring, so an undo in a file written before this rule still lands (EBH-16).
+        // Every install rule added since behaviour shipped is skipped the same way: the
+        // traversal's nullability (EBH-07), relevant fields (EBH-08), the duplicate calculation
+        // (EBH-06) and the action pair's binding start, result fit and required fields (EBH-03,
+        // EBH-04). The rules every definition has always met still apply.
+        if (!_replayingRecordedOperations) NendoBehaviourValidation.RequireFormulaNames(definition);
+
         await RequireBehaviourBindingsResolveAsync(definition, transaction, cancellationToken);
 
         // Validate the set this operation would leave behind, not the definition alone:
@@ -191,7 +200,7 @@ internal sealed partial class SqliteNendoStore
         // Checked here, at install, and not in the graph every open compiles: a file that
         // already holds such a pair keeps the narrower failure of that one record type rather
         // than losing every calculation it has.
-        if (definition is NendoCalculationDefinition installing &&
+        if (!_replayingRecordedOperations && definition is NendoCalculationDefinition installing &&
             existing.Values.OfType<NendoCalculationDefinition>().FirstOrDefault(other =>
                 !string.Equals(other.DefinitionId, installing.DefinitionId, StringComparison.Ordinal) &&
                 string.Equals(other.EntityId, installing.EntityId, StringComparison.Ordinal) &&
@@ -201,6 +210,8 @@ internal sealed partial class SqliteNendoStore
                 $"'{twin.DefinitionId}' and '{installing.DefinitionId}' both calculate the field " +
                 $"'{installing.FieldId}' of '{installing.EntityId}'. Give each calculated field its own ID.");
         }
+        if (!_replayingRecordedOperations && definition is NendoTriggerDefinition trigger)
+            await RequireRelevantFieldsResolveAsync(trigger, existing, transaction, cancellationToken);
         var compiled = CompileCandidate(existing, cancellationToken);
         await RequireActionTargetsResolveAsync(existing, compiled, definition, transaction, cancellationToken);
 
@@ -298,7 +309,7 @@ internal sealed partial class SqliteNendoStore
     private CompiledBehaviour CompileCandidate(
         IReadOnlyDictionary<string, NendoBehaviourDefinition> candidate,
         CancellationToken cancellationToken) =>
-        CompiledBehaviour.Compile(candidate, BehaviourAdapter, new BehaviourBudget(_behaviourLimits, cancellationToken));
+        CompiledBehaviour.Compile(candidate, BehaviourAdapter, new BehaviourBudget(_behaviourLimits, cancellationToken, BehaviourBudgetUse.Check));
 
     /// <summary>
     /// Reverses one behaviour definition change.
@@ -344,6 +355,47 @@ internal sealed partial class SqliteNendoStore
                 ?? throw new NendoCompensationNotSupportedException($"The retained definition '{definitionId}' has no body."));
 
     /// <summary>
+    /// Refuses a relevant field a trigger can never see change. An update raises a trigger only
+    /// when one of its relevant fields is among the stored fields that moved, so a misspelled ID,
+    /// or a calculated field, which is never stored and so never moves, installed a trigger that
+    /// never ran on an update and said nothing (EBH-08).
+    /// </summary>
+    private async Task RequireRelevantFieldsResolveAsync(
+        NendoTriggerDefinition trigger,
+        IReadOnlyDictionary<string, NendoBehaviourDefinition> candidate,
+        SqliteTransaction transaction,
+        CancellationToken cancellationToken)
+    {
+        if (trigger.RelevantFieldIds.Count == 0) return;
+        var entity = await GetEntityMappingAsync(trigger.EntityId, transaction, cancellationToken);
+        foreach (var fieldId in trigger.RelevantFieldIds)
+        {
+            var field = entity.Fields.SingleOrDefault(candidateField => string.Equals(candidateField.FieldId, fieldId, StringComparison.Ordinal));
+            if (field is not null)
+            {
+                RequireActive(entity, field);
+                continue;
+            }
+            if (candidate.Values.OfType<NendoCalculationDefinition>().FirstOrDefault(calculation =>
+                    string.Equals(calculation.EntityId, trigger.EntityId, StringComparison.Ordinal) &&
+                    string.Equals(calculation.FieldId, fieldId, StringComparison.Ordinal)) is { } calculated)
+            {
+                var inputs = calculated.Bindings.Where(binding => binding.Kind == NendoBindingKind.SameRecordField)
+                    .Select(binding => $"'{binding.FieldId}'").Distinct(StringComparer.Ordinal).ToArray();
+                throw new NendoPreconditionException("field-calculated",
+                    $"The trigger '{trigger.DisplayName}' lists '{fieldId}' among its relevant fields, and '{fieldId}' is calculated by " +
+                    $"'{calculated.DefinitionId}'. A calculated field is never stored, so it never changes and the trigger would never run on an update. " +
+                    (inputs.Length > 0
+                        ? $"List the stored fields its formula reads instead: {string.Join(", ", inputs)}."
+                        : "List the stored fields its formula reads instead."));
+            }
+            throw new NendoPreconditionException("field-not-found",
+                $"The trigger '{trigger.DisplayName}' lists '{fieldId}' among its relevant fields, and '{trigger.EntityId}' has no stored field " +
+                "with that ID, so the trigger would never run on an update. Name a stored field of the record type the trigger listens to.");
+        }
+    }
+
+    /// <summary>
     /// Checks every entity, field and reference a definition names against the schema it
     /// will run over. A binding that does not resolve is refused here, at installation,
     /// rather than becoming a calculation error on every record forever.
@@ -381,7 +433,14 @@ internal sealed partial class SqliteNendoStore
                     break;
                 case NendoBindingKind.ReferenceTraversal:
                 {
-                    RequireReferenceField(entity, binding.ReferenceFieldId!, binding.RelatedEntityId!);
+                    var reference = RequireReferenceField(entity, binding.ReferenceFieldId!, binding.RelatedEntityId!);
+                    // An unset reference reads as empty whatever the binding declares, and an empty
+                    // value a binding promised stopped the formula before IsEmpty could give a
+                    // default: every record without the reference showed an error (EBH-07).
+                    if (!reference.Required && !binding.Nullable && !_replayingRecordedOperations)
+                        throw new NendoValidationException(
+                            $"'{binding.ReferenceFieldId}' is optional, so a record may point nowhere and the formula must accept an empty value " +
+                            $"from '{binding.BindingId}'. Declare the binding nullable, and give a default with IsEmpty({binding.BindingId}) if the formula needs one.");
                     var target = await GetEntityMappingAsync(binding.RelatedEntityId!, transaction, cancellationToken);
                     RequireActive(target);
                     RequireScalarField(target, binding.FieldId!, binding.ResultType, binding.Nullable);
@@ -500,13 +559,14 @@ internal sealed partial class SqliteNendoStore
                             "point the step at the record that holds the field, or name a field that record has.");
                     }
                     RequireActive(entity, field);
+                    if (_replayingRecordedOperations) continue;
                     RequireAssignmentBindingsStart(trigger, action, step, assignment, creates ? trigger.EntityId : entityId);
                     if (compiled.Assignments.TryGetValue($"{action.DefinitionId}:{step.StepId}:{assignment.FieldId}", out var result))
                         RequireAssignmentFits(action, step, field, result);
                 }
                 foreach (var link in step.Links)
                     await RequireLinkResolvesAsync(trigger, action, step, entity, link, transaction, cancellationToken);
-                if (creates) RequireCreateCoversRequiredFields(action, step, entity);
+                if (creates && !_replayingRecordedOperations) RequireCreateCoversRequiredFields(action, step, entity);
             }
         }
     }
@@ -721,7 +781,7 @@ internal sealed partial class SqliteNendoStore
         }
     }
 
-    private static void RequireReferenceField(EntityMapping entity, string fieldId, string targetEntityId)
+    private static FieldMapping RequireReferenceField(EntityMapping entity, string fieldId, string targetEntityId)
     {
         var field = entity.Fields.SingleOrDefault(candidate => string.Equals(candidate.FieldId, fieldId, StringComparison.Ordinal))
             ?? throw new NendoPreconditionException("field-not-found",
@@ -735,6 +795,7 @@ internal sealed partial class SqliteNendoStore
         if (!string.Equals(reference.TargetEntityId, targetEntityId, StringComparison.Ordinal))
             throw new NendoValidationException(
                 $"'{fieldId}' points at '{reference.TargetEntityId}', and the formula expects '{targetEntityId}'.");
+        return field;
     }
 
     /// <summary>

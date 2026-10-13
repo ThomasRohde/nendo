@@ -186,7 +186,8 @@ internal sealed partial class SqliteNendoStore
                 ? $"Compensate {description}"
                 : caller.Label ?? (caller.Redo ? "Redo " : "Undo ") + StepName(description, isCompensation);
             return new NendoMutation(scope, idempotencyKey, origin, named,
-                CreateCausalInverses(operations, idempotencyKey, scope, carried)).Validate();
+                CreateCausalInverses(operations, idempotencyKey, scope, carried,
+                    await ReferenceTargetsAsync(cancellationToken))).Validate();
         }
         if (operations.Count >= 1 && operations.All(operation => IsExtensionOperation(operation.Type)))
         {
@@ -198,7 +199,8 @@ internal sealed partial class SqliteNendoStore
         if (operations.Count > 1)
         {
             // Record changes were reversed above, as a whole; this names what else the revision holds.
-            var inverses = CreateCausalInverses(operations, idempotencyKey, "studio.p2.compensation", new Dictionary<string, long>());
+            var inverses = CreateCausalInverses(operations, idempotencyKey, "studio.p2.compensation",
+                new Dictionary<(string Entity, string Record), long>(), await ReferenceTargetsAsync(cancellationToken));
             return new NendoMutation("studio.p2.compensation", idempotencyKey, "studio",
                 $"Compensate {description}", inverses).Validate();
         }
@@ -302,7 +304,8 @@ internal sealed partial class SqliteNendoStore
         IReadOnlyList<(string Type, string Reversibility, string Canonical, string Evidence)> operations,
         string idempotencyKey,
         string scope,
-        IReadOnlyDictionary<string, long> carried)
+        IReadOnlyDictionary<(string Entity, string Record), long> carried,
+        Func<string, string, string?> referenceTargetOf)
     {
         if (operations.Count > MaximumCausalInverses)
         {
@@ -326,10 +329,12 @@ internal sealed partial class SqliteNendoStore
         // A keep mark moves no version, so it has no place in the version arithmetic below.
         var versioned = operations.Where(operation => IsRecordOperation(operation.Type)).ToArray();
 
-        // What each record was left at by the revision being reversed. Record IDs are
-        // unique across the file, so a reference's target is found by its ID alone.
+        // What each record was left at by the revision being reversed. A record ID is unique
+        // only within its record type, so every record here is keyed by both, and a
+        // reference's target by the type the reference points at. Keyed by ID alone, a task
+        // '1' moved off project '1' was taken for that project, and a clean undo was refused
+        // as a conflict (EBH-12).
         var versions = new Dictionary<(string Entity, string Record), long>();
-        var touched = new Dictionary<string, (string Entity, string Record)>(StringComparer.Ordinal);
         var deleted = new HashSet<(string Entity, string Record)>();
         foreach (var operation in versioned)
         {
@@ -337,7 +342,6 @@ internal sealed partial class SqliteNendoStore
             using var evidence = JsonDocument.Parse(operation.Evidence);
             var payload = canonical.RootElement.GetProperty("payload");
             var key = (payload.GetProperty("entityId").GetString()!, payload.GetProperty("recordId").GetString()!);
-            touched[key.Item2] = key;
             if (operation.Type == "data.deleteRecord") deleted.Add(key);
             versions[key] = operation.Type switch
             {
@@ -351,7 +355,7 @@ internal sealed partial class SqliteNendoStore
         // version the taking back left (ADR-0023). A deleted record is not: only its own restore
         // could have touched it since.
         foreach (var key in versions.Keys.ToArray())
-            if (!deleted.Contains(key) && carried.TryGetValue(key.Record, out var version))
+            if (!deleted.Contains(key) && carried.TryGetValue(key, out var version))
                 versions[key] = version;
 
         var inverses = new List<NendoOperation>(operations.Count);
@@ -401,13 +405,14 @@ internal sealed partial class SqliteNendoStore
             // move's automatic action updated -- is at the version the planned inverses
             // leave it, so its own reversal is not mistaken for someone else's edit. An
             // outside edit since still moves it past that version and still conflicts.
-            if (targetVersion is not null && previous.ValueKind == JsonValueKind.String &&
-                touched.TryGetValue(previous.GetString()!, out var targetKey))
+            var targetKey = previous.ValueKind == JsonValueKind.String && referenceTargetOf(entityId, fieldId) is { } targetEntity
+                ? (targetEntity, previous.GetString()!)
+                : ((string, string)?)null;
+            if (targetVersion is not null && targetKey is { } touchedTarget && versions.TryGetValue(touchedTarget, out var leftAt))
             {
-                targetVersion = versions[targetKey];
+                targetVersion = leftAt;
             }
-            else if (targetVersion is not null && previous.ValueKind == JsonValueKind.String &&
-                carried.TryGetValue(previous.GetString()!, out var carriedTarget))
+            else if (targetVersion is not null && targetKey is { } carriedKey && carried.TryGetValue(carriedKey, out var carriedTarget))
             {
                 targetVersion = carriedTarget;
             }
@@ -435,7 +440,17 @@ internal sealed partial class SqliteNendoStore
     /// evidence does not hold, and its inverse refuses as before.
     /// </para>
     /// </summary>
-    private async Task<IReadOnlyDictionary<string, long>> TakenBackLaterVersionsAsync(
+    /// <summary>The record type each reference field points at, by (record type, field).</summary>
+    private async Task<Func<string, string, string?>> ReferenceTargetsAsync(CancellationToken cancellationToken)
+    {
+        var targets = new Dictionary<(string Entity, string Field), string>();
+        foreach (var entity in await ReadEntityMappingsAsync(null, cancellationToken))
+            foreach (var field in entity.Fields)
+                if (field.Reference is { } reference) targets[(entity.EntityId, field.FieldId)] = reference.TargetEntityId;
+        return (entityId, fieldId) => targets.TryGetValue((entityId, fieldId), out var target) ? target : null;
+    }
+
+    private async Task<IReadOnlyDictionary<(string Entity, string Record), long>> TakenBackLaterVersionsAsync(
         long afterSequence,
         long? beforeSequence,
         CancellationToken cancellationToken)
@@ -448,8 +463,8 @@ internal sealed partial class SqliteNendoStore
               AND r.lane = 'Data'
             ORDER BY r.change_sequence, o.ordinal;
             """;
-        var touched = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-        var left = new Dictionary<string, long?>(StringComparer.Ordinal);
+        var touched = new Dictionary<(string Entity, string Record), List<string>>();
+        var left = new Dictionary<(string Entity, string Record), long?>();
         var compensationOf = new Dictionary<string, string?>(StringComparer.Ordinal);
         await using (var command = Command(sql, null))
         {
@@ -464,7 +479,8 @@ internal sealed partial class SqliteNendoStore
                 if (!IsRecordOperation(type)) continue;
                 using var canonical = JsonDocument.Parse(reader.GetString(3));
                 using var evidence = JsonDocument.Parse(reader.GetString(4));
-                var record = canonical.RootElement.GetProperty("payload").GetProperty("recordId").GetString()!;
+                var payload = canonical.RootElement.GetProperty("payload");
+                var record = (payload.GetProperty("entityId").GetString()!, payload.GetProperty("recordId").GetString()!);
                 if (!touched.TryGetValue(record, out var revisions)) touched[record] = revisions = [];
                 if (revisions.Count == 0 || revisions[^1] != revision) revisions.Add(revision);
                 left[record] = type switch
@@ -476,7 +492,7 @@ internal sealed partial class SqliteNendoStore
                 };
             }
         }
-        var carried = new Dictionary<string, long>(StringComparer.Ordinal);
+        var carried = new Dictionary<(string Entity, string Record), long>();
         foreach (var (record, revisions) in touched)
         {
             if (left[record] is not { } version) continue;
