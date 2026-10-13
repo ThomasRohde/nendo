@@ -14,6 +14,21 @@ internal static class DesktopRecoveryPresentation
             _ => view.Findings.FirstOrDefault()?.Message ?? "Recovery inspection is required before editing can continue.",
         }) + (view.LocationWarning is null ? string.Empty : "\n" + view.LocationWarning.Message);
 
+    /// <summary>
+    /// What a native file action, or the open a launch asked for, says when it fails: the
+    /// refusal's own words where it has them. A launch's open said one fixed sentence whatever
+    /// had refused it, so a file in a synced folder never said so (DSH-01).
+    /// </summary>
+    internal static string FailureMessage(Exception exception) => exception switch
+    {
+        NendoFileOpenException failure => failure.Inspection.Findings.FirstOrDefault()?.Message ?? "The selected file could not be safely opened.",
+        NendoException failure => failure.Message,
+        OperationCanceledException => "The action stopped before its outcome was confirmed. Inspect the selected file before trying again.",
+        UnauthorizedAccessException => "Access was denied. Choose a folder you can write to, or open the file read-only.",
+        IOException => "The file action could not be confirmed. Inspect the file status and selected destination before retrying; a result may already exist.",
+        _ => "The file action could not finish. Review the file status before trying again.",
+    };
+
     internal static string ValidateNewFileName(string name, string extension)
     {
         var leaf = name.Trim();

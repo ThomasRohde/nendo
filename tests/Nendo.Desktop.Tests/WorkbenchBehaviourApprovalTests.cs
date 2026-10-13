@@ -40,6 +40,54 @@ public sealed class WorkbenchBehaviourApprovalTests
         Assert.IsFalse(view.Capabilities.Mutate);
     }
 
+    /// <summary>
+    /// DSH-17: the shell state the tray menu, tooltip and every bridge response read on the UI
+    /// thread asked the approval store, which takes its own lock, and an approval holds that lock
+    /// while it waits up to five seconds for the device-state lock another Nendo may hold.
+    /// </summary>
+    [TestMethod]
+    public async Task TheShellStateDoesNotWaitOnTheApprovalStore()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await SeedAsync(workspace.FilePath);
+        await using var session = Session(workspace);
+        await session.OpenAsync(workspace.FilePath);
+        Assert.IsTrue(session.DescribeShellState().RequiresApproval);
+        Assert.IsFalse(session.DescribeShellState().IsApproved);
+
+        // Another Nendo holds the approval document's device lock.
+        using var held = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var holder = new Thread(() =>
+        {
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            held.Set();
+            release.Wait();
+        }) { IsBackground = true };
+        holder.Start();
+        held.Wait();
+        Task approving;
+        try
+        {
+            // This one approves, and waits for that lock holding the store's own.
+            approving = Task.Run(() => session.ApproveBehaviourAsync());
+            await Task.Delay(500);
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            var state = session.DescribeShellState();
+            clock.Stop();
+            Assert.IsTrue(state.RequiresApproval);
+            Assert.IsLessThan(1000, clock.ElapsedMilliseconds,
+                $"Reading the shell state waited {clock.ElapsedMilliseconds} ms on the approval store's lock.");
+        }
+        finally
+        {
+            release.Set();
+            holder.Join();
+        }
+        await approving;
+        Assert.IsTrue(session.DescribeShellState().IsApproved, "The approval did not reach the shell state.");
+    }
+
     [TestMethod]
     public async Task ApprovingMakesEditingAvailableAndWithdrawingTakesItBack()
     {

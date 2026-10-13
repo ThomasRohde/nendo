@@ -186,6 +186,28 @@ try {
     }
     Write-Host "OK       the application and setup agree on $($identityInCode.Groups[1].Value)"
 
+    Write-Host '== Publish trimming =='
+    # The shipped payload is published untrimmed, and the host depends on it: its bridge and
+    # device stores serialise JSON by reflection and its taskbar and Jump List use COM interop,
+    # both of which trimming switches off. The project file used to trim every Release publish
+    # that the pipeline did not override, so a plain 'dotnet publish -c Release' made a host
+    # that ended on its first bridge response (DSH-18). Every setting in the project file has
+    # to say what the pipeline passes.
+    $projectTrimming = @([regex]::Matches(
+        (Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.Desktop/Nendo.Desktop.csproj') -Raw),
+        '<PublishTrimmed(?:\s[^>]*)?>\s*([^<]+?)\s*</PublishTrimmed>') | ForEach-Object { $_.Groups[1].Value })
+    $pipelineTrimming = [regex]::Match(
+        (Get-Content -LiteralPath (Join-Path $repoRoot 'tools/Publish-NendoPayload.ps1') -Raw),
+        '-p:PublishTrimmed=(\w+)')
+    if (-not $pipelineTrimming.Success) { throw 'Publish-NendoPayload.ps1 no longer says whether it trims (-p:PublishTrimmed=...).' }
+    if ($projectTrimming.Count -eq 0) { throw 'Nendo.Desktop.csproj does not say whether it trims; a Release publish would follow the SDK default.' }
+    $disagreeing = @($projectTrimming | Where-Object { $_ -ne $pipelineTrimming.Groups[1].Value })
+    if ($disagreeing.Count -ne 0) {
+        throw ("Nendo.Desktop.csproj sets PublishTrimmed to {0}, but Publish-NendoPayload.ps1 publishes with {1}. A publish outside the pipeline would make a different host." -f
+            ($projectTrimming -join ', '), $pipelineTrimming.Groups[1].Value)
+    }
+    Write-Host "OK       the project and the payload pipeline agree on PublishTrimmed=$($pipelineTrimming.Groups[1].Value)"
+
     Write-Host 'Repository verification passed.'
 }
 finally {

@@ -58,3 +58,26 @@ export function judgeDrop(names: readonly string[]): DropVerdict {
   }
   return { accept: 0, refusal: null };
 }
+
+/**
+ * Where the browser's own drop is kept: a text field, which takes dropped text or a link's
+ * address. Only the inputs that hold text: a checkbox, a button or a file input dropped onto
+ * would take the browser's default, which is to navigate.
+ */
+export const textDropTargets = [
+  'textarea', 'input:not([type])',
+  ...['text', 'search', 'url', 'email', 'tel', 'password', 'number'].map(type => `input[type="${type}"]`),
+  '[contenteditable=""]', '[contenteditable="true"]', '[contenteditable="plaintext-only"]',
+].join(', ');
+
+/**
+ * Whether a drag over this target keeps the browser's own drop.
+ *
+ * Only a text field does. Anywhere else the browser's answer to a link, to text let go
+ * outside a field, or to a file dropped while a dialog is open is to navigate the window to
+ * it, which the host refuses, and that refusal used to cost the whole view (DSH-02).
+ */
+export function takesDefaultDrop(target: unknown): boolean {
+  const element = target as { closest?: (selector: string) => unknown } | null;
+  return typeof element?.closest === 'function' && element.closest(textDropTargets) !== null;
+}

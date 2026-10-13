@@ -35,6 +35,21 @@ internal sealed class DesktopNotificationTrigger
         _rendererFailed = false;
     }
 
+    private string? _fileSessionId;
+
+    /// <summary>
+    /// The window's file session changed: a file opened, closed or was replaced, including the
+    /// same file reopened from the recovery panel. Everything the trigger latched belongs to
+    /// the session that has gone (DSH-08): a loss of write authority or an approval reminder
+    /// latched for it suppressed the same notice for the next file in this window.
+    /// </summary>
+    internal void OnFileSession(string? fileSessionId)
+    {
+        if (string.Equals(_fileSessionId, fileSessionId, StringComparison.Ordinal)) return;
+        _fileSessionId = fileSessionId;
+        Reset();
+    }
+
     /// <summary>
     /// Whether consent is currently outstanding. Nothing in the app reads it; the tests
     /// use it to observe the trigger's state.

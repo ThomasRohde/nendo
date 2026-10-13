@@ -77,6 +77,23 @@ declare global {
   }
 }
 
+/**
+ * How long a request waits for the host before it is reported as unanswered, or null for no limit.
+ *
+ * A native file picker is an interactive wait controlled by the person, not a slow host
+ * operation: starting the timeout before the picker opens discarded a valid response whenever
+ * choosing a path took longer than fifteen seconds. The same holds for importing and exporting a
+ * custom-view package, which open a picker. A fold of history (a backup and a VACUUM) and a
+ * rebuild of the search index take as long as the file is large: on a large file the host
+ * answered after the fifteen seconds, the answer was dropped, and the person was invited to try
+ * again while the first was still running (DSH-04).
+ */
+export function hostTimeoutMs(method: string): number | null {
+  if (method === 'session.createFile' || method === 'session.openFile' || method.startsWith('file.') || method.startsWith('extension.')) return null;
+  if (method === 'history.fold' || method === 'data.buildSearchIndex') return null;
+  return 15_000;
+}
+
 export class DesktopWorkbenchClient implements WorkbenchClient {
   readonly mode = 'desktop' as const;
   private readonly pending = new Map<string, PendingRequest>();
@@ -185,17 +202,13 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private requestCore<T>(method: string, payload: Record<string, unknown> = {}, additionalObjects?: ArrayLike<unknown>): Promise<T> {
     const requestId = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
-      // A native file picker is an interactive wait controlled by the person,
-      // not a slow host operation. Starting the RPC timeout before the picker
-      // opens discards a valid response whenever choosing a path takes longer
-      // than fifteen seconds.
-      // The same holds for importing and exporting a custom-view package, which open a picker.
-      const timeout = method === 'session.createFile' || method === 'session.openFile' || method.startsWith('file.') || method.startsWith('extension.')
+      const waitMs = hostTimeoutMs(method);
+      const timeout = waitMs === null
         ? null
         : window.setTimeout(() => {
             this.pending.delete(requestId);
             reject(new WorkbenchHostError('host-timeout', 'The Desktop host did not respond.'));
-          }, 15_000);
+          }, waitMs);
 
       this.pending.set(requestId, {
         method,

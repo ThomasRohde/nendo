@@ -130,6 +130,16 @@ internal static class DesktopTitleBarRegions
         return result;
     }
 
+    /// <summary>
+    /// Whether the page must hand over its controls again. A new display scale is a change even
+    /// when the bar measures the same in the page's pixels, which it does at every standard
+    /// scale (48 × 1.5 is 72 physical pixels, and 72 / 1.5 is 48 again): the rectangles Windows
+    /// holds are physical pixels at the old scale, so after a move between a 100% and a 150%
+    /// screen the controls were passed through in the wrong places (DSH-05).
+    /// </summary>
+    internal static bool Changed(TitleBarView? previous, double previousScale, TitleBarView bar, double scale) =>
+        previous != bar || previousScale != scale;
+
     /// <summary>Physical pixels of the client area back in the page's CSS pixels.</summary>
     internal static TitleBarRect ToPage(TitleBarPixels pixels, double scale, double pageLeft, double pageTop) =>
         new(pixels.X / scale - pageLeft, pixels.Y / scale - pageTop, pixels.Width / scale, pixels.Height / scale);

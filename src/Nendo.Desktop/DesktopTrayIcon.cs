@@ -90,6 +90,7 @@ internal sealed class DesktopTrayIcon : IDisposable
     private readonly Action<DesktopTrayCommand> _invoke;
     private readonly Action? _taskbarRecreated;
     private readonly Action<string?>? _showRequested;
+    private readonly Action? _sessionEnding;
     private readonly Func<DesktopTrayMenuState> _describe;
     private readonly WndProcDelegate _wndProc;
     private readonly string _className;
@@ -119,13 +120,19 @@ internal sealed class DesktopTrayIcon : IDisposable
     /// (<see cref="DesktopWindowHandoff"/>). Raised on the message-pumping thread, inside that
     /// process's send, so it must be quick; it is what the tray's own Open does.
     /// </param>
+    /// <param name="sessionEnding">
+    /// Windows is ending the session: a shutdown, a restart, a sign-out (DSH-07). This hidden
+    /// window is top-level, so it hears it, and it hears it whether or not the main window is
+    /// showing. Raised on the message-pumping thread; Windows ends the process soon after.
+    /// </param>
     internal DesktopTrayIcon(Func<DesktopTrayMenuState> describe, Action<DesktopTrayCommand> invoke,
-        Action? taskbarRecreated = null, Action<string?>? showRequested = null)
+        Action? taskbarRecreated = null, Action<string?>? showRequested = null, Action? sessionEnding = null)
     {
         _describe = describe;
         _invoke = invoke;
         _taskbarRecreated = taskbarRecreated;
         _showRequested = showRequested;
+        _sessionEnding = sessionEnding;
         _wndProc = WindowProcedure;
         _className = $"NendoTray.{Environment.ProcessId}.{Interlocked.Increment(ref _instances)}";
         _taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
@@ -259,6 +266,8 @@ internal sealed class DesktopTrayIcon : IDisposable
             catch (Exception) { return IntPtr.Zero; }
             return 1;
         }
+
+        if (DesktopSessionEnd.Handles(msg)) return DesktopSessionEnd.Answer(msg, wParam, _sessionEnding);
 
         if (msg == WM_DESTROY) return IntPtr.Zero;
         return DefWindowProcW(hWnd, msg, wParam, lParam);

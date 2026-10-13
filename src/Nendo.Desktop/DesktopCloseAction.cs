@@ -14,9 +14,14 @@ internal enum DesktopCloseOutcome
 /// without one.
 /// <para>
 /// The asymmetry is deliberate: an explicit exit always exits, whatever the
-/// preference says, because the tray menu's Exit item and a Windows shutdown are
-/// the two ways out and neither may be overridden by a preference. A preference
-/// that could swallow Exit would leave a process nobody can stop from the UI.
+/// preference says, because the tray menu's Exit item is the way out and no
+/// preference may override it. A preference that could swallow Exit would leave a
+/// process nobody can stop from the UI.
+/// </para>
+/// <para>
+/// A Windows shutdown, restart or sign-out closes no window, so it never comes through
+/// here: the tray's window hears it and ends the session through
+/// <see cref="DesktopSessionEnd"/> (DSH-07).
 /// </para>
 /// </summary>
 internal static class DesktopCloseAction

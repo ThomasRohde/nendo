@@ -27,7 +27,7 @@ public sealed class DesktopCloseActionTests
         Assert.AreEqual(
             DesktopCloseOutcome.Exit,
             DesktopCloseAction.Resolve(closeAction, exitRequested: true, trayAvailable: true),
-            "The tray menu's Exit and a Windows shutdown are the two ways out; a preference that could swallow them would strand the process.");
+            "The tray menu's Exit is the way out; a preference that could swallow it would strand the process.");
     }
 
     [TestMethod]

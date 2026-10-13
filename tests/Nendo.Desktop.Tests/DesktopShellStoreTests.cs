@@ -48,6 +48,52 @@ public sealed class DesktopShellStoreTests
             "Opening and closing a window should not start writing device state nobody changed.");
     }
 
+    /// <summary>
+    /// DSH-09: each window kept the fields it read at startup and wrote all of them back, so a
+    /// tray toggle in an older window put back the 'Record failures' another window switched off.
+    /// </summary>
+    [TestMethod]
+    public async Task OneWindowsChoiceSurvivesAnotherWindowsSaveAndReachesItOnRefresh()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var older = new DesktopShellStore(workspace.FileHistoryRoot);
+        var newer = new DesktopShellStore(workspace.FileHistoryRoot);
+        newer.SetRecordViewFailures(false);
+        older.SetCloseAction("exit");
+
+        var saved = new DesktopShellStore(workspace.FileHistoryRoot);
+        Assert.IsFalse(saved.RecordViewFailures, "A save in one window turned another window's 'Record failures' back on.");
+        Assert.AreEqual("exit", saved.CloseAction);
+        Assert.IsFalse(older.RecordViewFailures, "The window that saved still holds the choice it never saw.");
+
+        newer.Refresh();
+        Assert.AreEqual("exit", newer.CloseAction, "A refresh did not bring another window's choice.");
+        newer.MarkTrayIntroShown();
+        older.Refresh();
+        Assert.IsTrue(older.TrayIntroShown);
+        Assert.AreEqual("exit", new DesktopShellStore(workspace.FileHistoryRoot).CloseAction);
+    }
+
+    /// <summary>DSH-09, after review: a refresh that reads the document takes back the notice an unreadable one left.</summary>
+    [TestMethod]
+    public async Task ARefreshThatReadsTheDocumentClearsTheEarlierReadFailure()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        var path = Path.Combine(workspace.FileHistoryRoot, "shell.json");
+        await File.WriteAllTextAsync(path, "not json");
+        var store = new DesktopShellStore(workspace.FileHistoryRoot);
+        Assert.IsFalse(store.Persisted);
+        Assert.IsNotNull(store.Notice);
+
+        // Another window repairs the document.
+        await File.WriteAllTextAsync(path, """{"Version":1,"CloseAction":"exit","TrayIntroShown":true,"RecordViewFailures":false}""");
+        store.Refresh();
+        Assert.AreEqual("exit", store.CloseAction);
+        Assert.IsTrue(store.Persisted, "A refresh that read the document still says it could not be read.");
+        Assert.IsNull(store.Notice, "A refresh that read the document still says it could not be read.");
+    }
+
     [TestMethod]
     public async Task TheNotificationAreaIsExplainedOncePerDevice()
     {

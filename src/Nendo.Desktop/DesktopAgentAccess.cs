@@ -555,7 +555,12 @@ internal sealed partial class DesktopSessionController
         // actually received rather than a stand-in for it. Nothing else reads it.
         _unattendedConsent = mode < AgentAccessMode.Unattended ? null : _ =>
         {
-            if (_coordinator?.BehaviourTrust.Required is { } required) BehaviourGrants.Approve(required);
+            if (_coordinator is { } coordinator && coordinator.BehaviourTrust.Required is { } required)
+            {
+                BehaviourGrants.Approve(required);
+                // The shell's copy, read here on the agent's thread rather than by the window.
+                _shellTrust = coordinator.BehaviourTrust;
+            }
             return Task.CompletedTask;
         };
         return _unattendedConsent;

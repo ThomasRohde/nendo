@@ -17,6 +17,9 @@ public sealed partial class MainPage : Page
     private bool _startupConsumed;
     private bool _unloaded;
     private long _workbenchGeneration;
+
+    /// <summary>The Workbench's own latest navigation, the only one whose failure is the view's.</summary>
+    private ulong? _workbenchNavigationId;
     private ExtensionAssetServer? _extensionAssets;
 
     public MainPage()
@@ -193,6 +196,12 @@ public sealed partial class MainPage : Page
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsWebMessageEnabled = true;
             core.Settings.IsZoomControlEnabled = false;
+            // F5 and Ctrl+R reloaded the Workbench and dropped an open form's typing without a
+            // word; Ctrl+P and Ctrl+F opened the browser's print and find over the app (DSH-15).
+            // Off in a shipped build, where the keys still reach the page, so its own shortcuts
+            // and a view's declared keys keep working; on in a Debug build for F12 (see
+            // BrowserAcceleratorKeys). DevTools stay enabled and open from Inspect on a view's menu.
+            core.Settings.AreBrowserAcceleratorKeysEnabled = DesktopWorkbenchNavigation.BrowserAcceleratorKeys;
             core.SetVirtualHostNameToFolderMapping(
                 DesktopShellContract.WorkbenchHostName,
                 assetRoot,
@@ -226,20 +235,29 @@ public sealed partial class MainPage : Page
         if (!DesktopShellContract.IsAllowedWorkbenchUri(args.Uri))
         {
             args.Cancel = true;
+            return;
         }
+        _workbenchNavigationId = args.NavigationId;
     }
 
     private void Workbench_NavigationCompleted(
         CoreWebView2 sender,
         CoreWebView2NavigationCompletedEventArgs args)
     {
-        DesktopStartupTiming.Mark(args.IsSuccess ? "webview.navigation.completed" : "webview.navigation.failed");
-        DesktopStartupTiming.Write();
-        if (args.IsSuccess)
+        // A navigation the host cancelled, or one another superseded, is not the view failing
+        // (DSH-02): only the Workbench's own navigation failing is.
+        if (!DesktopWorkbenchNavigation.IsFatal(args.NavigationId, _workbenchNavigationId, args.IsSuccess))
         {
+            if (args.IsSuccess && args.NavigationId == _workbenchNavigationId)
+            {
+                DesktopStartupTiming.Mark("webview.navigation.completed");
+                DesktopStartupTiming.Write();
+            }
             return;
         }
 
+        DesktopStartupTiming.Mark("webview.navigation.failed");
+        DesktopStartupTiming.Write();
         ShowRecovery($"The app view could not load ({args.WebErrorStatus}).");
     }
 
@@ -269,6 +287,9 @@ public sealed partial class MainPage : Page
             CoreWebView2ProcessFailedKind.RenderProcessUnresponsive))
             return;
         var name = kind.ToString();
+        // Now, not when recovery runs: a response already queued would otherwise be posted to
+        // the browser that has gone before the recovery panel replaces it (DSH-03).
+        _workbenchGeneration = checked(_workbenchGeneration + 1);
         DispatcherQueue.TryEnqueue(
             () => ShowRecovery($"The app view stopped ({name}).", name));
     }
@@ -296,12 +317,13 @@ public sealed partial class MainPage : Page
         var responseJson = WorkbenchProtocolHandler.Serialize(response);
         void DeliverResponse()
         {
-            if (_webView is not null && _workbenchGeneration == generation)
+            if (_webView is { } view && _workbenchGeneration == generation)
             {
                 // A native picker runs a nested window loop. Resolve the current
                 // CoreWebView2 wrapper after it returns instead of reusing the
-                // event sender wrapper captured before the dialog opened.
-                _webView.CoreWebView2?.PostWebMessageAsJson(responseJson);
+                // event sender wrapper captured before the dialog opened. The browser
+                // may have gone in between, as PostWorkbenchEvent knows (DSH-03).
+                DesktopShellSafety.TryPost(() => view.CoreWebView2?.PostWebMessageAsJson(responseJson));
             }
             // Every open, create, close and replacement answers through here, so the
             // title bar follows the session without a dedicated protocol message.
@@ -392,15 +414,9 @@ public sealed partial class MainPage : Page
         }
         var core = _webView?.CoreWebView2;
         if (core is null || _unloaded) return;
-        try
-        {
-            core.PostWebMessageAsJson(WorkbenchProtocolHandler.SerializeEvent(
-                new WorkbenchEvent(DesktopShellContract.EventBridgeProtocolVersion, name, payload)));
-        }
-        catch (Exception)
-        {
-            // The renderer went away between the check and the post. Nothing to recover.
-        }
+        // The renderer may go away between the check and the post. Nothing to recover.
+        DesktopShellSafety.TryPost(() => core.PostWebMessageAsJson(WorkbenchProtocolHandler.SerializeEvent(
+            new WorkbenchEvent(DesktopShellContract.EventBridgeProtocolVersion, name, payload))));
     }
 
     private void ShowRecovery(string reason, string? kind = null)
@@ -429,6 +445,7 @@ public sealed partial class MainPage : Page
     private void DetachWorkbench()
     {
         _workbenchGeneration = checked(_workbenchGeneration + 1);
+        _workbenchNavigationId = null;
         var webView = _webView;
         _webView = null;
         _extensionAssets?.Detach();
@@ -457,30 +474,40 @@ public sealed partial class MainPage : Page
 
         _startupConsumed = true;
         DesktopStartupTiming.Mark("session.open.begin");
+        var path = _startupRequest.Path;
         try
         {
             // Startup only needs open status. The renderer will query its own
             // record window after navigation; avoid allocating every record here.
             using var projection = _session.BindReadProjection(true);
+            // A launch is a request somebody made, like a picked or a dropped file, and meets
+            // the same questions: a folder that may be synced, another known file with this
+            // one's instance, a file that opens only read-only. It ended on the recovery panel
+            // with a fixed sentence instead (DSH-01). A question answered with Cancel leaves
+            // the window open on no file.
+            using var binding = _session.BindFileRequest(_session.CurrentFileSessionId);
             switch (_startupRequest.Mode)
             {
                 case DesktopStartupMode.Create:
-                    await _session.CreateAsync(_startupRequest.Path);
+                    if (await ConfirmDestinationLocationAsync(path)) await _session.CreateAsync(path);
                     break;
                 // Explorer's New menu has already picked the name and may have left an
                 // empty file sitting at it, which is the picker's case exactly.
                 case DesktopStartupMode.CreateFromShell:
-                    await _session.CreateFromSavePickerAsync(_startupRequest.Path);
+                    if (await ConfirmDestinationLocationAsync(path)) await _session.CreateFromSavePickerAsync(path);
                     break;
                 default:
-                    await _session.OpenAsync(_startupRequest.Path);
+                    var assessment = await _session.AssessOpenAsync(path);
+                    if (DesktopStartupOpen.NeedsAQuestion(assessment)) await OpenNativeAssessmentAsync(assessment);
+                    else await OpenAssessedOrReadOnlyAsync(assessment, readOnly: false);
                     break;
             }
             return true;
         }
         catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException)
         {
-            ShowRecovery("The requested file could not be opened. Use Open file or backup to inspect it and choose recovery actions.");
+            // The refusal's own words, which name what is wrong; the panel's actions follow them.
+            ShowRecovery(DesktopRecoveryPresentation.FailureMessage(exception));
             return false;
         }
     }

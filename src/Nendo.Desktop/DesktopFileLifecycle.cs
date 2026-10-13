@@ -36,16 +36,22 @@ internal sealed partial class DesktopSessionController
     /// </summary>
     internal string? CurrentFilePath => _currentPath;
 
+    /// <summary>
+    /// The Workbench's recent list. Outside the request gate, for the reason
+    /// <see cref="GetShellRecentFilesAsync"/> gives: each entry is opened to read who it says it
+    /// is, and one on a disconnected share held the gate, and every read queued behind it, for
+    /// as long as the share took to answer (DSH-21). Nothing here needs the gate: the history
+    /// file is replaced whole and the notice is one field.
+    /// </summary>
     internal async Task<DesktopRecentFiles> GetRecentFilesAsync(CancellationToken cancellationToken = default)
     {
-        await EnterRequestGateAsync(cancellationToken);
-        try
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            var files = await _fileHistory.ListAsync(cancellationToken);
-            return files with { Notice = files.Notice ?? _fileHistoryNotice };
-        }
-        finally { _gate.Release(); }
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        // Read without the gate, so the two can belong to different sessions during an open or
+        // a close. A pair that disagrees confirms nothing, and the entry is identified as any other.
+        var openPath = _currentPath;
+        var openObservation = _currentObservation;
+        var files = await _fileHistory.ListAsync(cancellationToken, openPath, openObservation);
+        return files with { Notice = files.Notice ?? _fileHistoryNotice };
     }
 
     /// <summary>
@@ -73,28 +79,63 @@ internal sealed partial class DesktopSessionController
         return _fileHistory.ListForShellAsync(wanted, openPath, openObservation, cancellationToken);
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is the file open in this window. Choosing it again is not
+    /// a reason to close it and open it again, which discarded pending proposals for no change
+    /// (DSH-06).
+    /// </summary>
+    internal bool IsOpenFile(string path) =>
+        _currentPath is { } current && string.Equals(current, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Inspects a file somebody chose, ahead of the questions about it. Allowed while another
+    /// file is open: it reads only the candidate, so the open file is closed only once the
+    /// person has answered them (DSH-06). Not for the open file itself.
+    /// </summary>
     internal async Task<DesktopFileOpenAssessment> AssessOpenAsync(string path, CancellationToken cancellationToken = default)
     {
         await EnterRequestGateAsync(cancellationToken);
         try
         {
-            EnsureAvailableForOpen();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            RefuseOpenFile(path);
             return (await PrepareOpenCoreAsync(path, cancellationToken, explicitOpen: true)).Assessment;
         }
         finally { _gate.Release(); }
     }
 
-    internal async Task<DesktopSessionView> OpenAssessedAsync(string assessmentId, bool readOnly, CancellationToken cancellationToken = default)
+    /// <param name="replaceCurrent">
+    /// The person was told the open file closes and agreed: it is closed here, under the same
+    /// gate as the open, once the assessment is known to be this session's. Without it a file
+    /// that is open refuses the open, as it always has.
+    /// </param>
+    internal async Task<DesktopSessionView> OpenAssessedAsync(string assessmentId, bool readOnly, CancellationToken cancellationToken = default,
+        bool replaceCurrent = false)
     {
         await EnterRequestGateAsync(cancellationToken);
         try
         {
-            EnsureAvailableForOpen();
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (!_openCandidates.TryGetValue(assessmentId, out var candidate))
                 throw new NendoPreconditionException("open-assessment-unavailable", "Inspect the selected file again before opening it.");
+            if (replaceCurrent && _coordinator is not null)
+            {
+                RefuseOpenFile(candidate.Path);
+                // Closing forgets every candidate. This one was taken first and is kept, so a
+                // writable open another session refuses can still fall back to read-only.
+                await CloseFileCoreAsync();
+                _openCandidates[assessmentId] = candidate;
+            }
+            EnsureAvailableForOpen();
             return await OpenCandidateCoreAsync(candidate, readOnly, cancellationToken);
         }
         finally { _gate.Release(); }
+    }
+
+    private void RefuseOpenFile(string path)
+    {
+        if (IsOpenFile(path))
+            throw new NendoPreconditionException("file-already-open", "This file is already open in this window.");
     }
 
     internal async Task<DesktopSessionView> OpenReadOnlyAsync(string path, CancellationToken cancellationToken = default)
@@ -128,7 +169,10 @@ internal sealed partial class DesktopSessionController
     /// </summary>
     internal async Task<string?> ResolveRecentPathAsync(string recentId, CancellationToken cancellationToken = default)
     {
-        try { return (await _fileHistory.ResolveAsync(recentId, cancellationToken)).Path; }
+        // Where it was remembered, without observing it: the assessment that follows observes
+        // it once, and doing it here as well was a second full inspection before the dialog
+        // appeared, only to learn the path (DSH-22).
+        try { return await _fileHistory.PathOfAsync(recentId, cancellationToken); }
         catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException)
         {
             return null;
@@ -140,7 +184,8 @@ internal sealed partial class DesktopSessionController
         await EnterRequestGateAsync(cancellationToken);
         try
         {
-            EnsureAvailableForOpen();
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (await _fileHistory.PathOfAsync(recentId, cancellationToken) is { } remembered) RefuseOpenFile(remembered);
             var resolved = await _fileHistory.ResolveAsync(recentId, cancellationToken, InterruptedWriteFor);
             return (await PrepareOpenCoreAsync(resolved.Path, cancellationToken, resolved.Observation)).Assessment;
         }
@@ -188,7 +233,7 @@ internal sealed partial class DesktopSessionController
             explicitOpen ? InterruptedWriteFor(fullPath) : NendoInterruptedWrite.Refuse, cancellationToken);
         DesktopStartupTiming.Mark("session.observe.end");
         DesktopStartupTiming.Mark("session.history.check.begin");
-        var admission = await _fileHistory.CheckAsync(observation, cancellationToken);
+        var admission = await _fileHistory.CheckAsync(observation, cancellationToken, _currentPath, _currentObservation);
         DesktopStartupTiming.Mark("session.history.check.end");
         var assessment = new DesktopFileOpenAssessment($"open-{Guid.NewGuid():N}", Path.GetFileName(fullPath),
             observation.Inspection, admission.Conflict is not null, admission.Conflict?.RecentId,
@@ -258,6 +303,7 @@ internal sealed partial class DesktopSessionController
             _recoveryPath = null;
             // The level this device remembers for this file comes back with it (ADR-0009, W-126).
             if (restoreAgent) await RestoreAgentModeAsync(writable, cancellationToken);
+            AnnounceFileSession();
             return view;
         }
         catch

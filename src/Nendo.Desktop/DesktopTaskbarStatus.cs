@@ -61,7 +61,7 @@ internal sealed record DesktopShellBadge(DesktopShellBadgeKind Kind, string? Rea
 /// an overlay is a missing hint, and the window still says it all.
 /// </para>
 /// </summary>
-internal sealed class DesktopTaskbarStatus : IDisposable
+internal sealed class DesktopTaskbarStatus : IDisposable, IDesktopTaskbarButton
 {
     private const uint CLSCTX_INPROC_SERVER = 1;
     private const int TBPF_NOPROGRESS = 0;
@@ -149,6 +149,10 @@ internal sealed class DesktopTaskbarStatus : IDisposable
         {
         }
     }
+
+    void IDesktopTaskbarButton.Forget() => Forget();
+
+    void IDesktopTaskbarButton.SetBusy(bool busy) => SetBusy(busy);
 
     private IntPtr IconFor(DesktopShellBadgeKind kind)
     {

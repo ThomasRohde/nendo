@@ -14,7 +14,7 @@ import { openHelp, openWorkspaceView, refreshDerived, resetFileView, retryPendin
 import { createReadChase } from './read-chase';
 import { followTarget, stillBehind, type FollowTarget } from './file-follow';
 import { openDroppedFile, refreshRecentFiles, renderFileMenu, renderNoFile, renderUnavailable } from './file-actions';
-import { describeDrag, judgeDrop } from './file-drop';
+import { describeDrag, judgeDrop, takesDefaultDrop } from './file-drop';
 import { activePlan, overviewPlan, selectedSurfaceNode, sessionEntity } from './plan-selection';
 import { showsOverview } from './view-overview';
 import { overviewTitle } from './overview-model';
@@ -629,6 +629,15 @@ document.addEventListener('drop', event => {
   if (verdict.accept === null) return;
   void openDroppedFile(files[verdict.accept]);
 });
+
+// Whatever the page did not take goes nowhere: a link dragged in from a browser, text let go
+// outside a text field, a file dropped while a dialog is open (takesDefaultDrop, DSH-02).
+// Registered after the file drop, which has had its say by then.
+for (const kind of ['dragover', 'drop'] as const) {
+  document.addEventListener(kind, event => {
+    if (!event.defaultPrevented && !takesDefaultDrop(event.target)) event.preventDefault();
+  });
+}
 
 // Dismissing rebuilds the view, so the control that opened the surface is a new
 // element. Remember it by what it opens and hand focus back, or a keyboard owner who presses

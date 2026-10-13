@@ -73,12 +73,45 @@ internal sealed partial class DesktopSessionController
     internal event Action<long>? FileCommitted;
 
     /// <summary>
+    /// A file opened, closed or was replaced, by whatever path: a Workbench request, the
+    /// recovery panel's own actions or the open a launch asked for. Raised under the request
+    /// gate once the session holds its new state, so a handler marshals and then reads
+    /// <see cref="CurrentFileName"/> and <see cref="CurrentFileSessionId"/> itself.
+    /// <para>
+    /// The window's caption, icon, Jump List, saved placement and tray tooltip used to follow
+    /// only Workbench responses, so an action from the recovery panel left them naming the
+    /// previous file (DSH-11). Not raised while the controller is being disposed.
+    /// </para>
+    /// </summary>
+    internal event Action? FileSessionChanged;
+
+    private void AnnounceFileSession()
+    {
+        if (_disposed) return;
+        try { FileSessionChanged?.Invoke(); }
+        catch (Exception) { }
+    }
+
+    /// <summary>
+    /// The consent a file's automatic actions need and whether it is held, as the last read
+    /// under the gate found it. The shell reads this, never the coordinator's own property:
+    /// that asks the approval store, which reads its file and waits on a lock another thread
+    /// may hold across a five-second wait for the device-state lock (DSH-17). Refreshed by
+    /// every view read, by an approval or withdrawal (each reads the view after it) and by the
+    /// consent Unattended grants; cleared when the file closes.
+    /// </summary>
+    private volatile NendoBehaviourTrust? _shellTrust;
+
+    private static readonly NendoBehaviourTrust NoConsentNeeded = new(false, true, null);
+
+    /// <summary>
     /// What the notification area should show, read without taking the request gate.
     /// <para>
     /// Every field is a field or property read — no snapshot, no I/O, no await — which
     /// is what makes it safe to call from a window procedure while the gate is held by
     /// a long agent operation. A tray menu that could deadlock behind a proposal
-    /// validation would be worse than no tray menu.
+    /// validation would be worse than no tray menu. The consent half is the cached
+    /// <see cref="_shellTrust"/> for that reason.
     /// </para>
     /// </summary>
     internal DesktopShellState DescribeShellState()
@@ -89,7 +122,7 @@ internal sealed partial class DesktopSessionController
         string health;
         try
         {
-            trust = coordinator.BehaviourTrust;
+            trust = _shellTrust ?? NoConsentNeeded;
             health = _service?.Health switch
             {
                 NendoSessionHealth.Normal => "normal",

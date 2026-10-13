@@ -75,7 +75,9 @@ public sealed partial class MainPage
     {
         try
         {
-            var view = await _session.GetViewAsync();
+            // Without records: the panel sets a few states from the file name, capabilities,
+            // findings and tables, and the full read put every record on the UI thread (DSH-12).
+            var view = await _session.GetDefinitionViewAsync();
             if (_unloaded) return;
             RecoverySession.Text = DesktopRecoveryPresentation.Describe(view);
             RecoveryBackup.IsEnabled = view.Capabilities.Backup;
@@ -109,21 +111,13 @@ public sealed partial class MainPage
         RecoveryActivity.IsOpen = false;
         try
         {
-            using var binding = _session.BindFileRequest((await _session.GetViewAsync()).FileSessionId!);
+            // The session's own generation, not a full read of the file to learn it (DSH-12).
+            using var binding = _session.BindFileRequest(_session.CurrentFileSessionId);
             await action();
         }
         catch (Exception exception)
         {
-            var message = exception switch
-            {
-                NendoFileOpenException failure => failure.Inspection.Findings.FirstOrDefault()?.Message ?? "The selected file could not be safely opened.",
-                NendoException failure => failure.Message,
-                OperationCanceledException => "The action stopped before its outcome was confirmed. Inspect the selected file before trying again.",
-                UnauthorizedAccessException => "Access was denied. Choose a folder you can write to, or open the file read-only.",
-                IOException => "The file action could not be confirmed. Inspect the file status and selected destination before retrying; a result may already exist.",
-                _ => "The file action could not finish. Review the file status before trying again.",
-            };
-            NativeNotice(message, InfoBarSeverity.Error);
+            NativeNotice(DesktopRecoveryPresentation.FailureMessage(exception), InfoBarSeverity.Error);
         }
         finally
         {
@@ -162,13 +156,22 @@ public sealed partial class MainPage
         if (path is null) return;
         // Open in another window already: go there, and leave this window's file open.
         if (await Task.Run(() => DesktopWindowHandoff.TryShowOwnerOf(path))) return;
-        if (_session.HasFile)
-        {
-            if (!await ConfirmNativeAsync("Open another file?", "The current file will close. Saved changes remain; agent access stops and pending proposals are discarded.", "Continue")) return;
-            await _session.CloseAsync();
-        }
+        if (AlreadyOpenHere(path)) return;
         await OpenNativeAssessmentAsync(await _session.AssessOpenAsync(path));
     }
+
+    /// <summary>
+    /// The file chosen is the one open here: nothing to do. It used to be closed and opened
+    /// again, ending agent access and discarding pending proposals for no change (DSH-06).
+    /// </summary>
+    private bool AlreadyOpenHere(string path)
+    {
+        if (!_session.IsOpenFile(path)) return false;
+        NativeNotice("This file is already open here.");
+        return true;
+    }
+
+    private const string CloseNotice = "The current file will close. Saved changes remain; agent access stops and pending proposals are discarded.";
 
     private async Task CreateNativeFileAsync()
     {
@@ -180,12 +183,10 @@ public sealed partial class MainPage
 
     private async Task OpenRecentNativeFileAsync(string recentId)
     {
-        if (await _session.ResolveRecentPathAsync(recentId) is { } path
-            && await Task.Run(() => DesktopWindowHandoff.TryShowOwnerOf(path))) return;
-        if (_session.HasFile)
+        if (await _session.ResolveRecentPathAsync(recentId) is { } path)
         {
-            if (!await ConfirmNativeAsync("Open another file?", "The current file will close. Saved changes remain; agent access stops and pending proposals are discarded.", "Continue")) return;
-            await _session.CloseAsync();
+            if (await Task.Run(() => DesktopWindowHandoff.TryShowOwnerOf(path))) return;
+            if (AlreadyOpenHere(path)) return;
         }
         await OpenNativeAssessmentAsync(await _session.AssessRecentAsync(recentId));
     }
@@ -199,6 +200,9 @@ public sealed partial class MainPage
             : assessment.Inspection.CanAcquireWriteAuthority
                 ? "Open this application for editing, or choose read-only inspection."
                 : string.Join("\n", assessment.Inspection.Findings.Select(finding => finding.Message));
+        // Said here, before any choice, rather than in a question of its own ahead of the
+        // assessment: the open file closes only once every answer is in.
+        if (_session.HasFile) body += "\n\n" + CloseNotice;
         var dialog = NativeDialog(assessment.FileName, body);
         dialog.PrimaryButtonText = assessment.KnownInstanceCollision ? "Open original" : assessment.Inspection.CanAcquireWriteAuthority ? "Open" : "Inspect read-only";
         dialog.SecondaryButtonText = assessment.KnownInstanceCollision || assessment.Inspection.CanAcquireWriteAuthority ? "Open read-only" : string.Empty;
@@ -207,6 +211,7 @@ public sealed partial class MainPage
         if (choice == ContentDialogResult.None) return;
         if (assessment.KnownInstanceCollision && choice == ContentDialogResult.Primary)
         {
+            if (await _session.ResolveRecentPathAsync(assessment.KnownOriginalRecentId!) is { } original && AlreadyOpenHere(original)) return;
             await OpenNativeAssessmentAsync(await _session.AssessRecentAsync(assessment.KnownOriginalRecentId!));
             return;
         }
@@ -222,18 +227,40 @@ public sealed partial class MainPage
             readOnly = locationChoice == ContentDialogResult.Secondary;
             if (!readOnly) await _session.AcknowledgeOpenLocationAsync(assessment.AssessmentId);
         }
-        try { await _session.OpenAssessedAsync(assessment.AssessmentId, readOnly); }
+        await OpenAssessedOrReadOnlyAsync(assessment, readOnly);
+    }
+
+    /// <summary>
+    /// Opens what was assessed, closing the file open here first when there is one: the person
+    /// has been told it closes and has answered every question. A writable open another session
+    /// refuses offers read-only.
+    /// </summary>
+    private async Task OpenAssessedOrReadOnlyAsync(DesktopFileOpenAssessment assessment, bool readOnly)
+    {
+        try { await _session.OpenAssessedAsync(assessment.AssessmentId, readOnly, replaceCurrent: _session.HasFile); }
         catch (NendoWriteOwnershipException) when (!readOnly)
         {
             if (await ConfirmNativeAsync("This file is already in use", "Another Nendo session owns write access. You can inspect this file without changing it.", "Open read-only"))
-                await _session.OpenAssessedAsync(assessment.AssessmentId, true);
+                await _session.OpenAssessedAsync(assessment.AssessmentId, true, replaceCurrent: _session.HasFile);
         }
+    }
+
+    /// <summary>
+    /// A launch's create (Explorer's New, or a create the command line asked for) into a folder
+    /// that may be synced: the question the picker asks, here with no other folder to offer.
+    /// </summary>
+    private async Task<bool> ConfirmDestinationLocationAsync(string path)
+    {
+        if (_session.InspectDestinationLocation(path) is not { } warning) return true;
+        if (!await ConfirmNativeAsync("Unsupported writable location", warning.Message, "Continue anyway")) return false;
+        await _session.AcknowledgeDestinationLocationAsync(path);
+        return true;
     }
 
     private async void RecoveryBackup_Click(object sender, RoutedEventArgs e) => await RunNativeFileActionAsync(BackupNativeFileAsync);
     private async Task BackupNativeFileAsync()
     {
-        var view = await _session.GetViewAsync();
+        var view = await _session.GetDefinitionViewAsync();
         var destination = await PickNewDestinationAsync("Create backup", $"{Path.GetFileNameWithoutExtension(view.FileName)}.backup.nendo", ".nendo");
         if (destination is null) return;
         var plan = await _session.PrepareBackupAsync(destination, $"native-backup-{Guid.NewGuid():N}");
@@ -243,7 +270,7 @@ public sealed partial class MainPage
 
     private async Task CopyNativeFileAsync(NendoIdentityCopyKind kind)
     {
-        var view = await _session.GetViewAsync();
+        var view = await _session.GetDefinitionViewAsync();
         var label = kind == NendoIdentityCopyKind.Duplicate ? "Duplicate" : "Fork";
         var destination = await PickNewDestinationAsync($"{label} file", $"{Path.GetFileNameWithoutExtension(view.FileName)}.{label.ToLowerInvariant()}.nendo", ".nendo");
         if (destination is null) return;
@@ -262,7 +289,7 @@ public sealed partial class MainPage
     /// </summary>
     private async Task NewNativeFileAsync()
     {
-        var view = await _session.GetViewAsync();
+        var view = await _session.GetDefinitionViewAsync();
         var preview = await _session.PreviewNewFileAsync();
         var title = preview.MenuLabel.TrimEnd('…');
         if (!preview.CanCreate)
@@ -318,7 +345,7 @@ public sealed partial class MainPage
     {
         var destination = await PickNewDestinationAsync("Save diagnostics", "nendo-diagnostics.json", ".json");
         if (destination is null) return;
-        var bytes = DesktopRecoveryPresentation.DiagnosticBytes(await _session.GetViewAsync());
+        var bytes = DesktopRecoveryPresentation.DiagnosticBytes(await _session.GetDefinitionViewAsync());
         // CreateNew never consumes a pre-existing file, including an empty picker
         // placeholder. On an I/O failure a partial report may remain for inspection.
         await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough);
@@ -373,7 +400,7 @@ public sealed partial class MainPage
 
     private async Task<bool> ConfirmCurrentWritableLocationAsync()
     {
-        var view = await _session.GetViewAsync();
+        var view = await _session.GetDefinitionViewAsync();
         if (view.LocationWarning is not { } warning) return true;
         if (!await ConfirmNativeAsync("Unsupported writable location", warning.Message, "Continue anyway")) return false;
         await _session.AcknowledgeCurrentLocationAsync();
@@ -384,7 +411,7 @@ public sealed partial class MainPage
 
     private async Task ExportNativeDataAsync()
     {
-        var view = await _session.GetViewAsync();
+        var view = await _session.GetDefinitionViewAsync();
         if (!view.Capabilities.Export || view.Entities.Count == 0)
             throw new NendoPreconditionException("export-unavailable", "There is no proven-readable table to export in this session.");
         var entities = view.Entities.OrderBy(entity => entity.DisplayName, StringComparer.Ordinal).ToArray();

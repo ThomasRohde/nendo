@@ -492,3 +492,11 @@ services, at a static loopback address, with no credential.
   the path ordinally while routing matched `/mcp` without regard to case, so `/MCP`
   reached the endpoint past the Host and Origin checks this decision relies on against
   DNS rebinding (MHS-01 in a broad review). Authority unchanged.
+- 2026-10-13 — amended (W-216, DSH-10 in a broad review): the remembered level is kept
+  per application ID and instance ID together, not per application ID. One slot per
+  application meant that choosing a level, or Off, for a Duplicate or a new file of the
+  same application replaced or erased the original's, which then reopened at Off. Each
+  instance now keeps its own entry, and Off forgets only its own. A document written
+  before this keeps working: its one entry is the file's while the instance matches,
+  and moves to the new key on that file's next change. Authority unchanged; the failure
+  this removes was already the safe one.

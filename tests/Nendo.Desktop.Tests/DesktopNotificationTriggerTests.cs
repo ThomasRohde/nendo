@@ -126,6 +126,31 @@ public sealed class DesktopNotificationTriggerTests
             "A newly opened read-only file has not just become read-only.");
     }
 
+    /// <summary>
+    /// DSH-08: the latches outlived the file session they were set in. Nothing reset them when a
+    /// file was reopened, closed or replaced, so a second loss of write authority, or the approval
+    /// reminder for the next file in the same window, was never said.
+    /// </summary>
+    [TestMethod]
+    public void ANewFileSessionCanBeToldWhatThePreviousOneWasAlreadyTold()
+    {
+        var trigger = new DesktopNotificationTrigger();
+        trigger.OnFileSession("file-session-one");
+        Assert.IsNotNull(trigger.OnWriteAuthorityLost("Ideas.nendo"));
+        Assert.IsNull(trigger.OnWriteAuthorityLost("Ideas.nendo"), "The same loss is not a new event.");
+        Assert.IsNotNull(trigger.OnHidden(State(requiresApproval: true, isApproved: false)));
+
+        trigger.OnFileSession("file-session-one");
+        Assert.IsNull(trigger.OnWriteAuthorityLost("Ideas.nendo"), "The same session is not a new one.");
+
+        // Reopened from the recovery panel: a new session of the same file.
+        trigger.OnFileSession("file-session-two");
+        Assert.IsNotNull(trigger.OnWriteAuthorityLost("Ideas.nendo"), "A loss in the reopened file was suppressed by the last one's.");
+        trigger.OnFileSession("file-session-three");
+        Assert.IsNotNull(trigger.OnHidden(State(requiresApproval: true, isApproved: false)),
+            "The next file's approval reminder was suppressed by the last file's.");
+    }
+
     [TestMethod]
     public void ResetForgetsAnOutstandingApproval()
     {

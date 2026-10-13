@@ -50,6 +50,23 @@ internal static partial class WorkbenchMethods
         DataBucketAggregateRecords,
         DataCellAggregateRecords,
         DataTreeRecords,
+        // A batch write with its calculations and automatic actions, its undo, a search, a
+        // rebuild of the search index and a fold of history (a backup and a VACUUM) are the
+        // heaviest work the Workbench asks for. On the UI thread each froze the window for as
+        // long as it ran (DSH-04).
+        DataWriteRecords,
+        DataUndoRecordWrites,
+        DataSearchRecords,
+        DataBuildSearchIndex,
+        HistoryFoldPreview,
+        HistoryFold,
+        AgentGetStatus,
+        AgentSetMode,
+        AgentRevokeEditing,
+        AgentGetProposal,
+        AgentSetSettings,
+        ExtensionStateRead,
+        ExtensionStateSet,
         CompensationGetReceipt,
         ProposalGetReceipt,
         ProposalPrepareChangeSet,
@@ -79,6 +96,47 @@ internal static partial class WorkbenchMethods
         AgentSessionAuthenticate,
         AgentSessionEnd,
         AgentSessionSetOption,
+    };
+
+    /// <summary>
+    /// The methods that stay on the UI thread, each for a reason: a native picker or dialog (the
+    /// file actions, a package's import, export and development folder), the window or its
+    /// browser (appearance, the title bar, a download, the diagnostics), or a development link
+    /// whose watcher belongs with the window. Every method is in exactly one of the two sets, and
+    /// a test holds that, so a new method is placed by somebody deciding where it runs rather
+    /// than landing on the UI thread by default.
+    /// </summary>
+    internal static readonly IReadOnlySet<string> OnUiThread = new HashSet<string>(StringComparer.Ordinal)
+    {
+        SessionCreateFile,
+        SessionOpenFile,
+        FileOpenRecent,
+        FileOpenDropped,
+        FileClose,
+        FileBackup,
+        FileDuplicate,
+        FileFork,
+        FileNewFile,
+        FileRestore,
+        FileUpgrade,
+        FileInspect,
+        FileDiagnostics,
+        FileExport,
+        FileResolveRecovery,
+        "file.importCsv",
+        "file.exportCsv",
+        AppearanceSet,
+        AppearanceGet,
+        WindowSetTitleBarControls,
+        DiagnosticsTitleBar,
+        DiagnosticsResizeWindow,
+        DiagnosticsFrameProcesses,
+        DownloadsShow,
+        ExtensionImport,
+        ExtensionExport,
+        ExtensionDevelopLink,
+        ExtensionDevelopStop,
+        ExtensionDevelopSave,
     };
 }
 

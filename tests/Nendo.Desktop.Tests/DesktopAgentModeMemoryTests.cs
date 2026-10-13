@@ -103,6 +103,42 @@ public sealed class DesktopAgentModeMemoryTests
     }
 
     /// <summary>
+    /// DSH-10: the level was kept in one slot per application ID, so choosing a level, or Off, for a
+    /// Duplicate or a new file of the same application replaced or erased the original's.
+    /// </summary>
+    [TestMethod]
+    public void ALevelChosenForAnotherInstanceLeavesTheOriginalsAlone()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "nendo-agent-modes", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var modes = new DesktopAgentModeStore(root);
+            modes.Remember("app-one", "original", "Plan.nendo", "editData");
+            modes.Remember("app-one", "duplicate", "Plan duplicate.nendo", "inspect");
+            Assert.AreEqual("editData", modes.Recall("app-one", "original"), "A Duplicate's level replaced the original's.");
+            Assert.AreEqual("inspect", modes.Recall("app-one", "duplicate"));
+            modes.Remember("app-one", "duplicate", "Plan duplicate.nendo", "off");
+            Assert.AreEqual("editData", modes.Recall("app-one", "original"), "Off for a Duplicate erased the original's level.");
+            Assert.IsNull(modes.Recall("app-one", "duplicate"));
+
+            // A document from before the instance joined the key: still this file's level, moved on its next change.
+            Directory.CreateDirectory(root);
+            File.WriteAllText(Path.Combine(root, "agent-modes.json"),
+                """{"Version":1,"Files":{"app-two":{"Mode":"shapeApp","Instance":"kept","Name":null,"UsedAt":"2026-10-01T00:00:00+00:00"}}}""");
+            Assert.AreEqual("shapeApp", modes.Recall("app-two", "kept"));
+            Assert.IsNull(modes.Recall("app-two", "other"));
+            modes.Remember("app-two", "other", null, "off");
+            Assert.AreEqual("shapeApp", modes.Recall("app-two", "kept"), "Off for another instance erased an older document's entry.");
+            modes.Remember("app-two", "kept", null, "off");
+            Assert.IsNull(modes.Recall("app-two", "kept"));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// W-136: the tray menu, tooltip and notifications name the level as the Agent page
     /// does, from the one table in LocalMcp.
     /// </summary>

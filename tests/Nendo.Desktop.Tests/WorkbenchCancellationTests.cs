@@ -52,6 +52,38 @@ public sealed class WorkbenchCancellationTests
         Assert.IsFalse(WorkbenchProtocolHandler.RunsOffUiThread("{\"method\":\"nendo.invent\"}"));
     }
 
+    /// <summary>
+    /// DSH-04: a method missing from the off-UI list ran on the UI thread, and the heaviest ones
+    /// were missing — a history fold, a search-index build, a batch write and its undo. Every
+    /// method the handler answers is now in exactly one of the two lists, so a new one is placed.
+    /// </summary>
+    [TestMethod]
+    public void EveryMethodIsPlacedOnOneThreadOrTheOther()
+    {
+        var methods = typeof(WorkbenchMethods)
+            .GetFields(System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            .Where(field => field.IsLiteral && field.FieldType == typeof(string) && field.Name != nameof(WorkbenchMethods.AgentSessionPrefix))
+            .Select(field => (string)field.GetRawConstantValue()!)
+            .Concat(((IReadOnlyDictionary<string, WorkbenchFileAction>)typeof(WorkbenchProtocolHandler)
+                .GetField("FileMethods", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!
+                .GetValue(null)!).Keys)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        Assert.IsGreaterThan(60, methods.Length, "The reflection found too few methods to mean anything.");
+        var unplaced = methods.Where(method => !WorkbenchMethods.OffUiThread.Contains(method) && !WorkbenchMethods.OnUiThread.Contains(method)).ToArray();
+        Assert.IsEmpty(unplaced, "Methods on neither list, which run on the UI thread by default: " + string.Join(", ", unplaced));
+        var both = methods.Where(method => WorkbenchMethods.OffUiThread.Contains(method) && WorkbenchMethods.OnUiThread.Contains(method)).ToArray();
+        Assert.IsEmpty(both, "Methods on both lists: " + string.Join(", ", both));
+        foreach (var heavy in new[]
+                 {
+                     WorkbenchMethods.HistoryFold, WorkbenchMethods.HistoryFoldPreview, WorkbenchMethods.DataBuildSearchIndex,
+                     WorkbenchMethods.DataSearchRecords, WorkbenchMethods.DataWriteRecords, WorkbenchMethods.DataUndoRecordWrites,
+                 })
+        {
+            Assert.IsTrue(WorkbenchProtocolHandler.RunsOffUiThread(Message(heavy)), $"{heavy} runs its SQLite work on the UI thread.");
+        }
+    }
+
     [TestMethod]
     public async Task StoppingSomethingThatHasAlreadyFinishedIsNotAnError()
     {

@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
     private readonly DesktopNotificationTrigger _trigger = new();
     private DesktopTrayIcon? _tray;
     private DesktopTaskbarStatus? _taskbar;
+    private DesktopTaskbarActivity _taskbarActivity = new(null);
     private string? _jumpListFile;
     private readonly DesktopViewFailureLog _viewFailures = new(DesktopViewFailureLog.DefaultRoot);
     private DesktopNotifier? _notifier;
@@ -31,7 +32,8 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
 
         AttachTitleBar();
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
+        // Without its icon the window still opens; without the guard it never did (DSH-23).
+        DesktopShellSafety.TrySetIcon(AppWindow.SetIcon, Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         // Where this file's window was, when the launch names a file: two files no longer
         // open on the same rectangle, one exactly on top of the other.
         _placementFile = startupRequest?.Path;
@@ -85,6 +87,7 @@ public sealed partial class MainWindow : Window
             if (_placementFile is not null && _windowState is not null) _windowStore.Save(_windowState, _placementFile);
             _placementFile = openFile;
         }
+        _trigger.OnFileSession(Page?.Session.CurrentFileSessionId);
         RefreshShellState();
     }
 
@@ -196,10 +199,11 @@ public sealed partial class MainWindow : Window
         // The third argument is Explorer having restarted: the tray icon puts itself
         // back, and the taskbar button needs its badge back for the same reason.
         _tray = new DesktopTrayIcon(DescribeTray, OnTrayCommand, RestoreTaskbarState,
-            route => RouteFromNotification(route ?? DesktopNotificationContent.RouteOpen));
+            route => RouteFromNotification(route ?? DesktopNotificationContent.RouteOpen), EndSession);
         var hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         DesktopShellIdentity.ApplyToWindow(hwnd);
         _taskbar = new DesktopTaskbarStatus(hwnd);
+        _taskbarActivity = new DesktopTaskbarActivity(_taskbar);
         _notifier = new DesktopNotifier(route => DispatcherQueue.TryEnqueue(() => RouteFromNotification(route)));
         RefreshShellState();
         // Once at startup as well as on every change, so a file deleted since the last
@@ -210,6 +214,12 @@ public sealed partial class MainWindow : Window
 
         if (Page is not { } page) return;
         TitleBarChanged += page.TitleBarChanged;
+        // Every open, close and replacement, including the recovery panel's own actions and
+        // the open a launch asked for, which answer no Workbench request (DSH-11).
+        page.Session.FileSessionChanged += () => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_closing) ApplyFileName(page.Session.CurrentFileName, page.Session.CurrentLook);
+        });
         page.RendererFailed += (kind, viewUpSeconds) => DispatcherQueue.TryEnqueue(() =>
         {
             RecordViewFailure(kind, viewUpSeconds);
@@ -246,21 +256,9 @@ public sealed partial class MainWindow : Window
         Notify(_trigger.Observe(state));
     }
 
-    private bool _fileActionBusy;
-    private bool _agentBusy;
-
-    /// <summary>
-    /// One taskbar indicator, two things that can be running. Whichever finishes first
-    /// must not clear the other's progress -- a file action and an agent overlap easily,
-    /// and the version that just called SetBusy(false) turned the indicator off halfway
-    /// through the work still in flight.
-    /// </summary>
-    private void SetTaskbarBusy(bool? fileAction = null, bool? agent = null)
-    {
-        if (fileAction is { } file) _fileActionBusy = file;
-        if (agent is { } working) _agentBusy = working;
-        _taskbar?.SetBusy(_fileActionBusy || _agentBusy);
-    }
+    /// <summary>A file action or an agent started or stopped; see <see cref="DesktopTaskbarActivity"/>.</summary>
+    private void SetTaskbarBusy(bool? fileAction = null, bool? agent = null) =>
+        _taskbarActivity.Set(fileAction, agent);
 
     private DesktopShellState ShellState() => Page?.Session.DescribeShellState() ?? DesktopShellState.None;
 
@@ -331,6 +329,8 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void RecordViewFailure(string kind, int viewUpSeconds)
     {
+        // Another window may have switched it off since this one read it (DSH-09).
+        _shell.Refresh();
         if (!_shell.RecordViewFailures) return;
         try
         {
@@ -350,6 +350,8 @@ public sealed partial class MainWindow : Window
 
     private DesktopTrayMenuState DescribeTray()
     {
+        // The menu ticks what this device chose, which another window may have changed (DSH-09).
+        _shell.Refresh();
         var state = ShellState();
         return new DesktopTrayMenuState(
             state.FileName is null ? "Nendo — no file open" : $"Nendo — {state.FileName}",
@@ -390,7 +392,7 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void RestoreTaskbarState()
     {
-        _taskbar?.Forget();
+        _taskbarActivity.ButtonRecreated();
         RefreshShellState();
     }
 
@@ -433,6 +435,19 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
+    /// <summary>
+    /// Windows is ending the session, which closes no window, so the close handler below never
+    /// runs (DSH-07). Agent admission stops and the file closes as an exit would close it,
+    /// within <see cref="DesktopSessionEnd.Bound"/>, on the window procedure's own thread.
+    /// </summary>
+    private void EndSession()
+    {
+        if (_closing) return;
+        _closing = true;
+        if (_windowState is not null) _windowStore.Save(_windowState, _placementFile);
+        if (Page is { } page) DesktopSessionEnd.Drain(() => page.Session.DisposeAsync().AsTask(), DesktopSessionEnd.Bound);
+    }
+
     private async void AppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_allowClose)
@@ -441,6 +456,7 @@ public sealed partial class MainWindow : Window
         }
 
         args.Cancel = true;
+        _shell.Refresh();
 
         if (DesktopCloseAction.Resolve(CloseAction, _exitRequested, _tray?.IsPresent ?? false)
             == DesktopCloseOutcome.Hide)
@@ -475,10 +491,12 @@ public sealed partial class MainWindow : Window
         if (_windowState is not null) _windowStore.Save(_windowState, _placementFile);
         try
         {
-            if (RootFrame.Content is MainPage page)
-            {
-                await page.ShutdownAsync();
-            }
+            // Returned rather than thrown: this handler is async void and the application is
+            // already on its way out, so a cleanup failure here ended in a crash report (DSH-19).
+            // Kept in the device's failure record when the person records failures, by its kind
+            // alone: its message can name a path.
+            if (RootFrame.Content is MainPage page && await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync) is { } failure)
+                RecordViewFailure($"ShutdownFailed:{failure.GetType().Name}", 0);
         }
         finally
         {

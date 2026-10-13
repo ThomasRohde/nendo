@@ -225,6 +225,18 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The view without records, for the recovery panel and the native file actions: a file
+    /// name, capabilities, findings and the tables, which the definition snapshot carries. Run
+    /// from the UI thread, the full read materialised every record there to set a few button
+    /// states (DSH-12).
+    /// </summary>
+    internal async Task<DesktopSessionView> GetDefinitionViewAsync(CancellationToken cancellationToken = default)
+    {
+        using var projection = BindReadProjection(true);
+        return await GetViewAsync(cancellationToken);
+    }
+
     internal Task<NendoProposalPreview> PrepareProposalAsync(
         NendoCanonicalProposalRequest request,
         CancellationToken cancellationToken = default) =>
@@ -508,12 +520,14 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             _currentPath = null;
             _currentWritableLocationAcknowledged = false;
             _currentObservation = null;
+            _shellTrust = null;
             _detachedRecovery = null;
             _recoveryPath = null;
             _openCandidates.Clear();
             _replacementReviews.Clear();
             if (coordinator is not null)
             {
+                AnnounceFileSession();
                 await coordinator.DisposeAsync();
             }
         }
@@ -559,6 +573,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     {
         if (_coordinator is null) return null;
         var trust = _coordinator.BehaviourTrust;
+        _shellTrust = trust;
         var capabilities = trust.Required?.Capabilities ?? NendoBehaviourCapabilities.None;
         return new DesktopBehaviourTrustView(
             trust.RequiresApproval,

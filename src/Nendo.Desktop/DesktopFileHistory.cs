@@ -35,7 +35,14 @@ internal sealed class DesktopFileHistory(string root)
 
     internal static string DefaultRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nendo", "FileHistory");
 
-    internal async Task<DesktopFileAdmission> CheckAsync(NendoFileObservation candidate, CancellationToken cancellationToken)
+    /// <param name="openPath">The file open in this window, which may be the known original.</param>
+    /// <param name="openObservation">
+    /// The observation that file was opened with. An entry naming it is confirmed from this
+    /// rather than observed again: the session holds the file, and a write in progress makes it
+    /// look unreadable. A copy assessed while its original is open meets this (DSH-06).
+    /// </param>
+    internal async Task<DesktopFileAdmission> CheckAsync(NendoFileObservation candidate, CancellationToken cancellationToken,
+        string? openPath = null, NendoFileObservation? openObservation = null)
     {
         var loaded = await LoadAsync(cancellationToken);
         if (candidate.Inspection.Manifest is not { } manifest) return new(null, loaded.Notice);
@@ -45,7 +52,10 @@ internal sealed class DesktopFileHistory(string root)
             // Reopening that same file cannot be a second physical original.
             // The coordinator still pins and revalidates it before admission.
             if (Matches(entry, candidate)) continue;
-            var observed = await NendoWriteCoordinator.ObserveAsync(entry.Path, cancellationToken);
+            var observed = openObservation is not null && string.Equals(entry.Path, openPath, StringComparison.OrdinalIgnoreCase) &&
+                Matches(entry, openObservation)
+                    ? openObservation
+                    : await NendoWriteCoordinator.ObserveAsync(entry.Path, cancellationToken);
             if (!Matches(entry, observed)) continue;
             if (candidate.PhysicalFileKey is null || observed.PhysicalFileKey != candidate.PhysicalFileKey)
                 return new(new(entry.Id, Path.GetFileName(entry.Path)), loaded.Notice);
@@ -53,12 +63,26 @@ internal sealed class DesktopFileHistory(string root)
         return new(null, loaded.Notice);
     }
 
-    internal async Task<DesktopRecentFiles> ListAsync(CancellationToken cancellationToken)
+    /// <param name="openPath">The file open in this window.</param>
+    /// <param name="openObservation">
+    /// The observation it was opened with. Its entry is confirmed from this, as the taskbar
+    /// list's is, rather than opened again: the list is read outside the request gate (DSH-21),
+    /// so it can land in the middle of a write, when the open file reads as unavailable while its
+    /// journal exists, and a read of it holds a lock the commit has to wait out.
+    /// </param>
+    internal async Task<DesktopRecentFiles> ListAsync(CancellationToken cancellationToken,
+        string? openPath = null, NendoFileObservation? openObservation = null)
     {
         var loaded = await LoadAsync(cancellationToken);
         var result = new List<DesktopRecentFile>();
         foreach (var entry in loaded.Document.Entries)
         {
+            if (openObservation is not null && string.Equals(entry.Path, openPath, StringComparison.OrdinalIgnoreCase) &&
+                Matches(entry, openObservation))
+            {
+                result.Add(new(entry.Id, Path.GetFileName(entry.Path), "available", entry.LastOpened));
+                continue;
+            }
             // Who the file says it is, not a full inspection: the list asks whether the file is
             // still there and still the same one, and opening it inspects it in full.
             var identity = await NendoWriteCoordinator.IdentifyAsync(entry.Path, cancellationToken);
@@ -101,6 +125,17 @@ internal sealed class DesktopFileHistory(string root)
             result.Add(new(entry.Path, Path.GetFileName(entry.Path), entry.LastOpened));
         }
         return result.AsReadOnly();
+    }
+
+    /// <summary>
+    /// Where a recent entry was remembered, without opening the file: for the check that hands a
+    /// file another window has open to that window. Null for an entry that is no longer listed.
+    /// The open that follows observes the file and says what is wrong with it, if anything.
+    /// </summary>
+    internal async Task<string?> PathOfAsync(string id, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadAsync(cancellationToken);
+        return loaded.Document.Entries.SingleOrDefault(entry => entry.Id == id)?.Path;
     }
 
     /// <param name="interruptedWrite">

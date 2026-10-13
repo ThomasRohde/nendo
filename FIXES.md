@@ -10069,3 +10069,84 @@ theme by Playwright's forced-colors emulation, not a Windows contrast theme. Hea
 scrollbars, so CSS-19's cue is measured as the computed `scrollbar-width`, not as a painted bar.
 The installer was not rebuilt, and Test-Production was not run in this pass. The site guides
 were not checked for statements this changes.
+
+### Seventeenth pass: Desktop host, protocol and native chrome (W-216)
+
+2026-10-13: the 22 findings planned as W-216 (3 P2, 19 P3) are fixed, one under a dated amendment
+to ADR-0009. Where the defect lived in the window or the page, the rule was moved into a unit a test
+can hold without a window: `DesktopWindowChrome.cs` (the navigation rule, the safe post, icon and
+shutdown, the taskbar activity, the session end, the launch-open rule), `DesktopWindowPolicy` with a
+scale, and `DesktopTitleBarRegions.Changed`. The guards are two new Desktop test classes,
+`DesktopWindowChromeTests` and `DesktopSessionFollowTests`, new cases in five existing ones, a
+Workbench check (`desktop-window.test.mjs`) and a repository check. Every guard failed with its
+defect put back; the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [DSH-01](#dsh-01) | A launch's open (double-click, Jump List, Explorer New, a new file's own window) assesses first and, when the assessment needs the person (a synced folder, a known copy, a file that opens only read-only), asks the questions a picked file meets; Cancel leaves the window on no file. A launch's create asks the synced-folder question. A refusal that still reaches the recovery panel says its own words, not a fixed sentence. | `A file in a synced folder opened, or was refused, without the question.`; the message: `Expected string length 318 but was 106. ... The refusal's own words were replaced by a fixed sentence.` |
+| [DSH-04](#dsh-04) | `data.writeRecords`, `data.undoRecordWrites`, `data.searchRecords`, `data.buildSearchIndex`, `history.foldPreview`, `history.fold`, the five `agent.*` methods and `extension.state.*` run off the UI thread. A new `OnUiThread` list names the methods that stay, and a test requires every method to be on exactly one list. The Workbench no longer times out `history.fold` and `data.buildSearchIndex` at 15 s. | `Methods on neither list, which run on the UI thread by default: data.searchRecords, data.buildSearchIndex, data.writeRecords, data.undoRecordWrites, history.foldPreview, history.fold`; the timeout: `a fold on a large file is reported unanswered while it runs` |
+| [DSH-05](#dsh-05) | The window keeps the display scale it last described the title bar at, and a new scale raises `titleBarChanged` even when the bar measures the same in page pixels, so the page hands over its controls again. | `'DesktopTitleBarRegions.Changed(bar, 1.0, bar, 2.0)'. A move from 100% to 200% left the controls where 100% put them.` |
+| [DSH-02](#dsh-02) | Only the Workbench's own latest navigation failing sends the view to recovery, whatever its status, a cancel included, so the window is never left blank; a navigation the host cancelled or the Workbench superseded carries another ID and is ignored. The page stops every drag and drop it did not take, except over a text field (text inputs, textareas, contenteditable; not checkboxes, buttons or file inputs). The `RenderProcessUnresponsive` half stays as the custom-view contract requires. | `'DesktopWorkbenchNavigation.IsFatal(9, 7, false)'. A navigation the host cancelled (a dropped link), or one the Workbench's superseded, tore down the view.`; the Workbench's own: `'DesktopWorkbenchNavigation.IsFatal(7, 7, false)'. The Workbench's own navigation failing, cancelled or not, left the window on a blank view.`; the page: `The input did not match the regular expression /if \(!event\.defaultPrevented && !takesDefaultDrop\(event\.target\)\) event\.preventDefault\(\);/`; the text fields: `input:not([type]) lost the drop of text into it` |
+| [DSH-03](#dsh-03) | A response is posted through the same guarded post as an event, and a browser process failing moves the view's generation at once, so a response already queued is not posted to it. | `System.Runtime.InteropServices.COMException: The browser process exited.`; the call site: `does not contain string 'DesktopShellSafety.TryPost('. A response is posted to the browser unguarded (DSH-03).` |
+| [DSH-06](#dsh-06) | Another file is assessed while this one stays open; the close notice is part of the assessment's dialog, and the open file closes only after the last answer, in the same gate as the open. Choosing the file already open says so and does nothing. A copy assessed while its original is open is confirmed from the open file's own observation. | `Nendo.Engine.NendoPreconditionException: Close the current Nendo file before opening another one.` |
+| [DSH-07](#dsh-07) | The tray's top-level window answers `WM_QUERYENDSESSION` and, on `WM_ENDSESSION`, ends the session as an exit would (agent admission, the file), on a worker within 4 s. `DesktopCloseAction`'s summary no longer claims a shutdown goes through it. The hot-journal half stays with the Engine finding. | `Expected:<1>. Actual:<0>. ... Windows ending the session did not end Nendo's.` |
+| [DSH-08](#dsh-08) | The notification trigger forgets what it latched whenever the window's file session changes, which the window now hears for every open, close and replacement. | `'trigger.OnWriteAuthorityLost("Ideas.nendo")'. A loss in the reopened file was suppressed by the last one's.` |
+| [DSH-09](#dsh-09) | `DesktopShellStore` changes one field on the document as it is now, under the device-state lock, and the window reads the device's choice again before the tray menu, a view-failure record and a close. A read that works takes back the notice an unreadable document left. | `'saved.RecordViewFailures'. A save in one window turned another window's 'Record failures' back on.`; the notice: `'store.Persisted'. A refresh that read the document still says it could not be read.` |
+| [DSH-10](#dsh-10) | The remembered access level is kept per application ID and instance ID; Off forgets only its own; an older document's one entry still answers for its instance and moves on its next change (ADR-0009, 2026-10-13). | `Expected:<editData>. Actual:<>. ... A Duplicate's level replaced the original's.` |
+| [DSH-11](#dsh-11) | The controller raises `FileSessionChanged` after every open, close and replacement, by whatever path, and the window applies the caption, icon, Jump List, placement and tooltip from it. | `CollectionAssert.AreEqual failed. An open was not announced, or announced before the session held it.. Different number of elements.` |
+| [DSH-12](#dsh-12) | The recovery panel and the native file actions read `GetDefinitionViewAsync` (no records), and a native action binds the session's own generation instead of reading the view to learn it. | `Expected collection of size 0. Actual: 1. 'collection' expression: 'view.Records'. The recovery panel's read materialised every record.` |
+| [DSH-13](#dsh-13) | A recreated taskbar button gets its progress back as well as its badge (`DesktopTaskbarActivity`). | `CollectionAssert.AreEqual failed. A button made again while an agent works came back without its progress.. Different number of elements.` |
+| [DSH-14](#dsh-14) | The default and minimum window sizes are multiplied by the target display's effective DPI scale before they are clamped to the work area, and the minimum is set again whenever the window meets a new scale: it is physical pixels, and Windows does not rescale it on a move between screens (microsoft/microsoft-ui-xaml#10452). | `'DesktopWindowPolicy.FitTo(workArea, 2.0)'. The first window on a 200% screen opened at half its size.`; the move: `'DesktopWindowPolicy.MinimumAfterScaleChange(workArea, 2.0, 1.0)'. A window moved from a 200% screen to a 100% one kept the 200% minimum.`; the call: `does not contain string 'DesktopWindowPolicy.ApplyMinimum(AppWindow, _titleBarScale, scale);'. A new display scale leaves the minimum at the old screen's scale.` |
+| [DSH-15](#dsh-15) | The Workbench's browser accelerator keys are off in a shipped build and on in a Debug build (`DesktopWorkbenchNavigation.BrowserAcceleratorKeys`). WebView2 handles them before the page sees them, so a page `preventDefault` cannot stop F5, and WinUI's WebView2 exposes no controller for a per-key filter; in a shipped build the keys still reach the page, F12 goes with them, and DevTools open from Inspect on a view's menu. | `does not match pattern '#if DEBUG\s+true;\s+#else\s+false;'. A shipped build keeps the browser's reload, print and find keys on the Workbench.` (a source check; see below) |
+| [DSH-17](#dsh-17) | `DescribeShellState` reads a cached consent answer, refreshed by every view read, approval, withdrawal and the Unattended consent, and never the approval store; its summary is now true. | `Actual value <4500> is not less than expected value <1000>. ... Reading the shell state waited 4500 ms on the approval store's lock.` |
+| [DSH-18](#dsh-18) | `PublishTrimmed` is False in every configuration, as the payload pipeline publishes, and the repository gate requires the project and `Publish-NendoPayload.ps1` to agree. | `Nendo.Desktop.csproj sets PublishTrimmed to False, True, but Publish-NendoPayload.ps1 publishes with false. A publish outside the pipeline would make a different host.` |
+| [DSH-19](#dsh-19) | The close handler's session shutdown returns its failure instead of throwing it out of the async void handler, and the failure's type (never its message, which can name a path) goes to the device's failure record when the person records failures. | `System.IO.IOException: The discovery entry is held open.`; the call site: `does not contain string 'await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync)'. The close handler awaits the session's shutdown where a failure escapes (DSH-19).` |
+| [DSH-20](#dsh-20) | The fold's own backup beside the open file is covered for that request when the file's location was accepted; any other output still asks. Every step of a fold belongs to the file session it began in, so a close or a replacement between them refuses the rest as stale. | `Nendo.Engine.NendoPreconditionException: This location may be managed by cloud sync. Nendo does not support writable use in synced folders. ...`; the replacement: `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. ... The fold's backup went ahead on the file that replaced the one being folded.` |
+| [DSH-21](#dsh-21) | `session.getRecentFiles` reads the history outside the request gate, as the taskbar list already did, and confirms the file open here from the observation it was opened with rather than opening it in the middle of a write. | `Assert.AreSame failed. ... The recent list waited for the request gate another request held.`; the write: `Expected string length 9 but was 11. 'expected' expression: '"available"' ... The file open here read as unavailable in the middle of a write.` |
+| [DSH-22](#dsh-22) | The handoff check takes a recent file's path from the history alone (`PathOfAsync`); only the assessment observes the file. | `Expected:<...\desktop-session.nendo>. Actual:<>. ... Learning a recent file's path opened the file.` |
+| [DSH-23](#dsh-23) | The constructor's window icon goes through the same guarded set as every other icon. | `System.IO.FileNotFoundException: The icon is missing.`; the call site: `does not contain string 'DesktopShellSafety.TrySetIcon(AppWindow.SetIcon,'. The constructor sets the icon unguarded (DSH-23).` |
+
+An independent review of this pass found nothing that had to be fixed and four things that
+should be, all taken. The recent list read outside the gate still opened the file open here, which
+in the middle of a write reads as unavailable and holds a lock its commit waits out (DSH-21). The
+fold's backup bound itself to the session open at that moment, read outside the gate, so a fold
+running off the UI thread could act on the next file (DSH-20 with DSH-04). The minimum window size
+stayed at the opening screen's scale (DSH-14); the review asked whether WinAppSDK scales the
+presenter's minimum itself, and it does not: a WinAppSDK developer answers on
+microsoft/microsoft-ui-xaml#10452 (open) that "like other sizing-related AppWindow APIs,
+PreferredMinMaxWidthHeight work with screen coordinates", so the scaling here applies once, and is
+now applied again at each new scale. Turning the accelerator keys off also took F12 from a file
+with no custom view, whose Workbench suppresses the context menu (DSH-15). The page cannot take
+those keys instead: WebView2's own documentation of `AcceleratorKeyPressed` orders the host's
+event, then the browser's accelerator handling, then the page, so the keys stay on in a Debug
+build. The review's smaller points are taken too: the cancel exemption the navigation ID made
+redundant is gone (DSH-02), the text-field drop no longer covers checkboxes and buttons, a good
+refresh clears the shell store's read notice (DSH-09), a shutdown failure is recorded (DSH-19),
+`docs/architecture.md` says the tray window ends the session (DSH-07), and source checks now hold
+the window's call sites for DSH-03, 19 and 23. Each new or changed guard failed with its defect
+put back; the texts are in the rows above.
+
+Not run, and left open:
+
+- No window-driving guard was written or run. Each window-level defect is guarded at the unit
+  the window now calls (DSH-02, 03, 05, 07, 13, 14, 19, 23) or at the controller (DSH-01, 06, 11,
+  12). That the window calls them is held by source checks for DSH-03, 14, 15, 19 and 23, and by
+  reading the code for the rest, not by a lane. No journey sends a real F5 (DSH-15), moves the
+  window between screens (DSH-05, DSH-14), drops a link (DSH-02) or ends a Windows session (DSH-07).
+- DSH-14: the minimum is set again on `XamlRoot.Changed`, which fires after Windows has already
+  resized the window for the new screen (a comment on microsoft/microsoft-ui-xaml#10452 reports
+  this). A move to a lower scale can therefore meet the old minimum once before it is lowered.
+  Handling `WM_DPICHANGED` would close that gap; it is not done.
+- DSH-15: in a shipped build, F12 and Ctrl+Shift+I no longer open DevTools, and a file with no
+  custom view has no route to DevTools on the Workbench. A Debug build keeps them.
+- DSH-19: the failure record carries the exception's type only.
+- DSH-20: the stale refusal is held at the backup step. A fold that reaches it needs a file past
+  the Engine's fold bound, which no Desktop test builds, so `FoldHistoryAsync`'s own binding is
+  checked by reading the code.
+- DSH-01: a new file opened in its own window is a second process, so a synced-folder location
+  accepted in the first window is asked about again in the second rather than refused.
+- DSH-04: the off-UI placement of the `agent.*` and `extension.state.*` methods was read from
+  their handlers (no picker, dialog or XAML; their events marshal), not exercised in a window.
+- DSH-06: a writable open another session refuses after the open file has closed still leaves
+  the window on no file; it offers read-only, as before.
+- DSH-07: the Engine's hot-journal rollback (ESC-01) is outside this pass.

@@ -8,9 +8,10 @@ namespace Nendo.Desktop;
 /// <para>
 /// Every file session began at Off, so a person who works with an agent set the level again on
 /// each open. Now the level a person chooses for a file is kept here, and the same file opens at
-/// it again. Keyed by the application ID, and kept with the file's instance ID: a Duplicate or
-/// a Fork is a new instance and begins at Off, so the level stays with the file the person chose
-/// it for and never travels. A copy made outside Nendo keeps the instance ID, and is the same
+/// it again. Keyed by the application ID and the file's instance ID together (W-216, DSH-10): a
+/// Duplicate, a Fork or a new file of the application is a new instance and begins at Off, and a
+/// level chosen for one of them, Off included, leaves the original's alone, so the level stays
+/// with the file the person chose it for and never travels. A copy made outside Nendo keeps the instance ID, and is the same
 /// file here, as a moved one is. Device state only: the file never carries it.
 /// </para>
 /// </summary>
@@ -23,8 +24,12 @@ internal sealed class DesktopAgentModeStore(string root)
     internal string? Recall(string applicationId, string instanceId)
     {
         if (string.IsNullOrWhiteSpace(applicationId) || string.IsNullOrWhiteSpace(instanceId)) return null;
-        return Read().TryGetValue(applicationId, out var kept) && string.Equals(kept.Instance, instanceId, StringComparison.Ordinal)
-            ? kept.Mode
+        var modes = Read();
+        if (modes.TryGetValue(Key(applicationId, instanceId), out var kept)) return kept.Mode;
+        // A document written before the instance was part of the key keeps one entry per
+        // application, which is this file's only while its instance matches.
+        return modes.TryGetValue(applicationId, out var legacy) && string.Equals(legacy.Instance, instanceId, StringComparison.Ordinal)
+            ? legacy.Mode
             : null;
     }
 
@@ -35,10 +40,18 @@ internal sealed class DesktopAgentModeStore(string root)
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
         using var guard = DesktopDeviceStateLock.Enter("agent-modes");
         var modes = Read();
-        if (mode is null or "off") modes.Remove(applicationId);
-        else modes[applicationId] = new StoredMode(mode, instanceId, Label(fileName), DateTimeOffset.UtcNow);
+        // The old one-per-application entry moves to this file's own key, or goes with an Off,
+        // but only when it was this file's: another instance's level is never touched.
+        if (modes.TryGetValue(applicationId, out var legacy) && string.Equals(legacy.Instance, instanceId, StringComparison.Ordinal))
+            modes.Remove(applicationId);
+        var key = Key(applicationId, instanceId);
+        if (mode is null or "off") modes.Remove(key);
+        else modes[key] = new StoredMode(mode, instanceId, Label(fileName), DateTimeOffset.UtcNow);
         Write(modes);
     }
+
+    /// <summary>One file's entry: its application and its instance, joined by a character neither identifier holds.</summary>
+    private static string Key(string applicationId, string instanceId) => applicationId + "\n" + instanceId;
 
     private readonly DesktopKeyedFileStore<StoredMode> _files = new(root, "agent-modes", MaximumFiles,
         entry => entry.UsedAt, entry => entry is { Mode: { Length: > 0 }, Instance: { Length: > 0 } });

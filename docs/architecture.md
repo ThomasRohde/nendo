@@ -1017,7 +1017,7 @@ This table gives the current locations, so that you do not need to search.
 | SQLite (only here) | `Engine/Storage/SqliteNendoStore*.cs` |
 | Bounded reads and cursors | `Engine/ReadQueries.cs`, `NendoQueryCursor.cs` |
 | Bridge | `Desktop/DesktopShellContract.cs`, `WorkbenchProtocol.cs` |
-| Notification area | `Desktop/DesktopTrayIcon.cs`: one hidden top-level window, `Shell_NotifyIcon`, one popup menu |
+| Notification area | `Desktop/DesktopTrayIcon.cs`: one hidden top-level window, `Shell_NotifyIcon`, one popup menu. The same window hears Windows end the session (shutdown, restart, sign-out), which closes no window, and ends Nendo's session within a bound (`DesktopSessionEnd` in `DesktopWindowChrome.cs`) |
 | Notifications | `Desktop/DesktopNotifier.cs` (the OS side), `DesktopNotificationContent.cs` (the wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
 | Close behaviour | `Desktop/DesktopShellStore.cs` (device state), `DesktopCloseAction.cs` (the decision, pure), `MainWindow.xaml.cs` |
 | Title bar | `Desktop/MainWindow.TitleBar.cs` (the tall bar, the passthrough regions, the diagnostics), `MainPage.TitleBar.cs` (where the page is in the window), `WorkbenchProtocol.TitleBar.cs` (`window.setTitleBarControls` and its checks, pure); `Workbench/src/title-bar.ts` (measuring the bar's controls), `title-bar-model.ts` (what the page claims, pure), `styles/20-title-bar.css` |

@@ -69,8 +69,12 @@
   <PropertyGroup>
     <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
     <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
-    <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
-    <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
+    <!-- Never trimmed, in any configuration, as tools/Publish-NendoPayload.ps1 publishes it: the
+         bridge and the device stores serialise JSON by reflection, and the taskbar and Jump List
+         use COM interop, both of which trimming switches off. A plain Release publish used to
+         produce a host that ended on its first bridge response (DSH-18). Test-Repository.ps1
+         holds the two in step. -->
+    <PublishTrimmed>False</PublishTrimmed>
   </PropertyGroup>
   <!-- Unpackaged dotnet publish does not include the generated application XAML
        resources automatically. WinUI needs these beside the published host. -->

@@ -27,6 +27,11 @@ internal sealed partial class DesktopSessionController
     /// </summary>
     internal async Task<NendoHistoryFoldResult> FoldHistoryAsync(CancellationToken cancellationToken = default)
     {
+        // Every step belongs to the file session the fold began in: a Workbench request carries
+        // its own, and a fold called without one is bound to the session open now. A close or a
+        // replacement between the steps then refuses the rest as stale, rather than the backup
+        // and the fold acting on the next file (W-216 review).
+        using var bound = _fileRequest.Value is null ? BindFileRequest(_fileSessionId) : null;
         var path = _currentPath ?? throw new NendoPreconditionException("history-fold-unavailable", "No file is open.");
         RequireWritableLocation(path);
         // Asked first, so a fold with nothing to take leaves no backup behind it.
@@ -38,9 +43,30 @@ internal sealed partial class DesktopSessionController
         var destination = Path.Combine(folder, $"{name} before folding {stamp}.nendo");
         for (var attempt = 2; File.Exists(destination); attempt++)
             destination = Path.Combine(folder, $"{name} before folding {stamp} ({attempt}).nendo");
-        var plan = await PrepareBackupAsync(destination, $"history-fold-{Guid.NewGuid():N}", cancellationToken);
+        var plan = await PrepareFoldBackupAsync(path, destination, cancellationToken);
         await CreateBackupAsync(plan.PlanId, cancellationToken);
         return await QueryAsync(service => service.FoldHistoryAsync(plan.PlanId, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>
+    /// The fold's backup, at the path the host chose beside the open file.
+    /// <para>
+    /// Nothing in History can be asked about a second path, so a file whose location the person
+    /// accepted for writable use had its fold refused for the backup beside it, whatever they
+    /// chose (DSH-20). The backup is covered by that acceptance: this one path, for this request
+    /// alone, and only when the file's own location was accepted. An accepted location is still
+    /// no grant for any other output.
+    /// </para>
+    /// </summary>
+    internal async Task<NendoBackupPlan> PrepareFoldBackupAsync(string path, string destination, CancellationToken cancellationToken = default)
+    {
+        var accepted = HasLocationAcknowledgement(path);
+        // The request's own session, never the one open now: read outside the gate, that could
+        // already be the next file's.
+        using var scope = BindFileRequest(_fileRequest.Value?.FileSessionId ?? _fileSessionId);
+        if (accepted && _locationPolicy.Inspect(destination) is not null)
+            scope.AcknowledgedLocations.Add(Path.GetFullPath(destination));
+        return await PrepareBackupAsync(destination, $"history-fold-{Guid.NewGuid():N}", cancellationToken);
     }
 
     internal Task<NendoRestorePlan> PrepareRestoreAsync(string path, string requestId, CancellationToken cancellationToken = default) =>
