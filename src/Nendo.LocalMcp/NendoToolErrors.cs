@@ -120,6 +120,10 @@ internal static class NendoToolErrors
             "revision-not-found", "not-an-undo", "revision-not-yours",
             // W-165: a size refusal names the field the caller sent, the cap and the measured size.
             "value-too-large", "values-too-large",
+            // W-209: a requirement change refused names the definition, the binding or step and the field;
+            // an action that could never run names the action, step, binding or field, the record types
+            // and the remedy, all from the definition and the schema.
+            "field-requirement-in-use", "action-target-mismatch",
         ], StringComparer.Ordinal);
 
     // These authoring messages are written here and carry only bounded counters and

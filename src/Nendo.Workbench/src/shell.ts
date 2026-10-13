@@ -1,6 +1,6 @@
 import { client } from './client';
 import { state, type OutcomeNotice } from './app-state';
-import { capitalise } from './format';
+import { capitalise, releasedByNextInteraction } from './format';
 import { icon } from './icons';
 import type { AgentWork, EffectiveTheme, ThemePreference } from './host';
 
@@ -566,7 +566,7 @@ export function showError(message: string): void {
 for (const kind of ['pointerdown', 'keydown'] as const)
   document.addEventListener(kind, (event) => {
     const outcome = state.lastOutcome;
-    if (outcome === null || outcome.tone !== 'alert' || outcome.refresh !== undefined) return;
+    if (!releasedByNextInteraction(outcome)) return;
     if (event.target instanceof Node && content.querySelector('.message-slot')?.contains(event.target) === true) return;
     state.lastOutcome = null;
   }, true);
@@ -596,6 +596,21 @@ export function showOutcome(message: string, action?: OutcomeNotice['action']): 
  * on a Use screen that is under a second, so the sentence that said "accepted, refresh
  * to see it" and the only button that would was gone before anybody saw either (F-085).
  */
+/**
+ * Something finished, and something about it is wrong in a way that stays true: an automatic
+ * action the save did not run (EBH-01). Said in the tone of an alert, but kept the way a
+ * success is, until the next action clears it, and without taking the focus: a grid edit that
+ * moved the focus to this sentence on every save would stop the person typing. It keeps the
+ * step a success offers.
+ */
+export function showKeptAlert(message: string, action?: OutcomeNotice['action']): void {
+  state.lastOutcome = { view: state.view, message, tone: 'alert', kept: true, ...(action === undefined ? {} : { action }) };
+  const slot = messageSlot();
+  drawOutcome(slot, state.lastOutcome);
+  slot.scrollIntoView({ block: 'nearest' });
+  announce(message);
+}
+
 export function showRetainedNotice(message: string, refresh: (button: HTMLButtonElement) => Promise<void>): void {
   state.lastOutcome = { view: state.view, message, tone: 'alert', refresh };
   const slot = messageSlot();

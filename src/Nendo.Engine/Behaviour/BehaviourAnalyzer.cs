@@ -224,6 +224,17 @@ internal static class NendoBehaviourAnalyzer
             ? NendoBehaviourScalar.Decimal
             : NendoBehaviourScalar.Integer;
 
+    /// <summary>
+    /// Whether a formula is, as a whole, a call to the catalogue's rounding with the literal 0
+    /// digits: the one decimal result that is always a whole number. An alias of the same name
+    /// is the author's own function and proves nothing.
+    /// </summary>
+    internal static bool IsWholeRounding(LogicalExpression ast, IReadOnlyList<NendoFunctionCallAlias> aliases) =>
+        ast is NCalc.Function { Identifier.Name: "RoundEven" or "RoundAway" } rounding &&
+        !aliases.Any(alias => string.Equals(alias.Alias, rounding.Identifier.Name, StringComparison.Ordinal)) &&
+        rounding.Parameters.Count == 2 &&
+        rounding.Parameters[1] is ValueExpression { Value: 0L };
+
     internal static bool IsNumeric(NendoBehaviourScalar type) =>
         type is NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal;
 

@@ -128,7 +128,9 @@ A save and every change its actions make are one transaction and one revision. A
 4. Writes made by actions raise their own events, which join the same queue.
 5. Nendo commits once.
 
-If an action cannot complete, if a limit is reached, or if the save is cancelled, nothing is saved. The refusal names the action, the step and the field. If only a trigger's condition cannot be evaluated, that action does not run and the edit still commits.
+If an action cannot complete, if a limit is reached, or if the save is cancelled, nothing is saved. The refusal names the action, the step and the field. If only a trigger's condition cannot be evaluated, that action does not run and the edit still commits. The save then says which action did not run and why, after a custom view's write too (`blockedConditions` over MCP). A save that runs out of its own budget inside a condition still saves nothing; a limit the data itself reaches, such as a subtree past the hierarchy's descendant bound, only stops that action.
+
+Nendo checks an action against the schema when it is installed, so a step that could never run is refused then rather than at the next save. It refuses a binding that starts from a record the step does not read, a result that can never be stored in its field (such as text into a number, or a decimal into a whole number unless the formula rounds to 0 digits), and a `CreateRecord` step that leaves a required field empty. A later change that makes a field optional under a formula that needs a value, or makes a step have to fill a field it leaves empty (by requiring it, making it active again or removing its sequence), is refused too.
 
 The save result lists every other record that the actions changed (`alsoChanged` over MCP). History records which trigger, action and step produced each change: open the entry with **View changes**, and each change an action made reads "made by the automatic action" and the trigger's name. Reversing the save reverses the edit and every change its actions made, and does not run the actions again.
 

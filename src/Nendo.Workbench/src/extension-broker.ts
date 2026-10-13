@@ -1,5 +1,6 @@
 import { plainJson, plainPage, plainRecord, plainSearchPage, plainTreePage } from './extension-model';
-import { WorkbenchHostError, type RecordSnapshot } from './host-types';
+import { blockedConditionsNotice } from './format';
+import { WorkbenchHostError, type BlockedCondition, type RecordSnapshot } from './host-types';
 import {
   apiVersion, extensionLimits, hostKeys, utf8Length,
   type ConnectMessage, type Json, type PortMessage, type SchemaDescription, type ViewCommand, type ViewContext, type ViewTheme,
@@ -52,6 +53,12 @@ export interface BrokerUi {
   setToolbar(mount: BrokerMount, toolbar: ViewToolbar | null): void;
   /** Draw one of Nendo's menus at a point in the view's frame; answers the item picked, or null. */
   showMenu(mount: BrokerMount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null>;
+  /**
+   * A view's write committed without an automatic action whose trigger condition could not be
+   * worked out (EBH-01): said in Nendo's own chrome, as after a person's save. Optional so a
+   * host without it still brokers writes.
+   */
+  actionsSkipped?(mount: BrokerMount, text: string): void;
   /**
    * A key pressed inside the view that is one of Nendo's own, or one the view declared: run
    * it as if it had been pressed in the Workbench.
@@ -297,7 +304,8 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
       const context = deps.context(mount);
       if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
       const body = payload(params);
-      await deps.request(host, { ...body, idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}` });
+      const answer = await deps.request(host, { ...body, idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}` });
+      reportSkipped(deps, mount, answer);
       if (!readBack || body.recordId === undefined) return null;
       let page: { items?: RecordSnapshot[] } | null;
       try {
@@ -309,6 +317,16 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
       return item === undefined ? null : plainRecord(item);
     },
   };
+}
+
+/**
+ * An automatic action a view's write did not run, because its trigger condition could not be
+ * worked out, is the person's to know about, as after their own save: what it keeps may now be
+ * out of date (EBH-01). The view's answer is unchanged.
+ */
+function reportSkipped(deps: BrokerDeps, mount: BrokerMount, answer: unknown): void {
+  const skipped = blockedConditionsNotice((answer as { mutation?: { blockedConditions?: BlockedCondition[] } } | null)?.mutation?.blockedConditions);
+  if (skipped !== null) deps.ui.actionsSkipped?.(mount, skipped);
 }
 
 /**
@@ -600,7 +618,9 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       };
       if (JSON.stringify(body).length > batchCharacters)
         throw new WorkbenchHostError('too-large', 'This batch is too large to send at once; split it into smaller batches.');
-      return writtenRecords(mount, await deps.request('data.writeRecords', body));
+      const answer = await deps.request('data.writeRecords', body);
+      reportSkipped(deps, mount, answer);
+      return writtenRecords(mount, answer);
     },
   },
   // Undo of a revision this frame wrote, and redo of its undo (ADR-0023, W-103).

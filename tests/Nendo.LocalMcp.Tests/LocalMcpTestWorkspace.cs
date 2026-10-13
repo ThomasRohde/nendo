@@ -16,6 +16,9 @@ internal sealed class LocalMcpTestWorkspace : IAsyncDisposable
 
     internal NendoApplicationService Service { get; private set; } = null!;
 
+    /// <summary>The open file's coordinator, for a test that applies a mutation directly to see its refusal.</summary>
+    internal NendoWriteCoordinator Coordinator => _coordinator ?? throw new InvalidOperationException("No file is open.");
+
     /// <summary>
     /// Attaches a device authority and approves exactly what the open file asks for.
     /// Only the coordinator knows what that is, and only this class holds one.

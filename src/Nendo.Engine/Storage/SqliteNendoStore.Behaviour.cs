@@ -184,8 +184,25 @@ internal sealed partial class SqliteNendoStore
         // would install a definition that cannot be evaluated, and a file whose
         // calculations silently stop appearing is worse than one that refused the edit.
         existing[definition.DefinitionId] = definition;
-        CompileCandidate(existing, cancellationToken);
-        await RequireActionTargetsResolveAsync(existing, definition, transaction, cancellationToken);
+        // A record type's fields are named by ID. Two calculations of one field on one record
+        // type installed, and then every read that built the type's calculated fields by ID
+        // threw a duplicate-key exception: each record query over the type, and every custom
+        // screen over it (EBH-06). The same ID on two record types is two fields and is kept.
+        // Checked here, at install, and not in the graph every open compiles: a file that
+        // already holds such a pair keeps the narrower failure of that one record type rather
+        // than losing every calculation it has.
+        if (definition is NendoCalculationDefinition installing &&
+            existing.Values.OfType<NendoCalculationDefinition>().FirstOrDefault(other =>
+                !string.Equals(other.DefinitionId, installing.DefinitionId, StringComparison.Ordinal) &&
+                string.Equals(other.EntityId, installing.EntityId, StringComparison.Ordinal) &&
+                string.Equals(other.FieldId, installing.FieldId, StringComparison.Ordinal)) is { } twin)
+        {
+            throw new NendoValidationException(
+                $"'{twin.DefinitionId}' and '{installing.DefinitionId}' both calculate the field " +
+                $"'{installing.FieldId}' of '{installing.EntityId}'. Give each calculated field its own ID.");
+        }
+        var compiled = CompileCandidate(existing, cancellationToken);
+        await RequireActionTargetsResolveAsync(existing, compiled, definition, transaction, cancellationToken);
 
         await EnsureBehaviourLayoutAsync(transaction, cancellationToken);
         await using (var save = Command("""
@@ -278,7 +295,7 @@ internal sealed partial class SqliteNendoStore
     /// is written.
     /// </remarks>
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private void CompileCandidate(
+    private CompiledBehaviour CompileCandidate(
         IReadOnlyDictionary<string, NendoBehaviourDefinition> candidate,
         CancellationToken cancellationToken) =>
         CompiledBehaviour.Compile(candidate, BehaviourAdapter, new BehaviourBudget(_behaviourLimits, cancellationToken));
@@ -432,6 +449,7 @@ internal sealed partial class SqliteNendoStore
     /// </remarks>
     private async Task RequireActionTargetsResolveAsync(
         IReadOnlyDictionary<string, NendoBehaviourDefinition> candidate,
+        CompiledBehaviour compiled,
         NendoBehaviourDefinition installed,
         SqliteTransaction transaction,
         CancellationToken cancellationToken)
@@ -468,6 +486,7 @@ internal sealed partial class SqliteNendoStore
                     : await StepTargetEntityIdAsync(trigger, action, step, transaction, cancellationToken);
                 var entity = await GetEntityMappingAsync(entityId, transaction, cancellationToken);
                 RequireActive(entity);
+                var creates = step.Kind == NendoActionStepKind.CreateRecord;
                 foreach (var assignment in step.Assignments)
                 {
                     var field = entity.Fields.SingleOrDefault(candidateField =>
@@ -481,12 +500,109 @@ internal sealed partial class SqliteNendoStore
                             "point the step at the record that holds the field, or name a field that record has.");
                     }
                     RequireActive(entity, field);
+                    RequireAssignmentBindingsStart(trigger, action, step, assignment, creates ? trigger.EntityId : entityId);
+                    if (compiled.Assignments.TryGetValue($"{action.DefinitionId}:{step.StepId}:{assignment.FieldId}", out var result))
+                        RequireAssignmentFits(action, step, field, result);
                 }
                 foreach (var link in step.Links)
                     await RequireLinkResolvesAsync(trigger, action, step, entity, link, transaction, cancellationToken);
+                if (creates) RequireCreateCoversRequiredFields(action, step, entity);
             }
         }
     }
+
+    /// <summary>
+    /// The record an assignment's bindings start from:the record a set step writes, or the
+    /// record that raised the event for a create step. The planner reads a binding's table by
+    /// that record's ID, so a binding that starts anywhere else read the wrong table: every
+    /// save that ran it was refused with "no longer there", or a record of another type that
+    /// happened to share the ID was read in its place (EBH-03).
+    /// </summary>
+    private static void RequireAssignmentBindingsStart(
+        NendoTriggerDefinition trigger,
+        NendoActionDefinition action,
+        NendoActionStep step,
+        NendoActionAssignment assignment,
+        string evaluatedOn)
+    {
+        var creates = step.Kind == NendoActionStepKind.CreateRecord;
+        foreach (var binding in assignment.Bindings)
+        {
+            if (!string.Equals(binding.EntityId, evaluatedOn, StringComparison.Ordinal))
+            {
+                throw new NendoPreconditionException("action-target-mismatch",
+                    $"The action '{action.DisplayName}' reads '{binding.BindingId}' for '{assignment.FieldId}' in step '{step.StepId}' " +
+                    $"starting from a '{binding.EntityId}' record, but " +
+                    (creates
+                        ? $"a create step reads from the record that raised the event, a '{evaluatedOn}' record. "
+                        : $"that step reads from the record it writes, a '{evaluatedOn}' record. ") +
+                    "Start the binding from that record, or follow a reference from it.");
+            }
+            // A deleted record cannot be read, but the records that pointed at it still can, so
+            // only a read of the record itself is refused; a total of related records is not.
+            if (creates && trigger.Events.HasFlag(NendoTriggerEvents.Deleted) && binding.Kind is
+                    NendoBindingKind.SameRecordField or NendoBindingKind.SameRecordCalculation or
+                    NendoBindingKind.ReferenceTraversal or NendoBindingKind.HierarchyPath)
+            {
+                throw new NendoPreconditionException("action-target-mismatch",
+                    $"The action '{action.DisplayName}' reads '{binding.BindingId}' from the event record in step '{step.StepId}', and the trigger " +
+                    $"'{trigger.DisplayName}' also runs it when a record is deleted, when there is no record to read. " +
+                    "Read a total of related records instead, or run the trigger on create and update only.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Refuses an assignment whose result can never be stored in the field it writes: a number
+    /// or a true/false into a text-like field, text or a date into a number or a true/false, a
+    /// number into a true/false, and a decimal into a whole number unless the formula rounds to
+    /// 0 digits. Text may still fill a date, timestamp, UUID or choice field: that is checked
+    /// per value when the step runs, because well-formed text is accepted (EBH-04).
+    /// </summary>
+    private static void RequireAssignmentFits(
+        NendoActionDefinition action,
+        NendoActionStep step,
+        FieldMapping field,
+        CompiledAssignment result)
+    {
+        var type = result.ResultType;
+        var fits = field.StorageKind switch
+        {
+            NendoStorageKind.Integer => type == NendoBehaviourScalar.Integer || (type == NendoBehaviourScalar.Decimal && result.Whole),
+            NendoStorageKind.Decimal => type is NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal,
+            NendoStorageKind.Boolean => type == NendoBehaviourScalar.Boolean,
+            NendoStorageKind.Text or NendoStorageKind.Date => type is NendoBehaviourScalar.Text or NendoBehaviourScalar.Date,
+            NendoStorageKind.DateTime or NendoStorageKind.Uuid or NendoStorageKind.Reference => type == NendoBehaviourScalar.Text,
+            _ => true,
+        };
+        if (fits) return;
+        var remedy = field.StorageKind == NendoStorageKind.Integer && type == NendoBehaviourScalar.Decimal
+            ? "Round it with RoundAway(..., 0) or RoundEven(..., 0) so the result is whole, or write a decimal field."
+            : "Change the formula, or write a field of the matching kind.";
+        throw new NendoPreconditionException("action-target-mismatch",
+            $"The action '{action.DisplayName}' writes {(type == NendoBehaviourScalar.Integer ? "an" : "a")} {type.ToString().ToLowerInvariant()} value to '{field.FieldId}' in step '{step.StepId}', " +
+            $"and '{field.FieldId}' stores {field.StorageKind.ToString().ToLowerInvariant()} values, so every save that runs it would be refused. {remedy}");
+    }
+
+    /// <summary>
+    /// Refuses a create step that leaves a required field of its new record empty. The create
+    /// would be refused on every save that runs it; a field a sequence numbers is filled by the
+    /// host and needs nothing from the step (EBH-04).
+    /// </summary>
+    private static void RequireCreateCoversRequiredFields(NendoActionDefinition action, NendoActionStep step, EntityMapping entity)
+    {
+        if (MissingRequiredFields(step, entity).FirstOrDefault() is { } missing)
+            throw new NendoPreconditionException("action-target-mismatch",
+                $"The action '{action.DisplayName}' creates a '{entity.EntityId}' record in step '{step.StepId}' without a value for the required " +
+                $"field '{missing.FieldId}', so every save that runs it would be refused. Assign '{missing.FieldId}' or link it in the step.");
+    }
+
+    /// <summary>The active required fields a create step neither assigns nor links, nor a sequence fills.</summary>
+    private static IEnumerable<FieldMapping> MissingRequiredFields(NendoActionStep step, EntityMapping entity) =>
+        entity.Fields.Where(field =>
+            field.Required && !field.Retired && field.Sequence is null &&
+            !step.Assignments.Any(assignment => string.Equals(assignment.FieldId, field.FieldId, StringComparison.Ordinal)) &&
+            !step.Links.Any(link => string.Equals(link.FieldId, field.FieldId, StringComparison.Ordinal)));
 
     /// <summary>
     /// A link of a create step: a reference field of the new record, bound to the record type

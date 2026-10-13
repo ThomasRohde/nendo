@@ -122,9 +122,10 @@ internal sealed class BehaviourExecutionContext
     /// Conditions that could not be decided. Kept separate from failures: a condition
     /// that cannot be evaluated blocks its action and is shown, while the initiating
     /// edit still commits — an error in a rule about the data must not destroy the
-    /// data the owner just typed.
+    /// data the owner just typed. The write result carries them, so the person and the
+    /// agent who saved learn that an action did not run (EBH-01).
     /// </summary>
-    internal List<(string TriggerId, string Code, string Message)> BlockedConditions { get; } = [];
+    internal List<NendoBlockedCondition> BlockedConditions { get; } = [];
 
     internal void Observe(RecordKey key, long recordVersion) => ReadSet[key] = recordVersion;
 }

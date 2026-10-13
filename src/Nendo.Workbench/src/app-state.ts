@@ -141,6 +141,12 @@ export interface OutcomeNotice {
   refresh?: (button: HTMLButtonElement) => Promise<void>;
   /** One step the sentence offers, such as Show in folder for a saved download (F-237). */
   action?: { label: string; run: () => Promise<void> };
+  /**
+   * An alert about something that stays true after the next key or press, such as an
+   * automatic action a save did not run (EBH-01): kept like a success until an action
+   * clears it, rather than released by the person's next key or press.
+   */
+  kept?: boolean;
 }
 
 export { emptySession };

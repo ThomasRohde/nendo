@@ -251,6 +251,25 @@ the reference is not bound, the install refuses in the same way. It does not
 fail inside the planner. Only the pairs that the operation touches are checked,
 so a definition written before this check cannot refuse an unrelated install.
 
+The pair check also refuses, with the same code (2026-10-13, W-209):
+
+- an assignment binding that does not start from the record the step evaluates
+  it on: the record a set step writes, or the record that raised the event for a
+  create step. The planner reads the binding's table by that record's ID, so any
+  other start read the wrong table (EBH-03);
+- a create step that reads the event record itself (a same-record field or
+  calculation, a reference traversal or a hierarchy path) when its trigger also
+  runs on a deletion. A total of related records still reads, and is kept;
+- an assignment whose result can never be stored in its field: a number or a
+  true/false into a text, date, timestamp, UUID or reference field, text or a
+  date into a number or a true/false, a date into a timestamp, UUID or reference
+  field, a number into a true/false, and a decimal into a whole-number field
+  unless the formula is `RoundEven(…, 0)` or `RoundAway(…, 0)`. Text may still
+  fill a date, timestamp, UUID or choice field; that is checked per value when
+  the step runs (EBH-04);
+- a create step that leaves a required, active field of its new record empty,
+  unless a sequence numbers that field (EBH-04).
+
 A refused behaviour install leaves the open file readable. The behaviour table is
 created inside the mutation that installs the first definition. If a refusal
 occurs later in that mutation, the rollback removes the table. Each open store
@@ -296,7 +315,9 @@ are properties of the graph. Installation refuses when:
   relationship that points at another record type, or an unbound reference;
 - a binding reads an optional field without declaring itself nullable;
 - the ID of a calculated field collides with a stored field on the same record
-  type;
+  type, or two calculations of one record type share a field ID (EBH-06; the
+  same ID on two record types is two fields). `schema.addField` refuses an ID a
+  calculation of the same record type already uses;
 - a stable ID, alias, parameter ID or step ID repeats within one definition;
 - the definition names a contract version that this host does not implement.
 
@@ -306,6 +327,20 @@ action still reads it, listens to it or writes it, because the next edit that
 raised the trigger would roll back on the retired target. The check runs over the
 final candidate, so the same proposal may rewire or remove that behaviour and
 retire its target ([relationships](relationships.md#labels-choices-and-retirement)).
+A create step's links count as uses of the reference they set and of the
+reference they follow (EBH-09).
+
+A requirement change is checked from the other side as well (2026-10-13, EBH-09).
+`schema.setFieldRequired` refuses with `field-requirement-in-use` when a field
+becomes optional while a binding reads it without accepting an empty value, or a
+total or filtered count reads it from each member, and when a field becomes
+required while a triggered create step leaves it empty. The refusal names the
+definition and the field. Only the fields the change touches are checked, over
+the final candidate, so one proposal may rewire the behaviour and change the
+requirement. Install does not ask a create step to fill a retired field or one a
+sequence numbers, so making a required field active again (`schema.setRetired`
+false) and removing a field's sequence are checked against create steps in the
+same way.
 
 If something else still references a definition, the removal of that definition
 is refused with `definition-referenced`. The exception is when the same ordered
@@ -366,11 +401,22 @@ The order is fixed:
 **A calculation error and an action failure are different things.** If a
 condition cannot be evaluated, it blocks its own action and is reported. The
 initiating edit still commits, because the typed values of the owner are valid
-whether or not a rule about them could be decided. These failures abort
+whether or not a rule about them could be decided. The write result carries
+each blocked condition as `blockedConditions`: the trigger and its name, the
+record whose change raised it, and the calculation code and sentence. The
+Workbench says it beside the save's outcome, kept until the next action, and
+says it too after a custom view's write; an agent's write result carries it
+beside `alsoChanged` (2026-10-13, EBH-01). It is not stored with the revision,
+so a replay, a receipt, a proposal and its acceptance carry none, and History
+does not show it yet. A limit the data itself reaches is such a value: a subtree
+past the hierarchy's descendant bound, or a record deeper than its hierarchy
+allows, blocks a condition's action like a zero divisor. These failures abort
 everything, including earlier steps that already succeeded and the edit itself:
 
 - a failure while the host computes what an action should *write*;
-- an exhausted budget;
+- an exhausted budget: the save's work units, function calls, generated changes
+  or related-row allowance, a condition's included. A spent budget is not an
+  undecidable value, and it was once swallowed as a blocked condition (EBH-02);
 - cancellation.
 
 No success receipt exists for a chain that did not commit. The refusal names the

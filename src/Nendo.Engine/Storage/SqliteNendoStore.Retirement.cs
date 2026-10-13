@@ -200,6 +200,14 @@ internal sealed partial class SqliteNendoStore
                 if (target is not null && entities.Contains(target)) throw Refuse(action, target);
                 foreach (var assignment in step.Assignments)
                     if (fields.Contains(assignment.FieldId)) throw Refuse(action, assignment.FieldId);
+                // A link sets a reference of the new record, so retiring that reference, or the
+                // one the link follows from the event record, left the next create refused with
+                // field-retired (EBH-09).
+                foreach (var link in step.Links)
+                {
+                    if (fields.Contains(link.FieldId)) throw Refuse(action, link.FieldId);
+                    if (link.Target.ReferenceFieldId is { } followed && fields.Contains(followed)) throw Refuse(action, followed);
+                }
             }
         }
     }

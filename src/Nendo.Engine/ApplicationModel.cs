@@ -312,6 +312,19 @@ public sealed record NendoGeneratedChange(
     string Change,
     long? RecordVersion);
 
+/// <summary>
+/// An automatic action that did not run because its trigger's condition could not be
+/// worked out for one record (ADR-0008 §6 and §12): the trigger, the record whose change
+/// raised it, and the calculation code and sentence that say why. The save itself committed.
+/// </summary>
+public sealed record NendoBlockedCondition(
+    string TriggerId,
+    string DisplayName,
+    string EntityId,
+    string RecordId,
+    string Code,
+    string Message);
+
 public sealed record NendoApplyResult(
     string RevisionId,
     string OperationDigest,
@@ -333,6 +346,14 @@ public sealed record NendoApplyResult(
     /// empty (ADR-0020). Empty on an idempotent replay — read the record instead.
     /// </summary>
     public IReadOnlyList<NendoAssignedValue> AssignedValues { get; init; } = [];
+
+    /// <summary>
+    /// The automatic actions this write did not run because a trigger condition could not be
+    /// worked out, in the order they were met. The write committed without them, so what they
+    /// keep (a total, a status) may now be out of date. Empty on an idempotent replay and on a
+    /// receipt read back: the list is not stored with the revision.
+    /// </summary>
+    public IReadOnlyList<NendoBlockedCondition> BlockedConditions { get; init; } = [];
 
     /// <summary>
     /// The version the touched record now holds, where the applying service can

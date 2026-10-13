@@ -308,7 +308,8 @@ internal sealed partial class SqliteNendoStore
             var allowance = budget.RemainingScanAllowance;
             if (allowance <= 0)
                 throw new NendoCalculationException(NendoCalculationCodes.LimitReached,
-                    "This calculation reached the related record limit for a single save.");
+                    "This calculation reached the related record limit for a single save.")
+                { ExhaustedBudget = true };
             var selection = member is null ? "1" : Quote(member.PhysicalColumnName);
             // The row's identity and version come back with its value. A record that was
             // only counted still decided what an action wrote, so a reviewed plan is
@@ -321,7 +322,7 @@ internal sealed partial class SqliteNendoStore
             command.Parameters.AddWithValue("@limit", (long)allowance + 1);
             return await FoldAsync(command, binding, member, allowance, chargePerRow: true,
                 $"More than {budget.Limits.RelatedRows} related records contribute to this calculation, so no total is shown rather than an incomplete one.",
-                budget, cancellationToken);
+                budget, cancellationToken, budgetBound: true);
         }
 
         /// <summary>
@@ -374,13 +375,16 @@ internal sealed partial class SqliteNendoStore
             // A calculated member is worked out once per record, so each one is charged
             // against the related-row ceiling like a row a plain aggregate reads.
             var calculated = binding.MemberCalculationId is not null;
+            // Past the descendant bound the data is too wide, which is not a budget; past a
+            // smaller remaining allowance the save has spent its related rows, which is.
+            var budgetBound = calculated && budget.RemainingScanAllowance < bound;
             if (calculated) bound = Math.Min(bound, budget.RemainingScanAllowance);
             await using var command = store.Command(sql, transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             command.Parameters.AddWithValue("@limit", (long)bound + 1);
             return await FoldAsync(command, binding, member, bound, chargePerRow: calculated,
                 $"More than {bound} records contribute to this calculation across the hierarchy, so no total is shown rather than an incomplete one.",
-                budget, cancellationToken);
+                budget, cancellationToken, budgetBound);
         }
 
         /// <summary>
@@ -447,7 +451,8 @@ internal sealed partial class SqliteNendoStore
             bool chargePerRow,
             string pastLimit,
             BehaviourBudget budget,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool budgetBound = false)
         {
             var memberEntityId = binding.Kind == NendoBindingKind.SubtreeAggregate ? binding.EntityId : binding.RelatedEntityId!;
             var count = 0L;
@@ -460,7 +465,7 @@ internal sealed partial class SqliteNendoStore
                 {
                     rowsRead++;
                     if (rowsRead > allowance)
-                        throw new NendoCalculationException(NendoCalculationCodes.LimitReached, pastLimit);
+                        throw new NendoCalculationException(NendoCalculationCodes.LimitReached, pastLimit) { ExhaustedBudget = budgetBound };
                     if (chargePerRow) budget.SpendScan();
                     observe?.Invoke(new RecordKey(memberEntityId, rows.GetString(1)), rows.GetInt64(2));
                     // A calculated member is this record's own result, worked out now; an empty

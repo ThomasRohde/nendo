@@ -90,7 +90,7 @@ const frames = { mounts: [], retired: [], controls: [], deps: null, timers: [] }
 globalThis.extensionSettingsFrames = frames;
 const frameStubs = {
   './client': 'export const client = { mode: "desktop" };',
-  './shell': 'export const content = { contains: () => true }; export const root = { dataset: {} }; export const refreshChrome = () => {};',
+  './shell': 'export const content = { contains: () => true }; export const root = { dataset: {} }; export const refreshChrome = () => {}; export const showKeptAlert = () => {};',
   './extension-broker': `export const brokerMethodNames = []; export const createExtensionBroker = deps => {
     const f = globalThis.extensionSettingsFrames; f.deps = deps;
     return { disconnect: mount => f.retired.push(mount), isConnected: () => true, place: () => {}, refreshContext: () => {} }; };`,

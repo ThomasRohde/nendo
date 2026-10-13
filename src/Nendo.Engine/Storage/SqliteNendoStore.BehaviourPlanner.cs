@@ -95,12 +95,19 @@ internal sealed partial class SqliteNendoStore
                 {
                     holds = await EvaluateConditionAsync(trigger, raised, cancellationToken);
                 }
-                catch (NendoCalculationException exception)
+                catch (NendoCalculationException exception) when (!exception.ExhaustedBudget)
                 {
                     // A rule that cannot be decided blocks its action and is reported.
                     // It does not abort the edit: the owner's typed values are valid
-                    // whether or not a condition about them could be evaluated.
-                    context.BlockedConditions.Add((trigger.DefinitionId, exception.Code, exception.Message));
+                    // whether or not a condition about them could be evaluated. A spent
+                    // budget is not undecidable data but a save that asked for too much,
+                    // and the contract aborts the whole save on one; swallowing it here let
+                    // the save commit with the action silently skipped (EBH-02). A limit the
+                    // data reaches, a subtree past its descendant bound, stays a blocked
+                    // condition, as ADR-0008 §6 says of a value-caused error.
+                    context.BlockedConditions.Add(new NendoBlockedCondition(
+                        trigger.DefinitionId, trigger.DisplayName, raised.Key.EntityId, raised.Key.RecordId,
+                        exception.Code, exception.Message));
                     return;
                 }
                 if (!holds) return;

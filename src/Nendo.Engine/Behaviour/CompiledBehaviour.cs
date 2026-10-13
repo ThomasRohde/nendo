@@ -6,6 +6,13 @@ internal sealed record CompiledCalculation(
     ValidatedExpression Expression);
 
 /// <summary>
+/// What an action assignment's formula produces, kept so the install check can compare it
+/// with the field it writes (EBH-04). <paramref name="Whole"/> is true when the formula is a
+/// rounding to 0 digits, the one decimal result that always fits a whole-number field.
+/// </summary>
+internal sealed record CompiledAssignment(NendoBehaviourScalar ResultType, bool Whole);
+
+/// <summary>
 /// Every definition in a file, validated once and held immutably.
 /// <para>
 /// Compiled as a set rather than one formula at a time, and in dependency order, so
@@ -21,12 +28,14 @@ internal sealed class CompiledBehaviour
         IReadOnlyDictionary<string, NendoBehaviourDefinition> definitions,
         IReadOnlyDictionary<string, ValidatedExpression> functions,
         IReadOnlyDictionary<string, CompiledCalculation> calculations,
-        IReadOnlyDictionary<string, IReadOnlyList<CompiledCalculation>> byEntity)
+        IReadOnlyDictionary<string, IReadOnlyList<CompiledCalculation>> byEntity,
+        IReadOnlyDictionary<string, CompiledAssignment>? assignments = null)
     {
         Definitions = definitions;
         Functions = functions;
         Calculations = calculations;
         CalculationsByEntity = byEntity;
+        Assignments = assignments ?? new Dictionary<string, CompiledAssignment>(StringComparer.Ordinal);
     }
 
     internal static CompiledBehaviour Empty { get; } = new(
@@ -46,6 +55,11 @@ internal sealed class CompiledBehaviour
     /// evaluated: a calculation always appears after everything it reads.
     /// </summary>
     internal IReadOnlyDictionary<string, IReadOnlyList<CompiledCalculation>> CalculationsByEntity { get; }
+
+    /// <summary>
+    /// Each action assignment's result, keyed <c>action:step:field</c> as its formula ID is.
+    /// </summary>
+    internal IReadOnlyDictionary<string, CompiledAssignment> Assignments { get; }
 
     internal bool IsEmpty => Definitions.Count == 0;
 
@@ -115,6 +129,7 @@ internal sealed class CompiledBehaviour
         // Also compile the formulas that are not calculations, so an action input or a
         // trigger condition that cannot be validated refuses at installation rather
         // than in the middle of somebody's save.
+        var assignments = new Dictionary<string, CompiledAssignment>(StringComparer.Ordinal);
         foreach (var definition in definitions.Values)
         {
             switch (definition)
@@ -138,12 +153,15 @@ internal sealed class CompiledBehaviour
                     {
                         foreach (var assignment in step.Assignments)
                         {
-                            adapter.Validate(new BehaviourFormula(
-                                $"{action.DefinitionId}:{step.StepId}:{assignment.FieldId}", assignment.Expression,
+                            var formulaId = $"{action.DefinitionId}:{step.StepId}:{assignment.FieldId}";
+                            var validated = adapter.Validate(new BehaviourFormula(
+                                formulaId, assignment.Expression,
                                 assignment.Bindings
                                     .Select(binding => new BehaviourParameter(binding.BindingId, binding.ResultType, binding.Nullable))
                                     .ToArray(),
                                 Resolve(assignment.CallAliases, functions, action.DefinitionId)), FormulaBudget());
+                            assignments[formulaId] = new CompiledAssignment(
+                                validated.ResultType, NendoBehaviourAnalyzer.IsWholeRounding(validated.Ast, assignment.CallAliases));
                         }
                     }
                     break;
@@ -158,7 +176,7 @@ internal sealed class CompiledBehaviour
                 group => (IReadOnlyList<CompiledCalculation>)Ordered(group).ToArray(),
                 StringComparer.Ordinal);
 
-        return new CompiledBehaviour(definitions, functions, calculations, byEntity);
+        return new CompiledBehaviour(definitions, functions, calculations, byEntity, assignments);
     }
 
     private static IReadOnlyDictionary<string, ValidatedExpression> Resolve(

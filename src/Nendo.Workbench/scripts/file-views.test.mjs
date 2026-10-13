@@ -19,7 +19,7 @@ const stubs = {
     export const interactionInProgress = () => false; export const rerender = () => { h().redraws += 1; };
     export const setBusy = () => {}; export const showError = (text) => { h().errors.push(text); };
     export const announce = () => {}; export const clearError = () => {}; export const refreshChrome = () => {};
-    export const showRetainedNotice = () => {}; export const showOutcome = () => {}; export const requiredElement = (selector) => (h().elements[selector] ??= { hidden: true, textContent: '', innerHTML: '', addEventListener: () => {} });
+    export const showRetainedNotice = () => {}; export const showKeptAlert = () => {}; export const showOutcome = () => {}; export const requiredElement = (selector) => (h().elements[selector] ??= { hidden: true, textContent: '', innerHTML: '', addEventListener: () => {} });
     export const focusWithoutInteraction = () => {};`,
   './place-pickers': 'export const drawPlacePickers = (markup) => { globalThis.fileViewHost.pickers = markup; return { querySelector: () => null }; };',
   './view-frames': `export const wireViewFrames = () => { globalThis.fileViewHost.wired += 1; };

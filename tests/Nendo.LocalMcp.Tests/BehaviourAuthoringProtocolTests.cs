@@ -194,10 +194,12 @@ public sealed class BehaviourAuthoringProtocolTests
                                         expression = "Concat('Project: ', title)",
                                         bindings = new[]
                                         {
+                                            // A set step's bindings start from the record it writes:
+                                            // the project, not the task (EBH-03).
                                             new
                                             {
-                                                bindingId = "title", kind = "SameRecordField", entityId = "tasks",
-                                                fieldId = "title", resultType = "Text", nullable = false,
+                                                bindingId = "title", kind = "SameRecordField", entityId = "projects",
+                                                fieldId = "name", resultType = "Text", nullable = false,
                                             },
                                         },
                                         callAliases = Array.Empty<object>(),
@@ -508,6 +510,129 @@ public sealed class BehaviourAuthoringProtocolTests
     }
 
     /// <summary>
+    /// The independent review of W-209: an action that could never run is refused at install as
+    /// action-target-mismatch, and the refusal names the binding or field and the remedy. A
+    /// proposal's diagnostic always carried it, but on a tool error's path the code was withheld
+    /// as "The semantic precondition was not met.", which tells an agent nothing to change.
+    /// </summary>
+    [TestMethod]
+    public async Task AnActionThatCouldNeverRunIsRefusedWithWhatToChange()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await SeedSchemaAsync(workspace);
+        var proposals = new NendoAgentProposalStore();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.ApplicationAuthoring, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot), proposals);
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        var scoped = await BeginAsync(client, session, "Name the project");
+        // The step writes the project, and the binding reads the task's title by the project's ID.
+        var wrong = new
+        {
+            bindingId = "title", kind = "SameRecordField", entityId = "tasks", fieldId = "title", resultType = "Text", nullable = false,
+        };
+        await CallAsync<NendoChangeSetAddResult>(client, "nendo.change_set.add_operations", new(scoped)
+        {
+            ["mutations"] = new[]
+            {
+                new NendoAgentMutationInput("Name the project",
+                [
+                    Set("project.close", "Action", new
+                    {
+                        displayName = "Name the project after its task",
+                        steps = new[]
+                        {
+                            new
+                            {
+                                stepId = "10-name", kind = "SetField", target = new { kind = "ReferencedRecord", referenceFieldId = "project" },
+                                assignments = new[] { new { fieldId = "name", expression = "title", bindings = new[] { wrong }, callAliases = Array.Empty<object>() } },
+                            },
+                        },
+                    }),
+                    Set("10-name", "Trigger", new
+                    {
+                        entityId = "tasks", displayName = "Name the project when a task is added", events = "Created", actionId = "project.close",
+                        relevantFieldIds = Array.Empty<string>(), conditionBindings = Array.Empty<object>(), callAliases = Array.Empty<object>(),
+                    }),
+                ]),
+            },
+            ["idempotencyKey"] = "mismatch-add",
+        });
+        var validated = await CallAsync<NendoAgentProposalPreview>(client, "nendo.change_set.validate", new(scoped) { ["idempotencyKey"] = "mismatch-validate" });
+        Assert.AreEqual(NendoProposalState.Invalid, validated.State);
+        StringAssert.Contains(validated.Diagnostics.Single(item => item.Severity == NendoDiagnosticSeverity.Error).Message,
+            "starting from a 'tasks' record", StringComparison.Ordinal);
+
+        // The same refusal on a tool error's path reaches the client whole.
+        var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => workspace.Coordinator.ApplyAsync(new("test", "mismatch", "test", "Name the project", [
+            new SetBehaviourDefinitionOperation("a", new NendoActionDefinition("project.close", "Name the project after its task",
+                [NendoActionStep.SetField("10-name", NendoActionTarget.Referenced("project"), new NendoActionAssignment("name", "title",
+                    [NendoBehaviourBinding.SameRecordField("title", "tasks", "title", NendoBehaviourScalar.Text, false)], []))]), revision),
+            new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition("10-name", "tasks", "Name the project when a task is added",
+                NendoTriggerEvents.Created, "project.close"), revision),
+        ])));
+        var message = NendoToolErrors.Translate(refused).Message;
+        StringAssert.Contains(message, "NENDO_ACTION_TARGET_MISMATCH", StringComparison.Ordinal);
+        StringAssert.Contains(message, "starting from a 'tasks' record, but that step reads from the record it writes, a 'projects' record.", StringComparison.Ordinal,
+            "An action that could never run was refused to the agent without saying which binding to change.");
+        StringAssert.Contains(message, "Start the binding from that record", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// EBH-01: a trigger condition that cannot be worked out skips its action and lets the
+    /// write commit. The write result said nothing about it, so an agent learned of the skip
+    /// only by noticing a stale value later. It is on the wire now, beside alsoChanged.
+    /// </summary>
+    [TestMethod]
+    public async Task AWriteWhoseTriggerConditionCouldNotBeWorkedOutNamesTheActionThatDidNotRun()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        var schema = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Notes", "test",
+            new([new("test", "schema", "test", "Notes", [
+                new CreateEntityOperation("notes", "notes", "Notes", "notes"),
+                new AddFieldOperation("n-label", "notes", "label", "Label", "label", NendoStorageKind.Text, true),
+                new AddFieldOperation("n-stamp", "notes", "stamp", "Stamp", "stamp", NendoStorageKind.Text, false),
+                new AddFieldOperation("n-flag", "notes", "flag", "Flag", "flag", NendoStorageKind.Boolean, false),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(schema.ProposalId)).Applied);
+        var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var trigger = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
+            $"proposal-{Guid.NewGuid():N}", "Stamp", "test",
+            new([new("test", "behaviour", "test", "Stamp", [
+                new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(
+                    "note.stamp", "Stamp the note",
+                    [NendoActionStep.SetField("10-stamp", NendoActionTarget.EventRecord, new NendoActionAssignment("stamp", "'Seen'"))]), revision),
+                new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition(
+                    "10-stamp", "notes", "Stamp flagged notes", NendoTriggerEvents.Created, "note.stamp", null, "flag = true",
+                    [NendoBehaviourBinding.SameRecordField("flag", "notes", "flag", NendoBehaviourScalar.Boolean, true)]), revision),
+            ])])));
+        Assert.IsTrue((await workspace.Service.PromoteProposalAsync(trigger.ProposalId)).Applied);
+        workspace.ApproveBehaviour(new ApprovingAuthority());
+
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.DataMutation,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+
+        // The flag is left empty, and the condition does not accept an empty value.
+        var result = await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
+        {
+            ["entityId"] = "notes", ["recordId"] = "n1", ["values"] = new { label = "First" }, ["idempotencyKey"] = "blocked",
+        });
+
+        var blocked = result.BlockedConditions.SingleOrDefault();
+        Assert.IsNotNull(blocked, "create_record committed with an action skipped by its condition and the result said nothing about it.");
+        Assert.AreEqual(("10-stamp", "Stamp flagged notes", "notes", "n1", "calculation-missing-input"),
+            (blocked.TriggerId, blocked.DisplayName, blocked.EntityId, blocked.RecordId, blocked.Code));
+        Assert.IsEmpty(result.AlsoChanged, "The blocked action wrote nothing.");
+    }
+
+    /// <summary>
     /// A calculated field has no column, so a write naming one was refused as a field
     /// that did not exist — while the schema read listed it under derivedFields, and
     /// the records read carried its result. The refusal says it is calculated, names
@@ -584,7 +709,7 @@ public sealed class BehaviourAuthoringProtocolTests
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateEmptyAsync();
         await SeedSchemaAsync(workspace);
-        await InstallTriggerAsync(workspace, readsTheEventRecord: true);
+        await InstallTriggerAsync(workspace, failsWhenItRuns: true);
         workspace.ApproveBehaviour(new ApprovingAuthority());
 
         await using var host = await NendoLocalMcpHost.StartAsync(
@@ -602,7 +727,7 @@ public sealed class BehaviourAuthoringProtocolTests
             ["expectedTargetVersions"] = JsonSerializer.SerializeToElement(new Dictionary<string, long> { ["project"] = 1 }),
             ["idempotencyKey"] = "agent-write-broken",
         });
-        StringAssert.Contains(refused, "NENDO_CALCULATION_RELATED_UNAVAILABLE");
+        StringAssert.Contains(refused, "NENDO_CALCULATION_DIVIDE_BY_ZERO");
         StringAssert.Contains(refused, "Name the project after its task");
         StringAssert.Contains(refused, "step 10-name");
         StringAssert.Contains(refused, "nothing changed");
@@ -707,22 +832,22 @@ public sealed class BehaviourAuthoringProtocolTests
     /// <summary>
     /// One action and its trigger. The action's assignment reads the record it writes
     /// to — the project — which is the rule the published example states. With
-    /// <paramref name="readsTheEventRecord"/> it binds the task instead, the mistake
-    /// that installs cleanly and fails on the first save that fires it.
+    /// <paramref name="failsWhenItRuns"/> its formula divides by zero, which installs and
+    /// fails on the first save that fires it. Binding the task instead used to be that
+    /// example; install refuses it now (EBH-03).
     /// </summary>
-    private static async Task InstallTriggerAsync(LocalMcpTestWorkspace workspace, bool readsTheEventRecord = false)
+    private static async Task InstallTriggerAsync(LocalMcpTestWorkspace workspace, bool failsWhenItRuns = false)
     {
         var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
-        var binding = readsTheEventRecord
-            ? NendoBehaviourBinding.SameRecordField("title", "tasks", "title", NendoBehaviourScalar.Text, false)
-            : NendoBehaviourBinding.SameRecordField("title", "projects", "name", NendoBehaviourScalar.Text, false);
+        var binding = NendoBehaviourBinding.SameRecordField("title", "projects", "name", NendoBehaviourScalar.Text, false);
+        var expression = failsWhenItRuns ? "(1 / 0) = 1.0 ? title : 'Project'" : "Concat('Project: ', title)";
         var proposal = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
             $"proposal-{Guid.NewGuid():N}", "One automatic action", "test",
             new([new("test", "behaviour-trigger", "test", "One automatic action", [
                 new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(
                     "project.close", "Name the project after its task",
                     [NendoActionStep.SetField("10-name", NendoActionTarget.Referenced("project"),
-                        new NendoActionAssignment("name", "Concat('Project: ', title)", [binding], []))]), revision),
+                        new NendoActionAssignment("name", expression, [binding], []))]), revision),
                 new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition(
                     "10-name", "tasks", "Name the project when a task is added",
                     NendoTriggerEvents.Created, "project.close"), revision),

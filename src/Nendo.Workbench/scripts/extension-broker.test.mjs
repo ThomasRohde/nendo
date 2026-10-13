@@ -21,7 +21,7 @@ function harness() {
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
   const mount = { key: 'mount-1', origin, fileSessionId: 'file-A', frameWindow: () => frameWindow };
   const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, fileSessionId: 'file-A', heights: [], opened: [], canOpen: true,
-    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [] };
+    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [], skipped: [] };
   h.broker = broker.createExtensionBroker({
     request: (method, payload) => {
       h.calls.push({ method, payload });
@@ -43,6 +43,7 @@ function harness() {
       showMenu: async (_mount, menu) => { h.menus.push(menu); return h.menuAnswer; },
       key: (_mount, keys) => { h.keys.push(keys); },
       setPlace: (_mount, place) => { h.places.push(place); return true; },
+      actionsSkipped: (_mount, text) => { h.skipped.push(text); },
     },
     responsive: (_mount, responsive) => h.responsive.push(responsive),
     now: () => h.now,
@@ -420,6 +421,43 @@ test('a move goes to the host as the mount\u2019s package with the parent\u2019s
   }
   await settle();
   assert.equal(h.calls.length, 4, 'A move the broker refused reached the host.');
+});
+
+// EBH-01: a view's write commits without an automatic action whose condition could not be
+// worked out. The person is told, as after their own save; the view's answer is unchanged.
+test('a view write that skipped an automatic action says so in Nendo, for a create, an update, a command and a batch', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const skipped = { mutation: { blockedConditions: [{ triggerId: 't', displayName: 'Roll up hours', entityId: 'tasks', recordId: 't9', code: 'calculation-missing-input', message: 'A value this calculation needs is empty.' }] } };
+  const sentence = "The automatic action 'Roll up hours' did not run: A value this calculation needs is empty. What it keeps may be out of date.";
+  const requests = [
+    ['records.create', { entityId: 'tasks', recordId: 't9', values: { title: 'x' } }, true],
+    ['records.update', { entityId: 'tasks', recordId: 't9', version: 1, values: { title: 'y' } }, true],
+    ['commands.run', { commandId: 'c', entityId: 'tasks', recordId: 't9', version: 2 }, true],
+    ['records.batch', { writes: [{ op: 'update', entityId: 'tasks', recordId: 't9', version: 3, values: { title: 'z' } }] }, false],
+  ];
+  for (const [index, [method, params, readBack]] of requests.entries()) {
+    const calls = h.calls.length;
+    view.send({ t: 'req', id: index + 1, m: method, p: params });
+    await until(() => h.calls.length === calls + 1, method);
+    h.pending[calls].resolve(skipped);
+    if (readBack) {
+      await until(() => h.calls.length === calls + 2, `${method}'s read back`);
+      h.pending[calls + 1].resolve({ items: [] });
+    }
+    await view.next((message) => message.id === index + 1);
+    assert.equal(h.skipped.length, index + 1, `${method} committed without an automatic action and Nendo said nothing about it.`);
+    assert.equal(h.skipped.at(-1), sentence);
+  }
+  // A write every condition decided says nothing.
+  view.send({ t: 'req', id: 9, m: 'records.update', p: { entityId: 'tasks', recordId: 't9', version: 4, values: { title: 'w' } } });
+  await until(() => h.calls.length === 8, 'the plain update');
+  h.pending[7].resolve({ mutation: { blockedConditions: [] } });
+  await until(() => h.calls.length === 9, 'its read back');
+  h.pending[8].resolve({ items: [] });
+  await view.next((message) => message.id === 9);
+  assert.equal(h.skipped.length, 4);
 });
 
 // R-002: the host refuses a non-null reference without the target's version

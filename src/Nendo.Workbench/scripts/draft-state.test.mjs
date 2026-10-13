@@ -63,7 +63,7 @@ const stubs = {
     export const rerender = () => { throw new Error('A retained draft was redrawn.'); };
     export const refreshChrome = () => { p().chrome++; };
     export const interactionInProgress = () => p().focused;
-    export const showRetainedNotice = () => {}; export const showOutcome = () => {}; export const requiredElement = () => null;`,
+    export const showRetainedNotice = () => {}; export const showKeptAlert = () => {}; export const showOutcome = () => {}; export const requiredElement = () => null;`,
 };
 const entry = [
   `export { retainDraftReadOnly, recoverAfterWriteFailure } from ${JSON.stringify(resolve(root, 'src/actions.ts'))};`,

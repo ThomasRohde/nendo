@@ -118,6 +118,9 @@ public sealed record NendoDataWritesResult(
 
     [Description("The codes the host wrote into numbered fields that a create left empty, one entry per record and field. Empty when nothing was numbered, and on an idempotent replay.")]
     public IReadOnlyList<NendoAssignedValue> Assigned { get; init; } = [];
+
+    [Description("Each automatic action this write did not run because its trigger's condition could not be worked out for a record: the trigger, the record, and the calculation code and sentence. The write committed without them, so what they keep may be out of date. Empty when every condition was decided, on an idempotent replay and in a receipt.")]
+    public IReadOnlyList<NendoBlockedCondition> BlockedConditions { get; init; } = [];
 }
 
 /// <summary>
@@ -170,6 +173,14 @@ public sealed record NendoDataApplyResult(
     /// </summary>
     [Description("The codes the host wrote into numbered fields that a create left empty, one entry per record and field. Empty when nothing was numbered, and on an idempotent replay.")]
     public IReadOnlyList<NendoAssignedValue> Assigned { get; init; } = [];
+
+    /// <summary>
+    /// The automatic actions this write did not run because a trigger condition could not be
+    /// worked out (ADR-0008 §6 and §12, EBH-01). Not stored with the revision, so a receipt
+    /// and a replay carry none.
+    /// </summary>
+    [Description("Each automatic action this write did not run because its trigger's condition could not be worked out for a record: the trigger, the record, and the calculation code and sentence. The write committed without them, so what they keep may be out of date. Empty when every condition was decided, on an idempotent replay and in a receipt.")]
+    public IReadOnlyList<NendoBlockedCondition> BlockedConditions { get; init; } = [];
 }
 
 public sealed record NendoChangeSetBeginResult(

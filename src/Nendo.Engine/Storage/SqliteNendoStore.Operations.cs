@@ -130,6 +130,17 @@ internal sealed partial class SqliteNendoStore
         ValidatePhysicalIdentifier(operation.PhysicalColumnName, "column");
         if (!newEntityIds.Contains(operation.EntityId)) RequireActive(await GetEntityMappingAsync(operation.EntityId, transaction, cancellationToken));
         await RequireUniqueDisplayNameAsync(operation.DisplayName, operation.EntityId, operation.FieldId, transaction, cancellationToken);
+        // A calculated field's ID is a field ID of its record type too. Reusing one left a stored
+        // and a calculated field under one ID, which bindings and the write path then resolved
+        // differently, and the type's field list keyed by ID failed to build (EBH-06).
+        if ((await ReadBehaviourDefinitionsAsync(transaction, cancellationToken)).Values.OfType<NendoCalculationDefinition>()
+            .FirstOrDefault(calculation => string.Equals(calculation.EntityId, operation.EntityId, StringComparison.Ordinal) &&
+                string.Equals(calculation.FieldId, operation.FieldId, StringComparison.Ordinal)) is { } calculated)
+        {
+            throw new NendoValidationException(
+                $"'{operation.FieldId}' is already the calculated field of '{calculated.DefinitionId}' on '{operation.EntityId}'. " +
+                "A stored field needs its own ID.");
+        }
         if (!newEntityIds.Contains(operation.EntityId) && operation.Required)
         {
             // A mutation is the materialization boundary for the definition lane:

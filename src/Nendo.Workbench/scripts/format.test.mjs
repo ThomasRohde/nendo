@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {blockedConditionsNotice,releasedByNextInteraction,originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const plan={entity:{fields:[{semanticId:'name',displayName:'Name'}],derivedFields:[{semanticId:'total',displayName:'Total'}]}};
 const revision=(revisionId,canRequestCompensation=true)=>({revisionId,canRequestCompensation,compensationOfRevisionId:null});
@@ -16,6 +16,34 @@ test('a value is shown exactly as stored, and an exact number never goes through
  assert.equal(valueDisplay(true),'Yes');
  assert.equal(valueDisplay(false),'No');
  assert.equal(valueDisplay(null),'');
+});
+
+test('a save that did not run an automatic action says which one and why (EBH-01)',()=>{
+ const blocked=(displayName,message)=>({triggerId:'t',displayName,entityId:'tasks',recordId:'t1',code:'calculation-missing-input',message});
+ assert.equal(blockedConditionsNotice(undefined),null);
+ assert.equal(blockedConditionsNotice([]),null);
+ assert.equal(blockedConditionsNotice([blocked('Roll up hours','A value this calculation needs is empty.')]),
+  "The automatic action 'Roll up hours' did not run: A value this calculation needs is empty. What it keeps may be out of date.",
+  'A save that skipped an automatic action reported plain success, so the stale total it keeps was noticed by nobody.');
+ assert.match(blockedConditionsNotice([blocked('A','x.'),blocked('B','y.')]),/^2 automatic actions did not run: 'A' \(x\.\); 'B' \(y\.\)\./);
+});
+
+test('a kept alert about a skipped action outlasts the next key or press; a refusal does not (EBH-01)',()=>{
+ assert.equal(releasedByNextInteraction(null),false);
+ assert.equal(releasedByNextInteraction({tone:'alert'}),true,'A refusal stayed after the person tried the next thing.');
+ assert.equal(releasedByNextInteraction({tone:'alert',refresh:async()=>{}}),false);
+ assert.equal(releasedByNextInteraction({tone:'done'}),false);
+ assert.equal(releasedByNextInteraction({tone:'alert',kept:true}),false,
+  'The sentence saying an automatic action did not run was dismissed by the next key or press.');
+});
+
+test('a save that skipped an action keeps its alert without taking the focus, and keeps the next step (EBH-01)',async()=>{
+ // runMutation cannot run outside the shell, so its branch is read: the kept alert is the one
+ // that neither takes the focus nor is released by the next key, and it carries next.
+ const {readFile}=await import('node:fs/promises');
+ const actions=await readFile(new URL('../src/actions.ts',import.meta.url),'utf8');
+ assert.match(actions,/else if \(blocked !== null\) showKeptAlert\(outcome, next\);/,
+  'A save that skipped an automatic action said so with a sentence the next key dismissed, took the focus from the grid, or dropped the next step.');
 });
 
 test('two values are the same when an unset one and a missing one agree',()=>{

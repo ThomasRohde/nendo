@@ -493,6 +493,16 @@ export interface AgentStatus {
   remembered?: boolean;
 }
 
+/** An automatic action a save did not run, because its trigger's condition could not be worked out (EBH-01). */
+export interface BlockedCondition {
+  triggerId: string;
+  displayName: string;
+  entityId: string;
+  recordId: string;
+  code: string;
+  message: string;
+}
+
 export interface ApplyResult {
   revisionId: string;
   operationDigest: string;
@@ -500,6 +510,8 @@ export interface ApplyResult {
   dataRevision: number;
   changeSequence: number;
   isIdempotentReplay: boolean;
+  /** Empty, or absent from an older host, when every condition was decided. */
+  blockedConditions?: BlockedCondition[];
 }
 
 export interface DesktopMutationView {

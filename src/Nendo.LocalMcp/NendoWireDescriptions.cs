@@ -39,6 +39,8 @@ internal static class NendoWireDescriptions
                 "The records the write's automatic actions changed, rebuilt from its revision, with recordVersion null because the file may have moved since.",
             [(typeof(NendoApplyResult), nameof(NendoApplyResult.AssignedValues))] =
                 "Empty in a receipt: read the records for any codes the host assigned.",
+            [(typeof(NendoApplyResult), nameof(NendoApplyResult.BlockedConditions))] =
+                "Empty in a receipt: which actions a condition blocked is reported on the write result and not stored with the revision.",
             [(typeof(NendoApplyResult), nameof(NendoApplyResult.Origin))] =
                 "Who committed the original write, as History names it: the pseudonym of the agent session that wrote it.",
             [(typeof(NendoApplyResult), nameof(NendoApplyResult.RecordVersion))] =
@@ -52,6 +54,19 @@ internal static class NendoWireDescriptions
                 "created, updated or deleted.",
             [(typeof(NendoGeneratedChange), nameof(NendoGeneratedChange.RecordVersion))] =
                 "The version the record now holds; null after a delete, on a replay and in a receipt.",
+
+            [(typeof(NendoBlockedCondition), nameof(NendoBlockedCondition.TriggerId))] =
+                "The trigger whose condition could not be worked out, so its action did not run.",
+            [(typeof(NendoBlockedCondition), nameof(NendoBlockedCondition.DisplayName))] =
+                "The trigger's display name.",
+            [(typeof(NendoBlockedCondition), nameof(NendoBlockedCondition.EntityId))] =
+                "The record type of the record whose change raised the trigger.",
+            [(typeof(NendoBlockedCondition), nameof(NendoBlockedCondition.RecordId))] =
+                "The record whose change raised the trigger.",
+            [(typeof(NendoBlockedCondition), nameof(NendoBlockedCondition.Code))] =
+                "The calculation code that says why, such as calculation-missing-input.",
+            [(typeof(NendoBlockedCondition), nameof(NendoBlockedCondition.Message))] =
+                "What could not be worked out, as the calculation says it.",
 
             [(typeof(NendoAssignedValue), nameof(NendoAssignedValue.EntityId))] =
                 "The record type of the numbered record.",

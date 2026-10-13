@@ -525,6 +525,44 @@ public sealed class HierarchyTests
         Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.CountRecordsAsync(new(Entity) { Filters = [under] }))).Code);
     }
 
+    /// <summary>
+    /// EBH-02, as the independent review narrowed it: a subtree past the descendant bound is a
+    /// limit the data reaches, not a save that spent its budget. In a trigger condition it blocks
+    /// the action and is reported, and the person's edit commits (ADR-0008 §6).
+    /// </summary>
+    [TestMethod]
+    public async Task ASubtreeConditionPastTheDescendantBoundBlocksItsActionAndTheSaveCommits()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await CreateAsync(service, "root");
+        var children = Enumerable.Range(0, NendoHierarchyLimits.MaximumDescendants + 1).Select(index => (NendoOperation)new CreateRecordOperation(
+            $"wide-{index}", Entity, $"w{index:D5}", new Dictionary<string, object?> { ["title"] = $"W{index}", ["parent"] = "root" },
+            new Dictionary<string, long> { ["parent"] = 1 })).ToArray();
+        await coordinator.ApplyAsync(new("test", "wide", "test", "One more child than a subtree read folds", children));
+        await DeclareAsync(coordinator, service);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Order wide nodes", [
+            new SetBehaviourDefinitionOperation("a", new NendoActionDefinition("order", "Order wide nodes",
+                [NendoActionStep.SetField("10-order", NendoActionTarget.EventRecord, new NendoActionAssignment("ord", "1"))]), revision),
+            new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition("order.trigger", Entity, "Order nodes with children",
+                NendoTriggerEvents.Updated, "order", ["title"], "v > 0", [NendoBehaviourBinding.Subtree("v", Entity, NendoAggregateFunction.Count)]), revision),
+        ]));
+        TestBehaviourAuthority.Approving(coordinator);
+        var root = await RecordAsync(service, "root");
+
+        var applied = await service.SetFieldAsync(new(Entity, "root", "title", root.RecordVersion, "Renamed", Context("rename")));
+
+        var blocked = applied.BlockedConditions.SingleOrDefault();
+        Assert.IsNotNull(blocked, "A subtree past the descendant bound aborted the save, as if the save had spent its budget.");
+        Assert.AreEqual(("order.trigger", NendoCalculationCodes.LimitReached), (blocked.TriggerId, blocked.Code));
+        var after = await RecordAsync(service, "root");
+        Assert.AreEqual("Renamed", after.Values["title"].GetString(), "The person's own edit must commit.");
+        Assert.AreEqual(System.Text.Json.JsonValueKind.Null, after.Values["ord"].ValueKind, "A blocked condition ran its action anyway.");
+    }
+
     [TestMethod]
     public void TheWireFormatCarriesSubtreeBindingsAndKeepsOlderBindingsByteForByte()
     {

@@ -188,7 +188,11 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             await MaintainSearchIndexAsync(evidence, searchedBefore, transaction, cancellationToken);
 
             var lane = mutation.Operations[0].Lane;
-            if (lane == NendoRevisionLane.Definition) await ValidateRetiredBindingsAsync(transaction, cancellationToken);
+            if (lane == NendoRevisionLane.Definition)
+            {
+                await ValidateRetiredBindingsAsync(transaction, cancellationToken);
+                await ValidateRequirementBehaviourAsync(mutation.Operations, transaction, cancellationToken);
+            }
             if (screensCompiledBefore is { IsValid: true } &&
                 await CompileScreensAsync(transaction, cancellationToken) is { IsValid: false } after)
             {
@@ -250,6 +254,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             {
                 GeneratedChanges = GeneratedChanges(chain),
                 AssignedValues = AssignedValues(evidence),
+                BlockedConditions = chain is null ? [] : [.. chain.BlockedConditions],
             };
             // Capture exactly our transaction's authority while it still owns
             // the SQLite write lock. No cancellable refresh follows COMMIT.
@@ -490,6 +495,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                         false)
                     {
                         AssignedValues = AssignedValues(evidence),
+                        BlockedConditions = chain is null ? [] : [.. chain.BlockedConditions],
                         GeneratedChanges = chain is not null
                             ? GeneratedChanges(chain)
                             : reviewedForMutation.Length == 0
@@ -515,6 +521,8 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 transaction,
                 cancellationToken);
             await ValidateRetiredBindingsAsync(transaction, cancellationToken);
+            await ValidateRequirementBehaviourAsync(
+                changeSet.Mutations.SelectMany(mutation => mutation.Operations), transaction, cancellationToken);
             var result = new NendoChangeSetApplyResult(
                 changeSetDigest,
                 results.AsReadOnly(),

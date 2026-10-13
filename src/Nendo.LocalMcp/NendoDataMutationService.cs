@@ -397,6 +397,7 @@ internal sealed class NendoDataMutationService(
                 {
                     AlsoChanged = applied.GeneratedChanges,
                     Assigned = applied.AssignedValues,
+                    BlockedConditions = applied.BlockedConditions,
                 };
             },
             cancellationToken);
@@ -435,6 +436,7 @@ internal sealed class NendoDataMutationService(
                 {
                     AlsoChanged = applied.GeneratedChanges,
                     Assigned = applied.AssignedValues,
+                    BlockedConditions = applied.BlockedConditions,
                 };
             },
             cancellationToken);
@@ -712,6 +714,7 @@ internal sealed class NendoDataMutationService(
             RecordVersion = reported,
             AlsoChanged = result.GeneratedChanges,
             Assigned = result.AssignedValues,
+            BlockedConditions = result.BlockedConditions,
         };
     }
 

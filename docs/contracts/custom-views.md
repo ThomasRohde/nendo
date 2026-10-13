@@ -704,6 +704,12 @@ commands, through the same typed operations and version checks as a person's edi
   of the key, so one package's key never answers for another's. Without a `writeKey`
   a batch sent again is a new batch. A single write that was kept but could not be
   read back is answered `written-not-read`, never as a refusal.
+- **An automatic action a write did not run** (2026-10-13, W-209). When a
+  trigger's condition could not be worked out, the write commits without that
+  action, and Nendo says so in its own message line, as after a person's save,
+  for `records.create`, `records.update`, `records.move`, `commands.run` and
+  `records.batch`. The view's answer is unchanged
+  ([calculations and actions](calculations-and-actions.md)).
 - **Values.** Each value is null, text, true or false, a number, or
   `{"$nendoNumber": "‹digits›"}` for a decimal a JavaScript number would round. The
   broker rebuilds the map field by field, at most 64 fields. Valid field IDs such as

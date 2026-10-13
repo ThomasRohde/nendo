@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentAccessMode, type AgentActivity, type ApplicationPlan, type RevisionSummary } from './host-types';
+import { WorkbenchHostError, type AgentAccessMode, type AgentActivity, type ApplicationPlan, type BlockedCondition, type RevisionSummary } from './host-types';
 import { derivedField } from './calculated-fields';
 import { exactNumberText } from './scalars';
 
@@ -7,6 +7,32 @@ import { exactNumberText } from './scalars';
  * the session, so every function is exercised directly by scripts/format.test.mjs
  * rather than through a rendered page.
  */
+
+/**
+ * The sentence a save adds when an automatic action did not run because its condition could
+ * not be worked out, or null when every action that should have run did. The save committed,
+ * so this is said beside the outcome rather than as a refusal; until 2026-10-13 it was not
+ * said at all, and a total the action keeps went stale with nobody told (EBH-01).
+ */
+export function blockedConditionsNotice(blocked: readonly BlockedCondition[] | undefined): string | null {
+  if (blocked === undefined || blocked.length === 0) return null;
+  if (blocked.length === 1) {
+    const only = blocked[0]!;
+    return `The automatic action '${only.displayName}' did not run: ${only.message} What it keeps may be out of date.`;
+  }
+  const names = blocked.map(condition => `'${condition.displayName}' (${condition.message})`).join('; ');
+  return `${blocked.length} automatic actions did not run: ${names}. What they keep may be out of date.`;
+}
+
+/**
+ * Whether the person's next key or press anywhere releases a retained sentence. A refusal is
+ * about the thing just tried and is stale the moment they try the next thing. A success, a
+ * notice held until its Refresh view button works, and a kept alert are not: a kept alert says
+ * that an automatic action did not run, which is still true after the next keystroke.
+ */
+export function releasedByNextInteraction(outcome: { tone: 'done' | 'alert'; refresh?: unknown; kept?: boolean } | null): boolean {
+  return outcome !== null && outcome.tone === 'alert' && outcome.refresh === undefined && outcome.kept !== true;
+}
 
 export function messageFor(error: unknown): string {
   if (error instanceof WorkbenchHostError || error instanceof Error) return error.message;

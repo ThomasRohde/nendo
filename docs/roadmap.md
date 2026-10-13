@@ -503,6 +503,18 @@ What remains open:
   also raises a file to 1.49.0 without needing it.
 - **A file's minimum host never goes down.** Clearing a property with `ui.removeProperty`, or
   undoing the change that raised a rung, leaves the rung where it was.
+- **History does not show a blocked trigger condition yet.** A save whose trigger condition
+  could not be worked out says so on its write result, in the Workbench and to an agent (EBH-01),
+  but the list is not stored with the revision, so History, a receipt read back and a replay do
+  not carry it. Nor does a proposal: `CaptureBehaviourPlan` keeps the generated changes of a
+  prepared chain but not its blocked conditions, and promotion replays the reviewed plan with
+  actions off, so neither the proposal's review nor the accept result (the Workbench's or
+  `nendo.change_set.accept`'s) names an action a condition blocked. ADR-0008 §12 asks for
+  History too. Storing it needs a new protected table as the next rung of the layout ladder.
+- **A decimal into a whole-number field is refused unless the formula rounds to 0 digits.**
+  An action that writes `total / count` into an Integer field is refused at install (EBH-04);
+  `RoundAway(…, 0)` or `RoundEven(…, 0)` as the whole formula is accepted. A decimal result that
+  happens to be whole is not recognised any other way.
 
 ## Left open by the 2026-09-12 vocabulary widening
 

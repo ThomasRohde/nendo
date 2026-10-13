@@ -213,7 +213,17 @@ public sealed class BehaviourActionTests
         await Fixture(coordinator, service, conditionExpression: "1 / 0 = 1.0");
         var history = await service.GetHistoryAsync();
 
-        await coordinator.ApplyAsync(Edit());
+        var applied = await coordinator.ApplyAsync(Edit());
+
+        // The write says which action did not run and why. BlockedConditions was collected and
+        // never read, so the save reported plain success and the stale total was noticed by
+        // nobody (EBH-01).
+        var blocked = applied.BlockedConditions.SingleOrDefault();
+        Assert.IsNotNull(blocked, "The write committed with an action skipped by its condition and said nothing about it.");
+        Assert.AreEqual("10-total", blocked.TriggerId);
+        Assert.AreEqual("Keep the project total current", blocked.DisplayName);
+        Assert.AreEqual(("tasks", "t2"), (blocked.EntityId, blocked.RecordId));
+        Assert.AreEqual(NendoCalculationCodes.DivideByZero, blocked.Code);
 
         // The edit itself is valid and committed.
         var t2 = await Task2(service);
@@ -494,7 +504,7 @@ public sealed class BehaviourActionTests
     }
 
     [TestMethod]
-    public async Task D3_17_AnActionAssigningAMismatchedTypeRefusesWithATypedError()
+    public async Task D3_17_AnActionAssigningAMismatchedTypeIsRefusedAtInstall()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
@@ -514,28 +524,32 @@ public sealed class BehaviourActionTests
             new Dictionary<string, object?> { ["project"] = "p1", ["done"] = false }, Context("t1"),
             new Dictionary<string, long> { ["project"] = 1 }));
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
-        // An action that assigns a Text result to an Integer field. Nothing at install
-        // time compares the assignment's type to the field's storage kind.
-        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Mismatched action", [
+        // An action that assigns a Text result to an Integer field. It installed, and every
+        // save that raised the trigger was then refused on the storage kind (EBH-04).
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(new("test", "behaviour", "test", "Mismatched action", [
             new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(
                 "project.setTotal", "Set the project total",
                 [NendoActionStep.SetField("10-total", NendoActionTarget.Referenced("project"),
                     new NendoActionAssignment("total", "Concat('a', 'b')", [], []))]), revision),
             new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition(
                 "10-total", "tasks", "Set the total", NendoTriggerEvents.Updated, "project.setTotal", ["done"]), revision),
-        ]));
-        TestBehaviourAuthority.Approving(coordinator);
+        ])), "An action writing text to a whole-number field installed, so every save that ran it would be refused.");
+        Assert.AreEqual("action-target-mismatch", refused.Code);
+        StringAssert.Contains(refused.Message, "writes a text value to 'total'", StringComparison.Ordinal);
 
-        // p1.total already holds the number 1, so the no-op guard reaches its numeric arm
-        // with a Text value. That must surface a typed storage-kind refusal, not an
-        // InvalidCastException escaping the save.
+        // The same action from a host that installed it before that check. p1.total holds the
+        // number 1, so the no-op guard reaches its numeric arm with a Text value. That must
+        // surface a typed storage-kind refusal, not an InvalidCastException escaping the save.
+        (coordinator, service) = await PlaceUncheckedAssignmentAsync(workspace, coordinator, service,
+            "project.setTotal", "Set the project total", "10-total", "total", "2", "Concat('a', 'b')", ["done"]);
         await Assert.ThrowsExactlyAsync<NendoValidationException>(
-            () => service.SetFieldAsync(new("tasks", "t1", "done", 1, true, Context("edit"))));
+            () => service.SetFieldAsync(new("tasks", "t1", "done", 1, true, Context("edit"))),
+            "A Text value met a stored number in the no-op guard and escaped the save as an InvalidCastException.");
         Assert.AreEqual(1L, (await Project(service)).Values["total"].GetInt64());
     }
 
     [TestMethod]
-    public async Task D3_18_AnIntegerResultAgainstATextFieldHoldingTheSameDigitsIsStillRefused()
+    public async Task D3_18_AnIntegerResultForATextFieldIsRefusedAtInstall()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
@@ -555,25 +569,64 @@ public sealed class BehaviourActionTests
             new Dictionary<string, object?> { ["project"] = "p1", ["done"] = false }, Context("t1"),
             new Dictionary<string, long> { ["project"] = 1 }));
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
-        // An action that assigns an Integer result to a Text field.
-        await coordinator.ApplyAsync(new("test", "behaviour", "test", "Mismatched action", [
+        // An action that assigns an Integer result to a Text field. A number never fills a
+        // text field, so whether it is refused cannot wait for a save, nor depend on what the
+        // record happens to hold: it is refused when it is installed (EBH-04).
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(new("test", "behaviour", "test", "Mismatched action", [
             new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(
                 "project.setName", "Number the project",
                 [NendoActionStep.SetField("10-name", NendoActionTarget.Referenced("project"),
                     new NendoActionAssignment("projectName", "2 + 3", [], []))]), revision),
             new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition(
                 "10-name", "tasks", "Number the project", NendoTriggerEvents.Updated, "project.setName", ["done"]), revision),
-        ]));
-        TestBehaviourAuthority.Approving(coordinator);
+        ])), "An action writing a number to a text field installed, so every save that ran it would be refused.");
+        Assert.AreEqual("action-target-mismatch", refused.Code);
+        StringAssert.Contains(refused.Message, "writes an integer value to 'projectName'", StringComparison.Ordinal);
 
-        // p1.projectName already holds the text "5" and the action produces the integer
-        // 5. Their renderings agree, so the no-op guard skipped the write as "already
-        // what it should be" — while the same action against a project named anything
-        // else was refused. Whether the wrong type is reported cannot depend on what the
-        // record happens to hold.
+        // The same action from a host that installed it before that check. p1.projectName holds
+        // the text "5" and the action produces the integer 5. Their renderings agree, so the
+        // no-op guard once skipped the write as "already what it should be", while the same
+        // action against a project named anything else was refused. Whether the wrong type is
+        // reported cannot depend on what the record happens to hold.
+        (coordinator, service) = await PlaceUncheckedAssignmentAsync(workspace, coordinator, service,
+            "project.setName", "Number the project", "10-name", "projectName", "'5'", "2 + 3", ["done"]);
         await Assert.ThrowsExactlyAsync<NendoValidationException>(
-            () => service.SetFieldAsync(new("tasks", "t1", "done", 1, true, Context("edit"))));
+            () => service.SetFieldAsync(new("tasks", "t1", "done", 1, true, Context("edit"))),
+            "An Integer result was taken as already stored because its printed form matched the stored text.");
         Assert.AreEqual("5", (await Project(service)).Values["projectName"].GetString());
+    }
+
+    /// <summary>
+    /// Stands in for an action a host installed before the install-time type check (EBH-04):
+    /// installs the action and its trigger with an assignment that fits, closes the file,
+    /// writes the given formula into the stored body, opens the file again and approves what
+    /// it now asks for. The planner's own guards are then what a save meets.
+    /// </summary>
+    private static async Task<(NendoWriteCoordinator Coordinator, NendoApplicationService Service)> PlaceUncheckedAssignmentAsync(
+        EngineTestWorkspace workspace, NendoWriteCoordinator coordinator, NendoApplicationService service,
+        string actionId, string displayName, string stepId, string fieldId, string fitting, string placed, string[] relevant)
+    {
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "fitting", "test", "Fitting action", [
+            new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(actionId, displayName,
+                [NendoActionStep.SetField(stepId, NendoActionTarget.Referenced("project"), new NendoActionAssignment(fieldId, fitting, [], []))]), revision),
+            new SetBehaviourDefinitionOperation("t", new NendoTriggerDefinition(
+                stepId, "tasks", displayName, NendoTriggerEvents.Updated, actionId, relevant), revision),
+        ]));
+        await coordinator.DisposeAsync();
+        workspace.Forget(coordinator);
+        await using (var connection = new SqliteConnection($"Data Source={workspace.FilePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE __nendo_behaviour SET body_json = json_set(body_json, '$.steps[0].assignments[0].expression', @expression) WHERE definition_id = @id;";
+            command.Parameters.AddWithValue("@expression", placed);
+            command.Parameters.AddWithValue("@id", actionId);
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync(), "The stored action was not found to place the formula in.");
+        }
+        var reopened = await workspace.OpenAsync();
+        TestBehaviourAuthority.Approving(reopened);
+        return (reopened, new NendoApplicationService(reopened));
     }
 
     /// <summary>

@@ -6,7 +6,7 @@ import { hostKeys, type CommandSource, type Json, type ViewTheme } from './exten
 import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
 import type { ProposalPreview } from './host';
 import { navigationTrail } from './navigation-trail';
-import { content, refreshChrome, root } from './shell';
+import { content, refreshChrome, root, showKeptAlert } from './shell';
 import type { PaletteCommand } from './shortcuts';
 import { icon } from './icons';
 import { viewKeyMayRun, viewMenuMayShow } from './view-input';
@@ -113,6 +113,7 @@ export function installViewFrames(): void {
       openScreen: (_mount, target) => openScreenFromView(target.surfaceId),
       openStudio: (_mount, target) => openStudioFromView(target.entityId),
       toast: (mount, text) => toastFromView((mount as Mount).spec.title, text),
+      actionsSkipped: (mount, text) => showKeptAlert(`${(mount as Mount).spec.title} saved a change. ${text}`),
       setHeight: (mount, pixels) => setHeight(mount as Mount, pixels),
       openProposal: (mount, preview) => {
         const key = (mount as Mount).key;

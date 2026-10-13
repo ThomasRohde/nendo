@@ -18,7 +18,7 @@ const stubs = {
     export const interactionInProgress = () => false; export const rerender = () => { h().redraws += 1; };
     export const setBusy = () => {}; export const showError = (text) => { h().errors.push(text); };
     export const announce = () => {}; export const clearError = () => {}; export const refreshChrome = () => {};
-    export const showRetainedNotice = () => {}; export const showOutcome = () => {}; export const requiredElement = () => ({ hidden: true, textContent: '' });
+    export const showRetainedNotice = () => {}; export const showKeptAlert = () => {}; export const showOutcome = () => {}; export const requiredElement = () => ({ hidden: true, textContent: '' });
     export const focusWithoutInteraction = () => {};`,
   './panels': `export const drillInto = async () => {}; export const drillIntoCell = async () => {}; export const refreshOverview = async () => {};
     export const refreshVisibleTiles = async () => {}; export const wireCharts = () => {}; export const wireSummaryRetry = () => {};

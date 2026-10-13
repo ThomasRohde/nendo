@@ -3,8 +3,8 @@ import type { OutcomeNotice, ViewName } from './app-state';
 import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
-import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showOutcome, showRetainedNotice } from './shell';
-import { escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
+import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showKeptAlert, showOutcome, showRetainedNotice } from './shell';
+import { blockedConditionsNotice, escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
 import { decideWriteFailure, nameHolder, namingFieldId } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
@@ -83,8 +83,13 @@ export async function runMutation(
     const notice = await refreshAfterOutcome(result);
     rerender();
     // Drawn as well as announced: a hidden live region told a screen reader and nobody else
-    // that a save, an add, a delete or a command had worked (UX-04).
-    if (notice !== null) showOutcomeRefreshNotice(success, notice);
+    // that a save, an add, a delete or a command had worked (UX-04). An action a condition
+    // blocked is said in the tone of an alert and kept until the next action, since what it
+    // keeps is now stale; it does not take the focus, and it keeps the success's next step.
+    const blocked = blockedConditionsNotice(result.mutation.blockedConditions);
+    const outcome = blocked === null ? success : `${success} ${blocked}`;
+    if (notice !== null) showOutcomeRefreshNotice(outcome, notice);
+    else if (blocked !== null) showKeptAlert(outcome, next);
     else showOutcome(success, next);
     return 'saved';
   } catch (error) {

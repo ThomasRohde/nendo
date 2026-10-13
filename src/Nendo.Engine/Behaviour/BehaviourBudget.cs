@@ -93,5 +93,6 @@ internal sealed class BehaviourBudget
 
     private static NendoCalculationException Exhausted(string what) =>
         new(NendoCalculationCodes.LimitReached,
-            $"This calculation reached the {what} limit for a single save. Simplify the formula or narrow what it reads.");
+            $"This calculation reached the {what} limit for a single save. Simplify the formula or narrow what it reads.")
+        { ExhaustedBudget = true };
 }

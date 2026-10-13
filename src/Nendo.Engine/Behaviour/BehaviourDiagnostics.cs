@@ -54,4 +54,14 @@ public static class NendoCalculationCodes
 public sealed class NendoCalculationException(string code, string message) : NendoException(message)
 {
     public string Code { get; } = code;
+
+    /// <summary>
+    /// True when the save's own budget ran out: its work units, function calls, generated
+    /// changes or related-row allowance. Such a ceiling aborts the whole save, a trigger
+    /// condition's included. A limit the data itself reaches, such as a subtree past the
+    /// hierarchy's descendant bound or a record deeper than its hierarchy allows, keeps the
+    /// same code but is not a budget: in a condition it blocks the action and is reported
+    /// (ADR-0008 §6, EBH-02).
+    /// </summary>
+    internal bool ExhaustedBudget { get; init; }
 }

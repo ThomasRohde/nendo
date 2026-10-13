@@ -19,7 +19,7 @@ const methods = new Set(['data.createRecord', 'data.deleteRecord', 'data.moveRec
 const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict', 'record-version-conflict',
   'record-referenced', 'record-id-reserved', 'record-version-exhausted', 'deletion-state-conflict',
   'choice-retired', 'label-conflict', 'definition-version-conflict',
-  'entity-retired', 'field-retired', 'entity-referenced', 'retired-binding', 'required-backfill-needed',
+  'entity-retired', 'field-retired', 'entity-referenced', 'retired-binding', 'field-requirement-in-use', 'required-backfill-needed',
   'target-version-required', 'target-version-conflict', 'target-not-found', 'reference-unbound',
   'entity-not-found', 'field-not-found', 'record-not-found', 'command-unavailable', 'compensation-not-supported', 'proposal-not-found',
   'hierarchy-not-declared', 'hierarchy-order-not-declared', 'hierarchy-sibling-not-found',
