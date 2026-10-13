@@ -139,7 +139,6 @@ async function editCell(entity, record, value) {
 
 
 const phase = process.argv[5];
-let originalTheme;
 // An entity may own eight boards and eight lists, so Use no longer has a board
 // mode to fall into: the first compiled root is the default and this journey
 // selects the board it drags on. #show-board is the alias on the first board.
@@ -165,7 +164,6 @@ async function pointerDrag(recordId, group, previewName, cancel = false) {
 }
 try {
   await connect();await command('Runtime.enable');await ready();await snapshot();
-  originalTheme=(await host('appearance.get')).preference;
   if(phase==='create'){
     await click('#start-application');await ready();await click('#accept-proposal');await ready();
     const plan=(await host('semantic.compile')).applications[0];
@@ -242,7 +240,9 @@ try {
   assert(pageErrors.length===0,'Unhandled renderer exception.');
   console.log(`Drag ${phase}: passed`);
 }finally{
-  if(originalTheme){await click(`[data-theme-option="${originalTheme}"]`);await ready();}
+  // No theme to put back: the lane runs on a device-state root of its own, so the
+  // switches above never reach the owner's, and a restoring click after a lost host
+  // only replaced the real failure with a timeout.
   socket?.close();
 }
 

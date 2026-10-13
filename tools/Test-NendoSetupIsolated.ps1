@@ -26,7 +26,9 @@ $inventorySource = Join-Path $pilot 'nendo-install.json'
 if (-not (Test-Path -LiteralPath $inventorySource)) { throw "No payload inventory at $inventorySource. Run Build-NendoInstaller.ps1 first." }
 
 $ownerRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/Nendo'
-$evidenceRoot = Join-Path $repoRoot ('artifacts/evidence/runs/p6-setup-isolated-' + [Guid]::NewGuid().ToString('N'))
+# The space is deliberate: every run then passes setup paths that must survive being
+# put on a command line, which is where a checkout path with a space broke this lane.
+$evidenceRoot = Join-Path $repoRoot ('artifacts/evidence/runs/p6-setup-isolated ' + [Guid]::NewGuid().ToString('N'))
 [void](New-Item -ItemType Directory -Path $evidenceRoot)
 $installRoot = Join-Path $evidenceRoot 'install'
 # The file association is written to a class store of this run's own. Pointing
@@ -182,8 +184,9 @@ function Get-OwnerAssociationSnapshot {
 $ownerAssociationBefore = Get-OwnerAssociationSnapshot
 # The owner installation must be untouched throughout, judged by the files it
 # owns: the paths and hashes in its inventory. A raw file count also counted the
-# WebView2 profile a running owner instance keeps inside the folder, which churns
-# its caches while the app is open and failed this guard on its own.
+# WebView2 profile an owner instance kept inside the folder before the profile moved
+# to device state, which churned its caches while the app was open and failed this
+# guard on its own.
 function Get-OwnedSnapshot {
     $inventory = Join-Path $ownerRoot 'nendo-install.json'
     if (-not (Test-Path -LiteralPath $inventory -PathType Leaf)) { return 'no owner installation' }
@@ -195,16 +198,28 @@ function Get-OwnedSnapshot {
 }
 $ownerBefore = Get-OwnedSnapshot
 
+# Start-Process joins -ArgumentList with spaces and quotes nothing, so a path with a
+# space reached setup as two arguments. Each one is quoted the way a Windows command
+# line is split: backslashes before a quote are doubled and the quote is escaped.
+function ConvertTo-CommandLine([string[]] $Arguments) {
+    return (@($Arguments | ForEach-Object {
+        if ($_ -and $_ -notmatch '[\s"]') { $_ }
+        else { '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"' }
+    }) -join ' ')
+}
 $script:setupRuns = 0
 function Invoke-Setup([string] $Mode, [string[]] $Extra = @()) {
     $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $setup,
-        '-Mode', $Mode, '-InstallRoot', $installRoot) + $Extra
+        '-Mode', $Mode, '-InstallRoot', $installRoot,
+        # A browser profile folder of the run's own: setup moves an older version's profile
+        # into it, and the real one is this account's.
+        '-BrowserProfileRoot', (Join-Path $evidenceRoot 'device-state\WebView2')) + $Extra
     # Setup runs hidden, so its output is kept in the evidence folder and a failure
     # quotes the end of it: an exit code alone said nothing about what was refused.
     $script:setupRuns++
     $log = Join-Path $evidenceRoot ("setup-{0:D2}-{1}.log" -f $script:setupRuns, $Mode.ToLowerInvariant())
     $errors = "$log.errors"
-    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WindowStyle Hidden -PassThru -Wait `
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList (ConvertTo-CommandLine $arguments) -WindowStyle Hidden -PassThru -Wait `
         -RedirectStandardOutput $log -RedirectStandardError $errors
     if ($process.ExitCode -ne 0) {
         $tail = @(Get-Content -LiteralPath $log -ErrorAction SilentlyContinue | Select-Object -Last 8) +

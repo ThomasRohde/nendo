@@ -2,10 +2,14 @@ import { createNendoMcpClient } from './Nendo-McpClient.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export async function verifyExternalMcpRefresh({processId, host, click, ready, evaluate, waitFor, assert}, entity) {
+// discoveryRoot is where the lane's own host publishes its MCP endpoint, under the run's
+// device-state root. It is required: reading the owner's discovery folder put the lane's
+// process in front of the owner's agents and made isolation impossible.
+export async function verifyExternalMcpRefresh({processId, host, click, ready, evaluate, waitFor, assert, discoveryRoot}, entity) {
+  assert(typeof discoveryRoot === 'string' && discoveryRoot.length > 0, "Pass the run's own MCP discovery folder.");
   await host('agent.setMode', {mode:'editData'});
   await click('#nav-agent'); await ready();
-  const root=path.join(process.env.LOCALAPPDATA,'Nendo','Mcp','active');
+  const root=discoveryRoot;
   const discovery=await waitFor(async()=>{
     const entries=[];
     for(const name of (await fs.readdir(root)).filter(name=>name.endsWith('.json'))) {

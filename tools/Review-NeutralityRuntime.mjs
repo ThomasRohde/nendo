@@ -416,4 +416,7 @@ try {
   await fs.writeFile(path.join(output,'report.json'),JSON.stringify({scope:'Real unpackaged Desktop Studio; no human or installed qualification',checks:['Empty file has no implicit schema, data or custom UI','Schema-only change review, reject and acceptance','Two entities use the same generic create/edit paths','Data and Structure select each entity','Light/Dark Studio evidence','No unhandled page exception','Eight MCP resource types read through actual stateful HTTP','MCP authors custom definitions and data; active state unchanged until host acceptance','MCP create/exact replay/edit/command uses shared generic services','Second MCP proposal reshapes existing app and preserves a post-clone unrelated edit','Workbench form and command use stored bindings; second entity stays editable with custom UI present','Old endpoint and renderer generation are invalidated on native close'],holdout,finalSequence:holdout.sequence},null,2));
   console.log(JSON.stringify({result:'passed',evidence:output,finalSequence:holdout.sequence}));
   }
+  // Every phase, not only the first: an exception thrown while a reference journey runs
+  // its form, command and compensation can leave the page looking right.
+  assert(pageErrors.length===0, `Unhandled page exception in the ${phase} phase: ${pageErrors.join(' | ')}`);
 } catch(error) { await screenshot('failure.png').catch(()=>{}); throw error; } finally { if(socket) socket.close(); }

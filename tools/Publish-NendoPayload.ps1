@@ -7,13 +7,10 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $outputRoot = Join-Path $repoRoot 'artifacts/build/publish'
 $payload = Join-Path $outputRoot 'payload'
 [void][IO.Directory]::CreateDirectory($outputRoot)
+# The previous build's records are replaced, not archived: artifacts/ is scratch, and a
+# build is reproduced from its commit rather than from a copy of its logs (AGENTS.md).
 if (Test-Path -LiteralPath (Join-Path $outputRoot 'manifest.json')) {
-    $id = (Get-FileHash -LiteralPath (Join-Path $outputRoot 'manifest.json')).Hash.Substring(0,16).ToLowerInvariant()
-    $evidence = Join-Path $repoRoot "artifacts/evidence/installers/$id"
-    [void][IO.Directory]::CreateDirectory($evidence)
-    Get-ChildItem -LiteralPath $outputRoot -File | Copy-Item -Destination $evidence -Force
     & (Join-Path $PSScriptRoot 'Remove-NendoBuildPayload.ps1') -BuildRoot $outputRoot -Apply | Out-Null
-    Copy-Item -LiteralPath (Join-Path $outputRoot 'payload-pruned.json') -Destination $evidence -Force
     if (Test-Path -LiteralPath $payload) { throw 'Unrecognized payload files were retained; inspect before republishing.' }
     foreach ($name in @('manifest.json','installer.json','installer-smoke.json','nendo-install.json','nendo.nsi','payload-pruned.json','workbench-restore.log','workbench-check.log','workbench-test.log','workbench-build.log','publish.log','installer-build.log','installed-runtime.log','installed-performance.log')) {
         $file = Join-Path $outputRoot $name

@@ -35,11 +35,22 @@ if ([IO.Path]::GetFullPath($installRoot).StartsWith([IO.Path]::GetFullPath($owne
     throw 'The journey root resolved inside the owner installation.'
 }
 
+# Start-Process joins -ArgumentList with spaces and quotes nothing, so a path with a
+# space reached setup as two arguments. Each one is quoted the way a Windows command
+# line is split: backslashes before a quote are doubled and the quote is escaped.
+function ConvertTo-CommandLine([string[]] $Arguments) {
+    return (@($Arguments | ForEach-Object {
+        if ($_ -and $_ -notmatch '[\s"]') { $_ }
+        else { '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"' }
+    }) -join ' ')
+}
 function Invoke-Setup([string] $Mode, [string[]] $Extra = @()) {
     $log = Join-Path $evidenceRoot "setup-$($Mode.ToLowerInvariant()).log"
     $arguments = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $setup,
-        '-Mode', $Mode, '-InstallRoot', $installRoot, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot) + $Extra
-    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WindowStyle Hidden -PassThru -Wait `
+        '-Mode', $Mode, '-InstallRoot', $installRoot, '-ClassesRoot', $classesRoot, '-StartMenuRoot', $startMenuRoot,
+        # A browser profile folder of the run's own, never this account's real one.
+        '-BrowserProfileRoot', (Join-Path $evidenceRoot 'device-state\WebView2')) + $Extra
+    $process = Start-Process -FilePath 'powershell.exe' -ArgumentList (ConvertTo-CommandLine $arguments) -WindowStyle Hidden -PassThru -Wait `
         -RedirectStandardOutput $log -RedirectStandardError "$log.errors"
     if ($process.ExitCode -ne 0) {
         $tail = @(Get-Content -LiteralPath $log, "$log.errors" -ErrorAction SilentlyContinue | Select-Object -Last 12)
@@ -68,14 +79,24 @@ try {
     $env:NENDO_EXTENSION_JOURNEY_EXECUTABLE = $executable
     try {
         $log = Join-Path $evidenceRoot 'journey-test.log'
+        # VSTest exits 0 when the filter matches nothing, so a renamed class passed this
+        # lane having run no test. Matching nothing is an error, and the lane counts what
+        # passed against the test methods the class declares.
         dotnet test (Join-Path $repoRoot 'tests/Nendo.Desktop.Tests/Nendo.Desktop.Tests.csproj') --no-restore `
-            --filter 'FullyQualifiedName~DesktopExtensionViewJourneyTests' *> $log
+            --filter 'FullyQualifiedName~DesktopExtensionViewJourneyTests' -- RunConfiguration.TreatNoTestsAsError=true *> $log
         $exit = $LASTEXITCODE
     }
     finally { Remove-Item Env:NENDO_EXTENSION_JOURNEY_EXECUTABLE -ErrorAction SilentlyContinue }
     if ($exit -ne 0) {
         $tail = @(Get-Content -LiteralPath $log | Select-String -Pattern '^Error:|Evidence:|Failed!' | Select-Object -First 6)
         throw "The installed-host journey failed (exit $exit). Log: $log`n$($tail -join "`n")"
+    }
+    $journeySource = Get-Content -LiteralPath (Join-Path $repoRoot 'tests/Nendo.Desktop.Tests/DesktopExtensionViewJourneyTests.cs') -Raw
+    $expectedTests = [regex]::Matches($journeySource, '\[TestMethod\b').Count
+    $passedLine = [regex]::Match((Get-Content -LiteralPath $log -Raw), 'Passed:\s*(\d+)')
+    $passedTests = if ($passedLine.Success) { [int]$passedLine.Groups[1].Value } else { 0 }
+    if ($expectedTests -eq 0 -or $passedTests -ne $expectedTests) {
+        throw "The installed-host journey ran $passedTests passing test(s); DesktopExtensionViewJourneyTests declares $expectedTests. Log: $log"
     }
     $outcome = 'passed'
 }

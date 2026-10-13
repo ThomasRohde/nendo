@@ -103,25 +103,30 @@ async page => {
   await frame.getByLabel('Speed', { exact: true }).fill('2.9'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
   await page.waitForTimeout(400);
   const keptBefore = await batches();
+  // A remounted view is a new frame that reports about:blank until its navigation commits,
+  // so each remount polls for it rather than looking once after a fixed wait (TGA-11).
+  const remounted = async (...previous) => {
+    for (let i = 0; i < 200; i++) {
+      const next = page.frames().find(f => f.url().startsWith(origin + '/') && !previous.includes(f));
+      if (next) return next;
+      await page.waitForTimeout(50);
+    }
+    throw Error('The Swarm view did not mount again within ten seconds of a remount.');
+  };
   await page.evaluate(() => window.broker.remount());
-  await page.waitForTimeout(350);
-  let restarted = null;
-  for (let i = 0; i < 100 && !restarted; i++) { await page.waitForTimeout(50); restarted = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frame); }
+  const restarted = await remounted(frame);
   await restarted.waitForFunction(() => window.swarm?.model?.species);
   const recovered = await restarted.evaluate(() => ({ dirty: window.swarm.dirty, speed: window.swarm.model.species.speed, field: document.getElementById('speed').value, status: document.getElementById('status').textContent }));
   assert(recovered.dirty && recovered.speed === 2.9 && recovered.field === '2.9' && /kept from before/.test(recovered.status), `The unsaved behaviour must come back when the view starts again: ${JSON.stringify(recovered)}`);
   assert(await batches() === keptBefore && (await record('sw.species', speciesId)).values['sw.species.speed'] !== 2.9, 'Keeping a draft must never save it.');
   await restarted.getByRole('button', { name: 'Reload saved' }).click(); await restarted.waitForFunction(() => !window.swarm.dirty);
   await page.evaluate(() => window.broker.remount());
-  await page.waitForTimeout(350);
-  let clean = null;
-  for (let i = 0; i < 100 && !clean; i++) { await page.waitForTimeout(50); clean = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frame && f !== restarted); }
+  const clean = await remounted(frame, restarted);
   await clean.waitForFunction(() => window.swarm?.model?.species);
   assert(!(await clean.evaluate(() => window.swarm.dirty)), 'Reload saved must discard the kept draft.');
   // Reloading the frame keeps saved records and replays the same result.
   await page.evaluate(() => window.broker.remount());
-  await page.waitForTimeout(350);
-  const reopened = page.frames().find(f => f.url().startsWith(origin + '/'));
+  const reopened = await remounted(frame, restarted, clean);
   await reopened.waitForFunction(() => window.swarm?.model?.species);
   await reopened.locator('#experiments').evaluate(e => { e.open = true; });
   await reopened.getByRole('button', { name: 'Replay', exact: true }).click();

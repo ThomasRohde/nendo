@@ -29,5 +29,7 @@ $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $root 
 $refused = $false
 try { & $prune -BuildRoot $root -Apply | Out-Null } catch { $refused = $true }
 if (-not $refused) { throw 'Traversal was not refused.' }
-@{result='passed'; checks=@('dry run','changed payload refused','owned bytes removed','already-pruned no-op','unknown user bytes retained','manifest retained','traversal refused')} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $root 'results.json')
-Write-Output "Build pruning checks passed: $root"
+# The fixture is this run's own and says nothing once the checks above have passed; a
+# failure throws before here and leaves it for diagnosis.
+Remove-Item -LiteralPath $root -Recurse -Force
+Write-Output 'Build pruning checks passed: dry run, changed payload refused, owned bytes removed, already-pruned no-op, unknown user bytes retained, manifest retained, traversal refused.'

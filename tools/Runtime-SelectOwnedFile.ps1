@@ -83,18 +83,25 @@ if ($null -eq $container) {
             ForEach-Object { @{ Id = $_.Current.AutomationId; Class = $_.Current.ClassName; Type = $_.Current.ControlType.ProgrammaticName } }) }
     }) | ConvertTo-Json -Depth 5 -Compress
     # See it, rather than infer: capture the main window and list every top-level window.
-    Add-Type -AssemblyName System.Drawing
-    Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class Cap{[DllImport("user32.dll")]public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint f);}'
-    $shot = Join-Path ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../artifacts/extension-runtime-results'))) 'picker-missing.png'
-    $mainRect = $root.Current.BoundingRectangle
-    if ($mainRect.Width -ge 1 -and $mainRect.Height -ge 1) {
-        $bmp = New-Object Drawing.Bitmap([int]$mainRect.Width, [int]$mainRect.Height); $g = [Drawing.Graphics]::FromImage($bmp); $dc = $g.GetHdc()
-        try { [void][Cap]::PrintWindow([IntPtr]$root.Current.NativeWindowHandle, $dc, 2) } finally { $g.ReleaseHdc($dc); $g.Dispose() }
-        $bmp.Save($shot, [Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
-    }
-    $tops = @([System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
-        $pn = try { (Get-Process -Id $_.Current.ProcessId -ErrorAction Stop).ProcessName } catch { '?' }
-        "$($_.Current.ClassName)|pid=$($_.Current.ProcessId)($pn)|'$($_.Current.Name)'" })
+    # Beside the caller's own fixture root, which exists, and never allowed to fail: a
+    # capture into a missing shared folder threw a GDI+ error in place of this diagnostic.
+    $shot = Join-Path $ownedRoot 'picker-missing.png'
+    try {
+        Add-Type -AssemblyName System.Drawing
+        Add-Type -TypeDefinition 'using System;using System.Runtime.InteropServices;public static class Cap{[DllImport("user32.dll")]public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint f);}'
+        [void][IO.Directory]::CreateDirectory($ownedRoot)
+        $mainRect = $root.Current.BoundingRectangle
+        if ($mainRect.Width -ge 1 -and $mainRect.Height -ge 1) {
+            $bmp = New-Object Drawing.Bitmap([int]$mainRect.Width, [int]$mainRect.Height); $g = [Drawing.Graphics]::FromImage($bmp); $dc = $g.GetHdc()
+            try { [void][Cap]::PrintWindow([IntPtr]$root.Current.NativeWindowHandle, $dc, 2) } finally { $g.ReleaseHdc($dc); $g.Dispose() }
+            try { $bmp.Save($shot, [Drawing.Imaging.ImageFormat]::Png) } finally { $bmp.Dispose() }
+        } else { $shot = 'none (the main window has no area)' }
+    } catch { $shot = "none ($($_.Exception.Message))" }
+    $tops = @(try {
+        [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, [System.Windows.Automation.Condition]::TrueCondition) | ForEach-Object {
+            $pn = try { (Get-Process -Id $_.Current.ProcessId -ErrorAction Stop).ProcessName } catch { '?' }
+            "$($_.Current.ClassName)|pid=$($_.Current.ProcessId)($pn)|'$($_.Current.Name)'" }
+    } catch { "top-level windows could not be listed: $($_.Exception.Message)" })
     throw "Owned filename container was not found. Capture: $shot. Owned window controls: $diagnostic. Top-level: [$($tops -join ' ; ')]"
 }
 $edit = if ($container.Current.ControlType -eq [System.Windows.Automation.ControlType]::Edit) { $container }

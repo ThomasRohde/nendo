@@ -2,6 +2,7 @@
 param([Parameter(Mandatory)][string] $Executable)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
 $exe = (Resolve-Path -LiteralPath $Executable).Path
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $evidenceRoot = Join-Path $repoRoot ('artifacts/evidence/runs/unattended-gate-' + [Guid]::NewGuid().ToString('N'))
@@ -11,6 +12,7 @@ $reservation.Start()
 $port = $reservation.LocalEndpoint.Port
 $reservation.Stop()
 $target = $null
+$succeeded = $false
 try {
     $target = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru -Environment @{
         NENDO_STARTUP_CREATE = (Join-Path $evidenceRoot 'reading-log.nendo')
@@ -23,9 +25,8 @@ try {
     }
     & node (Join-Path $PSScriptRoot 'Gate-UnattendedBuild.mjs') $port $target.Id $evidenceRoot
     if ($LASTEXITCODE -ne 0) { throw "Unattended build gate failed. Evidence: $evidenceRoot" }
+    $succeeded = $true
 } finally {
-    if ($null -ne $target -and -not $target.HasExited) {
-        if (-not $target.CloseMainWindow() -or -not $target.WaitForExit(15000)) { throw "Owned pilot PID $($target.Id) did not close normally." }
-    }
+    Stop-OwnedNendo $target $succeeded 'pilot'
 }
 Write-Output "Unattended build gate evidence: $evidenceRoot"

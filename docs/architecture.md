@@ -1071,7 +1071,7 @@ The preview is visual only and proves nothing about storage or the bridge.
 ## Building and verifying
 
 ```powershell
-pwsh ./tools/Test-Repository.ps1      # fast: vendored skills, JSON manifests, tracked files, binary assets, line endings, ADR structure, MCP surface count, shell identity
+pwsh ./tools/Test-Repository.ps1      # fast: vendored skills, JSON manifests, tracked files, binary assets, line endings, ADR structure, MCP surface count, shell identity, no build-record archive, native lane teardown
 pwsh ./tools/Test-Production.ps1      # full gate; includes the repository check
 ```
 
@@ -1110,6 +1110,18 @@ pwsh ./tools/Test-JourneyDrag.ps1  -Executable <Nendo.Desktop.exe>  # drag journ
 `Test-NendoInstaller.ps1` runs one of the two journey lanes against the installed
 copy.
 
+Each of these lanes starts its host with a device-state root, MCP discovery folder
+and browser profile of its own under its evidence folder (`NENDO_DEVICE_STATE_ROOT`,
+which every build honours, and `WEBVIEW2_USER_DATA_FOLDER`), and checks afterwards
+that the person's theme is unchanged and that `agent-ports.json` gained no port
+for one of the lane's own files. The owner's Nendo rewrites that file on every file
+open, so the check looks for the lane's traces rather than comparing the file. They close
+their host through `Stop-OwnedNendo` in `tools/Lane-NativeHost.ps1`: a window that
+will not close, such as one behind a native dialog after a failure, is stopped and
+reported as a warning, so the failure that got there is still the one the lane
+reports. `Test-Repository.ps1` runs that teardown against a stand-in for a stuck
+window and refuses a lane that closes its host another way.
+
 `Review-ShellRuntime.ps1` covers the close behaviour, a second launch of an open
 file bringing the hidden window back, the shell identity of the window and the Jump
 List that Windows stores. No script can enumerate the tray icon
@@ -1147,7 +1159,71 @@ the install after the progress bar is full. It checks every file by hash, keeps 
 installed version in `Nendo.previous` as one hard link per file, and moves the
 extracted files into place (`-MovePayload`). No payload byte is written twice. Each
 step appears in the installer's details list as it starts, and in
-`%TEMP%\Nendo-Setup.log`.
+`%TEMP%\Nendo-Setup.log`, where the installer appends each run's exit code at the
+end.
+
+How setup treats what it finds:
+
+- **Changed bytes refuse; a missing file does not.** An owned file whose bytes
+  differ from the inventory is an edit setup will not overwrite or delete. An owned
+  file that is simply gone, removed by antivirus or by hand, carries no edit:
+  rerunning the same installer puts it back, and an upgrade or uninstall goes ahead.
+- **Nothing is removed until everything can be.** Before an uninstall or a backup
+  rotation deletes anything, setup opens every owned file of the tree for exclusive
+  access, and refuses while one is in use. A Nendo started from `Nendo.previous`
+  refuses setup like one started from the install. A removal that stops part-way
+  counts the files already gone as removed, so a rerun finishes it.
+- **The backup takes its name only when complete.** It is built in
+  `Nendo.previous.partial` and renamed to `Nendo.previous` at the end. An
+  interrupted backup, or a `Nendo.previous` with no inventory that an earlier setup
+  left, is removed by the next run when every file in it matches the installed
+  payload. Otherwise an install refuses over it, and an uninstall leaves it and says
+  so in the log.
+- **Links are refused inside the trees setup writes, not above them.** A junction or
+  symbolic link in the install folder, the backup or the payload refuses setup. A
+  junction above them, such as a profile or AppData moved to another drive, does
+  not: every owned path is kept inside its folder by a containment check.
+- **A running Nendo is reported where it is.** Closing the window leaves Nendo in
+  the notification area. The installer checks for a running Nendo before it extracts
+  anything and offers Retry, and setup's refusal and the installer's message box say
+  to choose *Exit Nendo* from the notification area icon. A Nendo in another
+  account's sign-in session does not keep this account's setup out. Every failure
+  box shows setup's own sentence rather than one fixed text.
+- **The installer says which release it is.** `Nendo-Setup.exe` carries the
+  payload's version in its file properties and its window title, and
+  `Build-NendoInstaller.ps1` reads the version back from the built file.
+
+`Build-NendoInstaller.ps1` first compiles and runs a silent probe of the macros the
+installer uses, from a folder whose name is not ASCII: the log line lands at the end
+of an existing log, the failure sentence is read back as setup wrote it, and the
+executable of a running process reads as in use. The scripts are compiled with
+`/INPUTCHARSET UTF8`. Every rebuild moves the previous build to
+`Nendo-Setup.previous.exe`, whether or not a lane checked it;
+`previous-installer-status.json` says which of its lanes ran.
+
+**The browser profile lives in device state.** The Workbench's WebView2 profile (its
+cache, cookies and page storage, about 100 MB) is created under
+`%LOCALAPPDATA%\Nendo\WebView2` (`DesktopBrowserProfile`), beside the rest of the
+device state, unless the process owner sets `WEBVIEW2_USER_DATA_FOLDER`. A Debug
+build uses `WebView2-debug` there instead, so a development host never shares a
+browser process or page storage with the installed Nendo. Before 2026-10-13 the
+profile was WebView2's default, `Nendo.Desktop.exe.WebView2` beside the executable:
+setup did not own it, so uninstall left it behind and every setup run walked it.
+
+The profile holds more than a cache: the Garden and Swarm views keep unsaved drafts
+and settings in its page storage. So setup **moves** the old folder, once, to
+`%LOCALAPPDATA%\Nendo\WebView2` when nothing is there yet, and nothing is lost. Only
+when a profile already exists there, because this version has run since, does setup
+delete the old one, and then whatever only the old one held is lost. A move that
+cannot happen, across volumes or with a file still in use, leaves the old folder
+where it was; setup logs it and tries again on its next run. Setup does this only once
+an install or uninstall has gone through, so a refused one leaves the profile alone. It
+covers the install folder, `Nendo.previous` (where a hand-run older build may have
+left one, which would otherwise block the backup rotation) and a retired pilot's
+folder. Setup's destination is the `-BrowserProfileRoot` default in
+`Invoke-NendoSetup.ps1`, and `DesktopBrowserProfileTests` pins it to the application's
+own default. A device-state root set by an environment variable is a lane's, which
+setup never sees. A file's data is never in the profile; it is in the `.nendo` file.
 
 You must install NSIS to build the installer. When you rebuild the app, rebuild the
 installer in the same task. Prune old payloads only through
@@ -1228,19 +1304,30 @@ wrapper is normally unchecked. State this precisely. Do not call the installer
 "unverified": that word reads as a defect, and a defect is not the meaning.
 
 The setup logic has three fast tests over synthetic fixtures. They use no real
-payload and no NSIS, and each takes seconds. Run them when you change
+payload, and each takes seconds. Run them when you change
 `Invoke-NendoSetup.ps1`:
 
 ```powershell
-pwsh ./tools/Test-NendoSetup.ps1          # 17 cases: fresh install, upgrade, rollback,
+pwsh ./tools/Test-NendoSetup.ps1          # 26 cases: fresh install, upgrade, rollback,
                                           # locked files, corrupt extraction, path traversal,
                                           # moved payload and linked backup, a failed
                                           # registration repaired by rerunning the same
-                                          # payload, and this account's .nendo
-                                          # registration left untouched
-pwsh ./tools/Test-NendoLegacyUpgrade.ps1  # upgrade over a legacy owned payload
+                                          # payload, a missing owned file restored, an
+                                          # interrupted backup cleared, uninstall refused
+                                          # over a file in use or a Nendo running from the
+                                          # backup, a junction above the root, the old
+                                          # browser profile removed, and this account's
+                                          # .nendo registration left untouched
+pwsh ./tools/Test-NendoLegacyUpgrade.ps1  # retiring a legacy pilot install
 pwsh ./tools/Test-NendoBuildPruning.ps1   # Remove-NendoBuildPayload safety
 ```
+
+`Test-NendoLegacyUpgrade.ps1` is the exception to "synthetic": RetirePilots only
+looks where a real pilot lived, so the lane compiles a small NSIS fixture that
+installs into `Programs\NendoPilot\<id>`, writes an `Uninstall\NendoPilot-<id>` key
+and a Start Menu shortcut, all named for the run. It aims setup at a task-owned
+install root, removes all three in a `finally` block on a failure as on a pass, and
+fails if any is left.
 
 The agent-authoring gate builds a complete application from an empty file through
 the MCP interface only. Then it reopens the file offline:

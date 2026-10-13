@@ -6,6 +6,7 @@ import { createServer } from 'node:http';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeInfoFile } from './info-file.mjs';
 
 const infoPath = process.argv[2];
 if (!infoPath) throw new Error('Name the file to write the address to.');
@@ -31,5 +32,5 @@ const server = createServer(async (request, response) => {
 
 server.listen(0, '127.0.0.1', async () => {
   const { port } = server.address();
-  await fs.writeFile(infoPath, JSON.stringify({ pid: process.pid, url: `http://127.0.0.1:${port}/` }), 'utf8');
+  await writeInfoFile(infoPath, JSON.stringify({ pid: process.pid, url: `http://127.0.0.1:${port}/` }));
 });

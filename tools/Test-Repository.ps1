@@ -138,8 +138,14 @@ try {
     # The contract opens by counting the resources and tools an agent sees, and the
     # sentence drifted when a tool arrived without it moving (W-144). The count is read
     # from the same declarations Test-Production.ps1 pins by name.
+    # Get-ChildItem returns backslash paths, and '[\/]' in a .NET pattern is a class of
+    # one slash, so the exclusion matched nothing on Windows. The pattern is tried on a
+    # Windows path first, so a slip of that kind stops here rather than counting
+    # generated sources the day an obj folder appears.
+    $generatedOutput = '[\\/](?:bin|obj)[\\/]'
+    if ('C:\x\src\Nendo.LocalMcp\obj\Debug\Generated.cs' -notmatch $generatedOutput) { throw "The bin/obj exclusion does not match a Windows path: $generatedOutput" }
     $mcpSource = (Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src/Nendo.LocalMcp') -Recurse -File -Filter '*.cs' |
-        Where-Object { $_.FullName -notmatch '[\/](?:bin|obj)[\/]' } |
+        Where-Object { $_.FullName -notmatch $generatedOutput } |
         ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
     $mcpNames = @([regex]::Matches($mcpSource, 'Name\s*=\s*"(nendo\.[^"]+)"') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
     $mcpResourceCount = @($mcpNames | Where-Object { $_.StartsWith('nendo.application.') -or $_.StartsWith('nendo.host.') }).Count
@@ -207,6 +213,65 @@ try {
             ($projectTrimming -join ', '), $pipelineTrimming.Groups[1].Value)
     }
     Write-Host "OK       the project and the payload pipeline agree on PublishTrimmed=$($pipelineTrimming.Groups[1].Value)"
+
+    Write-Host '== No archive of build records =='
+    # artifacts/ is scratch, and AGENTS.md says not to archive run outputs there. The
+    # payload publish copied every earlier build's records into a folder that only grew
+    # (TBI-16). The folder's name is assembled here so this check does not find itself.
+    $archiveName = 'evidence' + '[\\/]' + 'installers'
+    $archivers = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tools') -File |
+        Where-Object { $_.Extension -in @('.ps1', '.mjs') -and [IO.File]::ReadAllText($_.FullName) -match $archiveName })
+    if ($archivers.Count -gt 0) {
+        throw "A tool archives build records under artifacts/evidence, which the repository rules out: $(($archivers | ForEach-Object { $_.Name }) -join ', ')"
+    }
+    Write-Host 'OK       no tool archives build records under artifacts/'
+
+    Write-Host '== Native lane teardown =='
+    # A lane whose window would not close threw from its finally block, which replaced the
+    # failure on its way out and left the process running (TGA-05). The shared teardown is
+    # run here against a stand-in for a stuck window, and no lane may close a host its own way.
+    . (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
+    function New-StuckWindow {
+        $stuck = [pscustomobject]@{ Id = 4242; HasExited = $false; Killed = $false }
+        $stuck | Add-Member -MemberType ScriptMethod -Name CloseMainWindow -Value { $false }
+        $stuck | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value { param($milliseconds) $false }
+        $stuck | Add-Member -MemberType ScriptMethod -Name Kill -Value { param($tree) $this.Killed = $true }
+        return $stuck
+    }
+    $failedLane = New-StuckWindow
+    try { Stop-OwnedNendo $failedLane $false 3> $null } catch { throw "The native teardown threw after a failed lane, which hides that lane's own failure: $($_.Exception.Message)" }
+    if (-not $failedLane.Killed) { throw 'The native teardown left a window that would not close running.' }
+    $passedLane = New-StuckWindow
+    $reported = $false
+    try { Stop-OwnedNendo $passedLane $true 3> $null } catch { $reported = $true }
+    if (-not $reported -or -not $passedLane.Killed) { throw 'The native teardown let a lane pass whose window would not close, or left it running.' }
+    $ownTeardown = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tools') -File -Filter '*.ps1' |
+        Where-Object { $_.Name -ne 'Lane-NativeHost.ps1' -and [IO.File]::ReadAllText($_.FullName) -match 'CloseMainWindow\(\)\s+-or' })
+    if ($ownTeardown.Count -gt 0) { throw "These lanes close their host their own way; use Stop-OwnedNendo from Lane-NativeHost.ps1: $(($ownTeardown | ForEach-Object Name) -join ', ')" }
+    Write-Host 'OK       a stuck window is stopped without hiding the failure, and every lane closes its host that way'
+    # The owner-state check those lanes make, against a stand-in device folder: the owner's
+    # own Nendo opening a file (a new port, a moved timestamp) is not the lane's doing; a
+    # port kept for the lane's own file, or a changed theme, is.
+    $standIn = Join-Path ([IO.Path]::GetTempPath()) ('nendo-owner-state-' + [Guid]::NewGuid().ToString('N'))
+    [void][IO.Directory]::CreateDirectory($standIn)
+    try {
+        $writePorts = { param($entries) @{ Version = 1; Files = $entries } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $standIn 'agent-ports.json') }
+        Set-Content -LiteralPath (Join-Path $standIn 'appearance.json') -Value '{"Version":1,"Preference":"system"}'
+        & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T08:00:00Z' } }
+        $ownerBefore = Get-OwnerDeviceSnapshot $standIn
+        & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T09:00:00Z' }; 'application-b' = @{ Port = 41767; Name = 'Notes.nendo'; UsedAt = '2026-10-13T09:00:00Z' } }
+        try { Assert-OwnerDeviceUnchanged $ownerBefore @('pilot.nendo') 'Stand-in lane' } catch { throw "The owner-state check blamed a lane for the owner opening a file: $($_.Exception.Message)" }
+        & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T09:00:00Z' }; 'application-c' = @{ Port = 41768; Name = 'pilot.nendo'; UsedAt = '2026-10-13T09:00:00Z' } }
+        $caught = $false
+        try { Assert-OwnerDeviceUnchanged $ownerBefore @('pilot.nendo') 'Stand-in lane' } catch { $caught = $true }
+        if (-not $caught) { throw "The owner-state check missed a port kept for the lane's own file." }
+        & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T08:00:00Z' } }
+        Set-Content -LiteralPath (Join-Path $standIn 'appearance.json') -Value '{"Version":1,"Preference":"dark"}'
+        $caught = $false
+        try { Assert-OwnerDeviceUnchanged $ownerBefore @('pilot.nendo') 'Stand-in lane' } catch { $caught = $true }
+        if (-not $caught) { throw "The owner-state check missed a changed theme." }
+    } finally { Remove-Item -LiteralPath $standIn -Recurse -Force -ErrorAction SilentlyContinue }
+    Write-Host "OK       the lanes' owner-state check finds their own traces and ignores the owner's use of Nendo"
 
     Write-Host 'Repository verification passed.'
 }

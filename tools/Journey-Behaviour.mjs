@@ -195,6 +195,11 @@ try {
     assert(formula !== null && formula.length > 0, 'A calculated field showed no formula.');
     assert(await evaluate(`document.querySelector('#record-form [name="completion"]') === null`),
       'An editor was offered for a field with no column behind it.');
+    //    And why it cannot be calculated is announced, not only coloured: the detail is a
+    //    status a screen reader reads out. Checked here, on the failing record, because
+    //    only a failed calculation renders a detail.
+    const announced = await evaluate(`document.querySelector(${JSON.stringify(failing + ' .derived-detail')})?.getAttribute('role') ?? null`);
+    assert(announced === 'status', `A failed calculation's reason is not announced to assistive technology: role ${announced}.`);
     await screenshot('behaviour-calculated-error.png');
 
     // 3. A value reads exactly, through the same transport a stored number uses.
@@ -223,10 +228,6 @@ try {
       'The approval control cannot be reached or used from the keyboard.');
     assert(reachable.heading === 'Automatic actions', `The approval panel has no heading: ${reachable.heading}`);
     assert(/approve/i.test(reachable.label), `The approval control does not name what it does: ${reachable.label}`);
-    const announced = await evaluate(`(() => {
-      const field = document.querySelector('[data-derived-field="completion"]');
-      return field === null ? null : { detail: field.querySelector('.derived-detail')?.getAttribute('role') ?? null };
-    })()`);
 
     // 5. Approving is a shell route that makes editing available. It is granted
     //    here, by a person, on this device — never by the file and never by MCP.
@@ -283,7 +284,7 @@ try {
         approved: true,
         projectStage: 'done',
         keyboard: reachable,
-        calculationDetailRole: announced?.detail ?? null,
+        calculationDetailRole: announced,
         humanLane: 'not run: keyboard, focus and screen-reader review by a person is recorded separately',
       }, null, 2));
   } else if (phase === 'remember') {

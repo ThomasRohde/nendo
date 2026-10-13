@@ -147,7 +147,7 @@ try {
     const record = await addRecord(entity, 'Installed create proof');
     await editCell(entity, record, 'Installed durable edit');
     await (await import('./Journey-McpRefresh.mjs')).verifyExternalMcpRefresh(
-      {processId,host,click,ready,evaluate,waitFor,assert},entity);
+      {processId,host,click,ready,evaluate,waitFor,assert,discoveryRoot:path.join(output,'device-state','discovery')},entity);
     const current = await snapshot();
     await fs.writeFile(stateFile, JSON.stringify({ manifest: current.manifest, entities: current.entities, records: current.records, uiNodes: current.uiNodes }, null, 2));
     await screenshot('pilot-created.png');

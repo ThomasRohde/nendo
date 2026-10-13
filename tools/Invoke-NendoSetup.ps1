@@ -18,7 +18,16 @@ param(
     [switch] $MovePayload,
     # Setup runs hidden under the installer. Each step it reports is also appended
     # here, so a failure can still be read after the installer window has closed.
-    [string] $LogPath
+    [string] $LogPath,
+    # A failure's own sentence, written here as UTF-16 so the installer can show it in
+    # its message box instead of one fixed text for every refusal.
+    [string] $FailurePath,
+    # Where the application keeps its browser profile, which setup moves an older
+    # version's profile into. The default is the application's own default
+    # (DesktopBrowserProfile, a Release build with no device-state override, which
+    # DesktopBrowserProfileTests pins against this line); a test passes a folder of its
+    # own so that exercising the move never reaches this account's real profile.
+    [string] $BrowserProfileRoot = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Nendo\WebView2')
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -28,6 +37,9 @@ Import-Module "$env:WINDIR\System32\WindowsPowerShell\v1.0\Modules\Microsoft.Pow
 Import-Module "$env:WINDIR\System32\WindowsPowerShell\v1.0\Modules\Microsoft.PowerShell.Management\Microsoft.PowerShell.Management.psd1" -Force
 $root = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
 $previous = "$root.previous"
+# The backup is built under this name and takes the name above only once complete, so
+# an interrupted backup is never a Nendo.previous that every later run refuses.
+$partial = "$previous.partial"
 $inventoryName = 'nendo-install.json'
 $pendingName = 'nendo-update.json'
 
@@ -55,22 +67,25 @@ function Assert-NendoSetupCapacity([long] $AvailableBytes, [long] $PayloadBytes,
 function Get-NendoPayloadBytes([string] $Directory, $Inventory) {
     [decimal]$total = 0
     if ($null -ne $Inventory) {
-        foreach ($entry in $Inventory.files) { $total += (Get-Item -LiteralPath (Resolve-Owned $Directory $entry.path)).Length }
+        foreach ($entry in $Inventory.files) {
+            $file = Resolve-Owned $Directory $entry.path
+            if (Test-Path -LiteralPath $file -PathType Leaf) { $total += (Get-Item -LiteralPath $file).Length }
+        }
     }
     if ($total -gt [long]::MaxValue) { throw 'Payload size exceeds the supported staging capacity.' }
     return [long]$total
 }
 
+# Links are refused in the trees setup writes and removes -- the install root, its
+# backup and the payload, each folder itself included -- because a link there could
+# carry a removal somewhere else. A link above them cannot: Resolve-Owned keeps every
+# owned path inside its directory. So a profile or AppData moved to another drive with
+# a junction installs and uninstalls like any other.
 function Assert-Tree([string] $Directory) {
-    $item = $Directory
-    while ($item) {
-        if ((Test-Path -LiteralPath $item) -and ((Get-Item -LiteralPath $item -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw "Linked paths are not supported: $item" }
-        $item = Split-Path -Parent $item
-    }
-    if (Test-Path -LiteralPath $Directory) {
-        foreach ($entry in Get-ChildItem -LiteralPath $Directory -Recurse -Force) {
-            if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Linked paths are not supported: $($entry.FullName)" }
-        }
+    if (-not (Test-Path -LiteralPath $Directory)) { return }
+    if ((Get-Item -LiteralPath $Directory -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Linked paths are not supported: $Directory" }
+    foreach ($entry in Get-ChildItem -LiteralPath $Directory -Recurse -Force) {
+        if ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw "Linked paths are not supported: $($entry.FullName)" }
     }
 }
 # Get-FileHash is a script function in Windows PowerShell 5.1 and costs about three
@@ -99,11 +114,33 @@ function Read-Inventory([string] $Directory) {
     }
     return $value
 }
-function Assert-Bytes([string] $Directory, $Inventory) {
+# Changed bytes are an edit setup must not overwrite or delete. A file that is simply
+# gone carries no edit, so a tree setup is about to replace or remove passes
+# -AllowAbsent: a DLL quarantined or deleted since must not veto the repair, upgrade or
+# uninstall that is the way back. A tree setup reads from -- the new payload, a backup
+# it restores -- still needs every file.
+function Assert-Bytes([string] $Directory, $Inventory, [switch] $AllowAbsent) {
     foreach ($entry in $Inventory.files) {
         $file = Resolve-Owned $Directory $entry.path
-        if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-NendoFileHash $file) -ne $entry.sha256) { throw "Payload differs; retained for recovery: $file" }
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+            if ($AllowAbsent -and -not (Test-Path -LiteralPath $file)) { continue }
+            throw "Payload differs; retained for recovery: $file"
+        }
+        if ((Get-NendoFileHash $file) -ne $entry.sha256) { throw "Payload differs; retained for recovery: $file" }
     }
+}
+# Nothing is removed or replaced until every owned file of the tree can be: a file in
+# use refuses here, before the first deletion, rather than half-way through a removal.
+function Assert-Unlocked([string] $Directory, $Inventory) {
+    $handles = @()
+    try {
+        foreach ($entry in $Inventory.files) {
+            $file = Resolve-Owned $Directory $entry.path
+            if (Test-Path -LiteralPath $file -PathType Leaf) { $handles += [IO.File]::Open($file, 'Open', 'ReadWrite', 'None') }
+        }
+    } catch [IO.IOException] {
+        throw "A Nendo file is in use, so nothing was removed or replaced. Close Nendo and run setup again. $($_.Exception.Message)"
+    } finally { foreach ($handle in $handles) { $handle.Dispose() } }
 }
 function Copy-Owned([string] $From, [string] $To, $Inventory) {
     foreach ($entry in $Inventory.files) {
@@ -120,16 +157,55 @@ function Copy-Owned([string] $From, [string] $To, $Inventory) {
 # and are not written again. Setup never writes into an installed file -- it removes
 # the name and puts the new file in its place -- so the backup keeps the old bytes. A
 # volume without hard links gets a checked copy instead.
+#
+# A file already gone from the install has nothing to keep, and the backup's inventory
+# lists only what the backup holds, so restoring from it never looks for a file it lacks.
 function Save-Backup([string] $From, [string] $To, $Inventory) {
+    [void][IO.Directory]::CreateDirectory($To)
     $copied = $false
+    $kept = @()
     foreach ($entry in $Inventory.files) {
         $source = Resolve-Owned $From $entry.path
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { continue }
         $target = Resolve-Owned $To $entry.path
         [void][IO.Directory]::CreateDirectory((Split-Path -Parent $target))
         try { $null = New-Item -ItemType HardLink -Path $target -Value $source -ErrorAction Stop }
         catch { Copy-Item -LiteralPath $source -Destination $target -Force; $copied = $true }
+        $kept += $entry
     }
-    if ($copied) { Assert-Bytes $To $Inventory }
+    $backup = $Inventory | ConvertTo-Json -Depth 6 | ConvertFrom-Json
+    $backup.files = @($kept)
+    if ($copied) { Assert-Bytes $To $backup }
+    $backup | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $To $inventoryName) -Encoding UTF8
+}
+# A backup interrupted before it was complete: one built under .partial, or a
+# Nendo.previous with no inventory that an earlier setup left. Every file in it was
+# linked or copied from the installed payload, so it is removed when each one still
+# matches an installed file. Anything else is retained for review, as before: an
+# install refuses over it, and an uninstall (-Retain) leaves it and says so, since
+# removing Nendo does not need that folder gone.
+function Clear-UnfinishedBackup([string] $Directory, $Installed, [switch] $Retain) {
+    if (-not (Test-Path -LiteralPath $Directory)) { return }
+    Assert-Tree $Directory
+    $known = @{}
+    if ($null -ne $Installed) { foreach ($entry in $Installed.files) { $known[(Resolve-Owned $Directory $entry.path)] = $entry.sha256 } }
+    $inventoryFile = Join-Path $Directory $inventoryName
+    # A browser profile an older build left there is not part of the backup; the profile
+    # step moves it once the run is going ahead.
+    $profilePrefix = (Join-Path $Directory $legacyProfileName) + '\'
+    $files = @(Get-ChildItem -LiteralPath $Directory -Recurse -File -Force |
+        Where-Object { -not $_.FullName.StartsWith($profilePrefix, [StringComparison]::OrdinalIgnoreCase) })
+    foreach ($file in $files) {
+        if ($file.FullName -eq $inventoryFile) { continue }
+        if (-not $known.ContainsKey($file.FullName) -or (Get-NendoFileHash $file.FullName) -ne $known[$file.FullName]) {
+            $message = "An unfinished backup holds files that are not the installed payload; retained for review: $Directory"
+            if ($Retain) { Write-Step $message; return }
+            throw $message
+        }
+    }
+    Write-Step 'Removing an unfinished backup.'
+    foreach ($file in $files) { Remove-Item -LiteralPath $file.FullName -Force }
+    Remove-EmptyDirectories $Directory
 }
 # Moved files are not hashed again: a move does not rewrite them, and the payload was
 # checked in this run before anything changed.
@@ -148,12 +224,77 @@ function Remove-EmptyDirectories([string] $Directory) {
         if (@(Get-ChildItem -LiteralPath $dir.FullName -Force).Count -eq 0) { [IO.Directory]::Delete($dir.FullName, $false) }
     }
 }
+# The folders a removed file leaves empty go with it, up to but never including the root.
+function Remove-EmptyParents([string] $Directory, [string] $File) {
+    $stop = $Directory.TrimEnd('\') + '\'
+    $parent = Split-Path -Parent $File
+    while ($parent -and $parent.StartsWith($stop, [StringComparison]::OrdinalIgnoreCase) -and
+        (Test-Path -LiteralPath $parent -PathType Container) -and @(Get-ChildItem -LiteralPath $parent -Force).Count -eq 0) {
+        [IO.Directory]::Delete($parent, $false)
+        $parent = Split-Path -Parent $parent
+    }
+}
+# Callers check the tree's bytes and handles first, once, before anything goes. A file
+# already absent counts as removed, so a removal stopped part-way finishes on a rerun.
 function Remove-Owned([string] $Directory, $Inventory) {
     Assert-Tree $Directory
-    Assert-Bytes $Directory $Inventory
-    foreach ($entry in $Inventory.files) { Remove-Item -LiteralPath (Resolve-Owned $Directory $entry.path) -Force }
+    foreach ($entry in $Inventory.files) {
+        $file = Resolve-Owned $Directory $entry.path
+        if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -Force }
+    }
     Remove-Item -LiteralPath (Join-Path $Directory $inventoryName) -Force
     Remove-EmptyDirectories $Directory
+}
+# Nendo kept its browser profile beside the executable until the profile moved under
+# the device-state folder. That folder was never owned payload, so uninstall kept it
+# for good and every run walked it. It holds a view's unsaved drafts and settings (the
+# Garden and Swarm keep them in page storage), so it is moved to where the application
+# now looks, once, rather than deleted. Only when a profile is already there -- this
+# version has run since -- is the old one removed, as the newer one is what Nendo uses.
+# A move that fails, across volumes or over a file still in use, is a rename that never
+# happened: the old folder stays where it was, and the next run tries again.
+$legacyProfileName = 'Nendo.Desktop.exe.WebView2'
+function Move-LegacyBrowserProfile([string] $Directory) {
+    $browserProfile = Join-Path $Directory $legacyProfileName
+    if (-not (Test-Path -LiteralPath $browserProfile -PathType Container)) { return }
+    try { Assert-Tree $browserProfile }
+    catch { Write-Step "The earlier browser profile holds a link and was left in place. $($_.Exception.Message)"; return }
+    if (-not (Test-Path -LiteralPath $BrowserProfileRoot)) {
+        try {
+            [void][IO.Directory]::CreateDirectory((Split-Path -Parent $BrowserProfileRoot))
+            [IO.Directory]::Move($browserProfile, $BrowserProfileRoot)
+            Write-Step "Moved the browser profile an earlier version kept beside the application to $BrowserProfileRoot."
+        } catch {
+            Write-Step "The earlier browser profile could not be moved and was left in place; setup tries again next time. $($_.Exception.Message)"
+        }
+        Remove-IfEmpty $Directory
+        return
+    }
+    try {
+        [IO.Directory]::Delete($browserProfile, $true)
+        Write-Step 'Removed the browser profile an earlier version kept beside the application; a newer one is in use.'
+    } catch {
+        Write-Step "The earlier browser profile was retained; setup carried on. $($_.Exception.Message)"
+    }
+    Remove-IfEmpty $Directory
+}
+# A folder the profile was the last thing in -- an uninstalled root, an emptied backup --
+# goes with it. Never a sweep: a live install folder is left exactly as it is.
+function Remove-IfEmpty([string] $Directory) {
+    if ((Test-Path -LiteralPath $Directory -PathType Container) -and @(Get-ChildItem -LiteralPath $Directory -Force).Count -eq 0) {
+        [IO.Directory]::Delete($Directory, $false)
+    }
+}
+# Whether two inventories name the same payload. One lookup per entry: comparing every
+# entry with every other cost seconds on a repair of a 700-file payload.
+function Test-SamePayload($Old, $Next) {
+    if ($null -eq $Old -or @($Old.files).Count -ne @($Next.files).Count) { return $false }
+    $installed = @{}
+    foreach ($entry in $Old.files) { $installed[$entry.path] = $entry.sha256 }
+    foreach ($entry in $Next.files) {
+        if (-not $installed.ContainsKey($entry.path) -or $installed[$entry.path] -ne $entry.sha256) { return $false }
+    }
+    return $true
 }
 # What a .nendo file is, to Windows Explorer.
 #
@@ -505,12 +646,29 @@ function Register-NendoWithWindows {
     Set-NendoStartMenuShortcut $StartMenuRoot $root
 }
 
+# Whether a running Nendo.Desktop keeps setup out. A process in another sign-in session
+# belongs to another account: this account cannot read its path, and its per-user
+# install is not this one. An unreadable path in this session still refuses, because it
+# could be this install.
+function Test-NendoProcessBlocks([string] $Path, [int] $SessionId, [int] $CurrentSession, [string[]] $Roots) {
+    if ($SessionId -ne $CurrentSession) { return $false }
+    if (-not $Path) { return $true }
+    foreach ($folder in $Roots) {
+        if ($Path.StartsWith($folder.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+# The backup is removed file by file too, so a Nendo started from it keeps setup out
+# as one started from the install does.
 function Assert-Closed {
+    $folders = @($root, $previous)
+    if ($Mode -eq 'RetirePilots') { $folders += (Join-Path $env:LOCALAPPDATA 'Programs\NendoPilot') }
+    $session = [Diagnostics.Process]::GetCurrentProcess().SessionId
     foreach ($process in @(Get-Process -Name 'Nendo.Desktop' -ErrorAction SilentlyContinue)) {
-        $exe = $process.Path
-        if (-not $exe -or $exe.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase) -or
-            ($Mode -eq 'RetirePilots' -and $exe.StartsWith((Join-Path $env:LOCALAPPDATA 'Programs\NendoPilot\'), [StringComparison]::OrdinalIgnoreCase))) {
-            throw 'Close Nendo before installing or uninstalling, then run setup again.'
+        if (Test-NendoProcessBlocks $process.Path $process.SessionId $session $folders) {
+            # Closing the window leaves Nendo in the notification area, so a person who
+            # closed it is told where it still is.
+            throw 'Nendo is still running. Closing its window leaves it in the notification area: choose Exit Nendo from its icon there, then run setup again.'
         }
     }
 }
@@ -565,6 +723,7 @@ try {
     if (-not $locked) { throw 'Another Nendo setup is running.' }
     Assert-Tree $root
     Assert-Tree $previous
+    Assert-Tree $partial
     Assert-Closed
     if ($Mode -eq 'RetirePilots') {
         $registry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
@@ -580,6 +739,8 @@ try {
             $process = Start-Process -FilePath $uninstaller -ArgumentList "/S _?=$legacy" -WindowStyle Hidden -PassThru -Wait
             if ($process.ExitCode -ne 0 -or (Test-Path -LiteralPath $key.PSPath)) { throw 'A legacy pilot could not be retired; its remaining files were retained.' }
             if (Test-Path -LiteralPath $uninstaller) { Remove-Item -LiteralPath $uninstaller }
+            # A pilot kept its browser profile beside its executable too.
+            Move-LegacyBrowserProfile $legacy
             Remove-EmptyDirectories $legacy
             Write-Step "Retired pilot $id; unknown files retained."
         }
@@ -591,11 +752,20 @@ try {
     if ($Mode -eq 'Uninstall') {
         if ($null -eq $old) { throw 'No recognized Nendo installation; nothing removed.' }
         Write-Step 'Checking the installed files.'
-        Assert-Bytes $root $old
+        Assert-Bytes $root $old -AllowAbsent
         $backup = Read-Inventory $previous
-        if ($null -ne $backup) { Assert-Bytes $previous $backup; Remove-Owned $previous $backup }
+        if ($null -ne $backup) { Assert-Bytes $previous $backup -AllowAbsent }
+        # Every owned file of both trees can go before the first one does.
+        Assert-Unlocked $root $old
+        if ($null -ne $backup) { Assert-Unlocked $previous $backup }
+        Clear-UnfinishedBackup $partial $old -Retain
+        if ($null -eq $backup) { Clear-UnfinishedBackup $previous $old -Retain }
+        if ($null -ne $backup) { Remove-Owned $previous $backup }
         Write-Step 'Removing Nendo.'
         Remove-Owned $root $old
+        # Only now that Nendo is gone: a refused uninstall leaves the profile where it was.
+        Move-LegacyBrowserProfile $root
+        Move-LegacyBrowserProfile $previous
         Remove-NendoStartMenuShortcut $StartMenuRoot $root
         Remove-NendoFileAssociation $ClassesRoot $root
         Write-Step 'Nendo payload removed; unknown files and device settings retained.'
@@ -613,23 +783,30 @@ try {
     }
     Write-Step 'Checking the new files.'
     Assert-Bytes $source $next
-    if ($null -ne $old) { Write-Step 'Checking the installed files.'; Assert-Bytes $root $old }
-    if ($null -ne $old -and $old.files.Count -eq $next.files.Count) {
-        $same = $true
-        foreach ($entry in $next.files) {
-            if (-not @($old.files | Where-Object { $_.path -eq $entry.path -and $_.sha256 -eq $entry.sha256 }).Count) { $same = $false; break }
-        }
-        if ($same) {
+    if ($null -ne $old) { Write-Step 'Checking the installed files.'; Assert-Bytes $root $old -AllowAbsent }
+    if (Test-SamePayload $old $next) {
+        # A file gone from the installed payload -- quarantined, deleted -- comes back
+        # from this one. Only absent names are written, so nothing installed is replaced
+        # and a repair that stops part-way is finished by the next run.
+        $missing = @($next.files | Where-Object { -not (Test-Path -LiteralPath (Resolve-Owned $root $_.path) -PathType Leaf) })
+        if ($missing.Count -gt 0) {
+            Write-Step "Restoring $($missing.Count) missing file(s) of the installed version."
+            Install-Owned $source $root ([pscustomobject]@{ files = $missing })
+        } else {
             Write-Step 'This Nendo payload is already installed; retained the previous version.'
-            # The payload is the one installed, but its registration may not be: the run
-            # that installed it can have failed after the files landed and the journal was
-            # removed, or somebody removed the shortcut or the association since. Register
-            # again rather than report an install the Start Menu cannot find.
-            Register-NendoWithWindows
-            Write-Step "Nendo installed: $root"
-            return
         }
+        # The payload is the one installed, but its registration may not be: the run
+        # that installed it can have failed after the files landed and the journal was
+        # removed, or somebody removed the shortcut or the association since. Register
+        # again rather than report an install the Start Menu cannot find.
+        Register-NendoWithWindows
+        Move-LegacyBrowserProfile $root
+        Move-LegacyBrowserProfile $previous
+        Write-Step "Nendo installed: $root"
+        return
     }
+    Clear-UnfinishedBackup $partial $old
+    if ($null -eq (Read-Inventory $previous)) { Clear-UnfinishedBackup $previous $old }
     $oldPaths = @{}
     if ($null -ne $old) { foreach ($entry in $old.files) { $oldPaths[$entry.path] = $true } }
     foreach ($entry in $next.files) {
@@ -637,20 +814,25 @@ try {
         if ((Test-Path -LiteralPath $target) -and -not $oldPaths.ContainsKey($entry.path)) { throw "Unowned file collision; no files changed: $target" }
     }
     # A blocked/locked payload must fail before backup rotation or replacement.
-    $handles = @()
-    try {
-        if ($null -ne $old) { foreach ($entry in $old.files) { $handles += [IO.File]::Open((Resolve-Owned $root $entry.path), 'Open', 'ReadWrite', 'None') } }
-    } finally { foreach ($handle in $handles) { $handle.Dispose() } }
+    if ($null -ne $old) { Assert-Unlocked $root $old }
     $availableBytes = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($root)).AvailableFreeSpace
     Assert-NendoSetupCapacity $availableBytes (Get-NendoPayloadBytes $source $next) (Get-NendoPayloadBytes $root $old)
     $backup = Read-Inventory $previous
-    if ($null -ne $backup) { Write-Step 'Removing the older backup.'; Remove-Owned $previous $backup }
+    if ($null -ne $backup) {
+        Assert-Bytes $previous $backup -AllowAbsent
+        Assert-Unlocked $previous $backup
+        Write-Step 'Removing the older backup.'
+        Remove-Owned $previous $backup
+    }
+    # An older build run by hand from the backup kept its profile there, which would
+    # otherwise make the backup look like unrecognized files and refuse every upgrade.
+    # Every refusal above has passed, so this install is going ahead.
+    Move-LegacyBrowserProfile $previous
     if (Test-Path -LiteralPath $previous) { throw 'Previous payload contains unrecognized files; retained for review.' }
     if ($null -ne $old) {
         Write-Step 'Keeping the installed version as a backup.'
-        [void][IO.Directory]::CreateDirectory($previous)
-        Save-Backup $root $previous $old
-        Copy-Item -LiteralPath (Join-Path $root $inventoryName) -Destination (Join-Path $previous $inventoryName)
+        Save-Backup $root $partial $old
+        [IO.Directory]::Move($partial, $previous)
     }
     [void][IO.Directory]::CreateDirectory($root)
     @{schemaVersion=1; product='Nendo'; hadPrevious=($null -ne $old); files=@($next.files)} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $root $pendingName) -Encoding UTF8
@@ -660,7 +842,12 @@ try {
         $nextPaths = @{}
         foreach ($entry in $next.files) { $nextPaths[$entry.path] = $true }
         if ($null -ne $old) {
-            foreach ($entry in $old.files) { if (-not $nextPaths.ContainsKey($entry.path)) { Remove-Item -LiteralPath (Resolve-Owned $root $entry.path) } }
+            foreach ($entry in $old.files) {
+                if ($nextPaths.ContainsKey($entry.path)) { continue }
+                $obsolete = Resolve-Owned $root $entry.path
+                if (Test-Path -LiteralPath $obsolete) { Remove-Item -LiteralPath $obsolete }
+                Remove-EmptyParents $root $obsolete
+            }
         }
         Copy-Item -LiteralPath (Join-Path $source $inventoryName) -Destination (Join-Path $root $inventoryName) -Force
         Remove-Item -LiteralPath (Join-Path $root $pendingName)
@@ -674,10 +861,17 @@ try {
     # and no journal behind; rerunning the same installer takes the identical-payload
     # path above, which registers again.
     Register-NendoWithWindows
+    # Only once the install has landed: a refused or failed upgrade leaves the profile
+    # where it was.
+    Move-LegacyBrowserProfile $root
     Write-Step "Nendo installed: $root"
 } catch {
-    # Only the log: the error itself already reaches the installer through stderr.
+    # The log and the installer's message box: the error itself already reaches the
+    # installer's details list through stderr.
     Add-SetupLog "Setup failed: $($_.Exception.Message)"
+    if ($FailurePath) {
+        try { [IO.File]::WriteAllText($FailurePath, $_.Exception.Message, (New-Object Text.UnicodeEncoding($false, $false))) } catch { }
+    }
     throw
 } finally {
     if ($locked) { $mutex.ReleaseMutex() }

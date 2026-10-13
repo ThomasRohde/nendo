@@ -2,6 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { writeInfoFile } from './info-file.mjs';
 // Two origins for one custom-view package, as a package meets them in Nendo (ADR-0013):
 //  - the view origin serves the package folder the way the host serves a package from a file,
 //    with /_nendo/api.js from the Workbench build (src/Nendo.Workbench/dist/_nendo/api.js);
@@ -102,6 +103,6 @@ config = {
   packageId: manifest.packageId,
 };
 const info = { pid: process.pid, viewOrigin, brokerOrigin, brokerUrl: `${brokerOrigin}/broker.html`, packageId: manifest.packageId };
-if (process.argv[2]) await fs.writeFile(process.argv[2], JSON.stringify(info));
+if (process.argv[2]) await writeInfoFile(process.argv[2], JSON.stringify(info));
 console.log(JSON.stringify(info));
 setTimeout(() => { view.close(); broker.close(); }, 10 * 60 * 1000).unref();

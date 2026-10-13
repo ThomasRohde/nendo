@@ -188,6 +188,20 @@ function Get-CustomDestinationNames {
         ForEach-Object { $_.Name })
 }
 $destinationsBefore = Get-CustomDestinationNames
+# Every Jump List this run made, found by what it names: a file this run's evidence root.
+# Phase one already commits one when it opens its file, and a failure before phase two
+# found it left it in the owner's profile, one per failed run. Removed on every path.
+function Get-LaneDestinations {
+    $needle = [Text.Encoding]::Latin1.GetString([Text.Encoding]::Unicode.GetBytes($evidenceRoot))
+    return @(foreach ($name in (Get-CustomDestinationNames | Where-Object { $destinationsBefore -notcontains $_ })) {
+        $candidate = Join-Path $customDestinations $name
+        try { $bytes = [IO.File]::ReadAllBytes($candidate) } catch { continue }
+        if ([Text.Encoding]::Latin1.GetString($bytes).Contains($needle)) { $candidate }
+    })
+}
+function Remove-LaneDestinations {
+    foreach ($file in Get-LaneDestinations) { Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
+}
 
 # Every process of this run registers the lane's identity, the first phase's included, so
 # both phases remove it on the way out: a first phase that failed used to leave the pair
@@ -231,8 +245,15 @@ function Start-Nendo {
     }
     if ($CloseAction) { $environment['NENDO_DESKTOP_CLOSE_ACTION'] = $CloseAction }
     $process = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) -PassThru -Environment $environment
-    Wait-For { (Get-MainWindow $process) -ne [IntPtr]::Zero } -What 'the main window to appear' | Out-Null
-    Wait-For { [NendoShellLane.Win]::IsWindowVisible((Get-MainWindow $process)) } -What 'the main window to become visible' | Out-Null
+    try {
+        Wait-For { (Get-MainWindow $process) -ne [IntPtr]::Zero } -What 'the main window to appear' | Out-Null
+        Wait-For { [NendoShellLane.Win]::IsWindowVisible((Get-MainWindow $process)) } -What 'the main window to become visible' | Out-Null
+    } catch {
+        # The caller never receives a process that failed to show, so its teardown cannot
+        # stop it; left running it would hold the evidence file under the lane's identity.
+        if (-not $process.HasExited) { $process.Kill(); [void] $process.WaitForExit(15000) }
+        throw
+    }
     return $process
 }
 
@@ -285,7 +306,7 @@ finally {
         [void] $target.WaitForExit(15000)
     }
     # Only when this phase failed: the second one reads the registration before it removes it.
-    if (-not $results.Contains('secondLaunchBringsTheOwnerBack')) { Remove-LaneRegistration }
+    if (-not $results.Contains('secondLaunchBringsTheOwnerBack')) { Remove-LaneRegistration; Remove-LaneDestinations }
 }
 
 # --- The shell identity, and the taskbar menu filed under it ------------------
@@ -294,6 +315,7 @@ finally {
 # under a hash of that identity is the shell having accepted a menu for it.
 $target = $null
 $laneDestination = $null
+$phaseTwoPassed = $false
 try {
     $target = Start-Nendo -CloseAction 'exit' -FileName 'shell-lane.nendo' -Reopen
     $handle = Get-MainWindow $target
@@ -349,17 +371,27 @@ try {
     if (-not $target.CloseMainWindow()) { throw 'The window refused the close request.' }
     if (-not $target.WaitForExit(30000)) { throw 'Exit-on-close did not end the process.' }
     $results['exitPinEndsTheProcess'] = $true
+    $phaseTwoPassed = $true
 }
 finally {
     if ($null -ne $target -and -not $target.HasExited) { $target.Kill(); [void] $target.WaitForExit(15000) }
-    # The lane's own taskbar menu goes with the lane. It names an evidence file that
-    # is about to be deleted, and it belongs to an identity nothing will run again.
+    # The lane's own taskbar menu goes with the lane, found or not by the wait above. It
+    # names an evidence file that is about to be deleted, and it belongs to an identity
+    # nothing will run again.
     if ($null -ne $script:laneDestination -and (Test-Path -LiteralPath $script:laneDestination)) {
         Remove-Item -LiteralPath $script:laneDestination -Force -ErrorAction SilentlyContinue
     }
+    Remove-LaneDestinations
     # And the registrations Windows made for it. In the finally block rather than
     # after the assertions, so a failed run leaves nothing behind either.
     Remove-LaneRegistration
+    # Read back on every path. A failed run reports a leak as a warning, so the failure
+    # that got here is still the one reported.
+    $strayDestinations = @(Get-LaneDestinations)
+    if ($strayDestinations.Count -gt 0) {
+        if ($phaseTwoPassed) { throw "The lane left its Jump List in the owner's profile: $($strayDestinations -join ', ')" }
+        Write-Warning "The lane left its Jump List in the owner's profile: $($strayDestinations -join ', ')"
+    }
 }
 
 # The cleanup is itself measured, because nothing else would notice it stopping. A

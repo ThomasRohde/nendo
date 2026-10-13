@@ -99,20 +99,24 @@ try {
     if ($failedSuites.Count -gt 0) { throw ".NET tests failed in $($failedSuites -join ', ')." }
 
     Write-Host '== Tool boundaries =='
-    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs')) 'Package uploader and clipboard probe boundaries'
+    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs'), (Join-Path $PSScriptRoot 'info-file.test.mjs')) 'Package uploader, clipboard probe and fixture address file boundaries'
 
     Write-Host '== Production boundaries =='
     & (Join-Path $PSScriptRoot 'Test-ApplicationNeutrality.ps1')
 
-    $desktopBundleRoot = Join-Path $repoRoot 'artifacts\bin\Nendo.Desktop'
-    $bundledEntryPoints = @(
-        Get-ChildItem -LiteralPath $desktopBundleRoot -Recurse -File -Filter 'index.html' |
-            Where-Object { $_.DirectoryName -match '[\\/]Workbench$' }
-    )
-    if ($bundledEntryPoints.Count -eq 0) {
-        throw 'The Desktop output does not contain Workbench/index.html.'
+    # The output this gate built and its tests ran against, not any output: a Release or
+    # an older build's Workbench satisfied the search this replaced. And the bundle this
+    # gate just built, compared by bytes, since a copy step that stopped copying leaves
+    # the previous bundle in place.
+    $bundledEntryPoint = Join-Path $repoRoot 'artifacts\bin\Nendo.Desktop\debug_win-x64\Workbench\index.html'
+    $builtEntryPoint = Join-Path $workbenchRoot 'dist\index.html'
+    if (-not (Test-Path -LiteralPath $bundledEntryPoint -PathType Leaf)) {
+        throw "The Debug Desktop output this gate built does not contain Workbench/index.html: $bundledEntryPoint"
     }
-    Write-Host "OK       bundled Workbench entry point ($($bundledEntryPoints.Count) output(s))"
+    if ((Get-FileHash -LiteralPath $bundledEntryPoint).Hash -ne (Get-FileHash -LiteralPath $builtEntryPoint).Hash) {
+        throw "The Debug Desktop output carries a different Workbench from the one this gate built: $bundledEntryPoint differs from $builtEntryPoint"
+    }
+    Write-Host 'OK       the Debug Desktop output carries the Workbench this gate built'
 
     $adapterFiles = @(
         foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.LocalMcp')) {
@@ -359,9 +363,13 @@ try {
     # may call them, but in the Workbench they would be a second, foreign kind of question --
     # and while they were off, the fifth access level shipped with a control that silently did
     # nothing (F-120). This check is what stops the browser's being reached for again.
+    # Tried on a Windows path first: '[\/]' is a class of one slash in .NET, and the
+    # exclusion written that way never matched the backslash paths Get-ChildItem returns.
+    $bundledOutput = '[\\/](?:node_modules|dist)[\\/]'
+    if ('C:\x\src\node_modules\y.ts' -notmatch $bundledOutput) { throw "The node_modules/dist exclusion does not match a Windows path: $bundledOutput" }
     $rendererSource = @(
         Get-ChildItem -LiteralPath (Join-Path $workbenchRoot 'src') -Recurse -File -Include '*.ts', '*.js' |
-            Where-Object { $_.FullName -notmatch '[\/](?:node_modules|dist)[\/]' }
+            Where-Object { $_.FullName -notmatch $bundledOutput }
     )
     if ($rendererSource.Count -eq 0) {
         throw 'The Workbench renderer sources were not found; this check would pass vacuously.'

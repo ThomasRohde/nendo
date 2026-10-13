@@ -7,7 +7,11 @@ async page => {
   try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const errors = []; page.on('pageerror', error => errors.push(error.message));
-  page.on('dialog', dialog => dialog.accept());
+  // The Workbench never asks with a browser dialog, and the Garden has no reason to. Under
+  // playwright-cli a dialog stops the probe at the modal, so the lane fails for want of its
+  // result line; one that reaches this handler instead is recorded as a failure and dismissed,
+  // never accepted in silence.
+  page.on('dialog', dialog => { errors.push(`Browser dialog (${dialog.type()}): ${dialog.message()}`); dialog.dismiss().catch(() => {}); });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('__WORKBENCH_URL__?preview=1');
   // Everything the page says aloud, in order: the live region is rewritten for each message.

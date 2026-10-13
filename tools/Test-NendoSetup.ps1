@@ -25,6 +25,9 @@ function New-Payload([string] $Name, [hashtable] $Files) {
 # pointed the real shortcut at a folder that is deleted afterwards.
 $classesRoot = "HKCU:\Software\Nendo-Setup-Tests\$([Guid]::NewGuid().ToString('N'))\Classes"
 $startMenuRoot = Join-Path $evidence 'start-menu'
+# And a browser profile folder of its own, the one setup moves an older version's profile
+# into, so the move never reaches this account's real profile.
+$script:browserProfileRoot = Join-Path $evidence 'device-state\WebView2'
 function Get-OwnerRegistrations {
     $classes = 'HKCU:\Software\Classes'
     $values = foreach ($key in @('.nendo', 'Nendo.Document\shell\open\command', 'Nendo.Document\DefaultIcon', 'Applications\Nendo.Desktop.exe\shell\open\command', '.nendo\ShellNew', 'AppUserModelId\Nendo.Desktop')) {
@@ -37,12 +40,13 @@ function Get-OwnerRegistrations {
 }
 $ownerBefore = Get-OwnerRegistrations
 function Run-Setup([string] $Mode, [string] $Root, [string] $Payload, [bool] $Success=$true, [string[]] $Extra=@()) {
-    $arguments = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$setup,'-Mode',$Mode,'-InstallRoot',$Root,'-ClassesRoot',$classesRoot,'-StartMenuRoot',$startMenuRoot)
+    $arguments = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$setup,'-Mode',$Mode,'-InstallRoot',$Root,'-ClassesRoot',$classesRoot,'-StartMenuRoot',$startMenuRoot,'-BrowserProfileRoot',$script:browserProfileRoot)
     if ($Payload) { $arguments += @('-PayloadRoot',$Payload) }
     $arguments += $Extra
     $result = & $powershell @arguments 2>&1
     $exit = $LASTEXITCODE
     $result | Out-File -LiteralPath (Join-Path $evidence 'tests.log') -Append
+    $script:lastSetupOutput = ($result | Out-String)
     Assert (($exit -eq 0) -eq $Success) "Unexpected exit $exit for $Mode at $Root. See $evidence/tests.log"
 }
 try {
@@ -55,6 +59,7 @@ try {
     Run-Setup Install $root $v2
     Assert ((Get-Content -LiteralPath (Join-Path $root 'app.txt') -Raw) -eq 'version two') 'Upgrade did not replace payload.'
     Assert (-not (Test-Path -LiteralPath (Join-Path $root 'stale/old.txt'))) 'Stale owned file survived.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path $root 'stale'))) 'An upgrade left behind the empty folder of an owned file it removed.'
     Assert ((Get-Content -LiteralPath (Join-Path "$root.previous" 'app.txt') -Raw) -eq 'version one') 'Previous payload not retained.'
     Assert ((Get-FileHash -LiteralPath (Join-Path $root 'user.nendo')).Hash -eq $userHash) 'Upgrade changed user file.'
     Run-Setup Install $root $v2
@@ -82,6 +87,26 @@ try {
     }
     Assert-NendoSetupCapacity (16MB + 300) 200 100
     Assert ((Get-FileHash -LiteralPath (Join-Path $root 'app.txt')).Hash -eq $beforeCapacity) 'Capacity refusal changed installed bytes.'
+    # The production predicate for which running Nendo keeps setup out. Another sign-in
+    # session's process has a path this account cannot read, and its install is not this one.
+    $blocksFunction = $setupAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-NendoProcessBlocks' }, $true)
+    if ($null -eq $blocksFunction) { throw 'Production running-process predicate was not found.' }
+    . ([scriptblock]::Create($blocksFunction.Extent.Text))
+    Assert (-not (Test-NendoProcessBlocks $null 7 1 @('C:\x\Nendo'))) "Another session's Nendo, whose path cannot be read, kept this account's setup out."
+    Assert (Test-NendoProcessBlocks $null 1 1 @('C:\x\Nendo')) 'A Nendo in this session whose path cannot be read did not keep setup out.'
+    Assert (Test-NendoProcessBlocks 'C:\x\Nendo.previous\Nendo.Desktop.exe' 1 1 @('C:\x\Nendo', 'C:\x\Nendo.previous')) 'A Nendo running from the backup did not keep setup out.'
+    Assert (-not (Test-NendoProcessBlocks 'C:\x\Nendo2\Nendo.Desktop.exe' 1 1 @('C:\x\Nendo'))) 'A Nendo in a sibling folder kept setup out.'
+    # The identical-payload comparison is one lookup per entry. Over 2,000 entries the
+    # quadratic comparison it replaces took tens of seconds; the bound leaves a wide margin.
+    $sameFunction = $setupAst.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Test-SamePayload' }, $true)
+    if ($null -eq $sameFunction) { throw 'Production identical-payload comparison was not found.' }
+    . ([scriptblock]::Create($sameFunction.Extent.Text))
+    $manyEntries = @(for ($i = 0; $i -lt 2000; $i++) { [pscustomobject]@{ path = "lib/file$i.dll"; sha256 = ('{0:X64}' -f $i) } })
+    $comparisonClock = [Diagnostics.Stopwatch]::StartNew()
+    $sameResult = Test-SamePayload ([pscustomobject]@{ files = $manyEntries }) ([pscustomobject]@{ files = $manyEntries })
+    $comparisonSeconds = $comparisonClock.Elapsed.TotalSeconds
+    Assert $sameResult 'Two identical inventories were not recognised as the same payload.'
+    Assert ($comparisonSeconds -lt 2) "Comparing two 2,000-entry inventories took $([math]::Round($comparisonSeconds, 2)) s; it should be a lookup per entry."
     # Locked payload is refused without disturbing the installed version.
     $handle = [IO.File]::Open((Join-Path $root 'app.txt'),'Open','ReadWrite','None')
     try { Run-Setup Install $root $v1 $false } finally { $handle.Dispose() }
@@ -182,6 +207,128 @@ try {
     $linkTarget = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut).TargetPath
     Assert ($linkTarget -eq (Join-Path $retry 'Nendo.Desktop.exe')) "The recreated Start Menu shortcut points at '$linkTarget', not at this install."
     Assert ((Get-Content -LiteralPath (Join-Path "$retry.previous" 'app.txt') -Raw) -eq 'retry one') 'The rerun discarded the backup of the version before it.'
+    # A file gone from the installed payload -- quarantined, deleted -- is put back by
+    # rerunning the same installer, and it stops neither an upgrade nor an uninstall.
+    $repair = Join-Path $evidence 'repair\Nendo'
+    $p1 = New-Payload 'p1' @{'app.txt'='repair one'; 'lib/core.dll'='repair core one'}
+    $p2 = New-Payload 'p2' @{'app.txt'='repair two'; 'lib/core.dll'='repair core two'}
+    Run-Setup Install $repair $p1
+    # The browser profile an earlier version kept beside the executable holds a view's
+    # unsaved drafts. A refused upgrade leaves it where it is; the first install that goes
+    # ahead moves it, contents and all, to where the application now looks; an unknown
+    # file beside it stays.
+    function New-OldProfile([string] $Folder, [string] $Text) {
+        $storage = Join-Path $Folder 'Nendo.Desktop.exe.WebView2\EBWebView\Default\Local Storage'
+        [void][IO.Directory]::CreateDirectory($storage)
+        [IO.File]::WriteAllText((Join-Path $storage 'leveldb.log'), $Text)
+    }
+    $movedDraft = Join-Path $script:browserProfileRoot 'EBWebView\Default\Local Storage\leveldb.log'
+    New-OldProfile $repair 'an unsaved Garden draft'
+    [IO.File]::WriteAllText((Join-Path $repair 'notes.nendo'), 'user bytes')
+    $refusedPayload = New-Payload 'p-refused' @{'app.txt'='refused'; 'notes.nendo'='overwrite forbidden'}
+    Run-Setup Install $repair $refusedPayload $false
+    Assert (Test-Path -LiteralPath (Join-Path $repair 'Nendo.Desktop.exe.WebView2')) 'A refused upgrade moved or removed the old browser profile.'
+    Remove-Item -LiteralPath (Join-Path $repair 'lib/core.dll')
+    Run-Setup Install $repair $p1
+    Assert ((Test-Path -LiteralPath (Join-Path $repair 'lib/core.dll')) -and (Get-Content -LiteralPath (Join-Path $repair 'lib/core.dll') -Raw) -eq 'repair core one') 'Rerunning the same payload did not restore a missing owned file.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path $repair 'Nendo.Desktop.exe.WebView2'))) 'Setup left the browser profile an earlier version kept in the install folder.'
+    Assert ((Test-Path -LiteralPath $movedDraft) -and (Get-Content -LiteralPath $movedDraft -Raw) -eq 'an unsaved Garden draft') "The old browser profile was not moved to $($script:browserProfileRoot) with its contents, so a view's unsaved draft was lost."
+    Assert (Test-Path -LiteralPath (Join-Path $repair 'notes.nendo')) 'Moving the old browser profile took an unknown file with it.'
+    # Once a profile is in the new place, an old one found later is the stale copy and goes;
+    # the profile in use is left exactly as it was.
+    New-OldProfile $repair 'a stale profile'
+    Remove-Item -LiteralPath (Join-Path $repair 'lib/core.dll')
+    Run-Setup Install $repair $p2
+    Assert (-not (Test-Path -LiteralPath (Join-Path $repair 'Nendo.Desktop.exe.WebView2'))) 'An old browser profile was kept beside a newer one.'
+    Assert ((Get-Content -LiteralPath $movedDraft -Raw) -eq 'an unsaved Garden draft') 'Removing a stale old profile changed the profile in use.'
+    Assert ((Get-Content -LiteralPath (Join-Path $repair 'lib/core.dll') -Raw) -eq 'repair core two') 'An upgrade over a missing owned file did not install the new payload.'
+    Assert ((Get-Content -LiteralPath (Join-Path "$repair.previous" 'app.txt') -Raw) -eq 'repair one') 'An upgrade over a missing owned file kept no backup of what was there.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path "$repair.previous" 'lib/core.dll'))) 'The backup claims a file the install no longer had.'
+    # A backup interrupted before it was complete is cleared by the next run, which then
+    # keeps a complete one: built under .partial ...
+    [void][IO.Directory]::CreateDirectory("$repair.previous.partial")
+    Copy-Item -LiteralPath (Join-Path $repair 'app.txt') -Destination (Join-Path "$repair.previous.partial" 'app.txt')
+    # And an older build run by hand from the backup left its profile there, which must
+    # not make the backup unrecognized files.
+    New-OldProfile "$repair.previous" 'a profile beside the backup'
+    Run-Setup Install $repair $p1
+    Assert (-not (Test-Path -LiteralPath (Join-Path "$repair.previous" 'Nendo.Desktop.exe.WebView2'))) 'A browser profile left in the backup survived the upgrade.'
+    Assert (-not (Test-Path -LiteralPath "$repair.previous.partial")) 'An interrupted backup under .partial survived the next upgrade.'
+    Assert ((Get-Content -LiteralPath (Join-Path "$repair.previous" 'app.txt') -Raw) -eq 'repair two') 'The upgrade after an interrupted backup kept no complete backup.'
+    Assert (Test-Path -LiteralPath (Join-Path "$repair.previous" 'nendo-install.json')) 'The backup was completed without its inventory.'
+    # ... or a Nendo.previous with no inventory, which an earlier setup left. One whose
+    # files are not the installed payload is still retained for review.
+    Remove-Item -LiteralPath (Join-Path "$repair.previous" 'nendo-install.json')
+    Run-Setup Install $repair $p2 $false
+    Assert (Test-Path -LiteralPath (Join-Path "$repair.previous" 'app.txt')) 'A backup holding unknown bytes was not retained for review.'
+    Remove-Item -LiteralPath "$repair.previous" -Recurse -Force
+    [void][IO.Directory]::CreateDirectory("$repair.previous")
+    Copy-Item -LiteralPath (Join-Path $repair 'app.txt') -Destination (Join-Path "$repair.previous" 'app.txt')
+    Run-Setup Install $repair $p2
+    Assert ((Get-Content -LiteralPath (Join-Path "$repair.previous" 'app.txt') -Raw) -eq 'repair one') 'A backup left without an inventory blocked the next upgrade.'
+    # Uninstall with an owned file held open, as a loaded DLL is, refuses before it removes
+    # anything -- of the install or of its backup -- and the same uninstall then finishes.
+    $installedInventory = Get-Content -LiteralPath (Join-Path $repair 'nendo-install.json') -Raw | ConvertFrom-Json
+    $heldPath = Join-Path $repair @($installedInventory.files)[-1].path
+    $ownedBefore = @('app.txt', 'lib/core.dll', 'nendo-install.json') | ForEach-Object { Join-Path $repair $_; Join-Path "$repair.previous" $_ }
+    New-OldProfile $repair 'kept while uninstall is refused'
+    $held = [IO.File]::Open($heldPath, 'Open', 'Read', 'Read')
+    try { Run-Setup Uninstall $repair '' $false } finally { $held.Dispose() }
+    Assert (Test-Path -LiteralPath (Join-Path $repair 'Nendo.Desktop.exe.WebView2')) 'A refused uninstall moved or removed the old browser profile.'
+    foreach ($path in $ownedBefore) { Assert (Test-Path -LiteralPath $path) "An uninstall refused over a file in use still removed $path." }
+    # A Nendo started from the backup keeps setup out too, and the refusal says where a
+    # Nendo whose window was closed still is.
+    $fake = Join-Path "$repair.previous" 'Nendo.Desktop.exe'
+    Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32\cmd.exe') -Destination $fake
+    $fakeProcess = Start-Process -FilePath $fake -ArgumentList '/d /c ping -n 120 127.0.0.1 >nul' -WindowStyle Hidden -PassThru
+    try {
+        Run-Setup Uninstall $repair '' $false
+        Assert ($script:lastSetupOutput -match 'notification area') "The refusal over a running Nendo does not say it may be in the notification area:`n$($script:lastSetupOutput)"
+    } finally {
+        # The tree, so the ping the stand-in started goes with it.
+        if (-not $fakeProcess.HasExited) { & taskkill.exe /T /F /PID $fakeProcess.Id 2>&1 | Out-Null; [void]$fakeProcess.WaitForExit(10000) }
+    }
+    foreach ($path in $ownedBefore) { Assert (Test-Path -LiteralPath $path) "An uninstall refused over a running Nendo still removed $path." }
+    Remove-Item -LiteralPath $fake -Force
+    Remove-Item -LiteralPath (Join-Path $repair 'lib/core.dll')
+    # An unfinished backup that is not the installed payload is left for review, and does
+    # not stop the uninstall. And a profile that cannot be moved -- here the destination's
+    # parent is a file -- stays where it was rather than being lost.
+    [void][IO.Directory]::CreateDirectory("$repair.previous.partial")
+    [IO.File]::WriteAllText((Join-Path "$repair.previous.partial" 'stranger.txt'), 'not the installed payload')
+    $blocker = Join-Path $evidence 'profile-blocker'
+    [IO.File]::WriteAllText($blocker, 'a file where a folder should be')
+    $usualProfileRoot = $script:browserProfileRoot
+    $script:browserProfileRoot = Join-Path $blocker 'WebView2'
+    try { Run-Setup Uninstall $repair '' } finally { $script:browserProfileRoot = $usualProfileRoot }
+    Assert (Test-Path -LiteralPath (Join-Path "$repair.previous.partial" 'stranger.txt')) 'Uninstall removed an unfinished backup that was not the installed payload.'
+    $keptDraft = Join-Path $repair 'Nendo.Desktop.exe.WebView2\EBWebView\Default\Local Storage\leveldb.log'
+    Assert ((Test-Path -LiteralPath $keptDraft) -and (Get-Content -LiteralPath $keptDraft -Raw) -eq 'kept while uninstall is refused') 'A browser profile that could not be moved was lost.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path $repair 'app.txt'))) 'Uninstall over a missing owned file left the payload.'
+    Assert (-not (Test-Path -LiteralPath "$repair.previous")) 'Uninstall over a missing owned file left the backup.'
+    # A profile or AppData moved with a junction: links above the install root do not
+    # stop setup, and a link inside it still does.
+    $junctionTarget = Join-Path $evidence 'junction-target'
+    [void][IO.Directory]::CreateDirectory($junctionTarget)
+    $junction = Join-Path $evidence 'linked-parent'
+    $null = New-Item -ItemType Junction -Path $junction -Value $junctionTarget
+    $innerTarget = Join-Path $evidence 'inner-target'
+    [void][IO.Directory]::CreateDirectory($innerTarget)
+    $linkedRoot = Join-Path $junction 'Nendo'
+    $innerLink = Join-Path $linkedRoot 'inner-link'
+    try {
+        Run-Setup Install $linkedRoot $p1
+        Assert ((Get-Content -LiteralPath (Join-Path $linkedRoot 'app.txt') -Raw) -eq 'repair one') 'Setup did not install into a root reached through a junction.'
+        $null = New-Item -ItemType Junction -Path $innerLink -Value $innerTarget
+        Run-Setup Install $linkedRoot $p2 $false
+        Assert ($script:lastSetupOutput -match 'Linked paths are not supported') "A link inside the install root was not refused:`n$($script:lastSetupOutput)"
+        [IO.Directory]::Delete($innerLink, $false)
+        Run-Setup Uninstall $linkedRoot ''
+        Assert (-not (Test-Path -LiteralPath (Join-Path $junctionTarget 'Nendo'))) 'Uninstall through a junction left the payload.'
+    } finally {
+        if (Test-Path -LiteralPath $innerLink) { [IO.Directory]::Delete($innerLink, $false) }
+        [IO.Directory]::Delete($junction, $false)
+    }
     # A traversal in even an unsigned local inventory must never escape the fixture.
     $bad = New-Payload 'bad' @{'ok.txt'='okay'}
     $inventory = Get-Content -LiteralPath (Join-Path $bad 'nendo-install.json') -Raw | ConvertFrom-Json
@@ -206,5 +353,5 @@ finally {
     }
 }
 Assert (-not (Test-Path -LiteralPath $runClasses)) "The run's class store survived its cleanup: $runClasses"
-@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','registration failure then rerun repairs association and shortcut, backup retained','path traversal refusal','account registrations untouched'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
+@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','registration failure then rerun repairs association and shortcut, backup retained','path traversal refusal','account registrations untouched','empty folder of a removed owned file removed','running-process predicate across sessions','identical-payload comparison within its time bound','missing owned file restored by the same payload and no veto on upgrade or uninstall','earlier browser profile moved once, kept by refusals and by a move that fails, stale copy removed, also from the backup','uninstall keeps an unfinished backup that is not the payload','interrupted backup cleared and replaced','uninstall refuses over a file in use before removing anything','a Nendo running from the backup refused with the notification-area sentence','install and uninstall through a junction above the root, link inside refused'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
 Write-Output "Nendo setup checks passed: $evidence"

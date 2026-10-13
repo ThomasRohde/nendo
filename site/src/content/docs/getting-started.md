@@ -43,7 +43,7 @@ There is no download, no signed installer and no automatic update. You build the
 
 ## Install
 
-Run `artifacts/installer/Nendo-Setup.exe`. The installer is unsigned, so Windows can warn before it runs. The installer writes to your user profile under `Programs\Nendo` and needs no administrator rights. Running a newer installer upgrades that installation in place.
+Run `artifacts/installer/Nendo-Setup.exe`. The installer is unsigned, so Windows can warn before it runs. The installer writes to your user profile under `Programs\Nendo` and needs no administrator rights. Running a newer installer upgrades that installation in place. Closing Nendo's window leaves it running in the notification area, so if it is still running the installer asks you to choose **Exit Nendo** from its icon there first.
 
 The installer also:
 

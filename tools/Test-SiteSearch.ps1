@@ -20,6 +20,7 @@ $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-SiteSearch.mjs'))
 # detects an agent and detaches a daemon that survives the owned process handle.
 $server = Start-Process node -ArgumentList @('node_modules/astro/bin/astro.mjs', 'preview', '--ignore-lock', '--host', '127.0.0.1', '--port', $port) -WorkingDirectory $siteRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $output "server-$run.log") -RedirectStandardError (Join-Path $output "server-$run.err")
 $session = "site-search-$run"
+$passed = $false
 Push-Location $output
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
@@ -32,10 +33,19 @@ try {
     $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
     Write-Host $ran
     if ($LASTEXITCODE -ne 0 -or $ran -notmatch '\\?"complete\\?":\s*true') { throw 'Site search geometry and click measurements did not complete.' }
+    $passed = $true
 } finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close
     if (-not $server.HasExited) { Stop-Process -Id $server.Id }
     $server.Dispose()
     if (Test-Path -LiteralPath $probePath) { Remove-Item -LiteralPath $probePath }
+    # The preview server's output says why a failing run failed; a passing run's is noise
+    # that grew by two files a run.
+    if ($passed) {
+        foreach ($log in @("server-$run.log", "server-$run.err")) {
+            $file = Join-Path $output $log
+            if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file -ErrorAction SilentlyContinue }
+        }
+    }
     Pop-Location
 }

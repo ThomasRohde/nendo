@@ -159,7 +159,17 @@ public sealed partial class MainPage : Page
         WebHost.Children.Add(_webView);
 
         DesktopStartupTiming.Mark("webview.ensure.begin");
-        return new(_webView, _webView.EnsureCoreWebView2Async().AsTask());
+        return new(_webView, EnsureBrowserAsync(_webView));
+    }
+
+    /// <summary>
+    /// Starts the browser with its profile under the device-state folder rather than
+    /// WebView2's default beside the executable (see <see cref="DesktopBrowserProfile"/>).
+    /// </summary>
+    private static async Task EnsureBrowserAsync(WebView2 view)
+    {
+        var environment = await DesktopBrowserProfile.CreateEnvironmentAsync();
+        await view.EnsureCoreWebView2Async(environment);
     }
 
     private void Page_Unloaded(object sender, RoutedEventArgs e)

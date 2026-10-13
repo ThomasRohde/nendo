@@ -11,6 +11,10 @@ $runId = [Guid]::NewGuid().ToString('N')
 $infoPath = Join-Path $output "review-server-$runId.json"
 $server = Start-Process node -ArgumentList @('tools/Graph-FixtureServer.mjs', $infoPath, '../extensions/swarm') -WindowStyle Hidden -PassThru
 $session = "swarm-$runId"
+$rootSnapshots = Join-Path $repoRoot '.playwright-cli'
+# Snapshots this run wrote there, told apart by time from any other run's.
+$laneStarted = [DateTime]::UtcNow
+$pushed = $false
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(10)
     while (-not (Test-Path -LiteralPath $infoPath)) {
@@ -23,8 +27,13 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Swarm fixture generation failed.' }
     $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-Swarm.mjs'))
     $probe = $probe.Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__SWARM_FIXTURE__'", $fixture).Replace('__OUTPUT__', $output.Replace('\', '/'))
-    $probePath = Join-Path $output 'probe.mjs'
+    # Named for the run and removed after it, so two runs never share one probe file.
+    $probePath = Join-Path $output "probe-$runId.mjs"
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
+    # playwright-cli writes its page snapshots into the current directory, which is the
+    # repository root under Test-Production; this lane's output folder is where they belong.
+    Push-Location $output
+    $pushed = $true
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge
     if ($LASTEXITCODE -ne 0) { throw 'Swarm measurement browser did not start.' }
     $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
@@ -35,10 +44,15 @@ try {
     $result = $resultLine.Groups[1].Value | ConvertFrom-Json
     if ($result.complete -ne $true) { throw 'Swarm browser measurements returned an incomplete result.' }
     [IO.File]::WriteAllText((Join-Path $output 'browser-results.json'), $resultLine.Groups[1].Value, [Text.UTF8Encoding]::new($false))
+    $strays = @(if (Test-Path -LiteralPath $rootSnapshots) { Get-ChildItem -LiteralPath $rootSnapshots -File | Where-Object { $_.CreationTimeUtc -ge $laneStarted } })
+    if ($strays.Count -gt 0) { throw "playwright-cli wrote $($strays.Count) snapshot file(s) into the repository root instead of ${output}: $(($strays | ForEach-Object Name) -join ', ')" }
     Write-Host ('Swarm browser lane passed: ' + ($result.checks -join ', ') + '. Browser exceptions: ' + $result.errors.Count)
 } finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close
     if (-not $server.HasExited) { Stop-Process -Id $server.Id }
     $server.Dispose()
     if (Test-Path -LiteralPath $infoPath) { Remove-Item -LiteralPath $infoPath }
+    $runProbe = Join-Path $output "probe-$runId.mjs"
+    if (Test-Path -LiteralPath $runProbe) { Remove-Item -LiteralPath $runProbe }
+    if ($pushed) { Pop-Location }
 }

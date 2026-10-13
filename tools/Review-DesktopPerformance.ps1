@@ -2,6 +2,7 @@
 param([string] $Executable)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $root = Join-Path $repoRoot ('artifacts/evidence/runs/review-desktop-performance-' + [Guid]::NewGuid().ToString('N'))
 [void] (New-Item -ItemType Directory -Path $root)
@@ -31,6 +32,7 @@ foreach ($recordCount in @(1000,10000)) {
         $reports = @()
         foreach ($iteration in 0..2) {
             $target = $null
+            $iterationSucceeded = $false
             $reservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
             $reservation.Start(); $port = $reservation.LocalEndpoint.Port; $reservation.Stop()
             try {
@@ -46,11 +48,10 @@ foreach ($recordCount in @(1000,10000)) {
                 & node (Join-Path $PSScriptRoot 'Review-PerformanceRuntime.mjs') $port $target.Id $cell $iteration $launchedAt $revisionCount $exe
                 if ($LASTEXITCODE -ne 0) { throw "Native performance iteration $iteration failed: $cell" }
                 $reports += Get-Content -LiteralPath (Join-Path $cell "desktop-$iteration.json") -Raw | ConvertFrom-Json
+                $iterationSucceeded = $true
             }
             finally {
-                if ($null -ne $target -and -not $target.HasExited) {
-                    if (-not $target.CloseMainWindow() -or -not $target.WaitForExit(15000)) { throw "Owned performance PID $($target.Id) did not close normally." }
-                }
+                Stop-OwnedNendo $target $iterationSucceeded 'performance'
             }
         }
         $summary = [ordered]@{ records=$recordCount; revisions=$revisionCount; protocolSha256=$protocolHash;

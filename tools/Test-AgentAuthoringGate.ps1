@@ -2,6 +2,7 @@
 param([Parameter(Mandatory)][string] $Executable)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
 $exe = (Resolve-Path -LiteralPath $Executable).Path
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $evidenceRoot = Join-Path $repoRoot ('artifacts/evidence/runs/p6-axiom-gate-' + [Guid]::NewGuid().ToString('N'))
@@ -13,6 +14,7 @@ $reservation.Stop()
 $frozen = @(Get-ChildItem -LiteralPath (Split-Path $exe) -Recurse -File | ForEach-Object { @{ path = $_.FullName; sha256 = (Get-FileHash -LiteralPath $_.FullName).Hash } })
 foreach ($phase in @('build', 'reopen')) {
     $target = $null
+    $phaseSucceeded = $false
     try {
         $target = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru -Environment @{
             NENDO_STARTUP_CREATE = $(if ($phase -eq 'build') { Join-Path $evidenceRoot 'axiom-register.nendo' } else { '' })
@@ -26,10 +28,9 @@ foreach ($phase in @('build', 'reopen')) {
         }
         & node (Join-Path $PSScriptRoot 'Gate-AgentAuthoring.mjs') $port $target.Id $evidenceRoot $phase
         if ($LASTEXITCODE -ne 0) { throw "Axiom register gate $phase failed. Evidence: $evidenceRoot" }
+        $phaseSucceeded = $true
     } finally {
-        if ($null -ne $target -and -not $target.HasExited) {
-            if (-not $target.CloseMainWindow() -or -not $target.WaitForExit(15000)) { throw "Owned pilot PID $($target.Id) did not close normally." }
-        }
+        Stop-OwnedNendo $target $phaseSucceeded 'pilot'
     }
 }
 foreach ($file in $frozen) { if ((Get-FileHash -LiteralPath $file.path).Hash -ne $file.sha256) { throw "Payload changed: $($file.path)" } }

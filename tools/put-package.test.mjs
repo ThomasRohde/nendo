@@ -12,7 +12,9 @@ const source = (await fs.readFile(new URL('./Put-NendoPackage.mjs', import.meta.
   .replace(/^import .*;\r?\n/gm, '')
   .replace(/main\(\)\.catch\(error => fail\(error\.stack \?\? String\(error\)\)\);/, '');
 
-async function run({ files = 16, extra = 0, acceptError, accept = false } = {}) {
+// held: the package the file already carries, as nendo://application/extensions reports
+// it. Without it the file carries no package and every run is the new-package path.
+async function run({ files = 16, extra = 0, acceptError, accept = false, held } = {}) {
   const calls = [], logs = [], errors = [];
   const mockProcess = { argv: ['node', 'uploader', '/fixture', '--endpoint', 'http://127.0.0.1:1/mcp',
     ...(extra ? ['--operations', '/extra.json'] : []), ...(accept ? ['--accept'] : [])], env: {}, exitCode: 0,
@@ -29,7 +31,8 @@ async function run({ files = 16, extra = 0, acceptError, accept = false } = {}) 
   };
   const context = vm.createContext({ fs: mockFs, path, crypto, process: mockProcess,
     console: { log: (...a) => logs.push(a.join(' ')), error: (...a) => errors.push(a.join(' ')) },
-    createNendoMcpClient: () => ({ rpc: async () => ({ contents: [{ text: '{"applicationId":"fixture"}' }] }),
+    createNendoMcpClient: () => ({ rpc: async (_, { uri }) => ({ contents: [{ text: JSON.stringify(
+        uri === 'nendo://application/extensions' ? { packages: held ? [held] : [] } : { applicationId: 'fixture' }) }] }),
       tool: async (name, args) => {
         calls.push({ name, args });
         if (name === 'nendo.lease.acquire') return { applicationHandle: 'fixture', leaseId: 'fixture' };
@@ -40,7 +43,7 @@ async function run({ files = 16, extra = 0, acceptError, accept = false } = {}) 
       } }),
   });
   vm.runInContext(source, context);
-  await context.main();
+  try { await context.main(); } catch (error) { if (!/^process-exit-/.test(error.message)) throw error; }
   return { calls, logs, errors, exitCode: mockProcess.exitCode };
 }
 
@@ -91,4 +94,35 @@ test('the MCP client preserves explicit Nendo refusals from both protocol and to
     const client = createNendoMcpClient({ endpoint: 'http://127.0.0.1:1/mcp' }, 'test');
     await assert.rejects(client.tool('nendo.change_set.accept'), error => error.code === undefined && /HTTP 503/.test(error.message));
   } finally { globalThis.fetch = fetchBefore; }
+});
+
+// The update path: the file already carries the package, so only what differs is proposed,
+// and every put and removal names the bytes it replaces.
+const sha = text => crypto.createHash('sha256').update(text).digest('hex');
+const heldPackage = files => ({ packageId: 'fixture', title: 'Fixture', entryPoint: 'file-0.txt', files });
+
+test('an update removes a dropped file, re-sends only a changed one, and names the bytes each replaces', async () => {
+  const held = heldPackage([
+    { path: 'file-0.txt', sha256: sha('content') },
+    { path: 'file-1.txt', sha256: sha('older content') },
+    { path: 'dropped.txt', sha256: sha('dropped content') },
+  ]);
+  const result = await run({ files: 2, held });
+  assert.equal(result.exitCode, 0);
+  const operations = result.calls.filter(c => c.name === 'nendo.change_set.add_operations')
+    .flatMap(c => c.args.mutations.flatMap(m => m.operations));
+  assert.deepEqual(operations.map(o => `${o.operationType} ${o.payload.path ?? ''}`.trim()),
+    ['extension.setPackage', 'extension.removeFile dropped.txt', 'extension.putFile file-1.txt'],
+    'An update must remove the dropped file, re-send the changed file and leave the unchanged one alone.');
+  assert.equal(operations[1].payload.expectedSha256, sha('dropped content'), 'A removal must name the bytes the file holds.');
+  assert.equal(operations[2].payload.expectedSha256, sha('older content'), 'A changed file must name the bytes it replaces, not absent.');
+  assert.ok(result.logs.some(line => line.includes('(update)')));
+  assert.equal(result.calls.at(-1).name, 'nendo.lease.release');
+});
+
+test('a folder the file already carries exactly is refused before a lease is taken', async () => {
+  const result = await run({ files: 1, held: heldPackage([{ path: 'file-0.txt', sha256: sha('content') }]) });
+  assert.equal(result.exitCode, 1);
+  assert.ok(result.errors.some(line => line.includes('already carries fixture')), result.errors.join('\n'));
+  assert.ok(!result.calls.some(c => c.name === 'nendo.lease.acquire'), 'Nothing to propose must not take the edit lease.');
 });

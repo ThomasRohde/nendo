@@ -47,7 +47,9 @@ Add-Type -Namespace NendoCapture -Name Window -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
 '@
 
+. (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
 $target = $null
+$succeeded = $false
 $env:NENDO_RUNTIME_EXPECTED_EXECUTABLE = $exe
 try {
     # Deliberately NOT -WindowStyle Hidden. A hidden WebView2 stops producing frames,
@@ -84,14 +86,10 @@ try {
 
     & node (Join-Path $PSScriptRoot 'Capture-SiteScreenshots.mjs') $port $target.Id $output $Width $Height $Scale
     if ($LASTEXITCODE -ne 0) { throw "Site screenshot capture failed with exit code $LASTEXITCODE. Output: $output" }
+    $succeeded = $true
 }
 finally {
-    if ($null -ne $target -and -not $target.HasExited) {
-        if (-not $target.CloseMainWindow() -or -not $target.WaitForExit(15000)) {
-            $target.Kill($true)
-            Write-Warning "Owned Nendo PID $($target.Id) did not close normally and was stopped; no other process was touched."
-        }
-    }
+    Stop-OwnedNendo $target $succeeded
     # The run root holds a copy of the demo file, a WebView2 profile and a device
     # state root. None of it is evidence; leaving it turns artifacts/ into ballast.
     if (Test-Path -LiteralPath $runRoot) { Remove-Item -LiteralPath $runRoot -Recurse -Force -ErrorAction SilentlyContinue }

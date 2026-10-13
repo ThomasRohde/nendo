@@ -2,6 +2,7 @@
 param([Parameter(Mandatory)][string] $Executable)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
 $exe = (Resolve-Path -LiteralPath $Executable).Path
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $evidenceRoot = Join-Path $repoRoot ('artifacts/evidence/runs/p5-drag-' + [Guid]::NewGuid().ToString('N'))
@@ -11,13 +12,19 @@ $reservation.Start()
 $port = $reservation.LocalEndpoint.Port
 $reservation.Stop()
 $frozen = @(Get-ChildItem -LiteralPath (Split-Path $exe) -Recurse -File | ForEach-Object { @{ path = $_.FullName; sha256 = (Get-FileHash -LiteralPath $_.FullName).Hash } })
+$ownerDeviceBefore = Get-OwnerDeviceSnapshot
 foreach ($phase in @('create', 'reopen')) {
     $target = $null
+    $phaseSucceeded = $false
     try {
         $target = Start-Process -FilePath $exe -WorkingDirectory (Split-Path $exe) -WindowStyle Hidden -PassThru -Environment @{
             NENDO_STARTUP_CREATE = $(if ($phase -eq 'create') { Join-Path $evidenceRoot 'pilot.nendo' } else { '' })
             NENDO_STARTUP_OPEN = $(if ($phase -eq 'reopen') { Join-Path $evidenceRoot 'pilot.nendo' } else { '' })
             WEBVIEW2_USER_DATA_FOLDER = (Join-Path $evidenceRoot 'webview-profile')
+            # A device-state root of its own: without one the host kept this file's agent
+            # port, its theme switches and its recent-file entry in the owner's device
+            # state, and listed the run in the owner's MCP discovery folder.
+            NENDO_DEVICE_STATE_ROOT = (Join-Path $evidenceRoot 'device-state')
             WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=$port"
             # The close button minimises to the notification area by default, and no
             # script can click a tray menu. Pin the exit this lane's teardown relies on.
@@ -25,12 +32,14 @@ foreach ($phase in @('create', 'reopen')) {
         }
         & node (Join-Path $PSScriptRoot 'Journey-Drag.mjs') $port $target.Id $evidenceRoot $phase
         if ($LASTEXITCODE -ne 0) { throw "Pilot $phase failed. Evidence: $evidenceRoot" }
+        $phaseSucceeded = $true
     } finally {
-        if ($null -ne $target -and -not $target.HasExited) {
-            if (-not $target.CloseMainWindow() -or -not $target.WaitForExit(15000)) { throw "Owned pilot PID $($target.Id) did not close normally." }
-        }
+        Stop-OwnedNendo $target $phaseSucceeded 'pilot'
     }
 }
+Assert-OwnerDeviceUnchanged $ownerDeviceBefore @('pilot.nendo') 'The drag journey'
+# The theme switches land in the run's own device state, which is what shows the root took.
+if (-not (Test-Path -LiteralPath (Join-Path $evidenceRoot 'device-state/appearance.json'))) { throw "The drag journey's theme switches did not reach its own device state. Evidence: $evidenceRoot" }
 foreach ($file in $frozen) { if ((Get-FileHash -LiteralPath $file.path).Hash -ne $file.sha256) { throw "Payload changed: $($file.path)" } }
 @{ executable = $exe; files = $frozen; result = 'passed'; limitation = 'Current Windows user with existing WebView2; not a clean-machine or human test.' } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidenceRoot 'runtime.json')
 Write-Output "Pilot runtime evidence: $evidenceRoot"
