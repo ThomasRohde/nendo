@@ -453,7 +453,12 @@ public sealed partial class NendoApplicationService
         // may set several fields. Every step lands in one mutation against one
         // expected record version, so a button either applies whole or not at all.
         if (FindComposableCommand(compilation, request.CommandId) is { } composable)
+        {
+            if (request.EntityId is { } entityId && entityId != composable.Plan.Entity.SemanticId)
+                throw new NendoPreconditionException("command-unavailable",
+                    $"The command {request.CommandId} runs on {composable.Plan.Entity.SemanticId} records, and this call names a record of {entityId}. Pass the record's own entityId.");
             return await ExecuteComposableCommandAsync(composable, request, cancellationToken);
+        }
 
         throw new NendoPreconditionException(
             "command-unavailable",

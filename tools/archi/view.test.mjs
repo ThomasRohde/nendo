@@ -210,7 +210,7 @@ function controller(draft, batch = true, failAt = null) {
           for (const field of ['ar.item.concept', 'ar.property.concept']) {
             const id = write.values?.[field];
             if (id && !created.has(id) && write.targetVersions?.[field] !== known.get(id)?.version)
-              throw new Error('Select the target again so its current version can be checked.');
+              throw new Error(`${field} points at ${id} without the version it was chosen at. Select the target again so its current version can be checked.`);
           }
           if (write.op === 'create') created.add(write.recordId);
         }

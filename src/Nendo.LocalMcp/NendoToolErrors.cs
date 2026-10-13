@@ -135,7 +135,33 @@ internal static class NendoToolErrors
             // an action that could never run names the action, step, binding or field, the record types
             // and the remedy, all from the definition and the schema.
             "field-requirement-in-use", "action-target-mismatch",
+            // W-214 (R2AP-02, MTD-05): the rest of what a data write or read meets, read the same way.
+            // Each names a record by stable ID, a record type or field by ID or display name, or a
+            // ceiling by its number, and the person reads the same sentence in Nendo. A write-ceiling
+            // refusal says nothing was changed and the file still opens.
+            "record-id-reserved", "record-exists-or-invalid", "kept-in-new-files-unchanged", "new-file-reference-left-out",
+            "entity-not-found", "entity-exists", "entity-retired", "field-retired", "retired-binding",
+            "record-version-exhausted", "command-unavailable", "move-receipt-unavailable", "ui-node-not-found",
+            "write-ceiling-bytes", "write-ceiling-rows", "write-ceiling-schema", "file-changed-before-open",
+            "reference-conversion-required", "reference-conversion-incomplete", "reference-conversion-mismatch",
+            "reference-conversion-too-large",
+            "calculated-query-too-wide", "search-too-long", "search-too-many-terms", "search-index-missing",
+            "stale-cursor", "invalid-limit", "data-unavailable", "history-unavailable", "reopen-to-verify",
+            "read-only", "proposal-not-found", "receipt-file-mismatch",
         ], StringComparer.Ordinal);
+
+    /// <summary>
+    /// The precondition codes a data tool or a read can meet whose sentence stays withheld, each
+    /// with the reason. A code a data path throws is on <see cref="DiagnosablePreconditions"/> or
+    /// here; the walk in the Local MCP tests refuses one that is on neither (R2AP-02).
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> WithheldPreconditions = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["aggregate-not-exact"] = "its sentence echoes a stored value, a floating-point number or a date text",
+    };
+
+    /// <summary>Whether a precondition's own sentence reaches an agent, on the tool path and the resource path alike.</summary>
+    internal static bool IsDiagnosable(string code) => DiagnosablePreconditions.Contains(code);
 
     // These authoring messages are written here and carry only bounded counters and
     // identifiers the caller already sent. Withholding them left NENDO_CHANGE_SET_LIMIT

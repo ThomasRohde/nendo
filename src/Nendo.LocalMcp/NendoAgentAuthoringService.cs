@@ -24,6 +24,13 @@ internal sealed partial class NendoAgentAuthoringService(
     private static readonly int MaximumCanonicalOperationsPerChangeSet = Limits.CanonicalOperationsPerChangeSet;
     private static readonly int MaximumPropertiesPerNodeOperation = Limits.PropertiesPerNodeOperation;
     private const int MaximumPayloadBytes = 32 * 1024;
+
+    /// <summary>
+    /// A record operation's payload carries a value the person may have stored at any size, so it is
+    /// bounded by the request body, as the data tools' values are (R2AP-03); the description
+    /// operations keep the 32 KiB they need.
+    /// </summary>
+    private static readonly int RecordPayloadBytes = Limits.RequestBodyBytes;
     private static readonly int PutFilePayloadBytes = Limits.Extensions!.PutFilePayloadBytes;
 
     /// <summary>
@@ -1200,8 +1207,14 @@ internal sealed partial class NendoAgentAuthoringService(
                 $"The payload of {operation.OperationType} must be a JSON object.");
         }
         // A package file is the one payload that is content rather than description, so it
-        // gets the larger bound; a file past that arrives in chunks with append.
-        var payloadBytes = operation.OperationType == "extension.putFile" ? PutFilePayloadBytes : MaximumPayloadBytes;
+        // gets the larger bound; a file past that arrives in chunks with append. A record
+        // operation carries a stored value, bounded by the request body (R2AP-03).
+        var payloadBytes = operation.OperationType switch
+        {
+            "extension.putFile" => PutFilePayloadBytes,
+            _ when operation.OperationType.StartsWith("data.", StringComparison.Ordinal) => RecordPayloadBytes,
+            _ => MaximumPayloadBytes,
+        };
         if (Encoding.UTF8.GetByteCount(operation.Payload.Element.GetRawText()) > payloadBytes)
         {
             throw new NendoValidationException(

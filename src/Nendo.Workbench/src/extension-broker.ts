@@ -320,6 +320,32 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
 }
 
 /**
+ * commands.run: a record command, on a record of the command's own record type. The host finds
+ * the command by its ID and writes a record of the type the command belongs to; it never read
+ * the entityId the view sent, and the record was read back from the view's type, so a command
+ * named with another type's record answered with a different record, or null as if deleted
+ * (R2AP-08). A command the schema gives a record type is refused here, before anything is
+ * written, when the view names another, naming both.
+ */
+function commandRun(): MethodEntry {
+  const inner = write('data.executeCommand', (p) => ({
+    commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
+  }));
+  return {
+    ...inner,
+    run: async (call) => {
+      const commandId = textParam(call.params, 'commandId');
+      const entityId = textParam(call.params, 'entityId');
+      const command = call.deps.describe().commands.find(candidate => candidate.id === commandId);
+      if (command !== undefined && typeof command.entityId === 'string' && command.entityId !== entityId)
+        throw new WorkbenchHostError('command-unavailable',
+          `The command ${commandId} runs on ${command.entityId} records, and this call names a record of ${entityId}. Pass the record's own entityId.`);
+      return inner.run(call);
+    },
+  };
+}
+
+/**
  * An automatic action a view's write did not run, because its trigger condition could not be
  * worked out, is the person's to know about, as after their own save: what it keeps may now be
  * out of date (EBH-01). The view's answer is unchanged.
@@ -509,7 +535,7 @@ const batchCharacters = 250_000;
  * the view read, or a delete against that version. A record is written at most once in a batch,
  * so the version a view read is the version its write expects.
  */
-function recordWritesParam(params: Params): Params[] {
+function recordWritesParam(params: Params, keyedIds: readonly string[] = []): Params[] {
   const value = params.writes;
   if (!Array.isArray(value) || value.length === 0 || value.length > batchWrites)
     throw invalid(`writes must be a list of 1 to ${batchWrites} record writes.`);
@@ -520,7 +546,7 @@ function recordWritesParam(params: Params): Params[] {
     let body: Params & { recordId: string };
     try {
       const entityId = textParam(entry, 'entityId');
-      if (entry.op === 'create') body = { kind: 'create', entityId, recordId: newRecordId(entry), ...assignedValues(entry) };
+      if (entry.op === 'create') body = { kind: 'create', entityId, recordId: newRecordId(entry, keyedIds[index]), ...assignedValues(entry) };
       else if (entry.op === 'update') {
         body = { kind: 'update', entityId, recordId: textParam(entry, 'recordId'), expectedRecordVersion: versionParam(entry), ...assignedValues(entry) };
       } else if (entry.op === 'delete') {
@@ -537,9 +563,26 @@ function recordWritesParam(params: Params): Params[] {
   });
 }
 
-/** A record ID a view may choose, or one made for it. */
-function newRecordId(params: Params): string {
-  return optionalText(params, 'recordId', 120) ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
+/** A record ID a view may choose, or one made for it: the batch's keyed one when it has a writeKey. */
+function newRecordId(params: Params, keyed?: string): string {
+  return optionalText(params, 'recordId', 120) ?? keyed ?? `record-${crypto.randomUUID().replaceAll('-', '')}`;
+}
+
+/**
+ * The record IDs a batch under a writeKey gives the creates that name none, one per write
+ * position: record- and 32 hex digits of SHA-256 over the package, the writeKey and the position.
+ * The same batch sent again is then the same payload, which the host keeps once and answers as
+ * before. A fresh random ID on every send made the resend a different payload under a used key,
+ * refused as idempotency-conflict, in exactly the lost-answer case the writeKey is for (R2AP-04).
+ */
+async function keyedRecordIds(packageId: string, params: Params): Promise<string[]> {
+  const writes = params.writes;
+  if (params.writeKey === undefined || params.writeKey === null || !Array.isArray(writes) || writes.length > batchWrites) return [];
+  const encoder = new TextEncoder();
+  return Promise.all(writes.map(async (_, index) => {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', encoder.encode(`${packageId}\n${String(params.writeKey)}\n${index}`)));
+    return `record-${[...digest.slice(0, 16)].map(byte => byte.toString(16).padStart(2, '0')).join('')}`;
+  }));
 }
 
 /**
@@ -614,11 +657,12 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     run: async ({ params, mount, deps }) => {
       const context = deps.context(mount);
       if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
-      const writes = recordWritesParam(params);
+      const idempotencyKey = batchKey(params, context.packageId);
+      const writes = recordWritesParam(params, await keyedRecordIds(context.packageId, params));
       const label = optionalText(params, 'label', 80);
       const body = {
         writes, ...(label === undefined ? {} : { label }),
-        idempotencyKey: batchKey(params, context.packageId), actor: `extension:${context.packageId}`,
+        idempotencyKey, actor: `extension:${context.packageId}`,
       };
       if (JSON.stringify(body).length > batchCharacters)
         throw new WorkbenchHostError('too-large', 'This batch is too large to send at once; split it into smaller batches.');
@@ -630,9 +674,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   // Undo of a revision this frame wrote, and redo of its undo (ADR-0023, W-103).
   'records.undo': undoWrites(false),
   'records.redo': undoWrites(true),
-  'commands.run': write('data.executeCommand', (p) => ({
-    commandId: textParam(p, 'commandId'), entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
-  })),
+  'commands.run': commandRun(),
   // A view prepares a definition change in its package's name and the person decides it in
   // the ordinary review (ADR-0013 Phase 3, W-069). Nothing here promotes or rejects: the host
   // admits the actor on proposal.prepareChangeSet and proposal.get alone, answers another

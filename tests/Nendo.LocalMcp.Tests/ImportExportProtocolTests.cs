@@ -410,13 +410,15 @@ public sealed class ImportExportProtocolTests
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var session = await AcquireAsync(client);
-        var cases = new (string Name, NendoCsvColumnMapping[] Mappings)[]
+        // A field the record type does not have is the precondition every other write meets, so
+        // a pending proposal that adds it is named (MTD-07); the mapping's own faults are invalid requests.
+        var cases = new (string Name, NendoCsvColumnMapping[] Mappings, string Code)[]
         {
-            ("unknown", [new(0, "missing.field")]),
-            ("duplicate", [new(0, "label"), new(1, "label")]),
-            ("column", [new(2, "label")]),
+            ("unknown", [new(0, "missing.field")], "NENDO_FIELD_NOT_FOUND"),
+            ("duplicate", [new(0, "label"), new(1, "label")], "NENDO_INVALID_REQUEST"),
+            ("column", [new(2, "label")], "NENDO_INVALID_REQUEST"),
         };
-        foreach (var (name, mappings) in cases)
+        foreach (var (name, mappings, code) in cases)
         {
             var response = await client.CallToolAsync("nendo.data.import_records", new Dictionary<string, object?>(session)
             {
@@ -424,7 +426,7 @@ public sealed class ImportExportProtocolTests
                 ["columnMappings"] = mappings, ["idempotencyKey"] = $"bad-mapping-{name}",
             });
             Assert.IsTrue(response.IsError, name);
-            StringAssert.Contains(JsonSerializer.Serialize(response), "NENDO_INVALID_REQUEST", StringComparison.Ordinal);
+            StringAssert.Contains(JsonSerializer.Serialize(response), code, StringComparison.Ordinal, name);
             Assert.HasCount(3, (await workspace.Service.QueryRecordsAsync(new("notes", 100))).Items, name);
         }
     }

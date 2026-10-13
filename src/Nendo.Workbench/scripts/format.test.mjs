@@ -203,5 +203,7 @@ test('a History entry says who made the revision: you, an agent by its pseudonym
   assert.equal(originLabel('extension:org.example.glance', packages), 'the custom view Glance');
   assert.equal(originLabel('extension:org.example.gone', packages), 'the custom view org.example.gone');
   assert.equal(originLabel('kernel', packages), 'Nendo');
+  // R2AP-10: the person's own CSV import is theirs, not "csv".
+  assert.equal(originLabel('csv', packages), 'you (CSV import)');
   assert.equal(originLabel('something-new', packages), 'something-new');
 });

@@ -119,6 +119,36 @@ public sealed class ReferenceTests
         CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(workspace.FilePath));
     }
 
+    /// <summary>
+    /// R2AP-07: each reference refusal names the field and the record it points at, so an agent's
+    /// or a view's batch can tell which write it means; the form's words named neither.
+    /// </summary>
+    [TestMethod]
+    public async Task AReferenceRefusalNamesTheFieldAndTheRecordItPointsAt()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Seed(coordinator, false);
+        await service.CreateRecordAsync(new("source", "s", new Dictionary<string, object?>(), Context("source")));
+        async Task<string> RefusedAsync(string code, Func<Task> action)
+        {
+            var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(action);
+            Assert.AreEqual(code, refused.Code);
+            // The Workbench names the target by its label from this, for the person (R2AP-07).
+            Assert.IsNotNull(refused.RecordId, $"{code} does not say which record the reference points at.");
+            StringAssert.Contains(refused.Message, $" points at {refused.RecordId}", StringComparison.Ordinal);
+            return refused.Message;
+        }
+        Assert.AreEqual("Reference points at t without the version it was chosen at. Select the target again so its current version can be checked.",
+            await RefusedAsync("target-version-required", () => service.SetFieldAsync(new("source", "s", "ref", 1, "t", Context("missing")))));
+        Assert.AreEqual("Reference points at absent, and Target has no such record.",
+            await RefusedAsync("target-not-found", () => service.SetFieldAsync(new("source", "s", "ref", 1, "absent", Context("absent"), 1))));
+        await service.SetFieldAsync(new("target", "t", "label", 1, "Renamed target", Context("target-edit")));
+        Assert.AreEqual("Reference points at t in Target, which changed after it was selected. Select it again before saving.",
+            await RefusedAsync("target-version-conflict", () => service.SetFieldAsync(new("source", "s", "ref", 1, "t", Context("stale"), 1))));
+    }
+
     private static async Task Seed(NendoWriteCoordinator coordinator, bool required)
     {
         await coordinator.ApplyAsync(new("test", "schema", "test", "Reference schema", [

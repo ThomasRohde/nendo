@@ -107,24 +107,24 @@ internal sealed class NendoDataTools(
         ReadOnly = false,
         UseStructuredContent = true)]
     [Description("""
-        Create many records of one record type from CSV text or typed JSON: the way a new application is given its
-        data, past what one nendo.data.create_records call takes.
-        format is "csv" or "json". For csv, send the text itself in csv, never a path, and map its columns with
-        columnMappings, each {column, fieldId}, column being the zero-based position in the header row. csvProfile
-        "nendo" reads text from nendo://application/entity/{entityId}/export or the person's own Export, where a
-        backslash followed by N means null and a value starting with a backslash carries one extra; the default,
-        "external", reads every cell literally, and emptyIsNull (off by default) makes its empty cells null.
-        Record IDs are derived for you and are stable across an exact retry.
-        For json, send records as [{recordId, values}], the shape nendo.data.create_records takes, with exact
-        numbers as {"$nendoNumber":"lexeme"} and reference targets in expectedTargetVersions.
+        Create many records of one record type from CSV text or typed JSON, past what one nendo.data.create_records
+        call takes. format is "csv" or "json". For csv, send the text itself in csv, never a path, and map its
+        columns with columnMappings, each {column, fieldId}, column being the zero-based position in the header row.
+        csvProfile "nendo" reads text from nendo://application/entity/{entityId}/export (only its first page has the
+        header row; prepend it to a later page) or the person's own Export, where a backslash followed by N means
+        null and a value starting with a backslash carries one extra; the default, "external", reads every cell
+        literally, and emptyIsNull makes its empty cells null. Record IDs are derived for you, stable across an exact
+        retry. For json, send records as [{recordId, values}], as nendo.data.create_records takes them, with exact
+        numbers as {"$nendoNumber":"lexeme"} and reference targets in expectedTargetVersions or references, which
+        may name an earlier record of the import.
         Bounds: limits.import.rowsPerCall rows per call (echoed as maximumRowsPerCall) and the request body, which
-        you will meet first. It commits in batches of limits.import.rowsPerBatch, each one revision and all or nothing, each with a key derived from
-        yours, so a refused batch stops the run and leaves the batches before it committed. On success, committed
-        and remaining state the counts. If a later batch is refused, NENDO_IMPORT_PARTIAL names the number
-        committed, the number remaining, the first uncommitted data row, the committed revision IDs and the cause.
-        Retry the identical call with the same idempotencyKey: earlier batches replay without duplicates. Bad
-        mappings and mixed CSV/JSON payloads are refused before any write; the call as a whole is not atomic.
-        Create the record type first: a write into one an unaccepted proposal would create names that proposal.
+        you meet first. It commits in batches of limits.import.rowsPerBatch, each one all-or-nothing revision under a
+        key derived from yours, so a refused batch stops the run and the batches before it stay committed.
+        committed and remaining state the counts; isIdempotentReplay: every batch replayed an earlier import.
+        If a later batch is refused, NENDO_IMPORT_PARTIAL names the counts, the first uncommitted data row, the
+        committed revision IDs and the cause; retry the identical call with the same idempotencyKey and earlier
+        batches replay without duplicates. Bad mappings, a repeated record ID and mixed CSV/JSON payloads are
+        refused before any write. A write into a record type an unaccepted proposal would create names that proposal.
         """)]
     public Task<NendoImportResult> ImportRecordsAsync(
         RequestContext<CallToolRequestParams> context,

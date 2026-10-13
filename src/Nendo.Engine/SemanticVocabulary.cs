@@ -1022,19 +1022,34 @@ public sealed record NendoAuthoringLimits(
             PutFilePayloadBytes: 96 * 1024),
         Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumDescendants, NendoHierarchyLimits.OrderGap),
         Import = new(RowsPerCall: 500, RowsPerBatch: NendoApplicationService.MaximumBatchRecords),
-        RecordValueBytes = 32 * 1024,
-        RecordValuesBytes = 64 * 1024,
-        RequestBodyBytes = 256 * 1024,
+        // As large as the request body (R2AP-03): the person's forms, Studio, a view and the
+        // native import store values of any size, and an agent that read one back must be able
+        // to send it back; the body is the bound a tool call meets first.
+        RecordValueBytes = RequestBodyByteCount,
+        RecordValuesBytes = RequestBodyByteCount,
+        RequestBodyBytes = RequestBodyByteCount,
         RequestsInFlight = 16,
         RequestQueueSeconds = 30,
     };
+
+    /// <summary>The local agent endpoint's request body bound, which the value bounds share.</summary>
+    private const int RequestBodyByteCount = 256 * 1024;
 
     /// <summary>
     /// The most one submitted field value may hold, in UTF-8 bytes of the value itself: the
     /// text of a string as stored, without its quotes or JSON escapes, and the JSON text of
     /// anything else (W-165). An outside author found it by bisection while it was unpublished.
+    /// It was 32 KiB until 2026-10-13, below what the person stores; it is now the request
+    /// body's bound, so an agent can write back any value a request can carry (R2AP-03).
     /// </summary>
     public int RecordValueBytes { get; init; }
+
+    /// <summary>
+    /// The most records a filter or sort on a calculated field works out before it answers
+    /// (<see cref="NendoQueryLimits.MaximumCalculatedQueryRecords"/>); a read past it is
+    /// calculated-query-too-wide. The records read named it as limits.query, which did not exist.
+    /// </summary>
+    public int CalculatedQueryRecords { get; init; } = NendoQueryLimits.MaximumCalculatedQueryRecords;
 
     /// <summary>The most one record write's values may hold together, each counted as <see cref="RecordValueBytes"/> counts it.</summary>
     public int RecordValuesBytes { get; init; }

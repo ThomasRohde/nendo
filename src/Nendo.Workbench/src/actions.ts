@@ -5,7 +5,7 @@ import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showKeptAlert, showOutcome, showRetainedNotice } from './shell';
 import { blockedConditionsNotice, escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
-import { decideWriteFailure, nameHolder, namingFieldId } from './write-failure';
+import { decideWriteFailure, nameHolder, nameTarget, namingFieldId, referenceRefusalCodes, referenceTargetOf } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
 import { emptyWindowQuery, windowRequest, type WindowQuery } from './record-window';
@@ -45,6 +45,24 @@ async function holderNamed(error: unknown, payload: Record<string, unknown>): Pr
     const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', { entityId: payload.entityId, recordId: error.recordId, limit: 1 });
     const holder = page.items[0];
     return holder === undefined ? null : nameHolder(error.message, error.recordId, valueDisplay(holder.values[fieldId]));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A reference refusal said with the record it points at named by its label rather than its ID
+ * (R2AP-07). Null keeps the host's sentence: no target named, a target that does not exist, or a
+ * read that failed.
+ */
+async function targetNamed(error: unknown, payload: Record<string, unknown>): Promise<string | null> {
+  if (!(error instanceof WorkbenchHostError) || !referenceRefusalCodes.includes(error.code) || error.recordId === null) return null;
+  const target = referenceTargetOf(state.session.entities, payload, error.recordId);
+  if (target === null) return null;
+  try {
+    const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', { entityId: target.targetEntityId, recordId: error.recordId, limit: 1 });
+    const record = page.items[0];
+    return record === undefined ? null : nameTarget(error.message, error.recordId, valueDisplay(record.values[target.labelFieldId]));
   } catch {
     return null;
   }
@@ -102,7 +120,7 @@ export async function runMutation(
       if (refreshAfterFailure) await recoverAfterWriteFailure();
       else rerender();
     }
-    showError(restate?.(error) ?? await holderNamed(error, payload) ?? messageFor(error));
+    showError(restate?.(error) ?? await holderNamed(error, payload) ?? await targetNamed(error, payload) ?? messageFor(error));
     return redrawn ? 'redrawn' : 'kept';
   } finally {
     state.actionInFlight = false;

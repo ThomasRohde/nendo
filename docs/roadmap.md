@@ -564,6 +564,22 @@ What remains open:
   A unique index already lost to a collision in an existing file comes back only when its field
   is declared unique again.
 
+## Left open by the MCP data parity pass (W-214, 2026-10-13)
+
+- **An agent cannot write back a value larger than one request.** The agent value bounds are now
+  the 256 KiB request body's (R2AP-03, the owner's choice), so an agent writes back any value a
+  request can carry. Studio's large-text editor stores up to a million characters and the Desktop
+  bridge about 256 K characters, so a value past the body is still one the person can store and an
+  agent cannot send whole.
+- **A JSON import is not put parents first.** A record may name an earlier record of the same
+  import by record ID or code (MTD-03); a CSV import of a declared tree is reordered so parents come
+  first, a JSON one is taken in the order sent, and a record that names a later one is refused as
+  `target-not-found`.
+- **An agent's import still reads as plain creates in History.** The person's CSV import now reads
+  "by you (CSV import)" (R2AP-10); an agent's import batches are named "Create 50 Tasks" under the
+  agent, as any batch create is. Naming them as an import would need a description on the batch
+  create, a design change the finding's verifier set aside.
+
 ## Left open by the 2026-09-12 vocabulary widening
 
 The amendment is delivered

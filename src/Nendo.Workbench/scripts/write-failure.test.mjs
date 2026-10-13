@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/write-failure.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {decideWriteFailure,errorCode,nameHolder,namingFieldId} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {decideWriteFailure,errorCode,nameHolder,nameTarget,namingFieldId,referenceTargetOf} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 class HostError extends Error {
   constructor(code, message = 'refused') { super(message); this.code = code; }
@@ -67,6 +67,31 @@ test('without a usable reference label, a record is named by its first required 
   // The only reference to Checks labels them by the unique ref, the very value refused.
   assert.equal(namingFieldId([checks, work, finding], 'check'), 'title');
   assert.equal(namingFieldId([checks, work, finding], 'finding'), null);
+});
+
+test('R2AP-07: a reference refusal names the target by its label where the sentence places it, for the person', () => {
+  const id = '3f2a9c01-be4d-4c7a-9d10-5b8e2f6a7c31';
+  assert.equal(nameTarget(`Project points at ${id} in Projects, which changed after it was selected. Select it again before saving.`, id, ' Website relaunch '),
+    'Project points at “Website relaunch” in Projects, which changed after it was selected. Select it again before saving.');
+  assert.equal(nameTarget(`Project points at ${id} without the version it was chosen at. Select the target again so its current version can be checked.`, id, 'Website relaunch'),
+    'Project points at “Website relaunch” without the version it was chosen at. Select the target again so its current version can be checked.');
+  // A short ID inside the field's name is left alone, and an empty label keeps the sentence.
+  assert.equal(nameTarget('P points at P in Projects, which changed after it was selected.', 'P', 'Alpha'), 'P points at “Alpha” in Projects, which changed after it was selected.');
+  assert.equal(nameTarget(`Project points at ${id} in Projects.`, id, '  '), `Project points at ${id} in Projects.`);
+  const tasks = { entityId: 'tasks', displayName: 'Tasks', fields: [text('title'), text('project', { storageKind: 'Reference', reference: { targetEntityId: 'projects', labelFieldId: 'name' } })] };
+  const target = { targetEntityId: 'projects', labelFieldId: 'name' };
+  assert.deepEqual(referenceTargetOf([tasks], { entityId: 'tasks', values: { title: 'A', project: id } }, id), target);
+  assert.deepEqual(referenceTargetOf([tasks], { entityId: 'tasks', fieldId: 'project', value: id }, id), target);
+  assert.deepEqual(referenceTargetOf([tasks], { writes: [{ entityId: 'tasks', values: { project: id } }] }, id), target);
+  assert.equal(referenceTargetOf([tasks], { entityId: 'tasks', values: { title: id } }, id), null);
+});
+
+test('R2AP-09: a short holder ID is replaced only where the sentence names the holder, not inside the field or type name', () => {
+  assert.equal(nameHolder('That Code is already used by C in Contacts; each record needs its own.', 'C', 'Alice'),
+    'That Code is already used by “Alice” in Contacts; each record needs its own.');
+  assert.equal(nameHolder('That Name is already used by a in Tasks; each record needs its own.', 'a', 'Write report'),
+    'That Name is already used by “Write report” in Tasks; each record needs its own.');
+  assert.equal(nameHolder('Some other sentence about C.', 'C', 'Alice'), 'Some other sentence about C.');
 });
 
 test('the holder\'s ID in the host\'s sentence is replaced by its label, and an empty label keeps the sentence', () => {

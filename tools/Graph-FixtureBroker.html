@@ -564,8 +564,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         const record = findRecord(target);
         if (record === undefined) throw refusal('target-not-found', 'That record does not exist in the reference\u2019s target type.');
         const expected = touched.has(target) ? touched.get(target) : targetVersions?.[fieldId];
-        if (expected === undefined) throw refusal('target-version-required', 'Select the target again so its current version can be checked.');
-        if (record.version !== expected) throw refusal('target-version-conflict', 'The selected target changed. Select it again before saving.');
+        if (expected === undefined) throw refusal('target-version-required', `${fieldId} points at ${target} without the version it was chosen at. Select the target again so its current version can be checked.`);
+        if (record.version !== expected) throw refusal('target-version-conflict', `${fieldId} points at ${target}, which changed after it was selected. Select it again before saving.`);
       }
     };
     if (entry.op === 'create') {

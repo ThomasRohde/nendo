@@ -85,7 +85,13 @@ internal static class NendoHostSkill
 
     internal static JsonObject GetResult(JsonNode? parameters, IReadOnlyList<NendoFileSkills.FileSkill> fileSkills)
     {
-        var uri = parameters?["uri"]?.GetValue<string>();
+        // A uri that is not text is the caller's mistake, said as one: GetValue threw for a number
+        // or an object, and the client was told only that an internal error occurred (MTD-21).
+        var given = parameters?["uri"];
+        string? uri = null;
+        if (given is not null && !(given is JsonValue value && value.TryGetValue(out uri)))
+            throw new McpProtocolException("NENDO_INVALID_REQUEST: skills/get takes uri as text, a skill URI that skills/list names.",
+                McpErrorCode.InvalidParams);
         if (uri == SkillUri)
         {
             return new JsonObject
@@ -97,7 +103,7 @@ internal static class NendoHostSkill
             };
         }
         var fileSkill = fileSkills.FirstOrDefault(skill => skill.Uri == uri) ?? throw new McpProtocolException(
-            $"NENDO_SKILL_NOT_FOUND: '{uri}' is not a skill this host serves. skills/list names them: {string.Join(", ", [SkillUri, .. fileSkills.Select(skill => skill.Uri)])}.",
+            $"NENDO_SKILL_NOT_FOUND: '{NendoText.Bounded(uri ?? "", 200)}' is not a skill this host serves. skills/list names them: {string.Join(", ", [SkillUri, .. fileSkills.Select(skill => skill.Uri)])}.",
             McpErrorCode.InvalidParams);
         return new JsonObject
         {

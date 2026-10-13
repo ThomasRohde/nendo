@@ -224,6 +224,12 @@ internal sealed class NendoResourceProjection(
         CancellationToken cancellationToken)
     {
         RequireLimit(limit);
+        // An empty recordId or filter read the whole record type, and a client that built the
+        // address from an empty variable took the first record as the one it meant (MTD-13).
+        if (recordId is not null && string.IsNullOrWhiteSpace(recordId))
+            throw new NendoValidationException("recordId names one record and is empty here; leave it out to read the page.");
+        if (filter is not null && string.IsNullOrWhiteSpace(filter))
+            throw new NendoValidationException("filter is a JSON array of {fieldId, op, value} and is empty here; leave it out to read every record.");
         var scope = $"records:{entityId}";
         var entity = new RequestEntity(this, entityId, cancellationToken);
         var filters = await ParseFiltersAsync(entity, filter);
@@ -326,6 +332,12 @@ internal sealed class NendoResourceProjection(
                     !clause.TryGetProperty("fieldId", out var fieldId) || fieldId.ValueKind != JsonValueKind.String ||
                     !clause.TryGetProperty("op", out var op) || op.ValueKind != JsonValueKind.String)
                     throw new NendoValidationException("Each filter clause is an object with fieldId, op and, unless op is isNull or isNotNull, value.");
+                // A key no clause has, a negate say, was dropped silently, and the read answered
+                // the opposite of what was asked (MTD-14).
+                foreach (var key in clause.EnumerateObject())
+                    if (key.Name is not ("fieldId" or "op" or "value"))
+                        throw new NendoValidationException(
+                            $"A filter clause has fieldId, op and value only; '{NendoText.Bounded(key.Name, 64)}' is not one of them.");
                 var contractOperator = op.GetString()!;
                 if (!FilterOperators.Contains(contractOperator, StringComparer.Ordinal))
                     throw new NendoValidationException(
@@ -362,6 +374,22 @@ internal sealed class NendoResourceProjection(
             if (entity.Fields.Any(field => field.FieldId == fieldId) || entity.DerivedFields.Any(field => field.FieldId == fieldId)) return;
             throw new NendoValidationException(
                 $"The {use} field '{fieldId}' is not a field of {entityId}; its fields are {string.Join(", ", FieldIds(entity))}.");
+        }
+
+        /// <summary>
+        /// A stored field of the record type: what an aggregate folds and groups by (ADR-0004 keeps
+        /// calculated-field grouping refused). A calculated one is refused by name; the Engine
+        /// answered it as a field that did not exist, though the schema read listed it (MTD-06).
+        /// </summary>
+        internal async Task RequireStoredAsync(string fieldId, string use)
+        {
+            await RequireAsync(fieldId, use);
+            var entity = await EntityAsync();
+            if (entity.DerivedFields.FirstOrDefault(field => field.FieldId == fieldId) is { } derived &&
+                !entity.Fields.Any(field => field.FieldId == fieldId))
+                throw new NendoPreconditionException("field-calculated",
+                    $"The {use} field {fieldId} ({derived.DisplayName}) is calculated, and an aggregate folds and groups the stored fields of " +
+                    $"{entity.DisplayName} only. Aggregate the stored fields it reads, or read the records; a filter may still name it.");
         }
 
         private async Task<NendoEntitySnapshot> ReadAsync() =>
@@ -402,15 +430,19 @@ internal sealed class NendoResourceProjection(
         if (aggregate != "count" && string.IsNullOrWhiteSpace(fieldId))
             throw new NendoValidationException($"{aggregate} names the numeric fieldId it reads.");
         var fields = new RequestEntity(this, entityId, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(fieldId)) await fields.RequireAsync(fieldId!, "aggregate");
+        if (!string.IsNullOrWhiteSpace(fieldId)) await fields.RequireStoredAsync(fieldId!, "aggregate");
         var filters = await ParseFiltersAsync(fields, filter);
         var shapes = new[] { groupBy, rowBy ?? columnBy, dateFieldId }.Count(value => !string.IsNullOrWhiteSpace(value));
         if (shapes > 1)
             throw new NendoValidationException("Choose one shape: groupBy, rowBy with columnBy, or dateFieldId with bucket and range.");
+        // bucket and range without dateFieldId answered the whole aggregate, which read as the
+        // range's own (MTD-14).
+        if (string.IsNullOrWhiteSpace(dateFieldId) && (!string.IsNullOrWhiteSpace(bucket) || !string.IsNullOrWhiteSpace(range)))
+            throw new NendoValidationException("bucket and range work with dateFieldId, the date field they divide; name it, or leave both out for the whole aggregate.");
         var field = string.IsNullOrWhiteSpace(fieldId) ? null : fieldId;
         if (!string.IsNullOrWhiteSpace(groupBy))
         {
-            await fields.RequireAsync(groupBy, "groupBy");
+            await fields.RequireStoredAsync(groupBy, "groupBy");
             var grouped = await application.GroupAggregateRecordsAsync(
                 new NendoRecordGroupedAggregateQuery(entityId, groupBy, aggregate, field) { Filters = filters }, cancellationToken);
             return new NendoMcpAggregate(entityId, aggregate, field, "grouped", grouped.ChangeSequence)
@@ -424,8 +456,8 @@ internal sealed class NendoResourceProjection(
         {
             if (string.IsNullOrWhiteSpace(rowBy) || string.IsNullOrWhiteSpace(columnBy))
                 throw new NendoValidationException("A grid names both rowBy and columnBy.");
-            await fields.RequireAsync(rowBy, "rowBy");
-            await fields.RequireAsync(columnBy, "columnBy");
+            await fields.RequireStoredAsync(rowBy, "rowBy");
+            await fields.RequireStoredAsync(columnBy, "columnBy");
             var cells = await application.CellAggregateRecordsAsync(
                 new NendoRecordCellAggregateQuery(entityId, rowBy, columnBy, aggregate, field) { Filters = filters }, cancellationToken);
             return new NendoMcpAggregate(entityId, aggregate, field, "cells", cells.ChangeSequence)
@@ -442,7 +474,7 @@ internal sealed class NendoResourceProjection(
         {
             if (string.IsNullOrWhiteSpace(bucket) || string.IsNullOrWhiteSpace(range))
                 throw new NendoValidationException("Date buckets name dateFieldId, bucket and range, as the vocabulary lists them.");
-            await fields.RequireAsync(dateFieldId, "dateFieldId");
+            await fields.RequireStoredAsync(dateFieldId, "dateFieldId");
             var buckets = await application.BucketAggregateRecordsAsync(
                 new NendoRecordDateBucketQuery(entityId, dateFieldId, bucket, range, aggregate, field) { Filters = filters }, cancellationToken);
             return new NendoMcpAggregate(entityId, aggregate, field, "buckets", buckets.ChangeSequence)

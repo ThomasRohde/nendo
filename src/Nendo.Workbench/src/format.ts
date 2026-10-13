@@ -303,6 +303,9 @@ export function activityLabel(activity: AgentActivity): string {
  */
 export function originLabel(origin: string, packages: ReadonlyArray<{ packageId: string; title: string }>): string {
   if (origin === 'workbench' || origin === 'surface') return 'you';
+  // The person's own CSV import is recorded under its own origin, and History drew it as
+  // "by csv" (R2AP-10).
+  if (origin === 'csv') return 'you (CSV import)';
   if (origin.startsWith('agent-')) return `an agent (${origin})`;
   if (origin.startsWith('extension:')) {
     const packageId = origin.slice('extension:'.length);

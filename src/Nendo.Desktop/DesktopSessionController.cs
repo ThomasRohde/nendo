@@ -357,20 +357,26 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             entityId, recordId, expectedRecordVersion, parentRecordId, expectedParentVersion, beforeRecordId,
             new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface")), cancellationToken)).Applied, cancellationToken, origin);
 
+    /// <param name="entityId">
+    /// The record type the caller names the record as, when it does: a view's commands.run sends
+    /// it, and a command of another type is refused rather than run on a record of the command's
+    /// own type that shares the ID (R2AP-08).
+    /// </param>
     internal async Task<DesktopMutationView> ExecuteCommandAsync(
         string commandId,
         string recordId,
         long expectedRecordVersion,
         string idempotencyKey,
         CancellationToken cancellationToken = default,
-        string? origin = null) =>
+        string? origin = null,
+        string? entityId = null) =>
         await MutateAsync(
             service => service.ExecuteCommandAsync(
                 new NendoExecuteCommandRequest(
                     commandId,
                     recordId,
                     expectedRecordVersion,
-                    new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface")),
+                    new NendoRequestContext("desktop.p2.5", idempotencyKey, origin ?? "surface")) { EntityId = entityId },
                 cancellationToken),
             cancellationToken, origin);
 

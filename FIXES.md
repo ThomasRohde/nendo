@@ -10070,6 +10070,106 @@ scrollbars, so CSS-19's cue is measured as the computed `scrollbar-width`, not a
 The installer was not rebuilt, and Test-Production was not run in this pass. The site guides
 were not checked for statements this changes.
 
+### Sixteenth pass: MCP data tools match the Workbench (W-214)
+
+2026-10-13: the 28 findings planned as W-214 (4 P2, 24 P3). 22 are fixed, R2AP-03 under the
+owner's choice that day (the agent value bounds are raised to the request body's, so an agent can
+write back what the person stores), and MTD-12 follows it. Three were already fixed by W-212
+(9381cd9) and are refuted with that evidence, and the refuted halves of MTD-04, MTD-14 and MTD-18
+are dropped as their verifiers said. The guards are a new Local MCP class, `McpDataParityTests`
+(20 tests), one new Engine test in `ReferenceTests`, and four Workbench node tests that already
+ran. Every guard failed with its defect put back, and the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [MTD-01](#mtd-01) | Every row is still decoded and checked before anything is written, and each batch after the first is decoded (CSV) or mapped (JSON) again just before it commits, so it meets the file as the batches before it, their automatic actions included, left it. A batch an earlier call committed keeps its receipt's versions. | CSV and JSON alike: `An import whose action moved its target stopped after a batch: … NENDO_IMPORT_PARTIAL: committed=50; remaining=70; firstUncommittedRow=51; …` |
+| [MTD-02](#mtd-02) | A JSON import reads each batch's receipt, as the CSV path does, and its committed batches carry the target versions their revision recorded (the `Recorded` helper the other writes use). | `The resume was refused after its reference target was edited: … NENDO_IDEMPOTENCY_CONFLICT: The idempotency key was already used for a different request.` |
+| [R2AP-01](#r2ap-01) | Refuted: already fixed by W-212 (9381cd9) as R2RM-01. `NendoToolErrors` maps `NendoCompensationNotSupportedException` to `NENDO_COMPENSATION_NOT_SUPPORTED` with its sentence and records no failure; `UndoRevisionToolTests` asserts the exact text and an empty failure record. | Quoted in the Thirteenth pass: `Expected: "NENDO_COMPENSATION_NOT_SUPPORTED: This..." But was: "NENDO_INTERNAL_ERROR: The local Nendo ..."` |
+| [R2AP-04](#r2ap-04) | A create in a `records.batch` under a `writeKey` that names no `recordId` gets `record-` and 32 hex digits of SHA-256 over the package, the writeKey and its position, so the batch sent again is the same payload. | `The batch sent again under its writeKey was a different payload, so the host refuses it as idempotency-conflict.` |
+| [MTD-03](#mtd-03) | A `matchFieldId` reference follows the CSV rule: a whole-number field is compared by value (a non-number is refused by name), a text code without regard to case (the records containing it are read and compared, since `eq` is exact), in a batch too; a record of `create_records` or a JSON import may name an earlier record of the same call, created in the same revision at version 1. After the review, where several records match when case is set aside (the index folds only A to Z, so `Ærø` and `ærø` coexist) the one in the exact case is taken and none is refused as ambiguous; the CSV resolver, which took the first twin silently, does the same. | The number: `A whole-number code was refused: … NENDO_INVALID_REQUEST: Value for field number does not match storage kind Integer.`; the case: `A code in another case was not found: … NENDO_TARGET_NOT_FOUND: No Projects record holds prj-1 in code.`; the own rows: `A JSON import could not name its own earlier row: … NENDO_TARGET_NOT_FOUND: No Capabilities record holds c-1 in code.`; the twins, by a tool: `A code in its exact case was refused because its twin exists: … NENDO_TARGET_NOT_FOUND: More than one Projects record holds ærø in code when case is set aside, and none holds it in exactly that case. …`; by CSV: `… NENDO_INVALID_REQUEST: CSV row 2, Project: Code “Ærø” is held by more than one Projects when case is set aside, and by none in exactly that case. …` |
+| [MTD-04](#mtd-04) | The export and import descriptions say only the first page carries the header, and to put it in front of a later page or join the pages. The duplicate-display-name half is refuted (the Engine refuses a repeated display name). | `Assert.DoesNotContain failed. String '… so what this returns can be handed back to nendo.data.import_records or opened in Nendo unchanged. …'` |
+| [MTD-05](#mtd-05) | `NendoMcpErrors` uses the tool path's audited list, so a read's precondition carries its sentence; `aggregate-not-exact` stays withheld. | `'Request failed (remote): NENDO_HIERARCHY_NOT_DECLARED: The semantic precondition was not met.' does not contain string 'NENDO_HIERARCHY_NOT_DECLARED: descendantOf reads Tasks's declared hierarchy, and Project is not its parent field.'` |
+| [MTD-06](#mtd-06) | The aggregate read checks `fieldId`, `groupBy`, `rowBy`, `columnBy` and `dateFieldId` against stored fields and refuses a calculated one as `NENDO_FIELD_CALCULATED`, naming it; the description says so. | `'Request failed (remote): NENDO_FIELD_NOT_FOUND: The aggregated field does not exist on this record type.' does not contain string 'NENDO_FIELD_CALCULATED: The '. aggregate=sum&fieldId=titleLength.` |
+| [MTD-07](#mtd-07) | A CSV import checks the record type and the mapped fields first, as `entity-not-found` and `field-not-found` preconditions, so the pending-proposal advisory names the proposal; a retired type or field is `entity-retired` or `field-retired`, and a column mapped to a calculated field `field-calculated` naming the column. | `'… NENDO_INVALID_REQUEST: Choose an active record type.' does not contain string 'NENDO_ENTITY_NOT_FOUND'.`; the calculated mapping: `Expected: "field-calculated" But was: "field-not-found"` |
+| [MTD-08](#mtd-08) | A record ID twice in a JSON payload is refused before any batch, naming both positions. | `'… NENDO_IMPORT_PARTIAL: committed=50; remaining=10; … cause=NENDO_RECORD_EXISTS_OR_INVALID: Record dup-010 already exists …' does not end with string 'NENDO_INVALID_REQUEST: records[9] …'` |
+| [MTD-10](#mtd-10) | The import trims its key, as every other write and `get_receipt` do. | `Expected: "committed" But was: "unresolved"` (`The receipt of an import sent with a padded key was not found: No receipt is recorded in this file state. …`) |
+| [MTD-11](#mtd-11) | The import result carries `isIdempotentReplay` (every batch replayed, nothing written now) and `replayedRevisions`. | `Expected:<(True, 1, 1)>. Actual:<(False, 1, 1)>. … An import that wrote nothing now did not say it was a replay.` |
+| [MTD-12](#mtd-12) | Each decoded CSV row keeps the value bounds every other write keeps, naming its row; with R2AP-03 a value the body carries imports the same by either format. | `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown.` (two 180,000-byte cells in one row) |
+| [MTD-13](#mtd-13) | An empty `recordId=` or `filter=` on the records read is refused by name. | `Expected exception type:<ModelContextProtocol.McpProtocolException> but no exception was thrown. … nendo://application/entity/projects/records?recordId=` (and `…?filter=`) |
+| [MTD-14](#mtd-14) | A filter clause key other than `fieldId`, `op` and `value` is refused naming it, and `bucket` or `range` without `dateFieldId` is refused. The `$nendoNumber` part is refuted (a plain JSON number is already exact). | `… but no exception was thrown. … records?filter=%5B…%22negate%22%3Atrue%7D%5D`; `… but no exception was thrown. … aggregate?bucket=month&range=thisYear` |
+| [MTD-15](#mtd-15) | The records description says "the vocabulary's filterOperators plus contains and descendantOf", and the calculated-query bound is published as `limits.calculatedQueryRecords` (10,000). A test resolves every `limits.*` a tool or resource text names. | `A description names a limit the vocabulary does not publish: nendo.application.entity.records: limits.query` |
+| [MTD-17](#mtd-17) | Results and resources are written with `JavaScriptEncoder.UnsafeRelaxedJsonEscaping`: JSON-RPC text, never HTML. | `String '{"items":[{… "name":"Smørrebrød & <på> Nørrebro 計画"} …' does not contain string '"Smørrebrød & <på> Nørrebro 計画"'.` |
+| [MTD-18](#mtd-18) | Each listen stream holds at most 1,024 unsent changes. Past that it takes one overflow entry and ends after what it holds; the overflow sends `resources/updated` for every URI the stream honoured, so the client reads them again and subscribes again. The records-URI half is by design and is dropped, as its verifier said. | `Actual value <10000> is not less than or equal to expected value <1024>. … A stream that stopped reading held 10000 changes.`; after the review, the signal: `A stream past its queue ended without saying so, so its client would never learn it missed changes.` and `An overflow did not tell the client that what it subscribed to changed.. Different number of elements.` |
+| [MTD-20](#mtd-20) | A value map that repeats a field is refused naming it. | `'… NENDO_INVALID_REQUEST: The request arguments are invalid.' does not end with string 'NENDO_INVALID_REQUEST: values names field name twice; send each field once.'` |
+| [MTD-21](#mtd-21) | `skills/get` with a `uri` that is not text is `-32602` `NENDO_INVALID_REQUEST`; the echoed uri is bounded. | `Expected exception type:<ModelContextProtocol.McpProtocolException>. Actual exception type:<System.InvalidOperationException>. … {"uri":5}` |
+| [R2AP-02](#r2ap-02) | The audited list takes the write and read codes whose templates meet the rule (`record-id-reserved`, `record-exists-or-invalid`, `kept-in-new-files-unchanged`, `entity-retired`, `field-retired`, the write ceilings, `entity-not-found`, `calculated-query-too-wide`, the search codes and the rest listed in `mcp-interface.md`); `WithheldPreconditions` names `aggregate-not-exact` with its reason. A test walks every precondition code thrown on the data paths and fails on one on neither list, and a create with a deleted record's ID reads the person's sentence. | `A data path refuses with a code that is neither audited nor withheld with a reason: record-id-reserved (src/Nendo.Engine/Storage/SqliteNendoStore.Operations.cs)` |
+| [R2AP-03](#r2ap-03) | `limits.recordValueBytes` and `limits.recordValuesBytes` are 256 KiB, the request body's bound, so an agent writes back any value a request can carry (the owner's choice). The adapter still refuses past them by name. After the review, a change set's `data.*` operation is bounded by the request body too; the description operations keep 32 KiB. | `A value the person stores could not be written back: … NENDO_VALUE_TOO_LARGE: The value of name is 41400 bytes, and a value may hold at most 32768 …`; the change set: `A change set refused a value the person stores: … NENDO_INVALID_REQUEST: The payload of data.createRecord is larger than the 32 KiB one operation may carry.` |
+| [R2AP-05](#r2ap-05) | Refuted: already fixed by W-212 (R2RM-01's "caller refusals are worded for any caller"). The store says "This revision was written by someone else, so it can be undone only from History." and "Only record changes can be undone this way, …"; `UndoRevisionToolTests` asserts the first. | Not run again: the W-212 guard pins the sentence. |
+| [R2AP-06](#r2ap-06) | Refuted: already fixed by W-212 as R2RM-08. `CompensationName` names a compensation from the chain whatever the caller's flag, and `StorageEvolutionReviewTests` asserts an agent's undo, redo and undo as "Undo …", "Redo …", "Undo …". | Quoted in the Thirteenth pass: `History names its undo and redo by what they do.. Element at index 0 do not match. Expected: U Actual: C` |
+| [R2AP-07](#r2ap-07) | The Engine's three reference refusals name the field and the record it points at, for every adapter: "Project points at p1 in Projects, which changed after it was selected. Select it again before saving." The refusal's `RecordId` is the target, and the Workbench replaces the ID with the target's label where the sentence places it, as it does for a duplicate's holder, so the person never reads a generated ID. | `Expected: "Reference points at t in Target, which..." But was: "The selected target changed. Select it..."`; the record: `Assert.IsNotNull failed. … target-version-required does not say which record the reference points at.`; the Workbench: `actual: 'Project points at 3f2a9c01-be4d-4c7a-9d10-5b8e2f6a7c31 in Projects, which changed …', expected: 'Project points at “Website relaunch” in Projects, …'` |
+| [R2AP-08](#r2ap-08) | `commands.run` refuses `command-unavailable`, before anything is written, when the command `schema.describe` lists has another record type than the `entityId` sent, naming both. After W-216 committed, the host checks it too: `data.executeCommand` carries `entityId` (`ExecuteCommandPayload.EntityId`) through `DesktopSessionController.ExecuteCommandAsync` to `NendoExecuteCommandRequest.EntityId`, and the Engine refuses a command of another type with the same sentence. A new window-free class, `DesktopCommandRecordTypeTests`, drives the protocol handler and the controller. | The broker: `The host was asked to run a command on a record of another type.`; the host, with the payload's entityId dropped or the Engine's check off: `Assert.IsFalse failed. 'condition' expression: 'refused.Ok'. A command ran on a record of another type.` |
+| [R2AP-09](#r2ap-09) | `nameHolder` replaces only the holder the sentence places, between " used by " and " in ". | `actual: 'That “Alice”ode is already used by “Alice” in “Alice”ontacts; each record needs its own.'` |
+| [R2AP-10](#r2ap-10) | History draws the origin `csv` as "you (CSV import)". The agent-side description difference is a design difference, recorded on the roadmap. | `actual: 'csv', expected: 'you (CSV import)'` |
+
+Tests that pinned the old behaviour changed with it: `AppBuilderReviewTests.RecordValueByteCapsArePublishedAndRefusedByName`
+asserted the 32 and 64 KiB caps over the tool (the body binds first now, so the named refusals are
+asserted on the adapter's own checks), `ImportExportProtocolTests.InvalidCsvMappingsAreTypedRefusalsBeforeAnyWrite`
+expected `NENDO_INVALID_REQUEST` for an unknown mapped field (now `NENDO_FIELD_NOT_FOUND`, MTD-07),
+and `SmallDefectSweepTests` took the import's mapping function in its new per-batch shape.
+
+An independent review of the fixes found nothing that had to be fixed and four things that
+should be, all fixed under the same rules. R2AP-07's sentences showed the person raw record IDs,
+which in the person's own file are generated; the refusal now carries the target as `RecordId`,
+and the Workbench names it by its label (`nameTarget`, `referenceTargetOf`). MTD-03's case rule
+folded all of Unicode where SQLite's NOCASE folds only A to Z, so of two coexisting twins such as
+`Ærø` and `ærø` neither could be named; the exact case now wins and none is refused as
+ambiguous, in the CSV resolver as well, which had taken the first twin without saying so.
+R2AP-03 had left a change set's `data.createRecord` and `data.setField` at the 32 KiB operation
+payload. MTD-18 ended an overflowing stream without a signal, so a client that did not notice the
+end missed changes; the overflow now sends `resources/updated` for every honoured URI first. The
+review's smaller points are taken too: the refusal walk reads `NendoWriteCoordinator.cs` and
+`NendoReceiptContext.cs` (`read-only`, `proposal-not-found` and `receipt-file-mismatch` audited),
+MTD-07 names a retired type or field and a calculated mapping, the import's commit summary and
+its duplicate options are corrected, `custom-views.md` says a writeKey lasts the file's lifetime,
+the escaping note says which characters are still escaped (outside the BMP, U+2028 and U+2029,
+control characters), the two fixture brokers word the reference refusals as the Engine now does,
+and the import description has 160 characters of headroom under the lint. With W-216 committed,
+R2AP-08's host-side check was built as well (row above) and left the roadmap. The walk's new
+files failed as `A data path refuses with a code that is neither audited nor withheld with a
+reason: read-only (src/Nendo.Engine/NendoWriteCoordinator.cs)` with `read-only` taken off the list. The
+import tool's description passed the lint's 2,000-character margin after the new sentences and was
+tightened. Several falsifications used a defect that keeps the build compiling (`&& index < 0` on a
+guard, `ordinal >= 0` for `ordinal == 0`), and every edited file was restored byte for byte and
+touched before the next build.
+
+Documents updated with the behaviour: `docs/contracts/mcp-interface.md` (the value bounds, the
+change feed's queue, `skills/get`, the records, aggregate and export reads, the reference rule,
+the import, `apply_writes`, output escaping and the audited list, now matching the code, which
+also covers W-222's DOC-11), `docs/contracts/custom-views.md` (`records.batch` under a writeKey,
+`commands.run`), `docs/roadmap.md` (a value past one request, a JSON import not put parents first,
+the command's type checked in the Workbench and not the host, an agent's import named as creates)
+and the site guide `agents.md` (the export pages and the import's refusals and replay flag).
+After the review: `mcp-interface.md` (the overflow signal, the twins, the change set's record
+payload, the escaping note, MTD-07's codes and the audited list), `custom-views.md` (the writeKey's
+lifetime and the host's command check) and `docs/roadmap.md` (the command item removed).
+
+Checks:
+
+- `dotnet test tests/Nendo.LocalMcp.Tests`: 268 of 273 passed, 5 skipped, after a first full run
+  whose two failures were the description lint and the mapping test above. After the review's
+  fixes: 271 of 276 passed, 5 skipped.
+- `dotnet test tests/Nendo.Engine.Tests`: 1265 of 1267 passed, 2 skipped. After the review's fixes:
+  1265 of 1267 passed, 2 skipped.
+- Desktop, screened window-free classes only: `DesktopCommandRecordTypeTests` and
+  `WorkbenchProtocolTests`, 12 of 12 passed.
+- Workbench: `npx tsc --noEmit` passed; `npm test` 624 of 624, and 625 of 625 after the review's
+  fixes; `node --test tools/archi/view.test.mjs` 29 of 29.
+- `pwsh ./tools/Test-Site.ps1 -SkipInstall`: "Website build passed."
+- `pwsh ./tools/Test-Repository.ps1`: "Repository verification passed.", with W-216's concurrent
+  changes in the checkout.
+- Not run, by instruction: `Test-Production.ps1`, the full Desktop suite and every lane that starts
+  the host, a window or the pointer. The installer was not rebuilt.
+
 ### Seventeenth pass: Desktop host, protocol and native chrome (W-216)
 
 2026-10-13: the 22 findings planned as W-216 (3 P2, 19 P3) are fixed, one under a dated amendment

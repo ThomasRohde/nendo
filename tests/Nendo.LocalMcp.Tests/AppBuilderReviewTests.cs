@@ -57,34 +57,32 @@ public sealed class AppBuilderReviewTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var limits = JsonDocument.Parse((await client.ReadResourceAsync("nendo://application/vocabulary"))
             .Contents.OfType<TextResourceContents>().Single().Text).RootElement.GetProperty("limits");
-        Assert.AreEqual(32 * 1024, limits.GetProperty("recordValueBytes").GetInt32());
-        Assert.AreEqual(64 * 1024, limits.GetProperty("recordValuesBytes").GetInt32());
+        // As large as the request body since 2026-10-13 (R2AP-03), so an agent writes back what the person stores.
+        Assert.AreEqual(256 * 1024, limits.GetProperty("recordValueBytes").GetInt32());
+        Assert.AreEqual(256 * 1024, limits.GetProperty("recordValuesBytes").GetInt32());
         Assert.AreEqual(256 * 1024, limits.GetProperty("requestBodyBytes").GetInt32());
         var session = await AcquireAsync(client);
 
-        // 16,384 × ø is exactly 32 KiB as stored, whatever escaping the client's serializer used.
+        // 16,384 × ø is 32 KiB as stored, whatever escaping the client's serializer used: the old
+        // cap, refused from 16,385 until 2026-10-13. A value the person stores is written back now.
         await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
         {
-            ["entityId"] = "texts", ["recordId"] = "at-cap", ["values"] = new { a = new string('ø', 16 * 1024) }, ["idempotencyKey"] = "at-cap",
+            ["entityId"] = "texts", ["recordId"] = "at-old-cap", ["values"] = new { a = new string('ø', 16 * 1024 + 1) }, ["idempotencyKey"] = "at-old-cap",
         });
-        var over = await client.CallToolAsync("nendo.data.create_record", new Dictionary<string, object?>(session)
-        {
-            ["entityId"] = "texts", ["recordId"] = "over-cap", ["values"] = new { a = new string('ø', 16 * 1024 + 1) }, ["idempotencyKey"] = "over-cap",
-        });
-        Assert.IsTrue(over.IsError);
-        StringAssert.Contains(Text(over), "NENDO_VALUE_TOO_LARGE: The value of a is 32770 bytes, and a value may hold at most 32768", StringComparison.Ordinal);
-
         var ascii = new string('x', 30 * 1024);
         await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
         {
-            ["entityId"] = "texts", ["recordId"] = "two", ["values"] = new { a = ascii, b = ascii }, ["idempotencyKey"] = "two",
-        });
-        var three = await client.CallToolAsync("nendo.data.create_record", new Dictionary<string, object?>(session)
-        {
             ["entityId"] = "texts", ["recordId"] = "three", ["values"] = new { a = ascii, b = ascii, c = ascii }, ["idempotencyKey"] = "three",
         });
-        Assert.IsTrue(three.IsError);
-        StringAssert.Contains(Text(three), "NENDO_VALUES_TOO_LARGE: The values of this write hold more than 65536 bytes together", StringComparison.Ordinal);
+
+        // The body binds first on the wire now; the caps still refuse by name, counted as stored.
+        Assert.AreEqual("NENDO_VALUE_TOO_LARGE: The value of a is 262145 bytes, and a value may hold at most 262144 " +
+            "(limits.recordValueBytes, UTF-8 bytes of the text as stored). Shorten it or keep the full text outside the file.",
+            NendoToolErrors.Translate(Assert.ThrowsExactly<NendoPreconditionException>(() => NendoDataMutationService.RequireValueSize("a", 262_145))).Message);
+        StringAssert.Contains(
+            NendoToolErrors.Translate(Assert.ThrowsExactly<NendoPreconditionException>(() => NendoDataMutationService.RequireValuesSize(262_145, "c"))).Message,
+            "NENDO_VALUES_TOO_LARGE: The values of this write hold more than 262144 bytes together", StringComparison.Ordinal);
+        Assert.AreEqual(2L, NendoDataMutationService.StoredBytes("ø"), "A value is counted as stored, not as escaped.");
     }
 
     /// <summary>W-165: a tool call over the request body cap is a refused tool result under its own id, not a transport failure.</summary>

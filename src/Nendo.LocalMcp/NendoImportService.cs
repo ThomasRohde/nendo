@@ -52,7 +52,11 @@ public sealed record NendoImportResult(
     [property: Description("The file's data revision after the last committed batch.")]
     long DataRevision,
     [property: Description("The most rows one call may carry.")]
-    int MaximumRowsPerCall);
+    int MaximumRowsPerCall,
+    [property: Description("True when every batch was an earlier import under this key, replayed: nothing was written now, and the records named may have changed or been deleted since.")]
+    bool IsIdempotentReplay,
+    [property: Description("How many of the revisions were replays of batches an earlier call under this key committed.")]
+    int ReplayedRevisions);
 
 internal sealed class NendoImportPartialException(
     int committed,
@@ -132,6 +136,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
         var mappings = columnMappings
             .Select(mapping => new NendoCsvMapping(mapping.Column, mapping.FieldId) { MatchFieldId = mapping.MatchFieldId })
             .ToArray();
+        await RequireTargetAsync(entityId, mappings, cancellationToken);
         // A tree whose parent column holds codes is written parents first (W-075). The order
         // is a pure function of the text, so an exact retry derives the same record IDs.
         document = await application.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken);
@@ -146,11 +151,12 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // resolved against the file as it is now, and validated as before.
         var committedVersions = await ReadCommittedTargetVersionsAsync(
             idempotencyKey, document.Rows.Count, cancellationToken);
+        var options = new NendoCsvOptions(nendoProfile, emptyIsNull);
         var decoded = await application.DecodeCsvRowsAsync(
             document,
             entityId,
             mappings,
-            new NendoCsvOptions(nendoProfile, emptyIsNull),
+            options,
             0,
             document.Rows.Count,
             cancellationToken,
@@ -161,6 +167,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // row's position. Stable, which is what makes an exact retry ask for the same
         // records rather than a second copy of them, and distinct from another import
         // in the same record type. Record identity includes the record type.
+        RequireValueBounds(decoded);
         var records = decoded
             .Select((row, index) =>
             {
@@ -178,7 +185,66 @@ internal sealed class NendoImportService(NendoApplicationService application)
                 return new NendoCreateRecordEntry(recordId, row.Values, versions);
             })
             .ToArray();
-        return await CommitAsync(entityId, records, idempotencyKey, origin, cancellationToken);
+        // Every row is decoded and checked above, before anything is written. A batch after the
+        // first is decoded again just before it commits: a batch before it may have moved a
+        // record its rows point at, its automatic actions included, and the versions read at the
+        // start would refuse it as target-version-conflict (MTD-01). A batch an earlier call
+        // committed keeps the versions its receipt recorded.
+        return await CommitAsync(entityId, records.Length, async (ordinal, offset, count) =>
+        {
+            if (ordinal == 0 || committedVersions[ordinal] is not null) return records[offset..(offset + count)];
+            var fresh = await application.DecodeCsvRowsAsync(
+                document, entityId, mappings, options, offset, count, cancellationToken,
+                recordIdOfRow: row => $"import.{seed}.{row}");
+            return fresh.Select((row, index) => new NendoCreateRecordEntry($"import.{seed}.{offset + index}", row.Values, row.ExpectedTargetVersions)).ToArray();
+        }, idempotencyKey, origin, cancellationToken);
+    }
+
+    /// <summary>
+    /// Refuses an import into a record type the file does not hold, or through a field it does
+    /// not hold, as the precondition a JSON import and every other write meets, so the refusal
+    /// names an unaccepted proposal that would create it (MTD-07). The CSV path met the native
+    /// importer's dialog sentence first: "Choose an active record type."
+    /// </summary>
+    private async Task RequireTargetAsync(string entityId, IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken)
+    {
+        var definition = await application.GetDefinitionSnapshotAsync(cancellationToken);
+        var entity = definition.Entities.SingleOrDefault(candidate => candidate.EntityId == entityId)
+            ?? throw new NendoPreconditionException("entity-not-found", $"Record type {NendoText.Bounded(entityId, 200)} does not exist in this file.");
+        if (entity.Retired)
+            throw new NendoPreconditionException("entity-retired", $"{entity.DisplayName} is retired. Reactivate it before importing into it.");
+        foreach (var mapping in mappings)
+        {
+            if (string.IsNullOrWhiteSpace(mapping.FieldId)) continue;
+            if (entity.DerivedFields.FirstOrDefault(field => field.FieldId == mapping.FieldId) is { } derived)
+                throw new NendoPreconditionException("field-calculated",
+                    $"CSV column {mapping.Column} maps {mapping.FieldId} ({derived.DisplayName}), which {entity.DisplayName} calculates; an import writes stored fields only.");
+            var field = entity.Fields.FirstOrDefault(candidate => candidate.FieldId == mapping.FieldId)
+                ?? throw new NendoPreconditionException("field-not-found", $"{NendoText.Bounded(mapping.FieldId, 200)} is not a field of {entityId}.");
+            if (field.Retired)
+                throw new NendoPreconditionException("field-retired", $"{field.DisplayName} of {entity.DisplayName} is retired. Reactivate it before importing into it.");
+        }
+    }
+
+    /// <summary>
+    /// The value bounds every other agent write keeps, applied to each decoded CSV row before the
+    /// first batch, naming the row and the field (MTD-12): a cell up to the CSV profile's own
+    /// bound was written unchecked, where the same value as JSON was refused.
+    /// </summary>
+    private static void RequireValueBounds(IReadOnlyList<NendoCsvRow> rows)
+    {
+        foreach (var row in rows)
+        {
+            var where = $" in CSV row {row.SourceRow}";
+            var total = 0L;
+            foreach (var (fieldId, value) in row.Values)
+            {
+                var size = NendoDataMutationService.StoredBytes(value);
+                NendoDataMutationService.RequireValueSize(fieldId, size, where);
+                total += size;
+                NendoDataMutationService.RequireValuesSize(total, fieldId, where);
+            }
+        }
     }
 
     /// <summary>
@@ -199,10 +265,14 @@ internal sealed class NendoImportService(NendoApplicationService application)
         return batches;
     }
 
+    /// <param name="toEntries">
+    /// Maps records as one batch create maps them (W-147, W-159): an earlier record of the same
+    /// list may be a reference's target, and the versions are the given receipt's where it has them.
+    /// </param>
     internal async Task<NendoImportResult> ImportRecordsAsync(
         string entityId,
         IReadOnlyList<NendoRecordInput> records,
-        Func<NendoRecordInput, Task<NendoCreateRecordEntry>> toEntry,
+        Func<IReadOnlyList<NendoRecordInput>, IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>?, Task<IReadOnlyList<NendoCreateRecordEntry>>> toEntries,
         string idempotencyKey,
         string origin,
         CancellationToken cancellationToken)
@@ -213,17 +283,32 @@ internal sealed class NendoImportService(NendoApplicationService application)
         {
             throw new NendoValidationException("Send at least one record.");
         }
-        // One mapper for a create, a batch create and an import (W-147, W-159).
-        var entries = new List<NendoCreateRecordEntry>(records.Count);
-        foreach (var record in records)
+        // A record ID twice in the payload is refused whole. A batch checks only its own fifty,
+        // so copies in two batches committed the first and then stopped partway (MTD-08).
+        var first = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var index = 0; index < records.Count; index++)
         {
-            entries.Add(await toEntry(record));
+            if (records[index]?.RecordId is not { } recordId) continue;
+            if (!first.TryAdd(recordId, index))
+                throw new NendoValidationException(
+                    $"records[{first[recordId]}] and records[{index}] carry the same record ID {NendoText.Bounded(recordId, 200)}; each record needs its own.");
         }
-        return await CommitAsync(entityId, entries, idempotencyKey, origin, cancellationToken);
+        // Every record is mapped and checked once before anything is written; a record may name
+        // an earlier one of the import as a reference's target, as a CSV row may.
+        await toEntries(records, null);
+        // Then each batch is mapped again just before it commits (MTD-01): a batch before it may
+        // have moved a target, and an earlier record is a record of the file by then. A batch this
+        // key already committed carries the versions its revision recorded, so an exact retry
+        // after a target was edited replays rather than conflicting (MTD-02).
+        var committedVersions = await ReadCommittedTargetVersionsAsync(idempotencyKey, records.Count, cancellationToken);
+        return await CommitAsync(entityId, records.Count,
+            (ordinal, offset, count) => toEntries(records.Skip(offset).Take(count).ToArray(), committedVersions[ordinal]),
+            idempotencyKey, origin, cancellationToken);
     }
 
     /// <summary>
-    /// Commits the decoded rows in all-or-nothing batches, and reports exactly what landed.
+    /// Commits the rows in all-or-nothing batches, each batch's entries made by
+    /// <c>batchAt</c> just before it is sent, and reports exactly what landed and what replayed.
     /// <para>
     /// A batch that fails stops the run and takes its own rows with it; every batch before
     /// it stays committed, because they are separate revisions with separate receipts and
@@ -240,27 +325,31 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// earlier one began: a batch that already committed is resubmitted under the origin its
     /// receipt records, and only a batch not yet written takes this one.
     /// </param>
+    /// <param name="batchAt">The entries of one batch, by its ordinal, its first row and its row count.</param>
     private async Task<NendoImportResult> CommitAsync(
         string entityId,
-        IReadOnlyList<NendoCreateRecordEntry> entries,
+        int total,
+        Func<int, int, int, Task<IReadOnlyList<NendoCreateRecordEntry>>> batchAt,
         string idempotencyKey,
         string origin,
         CancellationToken cancellationToken)
     {
         var committed = 0;
         var revisions = 0;
+        var replayed = 0;
         var dataRevision = 0L;
-        var ids = new List<string>(entries.Count);
-        var revisionIds = new List<string>((entries.Count + BatchSize - 1) / BatchSize);
-        while (committed < entries.Count)
+        var ids = new List<string>(total);
+        var revisionIds = new List<string>((total + BatchSize - 1) / BatchSize);
+        while (committed < total)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var batch = entries.Skip(committed).Take(BatchSize).ToArray();
             var key = BatchKey(idempotencyKey, revisions);
+            IReadOnlyList<NendoCreateRecordEntry> batch;
             NendoApplyResult result;
             try
             {
                 BeforeBatch?.Invoke(committed);
+                batch = await batchAt(revisions, committed, Math.Min(BatchSize, total - committed));
                 var receipt = await application.GetMutationReceiptAsync(
                     new NendoOperationIdentity(IdempotencyScope, key), cancellationToken);
                 result = await application.CreateRecordsAsync(
@@ -273,22 +362,25 @@ internal sealed class NendoImportService(NendoApplicationService application)
             catch (Exception exception) when (committed > 0 && exception is not OutOfMemoryException)
             {
                 throw new NendoImportPartialException(
-                    committed, entries.Count - committed, revisionIds.ToArray(), exception);
+                    committed, total - committed, revisionIds.ToArray(), exception);
             }
             dataRevision = result.DataRevision;
             revisionIds.Add(result.RevisionId);
-            committed += batch.Length;
+            committed += batch.Count;
             revisions++;
+            if (result.IsIdempotentReplay) replayed++;
             ids.AddRange(batch.Select(entry => entry.RecordId));
         }
         return new NendoImportResult(
             entityId,
             committed,
-            entries.Count - committed,
+            total - committed,
             ids,
             revisions,
             dataRevision,
-            MaximumRowsPerCall);
+            MaximumRowsPerCall,
+            replayed == revisions,
+            replayed);
     }
 
     /// <summary>

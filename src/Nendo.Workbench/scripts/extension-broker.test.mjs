@@ -31,7 +31,7 @@ function harness() {
     running: () => h.running,
     fileSessionId: () => h.fileSessionId,
     context: () => h.context ?? context,
-    describe: () => ({ purpose: null, changeSequence: 1, entities: [], screens: [], commands: [] }),
+    describe: () => h.schema ?? ({ purpose: null, changeSequence: 1, entities: [], screens: [], commands: [] }),
     ui: {
       openRecord: async (_mount, target) => ({ opened: true, target }),
       openScreen: async () => ({ opened: true }),
@@ -1209,6 +1209,50 @@ test('R-011: a batch sent again under its writeKey carries the same idempotency 
   assert.equal(refused.ok, false);
   assert.equal(refused.e.code, 'invalid-params');
   assert.equal(h.calls.length, 2, 'A malformed writeKey reached the host.');
+});
+
+test('R2AP-04: a batch sent again under its writeKey names the same records when a create leaves recordId out', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const writes = [{ op: 'create', entityId: 'tasks', values: { title: 'A' } }, { op: 'create', entityId: 'tasks', values: { title: 'B' } }];
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes, writeKey: 'save-1' } });
+  await until(() => h.calls.length === 1, 'the first batch');
+  h.pending[0].reject(Object.assign(new Error('The Desktop host did not respond.'), { code: 'host-timeout' }));
+  assert.equal((await view.next((message) => message.id === 1)).ok, false);
+  view.send({ t: 'req', id: 2, m: 'records.batch', p: { writes, writeKey: 'save-1' } });
+  await until(() => h.calls.length === 2, 'the batch sent again');
+  assert.deepEqual(h.calls[1].payload, h.calls[0].payload,
+    'The batch sent again under its writeKey was a different payload, so the host refuses it as idempotency-conflict.');
+  const [first, second] = h.calls[0].payload.writes.map((write) => write.recordId);
+  assert.match(first, /^record-[0-9a-f]{32}$/);
+  assert.notEqual(first, second, 'Two creates of one batch were given one record ID.');
+  // Another package's batch under the same writeKey names other records.
+  h.context = { ...context, packageId: 'org.example.other' };
+  view.send({ t: 'req', id: 3, m: 'records.batch', p: { writes, writeKey: 'save-1' } });
+  await until(() => h.calls.length === 3, 'another package\u2019s batch');
+  assert.notEqual(h.calls[2].payload.writes[0].recordId, first, 'Two packages\u2019 batches under one writeKey created the same record.');
+  // Without a writeKey each call is a new batch, with new records.
+  view.send({ t: 'req', id: 4, m: 'records.batch', p: { writes } });
+  view.send({ t: 'req', id: 5, m: 'records.batch', p: { writes } });
+  await until(() => h.calls.length === 5, 'two batches without a writeKey');
+  assert.notEqual(h.calls[3].payload.writes[0].recordId, h.calls[4].payload.writes[0].recordId);
+});
+
+test('R2AP-08: a command named with a record of another type is refused before the host runs it', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  h.schema = { purpose: null, changeSequence: 1, entities: [], screens: [],
+    commands: [{ id: 'cmd.task.done', entityId: 'entity.task', label: 'Done', steps: [] }] };
+  view.send({ t: 'req', id: 1, m: 'commands.run', p: { commandId: 'cmd.task.done', entityId: 'entity.dependency', recordId: 'r1', version: 3 } });
+  await until(() => h.calls.length > 0 || view.inbox.some((message) => message.id === 1), 'an answer or a host call');
+  assert.deepEqual(h.calls.map((call) => call.method), [], 'The host was asked to run a command on a record of another type.');
+  const refused = await view.next((message) => message.id === 1);
+  assert.equal(refused.ok, false, 'A command ran on a record of another type: ' + JSON.stringify(refused));
+  assert.equal(refused.e.code, 'command-unavailable');
+  assert.match(refused.e.message, /cmd\.task\.done runs on entity\.task records, and this call names a record of entity\.dependency/);
+  await settle();
+  assert.deepEqual(h.calls, [], 'The host was asked to run the command.');
+  view.send({ t: 'req', id: 2, m: 'commands.run', p: { commandId: 'cmd.task.done', entityId: 'entity.task', recordId: 'r1', version: 3 } });
+  await until(() => h.calls.length === 1, 'the command on its own type');
+  assert.equal(h.calls[0].method, 'data.executeCommand');
 });
 
 test('R-011: a write kept but not read back is answered as written-not-read, never as a refusal', async (t) => {

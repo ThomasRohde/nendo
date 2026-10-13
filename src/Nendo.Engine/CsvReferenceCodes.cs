@@ -81,24 +81,31 @@ internal sealed class CsvCodeResolver
     private readonly NendoFieldSnapshot _field;
     private readonly string _targetName;
     private readonly string _matchName;
-    private readonly IReadOnlyDictionary<string, (string RecordId, long Version)> _existing;
-    private readonly IReadOnlyDictionary<string, int> _rows;
-    private readonly IReadOnlySet<string> _repeated;
+    // Keyed without regard to case, each with every holder: SQLite's NOCASE folds only A to Z, so
+    // "Ærø" and "ærø" can both be held, and a code is matched in its exact case first (W-214).
+    private readonly IReadOnlyDictionary<string, List<(string Text, string RecordId, long Version)>> _existing;
+    private readonly IReadOnlyDictionary<string, List<(string Text, int Row)>> _rows;
 
     private CsvCodeResolver(
         NendoFieldSnapshot field,
         string targetName,
         string matchName,
-        IReadOnlyDictionary<string, (string, long)> existing,
-        IReadOnlyDictionary<string, int> rows,
-        IReadOnlySet<string> repeated)
+        IReadOnlyDictionary<string, List<(string, string, long)>> existing,
+        IReadOnlyDictionary<string, List<(string, int)>> rows)
     {
         _field = field;
         _targetName = targetName;
         _matchName = matchName;
         _existing = existing;
         _rows = rows;
-        _repeated = repeated;
+    }
+
+    /// <summary>The candidates in the code's exact case when there are several, else all of them.</summary>
+    private static List<T> Closest<T>(List<T> candidates, Func<T, string> text, string code)
+    {
+        if (candidates.Count < 2) return candidates;
+        var exact = candidates.Where(candidate => string.Equals(text(candidate), code, StringComparison.Ordinal)).ToList();
+        return exact.Count >= 1 ? exact : candidates;
     }
 
     internal static async Task<CsvCodeResolver> CreateAsync(
@@ -121,7 +128,7 @@ internal sealed class CsvCodeResolver
             throw new NendoValidationException(
                 $"{field.DisplayName} can be matched only by a unique field of {target.DisplayName}; {mapping.MatchFieldId} is not one.");
 
-        var existing = new Dictionary<string, (string, long)>(StringComparer.OrdinalIgnoreCase);
+        var existing = new Dictionary<string, List<(string, string, long)>>(StringComparer.OrdinalIgnoreCase);
         string? cursor = null;
         do
         {
@@ -129,15 +136,16 @@ internal sealed class CsvCodeResolver
             foreach (var record in page.Items)
             {
                 if (!record.Values.TryGetValue(match.FieldId, out var value)) continue;
-                if (RecordQuerySemantics.Text(value) is { Length: > 0 } text) existing.TryAdd(text, (record.RecordId, record.RecordVersion));
+                if (RecordQuerySemantics.Text(value) is not { Length: > 0 } text) continue;
+                if (!existing.TryGetValue(text, out var holders)) existing[text] = holders = [];
+                holders.Add((text, record.RecordId, record.RecordVersion));
             }
             cursor = page.NextCursor;
         } while (cursor is not null);
 
         // The import's own rows can be targets only when they are records of the target type
         // and the import carries the matched field.
-        var rows = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        var repeated = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rows = new Dictionary<string, List<(string, int)>>(StringComparer.OrdinalIgnoreCase);
         if (target.EntityId == importing.EntityId &&
             mappings.SingleOrDefault(candidate => candidate.FieldId == match.FieldId) is { } own)
         {
@@ -145,10 +153,11 @@ internal sealed class CsvCodeResolver
             {
                 var text = document.Rows[index][own.Column];
                 if (text.Length == 0) continue;
-                if (!rows.TryAdd(text, index)) repeated.Add(text);
+                if (!rows.TryGetValue(text, out var at)) rows[text] = at = [];
+                at.Add((text, index));
             }
         }
-        return new CsvCodeResolver(field, target.DisplayName, match.DisplayName, existing, rows, repeated);
+        return new CsvCodeResolver(field, target.DisplayName, match.DisplayName, existing, rows);
     }
 
     /// <summary>The record a code names, and the version the write should expect of it.</summary>
@@ -158,11 +167,18 @@ internal sealed class CsvCodeResolver
         NendoCsvDocument document,
         Func<int, string?>? recordIdOfRow)
     {
-        var known = _existing.TryGetValue(code, out var record);
-        if (_rows.TryGetValue(code, out var other))
+        var holders = _existing.TryGetValue(code, out var all) ? Closest(all, holder => holder.Text, code) : [];
+        if (holders.Count > 1)
+            throw new NendoValidationException(
+                $"{_matchName} “{code}” is held by more than one {_targetName} when case is set aside, and by none in exactly that case. Write it in its exact case.");
+        var known = holders.Count == 1;
+        var record = known ? (holders[0].RecordId, holders[0].Version) : default;
+        if (_rows.TryGetValue(code, out var rowsOfCode))
         {
-            if (_repeated.Contains(code))
+            var rows = Closest(rowsOfCode, row => row.Text, code);
+            if (rows.Count > 1)
                 throw new NendoValidationException($"{_matchName} “{code}” is on more than one CSV row, so it does not say which {_targetName} it means.");
+            var other = rows[0].Row;
             if (other == row)
                 throw new NendoValidationException($"{_matchName} “{code}” is this row's own.");
             if (other > row)

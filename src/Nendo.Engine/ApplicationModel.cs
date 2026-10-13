@@ -451,7 +451,15 @@ public sealed record NendoExecuteCommandRequest(
     string CommandId,
     string RecordId,
     long ExpectedRecordVersion,
-    NendoRequestContext Context);
+    NendoRequestContext Context)
+{
+    /// <summary>
+    /// The record type the caller means the record to be of, when it says. A command runs on its
+    /// own record type's record, so one named with another type's record is refused rather than
+    /// run on a record of the same ID in the command's type (R2AP-08). Null checks nothing.
+    /// </summary>
+    public string? EntityId { get; init; }
+}
 
 public class NendoException(string message) : Exception(message);
 
@@ -462,9 +470,10 @@ public sealed class NendoPreconditionException(string code, string message) : Ne
     public string Code { get; } = code;
 
     /// <summary>
-    /// The record the refusal is about, where a person should be shown which one. The message
-    /// names it by ID only, since an audited refusal never carries stored values; the host that
-    /// shows it to the file's own user may name the record by its label instead (ADR-0020).
+    /// The record the refusal is about, where a person should be shown which one: a duplicate's
+    /// holder (ADR-0020), or the record a reference points at (R2AP-07). The message names it by
+    /// ID only, since an audited refusal never carries stored values; the host that shows it to
+    /// the file's own user may name the record by its label instead.
     /// </summary>
     public string? RecordId { get; init; }
 }

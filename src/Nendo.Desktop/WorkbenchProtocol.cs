@@ -175,7 +175,8 @@ internal sealed record ExecuteCommandPayload(
     string CommandId,
     string RecordId,
     long ExpectedRecordVersion,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    string? EntityId = null);
 
 internal sealed record SetFieldsPayload(
     string EntityId,
@@ -653,7 +654,8 @@ internal sealed partial class WorkbenchProtocolHandler
             request.ExpectedRecordVersion,
             request.IdempotencyKey,
             cancellationToken,
-            writer);
+            writer,
+            request.EntityId);
     }
 
     /// <summary>

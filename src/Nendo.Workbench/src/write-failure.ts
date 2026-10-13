@@ -57,10 +57,57 @@ export function namingFieldId(entities: readonly EntitySnapshot[], entityId: str
 }
 
 /**
+ * A reference refusal with the target's record ID replaced by its label (R2AP-07). The host names
+ * the target by ID, which an agent's or a view's batch needs to find the write; the person's
+ * records have generated IDs, so their own form shows the record as its picker did. Only the place
+ * the sentence puts the target, after "points at ", is replaced.
+ */
+export function nameTarget(message: string, recordId: string, label: string): string {
+  const token = ` points at ${recordId}`;
+  const at = message.indexOf(token);
+  const next = message.charAt(at + token.length);
+  if (label.trim() === '' || at < 0 || (next !== ' ' && next !== ',')) return message;
+  return `${message.slice(0, at)} points at “${label.trim()}”${message.slice(at + token.length)}`;
+}
+
+/** The reference refusals the host words with the target's record ID (R2AP-07). */
+export const referenceRefusalCodes: readonly string[] = Object.freeze(['target-version-required', 'target-not-found', 'target-version-conflict']);
+
+/**
+ * Which reference field of a write points at <paramref name="recordId" />, and so which record
+ * type to read the target from and by which field to name it: a form's values, a single field's
+ * value, or a batch's writes. Null when the write names no such reference.
+ */
+export function referenceTargetOf(entities: readonly EntitySnapshot[], payload: Record<string, unknown>, recordId: string):
+  { targetEntityId: string; labelFieldId: string } | null {
+  const writes = Array.isArray(payload.writes) ? payload.writes as Record<string, unknown>[] : [payload];
+  for (const write of writes) {
+    const entity = entities.find(candidate => candidate.entityId === write?.entityId);
+    if (entity === undefined) continue;
+    const values: Record<string, unknown> = typeof write.values === 'object' && write.values !== null
+      ? write.values as Record<string, unknown>
+      : typeof write.fieldId === 'string' ? { [write.fieldId]: write.value } : {};
+    for (const [fieldId, value] of Object.entries(values)) {
+      const reference = entity.fields.find(field => field.fieldId === fieldId)?.reference;
+      if (value === recordId && reference) return { targetEntityId: reference.targetEntityId, labelFieldId: reference.labelFieldId };
+    }
+  }
+  return null;
+}
+
+/**
  * A duplicate refusal with the holding record's ID replaced by its label (ADR-0020). The host
  * names the holder by ID because the same sentence reaches an agent's audit; the person who
  * owns the file reads it here, where the record's own words are theirs to see.
+ *
+ * Only the place the Engine's sentence puts the holder is replaced, between " used by " and
+ * " in ". Every occurrence was, so a short ID such as C, inside the field's or the record type's
+ * name, garbled the sentence: "That “Alice”ode is already used by “Alice” in “Alice”ontacts" (R2AP-09).
+ * A sentence of another shape is left as the host wrote it.
  */
 export function nameHolder(message: string, recordId: string, label: string): string {
-  return label.trim() === '' ? message : message.split(recordId).join(`“${label.trim()}”`);
+  const holder = ` used by ${recordId} in `;
+  const at = message.indexOf(holder);
+  if (label.trim() === '' || at < 0) return message;
+  return `${message.slice(0, at)} used by “${label.trim()}” in ${message.slice(at + holder.length)}`;
 }

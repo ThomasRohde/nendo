@@ -138,17 +138,29 @@ internal sealed partial class SqliteNendoStore
             throw new NendoPreconditionException("reference-unbound", "Choose the target record type and label through a reviewed definition proposal first.");
         if (value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
             throw new NendoValidationException("A reference requires a target record ID.");
+        // Each refusal names the field and the record it points at (R2AP-07): an agent's or a
+        // view's batch of a hundred writes, or one update setting two references, could not tell
+        // from the form's words which write or field they meant. A record ID is a stable ID, and
+        // RecordId carries it so the Workbench names the target by its label for the person.
+        var targetId = value.GetString()!;
+        var named = targetId.Length <= 200 ? targetId : targetId[..200] + "…";
         if (expectedTargetVersion is null or < 1)
-            throw new NendoPreconditionException("target-version-required", "Select the target again so its current version can be checked.");
+            throw new NendoPreconditionException("target-version-required",
+                $"{field.DisplayName} points at {named} without the version it was chosen at. Select the target again so its current version can be checked.")
+            { RecordId = targetId };
         var target = await GetEntityMappingAsync(field.Reference.TargetEntityId, transaction, ct);
         RequireActive(target);
         await using var query = Command($"SELECT {Quote("__nendo_record_version")} FROM {Quote(target.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @id;", transaction);
-        query.Parameters.AddWithValue("@id", value.GetString()!);
+        query.Parameters.AddWithValue("@id", targetId);
         var version = await query.ExecuteScalarAsync(ct);
         if (version is null or DBNull)
-            throw new NendoPreconditionException("target-not-found", "That record does not exist in the reference's target type.");
+            throw new NendoPreconditionException("target-not-found",
+                $"{field.DisplayName} points at {named}, and {target.DisplayName} has no such record.")
+            { RecordId = targetId };
         if (Convert.ToInt64(version, CultureInfo.InvariantCulture) != expectedTargetVersion)
-            throw new NendoPreconditionException("target-version-conflict", "The selected target changed. Select it again before saving.");
+            throw new NendoPreconditionException("target-version-conflict",
+                $"{field.DisplayName} points at {named} in {target.DisplayName}, which changed after it was selected. Select it again before saving.")
+            { RecordId = targetId };
     }
 
     private static bool ReferenceMetadataIsValid(IReadOnlyList<EntityMapping> entities)

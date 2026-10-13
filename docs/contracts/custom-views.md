@@ -646,7 +646,7 @@ Workbench suite, pins the table name by name.
 | `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional), `writeKey` (1–64 letters, digits, `-` or `_`, optional; [below](#writes)) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}], revision}`, version null for a deleted record |
 | `records.undo` | `revision` (a batch's or a redo's, this frame's), `label` (1–80 characters, optional) | `data.undoRecordWrites` ([below](#writes)) | `{records, revision}`, as a batch |
 | `records.redo` | `revision` (an undo's, this frame's), `label` (optional) | `data.undoRecordWrites` with `redo` | `{records, revision}`, as a batch |
-| `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands |
+| `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands. A command of another record type than `entityId` names is refused `command-unavailable` before anything is written (R2AP-08): the broker checks the commands `schema.describe` lists, and the host checks it again, since `data.executeCommand` carries `entityId` to `NendoExecuteCommandRequest.EntityId`. The host used to run a command on its own type's record and never read `entityId`, so the view was answered with another type's record, or null as if deleted |
 | `proposals.prepare` | `title` (1–200 characters), `operations` (1–128 canonical operations) | `proposal.prepareChangeSet`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
 | `proposals.get` | `proposalId` | `proposal.get`, for the package's own proposals | `{proposalId, title, state, diagnostics}` |
 | `proposals.open` | `proposalId` | `proposal.get`, then the Workbench's review | `{proposalId, title, state, diagnostics, opened}` |
@@ -701,7 +701,14 @@ commands, through the same typed operations and version checks as a person's edi
   letters, digits, `-` or `_`): the broker writes it under the idempotency key
   `view-‹package›-‹writeKey›`, so the host keeps it once and answers a repeat as it
   answered the first; the same key with other writes is refused. The package is part
-  of the key, so one package's key never answers for another's. Without a `writeKey`
+  of the key, so one package's key never answers for another's. A create in such a
+  batch that names no `recordId` is given `record-` and 32 hex digits of SHA-256 over
+  the package, the `writeKey` and the write's position, so the batch sent again names
+  the same records (R2AP-04, 2026-10-13): a fresh random ID on every send made the
+  resend a different payload under a used key, refused as `idempotency-conflict` in
+  exactly the case the key is for. A `writeKey` answers for its package for the file's
+  lifetime: the same batch under it is replayed whenever it is sent, and other writes under it
+  are refused, so a view uses a new key for each new batch. Without a `writeKey`
   a batch sent again is a new batch. A single write that was kept but could not be
   read back is answered `written-not-read`, never as a refusal.
 - **An automatic action a write did not run** (2026-10-13, W-209). When a

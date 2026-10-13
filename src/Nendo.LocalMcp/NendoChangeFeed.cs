@@ -98,7 +98,7 @@ internal sealed class NendoChangeFeed
         lock (_gate) listeners = [.. _listeners];
         foreach (var listener in listeners)
             foreach (var uri in uris)
-                listener.Writer.TryWrite(new Change(uri, null));
+                listener.Offer(new Change(uri, null));
     }
 
     /// <summary>Tells every open stream what a commit changed; each sends it for the record types it asked about.</summary>
@@ -107,8 +107,17 @@ internal sealed class NendoChangeFeed
         Listener[] listeners;
         lock (_gate) listeners = [.. _listeners];
         foreach (var listener in listeners)
-            listener.Writer.TryWrite(new Change(null, summary));
+            listener.Offer(new Change(null, summary));
     }
+
+    /// <summary>
+    /// The most changes one stream holds unsent. A client that keeps its stream open and stops
+    /// reading held a queue that grew with every commit for the connection's life (MTD-18). Past
+    /// this the stream takes one last entry, <see cref="Change.Overflowed"/>, and ends: the client
+    /// is then told that every resource it subscribed to changed, so it reads them again rather
+    /// than missing a change it was never told it had missed, and it subscribes again.
+    /// </summary>
+    internal const int MaximumQueuedChanges = 1024;
 
     /// <summary>The file is closing: health changed, and every stream ends after saying so.</summary>
     internal void Close()
@@ -127,7 +136,32 @@ internal sealed class NendoChangeFeed
     }
 
     /// <summary>One thing a stream is told: a fixed URI that changed, or what a commit changed.</summary>
-    internal readonly record struct Change(string? Uri, NendoCommitSummary? Summary);
+    internal readonly record struct Change(string? Uri, NendoCommitSummary? Summary)
+    {
+        /// <summary>The stream held too many unsent changes: every subscribed resource is to be read again, and the stream ends.</summary>
+        internal bool Overflowed { get; init; }
+    }
+
+    /// <summary>
+    /// The resources/updated notifications one change asks for on a stream that subscribed to
+    /// <paramref name="honoured"/>, each a URI and the change's metadata for it, if any. An overflow
+    /// names every honoured URI with no metadata, since what changed is no longer known.
+    /// </summary>
+    internal static IEnumerable<(string Uri, JsonObject? Changes)> Notifications(Change change, IReadOnlyList<string> honoured)
+    {
+        if (change.Overflowed)
+        {
+            foreach (var uri in honoured) yield return (uri, null);
+            yield break;
+        }
+        if (change.Summary is { } summary)
+        {
+            foreach (var entityId in honoured.Select(RecordsEntity).OfType<string>())
+                if (RecordsMeta(summary, entityId) is { } changes) yield return (RecordsUri(entityId), changes);
+            yield break;
+        }
+        if (change.Uri is { } changed && honoured.Contains(changed, StringComparer.Ordinal)) yield return (changed, null);
+    }
 
     private void Remove(Listener listener)
     {
@@ -137,11 +171,27 @@ internal sealed class NendoChangeFeed
     internal sealed class Listener : IDisposable
     {
         private readonly NendoChangeFeed _feed;
-        private readonly Channel<Change> _channel = Channel.CreateUnbounded<Change>(new UnboundedChannelOptions { SingleReader = true });
+        // One place past the bound is kept for the overflow entry.
+        private readonly Channel<Change> _channel = Channel.CreateBounded<Change>(
+            new BoundedChannelOptions(MaximumQueuedChanges + 1) { SingleReader = true, FullMode = BoundedChannelFullMode.Wait });
+        private readonly object _offering = new();
 
         internal Listener(NendoChangeFeed feed) => _feed = feed;
 
         internal ChannelWriter<Change> Writer => _channel.Writer;
+
+        /// <summary>
+        /// Queues a change without waiting. A stream already holding <see cref="MaximumQueuedChanges"/>
+        /// takes the overflow entry instead, in the place kept for it, and ends after what it holds.
+        /// </summary>
+        internal void Offer(Change change)
+        {
+            lock (_offering)
+            {
+                if (_channel.Reader.Count < MaximumQueuedChanges && _channel.Writer.TryWrite(change)) return;
+                if (_channel.Writer.TryWrite(new Change(null, null) { Overflowed = true })) _channel.Writer.TryComplete();
+            }
+        }
 
         internal ChannelReader<Change> Reader => _channel.Reader;
 

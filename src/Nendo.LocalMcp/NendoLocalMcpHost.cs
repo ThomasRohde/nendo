@@ -191,7 +191,6 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         var honoured = NendoChangeFeed.Served.Where(uri => wanted.Contains(uri, StringComparer.Ordinal))
             .Concat(wanted.Where(uri => NendoChangeFeed.RecordsEntity(uri) is not null).Distinct(StringComparer.Ordinal))
             .ToArray();
-        var recordTypes = honoured.Select(NendoChangeFeed.RecordsEntity).OfType<string>().ToArray();
         using var listener = feed.TryOpen()
             ?? throw new McpProtocolException(
                 $"NENDO_BUSY: {NendoChangeFeed.MaximumListeners} subscriptions/listen streams are already open to this file, the most this " +
@@ -230,25 +229,17 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         {
             await foreach (var change in listener.Reader.ReadAllAsync(cancellationToken))
             {
-                if (change.Summary is { } summary)
+                // An overflow is the stream's last entry: it names every subscribed resource as
+                // changed, so the client reads them again, and the stream then ends (MTD-18).
+                foreach (var (uri, changes) in NendoChangeFeed.Notifications(change, honoured))
                 {
-                    foreach (var entityId in recordTypes)
-                    {
-                        if (NendoChangeFeed.RecordsMeta(summary, entityId) is not { } changes) continue;
-                        var meta = Tagged();
-                        foreach (var (key, value) in changes) meta[key] = value?.DeepClone();
-                        await request.Server.SendNotificationAsync(
-                            NotificationMethods.ResourceUpdatedNotification,
-                            new ResourceUpdatedNotificationParams { Uri = NendoChangeFeed.RecordsUri(entityId), Meta = meta },
-                            cancellationToken: cancellationToken);
-                    }
-                    continue;
+                    var meta = Tagged();
+                    foreach (var (key, value) in changes ?? []) meta[key] = value?.DeepClone();
+                    await request.Server.SendNotificationAsync(
+                        NotificationMethods.ResourceUpdatedNotification,
+                        new ResourceUpdatedNotificationParams { Uri = uri, Meta = meta },
+                        cancellationToken: cancellationToken);
                 }
-                if (change.Uri is not { } uri || !honoured.Contains(uri, StringComparer.Ordinal)) continue;
-                await request.Server.SendNotificationAsync(
-                    NotificationMethods.ResourceUpdatedNotification,
-                    new ResourceUpdatedNotificationParams { Uri = uri, Meta = Tagged() },
-                    cancellationToken: cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

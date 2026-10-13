@@ -36,6 +36,11 @@ internal static class NendoMcpJson
         {
             DictionaryKeyPolicy = null,
             WriteIndented = false,
+            // The output is JSON-RPC text an agent reads, never HTML, so nothing needs escaping
+            // beyond what JSON itself requires. The default escaped every character past ASCII,
+            // and & < > ' + too: "Smørrebrød" read with each ø as a six-character escape, and an
+            // agent copied the escapes into what it wrote back (MTD-17).
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
         return options;

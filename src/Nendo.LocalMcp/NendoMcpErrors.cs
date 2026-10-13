@@ -30,9 +30,11 @@ internal static class NendoMcpErrors
         NendoRecoveryRequiredException => Invalid(
             "NENDO_RECOVERY_REQUIRED",
             "The file requires recovery before it can be inspected."),
+        // The one audited list the tool path keeps (MTD-05): a read's refusal said only that a
+        // precondition failed, though its sentence names the remedy and the tools showed it.
         NendoPreconditionException precondition => Invalid(
             $"NENDO_{NendoText.ErrorCode(precondition.Code)}",
-            "The semantic precondition was not met."),
+            NendoToolErrors.IsDiagnosable(precondition.Code) ? precondition.Message : "The semantic precondition was not met."),
         NendoCalculationException calculation => Invalid(
             $"NENDO_{NendoText.ErrorCode(calculation.Code)}",
             calculation.Message),
