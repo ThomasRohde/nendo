@@ -22,11 +22,13 @@ async (page) => {
         fields: bound.map(fieldId => ({ fieldId, entityId: 'job' })), filters: [] } },
     schema: { entities: [
       { entityId: 'job', displayName: 'Job', fields: [field('jobName', 'Name', 'text'), field('starts', 'Starts', 'date'), field('ends', 'Ends', 'date'),
+        field('startsAt', 'Starts at', 'dateTime'), field('endsAt', 'Ends at', 'dateTime'),
         field('owner', 'Owner', 'reference', { reference: { targetEntityId: 'person', labelFieldId: 'personName' } })] },
       { entityId: 'person', displayName: 'Person', fields: [field('personName', 'Name', 'text')] },
     ] },
     records: {
-      job: records.map(job => record('job', job.id, { jobName: job.label, starts: job.starts, ends: job.ends, owner: job.owner ? 'person-' + job.owner.toLowerCase() : null },
+      job: records.map(job => record('job', job.id, { jobName: job.label, starts: job.starts, ends: job.ends, owner: job.owner ? 'person-' + job.owner.toLowerCase() : null,
+        startsAt: job.startsAt ?? null, endsAt: job.endsAt ?? null },
         job.owner ? { owner: job.owner } : {})),
       person: ['Ada', 'Bo'].map(name => record('person', 'person-' + name.toLowerCase(), { personName: name })),
     },
@@ -105,12 +107,46 @@ async (page) => {
   // The owner is a reference: it is shown by the name it points at, not by the ID it stores.
   assert((await view.locator('.row[data-id="short"] .label small').innerText()) === 'Ada', 'The first non-date field is not shown under the label by its name.');
   assert(await view.locator('#axis span').count() >= 1, 'The time axis has no ticks.');
+  // GGV-13: aria-label replaces a row's content as its name, so the owner line it shows under the
+  // label was never heard. The computed name holds the label, the owner and the span.
+  assert(await view.getByRole('button', { name: 'Short task, Ada, 2026-10-01 to 2026-10-05', exact: true }).count() === 1,
+    'A row\'s accessible name leaves out the owner line it shows under its label: ' + JSON.stringify(await view.locator('.row[data-id="short"]').getAttribute('aria-label')));
 
   // Selecting a record asks Nendo to open it, once, from a pointer and from the keyboard.
   exactlyOne(await opens(() => view.locator('.row[data-id="late"]').click()), 'late', 'Selecting a record did not ask Nendo to open exactly it, once:');
   await view.locator('.row[data-id="moment"]').focus();
   exactlyOne(await opens(() => page.keyboard.press('Enter')), 'moment', 'Enter on a focused row did not open it, once:');
   assert(await view.locator('.row[aria-pressed=true]').count() === 1, 'More than one row reads as selected.');
+
+  // GGV-01: a Windows contrast theme forces every background to Canvas, and the marks were drawn
+  // by their background alone: the bars, the milestone and the selected record took the track's
+  // colour and the chart showed nothing. Measured in the frame with forced colours on.
+  await page.emulateMedia({ forcedColors: 'active' });
+  const forced = await view.evaluate(() => {
+    const colour = selector => getComputedStyle(document.querySelector(selector)).backgroundColor;
+    const bar = document.querySelector('.row[data-id="long"] .bar').getBoundingClientRect();
+    const chosen = document.querySelector('.row[aria-pressed=true]');
+    return { forced: matchMedia('(forced-colors: active)').matches, track: colour('main'), bar: colour('.row[data-id="long"] .bar'),
+      area: Math.round(bar.width * bar.height), selected: chosen?.dataset.id ?? null, selectedMark: colour('.row[aria-pressed=true] .bar, .row[aria-pressed=true] .milestone'),
+      outline: getComputedStyle(chosen).outlineStyle };
+  });
+  assert(forced.forced, 'Forced colours were not on in the chart\'s frame: ' + JSON.stringify(forced));
+  assert(forced.bar !== forced.track && forced.area > 0, 'In a Windows contrast theme a bar takes the track\'s colour and vanishes: ' + JSON.stringify(forced));
+  assert(forced.selected === 'moment' && forced.selectedMark !== forced.track && forced.selectedMark !== forced.bar && forced.outline !== 'none',
+    'In a Windows contrast theme the selected record cannot be told from the rest: ' + JSON.stringify(forced));
+  // The selection's cue is not the focus ring: focus still shows on the selected row, and a focused
+  // row and the selected row do not look the same. Before, the selected row's outline replaced the
+  // ring on it, and elsewhere both were the same Highlight outline.
+  const cue = id => view.evaluate(id => { const s = getComputedStyle(document.querySelector(`.row[data-id="${id}"]`));
+    return [s.outlineStyle, s.outlineWidth, s.borderInlineStartStyle, s.borderInlineStartWidth].join(' '); }, id);
+  const focusedRow = () => view.evaluate(() => document.activeElement?.dataset?.id ?? document.activeElement?.tagName);
+  assert(await focusedRow() === 'moment', 'The selected row does not have the keyboard: ' + await focusedRow());
+  const focusedSelected = await cue('moment');
+  await page.keyboard.press('ArrowUp');
+  const other = await focusedRow(), focusedOther = await cue(other), selectedOnly = await cue('moment');
+  assert(focusedSelected !== selectedOnly, 'In a Windows contrast theme focus does not show on the selected row: ' + JSON.stringify({ focused: focusedSelected, unfocused: selectedOnly }));
+  assert(other !== 'moment' && focusedOther !== selectedOnly, 'In a Windows contrast theme a focused row and the selected row look the same: ' + JSON.stringify({ focused: focusedOther, selected: selectedOnly }));
+  await page.emulateMedia({ forcedColors: 'none' });
 
   // W-064: the view kit. The rows are one tab stop; the arrow keys, Home and End move between
   // them; the focused row wears a visible ring. Then the same keys on a bare list the page adds,
@@ -150,6 +186,25 @@ async (page) => {
   const chrome = await view.evaluate(() => ['header', '#axis', 'footer'].map(s => getComputedStyle(document.querySelector(s)).userSelect));
   assert(chrome.every(value => value === 'none'), 'Chart chrome is text-selectable: ' + JSON.stringify(chrome));
 
+  // GGV-03: a re-read replaces every row. The row that had the keyboard keeps it, and stays the
+  // one tab stop; before, focus fell to the page and the stop went back to the first row.
+  await view.locator('.row[data-id="short"]').focus();
+  await page.keyboard.press('ArrowDown');
+  assert(await focusedId() === 'markup', 'ArrowDown did not move from the second row to the third: ' + await focusedId());
+  const keyboardState = () => view.evaluate(() => ({ focused: document.activeElement?.dataset?.id ?? document.activeElement?.tagName ?? null,
+    stops: [...document.querySelectorAll('.row[tabindex="0"]')].map(row => row.dataset.id) }));
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture({ records: set.map(entry => entry.id === 'late' ? { ...entry, ends: '2026-11-25' } : entry) }));
+  await showing('6 records · 5 on the time line · 1 without a Starts · 2026-10-01 to 2026-11-25', 'The chart did not read again after Nendo said the file changed.');
+  const kept = await keyboardState();
+  assert(kept.focused === 'markup' && JSON.stringify(kept.stops) === JSON.stringify(['markup']),
+    'A re-read dropped the keyboard from the row it was on, or moved the tab stop: ' + JSON.stringify(kept));
+  // The person is elsewhere, editing the record beside the chart: the stop still stays on the row.
+  await view.evaluate(() => document.activeElement.blur());
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture({ records: set }));
+  await showing(setSummary, 'The chart did not read again after Nendo said the file changed back.');
+  const away = await keyboardState();
+  assert(JSON.stringify(away.stops) === JSON.stringify(['markup']), 'A re-read moved the one tab stop back to the first row: ' + JSON.stringify(away));
+
   // The file changes. The chart reads again only when Nendo says so, keeps the selected record
   // selected without opening it again, and shows what changed.
   const opened = await openCount();
@@ -188,6 +243,43 @@ async (page) => {
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); }, fixture({ records: [job('a', 'A', null, null)], bound: [] }));
   await until(() => !document.getElementById('empty').hidden && document.getElementById('empty').textContent.includes('no date field'), undefined,
     'A view without dates did not say why it is empty.');
+
+  // GGV-12: a view bound to date-and-time fields was told it has no date field and asked to add
+  // one. It is told the chart draws date fields, by the names of the fields it does bind.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); },
+    fixture({ records: [{ ...job('t', 'Timed', null, null), startsAt: '2026-10-01T09:00:00Z', endsAt: '2026-10-02T17:00:00Z' }], bound: ['startsAt', 'endsAt'] }));
+  await view.waitForFunction(() => !document.getElementById('empty').hidden && document.getElementById('empty').textContent.includes('Starts at and Ends at hold a date and a time'),
+    undefined, { timeout: 5000, polling: 50 }).catch(async () => {
+      throw new Error('A view bound to date-and-time fields was not told the chart draws date fields, by their names: '
+        + JSON.stringify(await view.evaluate(() => document.getElementById('empty').textContent)));
+    });
+  // Nor is a date and time the line under a label, where it showed as raw ISO text.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); },
+    fixture({ records: [{ ...job('b', 'Both', '2026-10-01', '2026-10-03'), startsAt: '2026-10-01T09:00:00Z' }], bound: ['starts', 'ends', 'startsAt'] }));
+  await showing('1 record · 1 on the time line · 2026-10-01 to 2026-10-03', 'A view binding dates and a date and time did not draw its record.');
+  assert(await view.locator('.row[data-id="b"] .label small').count() === 0,
+    'A date-and-time field is shown under the label as raw text: ' + JSON.stringify(await view.locator('.row[data-id="b"] .label').innerText()));
+
+  // GGV-11: ticks were the first of each month only, so a chart inside one month had none, and the
+  // axis scrolled away with the rows. A one-week chart has dates, and a long one keeps its axis.
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); },
+    fixture({ records: [job('s1', 'Sprint planning', '2026-03-02', '2026-03-04'), job('s2', 'Sprint review', '2026-03-06', '2026-03-08')] }));
+  await showing('2 records · 2 on the time line · 2026-03-02 to 2026-03-08', 'The one-week chart was not drawn.');
+  const shortTicks = await view.evaluate(() => [...document.querySelectorAll('#axis span')].map(tick => tick.textContent));
+  assert(shortTicks.length >= 2, 'A chart inside one month has fewer than two dates on its axis: ' + JSON.stringify(shortTicks));
+  const sixty = Array.from({ length: 60 }, (_, at) => job('r' + at, 'Row ' + at, `2026-0${1 + (at % 6)}-${String(1 + (at % 27)).padStart(2, '0')}`, null));
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); }, fixture({ records: sixty }));
+  await until(() => document.querySelectorAll('.row').length === 60, undefined, 'The sixty-row chart was not drawn.');
+  const scrolled = await view.evaluate(async () => {
+    const main = document.querySelector('main');
+    main.scrollTop = 900;
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const axis = document.getElementById('ticks').getBoundingClientRect(), frame = main.getBoundingClientRect();
+    return { scrollTop: Math.round(main.scrollTop), axisTop: Math.round(axis.top), axisBottom: Math.round(axis.bottom), mainTop: Math.round(frame.top), mainBottom: Math.round(frame.bottom),
+      ticks: document.querySelectorAll('#axis span').length };
+  });
+  assert(scrolled.scrollTop >= 800 && scrolled.axisTop >= scrolled.mainTop - 1 && scrolled.axisBottom <= scrolled.mainBottom && scrolled.ticks >= 2,
+    'Scrolling a long chart takes its time axis out of view: ' + JSON.stringify(scrolled));
 
   // On a record page the view reads that page's one record, in a frame of its own, and it is a
   // chart of one. The record is the page's own: selecting it opens nothing.

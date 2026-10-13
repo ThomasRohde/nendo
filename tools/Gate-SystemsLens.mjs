@@ -95,6 +95,27 @@ async (page) => {
     return answer;
   });
 
+  const transformNow = () => view.locator('#drawing').getAttribute('transform');
+  const keyboardState = () => view.evaluate(() => ({ focused: document.activeElement?.dataset?.id ?? document.activeElement?.tagName ?? null,
+    tag: document.activeElement?.tagName ?? null, stops: [...document.querySelectorAll('.node[tabindex="0"]')].map(node => node.dataset.id) }));
+  // The component the kit's spatial keys should reach: the nearest whose centre lies that way on
+  // the schematic, scored along the direction and twice across it.
+  const nearest = (fromId, key) => view.evaluate(([fromId, key]) => {
+    const centre = element => { const box = element.getBoundingClientRect(); return [box.left + box.width / 2, box.top + box.height / 2]; };
+    const nodes = [...document.querySelectorAll('.node')], from = nodes.find(node => node.dataset.id === fromId);
+    const [ux, uy] = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[key];
+    const [x, y] = centre(from);
+    let best = null, bestScore = Infinity;
+    for (const node of nodes) {
+      if (node === from) continue;
+      const [nx, ny] = centre(node), along = (nx - x) * ux + (ny - y) * uy;
+      if (along <= 0) continue;
+      const score = along + 2 * Math.abs((nx - x) * uy - (ny - y) * ux);
+      if (score < bestScore) { best = node.dataset.id; bestScore = score; }
+    }
+    return best;
+  }, [fromId, key]);
+
   // A reservoir feeding two pumps onto one manifold, a cold plate hanging off one of
   // those pumps alone, a three-component coolant circuit, an isolated sensor, a
   // component whose stored state is already Offline, a parallel feed and a label that
@@ -215,6 +236,12 @@ async (page) => {
   assert(rows.some(row => row.includes('it loses every declared feed path')), 'The text alternative never names an exposed component.');
   assert(rows.some(row => row.includes('it keeps a declared feed path')), 'The text alternative never names a component that stays fed.');
   assert(rows.some(row => row.includes('In a circuit.')), 'The text alternative never mentions the circuit.');
+  // GGV-04: every selection rebuilt the text view, so the button a person pressed by keyboard was
+  // destroyed in its own click and focus fell to the page. It keeps the keyboard.
+  await view.locator('#records button[data-id="chiller"]').focus();
+  exactlyOne(await opens(() => page.keyboard.press('Enter')), 'chiller', 'Enter in the text view did not open the component, once:');
+  const pressed = await keyboardState();
+  assert(pressed.tag === 'BUTTON' && pressed.focused === 'chiller', 'Selecting from the text view by keyboard lost the keyboard: ' + JSON.stringify(pressed));
   await view.getByRole('button', { name: 'Schematic', exact: true }).click();
 
   // A single path does expose. Taking out the manifold leaves the radiator and the
@@ -245,13 +272,58 @@ async (page) => {
   assert(opacity.orphan < .3 && opacity.rad < .3, 'Focus left an unconnected component undimmed: ' + JSON.stringify(opacity));
   await view.getByRole('button', { name: 'Focus', exact: true }).click();
 
+  // GGV-09: every component was a tab stop and Left and Right went to the next component in the
+  // file's order, wherever the schematic placed it. The components are one tab stop, and each
+  // arrow reaches the nearest component that way on the schematic.
   await view.locator('.node[data-id="tank"]').focus();
-  exactlyOne(await opens(async () => { await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); }), 'pumpA',
-    'Keyboard traversal opened the wrong component, or not once:');
+  assert(JSON.stringify((await keyboardState()).stops) === JSON.stringify(['tank']), 'The components are not one tab stop: ' + JSON.stringify(await keyboardState()));
+  const rightOfTank = await nearest('tank', 'ArrowRight');
+  exactlyOne(await opens(async () => { await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); }), rightOfTank,
+    `ArrowRight from the reservoir did not reach the nearest component to its right (${rightOfTank}), or Enter did not open it once:`);
+  const below = await nearest(rightOfTank, 'ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  const down = await keyboardState();
+  assert(below !== null && down.focused === below && JSON.stringify(down.stops) === JSON.stringify([below]),
+    `ArrowDown did not reach the nearest component below (${below}), as the one tab stop: ` + JSON.stringify(down));
 
   const before = await view.locator('#drawing').getAttribute('transform');
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert(await view.locator('#drawing').getAttribute('transform') !== before, 'Zoom did not change the transform.');
+
+  // GGV-02: every re-read fitted the whole schematic again. Zoomed and panned, a re-read keeps it.
+  await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await view.evaluate(() => document.getElementById('canvas').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })));
+  const placed = await transformNow();
+  const relabelled = label => fixture({ ...projection, nodes: projection.nodes.map(node => node.id === 'orphan' ? { ...node, label } : node) });
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('COM · Link quality sensor B'));
+  await until(() => document.querySelector('.node[data-id="orphan"] title')?.textContent === 'COM · Link quality sensor B — Online', undefined,
+    'The schematic did not read again after the file changed.');
+  const replaced = await transformNow();
+  assert(replaced === placed, 'A re-read threw away the zoom and pan the person had: ' + JSON.stringify({ before: placed, after: replaced }));
+  // A re-read that adds a component feeding the reservoir moves everything after it one layer to
+  // the right: the selected component stays where it was on screen.
+  const screenBox = id => view.evaluate(id => { const r = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect();
+    return [Math.round(r.left), Math.round(r.top)]; }, id);
+  const chosen = await view.evaluate(() => document.querySelector('.node.selected')?.dataset.id ?? null);
+  assert(chosen !== null, 'No component is selected before the re-read that adds one.');
+  const selectedBefore = await screenBox(chosen);
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); },
+    fixture({ nodes: [...projection.nodes, { id: 'intake', label: 'THERM · Intake', status: 'Online' }], edges: [...projection.edges, { id: 'e0', sourceId: 'intake', targetId: 'tank' }] }));
+  await until(() => document.querySelectorAll('.node').length === 13, undefined, 'The schematic did not draw the added component.');
+  const selectedAfter = await screenBox(chosen);
+  assert(Math.abs(selectedAfter[0] - selectedBefore[0]) <= 1 && Math.abs(selectedAfter[1] - selectedBefore[1]) <= 1,
+    'A re-read that added a component moved the selected component on screen: ' + JSON.stringify({ chosen, before: selectedBefore, after: selectedAfter }));
+  // GGV-03: a re-read replaced every component and left focus on the page. The component that had
+  // the keyboard keeps it, and it is the one tab stop.
+  await view.locator('.node[data-id="manifold"]').focus();
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('COM · Link quality sensor C'));
+  await until(() => document.querySelector('.node[data-id="orphan"] title')?.textContent === 'COM · Link quality sensor C — Online', undefined,
+    'The schematic did not read again after the file changed.');
+  const kept = await keyboardState();
+  assert(kept.focused === 'manifold' && JSON.stringify(kept.stops) === JSON.stringify(['manifold']),
+    'A re-read dropped the keyboard from the component it was on: ' + JSON.stringify(kept));
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture(projection));
+  await until(text => document.getElementById('summary').textContent === text, fullSummary, 'The schematic did not read the original file again.');
   await view.getByRole('button', { name: 'Fit', exact: true }).click();
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/systems-lens-light.png' });
 
@@ -297,6 +369,16 @@ async (page) => {
   await page.waitForTimeout(900);
   const burst = (await requests(mark)).filter(r => r.m === 'records.query' && r.p.entityId === 'component' && (r.p.cursor ?? null) === null).length;
   assert(burst === 1, `A burst of five changes made ${burst} reads of the components, not one.`);
+
+  // GGV-06: a feed from a component this view does not show is not drawn, so a component fed only
+  // that way read as a declared source. The summary counts the feeds outside the view and no longer
+  // calls what has no drawn feed a declared source.
+  await replace(fixture({ ...projection, edges: [...projection.edges, { id: 'e13', sourceId: 'elsewhere', targetId: 'orphan' }] }),
+    '12 components · 12 feeds · 3 with no feed drawn · 3 in a circuit · 1 feed outside this view');
+  await view.locator('.node[data-id="orphan"]').click();
+  assert((await view.locator('#selection').innerText()).includes('no feed drawn into it') && !(await view.locator('#selection').innerText()).includes('a declared source'),
+    'A component whose feed is outside the view is called a declared source: ' + await view.locator('#selection').innerText());
+  await replace(fixture({ ...projection, nodes: projection.nodes.map(node => node.id === 'rad' ? { ...node, label: 'THERM · Radiator 1A' } : node) }), fullSummary);
 
   // A re-read that no longer has the selected component drops the selection and must clear a
   // take-out.

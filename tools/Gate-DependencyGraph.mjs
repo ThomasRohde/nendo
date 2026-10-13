@@ -71,6 +71,27 @@ async (page) => {
     await until(text => document.getElementById('summary').textContent === text, expected, `The graph never showed "${expected}" after the file changed.`);
   };
 
+  const transformNow = () => view.locator('#drawing').getAttribute('transform');
+  const keyboardState = () => view.evaluate(() => ({ focused: document.activeElement?.dataset?.id ?? document.activeElement?.tagName ?? null,
+    stops: [...document.querySelectorAll('.node[tabindex="0"]')].map(node => node.dataset.id) }));
+  // The record the kit's spatial keys should reach from one record: the nearest whose centre lies
+  // that way, as the drawing places it, scored along the direction and twice across it.
+  const nearest = (fromId, key) => view.evaluate(([fromId, key]) => {
+    const centre = element => { const box = element.getBoundingClientRect(); return [box.left + box.width / 2, box.top + box.height / 2]; };
+    const nodes = [...document.querySelectorAll('.node')], from = nodes.find(node => node.dataset.id === fromId);
+    const [ux, uy] = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[key];
+    const [x, y] = centre(from);
+    let best = null, bestScore = Infinity;
+    for (const node of nodes) {
+      if (node === from) continue;
+      const [nx, ny] = centre(node), along = (nx - x) * ux + (ny - y) * uy;
+      if (along <= 0) continue;
+      const score = along + 2 * Math.abs((nx - x) * uy - (ny - y) * ux);
+      if (score < bestScore) { best = node.dataset.id; bestScore = score; }
+    }
+    return best;
+  }, [fromId, key]);
+
   const projection = { nodes: [
     { id: 'a', label: 'Design the record model', status: 'Doing' },
     { id: 'b', label: 'Build the graph', status: 'Next' },
@@ -132,6 +153,36 @@ async (page) => {
   const before = await view.locator('#drawing').getAttribute('transform');
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert(await view.locator('#drawing').getAttribute('transform') !== before, 'Zoom control did not change the transform.');
+
+  // GGV-02: every re-read fitted the whole graph again, so a person zoomed into one corner was
+  // thrown back to the whole after any commit to the file. Zoomed and panned, a re-read keeps it.
+  await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await view.evaluate(() => document.getElementById('canvas').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })));
+  const placed = await transformNow();
+  const relabelled = label => fixture({ ...projection, nodes: projection.nodes.map(node => node.id === 'c' ? { ...node, label } : node) });
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('Third record'));
+  await until(() => document.querySelector('.node[data-id="c"] title')?.textContent === 'Third record', undefined, 'The graph did not read again after the file changed.');
+  const replaced = await transformNow();
+  assert(replaced === placed, 'A re-read threw away the zoom and pan the person had: ' + JSON.stringify({ before: placed, after: replaced }));
+  // A re-read that adds a record moves the others on the grid: the selected record stays where
+  // it was on screen, rather than the viewport staying while the drawing moves under it.
+  const screenBox = id => view.evaluate(id => { const r = document.querySelector(`.node[data-id="${id}"]`).getBoundingClientRect();
+    return [Math.round(r.left), Math.round(r.top)]; }, id);
+  const selectedBefore = await screenBox('b');
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); },
+    fixture({ nodes: [{ id: 'first', label: 'Added first' }, ...projection.nodes], edges: projection.edges }));
+  await until(() => document.querySelectorAll('.node').length === 4, undefined, 'The graph did not draw the added record.');
+  const selectedAfter = await screenBox('b');
+  assert(Math.abs(selectedAfter[0] - selectedBefore[0]) <= 1 && Math.abs(selectedAfter[1] - selectedBefore[1]) <= 1,
+    'A re-read that added a record moved the selected record on screen: ' + JSON.stringify({ before: selectedBefore, after: selectedAfter }));
+
+  // GGV-03: a re-read replaced every record and left focus on the page. The record that had the
+  // keyboard keeps it, and it is the one tab stop.
+  await view.locator('.node[data-id="b"]').focus();
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('Third record again'));
+  await until(() => document.querySelector('.node[data-id="c"] title')?.textContent === 'Third record again', undefined, 'The graph did not read again after the file changed.');
+  const kept = await keyboardState();
+  assert(kept.focused === 'b' && JSON.stringify(kept.stops) === JSON.stringify(['b']), 'A re-read dropped the keyboard from the record it was on: ' + JSON.stringify(kept));
   await view.getByRole('button', { name: 'Fit graph', exact: true }).click();
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/graph-light.png' });
   // A refusal to open is said in the view, as text, and not thrown.
@@ -185,6 +236,11 @@ async (page) => {
   const burst = (await requests(mark)).filter(r => r.m === 'records.query' && r.p.entityId === 'task' && (r.p.cursor ?? null) === null).length;
   assert(burst === 1, `A burst of five changes made ${burst} reads of the records, not one.`);
 
+  // GGV-06: a link to a record this view does not show is left out of the drawing; the summary
+  // says how many, rather than drawing a graph that looks complete.
+  await replace(fixture({ ...projection, edges: [...projection.edges, { id: 'e5', sourceId: 'a', targetId: 'elsewhere' }] }),
+    '3 records · 4 connections · 1 connection outside this view');
+
   await page.setViewportSize({ width: 480, height: 320 });
   assert(await view.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Compact graph overflows horizontally.');
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/graph-dark-compact.png' });
@@ -206,10 +262,80 @@ async (page) => {
 
   // A re-read that no longer has the selected record drops the selection; the counts are exact.
   await replace(fixture({ nodes: [{ id: 'new', label: 'Fresh generation' }], edges: [] }), '1 record · 0 connections');
+  // GGV-17: a graph of one record drew it left of centre, inside a drawing two columns wide.
+  const lone = await view.evaluate(() => {
+    const canvas = document.getElementById('canvas').getBoundingClientRect(), node = document.querySelector('.node').getBoundingClientRect();
+    return { canvasX: Math.round(canvas.left + canvas.width / 2), canvasY: Math.round(canvas.top + canvas.height / 2),
+      nodeX: Math.round(node.left + node.width / 2), nodeY: Math.round(node.top + node.height / 2) };
+  });
+  assert(Math.abs(lone.nodeX - lone.canvasX) <= 3 && Math.abs(lone.nodeY - lone.canvasY) <= 3, 'A graph of one record is drawn off-centre: ' + JSON.stringify(lone));
   assert(await view.locator('.node').count() === 1, 'Projection replacement retained old nodes.');
   assert(await view.locator('.node.selected').count() === 0 && await view.locator('#selection').innerText() === 'No record selected',
     'A selection whose record is gone survived the re-read.');
   exactlyOne(await opens(() => view.locator('.node').click()), 'new', 'Selecting the new record opened the wrong one, or not once:');
+
+  // GGV-05 and GGV-09 on a grid of five: three records on the first row and two below.
+  const grid = { nodes: ['n0', 'n1', 'n2', 'n3', 'n4'].map((id, at) => ({ id, label: 'Node ' + at })), edges: [
+    { id: 'down', sourceId: 'n0', targetId: 'n3' }, { id: 'downLeft', sourceId: 'n2', targetId: 'n4' }, { id: 'downRight', sourceId: 'n0', targetId: 'n4' },
+    { id: 'upRight', sourceId: 'n3', targetId: 'n1' }, { id: 'upLeft', sourceId: 'n4', targetId: 'n0' }, { id: 'left', sourceId: 'n1', targetId: 'n0' },
+    { id: 'downAgain', sourceId: 'n0', targetId: 'n3' }, { id: 'upSame', sourceId: 'n3', targetId: 'n0' }] };
+  await replace(fixture(grid), '5 records · 8 connections');
+  // A link inside one column was a straight vertical line, so a cycle and a parallel pair each
+  // read as one line, and a link past a row ran through the record between. Each link runs on
+  // its own course, and no link passes through a record it does not join.
+  const courses = () => view.evaluate(() => {
+    const boxes = [...document.querySelectorAll('.node')].map(node => {
+      const [, x, y] = /translate\(([-0-9.]+) ([-0-9.]+)\)/.exec(node.getAttribute('transform')).map(Number);
+      return { id: node.dataset.id, x, y };
+    });
+    return [...document.querySelectorAll('.edge')].map(edge => {
+      const length = edge.getTotalLength(), middle = edge.getPointAtLength(length / 2), through = new Set();
+      for (let at = 0; at <= length; at += 4) {
+        const point = edge.getPointAtLength(at);
+        for (const box of boxes) if (box.id !== edge.dataset.source && box.id !== edge.dataset.target
+          && point.x > box.x + 2 && point.x < box.x + 188 && point.y > box.y + 2 && point.y < box.y + 64) through.add(box.id);
+      }
+      return { edge: edge.dataset.edgeId, ends: [edge.dataset.source, edge.dataset.target].sort().join('-'), middle: [Math.round(middle.x), Math.round(middle.y)], through: [...through] };
+    });
+  });
+  const sameColumn = (await courses()).filter(course => ['down', 'downAgain', 'upSame'].includes(course.edge));
+  for (let first = 0; first < sameColumn.length; first += 1) for (let second = first + 1; second < sameColumn.length; second += 1) {
+    const a = sameColumn[first].middle, b = sameColumn[second].middle;
+    assert(Math.hypot(a[0] - b[0], a[1] - b[1]) > 8, 'Two links between the same records in one column are drawn as one line: ' + JSON.stringify([sameColumn[first], sameColumn[second]]));
+  }
+  const crossing = (await courses()).filter(course => course.through.length > 0);
+  assert(crossing.length === 0, 'A link runs through a record it does not join: ' + JSON.stringify(crossing));
+  // GGV-05: a link into a record below or to the left ended on that record's left edge, from inside
+  // its box, so the record painted over the arrowhead. Every link's last stretch, where the
+  // arrowhead sits, lies outside the record it points at.
+  const arrows = await view.evaluate(() => [...document.querySelectorAll('.edge')].map(edge => {
+    const target = document.querySelector(`.node[data-id="${edge.dataset.target}"]`);
+    const [, x, y] = /translate\(([-0-9.]+) ([-0-9.]+)\)/.exec(target.getAttribute('transform')).map(Number);
+    const body = edge.getPointAtLength(edge.getTotalLength() - 9);
+    const inside = body.x > x + 0.5 && body.x < x + 189.5 && body.y > y + 0.5 && body.y < y + 65.5;
+    return { edge: edge.dataset.edgeId, body: [Math.round(body.x), Math.round(body.y)], target: [x, y], inside };
+  }));
+  assert(arrows.length === 8 && arrows.every(arrow => !arrow.inside),
+    'An arrowhead is drawn inside the record it points at, where the record hides it: ' + JSON.stringify(arrows.filter(arrow => arrow.inside)));
+  // GGV-09: every record was a tab stop, Left and Right went to the next record in the file's order,
+  // and Up and Down panned. The records are one tab stop, and each arrow reaches the nearest record
+  // that way on the drawing.
+  await view.locator('.node[data-id="n0"]').focus();
+  assert(JSON.stringify((await keyboardState()).stops) === JSON.stringify(['n0']), 'The records are not one tab stop: ' + JSON.stringify(await keyboardState()));
+  for (const [from, key] of [['n0', 'ArrowDown'], ['n3', 'ArrowRight'], ['n4', 'ArrowUp'], ['n1', 'ArrowLeft']]) {
+    const expected = await nearest(from, key);
+    await view.locator(`.node[data-id="${from}"]`).focus();
+    await page.keyboard.press(key);
+    const reached = await keyboardState();
+    assert(expected !== null && reached.focused === expected && JSON.stringify(reached.stops) === JSON.stringify([expected]),
+      `${key} from ${from} did not reach the nearest record that way (${expected}), as the one tab stop: ` + JSON.stringify(reached));
+  }
+  // Three rows: a link from the first row to the third in one column passes the record between.
+  const tall = { nodes: Array.from({ length: 13 }, (_, at) => ({ id: 'm' + at, label: 'Row record ' + at })),
+    edges: [{ id: 'skipDown', sourceId: 'm0', targetId: 'm10' }, { id: 'skipUp', sourceId: 'm10', targetId: 'm0' }] };
+  await replace(fixture(tall), '13 records · 2 connections');
+  const skipping = (await courses()).filter(course => course.through.length > 0);
+  assert(skipping.length === 0, 'A link from the first row to the third runs through the record between: ' + JSON.stringify(skipping));
   await replace(fixture({ nodes: [{ id: 'new', label: 'One' }], edges: [{ id: 'self', sourceId: 'new', targetId: 'new' }] }), '1 record · 1 connection');
   await replace(fixture({ nodes: [], edges: [] }), '0 records · 0 connections');
   assert(await view.locator('#empty').isVisible(), 'A graph with no records did not say so.');

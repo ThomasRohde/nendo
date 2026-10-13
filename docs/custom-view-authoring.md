@@ -423,9 +423,9 @@ values, for a canvas or a chart library that needs them in JavaScript.
 
 A view draws its own document, so Nendo's focus rings, keyboard traversal and text
 alternatives stop at its frame. The view kit carries them across (W-064). It is one
-versioned file, `tools/view-kit/nendo-view-kit.js`, that a package copies into itself (the
-Gantt keeps it at `kit/nendo-view-kit.js`) and imports as a module, even from a classic
-script:
+versioned file, `tools/view-kit/nendo-view-kit.js`, that a package copies into itself at
+`kit/nendo-view-kit.js` (the Gantt, the Dependency graph, the Systems Lens, Work
+dependencies, Archi and Garden all do) and imports as a module, even from a classic script:
 
 ```js
 const kit = await import('./kit/nendo-view-kit.js');
@@ -437,14 +437,25 @@ keys.refresh();
 
 - `roving` makes a list, a grid or a graph one tab stop. Up and Down (or Left and Right,
   or all four with `orientation: 'spatial'`, to the nearest item in that direction), Home
-  and End move within it; Enter and Space activate.
+  and End move within it; Enter and Space activate. The stop is remembered by the item's
+  `data-id`, so `refresh()` after a redraw that replaces every item keeps it on the same
+  record rather than the first one. Pass `key: item => …` to remember items by something
+  else; an item without a key falls back to the first item. `refresh()` does not move
+  focus: a redraw that removed the focused item should focus its replacement itself, with
+  `{ preventScroll: true }`.
 - `textAlternative(container, { label, items })` writes a list, hidden from the eye, that a
   screen reader reads for a drawing it cannot.
-- `fitBox` gives the scale and offset that fit a drawing; `toneFor(value, choices)` gives a
-  status value's tone for a view that does not read the schema's choices itself.
+- `fitBox(content, viewport, padding)` gives the scale and offset that fit a drawing,
+  centred. A drawing flat in one direction is fitted by the other, and a single point is
+  drawn at scale 1 in the middle. In a frame not sized yet (a hidden frame measures zero)
+  the scale stays 1 and the drawing starts at the padding, and a frame smaller than its
+  padding still gets a scale above zero, never one that mirrors the drawing.
+- `toneFor(value, choices)` gives a status value's tone for a view that does not read the
+  schema's choices itself.
 
-The file's header names its version. A copy is the kit byte for byte, and the repository
-checks every copy it carries against the source.
+The file's header names its version; this is 1.1.0. A copy is the kit byte for byte, and
+`tools/view-kit/kit.test.mjs` checks every `extensions/*/kit/nendo-view-kit.js` against the
+source, found by search, so a package that copies the kit is checked from the start.
 
 **What the theme does not carry, and needs not.** Text scale, reduced motion and high
 contrast reach a view's frame through the standard CSS media queries

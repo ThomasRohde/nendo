@@ -1,10 +1,24 @@
 # Dependency graph
 
 A custom view that draws one record type as nodes and a link record type as directed
-edges between them. Cycles, self-links and parallel links are all drawn. It has pointer
-pan, wheel and button zoom, keyboard traversal, visible focus, a text view that lists
-each record's incoming and outgoing links, and both themes. Labels are set as text, so
-a label that looks like markup stays text.
+edges between them. Cycles, self-links and parallel links are all drawn, and every link
+ends outside the record it points at, so its arrowhead shows whichever way it runs. A link
+between two records in one column runs beside the column, down its right side or up its
+left, bowed further for each parallel link, so a cycle or a pair reads as two lines and no
+link passes through a record it does not join. It has
+pointer pan, wheel and button zoom, keyboard traversal, visible focus, a text view that
+lists each record's incoming and outgoing links, and both themes. Labels are set as text,
+so a label that looks like markup stays text.
+
+The records are one tab stop, and the arrow keys go to the nearest record in that direction
+on the drawing; on the canvas itself they pan. That is the view kit
+(`kit/nendo-view-kit.js`, copied from `tools/view-kit`). The graph is fitted when it opens,
+on Fit and on Ctrl 0. Once the person zooms or pans, a re-read keeps their zoom, and keeps the
+selected record, or else the focused one, at the same point on screen even when records added
+or taken away move it on the grid; a graph in which none of the records they saw is left is
+fitted again. The keyboard stays on the record it was on.
+A link to a record this view does not show is not drawn, and the summary counts it as a
+connection outside this view.
 
 Selecting a record, with the pointer, Enter or the text view, highlights its links and
 asks Nendo to open it.
@@ -62,7 +76,13 @@ per selection from the pointer, the keyboard and the text view, zoom, non-select
 chrome, a re-read only after a `changes` event that keeps the selection, one read for a
 burst of changes, a measured colour change on a dark `theme` event, a canvas and a
 surface token changing the measured colours, 480×320 and 512×384 windows, exact summary
-counts, the empty state and a refused read shown as text. Then it measures the view again
+counts, the empty state and a refused read shown as text. It also measures the zoom and pan
+kept across a re-read, the selected record kept in place when a re-read adds a record, the
+keyboard and the one tab stop kept across a re-read, a connection
+outside the view counted in the summary, one record drawn at the centre, every arrowhead
+outside the record it points at on a grid of five, a same-column cycle and parallel pair drawn
+as separate lines, no link through a record it does not join on grids of five and thirteen,
+and each arrow key reaching the nearest record that way. Then it measures the view again
 on a broker that offers Nendo's toolbar: no controls or title of its own, the toolbar it
 declares, which the broker reads by the Workbench's own rules, each command, and Open from
 the record menu. It runs inside `Test-Production.ps1`.

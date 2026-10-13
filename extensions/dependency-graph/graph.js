@@ -6,7 +6,12 @@
   const element = id => document.getElementById(id);
   const svg = element('graph'), drawing = element('drawing'), canvas = element('canvas');
   const nendo = window.nendo;
-  let loaded = false, nodes = [], edges = [], selected = null;
+  let loaded = false, nodes = [], edges = [], hidden = 0, selected = null;
+  // Whether the person has zoomed or panned since the graph was last fitted. A re-read keeps
+  // where they are then, rather than fitting the whole graph again (GGV-02).
+  let moved = false;
+  // True while a redraw puts focus back where it was, so that focus does not move the drawing.
+  let restoring = false;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
@@ -14,6 +19,14 @@
   // explanation is shown over the graph (W-092).
   let nativeChrome = false, aboutShown = false;
   const positions = new Map();
+  // The view kit (tools/view-kit, copied into kit/): the records are one tab stop, and the arrow
+  // keys go to the nearest record in that direction on the drawing, not the next in the file's
+  // order (GGV-09). Loaded as a module from this classic script; until it arrives, every record
+  // is a tab stop and Enter opens it.
+  let keys = null;
+  import('./kit/nendo-view-kit.js').then(kit => {
+    keys = kit.roving(drawing, { items: '.node', orientation: 'spatial', onActivate: node => select(node.dataset.id) });
+  }).catch(() => undefined);
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
     for (const [key, value] of Object.entries(attributes)) item.setAttribute(key, String(value));
@@ -34,9 +47,12 @@
   // The frame is laid out and sized by the Workbench after the page loads, so the first fit can
   // run against a stale size. Re-fit on the next two frames and whenever the window changes, so
   // the graph always opens centred in view even in a large frame that never resizes afterward.
-  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden) fit(); })); }
-  window.addEventListener('resize', () => { if (loaded && !canvas.hidden) fit(); });
+  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden && !moved) fit(); })); }
+  window.addEventListener('resize', () => { if (loaded && !canvas.hidden && !moved) fit(); });
+  // Fit, Ctrl 0 and coming back from the text view fit the whole graph, and a re-read keeps that.
+  function fitAgain() { moved = false; fit(); }
   function zoom(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
+    moved = true;
     const next = Math.min(4, Math.max(.08, scale * factor));
     offsetX = x - (x - offsetX) * next / scale; offsetY = y - (y - offsetY) * next / scale;
     scale = next; transform();
@@ -73,16 +89,40 @@
       row.append(description); list.append(row);
     }
   }
+  // The record that has the keyboard before a redraw replaces it, in the drawing or the text view.
+  function focusedItem() {
+    const active = document.activeElement;
+    for (const container of [drawing, element('records')]) {
+      if (active instanceof Element && active !== container && container.contains(active) && active.dataset.id !== undefined)
+        return { container, id: active.dataset.id, index: [...container.querySelectorAll('[data-id]')].indexOf(active) };
+    }
+    return null;
+  }
+  // Gives the keyboard back to that record after the redraw, or to the one now where it was, so
+  // focus does not fall to the page (GGV-03). Giving it back moves nothing.
+  function restoreFocus(was) {
+    if (was === null) return;
+    const items = [...was.container.querySelectorAll('[data-id]')];
+    const target = items.find(item => item.dataset.id === was.id) ?? items[Math.min(was.index, items.length - 1)];
+    if (target === undefined) return;
+    restoring = true;
+    try { target.focus({ preventScroll: true }); } finally { restoring = false; }
+  }
   function render(projection) {
     // A re-read keeps the selection when its record is still there, without opening it again.
-    const keep = selected;
-    nodes = projection.nodes; edges = projection.edges; selected = null; positions.clear(); drawing.replaceChildren();
-    setSummary(`${nodes.length} record${nodes.length === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}`);
+    const keep = selected, had = focusedItem(), before = new Map(positions);
+    nodes = projection.nodes; edges = projection.edges; hidden = projection.hidden; selected = null; positions.clear(); drawing.replaceChildren();
+    // A link to a record this view does not show is left out of the drawing, and said (GGV-06).
+    setSummary(`${nodes.length} record${nodes.length === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}`
+      + (hidden > 0 ? ` · ${hidden} connection${hidden === 1 ? '' : 's'} outside this view` : ''));
     element('selection').textContent = 'No record selected'; element('empty').hidden = nodes.length !== 0;
     // Deterministic placement handles cycles, self-links, parallel edges and isolated records alike.
     const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length * 1.5)));
     nodes.forEach((node, index) => positions.set(node.id, { x: 30 + index % columns * 230, y: 80 + Math.floor(index / columns) * 160 }));
-    width = Math.max(260, columns * 230 + 30); height = Math.max(230, Math.ceil(nodes.length / columns) * 160 + 80);
+    // The drawing is as wide as the columns it uses and as tall as its rows, with the same margin
+    // on either side, so fitting it centres the records: one record sits in the middle (GGV-17).
+    const used = Math.min(columns, Math.max(1, nodes.length)), rows = Math.max(1, Math.ceil(nodes.length / columns));
+    width = used * 230 + 20; height = rows * 160 + 66;
     const parallel = new Map();
     edges.forEach(edge => {
       const from = positions.get(edge.sourceId), to = positions.get(edge.targetId);
@@ -90,39 +130,69 @@
       const key = JSON.stringify([edge.sourceId, edge.targetId]);
       const rank = parallel.get(key) || 0; parallel.set(key, rank + 1);
       const bend = 30 + 40 * rank / (rank + 1);
+      // Every link ends outside its target, where its arrowhead shows (GGV-05): on the left edge
+      // of a record further right, over the top of one to the left on the same row, on the top
+      // edge of one on a lower row and on the bottom edge of one on a higher row. Ending on the
+      // left edge of a record below or behind put the arrowhead inside it, under its box. A link
+      // within one column runs beside it, from side to side: down the right, up the left, bowed
+      // further for each parallel link, so a cycle or a pair reads as two lines and a link past a
+      // row does not run through the record between.
+      const side = 28 + 12 * rank;
       const path = edge.sourceId === edge.targetId
         ? `M ${from.x + 100} ${from.y} C ${from.x + 45} ${from.y - bend} ${from.x + 165} ${from.y - bend} ${from.x + 145} ${from.y}`
         : to.y === from.y && to.x < from.x
           ? `M ${from.x + 80} ${from.y} C ${from.x + 80} ${from.y - bend} ${to.x + 110} ${to.y - bend} ${to.x + 110} ${to.y}`
-          : `M ${from.x + 190} ${from.y + 33} C ${(from.x + 190 + to.x) / 2} ${from.y + 33 - bend} ${(from.x + 190 + to.x) / 2} ${to.y + 33 - bend} ${to.x} ${to.y + 33}`;
+          : to.x === from.x
+            ? to.y > from.y
+              ? `M ${from.x + 190} ${from.y + 33} C ${from.x + 190 + side} ${from.y + 33} ${to.x + 190 + side} ${to.y + 33} ${to.x + 190} ${to.y + 33}`
+              : `M ${from.x} ${from.y + 33} C ${from.x - side} ${from.y + 33} ${to.x - side} ${to.y + 33} ${to.x} ${to.y + 33}`
+          : to.x > from.x
+            ? `M ${from.x + 190} ${from.y + 33} C ${(from.x + 190 + to.x) / 2} ${from.y + 33 - bend} ${(from.x + 190 + to.x) / 2} ${to.y + 33 - bend} ${to.x} ${to.y + 33}`
+            : to.y > from.y
+              ? `M ${from.x + 95} ${from.y + 66} C ${from.x + 95} ${from.y + 66 + bend} ${to.x + 95} ${to.y - bend} ${to.x + 95} ${to.y}`
+              : `M ${from.x + 95} ${from.y} C ${from.x + 95} ${from.y - bend} ${to.x + 95} ${to.y + 66 + bend} ${to.x + 95} ${to.y + 66}`;
       const line = shape('path', { d: path, class: 'edge', 'data-source': edge.sourceId, 'data-target': edge.targetId, 'data-edge-id': edge.id });
       drawing.append(line);
     });
-    nodes.forEach((node, index) => {
+    nodes.forEach(node => {
       const point = positions.get(node.id);
       const group = shape('g', { transform: `translate(${point.x} ${point.y})`, class: 'node', tabindex: 0, role: 'button', 'aria-label': node.label, 'aria-pressed': 'false', 'data-id': node.id });
       group.append(shape('title', {}, node.label), shape('rect', { width: 190, height: 66, rx: 11 }),
         shape('text', { x: 12, y: 27 }, node.label.length > 25 ? node.label.slice(0, 24) + '…' : node.label));
       if (node.status !== null && node.status !== undefined) group.append(shape('text', { x: 12, y: 48, class: 'status' }, String(node.status).slice(0, 27)));
       group.addEventListener('click', () => select(node.id));
+      // The kit's keys move between records and Enter opens one; this is for the moment before
+      // the kit has loaded.
       group.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(node.id); }
-        else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-          event.preventDefault(); event.stopPropagation();
-          const items = drawing.querySelectorAll('.node'); items[(index + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length].focus();
-        }
+        if (keys === null && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); select(node.id); }
       });
       group.addEventListener('focus', () => {
         // Keyboard navigation brings the complete target into the viewport.
-        // Pointer focus must not move a node between pointer-down and click.
-        if (!group.matches(':focus-visible')) return;
+        // Pointer focus must not move a node between pointer-down and click, and focus given
+        // back after a re-read moves nothing.
+        if (restoring || !group.matches(':focus-visible')) return;
+        moved = true;
         offsetX = canvas.clientWidth / 2 - (point.x + 95) * scale;
         offsetY = canvas.clientHeight / 2 - (point.y + 33) * scale; transform();
       });
       drawing.append(group);
     });
-    textView(); fit(); refit();
+    textView();
+    // The person's zoom and pan stay while any record they were looking at is still drawn; the
+    // first drawing, and a graph that is all new, are fitted (GGV-02). A record added or taken
+    // away moves the others on the grid, so the selected record, or else the focused one, stays
+    // at the point on screen where it was.
+    if (moved && nodes.some(node => before.has(node.id))) {
+      const anchor = [keep, had?.id].find(id => id != null && before.has(id) && positions.has(id));
+      if (anchor !== undefined) {
+        offsetX += (before.get(anchor).x - positions.get(anchor).x) * scale;
+        offsetY += (before.get(anchor).y - positions.get(anchor).y) * scale;
+      }
+      transform();
+    } else { moved = false; fit(); refit(); }
     if (keep !== null && positions.has(keep)) highlight(keep);
+    keys?.refresh();
+    restoreFocus(had);
   }
   // A field's value as a person reads it: a reference by its target's label, a choice by its
   // name, a number by its exact digits. Null when the record has none.
@@ -143,6 +213,7 @@
       nodes: graph.nodes.map(node => ({ id: node.id, entityId: node.record.entityId, label: node.label,
         status: statusFieldId === null ? null : display(schema, node.record, statusFieldId) })),
       edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
+      hidden: Number.isInteger(graph.hiddenEdges) ? graph.hiddenEdges : 0,
     };
   }
   async function read() {
@@ -170,31 +241,33 @@
   function setTextShown(show) {
     element('text-view').hidden = !show; canvas.hidden = show;
     element('text-toggle').setAttribute('aria-expanded', String(show)); element('text-toggle').textContent = show ? 'Graph view' : 'Text view';
-    if (!show) fit();
+    if (!show) fitAgain();
     declareToolbar();
   }
   element('zoom-in').addEventListener('click', () => zoom(1.25));
   element('zoom-out').addEventListener('click', () => zoom(.8));
-  element('reset').addEventListener('click', fit);
+  element('reset').addEventListener('click', fitAgain);
   element('text-toggle').addEventListener('click', () => setTextShown(element('text-view').hidden));
   canvas.addEventListener('wheel', event => { event.preventDefault(); const r = canvas.getBoundingClientRect(); zoom(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX - r.left, event.clientY - r.top); }, { passive: false });
   canvas.addEventListener('pointerdown', event => {
     if (event.button !== 0 || event.target.closest('.node')) return;
     drag = { x: event.clientX, y: event.clientY, offsetX, offsetY }; canvas.setPointerCapture(event.pointerId);
   });
-  canvas.addEventListener('pointermove', event => { if (drag) { offsetX = drag.offsetX + event.clientX - drag.x; offsetY = drag.offsetY + event.clientY - drag.y; transform(); } });
+  canvas.addEventListener('pointermove', event => { if (drag) { moved = true; offsetX = drag.offsetX + event.clientX - drag.x; offsetY = drag.offsetY + event.clientY - drag.y; transform(); } });
   canvas.addEventListener('pointerup', () => { drag = null; }); canvas.addEventListener('pointercancel', () => { drag = null; });
   canvas.addEventListener('keydown', event => {
+    // On a record the arrow keys are the kit's, between records; on the canvas itself they pan.
+    if (event.key.startsWith('Arrow') && event.target !== canvas) return;
     if (event.key === '+' || event.key === '=') zoom(1.25);
     else if (event.key === '-') zoom(.8);
-    else if (event.key === 'ArrowLeft') { offsetX += 40; transform(); }
-    else if (event.key === 'ArrowRight') { offsetX -= 40; transform(); }
-    else if (event.key === 'ArrowUp') { offsetY += 40; transform(); }
-    else if (event.key === 'ArrowDown') { offsetY -= 40; transform(); }
+    else if (event.key === 'ArrowLeft') { moved = true; offsetX += 40; transform(); }
+    else if (event.key === 'ArrowRight') { moved = true; offsetX -= 40; transform(); }
+    else if (event.key === 'ArrowUp') { moved = true; offsetY += 40; transform(); }
+    else if (event.key === 'ArrowDown') { moved = true; offsetY -= 40; transform(); }
     else return;
     event.preventDefault();
   });
-  new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+  new ResizeObserver(() => { if (loaded && !canvas.hidden && !moved) fit(); }).observe(canvas);
 
   // --- Nendo's own chrome (W-091) ---------------------------------------------------------
   //
@@ -254,7 +327,7 @@
   function runCommand({ id, value }) {
     if (id === 'zoom-in') zoom(1.25);
     else if (id === 'zoom-out') zoom(.8);
-    else if (id === 'fit') fit();
+    else if (id === 'fit') fitAgain();
     else if (id === 'text') setTextShown(value === true);
     else if (id === 'about') setAboutShown(value === true);
   }

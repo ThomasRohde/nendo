@@ -18,7 +18,10 @@ What it shows that a list cannot:
 - **A text alternative** listing each component's feeds in and out, and, in take-out mode,
   every verdict by name.
 
-Selecting a component asks Nendo to open it.
+Selecting a component asks Nendo to open it. The components are one tab stop, and the arrow
+keys go to the nearest component in that direction on the schematic; on the canvas itself they
+pan. That is the view kit (`kit/nendo-view-kit.js`, copied from `tools/view-kit`). Selecting
+from the text view keeps the keyboard on the button pressed.
 
 ## In Nendo's toolbar
 
@@ -82,7 +85,14 @@ Everything arrives through `window.nendo`, which `<script src="/_nendo/api.js">`
   the schematic sits with the app rather than beside it. The values after each token in
   `lens.css` are used only when the page runs without them.
 - The `changes` event: the lens reads again a quarter of a second after the file changes,
-  ends any take-out, and keeps the selected component selected while it is still there.
+  ends any take-out, and keeps the selected component selected while it is still there. Once
+  the person has zoomed or panned, a re-read keeps their zoom, and keeps the selected
+  component, or else the focused one, at the same point on screen even when a component added
+  or taken away moves it to another layer; a schematic in which none of the components they
+  saw is left is fitted again. The keyboard stays on the component it was on. A feed
+  to or from a component this view does not show is not drawn: the summary counts the feeds
+  outside the view and then names the components with no feed drawn into them for what is
+  known, rather than as declared sources.
 - `nendo.ui.openRecord(entityId, recordId)`: opening the selected component;
 - where the host offers them, `nendo.ui.setToolbar`, `nendo.ui.showMenu` and the `command`
   event, for the controls and the menu above.
@@ -116,7 +126,10 @@ a record, Focus dimming, keyboard traversal, non-selectable chrome, a re-read on
 `changes` event that ends a take-out and keeps the selection, one read for a burst of
 changes, a dark `theme` event and a canvas token changing the measured colour, the empty
 state, 500 components and 999 feeds read in pages, a refused read shown as text and a
-512×384 window. Then it measures the view again on a broker that offers Nendo's toolbar:
+512×384 window, the zoom and pan and the keyboard kept across a re-read, the selected
+component kept in place when a re-read adds a component, the keyboard kept
+on a text-view button pressed with Enter, one tab stop with each arrow reaching the nearest
+component that way, and a feed outside the view counted in the summary. Then it measures the view again on a broker that offers Nendo's toolbar:
 no controls or title of its own, the toolbar it declares, which the broker reads by the
 Workbench's own rules, each command, both take-out verdicts asked from the toolbar and from
 the component menu, and Open from that menu. It runs inside `Test-Production.ps1`.

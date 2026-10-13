@@ -24,7 +24,7 @@
   const TONES = { inbox: 'grey', ready: 'blue', doing: 'violet', blocked: 'red', review: 'amber', done: 'green', dropped: 'grey' };
   const TONE_NAMES = new Set(['red', 'orange', 'amber', 'green', 'teal', 'blue', 'violet', 'grey']);
 
-  let all = { nodes: [], edges: [] };
+  let all = { nodes: [], edges: [], outside: 0 };
   let shown = { nodes: [], edges: [], linked: new Set(), hidden: 0 };
   let fields = { status: null, groups: [] };
   let commands = [], acting = false;
@@ -32,6 +32,11 @@
   let chain = { nodes: new Set(), edges: new Set(), order: [] };
   let extent = { x: 0, y: 0, width: 800, height: 500 };
   let scale = 1, offsetX = 0, offsetY = 0, drag = null;
+  // Whether the person has zoomed or panned since the drawing was last fitted. A re-read keeps
+  // where they are then, rather than fitting the whole plan again (GGV-02).
+  let moved = false;
+  // True while a redraw puts focus back where it was, so that focus does not move the drawing.
+  let restoring = false;
   let loaded = false, latest = 0, pending = null, run = 0;
   let elk = null, elkFailure = null, pendingHide = null;
   const component = new Map(), cyclic = new Set(), outgoing = new Map(), incoming = new Map(), boxes = new Map();
@@ -41,6 +46,14 @@
   // On a host that does not offer it, the view draws its own, as it always has.
   // Whether the explanation is shown over the drawing, where Nendo draws the controls (W-092).
   let nativeChrome = false, aboutShown = false;
+  // The view kit (tools/view-kit, copied into kit/): the work items are one tab stop, and the
+  // arrow keys go to the nearest item in that direction on the drawing, not the next in the
+  // file's order (GGV-09). Loaded as a module from this classic script; until it arrives, every
+  // item is a tab stop and Enter opens it.
+  let keys = null;
+  import('./kit/nendo-view-kit.js').then(kit => {
+    keys = kit.roving(layers.nodes, { items: '.node', orientation: 'spatial', onActivate: node => select(node.dataset.id) });
+  }).catch(() => undefined);
 
   function shape(name, attributes, text) {
     const item = document.createElementNS(SVG, name);
@@ -145,6 +158,8 @@
           record: node.record, lines: wrap(label) };
       }),
       edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
+      // Links with an end this view does not show: not drawn, and counted (GGV-06).
+      outside: Number.isInteger(graph.hiddenEdges) ? graph.hiddenEdges : 0,
     };
   }
 
@@ -489,23 +504,25 @@
       }
       if (cyclic.has(node.id)) group.append(shape('text', { x: box.width - PAD, y: box.height - 13, class: 'cycle-mark', 'text-anchor': 'end' }, 'cycle'));
       group.addEventListener('click', () => select(node.id));
+      // The kit's keys move between items and Enter opens one; this is for the moment before the
+      // kit has loaded.
       group.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(node.id); }
-        else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-          event.preventDefault(); event.stopPropagation();
-          const items = [...layers.nodes.querySelectorAll('.node')], at = items.indexOf(group);
-          items[(at + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length].focus();
-        }
+        if (keys === null && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); select(node.id); }
       });
       group.addEventListener('focus', () => {
         // Keyboard navigation brings the whole target into view; pointer focus must not move a
-        // node between pointer-down and the click it belongs to.
-        if (group.matches(':focus-visible')) centre(node.id);
+        // node between pointer-down and the click it belongs to, and focus given back after a
+        // re-read moves nothing.
+        if (!restoring && group.matches(':focus-visible')) { moved = true; centre(node.id); }
       });
       layers.nodes.append(group);
       maxX = Math.max(maxX, box.x + box.width); maxY = Math.max(maxY, box.y + box.height);
     });
-    extent = { x: minX, y: minY, width: Math.max(320, maxX - minX), height: Math.max(200, maxY - minY) };
+    // A drawing smaller than the least extent grows evenly on every side, so fitting it centres
+    // what is drawn: one item sits in the middle, not up and to the left (GGV-17).
+    const drawnWidth = maxX - minX, drawnHeight = maxY - minY;
+    const fullWidth = Math.max(320, drawnWidth), fullHeight = Math.max(200, drawnHeight);
+    extent = { x: minX - (fullWidth - drawnWidth) / 2, y: minY - (fullHeight - drawnHeight) / 2, width: fullWidth, height: fullHeight };
   }
 
   function paint() {
@@ -557,19 +574,34 @@
     });
   }
 
+  // The buttons are made once for a list of commands and updated where they are, so the one the
+  // person just pressed keeps the keyboard (GGV-08). A command that cannot run now says so with
+  // aria-disabled, which leaves its button focusable: disabling the pressed button would drop
+  // the keyboard too. A press of it does nothing.
   function showActions() {
     const box = element('actions');
     const node = selected === null ? undefined : shown.nodes.find(value => value.id === selected);
     box.hidden = node === undefined || !canAct();
     if (box.hidden) { box.replaceChildren(); return; }
-    box.replaceChildren(...commands.map(command => {
-      const button = document.createElement('button');
-      const done = spent(command, node.record);
-      button.type = 'button'; button.textContent = command.label; button.dataset.command = command.id; button.disabled = acting || done;
+    const made = [...box.querySelectorAll('button')];
+    if (made.length !== commands.length || made.some((button, at) => button.dataset.command !== commands[at].id)) {
+      box.replaceChildren(...commands.map(command => {
+        const button = document.createElement('button');
+        button.type = 'button'; button.dataset.command = command.id;
+        button.addEventListener('click', () => {
+          const current = commands.find(candidate => candidate.id === button.dataset.command);
+          if (button.getAttribute('aria-disabled') !== 'true' && current !== undefined) act(current, button.dataset.record);
+        });
+        return button;
+      }));
+    }
+    box.querySelectorAll('button').forEach((button, at) => {
+      const command = commands[at], done = spent(command, node.record);
+      button.textContent = command.label; button.dataset.record = node.id;
+      button.setAttribute('aria-disabled', String(acting || done));
       if (done) button.title = `${node.label} already has what ${command.label} sets.`;
-      button.addEventListener('click', () => act(command, node.id));
-      return button;
-    }));
+      else button.removeAttribute('title');
+    });
   }
 
   function say(text, refused = false) {
@@ -590,7 +622,11 @@
     acting = true; showActions();
     say(`${command.label}: ${node.label}…`);
     try {
-      await nendo.commands.run(command.id, node.record);
+      const after = await nendo.commands.run(command.id, node.record);
+      // The record as it now stands. The buttons are judged on it and the next command is sent
+      // at its version, not at the one read before this command, which Nendo would refuse as a
+      // change nobody else made (GGV-07).
+      if (after !== null && typeof after === 'object' && after.recordId === node.id && Number.isInteger(after.version)) node.record = after;
       say(`${command.label}: done for ${node.label}. Undo it in Nendo's History.`);
     } catch (error) {
       say(error?.code === 'record-version-conflict'
@@ -605,6 +641,8 @@
   // --- Moving around ----------------------------------------------------------------------
 
   function transform() { drawing.setAttribute('transform', `translate(${round(offsetX)} ${round(offsetY)}) scale(${Math.round(scale * 1000) / 1000})`); }
+  // Fit, Ctrl 0 and coming back from the text view fit the whole drawing, and a re-read keeps that.
+  function fitAgain() { moved = false; fit(); }
   function fit() {
     const bounds = canvas.getBoundingClientRect();
     // The Workbench lays out and sizes this frame after the page loads, so an early fit can
@@ -616,8 +654,9 @@
     offsetY = (bounds.height - extent.height * scale) / 2 - extent.y * scale;
     transform();
   }
-  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden) fit(); })); }
+  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden && !moved) fit(); })); }
   function zoom(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
+    moved = true;
     const next = Math.min(4, Math.max(.05, scale * factor));
     offsetX = x - (x - offsetX) * next / scale; offsetY = y - (y - offsetY) * next / scale;
     scale = next; transform();
@@ -645,7 +684,8 @@
     const total = reachable(id, outgoing).size;
     element('selection').textContent = `${node.label} · blocked by ${blockers} · blocks ${blocks}`
       + (total > blocks ? ` (${total} in all downstream)` : '')
-      + (cyclic.has(id) ? ' · in a dependency cycle' : blockers === 0 ? ' · nothing is blocking it' : '');
+      // With links to items outside this view left undrawn, no blocker drawn is all it shows (GGV-06).
+      + (cyclic.has(id) ? ' · in a dependency cycle' : blockers === 0 ? (all.outside > 0 ? ' · no blocker drawn' : ' · nothing is blocking it') : '');
     paint();
   }
 
@@ -684,9 +724,12 @@
   function summarize() {
     const unblocked = shown.nodes.filter(node => incoming.get(node.id).length === 0).length;
     const parts = [`${shown.nodes.length} work item${shown.nodes.length === 1 ? '' : 's'}`, `${shown.edges.length} link${shown.edges.length === 1 ? '' : 's'}`];
-    if (shown.nodes.length !== 0) parts.push(`${unblocked} unblocked`);
+    // A link to an item this view does not show is not drawn (GGV-06): an item blocked only that
+    // way would count as unblocked, so then the count says what is known, no blocker drawn.
+    if (shown.nodes.length !== 0) parts.push(all.outside > 0 ? `${unblocked} with no blocker drawn` : `${unblocked} unblocked`);
     if (cyclic.size !== 0) parts.push(`${cyclic.size} in a dependency cycle`);
     if (shown.hidden !== 0) parts.push(`${shown.hidden} hidden`);
+    if (all.outside > 0) parts.push(`${all.outside} link${all.outside === 1 ? '' : 's'} outside this view`);
     if (elkFailure !== null) parts.push('simple layout');
     setSummary(parts.join(' · '));
     element('summary').title = elkFailure === null ? '' : `The layout engine could not run, so a simpler layout is drawn: ${elkFailure}`;
@@ -701,22 +744,49 @@
       select.replaceChildren(...choices.map(([value, text]) => { const option = document.createElement('option'); option.value = value; option.textContent = text; return option; }));
     }
     select.value = groupField() === null ? '' : settings.groupBy;
+    // The chips are made once for a list of statuses and kept, so the one the person just toggled
+    // keeps the keyboard when the layout follows (GGV-08); only whether each is checked changes.
     const chips = element('status-chips');
-    chips.replaceChildren();
-    for (const choice of fields.status?.choices ?? []) {
-      const label = document.createElement('label'), box = document.createElement('input');
-      label.className = 'chip'; box.type = 'checkbox'; box.checked = !settings.hidden.includes(choice.id); box.dataset.status = choice.id;
-      box.addEventListener('change', () => {
-        settings.hidden = box.checked ? settings.hidden.filter(id => id !== choice.id) : [...new Set([...settings.hidden, choice.id])];
-        saveSettings(); refresh();
-      });
-      label.append(box, document.createTextNode(choice.displayName));
-      chips.append(label);
+    const statuses = fields.status?.choices ?? [];
+    const inputs = [...chips.querySelectorAll('input[data-status]')];
+    if (inputs.length !== statuses.length || inputs.some((input, at) => input.dataset.status !== statuses[at].id || input.nextSibling?.textContent !== statuses[at].displayName)) {
+      chips.replaceChildren();
+      for (const choice of statuses) {
+        const label = document.createElement('label'), box = document.createElement('input');
+        label.className = 'chip'; box.type = 'checkbox'; box.dataset.status = choice.id;
+        box.addEventListener('change', () => {
+          settings.hidden = box.checked ? settings.hidden.filter(id => id !== choice.id) : [...new Set([...settings.hidden, choice.id])];
+          saveSettings(); refresh();
+        });
+        label.append(box, document.createTextNode(choice.displayName));
+        chips.append(label);
+      }
+      if (statuses.length === 0) chips.textContent = 'This view has no status field to filter by.';
     }
-    if ((fields.status?.choices.length ?? 0) === 0) chips.textContent = 'This view has no status field to filter by.';
+    for (const input of chips.querySelectorAll('input[data-status]')) input.checked = !settings.hidden.includes(input.dataset.status);
     const hiddenStatuses = settings.hidden.filter(id => fields.status?.choices.some(choice => choice.id === id)).length;
     element('filter-toggle').textContent = hiddenStatuses === 0 ? 'Filter' : `Filter · ${hiddenStatuses}`;
     element('linked-toggle').setAttribute('aria-pressed', String(settings.linkedOnly));
+  }
+
+  // The work item that has the keyboard before a redraw replaces it, in the drawing or the text view.
+  function focusedItem() {
+    const active = document.activeElement;
+    for (const container of [layers.nodes, element('records')]) {
+      if (active instanceof Element && active !== container && container.contains(active) && active.dataset.id !== undefined)
+        return { container, id: active.dataset.id, index: [...container.querySelectorAll('[data-id]')].indexOf(active) };
+    }
+    return null;
+  }
+  // Gives the keyboard back to that item after the redraw, or to the one now where it was, so
+  // focus does not fall to the page (GGV-03). Giving it back moves nothing.
+  function restoreFocus(was) {
+    if (was === null) return;
+    const items = [...was.container.querySelectorAll('[data-id]')];
+    const target = items.find(item => item.dataset.id === was.id) ?? items[Math.min(was.index, items.length - 1)];
+    if (target === undefined) return;
+    restoring = true;
+    try { target.focus({ preventScroll: true }); } finally { restoring = false; }
   }
 
   async function relayout(keep = selected) {
@@ -725,15 +795,31 @@
     analyse();
     const placed = await arrange();
     if (mine !== run) return;
+    const had = focusedItem(), drawn = new Set(boxes.keys());
+    // Where the person is (GGV-02): the selected or focused item and the point on screen it is
+    // at. ELK can move items when the plan changes, so that item is kept at that point.
+    const anchorId = keep ?? had?.id ?? null, anchorBox = anchorId === null ? undefined : boxes.get(anchorId);
+    const anchor = anchorBox === undefined ? null : { id: anchorId, x: offsetX + anchorBox.x * scale, y: offsetY + anchorBox.y * scale };
     selected = null;
     draw(placed);
     element('selection').textContent = 'No work item selected';
     const empty = element('empty');
     empty.hidden = shown.nodes.length !== 0;
     empty.textContent = all.nodes.length === 0 ? 'There are no work items here yet.' : 'Every work item is filtered out. Show more under Filter, or turn off Linked only.';
-    summarize(); textView(); buildControls(); declareToolbar(); paint(); fit(); refit();
+    summarize(); textView(); buildControls(); declareToolbar();
+    // The person's zoom and pan stay while any item they were looking at is still drawn; the first
+    // drawing, and a plan that is all new, are fitted.
+    if (moved && shown.nodes.some(node => drawn.has(node.id))) {
+      const box = anchor === null ? undefined : boxes.get(anchor.id);
+      if (box !== undefined) { offsetX = anchor.x - box.x * scale; offsetY = anchor.y - box.y * scale; }
+      transform();
+    } else { moved = false; fit(); refit(); }
+    // The selection is set again before the commands are shown, so their buttons are updated
+    // where they are rather than taken away and made again.
     if (keep !== null && boxes.has(keep)) highlight(keep);
-    else if (chaining) sayChain();
+    else { paint(); if (chaining) sayChain(); }
+    keys?.refresh();
+    restoreFocus(had);
   }
 
   // A layout asked for by a control; a failure is said in the view, never thrown.
@@ -790,7 +876,7 @@
     element('text-view').hidden = !show; canvas.hidden = show;
     element('text-toggle').setAttribute('aria-expanded', String(show));
     element('text-toggle').textContent = show ? 'Graph view' : 'Text view';
-    if (!show) fit();
+    if (!show) fitAgain();
     declareToolbar();
   }
   function setStatusShown(choiceId, show) {
@@ -807,7 +893,7 @@
 
   element('zoom-in').addEventListener('click', () => zoom(1.25));
   element('zoom-out').addEventListener('click', () => zoom(.8));
-  element('reset').addEventListener('click', fit);
+  element('reset').addEventListener('click', fitAgain);
   element('focus-toggle').addEventListener('click', () => setFocusing(!focusing));
   element('chain-toggle').addEventListener('click', () => setChaining(!chaining));
   element('linked-toggle').addEventListener('click', () => { settings.linkedOnly = !settings.linkedOnly; saveSettings(); refresh(); });
@@ -834,20 +920,22 @@
     if (event.button !== 0 || event.target.closest('.node')) return;
     drag = { x: event.clientX, y: event.clientY, offsetX, offsetY }; canvas.setPointerCapture(event.pointerId);
   });
-  canvas.addEventListener('pointermove', event => { if (drag) { offsetX = drag.offsetX + event.clientX - drag.x; offsetY = drag.offsetY + event.clientY - drag.y; transform(); } });
+  canvas.addEventListener('pointermove', event => { if (drag) { moved = true; offsetX = drag.offsetX + event.clientX - drag.x; offsetY = drag.offsetY + event.clientY - drag.y; transform(); } });
   canvas.addEventListener('pointerup', () => { drag = null; }); canvas.addEventListener('pointercancel', () => { drag = null; });
   canvas.addEventListener('keydown', event => {
+    // On a work item the arrow keys are the kit's, between items; on the canvas itself they pan.
+    if (event.key.startsWith('Arrow') && event.target !== canvas) return;
     if (event.key === '+' || event.key === '=') zoom(1.25);
     else if (event.key === '-') zoom(.8);
-    else if (event.key === '0') fit();
-    else if (event.key === 'ArrowLeft') { offsetX += 40; transform(); }
-    else if (event.key === 'ArrowRight') { offsetX -= 40; transform(); }
-    else if (event.key === 'ArrowUp') { offsetY += 40; transform(); }
-    else if (event.key === 'ArrowDown') { offsetY -= 40; transform(); }
+    else if (event.key === '0') fitAgain();
+    else if (event.key === 'ArrowLeft') { moved = true; offsetX += 40; transform(); }
+    else if (event.key === 'ArrowRight') { moved = true; offsetX -= 40; transform(); }
+    else if (event.key === 'ArrowUp') { moved = true; offsetY += 40; transform(); }
+    else if (event.key === 'ArrowDown') { moved = true; offsetY -= 40; transform(); }
     else return;
     event.preventDefault();
   });
-  new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+  new ResizeObserver(() => { if (loaded && !canvas.hidden && !moved) fit(); }).observe(canvas);
   window.addEventListener('pagehide', () => { try { elk?.terminateWorker(); } catch { /* Already gone. */ } });
   // --- Nendo's own chrome (W-090) ---------------------------------------------------------
   //
@@ -939,7 +1027,7 @@
     else if (id === 'focus') setFocusing(value === true);
     else if (id === 'zoom-in') zoom(1.25);
     else if (id === 'zoom-out') zoom(.8);
-    else if (id === 'fit') fit();
+    else if (id === 'fit') fitAgain();
     else if (id === 'text') setTextShown(value === true);
     else if (id === 'about') setAboutShown(value === true);
   }

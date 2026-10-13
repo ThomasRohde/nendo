@@ -76,6 +76,41 @@ async (page) => {
     await until(text => document.getElementById('summary').textContent === text, expected, `The view never showed "${expected}" after the file changed.`);
   };
 
+  const transformNow = () => view.locator('#drawing').getAttribute('transform');
+  const keyboardState = () => view.evaluate(() => ({ focused: document.activeElement?.dataset?.id ?? document.activeElement?.dataset?.command
+    ?? document.activeElement?.dataset?.status ?? document.activeElement?.tagName ?? null,
+    stops: [...document.querySelectorAll('.node[tabindex="0"]')].map(node => node.dataset.id) }));
+  // Waits until the view has stopped reading: no records.query for 400 ms, longer than the view's
+  // 250 ms debounce, so a re-read a command scheduled cannot land after the next step.
+  const readsIdle = async () => {
+    const reads = () => page.evaluate(() => window.broker.requests.filter(r => r.m === 'records.query').length);
+    let count = await reads();
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await page.waitForTimeout(400);
+      const now = await reads();
+      if (now === count) return;
+      count = now;
+    }
+    throw new Error('The view never stopped reading the file.');
+  };
+  // The item the kit's spatial keys should reach: the nearest whose centre lies that way on the
+  // drawing, scored along the direction and twice across it.
+  const nearest = (fromId, key) => view.evaluate(([fromId, key]) => {
+    const centre = element => { const box = element.getBoundingClientRect(); return [box.left + box.width / 2, box.top + box.height / 2]; };
+    const nodes = [...document.querySelectorAll('.node')], from = nodes.find(node => node.dataset.id === fromId);
+    const [ux, uy] = { ArrowRight: [1, 0], ArrowLeft: [-1, 0], ArrowDown: [0, 1], ArrowUp: [0, -1] }[key];
+    const [x, y] = centre(from);
+    let best = null, bestScore = Infinity;
+    for (const node of nodes) {
+      if (node === from) continue;
+      const [nx, ny] = centre(node), along = (nx - x) * ux + (ny - y) * uy;
+      if (along <= 0) continue;
+      const score = along + 2 * Math.abs((nx - x) * uy - (ny - y) * ux);
+      if (score < bestScore) { best = node.dataset.id; bestScore = score; }
+    }
+    return best;
+  }, [fromId, key]);
+
   // A chain, an isolated item, a three-item cycle, one item standing behind that cycle, a
   // duplicate link and a label that looks like markup. Every claim the view makes is about
   // one of these shapes.
@@ -218,6 +253,19 @@ async (page) => {
     'Hiding Done did not take the done item and its links away, and say so.');
   assert(await view.locator('.node[data-id="a"]').count() === 0, 'A hidden status is still drawn.');
   await view.locator('#status-chips input[data-status="status-done"]').check();
+  await until(() => document.getElementById('summary').textContent === '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle', undefined,
+    'Showing Done again did not bring the done item back.');
+  // GGV-08: the layout that follows a chip made every chip again, so the one toggled with Space
+  // was destroyed and focus fell to the page. The chip keeps the keyboard.
+  await view.locator('#status-chips input[data-status="status-done"]').focus();
+  await page.keyboard.press('Space');
+  await until(() => document.getElementById('summary').textContent === '7 work items · 5 links · 2 unblocked · 3 in a dependency cycle · 1 hidden', undefined,
+    'Toggling Done with Space did not hide the done item.');
+  const chipFocus = await keyboardState();
+  assert(chipFocus.focused === 'status-done', 'Toggling a status chip by keyboard lost the keyboard: ' + JSON.stringify(chipFocus));
+  await page.keyboard.press('Space');
+  await until(() => document.getElementById('summary').textContent === '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle', undefined,
+    'Toggling Done back with Space did not show the done item.');
   await view.getByRole('button', { name: 'Linked only', exact: true }).click();
   await until(() => document.getElementById('summary').textContent === '7 work items · 7 links · 1 unblocked · 3 in a dependency cycle · 1 hidden', undefined,
     'Linked only did not take away the item linked to nothing, and say so.');
@@ -259,13 +307,47 @@ async (page) => {
   assert(Number(await view.evaluate(() => getComputedStyle(document.querySelector('.node[data-id="d"]')).opacity)) === 1,
     'Leaving focus did not restore the view.');
 
+  // GGV-09: every item was a tab stop and Left and Right went to the next item in the file's order,
+  // wherever ELK placed it. The items are one tab stop, and each arrow reaches the nearest item
+  // that way on the drawing.
+  await view.locator('.node[data-id="x"]').focus();
+  assert(JSON.stringify((await keyboardState()).stops) === JSON.stringify(['x']), 'The work items are not one tab stop: ' + JSON.stringify(await keyboardState()));
+  for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']) {
+    const from = (await keyboardState()).focused, expected = await nearest(from, key);
+    if (expected === null) continue;
+    await page.keyboard.press(key);
+    const reached = await keyboardState();
+    assert(reached.focused === expected && JSON.stringify(reached.stops) === JSON.stringify([expected]),
+      `${key} from ${from} did not reach the nearest item that way (${expected}), as the one tab stop: ` + JSON.stringify(reached));
+  }
+  const rightOfA = await nearest('a', 'ArrowRight');
   await view.locator('.node[data-id="a"]').focus();
-  exactlyOne(await opens(async () => { await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); }), 'b',
-    'Keyboard traversal opened the wrong item, or not once:');
+  exactlyOne(await opens(async () => { await page.keyboard.press('ArrowRight'); await page.keyboard.press('Enter'); }), rightOfA,
+    `Keyboard traversal from a did not open the nearest item to its right (${rightOfA}), or not once:`);
 
   const before = await view.locator('#drawing').getAttribute('transform');
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert(await view.locator('#drawing').getAttribute('transform') !== before, 'Zoom did not change the transform.');
+
+  // GGV-02: every re-read fitted the whole plan again. Zoomed and panned, a re-read keeps it, with
+  // the selected item where it was on screen.
+  await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  await view.evaluate(() => document.getElementById('canvas').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })));
+  const placed = await transformNow();
+  const relabelled = label => fixture({ ...projection, nodes: projection.nodes.map(node => node.id === 'd' ? { ...node, label } : node) });
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('Write the user guide'));
+  await until(() => document.querySelector('.node[data-id="d"] title')?.textContent === 'Write the user guide', undefined, 'The view did not read again after the file changed.');
+  const replaced = await transformNow();
+  assert(replaced === placed, 'A re-read threw away the zoom and pan the person had: ' + JSON.stringify({ before: placed, after: replaced }));
+  // GGV-03: a re-read replaced every item and left focus on the page. The item that had the
+  // keyboard keeps it, and it is the one tab stop.
+  await view.locator('.node[data-id="c"]').focus();
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('Write the guide'));
+  await until(() => document.querySelector('.node[data-id="d"] title')?.textContent === 'Write the guide', undefined, 'The view did not read again after the file changed.');
+  const kept = await keyboardState();
+  assert(kept.focused === 'c' && JSON.stringify(kept.stops) === JSON.stringify(['c']), 'A re-read dropped the keyboard from the item it was on: ' + JSON.stringify(kept));
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture(projection));
+  await until(() => document.querySelector('.node[data-id="d"] title')?.textContent === 'Write the authoring guide', undefined, 'The view did not read the original file again.');
   await view.getByRole('button', { name: 'Fit', exact: true }).click();
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-light.png' });
   // A refusal to open is said in the view, as text, and not thrown.
@@ -317,11 +399,29 @@ async (page) => {
   const burst = (await requests(mark)).filter(r => r.m === 'records.query' && r.p.entityId === 'workItem' && (r.p.cursor ?? null) === null).length;
   assert(burst === 1, `A burst of five changes made ${burst} reads of the work items, not one.`);
 
+  // GGV-06: a link to an item this view does not show is not drawn, so an item blocked only that way
+  // counted as unblocked and read as 'nothing is blocking it'. The summary counts the links outside
+  // the view, and says what is known: no blocker drawn.
+  await replace(fixture({ ...projection, edges: [...projection.edges, { id: 'e9', sourceId: 'elsewhere', targetId: 'a' }] }),
+    '8 work items · 7 links · 2 with no blocker drawn · 3 in a dependency cycle · 1 link outside this view');
+  await view.locator('.node[data-id="a"]').click();
+  const outsideLine = await view.locator('#selection').innerText();
+  assert(outsideLine.includes('no blocker drawn') && !outsideLine.includes('nothing is blocking it'),
+    'An item whose blocker is outside the view is said to have nothing blocking it: ' + outsideLine);
+
   // A re-read that no longer has the selected item drops the selection; the counts are exact,
   // singular included.
   await replace(fixture({ nodes: [{ id: 'p', label: 'First', status: 'Doing' }, { id: 'q', label: 'Second', status: null }],
     edges: [{ id: 'e1', sourceId: 'p', targetId: 'q' }] }), '2 work items · 1 link · 1 unblocked');
   assert(await view.locator('#selection').innerText() === 'No work item selected', 'Replacement kept a stale selection.');
+  // GGV-17: one item sat up and to the left, in an extent padded from the drawing's top-left corner.
+  await replace(fixture({ nodes: [{ id: 'solo', label: 'Only item', status: 'Doing' }], edges: [] }), '1 work item · 0 links · 1 unblocked');
+  const lone = await view.evaluate(() => {
+    const canvas = document.getElementById('canvas').getBoundingClientRect(), node = document.querySelector('.node').getBoundingClientRect();
+    return { canvasX: Math.round(canvas.left + canvas.width / 2), canvasY: Math.round(canvas.top + canvas.height / 2),
+      nodeX: Math.round(node.left + node.width / 2), nodeY: Math.round(node.top + node.height / 2) };
+  });
+  assert(Math.abs(lone.nodeX - lone.canvasX) <= 3 && Math.abs(lone.nodeY - lone.canvasY) <= 3, 'A plan of one item is drawn off-centre: ' + JSON.stringify(lone));
 
   // The Workbench's dark theme arrives as an event, and the view's colours follow it.
   const lightColour = await view.evaluate(() => getComputedStyle(document.body).backgroundColor);
@@ -375,7 +475,41 @@ async (page) => {
     'The view did not say what it did: ' + await view.locator('#outcome').innerText());
   assert((await page.evaluate(() => window.broker.record('workItem', 'b'))).values.workStatus === 'status-done', 'The command did not change the item.');
 
+  // GGV-07: the buttons came back on the version read before the command, so a second command
+  // pressed as soon as the first said done was sent at that version and refused as a change
+  // nobody made. Pressed the moment Plan now is done, Complete is sent at the new version and lands.
+  await view.locator('.node[data-id="x"]').click();
+  const ranBeforePair = (await page.evaluate(() => window.broker.commandsRun())).length;
+  await view.evaluate(() => new Promise(resolve => {
+    const outcome = document.getElementById('outcome');
+    const watch = new MutationObserver(() => {
+      if (!outcome.textContent.startsWith('Plan now: done')) return;
+      watch.disconnect();
+      document.querySelector('#actions button[data-command="cmd.complete"]').click();
+      resolve();
+    });
+    watch.observe(outcome, { childList: true, characterData: true, subtree: true });
+    document.querySelector('#actions button[data-command="cmd.plan"]').click();
+  }));
+  await until(() => /^Complete: |changed since this view read it/.test(document.getElementById('outcome').textContent), undefined, 'The second command never answered.');
+  const pair = (await page.evaluate(() => window.broker.commandsRun())).slice(ranBeforePair);
+  const pairOutcome = await view.locator('#outcome').innerText();
+  assert(pair.length === 2 && pair[1].commandId === 'cmd.complete' && pair[1].version === 2 && pairOutcome.startsWith('Complete: done'),
+    'A second command pressed as soon as the first was done was sent at the version read before the first: ' + JSON.stringify({ pair, pairOutcome }));
+
+  // GGV-08: pressing a command made every button again, so the one pressed by keyboard was destroyed
+  // and focus fell to the page. The button keeps the keyboard through the command and the re-read.
+  await view.locator('.node[data-id="y"]').click();
+  await view.locator('#actions button[data-command="cmd.plan"]').focus();
+  await page.keyboard.press('Enter');
+  await until(() => document.querySelector('.node[data-id="y"] title')?.textContent === 'Second of the cycle — Ready', undefined, 'The graph did not follow Plan now to Ready.');
+  const commandFocus = await keyboardState();
+  assert(commandFocus.focused === 'cmd.plan', 'Pressing a command by keyboard lost the keyboard: ' + JSON.stringify(commandFocus));
+
   // Somebody else changes c after the view read it. Complete on c is refused and nothing changes.
+  // The commands above each scheduled a re-read; one landing after the touch would read c's new
+  // version, and the refusal this step is about would never happen.
+  await readsIdle();
   await page.evaluate(() => window.broker.touch('workItem', 'c'));
   await view.locator('.node[data-id="c"]').click();
   await view.locator('#actions button[data-command="cmd.complete"]').click();
@@ -395,7 +529,7 @@ async (page) => {
 
   // A command the item already holds is greyed, as the record page greys it: c is Done now, so
   // Complete is spent and Plan now is not.
-  const greyed = await view.evaluate(() => Object.fromEntries([...document.querySelectorAll('#actions button')].map(button => [button.dataset.command, button.disabled])));
+  const greyed = await view.evaluate(() => Object.fromEntries([...document.querySelectorAll('#actions button')].map(button => [button.dataset.command, button.getAttribute('aria-disabled') === 'true'])));
   assert(greyed['cmd.complete'] === true && greyed['cmd.plan'] === false,
     'A spent command is pressable, or a live one is greyed, on a Done item: ' + JSON.stringify(greyed));
 

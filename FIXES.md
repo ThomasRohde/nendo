@@ -9668,3 +9668,64 @@ open as recorded. The smaller items: the duplicate-calculation check moved from 
 install, the Workbench's sentence is kept without taking the focus, and the contract names a date
 into a timestamp, UUID or reference field among the refused pairs. The failure texts are in the rows
 above.
+
+### Eleventh pass: Gantt, Dependency graph, Systems Lens and Work dependencies (W-211)
+
+2026-10-13: the sixteen findings planned as W-211 (5 P2, 11 P3) are fixed in the four packages
+and the view kit. The guards are in lanes that already run: the four headless browser probes
+(`Gate-Gantt.mjs`, `Gate-DependencyGraph.mjs`, `Gate-SystemsLens.mjs`,
+`Gate-WorkDependencies.mjs`), the kit's node tests, and a new node test,
+`tools/view-kit/tokens.test.mjs`, which `Review-Gantt.ps1` now runs. Every guard failed with its
+defect put back, and the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [GGV-01](#ggv-01) | In forced colours the bars and milestones keep a colour of their own: `CanvasText`, and `Highlight` for the selected record's mark. The selected row has a `Highlight` bar down its start edge, a different cue from the focus ring, so the ring still shows on that row. | `In a Windows contrast theme a bar takes the track's colour and vanishes: {"forced":true,"track":"rgb(255, 255, 255)","bar":"rgb(255, 255, 255)",…}`; with the earlier outline on the selected row: `In a Windows contrast theme focus does not show on the selected row: {"focused":"solid 2px none 0px","unfocused":"solid 2px none 0px"}` |
+| [GGV-02](#ggv-02) | The three graph views fit only on opening, on Fit, on Ctrl 0 and on a resize before the person has moved. Once they zoom or pan, a re-read keeps their zoom while any node they saw is still drawn. All three keep the selected node, or else the focused one, at the same point on screen, because a re-read that adds or removes a node can move it. | Graph: `A re-read threw away the zoom and pan the person had: {"before":"translate(-147.875… scale(1.822…)","after":"translate(46 99.7…) scale(1.166…)"}`; the Lens and Work dependencies fail the same way (`scale(1.175…)` to `scale(0.752…)`, `scale(1.287)` to `scale(0.824)`). With the anchor taken out, a re-read that adds a record: `A re-read that added a record moved the selected record on screen: {"before":[347,292],"after":[766,292]}`; the Lens: `{"chosen":"pumpB","before":[701,247],"after":[1018,247]}` |
+| [GGV-03](#ggv-03) | Each view notes the item that had the keyboard before a redraw and gives it back afterwards, or the item now where it was, without moving the drawing. The kit's `roving().refresh()` keeps the tab stop by the item's `data-id`, not by the element, so a redraw no longer moves the stop to the first row. | Gantt: `A re-read dropped the keyboard from the row it was on, or moved the tab stop: {"focused":"BODY","stops":["markup"]}`; the kit: `A re-read moved the one tab stop back to the first row: {"focused":"BODY","stops":["long"]}`; Graph, Lens and Work dependencies: `A re-read dropped the keyboard from the record it was on: {"focused":"BODY",…}` |
+| [GGV-04](#ggv-04) | The Systems Lens text view is built once for each read. A selection, Focus or a take-out updates its rows in place, so the button pressed keeps the keyboard. | `Selecting from the text view by keyboard lost the keyboard: {"focused":"BODY","tag":"BODY","stops":["pumpA"]}` |
+| [GGV-05](#ggv-05) | A Dependency graph link ends outside its target: on the left edge of a record further right, on the top edge of one lower down, on the bottom edge of one higher up. A link within one column runs beside it, down the right side or up the left, bowed further for each parallel link. | `An arrowhead is drawn inside the record it points at, where the record hides it: [{"edge":"down","body":[38,270],"target":[30,240],"inside":true},{"edge":"downLeft",…},{"edge":"upLeft",…}]`; with the side course taken out: `Two links between the same records in one column are drawn as one line: [{"edge":"down",…"middle":[125,193]…},{"edge":"downAgain",…"middle":[125,193]…}]` and `A link from the first row to the third runs through the record between: [{"edge":"skipDown",…"through":["m5"]},…]` |
+| [GGV-06](#ggv-06) | The three graph views read `hiddenEdges` and add "· N connections / feeds / links outside this view" to the summary. While there are any, Work dependencies says "with no blocker drawn" instead of "unblocked" and "nothing is blocking it". The Lens says "with no feed drawn" instead of "declared sources". | Graph: `The graph never showed "3 records · 4 connections · 1 connection outside this view" … The view says: "3 records · 4 connections"`; the Lens and Work dependencies fail the same way, still saying `3 declared sources` and `2 unblocked`. |
+| [GGV-07](#ggv-07) | Work dependencies keeps the record `commands.run` returns, so the buttons are judged on it and the next command is sent at its version. | `A second command pressed as soon as the first was done was sent at the version read before the first: {"pair":[{…"cmd.plan"…"version":1},{…"cmd.complete"…"version":1}],"pairOutcome":"<img src=x onerror=alert(1)> changed since this view read it, so nothing was done. Reading it again."}` |
+| [GGV-08](#ggv-08) | Command buttons and status chips are made once for a list of commands or statuses and then updated in place. A command that cannot run now is `aria-disabled`, so it stays focusable; a press of it does nothing. | `Pressing a command by keyboard lost the keyboard: {"focused":"BODY","stops":["y"]}`; the chip: `Toggling a status chip by keyboard lost the keyboard: {"focused":"BODY","stops":["b"]}` |
+| [GGV-09](#ggv-09) | The three graph views carry the view kit and use `roving(…, { orientation: 'spatial' })`. The nodes are one tab stop, each arrow goes to the nearest node that way, and the arrows pan only when the canvas itself has focus. | `The records are not one tab stop: {"focused":"n0","stops":["n0","n1","n2","n3","n4"]}`; with that clause set aside, the Lens: `ArrowRight from the reservoir did not reach the nearest component to its right (pumpB), or Enter did not open it once: [{…"recordId":"pumpA"}]` |
+| [GGV-11](#ggv-11) | The axis ticks are months when the span holds two, otherwise Mondays, otherwise days, at most twelve. The axis is a sticky band at the top of the chart. | `A chart inside one month has fewer than two dates on its axis: []`; the scroll: `Scrolling a long chart takes its time axis out of view: {"scrollTop":900,"axisTop":-769,"axisBottom":-747,"mainTop":120,…}` |
+| [GGV-12](#ggv-12) | A view that binds only date-and-time fields is told the chart draws date fields, by their names. A date and time is never the line under a label. | `A view bound to date-and-time fields was not told the chart draws date fields, by their names: "This view has no date field, …"`; the label line: `A date-and-time field is shown under the label as raw text: "Both\n2026-10-01T09:00:00Z"` |
+| [GGV-13](#ggv-13) | A Gantt row's accessible name is its label, its group line when it has one, and its span. | `A row's accessible name leaves out the owner line it shows under its label: "Short task, 2026-10-01 to 2026-10-05"` |
+| [GGV-14](#ggv-14) | The fallbacks in `gantt.css`, `graph.css` and `lens.css` are now the values `02-tokens.css` declares, in both themes. `tokens.test.mjs` compares every colour fallback in a stylesheet that claims the tokens. | `light --nendo-cobalt: falls back to #2458e6, but 02-tokens.css declares #005fb8` (before the fix the same test also failed `graph.css`, for example `light --nendo-cobalt: falls back to #6b3fd6, but 02-tokens.css declares #005fb8`, and `lens.css`) |
+| [GGV-15](#ggv-15) | `fitBox` fits a flat drawing by its other side and centres it, and draws a single point at scale 1 in the middle. A frame smaller than its padding still gets a scale above zero, and an unsized frame gets scale 1 from the padding. | `a drawing with no height is not fitted across the frame: it runs from 116 to 916, not 16 to 384 ({"scale":1,"x":16,"y":16})`; `a frame smaller than its padding gave the scale -0.12, which mirrors the drawing`; the point: `a single point is drawn at 16,16, not at the frame's centre 50,40` |
+| [GGV-16](#ggv-16) | `kit.test.mjs` finds every `extensions/*/kit/nendo-view-kit.js` instead of keeping a list. The README says so and how to release a kit change. | With a drifted copy in a scratch package: `extensions/zz-w211-scratch/kit/nendo-view-kit.js is not the kit in tools/view-kit: copy it again` (the old list never looked there) |
+| [GGV-17](#ggv-17) | The Dependency graph's drawing is as wide as the columns it uses, with even margins. Work dependencies grows its least extent evenly on every side. | Graph: `A graph of one record is drawn off-centre: {"canvasX":256,"canvasY":206,"nodeX":149,"nodeY":201}`; Work dependencies: `A plan of one item is drawn off-centre: {"canvasX":512,"canvasY":413,"nodeX":465,"nodeY":338}` |
+
+The view kit is now 1.1.0. `roving()` takes an optional `key` and keeps the stop by it, and
+`fitBox` changed. Six packages carry the kit, byte for byte: the Gantt, Archi and Garden as
+before, and now the Dependency graph, the Systems Lens and Work dependencies. Versions raised:
+Gantt 1.4.0, Dependency graph 1.3.0, Systems Lens 1.3.0, Work dependencies 2.5.0, and Archi
+0.16.1 and Garden 0.21.2 for the kit copy alone. Each package README says what changed and
+what its lane now measures. `docs/custom-view-authoring.md` says where packages keep the kit,
+that `refresh()` keeps the stop by `data-id`, the optional `key`, what `fitBox` does and how
+copies are checked. Ran green: `Review-Gantt.ps1`, `Review-NendoGraph.ps1`,
+`Review-SystemsLens.ps1`, `Review-WorkDependencies.ps1` (three runs in a row),
+`Review-Garden.ps1`, `Review-ArchiWorkbench.ps1` and `Test-Repository.ps1`. Not run:
+`Test-Production.ps1`, and no Desktop or real-host lane; every guard here runs in a headless
+browser or in node. The files that carry these packages (the planner, Nendo Station) receive
+the new versions only as proposals.
+
+An independent review of the fixes found six more, all fixed. The Work dependencies lane failed
+one run in four with `A command over a version somebody else moved on was not refused in
+words.`: a re-read that the GGV-07 and GGV-08 steps scheduled could land after `broker.touch`.
+The step now waits until no records are read for 400 ms. With a re-read made to be pending at
+the touch and the wait taken out, the step fails with that text; with the wait, it passes, and
+the lane then passed three runs in a row. The GGV-05 paths drew a link inside one column as a
+straight line, so a cycle or a parallel pair read as one line and a link past a row ran through
+the record between; such links now run beside the column (the GGV-05 row quotes the guards). In
+forced colours the selected row's outline replaced the focus ring on it, and elsewhere focus and
+selection were the same outline; the selection is now a bar down the row's start edge (the
+GGV-01 row quotes the guard). GGV-02 kept the viewport while a re-read that added a record moved
+the drawing under it; the graph and the Lens now keep the selected or focused node in place, and
+their READMEs say so (the GGV-02 row quotes the guards). `fitBox` drew a single point in the
+padding corner; it is centred (the GGV-15 row). The authoring guide still said the Gantt was
+the one package that keeps the kit; it is corrected as above. During this pass one Garden lane
+run timed out (`frame.waitForFunction: Timeout 30000ms exceeded. [after: wikilink navigation and
+places]`) and the next run passed; Garden does not call `fitBox`, the only kit change since its
+earlier pass.

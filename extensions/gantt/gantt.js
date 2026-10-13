@@ -32,6 +32,26 @@
     return Number.isFinite(time) ? time : null;
   }
   function month(time) { return new Date(time).toLocaleDateString(document.documentElement.lang || 'en', { month: 'short', year: '2-digit', timeZone: 'UTC' }); }
+  function dayOf(time) { return new Date(time).toLocaleDateString(document.documentElement.lang || 'en', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+  // The axis's ticks (GGV-11): the first of each month where the span holds at least two, else
+  // each Monday where it holds two, else each day. At most twelve, so it stays readable at any
+  // span, and a two-week sprint inside one month still has dates to read its bars against.
+  function ticksOf(low, high) {
+    const months = [], weeks = [], days = [];
+    const cursor = new Date(low); cursor.setUTCDate(1); cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    while (cursor.getTime() <= high) { months.push(cursor.getTime()); cursor.setUTCMonth(cursor.getUTCMonth() + 1); }
+    if (months.length < 2) {
+      for (let time = low + DAY; time <= high; time += DAY) { days.push(time); if (new Date(time).getUTCDay() === 1) weeks.push(time); }
+    }
+    const [list, label] = months.length >= 2 ? [months, month] : weeks.length >= 2 ? [weeks, dayOf] : [days, dayOf];
+    const step = Math.max(1, Math.ceil(list.length / 12));
+    return list.filter((_, i) => i % step === 0).map(time => ({ time, text: label(time) }));
+  }
+  // Field names as a sentence reads them: "Starts at", "Starts at and Ends at".
+  function named(list) {
+    const names = list.map(field => field.name);
+    return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+  }
 
   function render(projection) {
     // A re-read keeps the selection when its record is still on the time line, without
@@ -40,21 +60,31 @@
     selected = null;
     const fields = projection.fields;
     const dates = fields.filter(field => field.type === 'date');
-    // The first field that is not a date is shown under the label, as the record's group.
-    const detail = fields.find(field => field.type !== 'date') ?? null;
+    // The chart draws date fields. A date and time is not a day on its time line, and never the
+    // line under a label either, where it would show as raw ISO text (GGV-12).
+    const timed = fields.filter(field => field.type === 'dateTime');
+    // The first field that is neither is shown under the label, as the record's group.
+    const detail = fields.find(field => field.type !== 'date' && field.type !== 'dateTime') ?? null;
     records = projection.records;
     // On a record page the box is small and the record is already the page's: no title,
     // no instructions about selecting, and the label above its bar rather than cut beside it.
     single = projection.single;
     document.body.classList.toggle('single', single);
     declareToolbar();
-    element('rows').replaceChildren();
-    element('axis').replaceChildren();
+    // The redraw replaces every row. The row that had the keyboard gets it back afterwards, or the
+    // row now where it was, rather than focus falling to the page (GGV-03).
+    const rows = element('rows');
+    const had = rows.contains(document.activeElement) && document.activeElement.classList.contains('row')
+      ? { id: document.activeElement.dataset.id, index: [...rows.querySelectorAll('.row')].indexOf(document.activeElement) } : null;
+    rows.replaceChildren();
+    element('ticks').replaceChildren();
     element('selection').textContent = 'No record selected';
     const empty = element('empty');
     if (dates.length === 0) {
       empty.hidden = false;
-      empty.textContent = 'This view has no date field, so there is nothing to place on a time line. Add a start date to its fields, and an end date if there is one.';
+      empty.textContent = timed.length === 0
+        ? 'This view has no date field, so there is nothing to place on a time line. Add a start date to its fields, and an end date if there is one.'
+        : `This chart draws date fields, and ${named(timed)} ${timed.length === 1 ? 'holds' : 'hold'} a date and a time, so there is nothing to place on a time line. Add a start date to the view's fields, and an end date if there is one.`;
       setSummary(`${records.length} ${records.length === 1 ? 'record' : 'records'} · no date field`);
       return;
     }
@@ -89,17 +119,12 @@
       setSummary(summary.join(' · '));
     }
 
-    // Month ticks, at most twelve, so the axis stays readable at any span.
     if (placed.length) {
-      const cursor = new Date(low); cursor.setUTCDate(1); cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-      const ticks = [];
-      while (cursor.getTime() <= high) { ticks.push(cursor.getTime()); cursor.setUTCMonth(cursor.getUTCMonth() + 1); }
-      const step = Math.max(1, Math.ceil(ticks.length / 12));
-      ticks.filter((_, i) => i % step === 0).forEach(time => {
+      for (const { time, text } of ticksOf(low, high)) {
         const tick = document.createElement('span');
-        tick.style.left = at(time) + '%'; tick.textContent = month(time);
-        element('axis').append(tick);
-      });
+        tick.style.left = at(time) + '%'; tick.textContent = text;
+        element('ticks').append(tick);
+      }
     }
 
     for (const { record, from, to } of placed) {
@@ -108,11 +133,14 @@
       row.type = 'button'; row.className = 'row'; row.dataset.id = record.id; row.setAttribute('aria-pressed', 'false');
       const span = to === null ? `${start.name} ${new Date(from).toISOString().slice(0, 10)}`
         : `${new Date(from).toISOString().slice(0, 10)} to ${new Date(to).toISOString().slice(0, 10)}`;
-      row.setAttribute('aria-label', `${record.label}, ${span}`);
+      const detailText = detail !== null && record.values?.[detail.id] != null ? String(record.values[detail.id]) : null;
+      // The name is everything the row shows: the label, the group line under it, and the span
+      // (GGV-13). aria-label replaces the button's content, so a line left out is never heard.
+      row.setAttribute('aria-label', [record.label, detailText, span].filter(part => part !== null).join(', '));
       const label = document.createElement('span'); label.className = 'label';
       label.textContent = record.label; // text, never markup
-      if (detail !== null && record.values?.[detail.id] != null) {
-        const small = document.createElement('small'); small.textContent = String(record.values[detail.id]); label.append(small);
+      if (detailText !== null) {
+        const small = document.createElement('small'); small.textContent = detailText; label.append(small);
       }
       const track = document.createElement('span'); track.className = 'track';
       const mark = document.createElement('span');
@@ -122,10 +150,14 @@
       row.append(label, track);
       row.addEventListener('click', () => select(record.id));
       item.append(row);
-      element('rows').append(item);
+      rows.append(item);
     }
     if (keep !== null && placed.some(p => p.record.id === keep)) highlight(keep);
     keys?.refresh();
+    if (had !== null) {
+      const all = [...rows.querySelectorAll('.row')];
+      (all.find(row => row.dataset.id === had.id) ?? all[Math.min(had.index, all.length - 1)])?.focus({ preventScroll: true });
+    }
     find();
   }
 

@@ -8,7 +8,12 @@
   const element = id => document.getElementById(id);
   const drawing = element('drawing'), canvas = element('canvas');
   const nendo = window.nendo;
-  let loaded = false, nodes = [], edges = [], selected = null, focusing = false, removed = null;
+  let loaded = false, nodes = [], edges = [], hidden = 0, selected = null, focusing = false, removed = null;
+  // Whether the person has zoomed or panned since the schematic was last fitted. A re-read keeps
+  // where they are then, rather than fitting the whole schematic again (GGV-02).
+  let moved = false;
+  // True while a redraw puts focus back where it was, so that focus does not move the drawing.
+  let restoring = false;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
@@ -28,6 +33,14 @@
   // another file's scalar.
   const TONES = { online: 'green', standby: 'blue', offline: 'red', removed: 'grey' };
   const SEPARATOR = ' · ';
+  // The view kit (tools/view-kit, copied into kit/): the components are one tab stop, and the
+  // arrow keys go to the nearest component in that direction on the schematic, not the next in
+  // the file's order (GGV-09). Loaded as a module from this classic script; until it arrives,
+  // every component is a tab stop and Enter opens it.
+  let keys = null;
+  import('./kit/nendo-view-kit.js').then(kit => {
+    keys = kit.roving(drawing, { items: '.node', orientation: 'spatial', onActivate: node => select(node.dataset.id) });
+  }).catch(() => undefined);
 
   function shape(name, attributes, text) {
     const item = document.createElementNS('http://www.w3.org/2000/svg', name);
@@ -47,9 +60,12 @@
     offsetX = (bounds.width - width * scale) / 2; offsetY = (bounds.height - height * scale) / 2;
     transform();
   }
-  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden) fit(); })); }
-  window.addEventListener('resize', () => { if (loaded && !canvas.hidden) fit(); });
+  function refit() { requestAnimationFrame(() => requestAnimationFrame(() => { if (loaded && !canvas.hidden && !moved) fit(); })); }
+  window.addEventListener('resize', () => { if (loaded && !canvas.hidden && !moved) fit(); });
+  // Fit, Ctrl 0 and coming back from the text view fit the whole schematic, and a re-read keeps that.
+  function fitAgain() { moved = false; fit(); }
   function zoom(factor, x = canvas.clientWidth / 2, y = canvas.clientHeight / 2) {
+    moved = true;
     const next = Math.min(4, Math.max(.08, scale * factor));
     offsetX = x - (x - offsetX) * next / scale; offsetY = y - (y - offsetY) * next / scale;
     scale = next; transform();
@@ -220,7 +236,7 @@
       edge.classList.toggle('cut', removed !== null && (edge.dataset.source === removed || edge.dataset.target === removed));
     }
     for (const button of element('records').querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.id === selected));
-    textView(verdict);
+    sayVerdicts(verdict);
     summarize(verdict);
     declareToolbar();
   }
@@ -234,7 +250,8 @@
     const total = walk(id, outgoing).size;
     element('selection').textContent = `${labelOf(id)} · fed by ${fed} · feeds ${feeds}`
       + (total > feeds ? ` (${total} downstream in all)` : '')
-      + (looping.has(id) ? ' · in a circuit' : fed === 0 ? ' · a declared source' : '')
+      // With feeds from outside this view left undrawn, nothing drawn feeding it is all it shows (GGV-06).
+      + (looping.has(id) ? ' · in a circuit' : fed === 0 ? (hidden > 0 ? ' · no feed drawn into it' : ' · a declared source') : '')
       + (baseline.has(id) ? '' : ' · no declared source reaches it');
     paint();
   }
@@ -248,7 +265,9 @@
     });
   }
 
-  function textView(verdict) {
+  // The text view is built once for each read (GGV-04). A selection, Focus or a take-out only
+  // updates its rows, so the button the person just pressed stays, with the keyboard on it.
+  function textView() {
     const list = element('records'); list.replaceChildren();
     for (const node of nodes) {
       const row = document.createElement('li'), button = document.createElement('button');
@@ -261,19 +280,23 @@
         + `Fed by: ${fed.join(', ') || 'nothing'}. Feeds: ${feeds.join(', ') || 'nothing'}.`
         + (looping.has(node.id) ? ' In a circuit.' : '')
         + (baseline.has(node.id) ? '' : ' No declared source reaches it.');
-      row.append(description);
-      const answer = verdict.get(node.id);
-      if (answer !== undefined) {
-        const mark = document.createElement('p');
-        mark.className = answer === 'exposed' ? 'verdict-exposed' : answer === 'reduced' ? 'verdict-reduced' : '';
-        mark.textContent = answer === 'removed'
+      const mark = document.createElement('p');
+      mark.dataset.verdictOf = node.id; mark.hidden = true;
+      row.append(description, mark);
+      list.append(row);
+    }
+  }
+  function sayVerdicts(verdict) {
+    for (const mark of element('records').querySelectorAll('[data-verdict-of]')) {
+      const answer = verdict.get(mark.dataset.verdictOf);
+      mark.hidden = answer === undefined;
+      mark.className = answer === 'exposed' ? 'verdict-exposed' : answer === 'reduced' ? 'verdict-reduced' : '';
+      mark.textContent = answer === undefined ? ''
+        : answer === 'removed'
           ? `Taken out of the schematic for this question.`
           : answer === 'exposed'
             ? `Without ${labelOf(removed)} it loses every declared feed path.`
             : `Without ${labelOf(removed)} it keeps a declared feed path.`;
-        row.append(mark);
-      }
-      list.append(row);
     }
   }
 
@@ -282,22 +305,48 @@
       let exposed = 0, reduced = 0;
       for (const answer of verdict.values()) { if (answer === 'exposed') exposed += 1; if (answer === 'reduced') reduced += 1; }
       setSummary(`Without ${labelOf(removed)}: ${exposed} lose every declared path`
-        + `, ${reduced} keep one`);
+        + `, ${reduced} keep one` + (hidden > 0 ? SEPARATOR + outside() : ''));
       return;
     }
     const parts = [`${nodes.length} component${nodes.length === 1 ? '' : 's'}`, `${edges.length} feed${edges.length === 1 ? '' : 's'}`];
-    if (nodes.length !== 0) parts.push(`${seeds.length} declared source${seeds.length === 1 ? '' : 's'}`);
+    // A feed to or from a component this view does not show is not drawn (GGV-06). A component
+    // fed only that way would read as a declared source, so then they are named for what is
+    // known: no feed into them is drawn.
+    if (nodes.length !== 0) parts.push(hidden > 0 ? `${seeds.length} with no feed drawn` : `${seeds.length} declared source${seeds.length === 1 ? '' : 's'}`);
     if (looping.size !== 0) parts.push(`${looping.size} in a circuit`);
     const stranded = nodes.filter(node => !baseline.has(node.id)).length;
     if (stranded !== 0) parts.push(`${stranded} no source reaches`);
-    setSummary(parts.join(' · '));
+    if (hidden > 0) parts.push(outside());
+    setSummary(parts.join(SEPARATOR));
+  }
+
+  function outside() { return `${hidden} feed${hidden === 1 ? '' : 's'} outside this view`; }
+
+  // The component that has the keyboard before a redraw replaces it, in the drawing or the text view.
+  function focusedItem() {
+    const active = document.activeElement;
+    for (const container of [drawing, element('records')]) {
+      if (active instanceof Element && active !== container && container.contains(active) && active.dataset.id !== undefined)
+        return { container, id: active.dataset.id, index: [...container.querySelectorAll('[data-id]')].indexOf(active) };
+    }
+    return null;
+  }
+  // Gives the keyboard back to that component after the redraw, or to the one now where it was,
+  // so focus does not fall to the page (GGV-03). Giving it back moves nothing.
+  function restoreFocus(was) {
+    if (was === null) return;
+    const items = [...was.container.querySelectorAll('[data-id]')];
+    const target = items.find(item => item.dataset.id === was.id) ?? items[Math.min(was.index, items.length - 1)];
+    if (target === undefined) return;
+    restoring = true;
+    try { target.focus({ preventScroll: true }); } finally { restoring = false; }
   }
 
   function render(projection) {
     // A re-read keeps the selection when its component is still there, without opening it
     // again. It always ends a take-out: the graph may have changed under the question.
-    const keep = selected;
-    nodes = projection.nodes; edges = projection.edges; selected = null; removed = null;
+    const keep = selected, had = focusedItem(), drawn = new Map(positions);
+    nodes = projection.nodes; edges = projection.edges; hidden = projection.hidden; selected = null; removed = null;
     drawing.replaceChildren();
     const toggle = element('takeout-toggle');
     toggle.disabled = true; toggle.setAttribute('aria-pressed', 'false'); toggle.textContent = 'Take out';
@@ -335,7 +384,7 @@
         'data-source': edge.sourceId, 'data-target': edge.targetId, 'data-edge-id': edge.id,
       }));
     }
-    nodes.forEach((node, index) => {
+    nodes.forEach(node => {
       const point = positions.get(node.id);
       const parts = band(node);
       const status = node.status === null || node.status === undefined ? null : String(node.status);
@@ -361,23 +410,37 @@
       group.append(shape('text', { x: NODE_WIDTH - 14, y: 68, class: 'verdict', 'text-anchor': 'end' },
         looping.has(node.id) ? 'loop' : ''));
       group.addEventListener('click', () => select(node.id));
+      // The kit's keys move between components and Enter opens one; this is for the moment
+      // before the kit has loaded.
       group.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(node.id); }
-        else if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-          event.preventDefault(); event.stopPropagation();
-          const items = drawing.querySelectorAll('.node');
-          items[(index + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length].focus();
-        }
+        if (keys === null && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); select(node.id); }
       });
       group.addEventListener('focus', () => {
-        if (!group.matches(':focus-visible')) return;
+        // Focus given back after a re-read moves nothing.
+        if (restoring || !group.matches(':focus-visible')) return;
+        moved = true;
         offsetX = canvas.clientWidth / 2 - (point.x + NODE_WIDTH / 2) * scale;
         offsetY = canvas.clientHeight / 2 - (point.y + NODE_HEIGHT / 2) * scale; transform();
       });
       drawing.append(group);
     });
-    paint(); fit(); refit();
+    textView();
+    paint();
+    // The person's zoom and pan stay while any component they were looking at is still drawn;
+    // the first drawing, and a schematic that is all new, are fitted (GGV-02). A component added
+    // or taken away can move the others to another layer or row, so the selected component, or
+    // else the focused one, stays at the point on screen where it was.
+    if (moved && nodes.some(node => drawn.has(node.id))) {
+      const anchor = [keep, had?.id].find(id => id != null && drawn.has(id) && positions.has(id));
+      if (anchor !== undefined) {
+        offsetX += (drawn.get(anchor).x - positions.get(anchor).x) * scale;
+        offsetY += (drawn.get(anchor).y - positions.get(anchor).y) * scale;
+      }
+      transform();
+    } else { moved = false; fit(); refit(); }
     if (keep !== null && positions.has(keep)) highlight(keep);
+    keys?.refresh();
+    restoreFocus(had);
   }
 
   function setTakeOut(id) {
@@ -422,6 +485,7 @@
         };
       }),
       edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
+      hidden: Number.isInteger(graph.hiddenEdges) ? graph.hiddenEdges : 0,
     };
   }
   async function read() {
@@ -458,12 +522,12 @@
     element('text-view').hidden = !show; canvas.hidden = show;
     element('text-toggle').setAttribute('aria-expanded', String(show));
     element('text-toggle').textContent = show ? 'Schematic' : 'Text view';
-    if (!show) fit();
+    if (!show) fitAgain();
     declareToolbar();
   }
   element('zoom-in').addEventListener('click', () => zoom(1.25));
   element('zoom-out').addEventListener('click', () => zoom(.8));
-  element('reset').addEventListener('click', fit);
+  element('reset').addEventListener('click', fitAgain);
   element('focus-toggle').addEventListener('click', () => setFocusing(!focusing));
   element('takeout-toggle').addEventListener('click', () => setTakeOut(removed === null ? selected : null));
   element('text-toggle').addEventListener('click', () => setTextShown(element('text-view').hidden));
@@ -476,15 +540,17 @@
     if (event.button !== 0 || event.target.closest('.node')) return;
     drag = { x: event.clientX, y: event.clientY, offsetX, offsetY }; canvas.setPointerCapture(event.pointerId);
   });
-  canvas.addEventListener('pointermove', event => { if (drag) { offsetX = drag.offsetX + event.clientX - drag.x; offsetY = drag.offsetY + event.clientY - drag.y; transform(); } });
+  canvas.addEventListener('pointermove', event => { if (drag) { moved = true; offsetX = drag.offsetX + event.clientX - drag.x; offsetY = drag.offsetY + event.clientY - drag.y; transform(); } });
   canvas.addEventListener('pointerup', () => { drag = null; }); canvas.addEventListener('pointercancel', () => { drag = null; });
   canvas.addEventListener('keydown', event => {
+    // On a component the arrow keys are the kit's, between components; on the canvas they pan.
+    if (event.key.startsWith('Arrow') && event.target !== canvas) return;
     if (event.key === '+' || event.key === '=') zoom(1.25);
     else if (event.key === '-') zoom(.8);
-    else if (event.key === 'ArrowLeft') { offsetX += 40; transform(); }
-    else if (event.key === 'ArrowRight') { offsetX -= 40; transform(); }
-    else if (event.key === 'ArrowUp') { offsetY += 40; transform(); }
-    else if (event.key === 'ArrowDown') { offsetY -= 40; transform(); }
+    else if (event.key === 'ArrowLeft') { moved = true; offsetX += 40; transform(); }
+    else if (event.key === 'ArrowRight') { moved = true; offsetX -= 40; transform(); }
+    else if (event.key === 'ArrowUp') { moved = true; offsetY += 40; transform(); }
+    else if (event.key === 'ArrowDown') { moved = true; offsetY -= 40; transform(); }
     else return;
     event.preventDefault();
   });
@@ -496,7 +562,7 @@
     if (aboutShown) setAboutShown(false);
     else if (removed !== null) setTakeOut(null);
   });
-  new ResizeObserver(() => { if (loaded && !canvas.hidden) fit(); }).observe(canvas);
+  new ResizeObserver(() => { if (loaded && !canvas.hidden && !moved) fit(); }).observe(canvas);
 
   // --- Nendo's own chrome (W-091) ---------------------------------------------------------
   //
@@ -564,7 +630,7 @@
     else if (id === 'takeout') setTakeOut(value === true && selected !== null ? selected : null);
     else if (id === 'zoom-in') zoom(1.25);
     else if (id === 'zoom-out') zoom(.8);
-    else if (id === 'fit') fit();
+    else if (id === 'fit') fitAgain();
     else if (id === 'text') setTextShown(value === true);
     else if (id === 'about') setAboutShown(value === true);
   }

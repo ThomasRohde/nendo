@@ -22,7 +22,10 @@ What it shows that a list cannot:
 - **The longest chain.** **Longest chain** marks the longest run of work that has to
   happen one item after another, with each cycle's own links set aside, and names it
   below the drawing.
-- **What is free to start.** The summary counts the items nothing blocks.
+- **What is free to start.** The summary counts the items nothing blocks. A link to an
+  item this view does not show (an authored filter leaves it out) is not drawn; the summary
+  then counts those links and calls the rest items with no blocker drawn, since one of them
+  may be blocked from outside the view.
 - **What one item is connected to.** Select an item and press **Focus**: everything not
   upstream or downstream of it dims.
 - **Filter and find.** **Filter** hides statuses, such as Done and Dropped. **Find**
@@ -41,14 +44,22 @@ Statuses are drawn in their choices' own tones, falling back to the planner's na
 Inbox, Ready, Doing, Blocked, Review, Done and Dropped; any other status is drawn neutral
 rather than guessed at. Selecting an item asks Nendo to open it.
 
+The items are one tab stop, and the arrow keys go to the nearest item in that direction on
+the drawing; on the canvas itself they pan. That is the view kit (`kit/nendo-view-kit.js`,
+copied from `tools/view-kit`). The drawing is fitted when it opens, on Fit and on Ctrl 0;
+once the person zooms or pans, a re-read keeps the selected item where it is on screen while
+any item they were looking at is still drawn, and the keyboard stays on the item, command
+button or status chip it was on.
+
 **Acting where you are.** A selected item offers its record type's own commands below
 the drawing, the ones its record page offers: in the planner, Plan now, Start work, Send
 to review, Complete and Reopen. Pressing one runs it on that item at the version the view
-read. The graph follows the change, and the line below says what was done. If somebody
+read. The graph follows the change, and the line below says what was done; the next press
+uses the item as the command left it, so two commands in a row both land. If somebody
 changed the item since the view read it, nothing happens, the view says so and reads it
 again, and the next press uses the item as it now is. A command the item already has
 what it sets, such as Complete on a Done item, is greyed out, as the record page greys
-it. Nendo asks nothing first: the change
+it, and stays focusable (`aria-disabled`). Nendo asks nothing first: the change
 is in History under this package's name, where you can undo it. A file open read-only
 offers nothing to press.
 
@@ -117,4 +128,8 @@ tones read from the schema, exactly one `ui.openRecord` per selection, Focus dim
 keyboard traversal, the text alternative, non-selectable chrome, a re-read only after a
 `changes` event that keeps the selection, one read for a burst of changes, a measured
 colour change on a dark `theme` event, the empty state, a refused read shown as text
-and a 512×384 window. It runs inside `Test-Production.ps1`.
+and a 512×384 window. It also measures the zoom and pan and the keyboard kept across a
+re-read, one tab stop with each arrow reaching the nearest item that way, a link outside
+the view counted in the summary, one item drawn at the centre, a second command pressed the
+moment the first is done sent at the new version, and the keyboard kept on a command button
+and a status chip pressed by keyboard. It runs inside `Test-Production.ps1`.
