@@ -17,8 +17,9 @@ Mica with tabs is a Windows 11 app in WinUI's idiom. The window's ground is Mica
 host's own backdrop, and it shows through the title band, the navigation and the status line.
 The work sits on one layer with a rounded top-left corner, as a NavigationView draws its content.
 The places a person keeps open are tabs over that layer, and the active tab is joined to it. The
-accent is the Windows blue. Navigation items are 36px, controls are 32px with 4px corners, and
-panels and cards have 8px corners. Light is the Fluent neutral greys; dark is designed, not
+accent is the Windows blue. Navigation items are 36px, the address row's buttons and the command
+box are 32px, and text fields and selects are 30px, all with 4px corners; panels and cards have
+8px corners. Light is the Fluent neutral greys; dark is designed, not
 inverted. Ids, counts, versions and key names stay in a mono face.
 
 ## Mica
@@ -53,14 +54,28 @@ accent, whatever hue it carries.
 | `--mica` (ground only) | `#eef1f6` | `#1e2024` | The ground in a browser; transparent in the host |
 
 Text on an accent fill is white in light and `--canvas` in dark, because the dark accent is light.
-`21-native.css` applies that to the few places that set white on the accent directly.
+`21-native.css` declares that as `--on-accent`, and everything drawn on the accent uses it: the
+primary button, the send button, the step marker, the entity icon and a switch's knob when the
+switch is on.
+
+No rule writes a colour itself (`scripts/css-cascade.test.mjs`). Besides the tokens above,
+`21-native.css` declares the stylesheet's own, which no view is handed: `--on-accent`,
+`--switch-knob` and `--shadow-knob`; `--shadow-tab-hover`, the agent tab's hover; `--scrim`, the dark wash behind the About and Delete dialogs;
+and `--scrim-palette` with `--shadow-palette`, the lighter wash and the shadow of the command
+palette. `13-refinements-pages.css` declares `--shadow-card` and `--shadow-raised` for each theme;
+a shadow is dark in both.
 
 Radii are `--radius-control` (4px) and `--radius-panel` (8px), with `--radius-shell` (8px) for the
-record form's card, declared in `21-native.css`. The root font size is 14px. Body text is not set
+record form's card, declared in `21-native.css`. Three more come from canvases the owner chose for
+the Agent page and the conversation: `--radius-small` (6px) for a chip or icon inside a card,
+`--radius-conversation` (10px) for the agent tabs and the conversation's cards, and
+`--radius-composer` (12px) for the message box and the @ menu over it. Only 2px and 3px marks,
+circles and pills are written as numbers. The root font size is 14px. Body text is not set
 below 0.75rem. A few small labels go below it on purpose: key caps, the count of waiting changes
 on the Agent page's Activity card, a type tile's letters (10px), a launch command on the Agent
-page, and in the agent conversation its chips, the @ menu and the line under the box, down to
-0.68rem (about 9.5px).
+page and the note that it was renamed, and in the agent conversation its tags, the context line
+under a message, an option's name, the @ menu and the line under the box, down to 0.68rem (about
+9.5px). Tool output and a command to copy by hand are content, not labels, and stay at 0.75rem.
 
 The data grid (`nendoGridTheme` in `view-data.ts`) repeats these values, because it cannot read
 a CSS variable. Change them together.
@@ -115,9 +130,22 @@ a CSS variable. Change them together.
 - **Status line (28px).** On the ground, in the UI face: the file's icon and name on the left; the
   agent pill, the health pill, the theme (System, Light, Dark), the key hints toggle and the
   version on the right.
-- **A narrow window.** Below 841px the navigation is the bar across the top and the title bar, as
-  before. Tabs wait for a wider window, and the tab keys (Ctrl T, Ctrl W, Ctrl Tab) do nothing
-  until they are on screen again. The File menu opens below the bar, on the window.
+- **A narrow window.** Below 841px, at every height, the navigation is the bar across the top and
+  the title bar, keeping the width of Windows' buttons free. Once the bar is wider than the window
+  it scrolls sideways, and a thin scrollbar shows that it does. Tabs wait for a wider window, and
+  the tab keys (Ctrl T, Ctrl W, Ctrl Tab) do nothing until they are on screen again. The File menu
+  opens below the bar, on the window. The bar keeps a hairline under it, and scrolls only sideways.
+  The address row stays one row, and the status line keeps its pills; at 480px or less a pill is
+  its dot, and its words stay for a screen reader and as its tooltip. With no file open in a wide window there are no tabs, and the address row keeps the width
+  of Windows' buttons free instead.
+- **Contrast themes.** Under a Windows contrast theme (forced colors) every fill becomes the
+  theme's background and shadows go, so a selected or pressed state that was only a fill gets a
+  mark there that focus never draws: a 3px Highlight bar under a record page's tab, a view switcher
+  segment, the theme buttons, the Data view's Outline and Table buttons and the key hints toggle,
+  and Highlight rules above and below the outline's selected row. The navigation's selection
+  pill, a chosen rating and a filled rating dot keep a Highlight fill. Focus stays the outline, so
+  it shows on a selected control too; the @ menu's option and today's calendar cell take a Highlight
+  outline.
 
 ## Fonts
 

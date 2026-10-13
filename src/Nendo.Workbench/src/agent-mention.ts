@@ -122,12 +122,37 @@ function drawMenu(page: ParentNode): void {
   const opening = list.hidden;
   list.hidden = false;
   list.innerHTML = mentionMenuMarkup(menu.choices, menu.active, menu.note);
+  fitMenu(list);
   if (opening && menu.choices.length > 0) announce(`${menu.choices.length} ${menu.choices.length === 1 ? 'choice' : 'choices'}; up and down to choose, Enter to point at one.`);
   if (menu.choices.length > 0) {
     prompt.setAttribute('aria-activedescendant', `mention-option-${menu.active}`);
     list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   } else prompt.removeAttribute('aria-activedescendant');
 }
+
+/**
+ * The menu opens upward from the box, and the pane above clips. A fixed height took its top, the
+ * heading with it, off the top of a short pane (CSS-15), so the menu is told the room above the
+ * box: from the pane's top to the box, less the stylesheet's gap under the menu and as much again
+ * over it (--mention-gap, styles/22-agent-chat.css). A window that changes size while the menu is
+ * open changes the room, so it is measured again then.
+ */
+function fitMenu(list: HTMLElement): void {
+  const box = list.offsetParent;
+  const pane = list.closest('.studio-content');
+  if (box === null || pane === null) return;
+  const gap = parseFloat(getComputedStyle(list).getPropertyValue('--mention-gap')) || 0;
+  const room = box.getBoundingClientRect().top - pane.getBoundingClientRect().top - 2 * gap;
+  list.style.setProperty('--mention-room', `${Math.max(96, Math.floor(room))}px`);
+  if (!refitsOnResize) {
+    refitsOnResize = true;
+    window.addEventListener('resize', () => {
+      const open = document.querySelector<HTMLElement>('#chat-mention');
+      if (open !== null && !open.hidden) fitMenu(open);
+    });
+  }
+}
+let refitsOnResize = false;
 
 /**
  * Where the last choice wrote its @name, so the menu does not open again on the name it just

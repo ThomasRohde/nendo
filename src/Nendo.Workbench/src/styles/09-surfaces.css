@@ -228,7 +228,7 @@
 }
 
 .summary-failed {
-  color: var(--danger-text, var(--muted));
+  color: var(--danger);
   font-size: 1rem;
 }
 
@@ -647,11 +647,6 @@
   font-weight: 650;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-
-.view-package {
-  color: var(--muted);
-  font-size: 0.78rem;
 }
 
 .view-stage {
@@ -1283,7 +1278,7 @@
 .outline-find input { width: 220px; max-width: 100%; }
 .outline-moves { display: flex; flex-wrap: wrap; gap: 6px; }
 .outline-surface-toolbar .query-status { margin: 0; }
-.outline-surface-frame { overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.outline-surface-frame { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); }
 .outline-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .outline-table th { position: sticky; top: 0; z-index: 1; padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--muted); background: var(--surface); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-align: left; text-transform: uppercase; }
 .outline-table td { padding: 6px 12px; border-bottom: 1px solid var(--line); color: var(--ink); vertical-align: middle; }
@@ -1302,7 +1297,7 @@
 .outline-table td.outline-title-cell { padding-left: calc(12px + var(--outline-depth, 0) * 20px); }
 .outline-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .outline-title .status-dot { flex: none; }
-.outline-open { overflow: hidden; min-width: 0; padding: 2px 4px; border: 0; border-radius: 4px; color: var(--ink); background: transparent; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.outline-open { overflow: hidden; min-width: 0; padding: 2px 4px; border: 0; border-radius: var(--radius-control); color: var(--ink); background: transparent; font: inherit; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .outline-open:hover { color: var(--cobalt); }
 .outline-open:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
 .outline-table .outline-more-row td { padding-left: calc(38px + var(--outline-depth, 0) * 20px); }

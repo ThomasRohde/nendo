@@ -17,7 +17,6 @@
   .toolbar-spacer { display: none; }
   .surface-card { grid-template-columns: auto minmax(0, 1fr); }
   .surface-card .health-chip { grid-column: 2; }
-  .field-row-head { display: none; }
 }
 
 /* The message slot is hidden most of the time, so a fixed three-row grid left
@@ -45,10 +44,13 @@
 .recovery-action-list .recovery-action:disabled .recovery-text strong { color: var(--muted); }
 
 /* Findings and actions are different lengths. Let each card end where its own
-   content ends instead of stretching one into a tall empty panel. */
-.recovery-layout {
-  align-items: start;
-  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1fr);
+   content ends instead of stretching one into a tall empty panel. Side by side only
+   where both fit; below 901px they stack (01-file-menu.css), or the findings squeezed
+   to a sliver beside the actions' 320px (CSS-02). */
+.recovery-layout { align-items: start; }
+
+@media (min-width: 901px) {
+  .recovery-layout { grid-template-columns: minmax(0, 0.95fr) minmax(320px, 1fr); }
 }
 
 .recovery-findings > details { margin-top: var(--space-4); }
@@ -170,7 +172,6 @@
 }
 
 .agent-heading h2 { margin-top: 0; }
-.agent-page .permission-intro p { max-width: 52ch; }
 
 /* --- Full-page record dialogs ---------------------------------------------- */
 
@@ -615,7 +616,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
   color: var(--ink);
   background: var(--surface-raised);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   padding: 1px 5px;
 }
 
@@ -643,7 +644,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
 .behaviour-approval code {
   background: var(--surface-raised);
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   padding: 1px 5px;
   font-size: 0.75rem;
 }

@@ -15,7 +15,7 @@
     <div class="app-shell">
       <aside id="app-rail" class="rail" aria-label="Nendo workspace">
         <!-- The title bar's left end, over the navigation: the file and its File menu (G). -->
-        <div class="brand" aria-label="Nendo">
+        <div class="brand">
           <span class="brand-lockup">
             <img src="/nendo-mark.png" alt="" />
             <span id="brand-file" class="brand-word">Nendo</span>
@@ -41,7 +41,8 @@
           <div id="nav-places" class="nav-places" role="group" aria-label="Record types and views"></div>
         </nav>
 
-        <div class="studio-nav" aria-label="Studio sections">
+        <!-- Studio, then Agent and Help: navigation landmarks of their own, as Primary is. -->
+        <nav class="studio-nav" aria-label="Studio">
           <button id="nav-studio" class="nav-item nav-section" type="button">
             <span class="nav-symbol" aria-hidden="true">⌁</span>
             <span>Studio</span>
@@ -66,15 +67,15 @@
             <span class="nav-symbol" aria-hidden="true">◇</span>
             <span>Health</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 6</kbd>
           </button>
-        </div>
+        </nav>
 
-        <div class="rail-foot">
+        <nav class="rail-foot" aria-label="Agent and Help">
           <button id="nav-agent" class="nav-item" type="button" disabled>
             <span class="nav-symbol" aria-hidden="true">✦</span>
             <span>Agent</span><kbd class="kbd-hint" aria-hidden="true">Ctrl 7</kbd>
           </button>
-        </div>
-        <button id="nav-help" class="nav-item help-nav" type="button"><span class="nav-symbol" aria-hidden="true"></span><span>Help</span><kbd class="kbd-hint" aria-hidden="true">F1</kbd></button>
+          <button id="nav-help" class="nav-item help-nav" type="button"><span class="nav-symbol" aria-hidden="true"></span><span>Help</span><kbd class="kbd-hint" aria-hidden="true">F1</kbd></button>
+        </nav>
       </aside>
 
       <main class="workspace">
@@ -134,11 +135,11 @@
                  screen said why. Shown only after the same delay the busy bar uses. -->
             <span id="agent-working" class="status-pill" data-state="agent" hidden>
               <span aria-hidden="true"></span>
-              <span id="agent-working-text">An agent is working</span>
+              <span id="agent-working-text" class="status-pill-text">An agent is working</span>
             </span>
             <span id="session-health" class="status-pill" data-state="healthy" hidden>
               <span aria-hidden="true"></span>
-              Saved locally
+              <span class="status-pill-text">Saved locally</span>
             </span>
             <span class="status-keys kbd-hint" aria-hidden="true"><kbd>Ctrl K</kbd> commands <kbd>Ctrl /</kbd> hide shortcuts</span>
             <!-- The theme and the key hints, at the quiet end of the window (G). -->

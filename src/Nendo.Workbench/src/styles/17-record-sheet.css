@@ -4,7 +4,8 @@
    It replaced a 640px card that stacked every field in one column. The markup
    (recordSheetMarkup in record-markup.ts) sorts the fields: long text into the
    main column, everything that fits on a line into the side panel. This slice
-   comes last so that it wins over `.record-form`, which the page still is. */
+   loads after the slices that style `.record-form`, which the page still is, so it
+   wins over them. */
 
 .studio-content > .record-sheet-page {
   display: flex;

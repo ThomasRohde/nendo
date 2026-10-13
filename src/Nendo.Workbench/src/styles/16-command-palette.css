@@ -12,7 +12,7 @@ kbd,
   height: 18px;
   padding: 0 5px;
   border: 1px solid var(--line-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   color: var(--muted);
   background: var(--surface-raised);
   font-family: var(--mono);
@@ -82,8 +82,8 @@ kbd,
   background: var(--cobalt-soft);
 }
 
+/* The box's size at each width is 21-native.css's; below 1100px the words go. */
 @media (max-width: 1100px) {
-  .palette-trigger { width: 32px; padding: 0; justify-content: center; }
   .palette-trigger-text,
   .palette-trigger kbd { display: none; }
 }
@@ -136,11 +136,11 @@ kbd,
   border-radius: var(--radius-panel);
   color: var(--ink);
   background: var(--surface-raised);
-  box-shadow: 0 24px 64px -16px rgb(0 0 0 / 45%);
+  box-shadow: var(--shadow-palette);
 }
 
 .command-palette::backdrop {
-  background: color-mix(in srgb, var(--canvas) 55%, transparent);
+  background: var(--scrim-palette);
 }
 
 .command-palette-box {

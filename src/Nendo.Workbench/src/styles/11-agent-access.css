@@ -53,7 +53,7 @@
   min-width: 0;
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-conversation);
   color: var(--ink);
   background: var(--surface);
   font: inherit;
@@ -63,7 +63,7 @@
 
 .agent-tab:hover {
   border-color: var(--line-strong);
-  box-shadow: 0 1px 4px rgba(20, 23, 28, 0.08);
+  box-shadow: var(--shadow-tab-hover);
 }
 
 .agent-tab[aria-selected="true"] {
@@ -107,7 +107,7 @@
   place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   color: var(--muted);
   background: var(--surface-soft);
 }
@@ -147,7 +147,7 @@
 
 .agent-tab-now.is-address {
   color: var(--ink);
-  font-family: "Cascadia Mono", Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.8rem;
   font-weight: 500;
 }
@@ -238,13 +238,6 @@
   margin-top: 6px;
 }
 
-.permission-intro {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 14px;
-}
-
-.permission-intro h2,
 .agent-connection h2,
 .pending-changes h3,
 .agent-activity h3 {
@@ -253,13 +246,6 @@
   font-size: 1.05rem;
   font-weight: 680;
   letter-spacing: -0.015em;
-}
-
-.permission-intro p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.5;
 }
 
 /* The ladder as one row of five (W-199): the level is the one setting every tab works under, so
@@ -355,13 +341,9 @@
 
 .permission-step[aria-pressed="true"] .step-marker {
   border-color: var(--cobalt);
-  color: #ffffff;
+  color: var(--on-accent);
   background: var(--cobalt);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 13%, transparent);
-}
-
-:root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
-  color: var(--canvas);
 }
 
 .permission-step[aria-pressed="true"] strong {
@@ -489,7 +471,7 @@
 .copy-hint.is-failed code {
   flex: 1 1 100%;
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: text;
@@ -568,8 +550,8 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  background: var(--switch-knob);
+  box-shadow: var(--shadow-knob);
   transition: left 120ms ease;
   content: "";
 }
@@ -578,8 +560,10 @@
   background: var(--cobalt);
 }
 
+/* On, the knob moves over and is what sits on the accent: in Dark the accent is light (CSS-09). */
 .connection-toggle[aria-pressed="true"] .switch-glyph::after {
   left: 19px;
+  background: var(--on-accent);
 }
 
 .connection-field {

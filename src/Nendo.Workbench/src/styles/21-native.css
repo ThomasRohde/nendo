@@ -1,5 +1,6 @@
 /* G · Mica with tabs (adopted 2026-10-03): the window as a Windows 11 app.
-   Slice 21 of styles.css; it loads last and restates the shell the slices above draw.
+   Slice 21 of styles.css; it loads after every slice but the agent conversation's (22) and
+   restates the shell the slices above draw, so a rule for the shell belongs here.
 
    The window ground is Mica. In the Desktop host the page is transparent wherever the ground
    shows -- the title band, the navigation and the status line -- and the host's MicaBackdrop
@@ -13,10 +14,35 @@
 :root { --mica: #eef1f6; }
 :root[data-theme="dark"] { --mica: #1e2024; }
 
+/* The stylesheet's own colours, so that no rule writes a colour itself. None is handed to a
+   custom view (themeTokenNames) either. What sits on the accent is white in Light and the layer
+   in Dark, because the dark accent is light: white on it does not reach 4.5:1 (or the 3:1 a
+   switch's knob needs). */
+:root {
+  --on-accent: #ffffff;
+  --switch-knob: #ffffff;
+  --shadow-knob: 0 1px 2px rgb(0 0 0 / 25%);
+  /* The dialogs' scrims: a dark wash behind About and Delete, a light one behind Ctrl K. */
+  --scrim: rgb(10 20 40 / 45%);
+  --scrim-palette: color-mix(in srgb, var(--canvas) 55%, transparent);
+  --shadow-palette: 0 24px 64px -16px rgb(0 0 0 / 45%);
+  --shadow-tab-hover: 0 1px 4px rgb(20 23 28 / 8%);
+}
+:root[data-theme="dark"] {
+  --on-accent: var(--canvas);
+  --shadow-tab-hover: 0 1px 4px rgb(0 0 0 / 40%);
+}
+
 :root {
   --radius-control: 4px;
   --radius-panel: 8px;
   --radius-shell: 8px;
+  /* Three more, each for one family of surfaces the owner chose on its own canvas: a chip or
+     an icon inside a card (6px), the agent tabs and the conversation's cards (10px), and the
+     message box with the @ menu over it (12px). mica-direction.md lists them. */
+  --radius-small: 6px;
+  --radius-conversation: 10px;
+  --radius-composer: 12px;
   --nav-hover: color-mix(in srgb, var(--ink) 6%, transparent);
   --nav-pressed: color-mix(in srgb, var(--ink) 4%, transparent);
 }
@@ -132,7 +158,7 @@ body {
 }
 
 .rail-foot { margin-top: auto; padding-top: 2px; }
-.help-nav { margin-top: 4px; }
+.rail-foot .help-nav { margin-top: 0; }
 
 .rail .nav-item,
 .nav-place {
@@ -208,6 +234,11 @@ body {
 /* The key hints sit at the end of a row. */
 .rail .nav-item .kbd-hint { margin-left: auto; }
 
+/* The list of places scrolls, so it clips sideways, and a ring drawn outside a full-width item
+   lost its sides (CSS-12). It sits inside the item, as the tabs' does. */
+.rail .nav-item:focus-visible,
+.nav-place:focus-visible { outline-offset: -2px; }
+
 /* --- The tabs ------------------------------------------------------------------ */
 
 .workspace {
@@ -252,7 +283,7 @@ body {
   padding-right: 4px;
   border: 1px solid transparent;
   border-bottom: 0;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
   color: var(--muted);
 }
 
@@ -337,7 +368,7 @@ body {
   border: 1px solid var(--line);
   border-right: 0;
   border-bottom: 0;
-  border-top-left-radius: 8px;
+  border-top-left-radius: var(--radius-panel);
   background: var(--canvas);
   overflow: hidden;
 }
@@ -354,7 +385,7 @@ body {
 }
 
 /* The address row: Back and Forward, where this tab is, and the command box. */
-html:root .workspace-layer .workspace-header {
+.workspace-layer > .workspace-header {
   justify-content: flex-start;
   gap: 4px;
   min-height: 0;
@@ -469,7 +500,7 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
      with a magnifier in it reads as a field nobody can type in. */
   .palette-trigger { width: clamp(200px, 26vw, 340px); padding: 0 6px 0 10px; justify-content: flex-start; }
   .palette-trigger-text { display: block; }
-  .palette-trigger kbd { display: inline-block; }
+  .palette-trigger kbd { display: inline-flex; }
 
   /* A file with many record types scrolls its own list; Studio, Agent and Help stay in reach. */
   .primary-nav { flex: 0 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; }
@@ -508,8 +539,11 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 }
 
 /* A narrow window keeps the navigation as one bar across the top, which is then the title bar;
-   tabs, the file's places and the section headings wait for a wider window. */
+   tabs, the file's places and the section headings wait for a wider window. This holds at every
+   height: a short window once kept a 56px side column here, and the bar squeezed into it showed
+   blank buttons (CSS-01). */
 @media (max-width: 840px) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .tab-strip { display: none; }
   .workspace { padding: 0; }
   .workspace-layer { margin-top: 0; border: 0; border-radius: 0; }
@@ -523,11 +557,18 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
     gap: 2px;
     height: var(--title-bar-height, 48px);
     padding: 0 8px 0 0;
+    /* The hairline between the bar and the layer, which has no border of its own here. */
+    border-bottom: 1px solid var(--line);
     overflow-x: auto;
-    scrollbar-width: none;
+    /* Sideways only: a wheel or a scrollbar never moves the bar up and down. */
+    overflow-y: hidden;
+    /* Once the bar is wider than the window it scrolls, and its thin scrollbar is the one sign
+       that Agent and Help are past the edge (CSS-19). */
+    scrollbar-width: thin;
   }
 
-  .brand { flex: none; margin: 0; }
+  /* As tall as its File menu, so the bar's scrollbar never leaves it taller than the bar. */
+  .brand { flex: none; height: auto; margin: 0; }
   /* The bar scrolls sideways, and a scrolling box clips what hangs below it: the menu stood 2px
      tall under its button (UIS-02). */
   .brand .file-menu-panel {
@@ -578,6 +619,20 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   .palette-trigger { width: 36px; padding: 0; justify-content: center; }
 }
 
+/* In a window 480px wide or less the status line cannot hold a pill's words beside the theme
+   and the version, so a pill is its dot; its words stay for a screen reader and as its title. */
+@media (max-width: 480px) {
+  .status-bar .status-pill { gap: 0; }
+  .status-bar .status-pill > .status-pill-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* A record type whose name suggests no icon: its letters on a tile in one of the choice tones
    (type-icons.ts). The tone tints the tile and colours the letters, leaning to the ink far enough
    to read at 4.5:1 on the rail, a selected row, a tab and the address field (UIS-13). */
@@ -588,7 +643,7 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   color: color-mix(in srgb, var(--tile) 60%, var(--ink));
   background: color-mix(in srgb, var(--tile) 16%, transparent);
   font-size: 10px;
@@ -607,8 +662,39 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 .type-tile[data-tone="blue"] { --tile: var(--tone-blue); }
 .type-tile[data-tone="violet"] { --tile: var(--tone-violet); }
 
-/* The dark accent is light, so what sits on it is dark: white on it does not reach 4.5:1. */
-:root[data-theme="dark"] .entity-icon,
-:root[data-theme="dark"] .permission-step[aria-pressed="true"] .step-marker {
-  color: var(--canvas);
+/* Windows contrast themes (forced colors) draw every fill as Canvas and drop every box-shadow,
+   so a state drawn only with a fill, an inset shadow or a coloured pill could not be seen there
+   (CSS-04). Each gets a mark forced colors keeps. Selected and pressed are a Highlight bar under
+   the control or a Highlight fill, which focus never draws, so the focus ring (an outline, from
+   the rules for :focus-visible) still shows on a selected control and is still the only ring.
+   The selectors match the ones that draw the state, so they win. */
+@media (forced-colors: active) {
+  .tablist [role="tab"][aria-selected="true"],
+  .view-switcher button[aria-pressed="true"],
+  .theme-control button[aria-pressed="true"],
+  .status-bar .theme-control button[aria-pressed="true"],
+  .status-bar .shortcuts-toggle[aria-pressed="true"] {
+    border-bottom: 3px solid Highlight;
+  }
+
+  /* The outline's selected row is ruled above and below; its focused row has the ring. */
+  .outline-row.is-selected td { border-top: 2px solid Highlight; border-bottom: 2px solid Highlight; }
+  .outline-row:focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
+
+  /* The @ menu's option is where the arrow keys are, so its outline is its focus. */
+  .mention-option[aria-selected="true"],
+  .calendar-cell.is-today {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  /* The navigation's selection is its leading pill, as outside a contrast theme. */
+  .rail .nav-item.is-selected:not(.nav-section)::before,
+  .nav-place.is-selected::before,
+  .rating-picker input:checked,
+  .rating-dot.is-filled {
+    forced-color-adjust: none;
+    border-color: Highlight;
+    background: Highlight;
+  }
 }

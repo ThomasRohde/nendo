@@ -33,3 +33,20 @@ test('every custom property a stylesheet reads without a fallback exists', () =>
   }
   assert.deepEqual(missing, [], 'A var() with no fallback names a property nothing declares');
 });
+
+// CSS-11. A fallback hides a missing property instead: Failed summary totals read
+// var(--danger-text, var(--muted)), which nothing declared, so a failure always drew in the muted
+// grey of its context line. A var() with a fallback still names a property a stylesheet declares or
+// the Workbench's code sets; the fallback is for the moment before the code has set it.
+test('every custom property a stylesheet reads with a fallback exists too', () => {
+  const missing = [];
+  for (const { name, text } of sheets) {
+    for (const match of text.matchAll(/var\(\s*(--[\w-]+)\s*,/g)) {
+      const [, property] = match;
+      if (declared.has(property) || setByCode(property)) continue;
+      const line = text.slice(0, match.index).split('\n').length;
+      missing.push(`${name}:${line} reads ${property}`);
+    }
+  }
+  assert.deepEqual(missing, [], 'A var() names a property nothing declares or sets, so its fallback always draws');
+});

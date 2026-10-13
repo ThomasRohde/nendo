@@ -1,11 +1,10 @@
 /* Folding the rail down to its icons, and the control that does it.
    Slice 15 of styles.css; see that file for why the order matters.
 
-   This slice loads last on purpose. Two earlier ones already restyle .rail under
-   their own media queries -- 10 turns it into a top bar below 840px, 12 gives it a
-   compact icon layout on a small screen -- so a collapsed rule written up beside
-   .rail in 03 or 04 would be overridden and the toggle would look broken rather
-   than absent. */
+   It loads after the slices that draw the rail (03, 04), so a folded rule wins over
+   theirs; 21-native.css loads later still and restates the rail itself, so a rule for
+   the folded rail that 21 also sets belongs there. Below 841px the rail is the bar
+   across the top (21-native.css), and folding does not apply. */
 
 /* Room for the toggle beside the mark, without moving the mark or shrinking it. */
 .brand {
@@ -82,8 +81,8 @@
   }
 }
 
-/* Below 841px the rail is already a top bar or already compact, so the toggle would
-   change nothing. A control that does nothing is worse than no control. */
+/* Below 841px the rail is the bar across the top, so the toggle would change
+   nothing. A control that does nothing is worse than no control. */
 @media (max-width: 840px) {
   .rail-toggle {
     display: none;

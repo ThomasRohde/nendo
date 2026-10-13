@@ -9,24 +9,23 @@
    on under them, so the buttons sit on the bar rather than on a strip of their own. Outside the
    Desktop host the attribute is never set and the top bar is as it was. */
 
-/* Wherever the rail runs down the side, the top bar is the title bar: exactly the bar's height,
-   whatever a short window's own rules asked for, so Windows' buttons end on its hairline and the
-   rail's head beside it lines up. The rail runs down the side except in a window at most 840px
-   wide and more than 600px tall. */
-@media (min-width: 841px), (max-height: 600px) {
-  :root[data-title-bar="window"] .workspace-header {
-    min-height: var(--title-bar-height, 48px);
-    padding-top: 0;
-    padding-bottom: 0;
-    padding-right: calc(12px + var(--title-bar-right, 0px));
+/* In a window 841px wide or more the tab strip is the title bar and keeps the width itself
+   (21-native.css). With no file open there are no tabs, and the address row is the top of the
+   window, so it keeps the width instead. */
+@media (min-width: 841px) {
+  :root[data-title-bar="window"] .tab-strip[hidden] + .workspace-layer > .workspace-header {
+    padding-right: calc(20px + var(--title-bar-right, 0px));
   }
 }
 
-/* There the rail is the bar across the top of the window, above the top bar, so the rail is the
-   title bar and keeps the width free instead. */
-@media (max-width: 840px) and (min-height: 601px) {
+/* In a window 840px wide or less, at every height, the navigation is the bar across the top of
+   the window, above the address row, so the rail is the title bar and keeps the width free. It
+   stops short of Windows' buttons rather than padding up to them: the bar scrolls sideways once
+   it is wider than the window, and what overflows a scrolling box is drawn over its padding, so
+   Agent and Help sat under the buttons (CSS-19). */
+@media (max-width: 840px) {
   :root[data-title-bar="window"] .rail {
-    padding-right: calc(14px + var(--title-bar-right, 0px));
+    margin-right: calc(6px + var(--title-bar-right, 0px));
   }
 }
 

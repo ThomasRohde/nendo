@@ -5,8 +5,8 @@
  * reordering these imports — or adding one in the wrong place — changes what the
  * page looks like. That is why they are numbered.
  *
- * Vite inlines every @import at build time, so the bundle is a single file and
- * the page's style-src 'self' policy is unaffected.
+ * Vite inlines every @import at build time, so the bundle is a single file served
+ * from the page's own origin, which its style-src policy allows (index.html).
  */
 
 @import './styles/01-file-menu.css';

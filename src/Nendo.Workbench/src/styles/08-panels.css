@@ -94,13 +94,17 @@
   width: 42px;
   height: 42px;
   border-radius: var(--radius-panel);
-  color: #fff;
+  color: var(--on-accent);
   background: var(--cobalt);
   font-weight: 760;
 }
 
+/* A field's row needs about 650px. The card decides, not the window: beside the 280px rail a
+   window of 841-985px left the card narrower than its rows (CSS-13). Below that the row is two
+   columns, and the column heads go. */
 .field-list {
   display: grid;
+  container-type: inline-size;
 }
 
 /* ADR-0026: what a link rule holds a record type to, under its fields. */
@@ -142,6 +146,12 @@
 }
 
 .field-row > .field-kind { overflow-wrap: anywhere; }
+
+/* Below about 650px of card (.field-list, above) a row is two columns. */
+@container (max-width: 660px) {
+  .field-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .field-row-head { display: none; }
+}
 
 .field-row code,
 .definition-title code,

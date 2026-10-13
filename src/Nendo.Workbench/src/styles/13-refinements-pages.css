@@ -24,6 +24,13 @@
   --shadow-raised: 0 2px 4px color-mix(in srgb, var(--ink) 7%, transparent), 0 14px 34px color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
+/* Mixed from --ink, a Dark card cast a white glow (CSS-10). A shadow is dark in both themes, as
+   --shadow is; Dark's is deeper, because the layer under it is. */
+:root[data-theme="dark"] {
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 22%);
+  --shadow-raised: 0 2px 4px rgb(0 0 0 / 34%), 0 14px 34px rgb(0 0 0 / 30%);
+}
+
 /* Thin, quiet scrollbars. The shell nests scroll regions, and the platform
    default bars read as heavier than any border in the design. */
 * {
@@ -138,7 +145,7 @@
 }
 
 :root[data-theme="dark"] .card-chip {
-  color: color-mix(in srgb, var(--status-color, var(--muted)) var(--chip-share-dark, 55%), #ffffff);
+  color: color-mix(in srgb, var(--status-color, var(--muted)) var(--chip-share-dark, 55%), var(--ink));
   background: color-mix(in srgb, var(--status-color, var(--muted)) 22%, var(--surface-raised));
 }
 
@@ -554,7 +561,8 @@
 .health-card-glyph { color: color-mix(in srgb, var(--muted) 42%, transparent); }
 .health-card-glyph .outline-icon { width: 20px; height: 20px; }
 
-.recovery-findings h3, .recovery-action-list h3 { font-size: 1.05rem; }
+/* Health's two card headings are h2 (view-health.ts); the approval card's is an h3. */
+.recovery-findings > h2, .recovery-action-list > h2, .recovery-findings h3 { font-size: 1.05rem; }
 .recovery-findings p { font-size: 0.88rem; }
 
 /* Recovery actions are destinations, not form controls. Give them the row

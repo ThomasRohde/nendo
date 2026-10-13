@@ -187,6 +187,13 @@ function render(): void {
 const alwaysAvailable =
   '[data-action]:not([data-file-action]):not(#create-file):not(#open-file):not(#approve-behaviour):not(#revoke-behaviour), input, select, textarea';
 
+/** The health pill's words, in their own element: a narrow window shows the dot and keeps them. */
+function setHealthWords(words: string): void {
+  const text = sessionHealth.querySelector<HTMLElement>('.status-pill-text');
+  if (text !== null) text.textContent = words;
+  sessionHealth.title = words;
+}
+
 function renderPendingMutation(): boolean {
   let pending;
   let failure: string | null = null;
@@ -196,8 +203,7 @@ function renderPendingMutation(): boolean {
   const accepting = pending?.method === 'proposal.promote';
   if (state.session.health === 'normal' && (failure !== null || pending?.state === 'pending')) {
     sessionHealth.dataset.state = 'warning';
-    sessionHealth.lastChild?.remove();
-    sessionHealth.append(document.createTextNode(accepting ? 'Acceptance unconfirmed' : 'Save unconfirmed'));
+    setHealthWords(accepting ? 'Acceptance unconfirmed' : 'Save unconfirmed');
   }
   const notice = document.createElement('aside');
   notice.className = 'context-note callout is-tinted';
@@ -338,8 +344,7 @@ function updateChrome(): void {
     state.session.behaviourTrust?.requiresApproval === true && !state.session.behaviourTrust.isApproved;
   sessionHealth.hidden = state.session.fileName === null || (state.session.health === 'normal' && !approvalNeeded);
   sessionHealth.dataset.state = 'warning';
-  sessionHealth.lastChild?.remove();
-  sessionHealth.append(document.createTextNode(approvalNeeded ? 'Approval needed' : state.session.health === 'readOnly' ? 'Read-only' : 'Recovery required'));
+  setHealthWords(approvalNeeded ? 'Approval needed' : state.session.health === 'readOnly' ? 'Read-only' : 'Recovery required');
 
   navigation.use.disabled = !validUse;
   navigation.agent.disabled = !state.session.capabilities.agentAccess;

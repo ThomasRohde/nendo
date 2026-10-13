@@ -25,6 +25,8 @@ select:focus,
 textarea:focus {
   border-color: var(--cobalt);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--cobalt) 22%, transparent);
+  /* Unseen here; forced colors (a Windows contrast theme) drops the shadow and draws this. */
+  outline: 2px solid transparent;
 }
 
 .form-actions {
@@ -59,13 +61,6 @@ textarea:focus {
   gap: 8px;
   padding: 4px 0 8px;
   border-bottom: 1px solid var(--line);
-}
-
-.version-note {
-  margin: 12px 16px 20px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-align: right;
 }
 
 .icon-button,
@@ -280,71 +275,14 @@ textarea:focus {
   border: 0 !important;
 }
 
+/* The shell of a narrow window (the navigation as the bar across the top) is 21-native.css's. */
 @media (max-width: 840px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-  }
-
-  .rail {
-    grid-template-columns: auto 1fr auto;
-    min-height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-
-  .brand {
-    height: 38px;
-  }
-
-  .brand img {
-    width: 96px;
-  }
-
-  .primary-nav {
-    display: flex;
-    justify-content: center;
-    margin: 0;
-  }
-
-  .primary-nav .nav-item {
-    width: auto;
-    min-height: 38px;
-  }
-
-  .studio-nav {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    margin: 0;
-  }
-
-  .studio-nav > p,
-  .studio-nav .nav-symbol {
-    display: none;
-  }
-
-  .studio-nav .nav-item {
-    display: block;
-    width: auto;
-    min-width: max-content;
-    padding-inline: 10px;
-  }
-
   .workspace {
     min-height: 0;
   }
 
   .data-workspace {
     grid-template-columns: 150px minmax(0, 1fr);
-  }
-
-  .header-controls {
-    gap: 8px;
-  }
-
-  .status-pill {
-    display: none;
   }
 
   .proposal-layout {
@@ -360,34 +298,8 @@ textarea:focus {
   }
 }
 
+/* The address row stays one row at every width (21-native.css). */
 @media (max-width: 650px) {
-  .workspace-header {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 2px;
-  }
-
-  .header-controls {
-    align-items: stretch;
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .theme-control,
-  .history-control {
-    width: 100%;
-  }
-
-  .theme-control button,
-  .history-control button {
-    flex: 1;
-  }
-
-  .workbench {
-    border-radius: var(--radius-panel);
-  }
-
   .empty-state {
     width: 88%;
     padding: 42px 0 32px;
@@ -429,12 +341,7 @@ textarea:focus {
   }
 
   .page-heading {
-    align-items: flex-end;
     flex-direction: column;
-  }
-
-  .field-row {
-    grid-template-columns: 1fr 1fr;
   }
 
   .use-layout.has-inspector {
@@ -464,21 +371,8 @@ textarea:focus {
 
 }
 
+/* The status line ends on the window's bottom edge at every height (21-native.css). */
 @media (max-height: 720px) {
-  .workspace {
-    padding-bottom: 12px;
-  }
-
-  .status-bar {
-    min-height: 24px;
-    padding-top: var(--space-1);
-  }
-
-  .workspace-header {
-    min-height: 82px;
-    padding-block: 10px;
-  }
-
   .empty-state {
     padding: 24px 0;
   }
@@ -508,11 +402,9 @@ textarea:focus {
   }
 }
 
+/* The selected and pressed states keep their own marks there (21-native.css). */
 @media (forced-colors: active) {
-  .workbench,
-  .theme-control,
-  .history-control,
-  .nav-item.is-selected {
+  .workbench {
     border: 1px solid CanvasText;
   }
 }
@@ -579,16 +471,16 @@ textarea:focus {
 }
 
 .markdown-body code {
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-family: var(--mono);
   font-size: 0.92em;
   background: var(--surface-soft);
-  border-radius: 4px;
+  border-radius: var(--radius-control);
   padding: 0 0.25em;
 }
 
 .markdown-body pre {
   background: var(--surface-soft);
-  border-radius: 6px;
+  border-radius: var(--radius-small);
   padding: 8px 10px;
   overflow-x: auto;
 }
@@ -641,5 +533,5 @@ textarea:focus {
 .markdown-source textarea {
   margin-top: 6px;
   width: 100%;
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-family: var(--mono);
 }

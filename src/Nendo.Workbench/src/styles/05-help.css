@@ -23,7 +23,7 @@
 .help-topics button[aria-current] { background: var(--cobalt-soft); border-color: var(--line); color: var(--cobalt); }
 .help-topics button[hidden] { display: none; }
 .help-article { padding: 32px clamp(20px, 4vw, 60px); min-width: 0; min-height: 0; overflow-y: auto; overflow-wrap: anywhere; }
-.help-article h2:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; border-radius: 4px; }
+.help-article h2:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; border-radius: var(--radius-control); }
 .help-terms { margin: 0; }
 .help-terms > div { display: grid; grid-template-columns: minmax(150px, 240px) minmax(0, 1fr); gap: 4px 16px; padding: 8px 0; border-top: 1px solid var(--line); }
 .help-terms > div:first-child { border-top: 0; }
@@ -60,7 +60,6 @@
 .record-form [hidden] { display: none; }
 @media (max-width: 850px) {
   .help-page { grid-template-columns: 200px minmax(0, 1fr); }
-  .help-index { padding: 18px 12px; }
   .help-article { padding: 24px 18px; }
 }
 @media (max-width: 620px) {

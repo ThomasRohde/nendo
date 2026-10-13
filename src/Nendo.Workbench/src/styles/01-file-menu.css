@@ -19,7 +19,7 @@
 /* What the file is for, on its own. Dressed as the delete dialog is, because two modal
    panels in one app that disagree about their own border read as two applications. */
 .about-file-dialog { max-width: 34rem; padding: 2rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); }
-.about-file-dialog::backdrop { background: rgb(10 20 40 / 45%); }
+.about-file-dialog::backdrop { background: var(--scrim); }
 .about-file-dialog h2 { margin: 0 0 14px; overflow-wrap: anywhere; }
 /* Prose, so it wraps and keeps the breaks the author typed. */
 .about-file-purpose { margin: 0 0 20px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }

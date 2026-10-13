@@ -61,8 +61,8 @@
   animation: agent-working-pulse 1.4s ease-in-out infinite;
 }
 
-/* The text span must not be drawn as a second dot. */
-.status-pill[data-state="agent"] > span + span {
+/* The words must not be drawn as a second dot. */
+.status-pill > span + span {
   width: auto;
   height: auto;
   border-radius: 0;
@@ -265,12 +265,8 @@ code {
 
 .primary-button {
   border: 1px solid var(--cobalt);
-  color: #ffffff;
+  color: var(--on-accent);
   background: var(--cobalt);
-}
-
-:root[data-theme="dark"] .primary-button {
-  color: var(--canvas);
 }
 
 .primary-button:hover:not(:disabled) {
