@@ -23,6 +23,7 @@ public sealed partial class NendoWriteCoordinator
             }
             return await GetStore().PreviewNewFileAsync(cancellationToken);
         }
+        catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }
     }
 

@@ -107,7 +107,7 @@ internal sealed partial class SqliteNendoStore
         if (caller is not null && revisionOrigin != caller.Origin)
         {
             throw new NendoPreconditionException("revision-not-yours",
-                "This revision was not written by this view's package, so the view cannot undo it.");
+                "This revision was written by someone else, so it can be undone only from History.");
         }
         if (caller is { Redo: true } && !isCompensation)
         {
@@ -124,8 +124,10 @@ internal sealed partial class SqliteNendoStore
 
         var exactReplay = false;
         long? compensatedAt = null;
+        string? replayedName = null;
+        string? replayedRevision = null;
         await using (var existing = Command(
-                         "SELECT idempotency_scope, idempotency_key, change_sequence FROM __nendo_revision WHERE compensation_of_revision_id = @revisionId;",
+                         "SELECT idempotency_scope, idempotency_key, change_sequence, description, revision_id FROM __nendo_revision WHERE compensation_of_revision_id = @revisionId;",
                          null))
         {
             existing.Parameters.AddWithValue("@revisionId", revisionId);
@@ -141,7 +143,22 @@ internal sealed partial class SqliteNendoStore
                         "This revision already has a compensation revision.");
                 }
                 compensatedAt = reader.GetInt64(2);
+                // An exact retry is rebuilt byte for byte, its name included, whatever this host
+                // would call it now: a compensation an earlier host named "Compensate X" is
+                // still replayed rather than refused as an idempotency conflict.
+                replayedName = reader.GetString(3);
+                replayedRevision = reader.GetString(4);
             }
+        }
+        if (replayedRevision is not null)
+        {
+            // A retry of an undo that has itself been undone since would answer with a state the
+            // file no longer has; it is refused instead, so the caller reads the records again (R2RM-03).
+            await using var undone = Command("SELECT EXISTS(SELECT 1 FROM __nendo_revision WHERE compensation_of_revision_id = @revisionId);", null);
+            undone.Parameters.AddWithValue("@revisionId", replayedRevision);
+            if (Convert.ToInt64(await undone.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) != 0)
+                throw new NendoCompensationNotSupportedException(
+                    "This undo has itself been undone since, so it is not repeated. Read the records again before the next step.");
         }
 
         const string operationSql = """
@@ -171,7 +188,7 @@ internal sealed partial class SqliteNendoStore
         if (caller is not null && !recordChanges)
         {
             throw new NendoCompensationNotSupportedException(
-                "A view undoes record changes only, and this revision changes more than records.");
+                "Only record changes can be undone this way, and this revision changes more than records.");
         }
         if (recordChanges)
         {
@@ -182,27 +199,25 @@ internal sealed partial class SqliteNendoStore
             // retry rebuilds it byte for byte.
             var carried = await TakenBackLaterVersionsAsync(changeSequence, compensatedAt, cancellationToken);
             if (!exactReplay) await RequireMarksAsLeftAsync(operations, cancellationToken);
-            var named = caller is null
-                ? $"Compensate {description}"
-                : caller.Label ?? (caller.Redo ? "Redo " : "Undo ") + StepName(description, isCompensation);
+            var named = replayedName ?? caller?.Label ?? CompensationName(description, isCompensation);
             return new NendoMutation(scope, idempotencyKey, origin, named,
                 CreateCausalInverses(operations, idempotencyKey, scope, carried,
-                    await ReferenceTargetsAsync(cancellationToken))).Validate();
+                    await FieldsOfAsync(cancellationToken))).Validate();
         }
         if (operations.Count >= 1 && operations.All(operation => IsExtensionOperation(operation.Type)))
         {
             // A package usually arrives with its files in one change, so a revision of
             // package operations is reversed as a whole, files before the package.
             return new NendoMutation("studio.p2.compensation", idempotencyKey, "studio",
-                $"Compensate {description}", CreateExtensionInverses(operations, idempotencyKey)).Validate();
+                replayedName ?? CompensationName(description, isCompensation), CreateExtensionInverses(operations, idempotencyKey)).Validate();
         }
         if (operations.Count > 1)
         {
             // Record changes were reversed above, as a whole; this names what else the revision holds.
             var inverses = CreateCausalInverses(operations, idempotencyKey, "studio.p2.compensation",
-                new Dictionary<(string Entity, string Record), long>(), await ReferenceTargetsAsync(cancellationToken));
+                new Dictionary<(string Entity, string Record), long>(), await FieldsOfAsync(cancellationToken));
             return new NendoMutation("studio.p2.compensation", idempotencyKey, "studio",
-                $"Compensate {description}", inverses).Validate();
+                replayedName ?? CompensationName(description, isCompensation), inverses).Validate();
         }
         if (operations.Count != 1)
         {
@@ -210,12 +225,17 @@ internal sealed partial class SqliteNendoStore
                 "Compensation requires one supported operation or a form edit of up to 64 fields on one record.");
         }
         var original = operations[0];
+        // Every definition inverse but a package's expects the definition as the revision left
+        // it, so only the latest definition change is undone. Refused here in words a person can
+        // act on, not by the inverse's agent-facing "Use expectedDefinitionRevision" (R2RM-02).
+        if (!exactReplay && lane == NendoRevisionLane.Definition.ToString() && !IsExtensionOperation(original.Type))
+            await RequireDefinitionAsLeftAsync(definitionAfter, cancellationToken);
         if (original.Type == "ui.removeNode")
         {
             var restored = await CreateExtensionRemovalInverseAsync(revisionId, original.Evidence,
                 idempotencyKey, exactReplay, cancellationToken);
             return new NendoMutation("studio.p2.compensation", idempotencyKey, "studio",
-                $"Compensate {description}", restored).Validate();
+                replayedName ?? CompensationName(description, isCompensation), restored).Validate();
         }
         if (original.Reversibility == NendoReversibilityClass.IrreversibleDeclared.ToString())
         {
@@ -261,18 +281,25 @@ internal sealed partial class SqliteNendoStore
             "studio.p2.compensation",
             idempotencyKey,
             "studio",
-            $"Compensate {description}",
+            replayedName ?? CompensationName(description, isCompensation),
             [inverse]).Validate();
     }
 
     /// <summary>
-    /// What a view's undo or redo is called when the view gives no label: the gesture's own name,
-    /// without the Undo or Redo an earlier step of the chain put in front of it.
+    /// What a compensation is called when its caller gives no label, for History, a view and an
+    /// agent alike: the undo of a change is "Undo X", the undo of an undo is "Redo X", and the
+    /// undo of a redo is "Undo X" again, matching History's Undo button. History named every link
+    /// "Compensate ...", so a redo read "Compensate Compensate X", and an agent's redo was named
+    /// "Undo X", the same as the undo it reversed (R2RM-08).
     /// </summary>
-    private static string StepName(string description, bool isCompensation) =>
-        isCompensation && (description.StartsWith("Undo ", StringComparison.Ordinal) || description.StartsWith("Redo ", StringComparison.Ordinal))
-            ? description[5..]
-            : description;
+    internal static string CompensationName(string description, bool isCompensation)
+    {
+        if (!isCompensation) return "Undo " + description;
+        if (description.StartsWith("Undo ", StringComparison.Ordinal)) return "Redo " + description[5..];
+        if (description.StartsWith("Redo ", StringComparison.Ordinal)) return "Undo " + description[5..];
+        // An earlier host named a compensation "Compensate X"; a labelled one keeps its label.
+        return description.StartsWith("Compensate ", StringComparison.Ordinal) ? "Redo " + description[11..] : "Redo " + description;
+    }
 
     /// <summary>
     /// The most operations one compensation may reverse together: everything one batch of record
@@ -305,8 +332,9 @@ internal sealed partial class SqliteNendoStore
         string idempotencyKey,
         string scope,
         IReadOnlyDictionary<(string Entity, string Record), long> carried,
-        Func<string, string, string?> referenceTargetOf)
+        Func<string, string, FieldMapping?> fieldOf)
     {
+        string? referenceTargetOf(string entity, string field) => fieldOf(entity, field)?.Reference?.TargetEntityId;
         if (operations.Count > MaximumCausalInverses)
         {
             throw new NendoCompensationNotSupportedException(
@@ -389,7 +417,28 @@ internal sealed partial class SqliteNendoStore
             if (operation.Type == "data.deleteRecord")
             {
                 var deletedVersion = evidence.RootElement.GetProperty("deletedVersion").GetInt64();
-                inverses.Add(new RestoreDeletedRecordOperation(operationId, entityId, recordId, deletedVersion));
+                // A target the revision also wrote -- a parent whose count the deletion's automatic
+                // action updated, or one a batch edited after the delete -- is at the version the
+                // planned inverses leave it when the restore runs, as for a reference put back
+                // below. Recorded at the delete, it refused every such undo (ESS-02).
+                var planned = new SortedDictionary<string, long>(StringComparer.Ordinal);
+                if (evidence.RootElement.TryGetProperty("targetVersions", out var recordedTargets) &&
+                    evidence.RootElement.TryGetProperty("values", out var held))
+                {
+                    foreach (var recorded in recordedTargets.EnumerateObject())
+                    {
+                        if (!held.TryGetProperty(recorded.Name, out var pointedAt) || pointedAt.ValueKind != JsonValueKind.String ||
+                            referenceTargetOf(entityId, recorded.Name) is not { } pointedEntity) continue;
+                        var pointedKey = (pointedEntity, pointedAt.GetString()!);
+                        long? plannedAt = versions.TryGetValue(pointedKey, out var leftThere) ? leftThere
+                            : carried.TryGetValue(pointedKey, out var carriedThere) ? carriedThere : null;
+                        // Only where it differs, so a restore the recorded version already serves
+                        // keeps the shape, and the digest, an earlier host gave it.
+                        if (plannedAt is { } differs && differs != recorded.Value.GetInt64()) planned[recorded.Name] = differs;
+                    }
+                }
+                inverses.Add(new RestoreDeletedRecordOperation(operationId, entityId, recordId, deletedVersion)
+                    { PlannedTargetVersions = planned.Count == 0 ? null : planned });
                 versions[key] = checked(deletedVersion + 1);
                 continue;
             }
@@ -416,9 +465,18 @@ internal sealed partial class SqliteNendoStore
             {
                 targetVersion = carriedTarget;
             }
-            // The inverse of a backfill is itself a backfill, so it too may touch a
-            // retired field. A plain data.setField would refuse with "field-retired".
-            inverses.Add(operation.Type == "data.backfillRetiredField"
+            // The inverse of a backfill on a field still retired is itself a backfill, so it too may
+            // touch the retired field; a plain data.setField would refuse with "field-retired". Once
+            // the field is active again -- the Reactivate form fills it and reactivates it in one
+            // proposal -- putting the value back is an ordinary edit, and a backfill refused it as
+            // field-not-retired. A required field cannot take its empty value back, and says so
+            // rather than failing on the null (R2RM-04).
+            var backfilled = operation.Type == "data.backfillRetiredField" ? fieldOf(entityId, fieldId) : null;
+            if (backfilled is { Retired: false, Required: true } && previous.ValueKind == JsonValueKind.Null)
+                throw new NendoCompensationNotSupportedException(
+                    $"{backfilled.DisplayName} is required now, so the values filled in to make it active again stay. " +
+                    $"Make {backfilled.DisplayName} optional, then undo this again.");
+            inverses.Add(operation.Type == "data.backfillRetiredField" && backfilled is not { Retired: false }
                 ? new BackfillRetiredFieldOperation(operationId, entityId, recordId, fieldId, version, previous, targetVersion)
                 : new SetFieldOperation(operationId, entityId, recordId, fieldId, version, previous, targetVersion));
             versions[key] = checked(version + 1);
@@ -440,14 +498,14 @@ internal sealed partial class SqliteNendoStore
     /// evidence does not hold, and its inverse refuses as before.
     /// </para>
     /// </summary>
-    /// <summary>The record type each reference field points at, by (record type, field).</summary>
-    private async Task<Func<string, string, string?>> ReferenceTargetsAsync(CancellationToken cancellationToken)
+    /// <summary>Each field as the file declares it now, by (record type, field): what it points at, and whether it is retired or required.</summary>
+    private async Task<Func<string, string, FieldMapping?>> FieldsOfAsync(CancellationToken cancellationToken)
     {
-        var targets = new Dictionary<(string Entity, string Field), string>();
+        var fields = new Dictionary<(string Entity, string Field), FieldMapping>();
         foreach (var entity in await ReadEntityMappingsAsync(null, cancellationToken))
             foreach (var field in entity.Fields)
-                if (field.Reference is { } reference) targets[(entity.EntityId, field.FieldId)] = reference.TargetEntityId;
-        return (entityId, fieldId) => targets.TryGetValue((entityId, fieldId), out var target) ? target : null;
+                fields[(entity.EntityId, field.FieldId)] = field;
+        return (entityId, fieldId) => fields.TryGetValue((entityId, fieldId), out var field) ? field : null;
     }
 
     private async Task<IReadOnlyDictionary<(string Entity, string Record), long>> TakenBackLaterVersionsAsync(
@@ -527,18 +585,19 @@ internal sealed partial class SqliteNendoStore
                 $"The {operationType} on record {recordId} retained no prior value, so it cannot be reversed.");
 
     /// <summary>
-    /// A screen edit is reversed only while the definition still stands as that revision left
-    /// it, as every other definition inverse is. A screen operation carries no expected revision
-    /// of its own, so the revision's is compared here: going back over later edits could bring
-    /// back a field a later revision retired, and every custom screen with it (ESM-04).
+    /// A definition change is reversed only while the definition still stands as that revision
+    /// left it. A screen operation carries no expected revision of its own, so the revision's is
+    /// compared here: going back over later edits could bring back a field a later revision
+    /// retired, and every custom screen with it (ESM-04). Every other definition inverse expects
+    /// the revision it left, and refused a later one with agent-facing text (R2RM-02).
     /// </summary>
     private async Task RequireDefinitionAsLeftAsync(long definitionAfter, CancellationToken cancellationToken)
     {
         var current = (await ReadManifestAsync(null, cancellationToken)).DefinitionRevision;
         if (current != definitionAfter)
             throw new NendoCompensationNotSupportedException(
-                $"The definition changed after the selected revision (it is at revision {current}, and the selected revision left it at {definitionAfter}), " +
-                "so this screen edit cannot be reversed safely. Change the screen in a new proposal instead.");
+                "Only the latest change to the file's structure can be undone, and the structure has changed since this one " +
+                $"(it is at revision {current}; this change left it at {definitionAfter}). Make the change you want in a new proposal instead.");
     }
 
     /// <summary>A node added on its own goes again, while nothing in the definition has changed since (ESM-12).</summary>

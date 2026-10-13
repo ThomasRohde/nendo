@@ -155,6 +155,9 @@ internal sealed partial class SqliteNendoStore
     internal async Task<NendoHistoryFoldPreview> PreviewHistoryFoldAsync(HistoryFoldPolicy policy, CancellationToken ct)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
+        // Like every read of the active file, it fixes a snapshot and checks the change token first,
+        // so an outside commit taints the session rather than being shown as Nendo's (ESC-08).
+        _ = await ReadAuthoritySnapshotAsync(transaction, ct);
         var (plan, reason) = await PlanHistoryFoldAsync(policy, transaction, ct);
         var rows = plan?.OperationRows ?? Convert.ToInt64(await ScalarAsync("SELECT COUNT(*) FROM __nendo_operation;", transaction, ct), CultureInfo.InvariantCulture);
         var previous = plan?.Previous ?? await ReadLatestHistoryFoldAsync(transaction, ct);
@@ -178,7 +181,7 @@ internal sealed partial class SqliteNendoStore
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentException.ThrowIfNullOrWhiteSpace(backupLabel);
-        using var transaction = _connection.BeginTransaction(deferred: false);
+        using var transaction = BeginWriteTransaction();
         var committed = false;
         try
         {
@@ -207,9 +210,17 @@ internal sealed partial class SqliteNendoStore
             return (new NendoHistoryFoldResult(checkpointId, plan.Last.ChangeSequence, plan.Revisions, plan.Operations,
                 plan.OperationRows, remaining, backupLabel, now), committedAuthority);
         }
-        catch
+        catch (Exception exception)
         {
-            if (!committed) transaction.Rollback();
+            if (!committed)
+            {
+                transaction.Rollback();
+                // A protected table the fold created goes with the rollback; the flag that
+                // remembers it does not, and a later read then asked for a table that is not there.
+                ForgetBehaviourTableCache();
+                // The fold runs on the open file, which another program can hold too (ESC-06).
+                if (IsBusy(exception)) throw FileBusy();
+            }
             throw;
         }
     }

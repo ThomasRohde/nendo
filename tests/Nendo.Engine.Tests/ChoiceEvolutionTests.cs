@@ -54,7 +54,9 @@ public sealed class ChoiceEvolutionTests
         var rename = await coordinator.ApplyAsync(Mutation("rename", new("rename", "entry", "status", "new", "Fresh", false, before.Manifest.DefinitionRevision)));
         var renamed = await service.GetSnapshotAsync();
         await coordinator.ApplyAsync(Mutation("later", new("later", "entry", "status", "done", "Completed", false, renamed.Manifest.DefinitionRevision)));
-        await Code("definition-version-conflict", () => service.CompensateRevisionAsync(rename.RevisionId, "stale"));
+        // Only the latest structure change is undone, and the refusal says so in words (R2RM-02).
+        StringAssert.StartsWith((await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() => service.CompensateRevisionAsync(rename.RevisionId, "stale"))).Message,
+            "Only the latest change to the file's structure can be undone");
     }
     private static NendoMutation Mutation(string key, SetChoiceMetadataOperation operation) => new("test", key, "test", key, [operation]);
     private static async Task Code(string code, Func<Task> action) => Assert.AreEqual(code,

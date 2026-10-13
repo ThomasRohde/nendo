@@ -52,6 +52,13 @@ ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-
 ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
 ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
 
+- **ADR-0012, 2026-10-13 — an interrupted write is rolled back when the person opens the
+  file**: a lone rollback journal a crashed writer left is played back by SQLite itself only
+  on the person's own open of that file, never in a synced folder, only once plain reads show
+  it could be the file's and SQLite reports it hot, and always after keeping the file and
+  journal under names SQLite does not pair; the kept copy is named until the person removes it,
+  since a copy of the same file can leave a journal SQLite cannot tell apart. Anything else is
+  refused untouched, with its reason (ESC-01, W-212).
 - **ADR-0004, 2026-10-13 — a screen property can be cleared**: `ui.removeProperty` takes
   one property off a node and is the undo of a property's first value, so History offers Undo
   on every `ui.setProperty` (ESM-11, W-205). Host 1.48.0.

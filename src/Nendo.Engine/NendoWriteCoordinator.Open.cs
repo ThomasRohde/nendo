@@ -11,16 +11,109 @@ public sealed partial class NendoWriteCoordinator
     public static async Task<NendoFileInspection> InspectAsync(
         string path,
         CancellationToken cancellationToken = default) =>
-        (await SqliteNendoStore.InspectAsync(ValidatePath(path), cancellationToken)).Inspection;
+        (await InspectToOpenAsync(ValidatePath(path), NendoInterruptedWrite.Refuse, cancellationToken)).Inspection;
 
-    public static async Task<NendoFileObservation> ObserveAsync(string path, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Inspects a file a host is about to open (ADR-0012, 2026-10-13, ESC-01). A save a crash left
+    /// unfinished is rolled back only when the host says the person opened this file themselves,
+    /// outside a synced folder; anything else refuses it untouched, saying why. A copy kept before
+    /// an earlier playback is named on every inspection until the person removes it.
+    /// </summary>
+    private static async Task<InspectedNendoFile> InspectToOpenAsync(string fullPath, NendoInterruptedWrite interruptedWrite,
+        CancellationToken cancellationToken)
+    {
+        var inspected = SqliteNendoStore.HasLoneRollbackJournal(fullPath)
+            ? await InterruptedWriteAsync(fullPath, interruptedWrite, cancellationToken)
+            : await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+        var held = SqliteNendoStore.HeldStages(fullPath);
+        return held.Length == 0 ? inspected : inspected with
+        {
+            Inspection = inspected.Inspection with
+            {
+                Findings = [.. inspected.Inspection.Findings, .. held.Select(SqliteNendoStore.HeldStageFinding)],
+            },
+        };
+    }
+
+    /// <summary>
+    /// A lone rollback journal beside the file. SQLite's format cannot tell this file's journal from
+    /// one a copy of the same file left, so the playback runs only on the person's own open outside a
+    /// synced folder, after checks that rule out another file's journal, under the file's
+    /// write-ownership lease, and after the file and journal are kept beside it. The kept copy is
+    /// never removed automatically once anything was played back.
+    /// </summary>
+    private static async Task<InspectedNendoFile> InterruptedWriteAsync(string fullPath, NendoInterruptedWrite interruptedWrite,
+        CancellationToken cancellationToken)
+    {
+        if (interruptedWrite != NendoInterruptedWrite.RollBack)
+            return SqliteNendoStore.JournalRefusal(interruptedWrite == NendoInterruptedWrite.RefuseInSyncedFolder
+                ? SqliteNendoStore.JournalSyncedFolderText
+                : SqliteNendoStore.JournalOpenToRollBackText);
+        var check = await SqliteNendoStore.CheckInterruptedWriteAsync(fullPath, cancellationToken);
+        if (check.Verdict == SqliteNendoStore.JournalVerdict.Gone) return await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+        if (check.Verdict == SqliteNendoStore.JournalVerdict.Refused) return SqliteNendoStore.JournalRefusal(check.Message!);
+        WriteOwnershipLease lease;
+        try
+        {
+            lease = WriteOwnershipLease.Acquire(fullPath, $"interrupted-write-{Environment.ProcessId}");
+        }
+        catch (NendoWriteOwnershipException exception)
+        {
+            return SqliteNendoStore.JournalRefusal(exception.Code == "write-ownership-denied"
+                ? SqliteNendoStore.JournalFolderReadOnlyText
+                : SqliteNendoStore.JournalAnotherWindowText);
+        }
+        using (lease)
+        {
+            if (check.Verdict == SqliteNendoStore.JournalVerdict.Empty)
+            {
+                // Nothing to roll back: the file was never changed, so nothing needs keeping.
+                var notCleared = await SqliteNendoStore.ClearEmptyJournalAsync(fullPath, cancellationToken);
+                return notCleared is null
+                    ? await SqliteNendoStore.InspectAsync(fullPath, cancellationToken)
+                    : SqliteNendoStore.JournalRefusal(notCleared);
+            }
+            var held = SqliteNendoStore.HeldStagePath(fullPath);
+            try
+            {
+                await SqliteNendoStore.KeepBeforePlaybackAsync(fullPath, held, cancellationToken);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // A host that rolled the journal back meanwhile leaves a file to inspect as it is.
+                if (!File.Exists(fullPath + "-journal")) return await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+                return SqliteNendoStore.JournalRefusal(SqliteNendoStore.JournalCouldNotKeepText(exception));
+            }
+            try
+            {
+                var failure = await SqliteNendoStore.RollBackHotJournalAsync(fullPath, cancellationToken);
+                if (File.Exists(fullPath + "-journal"))
+                    return SqliteNendoStore.JournalRefusal(failure ?? SqliteNendoStore.JournalWriterText);
+                return await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+            }
+            finally
+            {
+                // Only a playback that did not happen leaves the kept copy without purpose; once
+                // anything was played back, a throw included, the copy stays for the person.
+                if (File.Exists(fullPath + "-journal")) SqliteNendoStore.DiscardHeldStage(held);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Observes a file the host is about to open, saying whether the person opened it themselves
+    /// and where (<see cref="NendoInterruptedWrite"/>): only then may a save a crash left unfinished
+    /// be rolled back.
+    /// </summary>
+    public static async Task<NendoFileObservation> ObserveAsync(string path, NendoInterruptedWrite interruptedWrite,
+        CancellationToken cancellationToken = default)
     {
         var fullPath = ValidatePath(path);
         try
         {
             using var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
             var identity = LocalFileIdentity.Read(pin);
-            var inspected = await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+            var inspected = await InspectToOpenAsync(fullPath, interruptedWrite, cancellationToken);
             return new(inspected.Inspection, identity.Key, inspected.ContentDigest);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -29,6 +122,9 @@ public sealed partial class NendoWriteCoordinator
             return new(inspected.Inspection, null, null);
         }
     }
+
+    public static Task<NendoFileObservation> ObserveAsync(string path, CancellationToken cancellationToken = default) =>
+        ObserveAsync(path, NendoInterruptedWrite.Refuse, cancellationToken);
 
     /// <summary>
     /// Which file this is and which application it declares, without inspecting it: no
@@ -76,7 +172,7 @@ public sealed partial class NendoWriteCoordinator
         var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         try
         {
-            var observed = await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+            var observed = await InspectToOpenAsync(fullPath, NendoInterruptedWrite.Refuse, cancellationToken);
             if (observation is not null &&
                 (observation.PhysicalFileKey != LocalFileIdentity.Read(pin).Key ||
                  observation.Inspection.Manifest != observed.Inspection.Manifest ||
@@ -211,15 +307,15 @@ public sealed partial class NendoWriteCoordinator
                 // observation. Classifying them a second time was the largest cost of
                 // an open (W-026). The pinned file's physical facts are checked here,
                 // and once the write lease is held the content digest must equal the
-                // observed one and SQLite's integrity check must pass, so a file that
-                // changed in between is refused rather than trusted.
+                // observed one, and the first authority read runs SQLite's integrity
+                // check, so a file that changed in between is refused rather than trusted.
                 SqliteNendoStore.RequireUnchangedPhysicalFile(fullPath, pathPin);
                 inspection = observation!.Inspection;
                 expectedDigest = observation.ContentDigest!;
             }
             else
             {
-                var inspected = await SqliteNendoStore.InspectAsync(fullPath, cancellationToken);
+                var inspected = await InspectToOpenAsync(fullPath, NendoInterruptedWrite.Refuse, cancellationToken);
                 if (!inspected.Inspection.CanAcquireWriteAuthority)
                 {
                     throw new NendoFileOpenException(inspected.Inspection);
@@ -242,8 +338,8 @@ public sealed partial class NendoWriteCoordinator
             var authority = await store.GetAuthoritySnapshotAsync(cancellationToken);
             if (authority.InstanceId != expectedInstance || await store.GetContentDigestAsync(cancellationToken) != expectedDigest)
                 throw new NendoPreconditionException("file-changed-before-open", "The selected instance changed before authority was established.");
-            if (confirming && !await store.PassesIntegrityCheckAsync(cancellationToken))
-                throw new NendoPreconditionException("file-changed-before-open", "The selected file no longer passes its integrity check. Review it again before opening.");
+            // The cold authority read above has just run SQLite's integrity_check on this
+            // connection and refused anything but ok; a second scan here bought nothing (ESC-09).
             var opened = new NendoWriteCoordinator(fullPath, ownership, instanceOwnership, pathPin, store, authority)
             {
                 _inspection = inspection with

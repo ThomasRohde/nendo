@@ -1156,7 +1156,7 @@ test('a view undoes and redoes only what this frame wrote, as the mount’s pack
   await until(() => h.calls.length === 2, 'the undo');
   assert.equal(h.calls[1].method, 'data.undoRecordWrites');
   assert.equal(h.calls[1].payload.actor, 'extension:org.example.glance', 'The undo was not made in the name of the mount’s package.');
-  assert.match(h.calls[1].payload.idempotencyKey, /^view-[0-9a-f-]{36}$/, 'The view chose its own idempotency key.');
+  assert.equal(h.calls[1].payload.idempotencyKey, 'view-org.example.glance-undo-revision-made', 'The view chose its own idempotency key.');
   assert.equal(h.calls[1].payload.revisionId, 'revision-made');
   assert.equal(h.calls[1].payload.redo, false);
   h.pending[1].resolve({ mutation: { revisionId: 'revision-undone' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: null }] });
@@ -1168,6 +1168,27 @@ test('a view undoes and redoes only what this frame wrote, as the mount’s pack
   await until(() => h.calls.length === 3, 'the redo');
   assert.equal(h.calls[2].payload.redo, true);
   assert.equal(h.calls[2].payload.label, 'Make it again');
+});
+
+test('R2RM-03: an undo whose answer was lost is sent again as the same request, and its redo can then be reached', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
+  await until(() => h.calls.length === 1, 'the batch');
+  h.pending[0].resolve({ mutation: { revisionId: 'revision-made' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: 1 }] });
+  await view.next((message) => message.id === 1);
+  view.send({ t: 'req', id: 2, m: 'records.undo', p: { revision: 'revision-made' } });
+  await until(() => h.calls.length === 2, 'the undo');
+  h.pending[1].reject(Object.assign(new Error('The Desktop host did not respond.'), { code: 'host-timeout' }));
+  assert.equal((await view.next((message) => message.id === 2)).ok, false);
+  view.send({ t: 'req', id: 3, m: 'records.undo', p: { revision: 'revision-made' } });
+  await until(() => h.calls.length === 3, 'the undo sent again');
+  assert.equal(h.calls[2].payload.idempotencyKey, h.calls[1].payload.idempotencyKey,
+    'An undo sent again after a lost answer carried a new key, so the host refused it as already compensated.');
+  h.pending[2].resolve({ mutation: { revisionId: 'revision-undone', isIdempotentReplay: true }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: null }] });
+  assert.equal((await view.next((message) => message.id === 3)).r.revision, 'revision-undone');
+  view.send({ t: 'req', id: 4, m: 'records.redo', p: { revision: 'revision-undone' } });
+  await until(() => h.calls.length === 4, 'the redo of the replayed undo');
+  assert.equal(h.calls[3].payload.idempotencyKey, 'view-org.example.glance-redo-revision-undone');
 });
 
 test('R-011: a batch sent again under its writeKey carries the same idempotency key, scoped to the package', async (t) => {

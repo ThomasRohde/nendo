@@ -18,8 +18,12 @@ public sealed class UndoRevisionToolTests
     {
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateIdeaGardenAsync();
+        var failures = new List<NendoAgentFailure>();
         await using var host = await NendoLocalMcpHost.StartAsync(
-            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+            workspace.Service, AgentAccessMode.DataMutation, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot)
+            {
+                RecordFailure = failure => { lock (failures) failures.Add(failure); },
+            });
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var grant = await CallAsync<NendoLeaseGrant>(client, "nendo.lease.acquire");
         var session = new Dictionary<string, object?>(StringComparer.Ordinal) { ["applicationHandle"] = grant.ApplicationHandle, ["leaseId"] = grant.LeaseId };
@@ -52,6 +56,15 @@ public sealed class UndoRevisionToolTests
         Assert.IsTrue(replayed.IsIdempotentReplay);
         Assert.AreEqual(undone.RevisionId, replayed.RevisionId);
 
+        // Another key for the same revision is a refusal the agent can read, not a host fault (R2RM-01).
+        var twice = await client.CallToolAsync("nendo.data.undo_revision", new Dictionary<string, object?>(session)
+        {
+            ["revisionId"] = written.RevisionId, ["idempotencyKey"] = "undo-own-write-again",
+        });
+        Assert.IsTrue(twice.IsError);
+        StringAssert.EndsWith(Text(twice), "NENDO_COMPENSATION_NOT_SUPPORTED: This revision already has a compensation revision.",
+            StringComparison.Ordinal, "An undo the Engine refused reached the agent as something else.");
+
         // The person's own write is not the agent's to undo.
         var theirs = await workspace.Service.SetFieldAsync(new NendoSetFieldRequest(
             NendoApplicationService.IdeaEntityId, "idea-002", NendoApplicationService.IdeaTitleFieldId, 1, "Theirs", new("workbench", "their-write", "workbench")));
@@ -74,7 +87,9 @@ public sealed class UndoRevisionToolTests
             ["revisionId"] = definition.RevisionId, ["idempotencyKey"] = "undo-definition",
         });
         Assert.IsTrue(shaped.IsError, "A definition revision is not a record revision to undo.");
-        StringAssert.Contains(Text(shaped), "NENDO_", StringComparison.Ordinal);
+        StringAssert.EndsWith(Text(shaped),
+            "NENDO_REVISION_NOT_YOURS: This revision was written by someone else, so it can be undone only from History.", StringComparison.Ordinal);
+        lock (failures) Assert.IsEmpty(failures, "A refused undo was written to the device's failure record as a fault.");
         Assert.HasCount(before + 2, await workspace.Service.GetHistoryAsync(), "The refusals committed nothing.");
 
         // The undo of a create deletes the record it made, and that undo can be undone (redo).
@@ -93,6 +108,21 @@ public sealed class UndoRevisionToolTests
         var redone = await CallAsync<NendoDataWritesResult>(client, "nendo.data.undo_revision", new(session) { ["revisionId"] = removed.RevisionId, ["idempotencyKey"] = "redo-create" });
         Assert.IsNotNull(redone.Records.Single().RecordVersion);
         Assert.HasCount(1, (await workspace.Service.QueryRecordsAsync(new(NendoApplicationService.IdeaEntityId, 1) { RecordId = "idea-new" })).Items);
+    }
+
+    /// <summary>
+    /// R2RM-01: every refusal an undo can meet reaches the agent by its own code and message,
+    /// and none is reported as a fault of the host.
+    /// </summary>
+    [TestMethod]
+    public void AnUndoRefusalIsTranslatedByItsCodeAndMessage()
+    {
+        Assert.AreEqual("NENDO_COMPENSATION_NOT_SUPPORTED: This revision already has a compensation revision.",
+            NendoToolErrors.Translate(new NendoCompensationNotSupportedException("This revision already has a compensation revision.")).Message);
+        Assert.AreEqual("NENDO_DELETION_STATE_CONFLICT: This record is no longer in the selected deleted state.",
+            NendoToolErrors.Translate(new NendoPreconditionException("deletion-state-conflict", "This record is no longer in the selected deleted state.")).Message);
+        Assert.AreEqual("NENDO_FIELD_NOT_RETIRED: This repair operation requires a retired field.",
+            NendoToolErrors.Translate(new NendoPreconditionException("field-not-retired", "This repair operation requires a retired field.")).Message);
     }
 
     private static string Text(CallToolResult result) =>

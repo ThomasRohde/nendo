@@ -102,9 +102,10 @@ and their cursors.
    observation, from a full inspection, so the pinned file's physical facts are
    checked instead: no journal or WAL sidecar, within the size bound, a
    rollback-journal header. Under the write lease, the content digest must
-   equal the observed one, and SQLite's `integrity_check` runs on the writable
-   connection. Any difference refuses with `file-changed-before-open`, and the
-   host inspects again. An open without an observation still classifies once.
+   equal the observed one, and the writable connection's first, cold authority
+   read runs SQLite's `integrity_check` and refuses anything but `ok`; until
+   2026-10-13 a second, uncounted scan followed it (ESC-09). Any difference
+   refuses with `file-changed-before-open`, and the host inspects again. An open without an observation still classifies once.
    During advisory recent-file collision checks, Desktop does not observe the
    same physical candidate a second time. When it records that successful open,
    it reuses the exact observation that the Engine checked. Desktop still
@@ -197,6 +198,14 @@ uses `nendo.health.verify_integrity`. This scans only when the file has changed
 since the last scan. Otherwise it returns the recorded result unchanged.
 Read-only/recovery sessions direct users to explicit reinspection. Open,
 classification, staged copy and recovery checks stay full validations.
+Inspection writes nothing, with one exception (ADR-0012, 2026-10-13): when the host says the
+person opened this file themselves outside a synced folder (`NendoInterruptedWrite.RollBack`),
+and a lone rollback journal beside it could, by plain reads, be the file's, and a read-only
+SQLite connection reports it hot, SQLite plays it back on one read-write connection under the
+write-ownership lease, after the file and journal are kept beside it under names SQLite does not
+pair; the kept copy is never removed automatically. On that same open a journal that holds
+nothing to roll back is removed under the RESERVED lock. Every other observation, the
+recent-file collision check and a backup chosen for Restore included, refuses untouched.
 Instrumentation counts full reads, integrity checks and definition compilations.
 It is internal test/benchmark evidence and is not an adapter API.
 

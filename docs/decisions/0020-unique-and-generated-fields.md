@@ -295,6 +295,26 @@ starts without the source's work, so each sequence restarts one past the highest
 records hold, or at 1. It is the one place a sequence goes down: inside the file the number is
 still never reused, and the new file holds none of the records the higher numbers named.
 
+## Note — 2026-10-13: deleted numbers and colliding index names (W-212)
+
+The owner pre-accepts ADR changes; this note records two corrections the broad review found.
+
+- **A deleted record's number stays spent across a re-declaration (ESS-03).** Item 4 says the
+  mark starts "from the largest existing value of that shape" and that a number "is never
+  reused, even after its record is deleted". Removing a sequence clears its row, so a later
+  declaration seeded from live records alone and handed out the number of a deleted record
+  again. A declaration now also reads the codes deleted records keep in deletion history, so
+  the second sentence holds in that case too, and an undo of the deletion still restores its
+  own code.
+- **A unique index never takes another table's name (ESS-04).** Item 3 names the index
+  `nendo_unique_<table>_<column>`. Physical names may hold underscores, so `task.due_code` and
+  `task_due.code` give the same name, and `IF NOT EXISTS` left the second field without its
+  backstop index; stopping its uniqueness then dropped the first field's index. When the name
+  belongs to another table, the index takes the field ID's digest as a suffix, and a field's
+  uniqueness drops only its own table's index. Existing indexes keep their names, so the layout
+  and the host version do not change. A file that already lost an index to a collision gets it
+  back when the field is declared unique again.
+
 ## Consequences
 
 ### Positive

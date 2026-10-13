@@ -70,7 +70,8 @@ file, and says the record ID is reserved.
 
 | Operation | Its compensation |
 | --- | --- |
-| `data.setField`, `data.backfillRetiredField` | The same operation with the retained previous value |
+| `data.setField` | The same operation with the retained previous value |
+| `data.backfillRetiredField` | The same operation with the retained previous value while the field is still retired; a plain `data.setField` once it is active again, refused in words when the field is required and the value was empty (W-212, R2RM-04) |
 | `data.deleteRecord` | `data.restoreDeletedRecord` at the deleted version |
 | `data.createRecord` | `data.deleteRecord` at the version the revision left |
 | `data.restoreDeletedRecord` | `data.deleteRecord` at the restored version |

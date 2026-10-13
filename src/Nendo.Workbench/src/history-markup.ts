@@ -6,8 +6,21 @@ import type { EntitySnapshot, OperationAttribution, StoredOperationSnapshot } fr
  * automatic action made says which one; Help and the guides said History records that
  * before the entry drew it (2026-10-10).
  */
-export function operationDetailsMarkup(operations: readonly StoredOperationSnapshot[], entities: readonly EntitySnapshot[] = []): string {
-  return `<ul class="operation-details">${operations.map(operation => `<li>${escapeHtml(operationSentence(operation, entities))} · ${escapeHtml(reversibilityLabel(operation.reversibility))}${operation.attribution ? ` · <span class="operation-attribution">${escapeHtml(attributionLabel(operation.attribution))}</span>` : ''}</li>`).join('')}</ul>`;
+export function operationDetailsMarkup(operations: readonly StoredOperationSnapshot[], entities: readonly EntitySnapshot[] = [], offered = false): string {
+  return `<ul class="operation-details">${operations.map(operation => `<li>${escapeHtml(operationSentence(operation, entities))} · ${escapeHtml(historyReversibilityLabel(operation, offered))}${operation.attribution ? ` · <span class="operation-attribution">${escapeHtml(attributionLabel(operation.attribution))}</span>` : ''}</li>`).join('')}</ul>`;
+}
+
+/**
+ * What History can do about one operation. A created record and a record an undo brought back
+ * declare themselves irreversible, because the record ID stays reserved, yet History undoes both
+ * by deleting the record (ADR-0023); "Cannot be undone" beside a working Undo button contradicted
+ * it (R2RM-05). Only where History offers the Undo: elsewhere the class stands. The review before
+ * a proposal is accepted keeps the class as it is.
+ */
+export function historyReversibilityLabel(operation: Pick<StoredOperationSnapshot, 'operationType' | 'reversibility'>, offered: boolean): string {
+  return offered && (operation.operationType === 'data.createRecord' || operation.operationType === 'data.restoreDeletedRecord')
+    ? 'Undone by deleting the record; its ID stays reserved'
+    : reversibilityLabel(operation.reversibility);
 }
 
 /**

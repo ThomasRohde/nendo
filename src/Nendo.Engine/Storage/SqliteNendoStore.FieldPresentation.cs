@@ -29,7 +29,7 @@ internal sealed partial class SqliteNendoStore
 
         await using (var update = Command("UPDATE __nendo_field SET presentation = @presentation WHERE field_id = @field;", transaction))
         {
-            update.Parameters.AddWithValue("@presentation", operation.Presentation);
+            update.Parameters.AddWithValue("@presentation", operation.RestoresNone ? DBNull.Value : operation.Presentation);
             update.Parameters.AddWithValue("@field", field.FieldId);
             await update.ExecuteNonQueryAsync(ct);
         }
@@ -51,10 +51,13 @@ internal sealed partial class SqliteNendoStore
         using var evidence = JsonDocument.Parse(evidenceJson);
         var payload = canonical.RootElement.GetProperty("payload");
         var previous = evidence.RootElement.GetProperty("previousPresentation");
+        // A field that had no presentation gets none back. Mapped to singleLine, its undo left a
+        // presentation the author never set (ESS-06).
         return new(NendoCanonical.DeterministicId("operation", "studio.p5.compensation", key, 0),
             payload.GetProperty("entityId").GetString()!,
             payload.GetProperty("fieldId").GetString()!,
             previous.ValueKind == JsonValueKind.String ? previous.GetString()! : "singleLine",
-            evidence.RootElement.GetProperty("appliedDefinitionRevision").GetInt64());
+            evidence.RootElement.GetProperty("appliedDefinitionRevision").GetInt64())
+        { RestoresNone = previous.ValueKind != JsonValueKind.String };
     }
 }

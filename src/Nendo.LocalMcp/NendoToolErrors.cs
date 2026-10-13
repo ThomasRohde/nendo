@@ -75,6 +75,13 @@ internal static class NendoToolErrors
         NendoValidationException validation => Error(
             "NENDO_INVALID_REQUEST",
             validation.Message),
+        // An undo the Engine will not make: already undone, not record changes, a mark or a
+        // record changed since, too many operations. Each message is a constant naming revision
+        // and record IDs and operation types, never a stored value. It reached the agent as an
+        // internal error and filled the device's failure record with refusals (R2RM-01).
+        NendoCompensationNotSupportedException compensation => Error(
+            "NENDO_COMPENSATION_NOT_SUPPORTED",
+            compensation.Message),
         ArgumentException argument => Error(
             "NENDO_INVALID_REQUEST",
             argument.ParamName is { Length: > 0 } name
@@ -118,6 +125,10 @@ internal static class NendoToolErrors
             "link-rule-not-declared", "link-rule-field-in-use",
             // W-153: an undo's refusals name a revision by ID and say whose it is, nothing stored.
             "revision-not-found", "not-an-undo", "revision-not-yours",
+            // W-212: a restore or a backfill's undo that cannot run says why, by IDs and names only.
+            "deletion-state-conflict", "field-not-retired",
+            // ADR-0011: a save another program kept busy is a constant sentence; nothing changed.
+            "file-busy",
             // W-165: a size refusal names the field the caller sent, the cap and the measured size.
             "value-too-large", "values-too-large",
             // W-209: a requirement change refused names the definition, the binding or step and the field;

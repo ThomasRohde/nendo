@@ -97,11 +97,11 @@ Every operation declares a reversibility class. Nendo shows it in the review bef
 
 | Class | Meaning | Examples |
 | --- | --- | --- |
-| Can be undone | Nendo can produce the exact inverse. | A screen node added; a field's presentation changed; a value a custom view keeps. |
-| Can be undone if nothing has changed it since | Nendo kept what it needs and can restore it while the current state allows. | A field set to a new value; a deleted record; a retired field or record type; a renamed field; a changed screen property. |
+| Can be undone | Nendo can produce the exact inverse. | A screen node added; a value a custom view keeps. |
+| Can be undone if nothing has changed it since | Nendo kept what it needs and can restore it while the current state allows. | A field set to a new value; a deleted record; a retired field or record type; a renamed field; a field's presentation changed; a changed screen property. |
 | Cannot be undone | There is no inverse. | A record created; a new record type or field; a conversion; a change of identity; a raised minimum version. |
 
-**Undo** applies the inverse of an entry as a new revision. It does not rewind history. A restored record gets a new version. If the current state no longer allows the inverse (a referenced record is gone, a field is now required), Nendo refuses. If a save triggered an automatic action, Undo reverses the whole entry, including the action's changes. To bring back a deleted record, find its Delete entry in History, which names the record, and choose **Undo**. A created record is the one exception to its class: undoing it deletes the record, and its record ID stays taken. An undo of record changes can itself be undone, which makes the change again.
+**Undo** applies the inverse of an entry as a new revision. It does not rewind history. A restored record gets a new version. If the current state no longer allows the inverse (a referenced record is gone, a field is now required), Nendo refuses. If a save triggered an automatic action, Undo reverses the whole entry, including the action's changes. To bring back a deleted record, find its Delete entry in History, which names the record, and choose **Undo**. A created record, and a record brought back by undoing its deletion, are the exceptions to their class: History undoes either by deleting the record, its record ID stays taken, and View changes says so. A change to the file's structure can be undone only while it is the latest one; after a later structure change, History no longer offers it. An undo of record changes can itself be undone, which makes the change again; History names it Redo.
 
 There is no universal undo. A backup does not make an irreversible change reversible; it gives you an older file to go back to. Make a backup before a change that cannot be undone.
 
@@ -125,7 +125,7 @@ A copy made in Explorer keeps both IDs. Nendo does not rewrite them. One instanc
 
 ## Cloud-sync folders
 
-Nendo does not support a writable file in a folder that a sync service manages. When a file is in a OneDrive, Dropbox or Google Drive folder that Nendo recognises, it shows a warning and asks you to choose another location, inspect the file read-only, or accept unsupported use explicitly. Pausing sync is not a safety guarantee. Detection is incomplete, so the absence of a warning does not mean a location is safe.
+Nendo does not support a writable file in a folder that a sync service manages. When a file is in a OneDrive, Dropbox or Google Drive folder that Nendo recognises, it shows a warning and asks you to choose another location, inspect the file read-only, or accept unsupported use explicitly. Pausing sync is not a safety guarantee. Detection is incomplete, so the absence of a warning does not mean a location is safe. Nendo never rolls back an unfinished save in such a folder, because its `-journal` may have come from another computer; it tells you to copy the file with its `-journal` to a folder that is not synced and open it there.
 
 ## Open states
 
@@ -138,9 +138,9 @@ Nendo inspects a file before it opens it and puts it in one of four states. Heal
 | Recovery | Recovery required | Nendo found something it will not edit past: tables that differ from the definition, inconsistent revisions or references, a screen or calculation it cannot run, calculations written for a calculation contract this Nendo does not run, unrecognised views or triggers, an interrupted replacement, or an early file layout that needs an upgrade. | Read the data in Studio; read history where it is readable; create a backup where the storage allows; export readable data; open another file or a backup. Custom screens, editing and agent access are off. |
 | Rejected | The reason is shown on open | Not a Nendo file, a format or host version this Nendo does not support, over a size limit, or a failed integrity check. | Nothing in this file. Nendo does not open or change it. Open a backup instead. |
 
-A file that another program has busy, or that has an unfinished storage operation, also shows as needing recovery, but with nothing readable until that program closes it. Choose **Inspect file again** then.
+If Nendo was stopped in the middle of saving, by a crash or a forced restart, the file keeps a `-journal` file beside it. When you open that file yourself, from a folder that is not synced, Nendo checks that the journal could belong to it, keeps a copy of the file and the journal beside it, and has SQLite roll the unfinished save back, so the file opens as it was after the last save that finished. The copy stays, and Nendo names it each time you open the file, because a journal left by another copy of the same file looks the same: check the file, and delete the copy once you are satisfied. A journal that holds nothing to roll back is simply cleared. A journal that does not belong to the file, a file another program has busy, or a folder or file Nendo cannot write to is refused with its reason and what to do, and nothing is changed. Choose **Inspect file again** once you have dealt with it. Never delete the files beside a `.nendo` file that end in `-journal`, `-wal` or `-shm`, and never copy the file without them, unless Nendo tells you the journal is not this file's.
 
-Nendo never guesses a repair. It does not rewrite a file to make it open. Studio stays reachable in every state that opens, so your readable data is always one click away.
+Nendo never guesses a repair. Rolling back an unfinished save is SQLite's own exact recovery, done only for a journal shown to be this file's; otherwise Nendo does not rewrite a file to make it open. Studio stays reachable in every state that opens, so your readable data is always one click away.
 
 Health's **Recovery actions** are:
 

@@ -46,7 +46,7 @@ internal sealed partial class SqliteNendoStore
     private static string SequenceValue(NendoFieldSequence sequence, long number) =>
         sequence.Prefix + number.ToString(CultureInfo.InvariantCulture).PadLeft(sequence.Width, '0');
 
-    /// <summary>One past the largest number any stored value of this shape carries, or 1.</summary>
+    /// <summary>One past the largest number any value of this shape carries, live or kept by a deleted record, or 1.</summary>
     private async Task<long> NextFromDataAsync(EntityMapping entity, FieldMapping field, NendoFieldSequence sequence, SqliteTransaction transaction, CancellationToken ct)
     {
         if (!await TableExistsAsync(entity.PhysicalTableName, transaction, ct) ||
@@ -57,9 +57,23 @@ internal sealed partial class SqliteNendoStore
             $"SELECT {column} FROM {Quote(entity.PhysicalTableName)} WHERE substr({column}, 1, @length) = @prefix COLLATE NOCASE;", transaction);
         query.Parameters.AddWithValue("@length", sequence.Prefix.Length);
         query.Parameters.AddWithValue("@prefix", sequence.Prefix);
-        await using var rows = await query.ExecuteReaderAsync(ct);
-        while (await rows.ReadAsync(ct))
-            if (SequenceNumber(sequence, rows.GetString(0)) is { } number && number > highest) highest = number;
+        await using (var rows = await query.ExecuteReaderAsync(ct))
+            while (await rows.ReadAsync(ct))
+                if (SequenceNumber(sequence, rows.GetString(0)) is { } number && number > highest) highest = number;
+        // A deleted record keeps its code in deletion history, and its number stays spent: a
+        // sequence stopped and declared again seeded from live rows alone and handed it out once
+        // more (ESS-03, ADR-0020 note of 2026-10-13).
+        if (await TableExistsAsync("__nendo_deleted_record", transaction, ct))
+        {
+            await using var deleted = Command(
+                "SELECT json_extract(values_json, '$.' || json_quote(@field)) FROM __nendo_deleted_record WHERE entity_id = @entity;", transaction);
+            deleted.Parameters.AddWithValue("@field", field.FieldId);
+            deleted.Parameters.AddWithValue("@entity", entity.EntityId);
+            await using var rows = await deleted.ExecuteReaderAsync(ct);
+            while (await rows.ReadAsync(ct))
+                if (!rows.IsDBNull(0) && rows.GetValue(0) is string kept && SequenceNumber(sequence, kept) is { } number && number > highest)
+                    highest = number;
+        }
         return highest + 1;
     }
 

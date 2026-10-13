@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory)][string] $EngineDirectory,
     [Parameter(Mandatory)][string] $FilePath,
     [Parameter(Mandatory)][string] $ProposalId,
-    [Parameter(Mandatory)][ValidateSet('Commit', 'Read')][string] $Mode
+    [Parameter(Mandatory)][ValidateSet('Commit', 'Read', 'Interrupt')][string] $Mode
 )
 $ErrorActionPreference = 'Stop'
 foreach ($assembly in @('SQLitePCLRaw.core.dll', 'SQLitePCLRaw.provider.e_sqlite3.dll',

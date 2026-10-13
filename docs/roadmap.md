@@ -516,6 +516,54 @@ What remains open:
   `RoundAway(…, 0)` or `RoundEven(…, 0)` as the whole formula is accepted. A decimal result that
   happens to be whole is not recognised any other way.
 
+## Left open by the storage and reversibility pass (W-212, 2026-10-13)
+
+- **A busy read is not yet a typed outcome.** A save another program keeps busy is refused as
+  `file-busy` (ESC-06). A read meets SQLITE_BUSY only while another connection holds the file to
+  itself for longer than the 2-second timeout, which a DELETE-mode writer does only while it
+  commits, so the read paths still let that raw error through. Mapping every bounded read is a
+  wider change than the finding asked for.
+- **Some unfinished writes stay refused.** The open plays back a journal only once plain reads
+  show it could be this file's (ADR-0012, 2026-10-13). A journal of a write that crashed before
+  SQLite counted a saved page 1, or before it saved the manifest page that names the instance (a
+  large import that spilled pages early can leave one), is refused untouched, as every journal was
+  before, and the person opens a backup.
+- **A journal from a copy of the same file cannot be told apart.** An Explorer copy, a backup or
+  the file synced to another machine shares the instance, and SQLite's format cannot tell its
+  journal from this file's. Nendo therefore plays back only on the person's own open outside a
+  recognised synced folder, and always keeps the file as it was, named until the person removes
+  it. Folder detection is incomplete, and a copy made by hand beside the file is not detected; a
+  per-write marker that binds each save to its journal would close it, and is not built. The
+  playback is opt-in for the host: a host that never passes `RollBack` never rolls back.
+- **Two messages are unchecked by a test.** A write-protected volume now refuses the lease as a
+  place Nendo cannot write rather than "another Nendo window", and a journal over 256 MiB is named
+  as the journal; neither has a headless test, since neither condition can be made in a test
+  folder.
+- **A busy save on a stage is a raw error.** `file-busy` covers the open file's writes and its
+  history fold (ESC-06). The identity transition, a new file's transformation, the legacy upgrade
+  and a new file's schema run on a host-owned stage or a file Nendo has just created, which no
+  other program has reason to hold; a busy there still reaches the host flow as a SQLite error,
+  which that flow reports as its own failure.
+- **An exact retry across the presentation change may be refused.** `schema.setFieldPresentation`
+  became `ReversibleWithRetainedState`, and its undo writes `presentation: null` for a field that
+  had none (ESS-06). The class and the payload are part of the idempotency digest, so a request
+  sent by an older host and resent by this one after an upgrade, which the Workbench's save
+  journal can do, is refused as `idempotency-conflict`. The first request committed, so the file
+  is right; only that answer is misleading. Keeping every older digest stable would need the old
+  class kept beside the new one.
+- **Only a definition's latest change can be undone.** History now offers Undo on a structure
+  change only while it is the file's latest, and says so when it refuses (R2RM-02). Walking back
+  several definition changes, with a subject guard as packages and screen properties have,
+  is not built.
+- **History still offers Undo on a fill of a required field.** The undo of the fill the
+  Reactivate form writes is refused in words while the field is required (R2RM-04), because the
+  offer cannot see required-ness cheaply. Making the field optional first lets it run.
+- **A reference index can still lose its name to another table.** The covering index
+  `nendo_ref_<table>_<column>` has the same naming ambiguity a unique index had (ESS-04). It is
+  never dropped, so a collision costs only speed on the second field, and it is left as it is.
+  A unique index already lost to a collision in an existing file comes back only when its field
+  is declared unique again.
+
 ## Left open by the 2026-09-12 vocabulary widening
 
 The amendment is delivered

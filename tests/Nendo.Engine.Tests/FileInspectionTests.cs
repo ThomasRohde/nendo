@@ -179,13 +179,17 @@ public sealed class FileInspectionTests
         await CloseAsync(workspace, await workspace.CreateAsync());
         var before = await File.ReadAllBytesAsync(workspace.FilePath);
         var derivative = workspace.FilePath + suffix;
-        await File.WriteAllBytesAsync(derivative, [1, 2, 3, 4]);
+        // A journal whose first byte is zero is one SQLite does not take as hot, so nothing is
+        // played back (ADR-0012, 2026-10-13); a hot one a crash left is rolled back instead
+        // (StorageEvolutionReviewTests, ESC-01).
+        byte[] content = suffix == "-journal" ? [0, 2, 3, 4] : [1, 2, 3, 4];
+        await File.WriteAllBytesAsync(derivative, content);
         var inspection = await NendoWriteCoordinator.InspectAsync(workspace.FilePath);
         Assert.AreEqual(NendoOpenClassification.RecoveryRequired, inspection.Classification);
         Assert.AreEqual("operational-sidecars", inspection.Findings.Single().Code);
         Assert.IsFalse(inspection.Capabilities.ReadData);
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
-        CollectionAssert.AreEqual(new byte[] { 1, 2, 3, 4 }, await File.ReadAllBytesAsync(derivative));
+        CollectionAssert.AreEqual(content, await File.ReadAllBytesAsync(derivative));
         Assert.HasCount(2, Directory.GetFiles(Path.GetDirectoryName(workspace.FilePath)!));
     }
 

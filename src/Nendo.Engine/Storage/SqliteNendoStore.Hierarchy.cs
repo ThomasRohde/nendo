@@ -89,6 +89,11 @@ internal sealed partial class SqliteNendoStore
             RequireActive(entity, order);
             if (order.StorageKind != NendoStorageKind.Integer)
                 throw new NendoPreconditionException("hierarchy-order-invalid", "The order field must be an Integer field of the same record type.");
+            // Siblings are ordered under each parent, so two parents' children share positions;
+            // a unique order field refused ordinary moves as value-not-unique (ESS-10).
+            if (order.Unique)
+                throw new NendoPreconditionException("hierarchy-field-in-use",
+                    $"{order.DisplayName} is unique, and a hierarchy orders each parent's children on their own, so children of different parents share positions. Stop keeping {order.DisplayName} unique first, or order by another field.");
         }
 
         await RequireTreeAsync(entity, parent, transaction, ct);
@@ -182,6 +187,9 @@ internal sealed partial class SqliteNendoStore
     {
         // A record type created in the same mutation has no table yet, and so no records.
         if (!await TableExistsAsync(entity.PhysicalTableName, transaction, ct)) return;
+        // A parent field added in the same mutation has no column until the mutation ends, and
+        // so no values: every record is top-level. Selecting it failed as a raw SQLite error (ESS-01).
+        if (!await ColumnExistsAsync(entity.PhysicalTableName, parent.PhysicalColumnName, transaction, ct)) return;
         var table = Quote(entity.PhysicalTableName);
         var column = Quote(parent.PhysicalColumnName);
         var parents = new Dictionary<string, string?>(StringComparer.Ordinal);

@@ -105,8 +105,8 @@ the blob store. So history stays small: the history row of a 300 KB file is unde
 
 A revision made only of package operations is compensated as a whole, in reverse
 order, so files leave before the package that holds them. Studio's History offers
-Undo on such a revision, and one compensation reverses at most 128
-operations. A revision that mixes package operations with other operations is not
+Undo on such a revision, and one compensation reverses at most 12,800
+operations, the bound the Engine holds for every compensation (W-212, ESC-03). A revision that mixes package operations with other operations is not
 compensated. Each inverse states the content it expects to find. A file changed
 since then therefore refuses the compensation as `extension-file-changed` and is
 not overwritten. The package's metadata is checked the same way: the inverse of a
@@ -779,6 +779,11 @@ undo by the undo's revision.
   `revision-not-yours` for a revision another origin wrote, `not-an-undo` for a redo of a
   revision that is not a compensation, and `compensation-not-supported` for one already
   undone or redone, or for a revision that changes more than records.
+- **A lost answer.** The broker sends an undo or a redo under a key made of the package, the
+  step and the revision, so a step whose answer was lost (a timeout, a reconnect) is sent again
+  as the same request: the host answers with the compensation it already made, the view learns
+  its revision and can redo it (W-212, R2RM-03). Before, each call carried a fresh key, the
+  repeat was refused as already undone, and the redo could never be reached.
 - **The steps are the view's.** The host keeps no undo stack: the view keeps its steps,
   their order and their names, and may mix them with its own (an editor's waiting edits).
   Ctrl+Z and Ctrl+Y reach a view, which may declare them in Nendo's row with the `undo`

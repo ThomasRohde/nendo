@@ -147,7 +147,12 @@ and [ADR-0017](decisions/0017-production-composition-and-build-layout.md).
 At rest, the file is one SQLite file with the extension `.nendo`, the application
 ID `0x4E454E44` and the identifier `nendo.sqlite.application`. Journals, proposal
 clones and backups are host-owned operational derivatives. They are never
-user-managed artefacts.
+user-managed artefacts. A rollback journal that a crashed writer left is played back
+by SQLite itself only when the person opens that file outside a synced folder, once plain
+reads show it could be the file's and SQLite reports it hot, under the file's write lease
+and after keeping both files under names SQLite does not pair; the kept copy is named until
+the person removes it. Any other journal is refused untouched, with its reason (ADR-0012,
+2026-10-13).
 
 Storage uses rollback DELETE with `synchronous=FULL` and a 2,000 ms busy timeout.
 In measurements, WAL had materially better long-read and read-throughput

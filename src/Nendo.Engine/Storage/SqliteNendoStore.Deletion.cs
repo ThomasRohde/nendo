@@ -63,7 +63,14 @@ internal sealed partial class SqliteNendoStore
                 throw new NendoPreconditionException("record-referenced",
                     $"{(referring.Count > 5 ? "More than 5" : referring.Count.ToString(CultureInfo.InvariantCulture))} {source.DisplayName} " +
                     $"record{(referring.Count == 1 ? " still points" : "s still point")} at this one through {field.DisplayName} " +
-                    $"({string.Join(", ", referring.Take(5))}{(referring.Count > 5 ? ", …" : "")}). Clear or reassign those references before deleting it.");
+                    $"({string.Join(", ", referring.Take(5))}{(referring.Count > 5 ? ", …" : "")}). " +
+                    // A retired field or record type keeps its values but takes no edit, so "clear
+                    // them" was a remedy the person could not take; it names the one they can (ESS-13).
+                    (source.Retired
+                        ? $"{source.DisplayName} is retired, so those records cannot be edited. Reactivate {source.DisplayName} and clear or reassign them, then delete this record."
+                        : field.Retired
+                            ? $"{field.DisplayName} is retired, so it cannot be edited on those records. Reactivate {field.DisplayName}, or clear it with a reviewed backfill in a proposal, then delete this record."
+                            : "Clear or reassign those references before deleting it."));
         }
         var targets = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var field in entity.Fields)
@@ -113,7 +120,9 @@ internal sealed partial class SqliteNendoStore
         // box and its connections in one revision restores the box first. A target changed
         // after its restore is past that version and still refuses.
         foreach (var fieldId in targets.Keys.ToArray())
-            if (await RestoredTargetVersionAsync(operation.EntityId, fieldId, values.GetValueOrDefault(fieldId), targets[fieldId], transaction, ct) is { } restored)
+            if (operation.PlannedTargetVersions?.TryGetValue(fieldId, out var planned) == true)
+                targets[fieldId] = planned;
+            else if (await RestoredTargetVersionAsync(operation.EntityId, fieldId, values.GetValueOrDefault(fieldId), targets[fieldId], transaction, ct) is { } restored)
                 targets[fieldId] = restored;
         // Reuse all typed create validation, including required fields, current choices and reference versions.
         await ExecuteCreateRecordAsync(new CreateRecordOperation(operation.OperationId, operation.EntityId, operation.RecordId,

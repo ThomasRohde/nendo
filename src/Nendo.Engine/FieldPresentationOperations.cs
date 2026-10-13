@@ -32,13 +32,21 @@ public sealed record SetFieldPresentationOperation : NendoOperation
     public long ExpectedDefinitionRevision { get; }
     public override string OperationType => "schema.setFieldPresentation";
     public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
-    public override NendoReversibilityClass Reversibility => NendoReversibilityClass.Reversible;
+    // Its undo puts back the presentation the evidence retained, including none (ESS-06).
+    public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
+
+    /// <summary>
+    /// Set only by the undo of a change to a field that had no presentation: the field goes back
+    /// to none, not to <c>singleLine</c>, so it reads as it did before (ESS-06). Its payload says
+    /// <c>presentation: null</c>, which a change set cannot submit.
+    /// </summary>
+    internal bool RestoresNone { get; init; }
 
     internal override void WritePayload(Utf8JsonWriter writer) => JsonSerializer.Serialize(writer, new
     {
         entityId = EntityId,
         expectedDefinitionRevision = ExpectedDefinitionRevision,
         fieldId = FieldId,
-        presentation = Presentation,
+        presentation = RestoresNone ? null : Presentation,
     });
 }

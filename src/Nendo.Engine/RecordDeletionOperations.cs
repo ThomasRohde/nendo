@@ -27,6 +27,22 @@ internal sealed record RestoreDeletedRecordOperation(string Id, string EntityId,
     public override string OperationType => "data.restoreDeletedRecord";
     public override NendoRevisionLane Lane => NendoRevisionLane.Data;
     public override NendoReversibilityClass Reversibility => NendoReversibilityClass.IrreversibleDeclared;
-    internal override void WritePayload(Utf8JsonWriter writer) => JsonSerializer.Serialize(writer,
-        new { entityId = EntityId, recordId = RecordId, deletedVersion = DeletedVersion });
+
+    /// <summary>
+    /// The version each reference target will hold when the restore runs, for the targets the
+    /// compensated revision itself wrote: a parent whose count the deletion's automatic action
+    /// updated is at the version the planned inverses leave it, not the one it held at the
+    /// delete (ESS-02). Worked out from the revision's own evidence, never from the file now.
+    /// Absent for every other target, so a restore that plans none keeps its earlier shape.
+    /// </summary>
+    internal IReadOnlyDictionary<string, long>? PlannedTargetVersions { get; init; }
+
+    internal override void WritePayload(Utf8JsonWriter writer)
+    {
+        if (PlannedTargetVersions is { Count: > 0 } planned)
+            JsonSerializer.Serialize(writer, new { entityId = EntityId, recordId = RecordId, deletedVersion = DeletedVersion,
+                plannedTargetVersions = new SortedDictionary<string, long>(planned.ToDictionary(pair => pair.Key, pair => pair.Value), StringComparer.Ordinal) });
+        else
+            JsonSerializer.Serialize(writer, new { entityId = EntityId, recordId = RecordId, deletedVersion = DeletedVersion });
+    }
 }

@@ -38,6 +38,14 @@ test('words match across fields, a left-out word removes a record, and the last 
   assert.deepEqual(ids(search.previewSearch(session, { text: '* ( -' })), [], 'no words, no records');
 });
 
+test('a word followed by a left-out word is whole, as the Engine reads it (ESS-07)', () => {
+  assert.deepEqual(ids(search.previewSearch(session, { text: 'gard -weed' })), [],
+    'the last required word was a prefix although a left-out word followed it');
+  assert.deepEqual(ids(search.previewSearch(session, { text: 'gard\t' })), [], 'a word followed by a tab is whole');
+  assert.deepEqual(search.parseSearch('gard -weed').required.map((term) => term.prefix), [false]);
+  assert.deepEqual(search.parseSearch('weed gard').required.map((term) => term.prefix), [false, true]);
+});
+
 test('a choice and a retired record type are not searched, and the title match ranks first', () => {
   const page = search.previewSearch(session, { text: 'garden' });
   assert.deepEqual(ids(page), ['n1', 'n2'], 'a choice ID or a retired type was searched, or the order is wrong');

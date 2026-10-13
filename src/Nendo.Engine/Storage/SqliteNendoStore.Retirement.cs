@@ -59,7 +59,9 @@ internal sealed partial class SqliteNendoStore
         {
             foreach (var source in await ReadEntityMappingsAsync(transaction, ct))
             foreach (var reference in source.Fields.Where(candidate => candidate.Reference?.TargetEntityId == entity.EntityId))
-                if (Convert.ToInt64(await ScalarAsync($"SELECT EXISTS(SELECT 1 FROM {Quote(source.PhysicalTableName)} WHERE {Quote(reference.PhysicalColumnName)} IS NOT NULL);", transaction, ct), CultureInfo.InvariantCulture) != 0)
+                // A reference added in this mutation has no column yet, and so points at nothing (ESS-01).
+                if (await ColumnExistsAsync(source.PhysicalTableName, reference.PhysicalColumnName, transaction, ct) &&
+                    Convert.ToInt64(await ScalarAsync($"SELECT EXISTS(SELECT 1 FROM {Quote(source.PhysicalTableName)} WHERE {Quote(reference.PhysicalColumnName)} IS NOT NULL);", transaction, ct), CultureInfo.InvariantCulture) != 0)
                     throw new NendoPreconditionException("entity-referenced", "Clear or reassign incoming references before retiring this record type.");
         }
         if (field is not null && !operation.Retired && field.Required && await TableExistsAsync(entity.PhysicalTableName, transaction, ct) &&
@@ -109,6 +111,13 @@ internal sealed partial class SqliteNendoStore
             while (await rows.ReadAsync(ct)) retainedObjects.Add(rows.GetString(0));
         }
         var temporary = "retirement_" + Guid.NewGuid().ToString("N");
+        // Only the columns the table has: a field added earlier in the same mutation gets its
+        // column when the mutation ends, appended after these. Copying it from a table that does
+        // not have it yet failed as a raw SQLite error (ESS-01).
+        var existing = new List<FieldMapping>();
+        foreach (var field in entity.Fields)
+            if (await ColumnExistsAsync(entity.PhysicalTableName, field.PhysicalColumnName, transaction, ct)) existing.Add(field);
+        entity = entity with { Fields = existing };
         var definitions = new List<string> { "__nendo_record_id TEXT NOT NULL PRIMARY KEY", "__nendo_record_version INTEGER NOT NULL CHECK (__nendo_record_version >= 1)" };
         definitions.AddRange(entity.Fields.Select(field => $"{Quote(field.PhysicalColumnName)} {SqliteType(field.StorageKind)}{(field.Required && !field.Retired ? " NOT NULL" : "")}"));
         await NonQueryAsync($"CREATE TABLE {Quote(temporary)} ({string.Join(",", definitions)});", transaction, ct);

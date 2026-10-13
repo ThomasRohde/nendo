@@ -166,6 +166,65 @@ Overflow rolls the whole transaction back. The regression guard exercises the la
 record batch and a smaller batch whose generated effects alone cross the remaining gap;
 the older 128-operation sample is no longer described as a maximum.
 
+## 2026-10-13 amendment — an interrupted write is rolled back when the person opens the file
+
+The owner accepted this amendment on 2026-10-13 (ESC-01, W-212). A writer stopped in
+the middle of a write, by a crash, a kill or a forced restart, leaves the file's
+rollback journal beside it. Until now every later inspection refused the file as an
+unfinished storage operation and told the person to close a writer that no longer
+existed, so the data stayed unreachable, and the obvious workarounds, deleting the
+`-journal` or copying the file without it, turn an exactly recoverable file into a torn
+one.
+
+A lone `-journal` (no `-wal` or `-shm`) beside a file is played back only under all of
+these rules, and otherwise the file is refused untouched, saying why and what to do:
+
+1. **Only on the person's own open of that file.** The host says so explicitly
+   (`NendoInterruptedWrite.RollBack`): the Desktop does for Open file, Open read-only, a
+   file it is asked to open and a recent file the person picks. Every other observation
+   refuses untouched: the recent-file collision check, which observes copies the person
+   never opened, a backup chosen for Restore, and any inspection that is not an open.
+2. **Never in a folder that may be synced.** The Desktop's location check (OneDrive,
+   Dropbox, Google Drive) makes the open refuse, because the journal may have come from
+   another computer; the refusal says to let sync finish, copy the file with its journal to
+   a folder that is not synced, and open it there.
+3. **Only a journal that could be this file's**, shown by plain file reads with nothing
+   written: the file is within the size bound, carries Nendo's application ID at header
+   offset 68 and is in rollback-journal mode; the journal has SQLite's header (magic
+   `d9d505f920a163d7`) and the file's page size; among its counted records is a saved Nendo
+   page 1 whose change counter is the file's (then the file's page 1 must match it byte for
+   byte) or one behind; it names at least one Nendo instance and every one is in the file;
+   and a read-only SQLite connection reports it hot, so a program still writing is answered
+   as such and nothing is copied. Page 1 need not be the first record: measured, a spilled
+   write saved it fifth.
+4. **The file as it was is always kept.** Under the file's write-ownership lease, the file
+   and its journal are copied, each to a temporary name, flushed, then renamed to
+   `<file>.before-rollback-<time>.nendo-held` and `<that>.journal`, names SQLite does not
+   pair, before SQLite plays the journal back on one read-write connection. Once anything
+   was played back the copy is never removed automatically: every inspection names it until
+   the person removes it, saying that Nendo rolled back an unfinished save and kept the file
+   as it was in case the journal came from another copy, and how to open the kept file alone.
+   A copy cut short keeps its temporary name and is never offered.
+
+These checks rule out another file's journal, but not one from a copy of the same file: an
+Explorer copy, a backup, or the file synced to another machine has the same instance, and
+SQLite's format cannot tell a copy one commit ahead, or a copy at the same counter with an
+identical page 1, from the file the journal was written for. Rules 1, 2 and 4 exist for that
+case: the playback runs only when the person opened this file outside a synced folder, and the
+kept copy holds the other copy exactly as it was.
+
+A journal that holds nothing to roll back (empty, or a header SQLite never wrote) is cleared on
+the person's open while Nendo holds the file's RESERVED lock, which no writer can share; the file
+was never changed by it. A read-only file or journal, a folder Nendo cannot write, a copy that
+cannot be made and a writer or lock SQLite detected each have their own refusal; a journal another
+host rolled back meanwhile leaves the file to be inspected as it is.
+
+This is SQLite's own recovery, which puts back exactly the pages the unfinished write
+had changed. It is not a guessed repair, and the rejection of best-effort repair below
+stands. A `-wal` or `-shm` set is still refused unopened. The refusal now says never to
+delete the files beside a `.nendo` file or to copy it without them. Physical power loss
+and torn sectors remain unqualified (ADR-0011).
+
 ## Consequences
 
 ### Positive
@@ -207,3 +266,5 @@ Complete rejection is rejected when bounded read-only access can be proven safe.
   write ceiling fell from 252 MiB to 224 MiB. A change set may now carry 4 MiB of
   new custom-view package content, which grows the file by about 4.3 MB
   ([ADR-0013](0013-custom-views-with-code-in-the-file.md)).
+- 2026-10-13 — a write a crash left unfinished is rolled back by SQLite when the person
+  opens the file outside a synced folder, keeping the file as it was (the amendment above).

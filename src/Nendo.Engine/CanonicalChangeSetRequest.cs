@@ -516,6 +516,12 @@ internal static class CanonicalChangeSetRequestCompiler
         {
             slug = $"{prefix}_{slug}";
         }
+        // A table named sqlite_... is SQLite's own, so such a record type ID gets its kind in front,
+        // and entity.sqlite_log still works (ESC-05).
+        if (prefix == "entity" && $"{slug}_".StartsWith("sqlite_", StringComparison.Ordinal))
+        {
+            slug = $"{prefix}_{slug}";
+        }
         slug = slug[..Math.Min(slug.Length, 38)];
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(semanticId)).AsSpan(0, 4))
             .ToLowerInvariant();

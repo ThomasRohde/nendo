@@ -257,7 +257,7 @@ internal sealed class NendoDataTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Undo one record revision this session committed, as one compensation revision: the undo History and a view make, linked to the revision it reverses, so History keeps both. revisionId is from a write's result or nendo://application/history. Refused as NENDO_REVISION_NOT_YOURS for a revision another agent, a view or the person committed, and by the Engine for a definition revision or one whose operations cannot be reversed; a compensation can itself be undone, which is redo. The result names every record it wrote with the version it holds now.")]
+    [Description("Undo one record revision this session committed, as one compensation revision: the undo History and a view make, linked to the revision it reverses, so History keeps both. revisionId is from a write's result or nendo://application/history. Refused as NENDO_REVISION_NOT_YOURS for a revision another agent, a view or the person committed, the usual answer for a definition revision, and as NENDO_COMPENSATION_NOT_SUPPORTED, with the reason, for a revision already undone, one of your own that changes more than records, or one whose operations cannot be reversed. A compensation can itself be undone, which is redo, and History names it Redo. The result names every record it wrote with the version it holds now.")]
     public Task<NendoDataWritesResult> UndoRevisionAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,

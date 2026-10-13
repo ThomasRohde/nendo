@@ -102,7 +102,11 @@ record, by its close button, Back to Data or Escape, asks "Discard your changes?
 **History names what changed.** Each operation of an entry reads in words, with the field, the
 record type and the record it acts on, by the record's label even after a delete. The action is
 **Undo**, offered only where Nendo can reverse the change; the classes read "Can be undone",
-"Can be undone if nothing has changed it since" and "Cannot be undone". It is not universal undo.
+"Can be undone if nothing has changed it since" and "Cannot be undone", except that a created
+record and a record an undo brought back read "Undone by deleting the record; its ID stays
+reserved", which is what History's Undo does to them (W-212, R2RM-05). A structure change is
+offered only while it is the file's latest, and an undo of an undo is named Redo. It is not
+universal undo.
 
 **Columns as built.** A column's header carries the field's name. Clicking it, or Enter
 on the focused header, sorts every record of the type by that field through

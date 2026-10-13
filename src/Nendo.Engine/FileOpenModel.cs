@@ -10,6 +10,22 @@ public enum NendoOpenClassification
 
 public sealed record NendoOpenFinding(string Code, string Message);
 
+/// <summary>
+/// What an inspection that finds a save a crash left unfinished may do about it (ADR-0012,
+/// 2026-10-13). SQLite cannot tell this file's journal from one a copy of it left, so the host
+/// says when the person opened the file themselves, and whether it lies in a folder that may be
+/// synced; everything else refuses the file untouched.
+/// </summary>
+public enum NendoInterruptedWrite
+{
+    /// <summary>Refuse untouched: an observation the person did not ask for, such as a recent-file check or a backup.</summary>
+    Refuse,
+    /// <summary>The person opened the file, but it is in a folder that may be synced: refuse untouched, saying why.</summary>
+    RefuseInSyncedFolder,
+    /// <summary>The person opened this file outside a synced folder: roll the save back, keeping the file as it was beside it.</summary>
+    RollBack,
+}
+
 public sealed record NendoFileCapabilities(
     bool ReadData,
     bool ReadHistory,

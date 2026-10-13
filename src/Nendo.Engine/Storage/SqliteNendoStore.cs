@@ -109,7 +109,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         if (mutation.Operations.Any(operation => operation is ConvertLegacyReferenceOperation))
             throw new NendoValidationException("Legacy conversion requires an atomic reviewed change set with reference binding.");
 
-        using var transaction = _connection.BeginTransaction(deferred: false);
+        using var transaction = BeginWriteTransaction();
         var committed = false;
         try
         {
@@ -277,7 +277,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             _verifiedContentDigest = null;
             return (result, committedAuthority);
         }
-        catch
+        catch (Exception exception)
         {
             if (!committed)
             {
@@ -285,8 +285,37 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 // The behaviour table is created inside this transaction, so a rollback
                 // takes it away again. The flag that remembers it does not roll back.
                 ForgetBehaviourTableCache();
+                if (IsBusy(exception)) throw FileBusy();
             }
             throw;
+        }
+    }
+
+    /// <summary>
+    /// SQLITE_BUSY or SQLITE_LOCKED: another connection kept the file past the busy timeout. A
+    /// DELETE-mode COMMIT needs the file to itself, so a program holding a read open for longer
+    /// fails it; an outside writer fails BEGIN IMMEDIATE.
+    /// </summary>
+    private static bool IsBusy(Exception exception) => exception is SqliteException { SqliteErrorCode: 5 or 6 };
+
+    /// <summary>
+    /// The typed busy outcome ADR-0011 asks for: the write was rolled back whole, so nothing
+    /// changed and the same save can be sent again. It reached adapters as a raw SQLite error,
+    /// which an agent read as a host fault (ESC-06).
+    /// </summary>
+    private static NendoPreconditionException FileBusy() => new("file-busy",
+        "Another program is using this file, so the change was not saved and nothing changed. Close it, or wait for it to finish, and try again.");
+
+    /// <summary>BEGIN IMMEDIATE, refused as busy when another writer holds the file past the timeout.</summary>
+    private SqliteTransaction BeginWriteTransaction()
+    {
+        try
+        {
+            return _connection.BeginTransaction(deferred: false);
+        }
+        catch (SqliteException exception) when (IsBusy(exception))
+        {
+            throw FileBusy();
         }
     }
 
@@ -358,7 +387,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             ? reviewedPlan.RequiredGrant : null;
         reviewedRevocationGeneration ??= BehaviourAuthority.RevocationGeneration;
 
-        using var transaction = _connection.BeginTransaction(deferred: false);
+        using var transaction = BeginWriteTransaction();
         var committed = false;
         try
         {
@@ -555,7 +584,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             _verifiedContentDigest = null;
             return (result, committedAuthority);
         }
-        catch
+        catch (Exception exception)
         {
             if (!committed)
             {
@@ -563,6 +592,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 // The behaviour table is created inside this transaction, so a rollback
                 // takes it away again. The flag that remembers it does not roll back.
                 ForgetBehaviourTableCache();
+                if (IsBusy(exception)) throw FileBusy();
             }
             throw;
         }
@@ -1126,6 +1156,9 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         SqliteTransaction? transaction,
         CancellationToken cancellationToken)
     {
+        // Every full scan this connection runs is counted, whichever path asked for it. The
+        // counter sat in one caller, so an open that scanned twice more reported one (ESC-09).
+        if (sql.Contains("integrity_check", StringComparison.Ordinal)) IntegrityCheckCount++;
         await using var command = Command(sql, transaction);
         return await command.ExecuteScalarAsync(cancellationToken);
     }

@@ -423,10 +423,22 @@ internal sealed partial class SqliteNendoStore
         foreach (var pair in operation.Values)
             if (fieldsById.TryGetValue(pair.Key, out var referenceField))
             {
-                ValidateChoiceAssignment(referenceField, pair.Value);
-                await ValidateReferenceValueAsync(referenceField, pair.Value,
-                    operation.ExpectedTargetVersions.TryGetValue(pair.Key, out var targetVersion) ? targetVersion : null,
-                    transaction, cancellationToken);
+                if (restoring) RequireRestorableChoice(entity, referenceField, operation.RecordId, pair.Value);
+                else ValidateChoiceAssignment(referenceField, pair.Value);
+                try
+                {
+                    await ValidateReferenceValueAsync(referenceField, pair.Value,
+                        operation.ExpectedTargetVersions.TryGetValue(pair.Key, out var targetVersion) ? targetVersion : null,
+                        transaction, cancellationToken);
+                }
+                catch (NendoPreconditionException refused) when (restoring && refused.Code is "target-version-conflict" or "target-not-found")
+                {
+                    // A restore has nothing to select again: it says which record moved (ESS-02).
+                    throw new NendoPreconditionException(refused.Code,
+                        $"{operation.RecordId} pointed at {pair.Value.GetString()} through {referenceField.DisplayName}, and " +
+                        $"{pair.Value.GetString()} {(refused.Code == "target-not-found" ? "no longer exists" : "changed after the record was deleted")}, " +
+                        "so the deletion is not undone.");
+                }
                 await RequireHierarchyPlacementAsync(entity, referenceField, operation.RecordId, pair.Value, newRecord: true,
                     transaction, cancellationToken);
                 await RequireUniqueValueAsync(entity, referenceField, operation.RecordId, pair.Value, transaction, cancellationToken);
@@ -516,7 +528,10 @@ internal sealed partial class SqliteNendoStore
                 ?? new NendoPreconditionException(
                     "field-not-found",
                     $"Field {operation.FieldId} does not exist on entity {operation.EntityId}.");
-        if (field.Required && operation.Value.ValueKind == JsonValueKind.Null)
+        // A retired field carries no NOT NULL (RebuildRequiredConstraintsAsync), and a reviewed
+        // backfill may clear it: the undo of the fill that made it active again puts its empty
+        // values back, and a delete blocked by its references names that route (R2RM-04, ESS-13).
+        if (field.Required && operation.Value.ValueKind == JsonValueKind.Null && !(allowRetiredField && field.Retired))
         {
             throw new NendoValidationException($"Required field {field.FieldId} cannot be null.");
         }
@@ -836,6 +851,11 @@ internal sealed partial class SqliteNendoStore
             throw new NendoValidationException(
                 $"Physical {kind} names must be 1-63 lowercase ASCII letters, digits or underscores, begin with a letter and not use the protected prefix.");
         }
+        // SQLite reserves every table name that starts with sqlite_, in any case, and refused it at
+        // CREATE TABLE as a raw error the author could not act on (ESC-05). Columns are not reserved.
+        if (kind == "table" && value.StartsWith("sqlite_", StringComparison.OrdinalIgnoreCase))
+            throw new NendoValidationException(
+                $"Physical table name {value} starts with sqlite_, which SQLite keeps for its own tables. Choose another record type ID.");
     }
 
     private static string Quote(string identifier) =>

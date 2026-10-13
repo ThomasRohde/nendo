@@ -371,6 +371,10 @@ function writtenRecords(mount: BrokerMount, result: unknown): Params {
 /**
  * Undo or redo of a revision this frame wrote (ADR-0023): the host compensates it in the
  * package's name, version-checked, and refuses the whole step when a record changed since.
+ * A revision is undone once, so the key is the package, the step and the revision: an undo whose
+ * answer was lost (a timeout, a reconnect) is sent again as the same request and answered with
+ * the compensation already made, whose revision the view then learns and can redo. A fresh key
+ * each time was refused as already compensated, and the redo could never be reached (R2RM-03).
  */
 function undoWrites(redo: boolean): MethodEntry {
   return {
@@ -385,7 +389,7 @@ function undoWrites(redo: boolean): MethodEntry {
       const label = optionalText(params, 'label', 80);
       const result = await deps.request('data.undoRecordWrites', {
         revisionId: revision, redo, ...(label === undefined ? {} : { label }),
-        idempotencyKey: `view-${crypto.randomUUID()}`, actor: `extension:${context.packageId}`,
+        idempotencyKey: `view-${context.packageId}-${redo ? 'redo' : 'undo'}-${revision}`, actor: `extension:${context.packageId}`,
       });
       return writtenRecords(mount, result);
     },

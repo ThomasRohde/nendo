@@ -183,11 +183,6 @@ internal sealed partial class SqliteNendoStore
             throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
     }
 
-    /// <summary>SQLite's own integrity check on this connection, as an inspection runs it.</summary>
-    internal async Task<bool> PassesIntegrityCheckAsync(CancellationToken cancellationToken) =>
-        string.Equals(Convert.ToString(await ScalarAsync("PRAGMA integrity_check;", null, cancellationToken), CultureInfo.InvariantCulture),
-            "ok", StringComparison.Ordinal);
-
     /// <summary>
     /// The application and instance a file declares: the guards an inspection starts with,
     /// then the manifest, and nothing else. Null for a file that does not read as a Nendo
@@ -251,7 +246,7 @@ internal sealed partial class SqliteNendoStore
         // connection. Do not open an unqualified operational set at all.
         if (new[] { "-journal", "-wal", "-shm" }.Any(suffix => File.Exists(path + suffix)))
         {
-            return Unreadable("operational-sidecars", "This file has an unfinished or unsupported storage operation. Close its writer before inspecting it.", observedAt, recovery: true);
+            return Unreadable("operational-sidecars", OperationalSidecarsText, observedAt, recovery: true);
         }
         try
         {
@@ -448,9 +443,7 @@ internal sealed partial class SqliteNendoStore
             var entities = mappings.Select(mapping => new NendoEntitySnapshot(
                 mapping.EntityId,
                 mapping.DisplayName,
-                mapping.Fields.Select(field => new NendoFieldSnapshot(
-                    field.FieldId, field.DisplayName, field.StorageKind, field.Required, field.Presentation, field.Options)
-                { UnsupportedStorageKind = field.UnsupportedStorageKind, Reference = field.Reference, Choices = field.Choices, Scale = field.Scale, Retired = field.Retired }).ToArray())
+                mapping.Fields.Select(FieldSnapshot).ToArray())
                 {
                     Retired = mapping.Retired,
                     DerivedFields = derivedFields.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],

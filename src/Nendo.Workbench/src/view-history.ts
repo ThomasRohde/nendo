@@ -100,7 +100,10 @@ export async function loadHistoryDetails(revisionId: string, cursor: string | nu
     if (page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
     const slot = content.querySelector<HTMLElement>(`[data-operation-detail="${CSS.escape(revisionId)}"]`);
     if (!slot) return;
-    slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
+    // A create or a restore reads as History undoes it only where History offers that Undo (R2RM-05).
+    const revision = state.history.find(item => item.revisionId === revisionId);
+    const offered = revision !== undefined && canCompensate(revision, state.history);
+    slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities, offered)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
     slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
     slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));
   } catch (error) { await handlePageFailure(error); }

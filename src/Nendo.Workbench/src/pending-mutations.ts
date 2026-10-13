@@ -33,6 +33,8 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   'value-not-unique', 'field-values-not-unique', 'kept-in-new-files-unchanged',
   'hierarchy-parent-invalid', 'hierarchy-parent-required', 'hierarchy-order-invalid', 'hierarchy-cycle-present',
   'write-ceiling-bytes', 'write-ceiling-rows', 'write-ceiling-schema', 'action-target-mismatch', 'read-only',
+  // Another program kept the file busy past the timeout: the write rolled back whole (ESC-06).
+  'file-busy',
   'revision-not-found', 'revision-not-yours', 'not-an-undo',
   'record-exists-or-invalid', 'behaviour-not-approved', 'definition-not-found', 'field-calculated',
   // A save refused because an automatic action could not run. The whole transaction

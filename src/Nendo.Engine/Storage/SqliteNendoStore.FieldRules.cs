@@ -74,6 +74,23 @@ internal sealed partial class SqliteNendoStore
         $"nendo_unique_{entity.PhysicalTableName}_{field.PhysicalColumnName}";
 
     /// <summary>
+    /// The name a unique index takes when <see cref="UniqueIndexName"/> already belongs to another
+    /// table: physical names may hold underscores, so task.due_code and task_due.code both read
+    /// nendo_unique_task_due_code, and IF NOT EXISTS skipped the second without a word (ESS-04).
+    /// The field ID's digest tells them apart; an index made under the plain name keeps it.
+    /// </summary>
+    private static string ClashFreeUniqueIndexName(EntityMapping entity, FieldMapping field) =>
+        $"{UniqueIndexName(entity, field)}_{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(field.FieldId)).AsSpan(0, 4)).ToLowerInvariant()}";
+
+    /// <summary>The table an index of this name belongs to, or null when there is none.</summary>
+    private async Task<string?> IndexTableAsync(string name, SqliteTransaction transaction, CancellationToken ct)
+    {
+        await using var query = Command("SELECT tbl_name FROM sqlite_schema WHERE type = 'index' AND name = @name;", transaction);
+        query.Parameters.AddWithValue("@name", name);
+        return await query.ExecuteScalarAsync(ct) as string;
+    }
+
+    /// <summary>
     /// The index that makes the rule hold even on a path that forgot to check. Outside the
     /// protected namespace, as reference indexes are, because how many there are is the
     /// application's. Created only once the column exists: a field added in the same mutation
@@ -85,8 +102,11 @@ internal sealed partial class SqliteNendoStore
             !await ColumnExistsAsync(entity.PhysicalTableName, field.PhysicalColumnName, transaction, ct)) return;
         var column = Quote(field.PhysicalColumnName);
         var text = field.StorageKind == NendoStorageKind.Text;
+        var name = UniqueIndexName(entity, field);
+        if (await IndexTableAsync(name, transaction, ct) is { } owner && owner != entity.PhysicalTableName)
+            name = ClashFreeUniqueIndexName(entity, field);
         await NonQueryAsync(
-            $"CREATE UNIQUE INDEX IF NOT EXISTS {Quote(UniqueIndexName(entity, field))} ON {Quote(entity.PhysicalTableName)}" +
+            $"CREATE UNIQUE INDEX IF NOT EXISTS {Quote(name)} ON {Quote(entity.PhysicalTableName)}" +
             $"({column}{(text ? " COLLATE NOCASE" : string.Empty)}) WHERE {column} IS NOT NULL{(text ? $" AND {column} <> ''" : string.Empty)};",
             transaction, ct);
     }
@@ -103,6 +123,11 @@ internal sealed partial class SqliteNendoStore
         if (operation.Unique && !CanBeUnique(field))
             throw new NendoPreconditionException("field-unique-invalid",
                 $"{field.DisplayName} is {UniqueShape(field)}. Only a single-line Text field or a plain Integer field can be unique.");
+        // A hierarchy orders each parent's children on their own, so positions repeat across
+        // parents; uniqueness over the whole record type refused ordinary moves (ESS-10).
+        if (operation.Unique && entity.Hierarchy?.OrderFieldId == field.FieldId)
+            throw new NendoPreconditionException("hierarchy-field-in-use",
+                $"{entity.DisplayName} orders its hierarchy by {field.DisplayName}, and children of different parents share positions, so it cannot be unique.");
         if (!operation.Unique && field.Sequence is not null)
             throw new NendoPreconditionException("field-sequence-in-use",
                 $"{field.DisplayName} has a sequence, which needs it unique. Remove the sequence first.");
@@ -128,7 +153,10 @@ internal sealed partial class SqliteNendoStore
                 delete.Parameters.AddWithValue("@field", field.FieldId);
                 await delete.ExecuteNonQueryAsync(ct);
             }
-            await NonQueryAsync($"DROP INDEX IF EXISTS {Quote(UniqueIndexName(entity, field))};", transaction, ct);
+            // Only this table's own index: the plain name may be another table's (ESS-04).
+            foreach (var name in new[] { UniqueIndexName(entity, field), ClashFreeUniqueIndexName(entity, field) })
+                if (await IndexTableAsync(name, transaction, ct) == entity.PhysicalTableName)
+                    await NonQueryAsync($"DROP INDEX {Quote(name)};", transaction, ct);
         }
         return new OperationEvidence(operation, Evidence(new { previousUnique = field.Unique, appliedDefinitionRevision = manifest.DefinitionRevision + 1 }))
         {
@@ -170,14 +198,16 @@ internal sealed partial class SqliteNendoStore
         var key = text ? $"{column} COLLATE NOCASE" : column;
         var collisions = new List<string>();
         await using (var query = Command($"""
-            SELECT group_concat(__nendo_record_id, ' ') FROM {Quote(entity.PhysicalTableName)}
+            SELECT json_group_array(__nendo_record_id) FROM {Quote(entity.PhysicalTableName)}
             WHERE {column} IS NOT NULL{(text ? $" AND {column} <> ''" : string.Empty)}
             GROUP BY {key} HAVING count(*) > 1 ORDER BY min(__nendo_record_id) LIMIT 21;
             """, transaction))
         await using (var rows = await query.ExecuteReaderAsync(ct))
             while (await rows.ReadAsync(ct))
             {
-                collisions.Add(string.Join(" and ", rows.GetString(0).Split(' ').Order(StringComparer.Ordinal)));
+                // A record ID may hold spaces, so the group is read as a JSON array, never split on
+                // a space: 'Task 1' and 'Task 2' were named '1 and 2 and Task and Task' (ESS-12).
+                collisions.Add(string.Join(" and ", JsonSerializer.Deserialize<string[]>(rows.GetString(0))!.Order(StringComparer.Ordinal)));
             }
         if (collisions.Count == 0) return;
         var more = collisions.Count > 20 ? " and more" : string.Empty;

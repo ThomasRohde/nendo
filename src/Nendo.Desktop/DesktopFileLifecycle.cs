@@ -79,7 +79,7 @@ internal sealed partial class DesktopSessionController
         try
         {
             EnsureAvailableForOpen();
-            return (await PrepareOpenCoreAsync(path, cancellationToken)).Assessment;
+            return (await PrepareOpenCoreAsync(path, cancellationToken, explicitOpen: true)).Assessment;
         }
         finally { _gate.Release(); }
     }
@@ -103,7 +103,7 @@ internal sealed partial class DesktopSessionController
         try
         {
             EnsureAvailableForOpen();
-            return await OpenCandidateCoreAsync(await PrepareOpenCoreAsync(path, cancellationToken), readOnly: true, cancellationToken);
+            return await OpenCandidateCoreAsync(await PrepareOpenCoreAsync(path, cancellationToken, explicitOpen: true), readOnly: true, cancellationToken);
         }
         finally { _gate.Release(); }
     }
@@ -114,7 +114,7 @@ internal sealed partial class DesktopSessionController
         try
         {
             EnsureAvailableForOpen();
-            var resolved = await _fileHistory.ResolveAsync(recentId, cancellationToken);
+            var resolved = await _fileHistory.ResolveAsync(recentId, cancellationToken, InterruptedWriteFor);
             var candidate = await PrepareOpenCoreAsync(resolved.Path, cancellationToken, resolved.Observation);
             return await OpenCandidateCoreAsync(candidate, readOnly, cancellationToken);
         }
@@ -141,7 +141,7 @@ internal sealed partial class DesktopSessionController
         try
         {
             EnsureAvailableForOpen();
-            var resolved = await _fileHistory.ResolveAsync(recentId, cancellationToken);
+            var resolved = await _fileHistory.ResolveAsync(recentId, cancellationToken, InterruptedWriteFor);
             return (await PrepareOpenCoreAsync(resolved.Path, cancellationToken, resolved.Observation)).Assessment;
         }
         finally { _gate.Release(); }
@@ -170,12 +170,22 @@ internal sealed partial class DesktopSessionController
         CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.CreateRecoveryExportAsync(planId, confirmPartial, cancellationToken), cancellationToken);
 
-    private async Task<OpenCandidate> PrepareOpenCoreAsync(string path, CancellationToken cancellationToken, NendoFileObservation? observation = null)
+    /// <summary>
+    /// What an observation may do about a save a crash left unfinished (ADR-0012, 2026-10-13): roll
+    /// it back only for a file the person opened themselves, outside a folder that may be synced,
+    /// where a journal could have come from another computer.
+    /// </summary>
+    private NendoInterruptedWrite InterruptedWriteFor(string path) =>
+        _locationPolicy.Inspect(path) is null ? NendoInterruptedWrite.RollBack : NendoInterruptedWrite.RefuseInSyncedFolder;
+
+    private async Task<OpenCandidate> PrepareOpenCoreAsync(string path, CancellationToken cancellationToken, NendoFileObservation? observation = null,
+        bool explicitOpen = false)
     {
         if (_openCandidates.Count >= 8) _openCandidates.Clear();
         var fullPath = Path.GetFullPath(path);
         DesktopStartupTiming.Mark("session.observe.begin");
-        observation ??= await NendoWriteCoordinator.ObserveAsync(fullPath, cancellationToken);
+        observation ??= await NendoWriteCoordinator.ObserveAsync(fullPath,
+            explicitOpen ? InterruptedWriteFor(fullPath) : NendoInterruptedWrite.Refuse, cancellationToken);
         DesktopStartupTiming.Mark("session.observe.end");
         DesktopStartupTiming.Mark("session.history.check.begin");
         var admission = await _fileHistory.CheckAsync(observation, cancellationToken);

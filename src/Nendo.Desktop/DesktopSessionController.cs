@@ -151,7 +151,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
         try
         {
             EnsureAvailableForOpen();
-            var candidate = await PrepareOpenCoreAsync(path, cancellationToken);
+            var candidate = await PrepareOpenCoreAsync(path, cancellationToken, explicitOpen: true);
             return await OpenCandidateCoreAsync(candidate, readOnly: false, cancellationToken);
         }
         finally

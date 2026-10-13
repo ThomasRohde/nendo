@@ -114,7 +114,9 @@ no spaces and no final digit, and a width 1 to 9.
 
 - The next number is one past the highest ever seen: values of that shape already stored (the
   prefix ignoring ASCII case, then only digits) set it on declaration, a code a client writes
-  itself raises it, and it is never lowered, so a deleted record's number stays spent. The
+  itself raises it, and it is never lowered, so a deleted record's number stays spent. A
+  declaration also reads the codes deleted records keep in deletion history, so a sequence
+  stopped and declared again never hands out a deleted record's number (W-212, ESS-03). The
   counter is stored with the rule and survives a reopen.
 - History records the create with the code in it, and a restored record gets its own code
   back, never a new one.

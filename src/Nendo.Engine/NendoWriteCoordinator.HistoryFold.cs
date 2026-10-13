@@ -17,6 +17,7 @@ public sealed partial class NendoWriteCoordinator
             ObjectDisposedException.ThrowIf(_disposed, this);
             return await GetStore().PreviewHistoryFoldAsync(HistoryFoldPolicy, cancellationToken);
         }
+        catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally
         {
             _gate.Release();

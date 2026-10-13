@@ -128,6 +128,20 @@ internal sealed partial class SqliteNendoStore
         throw new NendoPreconditionException("choice-retired", "This choice is retired. Select an available choice.");
     }
 
+    /// <summary>
+    /// A restore brings back only what the record held, so a retired option it held refuses
+    /// the restore by name, with the route that works, rather than asking for a choice there is
+    /// nothing to make (R2RM-07).
+    /// </summary>
+    private static void RequireRestorableChoice(EntityMapping entity, FieldMapping field, string recordId, JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.String ||
+            field.Choices.FirstOrDefault(choice => choice.Id == value.GetString() && choice.Retired) is not { } retired) return;
+        throw new NendoPreconditionException("choice-retired",
+            $"{recordId} held {retired.DisplayName} in {entity.DisplayName}'s {field.DisplayName}, and {retired.DisplayName} is retired now, " +
+            $"so the deletion is not undone. Make {retired.DisplayName} available again in Structure, undo again, then retire it.");
+    }
+
     private static bool ChoiceMetadataIsValid(IReadOnlyList<EntityMapping> entities) => entities.SelectMany(entity => entity.Fields)
         .All(field => field.Choices.Count == 0 || (field.Presentation == "singleChoice" && field.StorageKind == NendoStorageKind.Text &&
             field.Choices.Count == field.Options.Count && field.Choices.All(choice => field.Options.Contains(choice.Id, StringComparer.Ordinal) &&

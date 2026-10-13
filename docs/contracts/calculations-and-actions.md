@@ -410,8 +410,11 @@ Results travel as `NendoRecordSnapshot.Calculations`, separate from stored
 decimal never becomes a floating-point double on the way to Studio, a surface or
 an agent.
 
-Reading, rendering and opening never write. Computing a calculation raises no
-revision, records no record event and starts no action.
+Reading and rendering never write, and nor does opening, except that the person's own
+open of a file a crash left with an unfinished save, outside a synced folder, has SQLite roll
+that save back ([ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md),
+2026-10-13). Computing a calculation raises no revision, records no record event and starts
+no action.
 
 During a read, each record gets its own budget, because a list is a series of
 independent evaluations. A save is different: one budget spans the whole chain.
@@ -918,7 +921,10 @@ and cannot be edited. It carries a result that may be a value, empty, still
 loading or an error.
 
 A file that stores no definition keeps exactly the schema that it has. Opening,
-inspecting or reading such a file never creates the table and never writes.
+inspecting or reading such a file never creates the table. Nothing in this contract
+writes on open; the one write an open may make is SQLite rolling back an unfinished
+save on the person's own open, outside a synced folder ([ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md),
+2026-10-13).
 
 ## Compatibility
 

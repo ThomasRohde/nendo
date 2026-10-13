@@ -23,6 +23,22 @@ test('an operation an automatic action made names the action by its trigger; the
   ]);
 });
 
+test('a created or restored record reads as History undoes it, not as cannot be undone (R2RM-05)', () => {
+  const both = [
+    { operationId: 'c', operationType: 'data.createRecord', reversibility: 'irreversibleDeclared', canonicalJson: '{}' },
+    { operationId: 'r', operationType: 'data.restoreDeletedRecord', reversibility: 'irreversibleDeclared', canonicalJson: '{}' },
+  ];
+  const withheld = [...operationDetailsMarkup(both, [], false).matchAll(/<li>(.*?)<\/li>/g)].map(match => match[1]);
+  assert.deepEqual(withheld, ['Add record · Cannot be undone', 'Restore deleted record · Cannot be undone'],
+    'An entry History does not offer to undo says it is undone by deleting the record.');
+  const markup = operationDetailsMarkup(both, [], true);
+  const lines = [...markup.matchAll(/<li>(.*?)<\/li>/g)].map(match => match[1]);
+  assert.deepEqual(lines, [
+    'Add record · Undone by deleting the record; its ID stays reserved',
+    'Restore deleted record · Undone by deleting the record; its ID stays reserved',
+  ], 'History labels an operation it undoes as one that cannot be undone.');
+});
+
 test('an action no longer in the file is still named, by the trigger ID the save recorded', () => {
   const markup = operationDetailsMarkup([operation('generated-1', made(null))]);
   assert.match(markup, /made by an automatic action no longer in this file \(10-stage\)/);

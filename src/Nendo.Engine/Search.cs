@@ -121,15 +121,18 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
         if (searchable.Length > NendoSearchLimits.MaximumTerms)
             throw new NendoPreconditionException("search-too-many-terms",
                 $"A search takes at most {NendoSearchLimits.MaximumTerms} words or phrases.");
-        var lastRequired = Array.FindLastIndex(searchable, token => !token.Excluded);
+        // Only the last thing typed is still being typed, and only while nothing follows it: a
+        // required word followed by a left-out one, or by any white space, is finished. The last
+        // required word was a prefix even in 'garden -weed', contrary to ADR-0028 (ESS-07).
+        var lastOpen = tokens.Count > 0 && !tokens[^1].Excluded && !tokens[^1].Phrase &&
+            tokens[^1].Text.Any(char.IsLetterOrDigit) && !char.IsWhiteSpace(text[^1]);
         var required = new List<string>();
         var leftOut = new List<string>();
         for (var position = 0; position < searchable.Length; position++)
         {
             var token = searchable[position];
-            // The last word typed is still being typed, so it also matches as a prefix. A
-            // phrase was closed on purpose and a left-out word means exactly that word.
-            var prefix = position == lastRequired && !token.Phrase && !text.EndsWith(' ');
+            // A phrase was closed on purpose and a left-out word means exactly that word.
+            var prefix = lastOpen && position == searchable.Length - 1;
             (token.Excluded ? leftOut : required).Add(Quote(token.Text) + (prefix ? "*" : ""));
         }
         return new(required, leftOut);

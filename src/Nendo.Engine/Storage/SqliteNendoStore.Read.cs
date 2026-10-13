@@ -8,6 +8,18 @@ namespace Nendo.Engine.Storage;
 
 internal sealed partial class SqliteNendoStore
 {
+    /// <summary>
+    /// A field as every snapshot shows it, the writable session's and an inspection's alike. The
+    /// inspection built its own and left out Unique and Sequence, so a read-only or recovery
+    /// session said no field was unique or numbered (ESC-04).
+    /// </summary>
+    internal static NendoFieldSnapshot FieldSnapshot(FieldMapping field) => new(
+        field.FieldId, field.DisplayName, field.StorageKind, field.Required, field.Presentation, field.Options)
+    {
+        UnsupportedStorageKind = field.UnsupportedStorageKind, Reference = field.Reference, Choices = field.Choices,
+        Scale = field.Scale, Retired = field.Retired, Unique = field.Unique, Sequence = field.Sequence,
+    };
+
     internal async Task<NendoSessionSnapshot> GetSessionSnapshotAsync(
         string fileName,
         NendoSessionHealth health,
@@ -34,13 +46,7 @@ internal sealed partial class SqliteNendoStore
             .Select(mapping => new NendoEntitySnapshot(
                 mapping.EntityId,
                 mapping.DisplayName,
-                mapping.Fields.Select(field => new NendoFieldSnapshot(
-                    field.FieldId,
-                    field.DisplayName,
-                    field.StorageKind,
-                    field.Required,
-                    field.Presentation,
-                    field.Options) { UnsupportedStorageKind = field.UnsupportedStorageKind, Reference = field.Reference, Choices = field.Choices, Scale = field.Scale, Retired = field.Retired, Unique = field.Unique, Sequence = field.Sequence }).ToArray())
+                mapping.Fields.Select(FieldSnapshot).ToArray())
             {
                 Retired = mapping.Retired,
                 DerivedFields = derived.TryGetValue(mapping.EntityId, out var calculated) ? calculated : [],
@@ -108,7 +114,6 @@ internal sealed partial class SqliteNendoStore
             CultureInfo.InvariantCulture);
         if (verifyIntegrity || _integrityResult is null)
         {
-            IntegrityCheckCount++;
             var integrity = Convert.ToString(await ScalarAsync("PRAGMA integrity_check;", transaction, cancellationToken),
                 CultureInfo.InvariantCulture) ?? string.Empty;
             var manifest = await ReadManifestAsync(transaction, cancellationToken);

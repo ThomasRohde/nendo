@@ -103,12 +103,18 @@ internal sealed class DesktopFileHistory(string root)
         return result.AsReadOnly();
     }
 
-    internal async Task<(string Path, NendoFileObservation Observation)> ResolveAsync(string id, CancellationToken cancellationToken)
+    /// <param name="interruptedWrite">
+    /// For a recent file the person chose to open: what its observation may do about a save a crash
+    /// left unfinished. Absent, it is refused untouched, as every other observation here is.
+    /// </param>
+    internal async Task<(string Path, NendoFileObservation Observation)> ResolveAsync(string id, CancellationToken cancellationToken,
+        Func<string, NendoInterruptedWrite>? interruptedWrite = null)
     {
         var loaded = await LoadAsync(cancellationToken);
         var entry = loaded.Document.Entries.SingleOrDefault(entry => entry.Id == id)
             ?? throw new NendoPreconditionException("recent-file-unavailable", "This recent file is no longer available. Use Open file to choose it again.");
-        var observed = await NendoWriteCoordinator.ObserveAsync(entry.Path, cancellationToken);
+        var observed = await NendoWriteCoordinator.ObserveAsync(entry.Path,
+            interruptedWrite?.Invoke(entry.Path) ?? NendoInterruptedWrite.Refuse, cancellationToken);
         if (!Matches(entry, observed))
             throw new NendoPreconditionException("recent-file-changed", "This recent entry no longer identifies the same file. Use Open file to inspect the selected file again.");
         return (entry.Path, observed);

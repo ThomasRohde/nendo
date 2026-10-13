@@ -78,6 +78,12 @@ public static class ReviewOutcomeChildDriver
     {
         await using var coordinator = await NendoWriteCoordinator.OpenAsync(path, "receipt-child");
         var service = new NendoApplicationService(coordinator);
+        if (mode == "Interrupt")
+        {
+            // ESC-01: stopped inside the write transaction, after its pages and before COMMIT.
+            await StorageEvolutionReviewTests.InterruptedWriteAsync(coordinator);
+            return;
+        }
         if (mode == "Commit")
         {
             var fixture = SemanticApplicationFixture.Load("decision-log", RepositoryRoot());

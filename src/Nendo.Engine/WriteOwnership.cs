@@ -42,15 +42,23 @@ internal sealed class WriteOwnershipLease : IDisposable
                 throw;
             }
         }
-        catch (IOException)
+        // Only a sharing or lock violation means another owner; a write-protected volume or a full
+        // disk is a place Nendo cannot write, and is said to be (ESC-01).
+        catch (IOException exception) when ((exception.HResult & 0xFFFF) is 32 or 33)
         {
             throw new NendoWriteOwnershipException(
                 "Another Nendo coordinator already owns writes for this file.");
         }
-        catch (UnauthorizedAccessException)
+        catch (IOException)
         {
             throw new NendoWriteOwnershipException(
-                "Write ownership could not be acquired for this Nendo file.");
+                "Write ownership could not be acquired for this Nendo file.", "write-ownership-denied");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // A folder or file Nendo may not write in, as distinct from another owner (ESC-01).
+            throw new NendoWriteOwnershipException(
+                "Write ownership could not be acquired for this Nendo file.", "write-ownership-denied");
         }
     }
 

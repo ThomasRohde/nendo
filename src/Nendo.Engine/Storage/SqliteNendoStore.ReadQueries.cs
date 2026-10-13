@@ -602,6 +602,12 @@ internal sealed partial class SqliteNendoStore
                 SELECT * FROM __nendo_revision
                 {(after is null ? string.Empty : $"WHERE change_sequence {comparison} @after")}
                 ORDER BY change_sequence {order} LIMIT @limit
+            ),
+            -- The page's revisions that already have their undo: one pass over the revisions,
+            -- not one per row, since the column carries no index.
+            compensated AS (
+                SELECT compensation_of_revision_id AS revision_id FROM __nendo_revision
+                WHERE compensation_of_revision_id IN (SELECT revision_id FROM page)
             )
             SELECT r.revision_id, r.created_at, r.origin, r.description, r.lane,
                 r.definition_revision_before, r.definition_revision_after,
@@ -615,12 +621,19 @@ internal sealed partial class SqliteNendoStore
                 -- write. A class-based flag offered a Compensate button the engine refused.
                 -- A ui.setProperty that gave a property its first value is reversed by
                 -- ui.removeProperty, so every one is offered (ESM-11).
-                CASE WHEN (r.compensation_of_revision_id IS NULL AND (
+                -- A revision is undone once: one that already has its undo, wherever that sits
+                -- in History, is refused by the engine, so it is not offered (ESC-02).
+                -- extension.setState is left out on purpose: it is a view's own saved state (a
+                -- zoom, a layout), written as the person works in the view, and the view keeps
+                -- it; History does not offer to undo it, though the engine reverses one if asked.
+                CASE WHEN r.revision_id NOT IN (SELECT revision_id FROM compensated) AND (
+                (r.compensation_of_revision_id IS NULL AND (
                     (COUNT(o.operation_id) = 1
                         AND MIN(CASE WHEN o.operation_type IN (
                             'data.setField', 'data.deleteRecord', 'data.backfillRetiredField',
                             'schema.setChoiceMetadata', 'schema.setRetired', 'schema.setFieldRequired',
                             'schema.renameEntity', 'schema.renameField',
+                            'schema.setFieldUnique', 'schema.setFieldPresentation', 'schema.setFieldSequence',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
                             'ui.setProperty', 'ui.removeProperty', 'ui.addNode', 'ui.moveNode', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
                             'schema.declareLinkRule', 'schema.removeLinkRule',
@@ -636,14 +649,17 @@ internal sealed partial class SqliteNendoStore
                                 AND instr(o.inverse_evidence_json, '"parentNodeId":"') = 0)
                             THEN 1 ELSE 0 END) = 1
                         AND MIN(CASE WHEN o.reversibility = 'IrreversibleDeclared' THEN 1 ELSE 0 END) = 0
-                        -- A screen edit carries no expected revision, so its inverse is refused once
-                        -- the definition has moved on; the offer says the same (ESM-04).
-                        AND MIN(CASE WHEN o.operation_type IN ('ui.setProperty', 'ui.removeProperty', 'ui.addNode', 'ui.moveNode')
-                            AND r.definition_revision_after <> (SELECT definition_revision FROM __nendo_manifest WHERE singleton_id = 1)
-                            THEN 0 ELSE 1 END) = 1)
+                        -- Every definition change but a package's is reversed only while it is the
+                        -- file's latest: its inverse expects the definition as it left it, and an
+                        -- undo or a search-index build moves the definition on too. A package's
+                        -- inverses check the package itself instead (ESM-04, R2RM-02).
+                        AND (r.lane <> 'Definition'
+                            OR MIN(CASE WHEN substr(o.operation_type, 1, 10) = 'extension.' THEN 1 ELSE 0 END) = 1
+                            OR r.definition_revision_after = (SELECT definition_revision FROM __nendo_manifest WHERE singleton_id = 1)))
                     OR
-                    -- A package and its files arrive together and are reversed together.
-                    (COUNT(o.operation_id) BETWEEN 2 AND 128
+                    -- A package and its files arrive together and are reversed together, up to the
+                    -- engine's bound on one compensation (MaximumCausalInverses, ESC-03).
+                    (COUNT(o.operation_id) BETWEEN 2 AND 12800
                         AND MIN(CASE WHEN o.operation_type IN (
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')
                             THEN 1 ELSE 0 END) = 1)
@@ -655,7 +671,7 @@ internal sealed partial class SqliteNendoStore
                 (COUNT(o.operation_id) BETWEEN 1 AND 12800
                     AND MIN(CASE WHEN o.operation_type IN (
                         'data.setField', 'data.backfillRetiredField', 'data.deleteRecord',
-                        'data.createRecord', 'data.restoreDeletedRecord', 'data.setKeptInNewFiles') THEN 1 ELSE 0 END) = 1)
+                        'data.createRecord', 'data.restoreDeletedRecord', 'data.setKeptInNewFiles') THEN 1 ELSE 0 END) = 1))
                 THEN 1 ELSE 0 END
             FROM page r LEFT JOIN __nendo_operation o ON o.revision_id = r.revision_id
             GROUP BY r.revision_id ORDER BY r.change_sequence {order};

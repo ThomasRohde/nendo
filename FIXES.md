@@ -9839,6 +9839,123 @@ and the probe), `node --test` of the kit and Swarm tests, and `Test-Repository.p
 lane; every guard here runs in node or in a headless browser. The files that carry these
 packages receive the new versions only as proposals.
 
+### Thirteenth pass: storage, schema evolution and honest reversibility (W-212)
+
+2026-10-13: the 24 findings planned as W-212 (5 P2, 19 P3) are fixed, ESC-01 under a dated
+amendment to ADR-0012 that the owner accepted that day, ESS-03 and ESS-04 under a dated note to
+ADR-0020. The guards are a new Engine test class, `StorageEvolutionReviewTests` (one of its tests
+kills a headless child process in the middle of a write), the Local MCP class
+`UndoRevisionToolTests`, and three Workbench node tests that already ran. Every guard failed with
+its defect put back, and the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [ESC-01](#esc-01) | A lone `-journal` is played back only under four rules, and otherwise the file is refused untouched with its own reason and what to do. (1) Only on the person's own open of that file: the host passes `NendoInterruptedWrite.RollBack`, which the Desktop does for Open file, Open read-only, a file it is asked to open and a recent file the person picks; the recent-file collision check, a backup chosen for Restore and every other inspection refuse untouched. (2) Never in a folder the Desktop recognises as synced, since the journal may come from another computer. (3) Only a journal that plain reads show could be this file's: within the size bound, Nendo's application ID, rollback-journal mode, SQLite's header and the file's page size, a saved Nendo page 1 among the counted records whose change counter is the file's (page 1 then byte-identical) or one behind, at least one Nendo instance named and every one in the file, and SQLite reporting it hot read-only. (4) Under the write-ownership lease the file and journal are kept first, each copied to a temporary name, flushed and renamed to `<file>.before-rollback-<time>.nendo-held` and `….journal`; once anything was played back the copy is never removed automatically, and every inspection names it until the person removes it. A journal holding nothing to roll back is cleared on that open under the RESERVED lock; a journal another host rolled back meanwhile leaves the file to inspect as it is (ADR-0012, 2026-10-13). | The killed-writer test: `A write killed before COMMIT left the file refused: operational-sidecars: This file has a storage file beside it …`; another file's journal: `… Another file's journal was played back into this one.`; a copy of the same file one commit ahead, with the copy discarded after a healthy playback: `Expected collection of size 1. Actual: 0. … A copy's journal was played back into the file. The file as it was before the playback was not kept.` (the same at one counter: `A copy's journal at the same counter was played back. …`); a background observation allowed to play back: `Expected … NendoFileOpenException but no exception was thrown. 'action' expression: '() => opened.PrepareRestoreAsync(backup, "restore")'` and `… An observation the person did not ask for played a copy's journal back.`; a synced folder allowed to: `… A file in a synced folder had its journal played back.`; an empty journal refused for good: `A journal with nothing to roll back left the file refused for good: A -journal is beside this file, but it holds nothing to roll back …`; a partial copy named: `A copy cut short was offered as restorable.`, and a copy written under its final name: `A copy that failed part way was offered, or the file was played back without it. A copy was left beside it.`; a racing host's rollback: `A journal another host rolled back meanwhile was answered as a copy that failed: … (the disk may be full or write-protected) …`; a read-only journal: `A read-only journal was refused with a reason that is not the real one.`; a WAL-mode Nendo file: `A Nendo file in another journal mode was called a file that is not Nendo's.`; and, from the first review's round: a foreign SQLite file `… A file that is not Nendo's had its journal played back.`, a read-only file `But was: "Another program is writing to this fil..." …`, the lease `… A file another coordinator owns was rolled back.` and the naming `… An inspection did not name the kept copy.` |
+| [ESS-01](#ess-01) | `RequireTreeAsync` returns when the parent column is not materialised yet, the required/retirement rebuild copies only the columns the table has (a pending field is appended when the mutation materialises), and the entity-retirement probe skips a reference with no column. | `Adding a Parent field and declaring the hierarchy over it in one mutation failed as a raw SQLite error: SQLite Error 1: 'no such column: "parent" - should this be a string literal in single-quotes?'.`; the rebuild: `Adding a field and making another required in one mutation failed as a raw SQLite error: SQLite Error 1: 'no such column: "notes" - …'` |
+| [ESS-02](#ess-02) | The restore a compensation plans carries, for each reference target the revision itself wrote (or a carried one), the version that target holds when the restore runs, worked out from the revision's evidence as the `data.setField` branch already did; only where it differs from the recorded one, so an earlier host's restore keeps its digest. A restore refused on a target now says which record moved. | `Undoing a deletion whose action recounted its project was refused: target-version-conflict: t2 pointed at p1 through Project, and p1 changed after the record was deleted, so the deletion is not undone.` |
+| [R2RM-01](#r2rm-01) | `NendoCompensationNotSupportedException` translates to `NENDO_COMPENSATION_NOT_SUPPORTED` with its sentence, and nothing is written to the failure record; `deletion-state-conflict`, `field-not-retired` and `file-busy` pass their messages through. The caller refusals are worded for any caller. | `Expected: "NENDO_COMPENSATION_NOT_SUPPORTED: This..." But was: "NENDO_INTERNAL_ERROR: The local Nendo ..."`; through the tool: `… NENDO_INTERNAL_ERROR: The local Nendo request failed (NendoCompensationNotSupportedException; failure a5b7e2e8).' does not end with …` |
+| [R2RM-02](#r2rm-02) | History offers Undo on a structure change only while its revision is the file's latest definition revision (package operations keep their own subject guards), and the Engine refuses an older one up front: "Only the latest change to the file's structure can be undone, and the structure has changed since this one (…). Make the change you want in a new proposal instead." | The offer: `History offers to undo a unique change that a later structure change overtook, and the engine refuses it.`; the refusal: `Expected exception type:<…NendoCompensationNotSupportedException>. Actual exception type:<…NendoPreconditionException>` (the agent-facing `definition-version-conflict`) |
+| [ESC-02](#esc-02) | The offer leaves out a revision that already has its undo, wherever that sits in History, read in one pass over the revisions per page (the column has no index). | `Page two offers to undo a revision whose undo is on page one, and the engine refuses it.` |
+| [ESC-03](#esc-03) | `schema.setFieldUnique`, `schema.setFieldPresentation` and `schema.setFieldSequence` are offered (under R2RM-02's latest-change rule); a package revision is offered up to the Engine's 12,800 operations, and `custom-views.md` says so; `extension.setState` stays out, with the reason in the SQL. | `History does not offer to undo the latest unique change.` |
+| [ESC-04](#esc-04) | One field-snapshot mapper serves the writable session and the inspection, so a read-only or recovery session shows Unique and Sequence. | `Expected string length 2638 but was 2619. … A read-only session shows the fields differently from the writable one: no field unique or numbered.` |
+| [ESC-05](#esc-05) | A physical table name starting with `sqlite_` (any case) is refused by name, and an agent's record type ID whose name would start so gets `entity_` in front, so `entity.sqlite_log` still works. | `Expected exception type:<Nendo.Engine.NendoValidationException>. Actual exception type:<Microsoft.Data.Sqlite.SqliteException>.` |
+| [ESC-06](#esc-06) | SQLITE_BUSY or LOCKED at BEGIN IMMEDIATE or COMMIT rolls the write back and is refused as `file-busy`, which settles the save journal and reaches an agent with its sentence; the history fold on the open file is mapped too. The writes on a host-owned stage or a just-created file are left out, with the reason on the roadmap. | `Expected exception type:<Nendo.Engine.NendoPreconditionException>. Actual exception type:<Microsoft.Data.Sqlite.SqliteException>.` (the save, and the fold: `… A fold a reader kept busy did not come back as the typed busy refusal.`); the journal: `Each new refusal code either settles the journal (pending-mutations.ts) or is named here as not settling it` with `+ [ 'file-busy' ]` |
+| [ESC-08](#esc-08) | The new-file preview, search and the fold preview read the change token first, and the coordinator enters recovery on an outside commit, as the other reads do. | All three rows failed: the new-file preview `Expected exception type:<…NendoRecoveryRequiredException> but no exception was thrown`; search and the fold preview with another exception than recovery. |
+| [ESC-09](#esc-09) | The confirming open no longer runs a second `integrity_check` after the cold authority read, and every `integrity_check` the store runs is counted where it runs, so the counter cannot miss one again. | With the scan put back: `Expected:<1>. Actual:<2>. … An open that confirms an observation ran SQLite's integrity_check more than once on its connection.` |
+| [ESS-03](#ess-03) | A sequence's declaration also reads the codes deleted records keep in deletion history, so a sequence stopped and declared again never hands out a deleted record's number (ADR-0020 note). | `Expected: "F-004" But was: "F-003" … A sequence declared again handed out the number of a deleted record.` |
+| [ESS-04](#ess-04) | A unique index whose name already belongs to another table takes the field ID's digest as a suffix, and stopping uniqueness drops only the field's own table's index. Existing names stay, so no rung (ADR-0020 note). | `CollectionAssert.AreEqual failed. A unique field whose index name ran into another table's got no backstop index.. Different number of elements.` |
+| [ESS-06](#ess-06) | The undo of a presentation change to a field that had none writes NULL back (`presentation: null` in its payload, which no change set can submit), and the operation is declared `ReversibleWithRetainedState`. | `Expected:<>. Actual:<singleLine>. … Undoing a presentation change left a presentation the author never set.` |
+| [ESS-07](#ess-07) | The last word is a prefix only when it is the last thing typed, required, not a phrase, and not followed by white space, in the Engine and the Workbench preview alike. | Engine: `The last required word was a prefix although a left-out word followed it.. Different number of elements.`; Workbench: `the last required word was a prefix although a left-out word followed it` |
+| [ESS-10](#ess-10) | Declaring a hierarchy ordered by a unique field, and making a hierarchy's order field unique, are refused as `hierarchy-field-in-use`. | Both directions: `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown.` |
+| [ESS-12](#ess-12) | The collision groups are read as `json_group_array`, never split on a space. | `… in these groups: 1 and 2 and Task and Task. …' does not contain string 'in these groups: Task 1 and Task 2.'` |
+| [ESS-13](#ess-13) | A delete blocked through a retired field, or from a retired record type, says so and names the remedy: reactivate, or a reviewed backfill. | `'2 Tasks records still point at this one through Project (t1, t2). Clear or reassign those references before deleting it.' does not contain …` |
+| [R2RM-03](#r2rm-03) | A view's `records.undo` and `records.redo` are sent under `view-<package>-<undo\|redo>-<revision>`, so a resend after a lost answer is the Engine's exact replay, and the replayed undo's revision becomes the view's to redo; `custom-views.md` says so. An exact retry of an undo that has itself been undone since is refused rather than replayed. | `An undo sent again after a lost answer carried a new key, so the host refused it as already compensated.`; the stale retry: `Expected exception type:<…NendoCompensationNotSupportedException> but no exception was thrown. … An undo resent after it was redone answered with a state the file no longer has.` |
+| [R2RM-04](#r2rm-04) | A backfill's undo on a field that is active again is a plain `data.setField`; on a required one whose value was empty it is refused in words ("Owner is required now, so the values filled in to make it active again stay. Make Owner optional, then undo this again."). A backfill may write an empty value to a retired field, which holds no NOT NULL, so the undo of a fill of a still-retired required field runs. | `Undoing a fill on a field that is active again was refused: field-not-retired: This repair operation requires a retired field.`; the empty value: `… Required field caps.note cannot be null.` |
+| [R2RM-05](#r2rm-05) | History's View changes reads "Undone by deleting the record; its ID stays reserved" for `data.createRecord` and `data.restoreDeletedRecord` where History offers that Undo, and the class elsewhere; the proposal review keeps the class. Help names both exceptions. | `History labels an operation it undoes as one that cannot be undone.` with `+ 'Add record · Cannot be undone', + 'Restore deleted record · Cannot be undone'`; where no Undo is offered: `An entry History does not offer to undo says it is undone by deleting the record.` |
+| [R2RM-07](#r2rm-07) | A restore blocked by a retired option names the record, the field, the option and the route: make it available, undo again, retire it. | `Expected: "t2 held Blocked in Tasks's Status, and..." But was: "This choice is retired. Select an avai..."` |
+| [R2RM-08](#r2rm-08) | Every compensation without a label is named from the chain: "Undo X", its undo "Redo X", the next "Undo X", for History, a view and an agent alike. An exact retry keeps the name it was first given, so an earlier host's "Compensate X" still replays. | `History names its undo and redo by what they do.. Element at index 0 do not match. Expected: U Actual: C` |
+
+ESC-09's guard needed its counter moved: the old code counted one scan where two ran, so a check
+of the counter alone would have passed against it. The scan was put back through the store's
+own scalar path, as the old method ran it, for the falsification. ESS-07's Engine guard fails
+with MSTest's "Different number of elements" wording, which is how its collection comparison
+reports any mismatch.
+
+Tests that pinned the old behaviour changed with it: `ChoiceEvolutionTests` and
+`SchemaRenameTests` expected `definition-version-conflict` for an undo of an overtaken structure
+change, `StorageReviewTests.ESM04_…` the screen-only wording, `FileInspectionTests.UnqualifiedOperationalSetIsNotOpenedOrRepaired`
+a 4-byte junk journal (SQLite plays such a journal back; the `-journal` row now uses one whose
+first byte is zero, which SQLite leaves alone), and `UndoRevisionToolTests` and the broker's undo
+test the old answers.
+
+An independent review of the fixes found one defect that had to be fixed and several smaller
+items, all fixed. ESC-01 played back any journal SQLite would pair by name, so a backup restored
+over a crashed file with the old `-journal` left beside it, or a journal a sync tool brought from
+another machine, wrote another file's pages into a good one; the reviewer turned a good file into
+an integrity failure where it had been refused untouched before, and the recent-file collision
+check observes copies the person never opened. The journal is now played back only when plain
+reads show it is the file's, as the ESC-01 row says. The review asked for the journal's first
+record to be page 1; measured with SQLite, a spilled write saved page 1 fifth, so the check finds
+page 1 among the counted records instead. It also asked only for the change counter to match;
+two files made the same way share a byte-identical page 1 at the same counter, and the new
+another-file test was played back while its journal named no instance, so the journal must also
+name at least one instance and every one it names must be the file's. Writing the test showed that SQLite saves no page for an `UPDATE` that stores
+a row unchanged, so the test's write changes the manifest for real. The kept copy now stays
+unless the result is fully healthy, is kept under names SQLite does not pair, is decided on every
+way out (a cancellation and a failure after the playback included), and is named on every
+inspection while it is there. The application ID and the size bound are checked before anything
+is copied or played back; a read-only file, a folder Nendo cannot write, a copy that cannot be
+made and a journal SQLite does not treat as hot are refused with their own reason, a writer is
+named only when SQLite detected one, and a journal that is not hot is no longer copied first.
+The busy mapping now covers the history fold; its guard found that a fold rolled back after
+creating a protected table left the flag that remembers the table set, so the next history read
+failed (`SQLite Error 1: 'no such table: __nendo_attribution'` with the fix taken out), which the
+fold's rollback now clears. The other writes on a host-owned stage or a just-created file are
+recorded on the roadmap. The site guide, `reads-and-authority.md`, `calculations-and-actions.md`
+("inspecting never writes") and ADR-0023's table now say what changed. Nits taken: a stale exact
+retry of an undone undo is refused (R2RM-03 row); History says "Undone by deleting the record"
+only where it offers the Undo (R2RM-05 row); the MCP contract and the tool description say
+`NENDO_REVISION_NOT_YOURS` is the usual answer for a definition revision and name
+`NENDO_COMPENSATION_NOT_SUPPORTED`, within the 2,048-character cut. ESS-06's exact retries across
+the reversibility change are not protected: the class and the payload are in the idempotency
+digest, so a request an older host sent and this one resends is refused as an idempotency
+conflict although the first request committed; that is recorded on the roadmap rather than kept
+stable by carrying the old class.
+
+A second review, focused on ESC-01, reproduced that a journal from a copy of the same file (an
+Explorer copy, a backup, the file synced to another machine) was played back into the other copy:
+a copy one commit ahead lost that commit, and a copy at the same counter with an identical page 1
+took the other's record, with no copy kept because the result looked healthy. SQLite's journal
+format cannot tell these apart, so the premise of the first fix, that two files never share an
+instance, was false for copies. The playback is now the host's explicit choice on the person's
+own open outside a synced folder, and the file as it was is always kept and named, as the ESC-01
+row says; a per-write marker binding each save to its journal was not built and is on the
+roadmap. The same review's smaller items are fixed: an empty or never-synced journal is cleared
+instead of locking the file out, kept copies are renamed into place only once whole, a read-only
+journal, a write-protected volume, an oversized journal and a WAL-mode Nendo file each get their
+real reason, and a journal another host rolled back meanwhile is inspected as it is. The
+write-protected volume and the oversized journal have no headless test, which the roadmap says.
+
+Documents updated with the behaviour: ADR-0012 (amendment and history) and the ADR index,
+ADR-0020 (note), ADR-0023 (the backfill row), `docs/architecture.md`,
+`docs/contracts/mcp-interface.md`, `docs/contracts/custom-views.md`,
+`docs/contracts/reads-and-authority.md`, `docs/contracts/relationships.md`,
+`docs/contracts/studio.md`, `docs/contracts/calculations-and-actions.md`, `docs/roadmap.md`
+(limitations left open: a busy read, unfinished writes that stay refused, a journal from another
+copy of the same instance, a busy save on a stage, an exact retry across the presentation change,
+latest-only definition undo, the Undo still offered on a required fill, and the reference index's
+name), Help, and the site guide `files-and-data`.
+
+Checks:
+
+- `dotnet test tests/Nendo.Engine.Tests`: 1249 of 1251 passed, 2 skipped, after a first full run whose one failure was `StorageReviewTests.ESM04_AScreenEditIsNotReversedOverALaterDefinitionChange`, pinning the old screen-only wording (updated above). After the review's fixes: 1255 of 1257 passed, 2 skipped. After the second review's: 1264 of 1266 passed, 2 skipped; the Desktop project builds.
+- `dotnet test tests/Nendo.LocalMcp.Tests`: 248 of 253 passed, 5 skipped. After the review's fixes, the affected classes (`UndoRevisionToolTests`, `InputSchemaContractTests`, `InspectorLaneTests`, `ToolRefusalTests`, `StructuredRefusalTests`, `AppBuilderReviewTests` with the description-length lint): 16 of 17 passed, 1 skipped.
+- Workbench: `npx tsc --noEmit` passed; `npm test` 610 of 610, before and after the review's fixes.
+- `pwsh ./tools/Test-Repository.ps1`: "Repository verification passed."
+- `pwsh ./tools/Test-Site.ps1`, after the second review's guide changes: "Website build passed."
+- Not run, by instruction: `Test-Production.ps1`, the Desktop suite and every lane that starts the
+  host, a window or the pointer. The Desktop project builds. The installer was not rebuilt.
+
 ### Fourteenth pass: Garden package (W-226)
 
 2026-10-13: the seventeen findings planned as W-226 (1 P2, 16 P3) are fixed in the Garden package,

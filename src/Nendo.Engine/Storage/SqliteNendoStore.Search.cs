@@ -284,6 +284,9 @@ internal sealed partial class SqliteNendoStore
         ObjectDisposedException.ThrowIf(_disposed, this);
         SearchSemantics.Validate(query);
         using var transaction = _connection.BeginTransaction(deferred: true);
+        // Like every read of the active file, it fixes a snapshot and checks the change token first,
+        // so an outside commit taints the session rather than being shown as Nendo's (ESC-08).
+        _ = await ReadAuthoritySnapshotAsync(transaction, ct);
         var manifest = await ReadManifestAsync(transaction, ct);
         if (!await SearchLayoutExistsAsync(transaction, ct))
             throw new NendoPreconditionException("search-index-missing",
