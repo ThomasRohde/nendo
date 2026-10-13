@@ -95,6 +95,13 @@ public sealed record NendoProposalPreview(
     /// </summary>
     public NendoOverviewPlan? PreviewOverview { get; init; }
 
+    /// <summary>
+    /// The file-scoped custom views the clone compiles. Separate for the front page's reason: a
+    /// view belongs to the file, so a proposal adding one would otherwise be reviewed as adding
+    /// no screen (MAA-16).
+    /// </summary>
+    public IReadOnlyList<NendoSurfaceNodePlan> PreviewViews { get; init; } = [];
+
     public IReadOnlyDictionary<string, int> PreviewRecordCounts { get; init; } = new Dictionary<string, int>();
 
     /// <summary>

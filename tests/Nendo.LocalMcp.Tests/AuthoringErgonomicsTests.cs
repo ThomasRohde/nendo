@@ -224,13 +224,33 @@ public sealed class AuthoringErgonomicsTests
         await AddAsync("Bind the CRM references", CrmAuthoringFixture.ReferenceOperations());
         await AddAsync("Shape the CRM surfaces", CrmAuthoringFixture.SurfaceOperations());
         await AddAsync("Add two screens whose size matters", CrmAuthoringFixture.ShapeProbeSurfaceOperations());
+        // MAA-06: the grid's own clause leaves out one stage, so it draws three rows, as the
+        // renderer's reachable lanes do; the shape counted every option.
+        await AddAsync("Leave won deals off the grid",
+        [
+            new NendoAgentOperationInput("ui.addNode", JsonSerializer.SerializeToElement(new
+            {
+                surfaceId = CrmAuthoringFixture.SurfaceId,
+                nodeId = "dealGridOpen",
+                parentNodeId = "dealGrid",
+                kind = "filterClause",
+                position = 1,
+                properties = new Dictionary<string, object?>
+                {
+                    ["fieldId"] = CrmAuthoringFixture.DealStageFieldId,
+                    ["operator"] = "ne",
+                    ["value"] = "Closed won",
+                },
+            })),
+        ]);
         var validated = await CallAsync<NendoAgentProposalPreview>(client, "nendo.change_set.validate",
             new(scoped) { ["idempotencyKey"] = "shape-validate" });
-        Assert.AreEqual(NendoProposalState.Previewable, validated.State);
+        Assert.AreEqual(NendoProposalState.Previewable, validated.State,
+            string.Join(" | ", validated.Diagnostics.Select(value => value.Message)));
 
         var matrix = validated.Preview.Surfaces.Single(surface => surface.Title == "Stage against closed");
-        Assert.AreEqual("4 rows by 2 columns, 8 cells", matrix.Shape,
-            "Stage has four options and Closed is a Boolean; the cell count follows and is not a guess.");
+        Assert.AreEqual("3 rows by 2 columns, 6 cells", matrix.Shape,
+            "Stage has four options, one of them excluded by the grid's own ne clause, and Closed is a Boolean.");
 
         // No Account record exists in the validated clone, so this board has no columns to
         // draw. Said before acceptance rather than discovered after it.

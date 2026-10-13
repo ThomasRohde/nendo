@@ -44,6 +44,8 @@ internal sealed partial class NendoAgentAuthoringService(
             [("schema.addField", "unique")] = "A field is made unique by schema.setFieldUnique, which may follow in the same mutation.",
             [("schema.addField", "type")] = "The kind of value is storageKind.",
             [("schema.createEntity", "keptInNewFiles")] = "Whether a new file keeps the type's records is schema.setKeptInNewFiles.",
+            // MAA-18: the direct create tools take keptInNewFiles; a change set's create does not.
+            [("data.createRecord", "keptInNewFiles")] = "In a change set a record is kept in new files by data.setKeptInNewFiles, which may follow in the same mutation; keptInNewFiles belongs to the direct create tools.",
         };
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
@@ -52,8 +54,30 @@ internal sealed partial class NendoAgentAuthoringService(
     // proposal: on reject, on accept, and when the host closes. They survive the lease,
     // as the proposal does.
     private readonly Dictionary<string, Draft> _validated = new(StringComparer.Ordinal);
+    // What became of a change set whose proposal has left the queue, so a later call names the
+    // proposal and its fate rather than calling the change set unknown (MAA-09). Bounded.
+    private readonly NendoReplayCache<string, Settled> _settled = new();
     // Internal fault boundary for deterministic cancellation tests; never a tool or host setting.
     internal Action? BeforeInvalidPreviewCleanup { get; set; }
+    // The same, between revalidate's reject of the old proposal and the validation of the new draft.
+    internal Action? AfterRevalidateReject { get; set; }
+
+    /// <summary>How many proposals' operations this service still holds, for the tests that prove they are released.</summary>
+    internal int KeptProposalCount
+    {
+        get
+        {
+            _gate.Wait();
+            try
+            {
+                return _validated.Count;
+            }
+            finally
+            {
+                _gate.Release();
+            }
+        }
+    }
     // Bounded: the newest NendoReplayCache.Capacity of each kind, and all of a session's
     // are discarded when its lease ends.
     private readonly NendoReplayCache<(string ApplicationHandle, string Key), Replay<NendoChangeSetBeginResult>>
@@ -85,16 +109,23 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     var replayKey = (applicationHandle, idempotencyKey);
                     if (_beginReplays.TryGetValue(replayKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
                     }
-                    if (_drafts.Values.Count(value => value.ApplicationHandle == applicationHandle) >= MaximumDraftsPerSession)
+                    var open = _drafts.Values.Where(value => value.ApplicationHandle == applicationHandle).ToArray();
+                    if (open.Length >= MaximumDraftsPerSession)
                     {
+                        // Drafts are listed by no resource, so the refusal names them (MAA-15).
                         throw new NendoAgentAuthoringException(
                             "DRAFT_LIMIT",
-                            "The agent session has too many live change-set drafts.");
+                            $"This session already holds {open.Length} open change-set drafts, the most limits.draftsPerSession " +
+                            $"({MaximumDraftsPerSession}) allows: " +
+                            string.Join("; ", open.Select(value => $"{value.ChangeSetId} \"{value.Title}\"")) + ". " +
+                            "Validate one, reject one with nendo.change_set.reject, or release the lease, which discards " +
+                            "every draft never validated.");
                     }
                     var snapshot = await application.GetSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
@@ -113,8 +144,9 @@ internal sealed partial class NendoAgentAuthoringService(
                         Advisory = outstanding == 0
                             ? null
                             : $"{outstanding} other change {(outstanding == 1 ? "set is" : "sets are")} open against definition revision " +
-                              $"{snapshot.Manifest.DefinitionRevision}. Accepting any one of them advances the revision and invalidates the rest; " +
-                              "finish or reject the others before building this one.",
+                              $"{snapshot.Manifest.DefinitionRevision}. Accepting any one of them advances the revision: a validated proposal " +
+                              "then goes stale until revalidated, and a draft that pins a revision or places nodes by anchor is refused at " +
+                              "validate. Finish or reject the others before building this one.",
                     };
                     _drafts.Add(changeSetId, new Draft(
                         changeSetId,
@@ -153,11 +185,13 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     var draft = RequireOpenDraft(changeSetId, applicationHandle, leaseId);
                     if (draft.AddReplays.TryGetValue(idempotencyKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
                     }
+                    var placed = PlacedOrdinals(validated, draft.Mutations.Count);
                     validated = await ResolveAnchorsAsync(draft.Mutations, validated, draft.Mutations.Count, cancellationToken);
                     var operationCount = validated.Sum(value => value.Operations.Count);
                     var canonicalCount = CanonicalCount(validated);
@@ -171,6 +205,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     RequireCompilable(validated, draft, draft.Mutations.Count);
                     RequireAppendTargets(draft.Mutations, validated);
                     draft.Mutations.AddRange(validated);
+                    draft.PlacedMutations.UnionWith(placed);
                     draft.OperationCount += operationCount;
                     draft.CanonicalOperationCount += canonicalCount;
                     ForgetValidateReplays(changeSetId);
@@ -211,6 +246,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     var draft = RequireOpenDraft(changeSetId, applicationHandle, leaseId);
                     // An exact retry replays rather than truncating twice.
                     if (draft.AddReplays.TryGetValue(idempotencyKey, out var replay))
@@ -224,6 +260,7 @@ internal sealed partial class NendoAgentAuthoringService(
                             $"Drop from mutation ordinal 0-{draft.Mutations.Count}; the change set holds {draft.Mutations.Count} mutations.");
                     }
                     var kept = draft.Mutations.Take(dropFromMutationOrdinal).ToArray();
+                    var placed = PlacedOrdinals(validated, dropFromMutationOrdinal);
                     validated = await ResolveAnchorsAsync(kept, validated, dropFromMutationOrdinal, cancellationToken);
                     var keptOperations = kept.Sum(value => value.Operations.Count);
                     var keptCanonical = CanonicalCount(kept);
@@ -241,6 +278,8 @@ internal sealed partial class NendoAgentAuthoringService(
                     draft.Mutations.Clear();
                     draft.Mutations.AddRange(kept);
                     draft.Mutations.AddRange(validated);
+                    draft.PlacedMutations.RemoveWhere(ordinal => ordinal >= dropFromMutationOrdinal);
+                    draft.PlacedMutations.UnionWith(placed);
                     draft.OperationCount = keptOperations + operationCount;
                     draft.CanonicalOperationCount = keptCanonical + canonicalCount;
                     ForgetValidateReplays(changeSetId);
@@ -274,6 +313,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     if (_validateReplays.TryGetValue(replayKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
@@ -316,7 +356,7 @@ internal sealed partial class NendoAgentAuthoringService(
         Draft draft, string changeSetId, string applicationHandle, CancellationToken cancellationToken)
     {
         var snapshot = await application.GetSnapshotAsync(cancellationToken);
-        RequireCapturedAuthority(draft, snapshot);
+        var recapturedFrom = RequireCapturedAuthority(draft, snapshot);
         // A previous cleanup IO refusal keeps its private preview owned by
         // the draft. Finish that cleanup before creating another clone.
         if (draft.Preview is { } abandoned)
@@ -329,6 +369,7 @@ internal sealed partial class NendoAgentAuthoringService(
         var origin = NendoTransportIdentity.Pseudonym(applicationHandle);
         NendoAgentProposalPreview projected;
         var transferred = false;
+        var sentIn = new Dictionary<string, int>(StringComparer.Ordinal);
         try
         {
             var preview = await application.PrepareProposalAsync(
@@ -336,7 +377,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     proposalId,
                     draft.Title,
                     origin,
-                    Compile(draft, origin)),
+                    Compile(draft, origin, sentIn)),
                 cancellationToken);
             draft.Preview = preview;
             if (preview.CapturedDefinitionRevision != draft.CapturedDefinitionRevision ||
@@ -347,18 +388,41 @@ internal sealed partial class NendoAgentAuthoringService(
                     "CHANGE_SET_STALE",
                     "The application authority changed while the change set was validating.");
             }
-            projected = NendoAgentProposalStore.ProjectPreview(preview);
+            projected = NendoAgentProposalStore.ProjectPreview(preview) with { ChangeSetId = changeSetId, Owner = origin };
+            if (recapturedFrom is { } previous)
+            {
+                // Said in the result rather than done silently: the revision it was validated at
+                // is not the one it began at.
+                projected = projected with
+                {
+                    Diagnostics =
+                    [
+                        .. projected.Diagnostics,
+                        new NendoCompilerDiagnostic(
+                            "NCS001",
+                            NendoDiagnosticSeverity.Warning,
+                            $"The application definition moved from revision {previous} to {draft.CapturedDefinitionRevision} after " +
+                            $"the draft began, so it was validated at revision {draft.CapturedDefinitionRevision}.",
+                            null,
+                            null,
+                            "Nothing in the draft pinned a revision or was placed by the host, so its operations mean what they " +
+                            "meant; read the semantic diff as usual."),
+                    ],
+                };
+            }
             if (preview.State == NendoProposalState.Previewable)
             {
                 proposals.Add(changeSetId, host.HostRunId, applicationHandle, preview);
                 _drafts.Remove(changeSetId);
                 // The operations stay with the proposal, for a revalidate after the file moves.
                 draft.Preview = null;
+                draft.ProposalId = preview.ProposalId;
                 _validated[changeSetId] = draft;
                 transferred = true;
             }
             else
             {
+                projected = projected with { Diagnostics = [.. projected.Diagnostics.Select(diagnostic => Locate(diagnostic, sentIn))] };
                 BeforeInvalidPreviewCleanup?.Invoke();
             }
         }
@@ -379,6 +443,21 @@ internal sealed partial class NendoAgentAuthoringService(
         }
         return projected;
     }
+
+    /// <summary>
+    /// A refusal's operationId counts canonical operations, after inline properties expand, anchors
+    /// add moves and chunks join, so it cannot be mapped back to what was sent; amend takes the
+    /// mutation ordinal as sent, and the hint names it (MAA-03). Only for a draft: a proposal's
+    /// diagnostics are revalidated or rejected, never amended.
+    /// </summary>
+    private static NendoCompilerDiagnostic Locate(NendoCompilerDiagnostic diagnostic, IReadOnlyDictionary<string, int> sentIn) =>
+        diagnostic.OperationId is { } operationId && sentIn.TryGetValue(operationId, out var ordinal)
+            ? diagnostic with
+            {
+                Hint = ($"{diagnostic.Hint} It is in mutation {ordinal} as sent: nendo.change_set.amend with " +
+                        $"dropFromMutationOrdinal {ordinal} replaces that mutation and every one after it.").TrimStart(),
+            }
+            : diagnostic;
 
     /// <summary>
     /// Validates a proposal's operations again at the file's current revision (W-157): the
@@ -405,6 +484,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     if (_revalidateReplays.TryGetValue(replayKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
@@ -416,17 +496,20 @@ internal sealed partial class NendoAgentAuthoringService(
                             "CHANGE_SET_NOT_VALIDATED",
                             "The change set is still a draft; validate it with nendo.change_set.validate.");
                     }
-                    var owned = proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle);
+                    var owned = OwnedProposal(changeSetId, applicationHandle);
                     if (!_validated.TryGetValue(changeSetId, out var kept))
                     {
                         throw new NendoAgentAuthoringException(
                             "CHANGE_SET_NOT_FOUND",
                             "The proposal's operations are no longer held by this host; reject it and begin a new change set.");
                     }
-                    await proposals.RejectAsync(application, owned.ProposalId, cancellationToken);
-                    _validated.Remove(changeSetId);
+                    // Everything that may refuse or be cancelled happens before the old proposal is
+                    // rejected, and nothing after the reject waits on the caller: a cancellation in
+                    // between used to leave neither the proposal nor its operations (MAA-07).
                     var snapshot = await application.GetSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
+                    await proposals.RejectAsync(application, owned.ProposalId, CancellationToken.None);
+                    _validated.Remove(changeSetId);
                     var draft = new Draft(
                         changeSetId,
                         kept.Title,
@@ -441,9 +524,11 @@ internal sealed partial class NendoAgentAuthoringService(
                         CanonicalOperationCount = kept.CanonicalOperationCount,
                     };
                     draft.Mutations.AddRange(kept.Mutations);
+                    draft.PlacedMutations.UnionWith(kept.PlacedMutations);
                     // Invalid at the new revision: the draft is open to amend, as after a validate.
                     _drafts[changeSetId] = draft;
                     ForgetValidateReplays(changeSetId);
+                    AfterRevalidateReject?.Invoke();
                     var projected = await ValidateDraftAsync(draft, changeSetId, applicationHandle, cancellationToken);
                     _revalidateReplays.Add(replayKey, new Replay<NendoAgentProposalPreview>(digest, projected));
                     return projected;
@@ -471,6 +556,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     if (_drafts.TryGetValue(changeSetId, out var draft))
                     {
                         RequireDraftOwnership(draft, applicationHandle, leaseId);
@@ -478,9 +564,20 @@ internal sealed partial class NendoAgentAuthoringService(
                             ? throw new NendoAgentAuthoringException(
                                 "CHANGE_SET_NOT_VALIDATED",
                                 "The change set has not been validated.")
-                            : NendoAgentProposalStore.ProjectPreview(draft.Preview);
+                            : NendoAgentProposalStore.ProjectPreview(draft.Preview) with
+                            {
+                                ChangeSetId = changeSetId,
+                                Owner = NendoTransportIdentity.Pseudonym(applicationHandle),
+                            };
                     }
-                    return proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle);
+                    if (_settled.TryGetValue(changeSetId, out var settled) &&
+                        settled.ApplicationHandle == applicationHandle &&
+                        settled.Fate == "accepted" &&
+                        proposals.TryGetAcceptedByChangeSet(changeSetId) is { } accepted)
+                    {
+                        return accepted;
+                    }
+                    return OwnedProposal(changeSetId, applicationHandle);
                 }
                 finally
                 {
@@ -506,6 +603,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     if (_rejectReplays.TryGetValue(replayKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
@@ -523,11 +621,12 @@ internal sealed partial class NendoAgentAuthoringService(
                     }
                     else
                     {
-                        proposalId = proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle).ProposalId;
+                        proposalId = OwnedProposal(changeSetId, applicationHandle).ProposalId;
                         // Keep ownership and the review queue until the Engine has
                         // released the clone. Cancellation while queued remains retryable.
                         await proposals.RejectAsync(application, proposalId, cancellationToken);
                         _validated.Remove(changeSetId);
+                        Settle(changeSetId, applicationHandle, proposalId, "rejected");
                     }
                     var result = new NendoChangeSetRejectResult(
                         changeSetId,
@@ -575,6 +674,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 await _gate.WaitAsync(cancellationToken);
                 try
                 {
+                    PruneSettled();
                     if (_acceptReplays.TryGetValue(replayKey, out var replay))
                     {
                         return ExactReplay(replay, digest);
@@ -586,7 +686,7 @@ internal sealed partial class NendoAgentAuthoringService(
                             "CHANGE_SET_NOT_VALIDATED",
                             "The change set has not been validated. Validate it before accepting it.");
                     }
-                    var owned = proposals.GetOwned(changeSetId, host.HostRunId, applicationHandle);
+                    var owned = OwnedProposal(changeSetId, applicationHandle);
                     // A proposal that already committed is answered from its receipt: the
                     // Engine's promotion of a committed proposal is idempotent, so an accept
                     // whose response was lost after the commit reads as applied on retry.
@@ -626,6 +726,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     // fixed should try again rather than replay the old refusal.
                     if (!outcome.Applied) return result;
                     _validated.Remove(changeSetId);
+                    Settle(changeSetId, applicationHandle, owned.ProposalId, "accepted");
                     _acceptReplays.Add(replayKey, new Replay<NendoChangeSetAcceptResult>(digest, result));
 
                     // Consent second, and only when the file now needs it. Asking before the
@@ -672,6 +773,85 @@ internal sealed partial class NendoAgentAuthoringService(
     private void ForgetValidateReplays(string changeSetId)
     {
         _validateReplays.RemoveWhere(key => key.ChangeSetId == changeSetId);
+    }
+
+    /// <summary>
+    /// Lets go of the operations behind every proposal that has left the queue without this
+    /// service seeing it go: the person accepted or rejected it in Nendo (MAA-09). Called under
+    /// the gate at the start of each call, and from the queue's change notice when the gate is free.
+    /// </summary>
+    private void PruneSettled()
+    {
+        foreach (var (changeSetId, draft) in _validated.ToArray())
+        {
+            if (proposals.Holds(changeSetId)) continue;
+            _validated.Remove(changeSetId);
+            var accepted = proposals.TryGetAcceptedByChangeSet(changeSetId);
+            var fate = accepted is not null ? "accepted" : proposals.WasRejected(changeSetId) ? "rejected" : "settled";
+            Settle(changeSetId, draft.ApplicationHandle, accepted?.ProposalId ?? draft.ProposalId, fate);
+        }
+    }
+
+    /// <summary>The queue changed. Never waits: a handler runs on the caller's thread, which may hold the gate already.</summary>
+    internal void ReleaseSettled()
+    {
+        try
+        {
+            if (!_gate.Wait(0)) return;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        try
+        {
+            PruneSettled();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private void Settle(string changeSetId, string applicationHandle, string? proposalId, string fate)
+    {
+        _settled.Remove(changeSetId);
+        _settled.Add(changeSetId, new Settled(applicationHandle, proposalId, fate));
+    }
+
+    /// <summary>
+    /// The proposal a change set validated into, when this session owns it; otherwise what became
+    /// of it, named, or the store's own refusal.
+    /// </summary>
+    private NendoAgentProposalPreview OwnedProposal(string changeSetId, string applicationHandle)
+    {
+        if (proposals.TryGetOwned(changeSetId, host.HostRunId, applicationHandle) is { } owned)
+            return owned with { ChangeSetId = changeSetId, Owner = NendoTransportIdentity.Pseudonym(applicationHandle) };
+        throw SettledRefusal(changeSetId, applicationHandle) ?? new NendoAgentAuthoringException(
+            "CHANGE_SET_NOT_FOUND",
+            "The change set is not owned by this agent session.");
+    }
+
+    private NendoAgentAuthoringException? SettledRefusal(string changeSetId, string applicationHandle)
+    {
+        if (string.IsNullOrWhiteSpace(changeSetId) ||
+            !_settled.TryGetValue(changeSetId, out var settled) ||
+            settled.ApplicationHandle != applicationHandle)
+        {
+            return null;
+        }
+        var proposal = settled.ProposalId is null ? "its proposal" : $"proposal {settled.ProposalId}";
+        return new NendoAgentAuthoringException(
+            "CHANGE_SET_NOT_FOUND",
+            settled.Fate switch
+            {
+                "accepted" => $"Change set {changeSetId} validated as {proposal}, which was accepted: its changes are in the file. " +
+                              "It takes no more calls; begin a new change set for further changes.",
+                "rejected" => $"Change set {changeSetId} validated as {proposal}, which was rejected, and its operations went with it. " +
+                              "Begin a new change set to make the change again.",
+                _ => $"Change set {changeSetId} validated as {proposal}, which has settled: it left the queue, accepted or " +
+                     "rejected in Nendo, and this host no longer knows which. Read the file before sending it again.",
+            });
     }
 
     /// <summary>Whether the open file holds automatic actions this device has not approved, and this listener may approve them.</summary>
@@ -767,18 +947,74 @@ internal sealed partial class NendoAgentAuthoringService(
         }
     }
 
-    private void RequireCapturedAuthority(Draft draft, NendoSessionSnapshot snapshot)
+    /// <summary>
+    /// The draft still belongs to the open file, and is captured at its current definition revision.
+    /// A draft has not been reviewed, so when the revision moved under it and no operation pins
+    /// one, it is captured again here: every omitted expectedDefinitionRevision is filled from the
+    /// captured revision at validate, and the clone checks the operations as always. Refusing it
+    /// left no way out but reject and resend, since revalidate takes proposals only (MAA-02).
+    /// </summary>
+    private long? RequireCapturedAuthority(Draft draft, NendoSessionSnapshot snapshot)
     {
         RequireHostIdentity(snapshot);
         if (draft.ApplicationId != snapshot.Manifest.ApplicationId ||
             draft.InstanceId != snapshot.Manifest.InstanceId ||
-            draft.HostRunId != host.HostRunId ||
-            draft.CapturedDefinitionRevision != snapshot.Manifest.DefinitionRevision)
+            draft.HostRunId != host.HostRunId)
         {
             throw new NendoAgentAuthoringException(
                 "CHANGE_SET_STALE",
-                "The application definition changed after the draft began.");
+                "The draft belongs to a file session that is no longer open; begin a new change set.");
         }
+        if (draft.CapturedDefinitionRevision == snapshot.Manifest.DefinitionRevision) return null;
+        var moved = $"The application definition moved from revision {draft.CapturedDefinitionRevision} to " +
+                    $"{snapshot.Manifest.DefinitionRevision} after the draft began";
+        // A placement the host worked out when the operations arrived (an anchor's position and
+        // parent, the siblings it moved up, the parent a move kept) is a reading of the old
+        // definition: replayed at the new one it could undo the person's own moves.
+        var placed = draft.PlacedMutations.Count == 0 ? (int?)null : draft.PlacedMutations.Min;
+        var pinned = PinnedRevision(draft);
+        if (placed is not null && (pinned is null || placed <= pinned))
+        {
+            throw new NendoAgentAuthoringException(
+                "CHANGE_SET_STALE",
+                $"{moved}, and mutation {placed} places nodes by beforeNodeId, afterNodeId or a ui.moveNode without " +
+                "parentNodeId, which the host resolved against the old revision. Amend from that mutation to send the " +
+                "placement again, or reject the draft with nendo.change_set.reject and begin again.");
+        }
+        if (pinned is not null)
+        {
+            throw new NendoAgentAuthoringException(
+                "CHANGE_SET_STALE",
+                $"{moved}, and mutation {pinned} pins expectedDefinitionRevision. Amend from that mutation without the " +
+                "pinned value, or with the current one, and validate again; or reject the draft with " +
+                "nendo.change_set.reject and begin again.");
+        }
+        var previous = draft.CapturedDefinitionRevision;
+        draft.CapturedDefinitionRevision = snapshot.Manifest.DefinitionRevision;
+        return previous;
+    }
+
+    /// <summary>The ordinals, counted from <paramref name="first"/>, of the mutations whose placement the host resolves.</summary>
+    private static IEnumerable<int> PlacedOrdinals(IReadOnlyList<NendoAgentMutationInput> mutations, int first) =>
+        mutations
+            .Select((mutation, index) => (mutation, index))
+            .Where(pair => pair.mutation.Operations.Any(operation => HasAnchor(operation) || KeepsParent(operation)))
+            .Select(pair => first + pair.index)
+            .ToArray();
+
+    /// <summary>The first mutation an operation of which states its own expectedDefinitionRevision, or null.</summary>
+    private static int? PinnedRevision(Draft draft)
+    {
+        for (var index = 0; index < draft.Mutations.Count; index++)
+        {
+            if (draft.Mutations[index].Operations.Any(operation =>
+                    operation.Payload.Element.TryGetProperty("expectedDefinitionRevision", out var declared) &&
+                    declared.ValueKind != JsonValueKind.Null))
+            {
+                return index;
+            }
+        }
+        return null;
     }
 
     /// <summary>A draft that still takes operations: owned, and not frozen for a validate in progress.</summary>
@@ -808,7 +1044,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     "nendo.change_set.revalidate validates the same operations again. To keep it, ask the person to accept it, " +
                     "or, at Unattended access only, accept it with nendo.change_set.accept.");
             }
-            throw new NendoAgentAuthoringException(
+            throw SettledRefusal(changeSetId, applicationHandle) ?? new NendoAgentAuthoringException(
                 "CHANGE_SET_NOT_FOUND",
                 "The change set does not exist.");
         }
@@ -830,7 +1066,7 @@ internal sealed partial class NendoAgentAuthoringService(
         }
     }
 
-    private NendoCanonicalChangeSetRequest Compile(Draft draft, string origin)
+    private NendoCanonicalChangeSetRequest Compile(Draft draft, string origin, Dictionary<string, int> sentIn)
     {
         var operationOrdinal = 0;
         // The definition revision advances once per preceding definition-lane
@@ -846,18 +1082,20 @@ internal sealed partial class NendoAgentAuthoringService(
         var mutations = new List<NendoCanonicalMutationRequest>(joined.Count);
         for (var mutationOrdinal = 0; mutationOrdinal < joined.Count; mutationOrdinal++)
         {
-            var mutation = joined[mutationOrdinal];
+            var (sentOrdinal, mutation) = joined[mutationOrdinal];
+            var operations = new List<NendoCanonicalOperationRequest>();
+            foreach (var operation in mutation.Operations.SelectMany(Expand))
+            {
+                var operationId = $"operation.agent.{draft.ChangeSetId}.{operationOrdinal++:D3}";
+                sentIn[operationId] = sentOrdinal;
+                operations.Add(new NendoCanonicalOperationRequest(operationId, operation.OperationType, ResolveRevision(operation, revision)));
+            }
             mutations.Add(new NendoCanonicalMutationRequest(
                 $"mcp.change-set.{host.HostRunId}.{draft.ChangeSetId}",
                 $"mutation-{mutationOrdinal:D3}",
                 origin,
                 mutation.Description,
-                mutation.Operations
-                    .SelectMany(Expand)
-                    .Select(operation => new NendoCanonicalOperationRequest(
-                        $"operation.agent.{draft.ChangeSetId}.{operationOrdinal++:D3}",
-                        operation.OperationType,
-                        ResolveRevision(operation, revision))).ToArray()));
+                operations.ToArray()));
             if (mutation.Operations.Count > 0 && IsDefinitionLane(mutation.Operations[0].OperationType))
             {
                 revision++;
@@ -1045,9 +1283,9 @@ internal sealed partial class NendoAgentAuthoringService(
     /// order, so the Engine sees one put per file with the whole content, and the chunk's own
     /// mutation drops it. A mutation left with nothing is not sent at all.
     /// </summary>
-    private static IReadOnlyList<NendoAgentMutationInput> JoinChunks(IReadOnlyList<NendoAgentMutationInput> mutations)
+    private static IReadOnlyList<(int Ordinal, NendoAgentMutationInput Mutation)> JoinChunks(IReadOnlyList<NendoAgentMutationInput> mutations)
     {
-        if (!mutations.Any(mutation => mutation.Operations.Any(IsAppend))) return mutations;
+        if (!mutations.Any(mutation => mutation.Operations.Any(IsAppend))) return mutations.Select((mutation, index) => (index, mutation)).ToArray();
         var result = mutations.Select(mutation => mutation.Operations.ToList()).ToList();
         var bodies = new List<(int Mutation, int Operation, List<byte> Bytes, bool Joined)>();
         var current = new Dictionary<(string, string), int>();
@@ -1075,15 +1313,17 @@ internal sealed partial class NendoAgentAuthoringService(
             var begun = result[mutationIndex][operationIndex];
             result[mutationIndex][operationIndex] = new NendoAgentOperationInput(begun.OperationType, Object(writer =>
             {
+                // sha256 and byteLength beside text or base64 check the bytes sent with them, which
+                // were the first part only; kept beside the joined file they refused it (MAA-11).
                 foreach (var property in begun.Payload.Element.EnumerateObject()
-                             .Where(property => property.Name is not ("text" or "base64" or "append")))
+                             .Where(property => property.Name is not ("text" or "base64" or "append" or "sha256" or "byteLength")))
                     property.WriteTo(writer);
                 writer.WriteBase64String("base64", bytes.ToArray());
             }));
         }
         return mutations
-            .Select((mutation, index) => new NendoAgentMutationInput(mutation.Description, result[index].Where(operation => operation is not null).ToArray()))
-            .Where(mutation => mutation.Operations.Count > 0)
+            .Select((mutation, index) => (index, new NendoAgentMutationInput(mutation.Description, result[index].Where(operation => operation is not null).ToArray())))
+            .Where(pair => pair.Item2.Operations.Count > 0)
             .ToArray();
     }
 
@@ -1237,11 +1477,42 @@ internal sealed partial class NendoAgentAuthoringService(
                 $"{operation.OperationType} does not take {string.Join(", ", unknown)}; it takes " +
                 $"{string.Join(", ", published.RequiredPayload.Concat(published.OptionalPayload))}.{elsewhere}");
         }
+        // A required key left out is refused rather than read as null (MAA-10): the Engine binds
+        // several as optional, so setLook without letter reset the letter and setPurpose {} cleared
+        // the purpose, though the table publishes both keys as required.
+        var required = NendoAuthoringOperations.All.Single(candidate => candidate.OperationType == operation.OperationType).RequiredPayload;
+        var missing = required.Where(name => !operation.Payload.Element.TryGetProperty(name, out _)).ToArray();
+        if (missing.Length > 0)
+        {
+            throw new NendoValidationException(
+                $"{operation.OperationType} requires {string.Join(", ", missing)}. Leaving a key out does not keep its " +
+                "current value: send every required key, as null where the operation says null clears it or returns it to its default.");
+        }
+        operation = WithoutUnusedAnchors(operation);
         // Decode first: an exact decimal arrives as a {"$nendoNumber": "..."} object,
         // and an inline property value carrying one is a number, not an object.
         var decoded = new NendoAgentOperationInput(operation.OperationType, NendoNumericEnvelope.Decode(operation.Payload.Element));
         RequireInlineProperties(decoded);
         return decoded;
+    }
+
+    /// <summary>
+    /// A placement key sent as null is a key not sent (MAA-04): a null beforeNodeId or afterNodeId
+    /// leaves the payload, and so does a null position beside an anchor that places the node.
+    /// </summary>
+    private static NendoAgentOperationInput WithoutUnusedAnchors(NendoAgentOperationInput operation)
+    {
+        if (operation.OperationType is not ("ui.addNode" or "ui.moveNode")) return operation;
+        var payload = operation.Payload.Element;
+        var anchored = HasAnchor(operation);
+        bool Unused(JsonProperty property) =>
+            property.Value.ValueKind == JsonValueKind.Null &&
+            (property.Name is "beforeNodeId" or "afterNodeId" || (anchored && property.Name == "position"));
+        if (!payload.EnumerateObject().Any(Unused)) return operation;
+        return new NendoAgentOperationInput(operation.OperationType, Object(writer =>
+        {
+            foreach (var property in payload.EnumerateObject().Where(property => !Unused(property))) property.WriteTo(writer);
+        }));
     }
 
     /// <summary>
@@ -1324,7 +1595,7 @@ internal sealed partial class NendoAgentAuthoringService(
         internal string HostRunId { get; } = hostRunId;
         internal string ApplicationId { get; } = applicationId;
         internal string InstanceId { get; } = instanceId;
-        internal long CapturedDefinitionRevision { get; } = capturedDefinitionRevision;
+        internal long CapturedDefinitionRevision { get; set; } = capturedDefinitionRevision;
         internal List<NendoAgentMutationInput> Mutations { get; } = [];
         internal NendoReplayCache<string, Replay<NendoChangeSetAddResult>> AddReplays { get; } = new();
         internal int OperationCount { get; set; }
@@ -1333,7 +1604,15 @@ internal sealed partial class NendoAgentAuthoringService(
         internal int CanonicalOperationCount { get; set; }
         internal bool Frozen { get; set; }
         internal NendoProposalPreview? Preview { get; set; }
+
+        /// <summary>The mutations whose placement the host resolved when they arrived, by ordinal.</summary>
+        internal SortedSet<int> PlacedMutations { get; } = [];
+
+        /// <summary>The proposal these operations validated into, once they have.</summary>
+        internal string? ProposalId { get; set; }
     }
 
     private sealed record Replay<T>(string Digest, T Result);
+
+    private sealed record Settled(string ApplicationHandle, string? ProposalId, string Fate);
 }

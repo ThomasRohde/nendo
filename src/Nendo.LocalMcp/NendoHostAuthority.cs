@@ -15,13 +15,22 @@ internal sealed class NendoHostAuthority(
     private int _port;
     private int _closed;
 
+    /// <summary>
+    /// Why a closed endpoint refuses, and where the current one is shown: the one sentence the
+    /// perimeter, the tool path and the resource path all give (MHS-10).
+    /// </summary>
+    internal const string ClosedMessage =
+        "This agent endpoint is closed: the file was closed, switched or entered recovery, or agent access " +
+        "was turned off. Every handle and lease from it has ended. Ask the person which file is open; Nendo " +
+        "shows the current address on the Agent page.";
+
     internal bool IsActive => Volatile.Read(ref _closed) == 0;
 
     internal void CloseAdmission() => Interlocked.Exchange(ref _closed, 1);
 
     internal void RequireActive()
     {
-        if (!IsActive) throw new NendoAgentAuthorityException("HOST_CLOSED", "This agent endpoint is closed. Enable access again in the current file session.");
+        if (!IsActive) throw new NendoAgentAuthorityException("HOST_CLOSED", ClosedMessage);
     }
 
     internal string HostRunId { get; } = hostRunId;

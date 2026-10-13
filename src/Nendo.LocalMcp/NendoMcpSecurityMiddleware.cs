@@ -56,14 +56,6 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
                 "anywhere else is refused, so that a browser cannot be used to reach this endpoint.");
             return;
         }
-        if (context.Request.ContentLength > MaximumRequestBodyBytes)
-        {
-            var envelope = context.Request.ContentLength <= EnvelopeScanBytes
-                ? await new EnvelopeScanner().ScanAsync(context.Request.Body, 0, context.RequestAborted)
-                : default;
-            await RejectTooLargeAsync(context, envelope, context.Request.ContentLength);
-            return;
-        }
         // Counted before the body is read: a request still sending its body holds a place,
         // which is what stops a client from opening requests without ever finishing them. One
         // past the bound waits for a place before it is refused (NendoRequestGate).
@@ -89,14 +81,28 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         }
         var aborted = context.RequestAborted;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(aborted);
-        // A subscriptions/listen stream is held open on purpose, for as long as its client
-        // listens; it keeps its gate place and is not a request that failed to finish (W-151).
-        if (!string.Equals(context.Request.Headers["Mcp-Method"].ToString(), "subscriptions/listen", StringComparison.Ordinal))
-            timeout.CancelAfter(gate.Timeout);
+        // Every request, its body included, runs under the timeout. A subscriptions/listen stream
+        // is held open on purpose, for as long as its client listens (W-151), so the timeout is
+        // lifted once the body has been read and its own method is subscriptions/listen. The
+        // client's Mcp-Method header used to decide it before any body was read, so a tools/call
+        // carrying that header ran without the bound (MHS-09).
+        timeout.CancelAfter(gate.Timeout);
         context.RequestAborted = timeout.Token;
         try
         {
-            await AdmitAsync(context, authority);
+            // An oversized body is scanned for its id here, holding a place and under the timeout:
+            // the scan used to run before the gate, so neither bounded it (MHS-08).
+            if (context.Request.ContentLength > MaximumRequestBodyBytes)
+            {
+                var envelope = context.Request.ContentLength <= EnvelopeScanBytes
+                    ? await new EnvelopeScanner().ScanAsync(context.Request.Body, 0, context.RequestAborted)
+                    : default;
+                await RejectTooLargeAsync(context, envelope, context.Request.ContentLength);
+            }
+            else
+            {
+                await AdmitAsync(context, authority, () => timeout.CancelAfter(Timeout.InfiniteTimeSpan));
+            }
         }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested && !aborted.IsCancellationRequested)
         {
@@ -117,7 +123,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         }
     }
 
-    private async Task AdmitAsync(HttpContext context, NendoHostAuthority authority)
+    private async Task AdmitAsync(HttpContext context, NendoHostAuthority authority, Action holdOpen)
     {
         var originalBody = context.Request.Body;
         await using var buffered = new MemoryStream(
@@ -147,10 +153,11 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
                 buffered.Position = 0;
                 try
                 {
-                    using var _ = await JsonDocument.ParseAsync(
+                    using var parsed = await JsonDocument.ParseAsync(
                         buffered,
                         new JsonDocumentOptions { MaxDepth = MaximumJsonDepth },
                         context.RequestAborted);
+                    if (IsListen(parsed.RootElement)) holdOpen();
                 }
                 catch (JsonException error)
                 {
@@ -173,9 +180,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
                     context,
                     StatusCodes.Status401Unauthorized,
                     "NENDO_HOST_CLOSED",
-                    "This agent endpoint is closed: the file was closed, switched or entered recovery, or agent access " +
-                    "was turned off. Every handle and lease from it has ended. Ask the person which file is open; Nendo " +
-                    "shows the current address on the Agent page.");
+                    NendoHostAuthority.ClosedMessage);
                 return;
             }
             await next(context);
@@ -232,6 +237,13 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         }
         return deepest;
     }
+
+    /// <summary>Whether the body is a subscriptions/listen request, by its own JSON-RPC method.</summary>
+    internal static bool IsListen(JsonElement body) =>
+        body.ValueKind == JsonValueKind.Object &&
+        body.TryGetProperty("method", out var method) &&
+        method.ValueKind == JsonValueKind.String &&
+        method.ValueEquals("subscriptions/listen");
 
     internal static bool IsExactHost(HostString host, int port) =>
         string.Equals(host.Host, IPAddress.Loopback.ToString(), StringComparison.Ordinal) &&
@@ -313,11 +325,23 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
     /// <summary>
     /// Reads a JSON-RPC request's id, method and tool name from a body fed in pieces, without
     /// keeping the body: only a token cut by a piece's end is carried to the next.
+    /// <para>
+    /// A string longer than <see cref="CarryBytes"/> is not carried: its bytes are skipped up to
+    /// the closing quote, and the reader is handed an empty string in its place. A 15 MiB value
+    /// ahead of the id was copied and parsed again from its start on every 16 KiB piece, which
+    /// cost time quadratic in its length (MHS-08). A token of any other kind that long is no
+    /// envelope this scan can read, and the scan gives up.
+    /// </para>
     /// </summary>
     internal sealed class EnvelopeScanner
     {
+        internal const int CarryBytes = 4 * 1024;
         private JsonReaderState _state = new(new JsonReaderOptions { MaxDepth = MaximumJsonDepth });
         private byte[] _carry = [];
+        // Inside a long string being skipped: the separators before it, and whether the last byte was a backslash.
+        private byte[]? _skipping;
+        private bool _escaped;
+        private bool _ignoreNext;
         private string? _property;
         private bool _inParams;
         private bool _failed;
@@ -352,6 +376,15 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         internal void Feed(ReadOnlySpan<byte> piece)
         {
             if (Done) return;
+            if (_skipping is { } before)
+            {
+                if (ClosingQuote(piece) is not { } end) return;
+                // The string ends here: the reader sees an empty one in its place, then the rest.
+                _skipping = null;
+                _ignoreNext = true;
+                byte[] resumed = [.. before, (byte)'"', (byte)'"', .. piece[(end + 1)..]];
+                piece = resumed;
+            }
             var buffer = _carry.Length == 0 ? piece.ToArray() : [.. _carry, .. piece];
             var reader = new Utf8JsonReader(buffer, isFinalBlock: false, _state);
             try
@@ -365,10 +398,58 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             }
             _state = reader.CurrentState;
             _carry = buffer[(int)reader.BytesConsumed..];
+            if (_carry.Length > CarryBytes && !Done) Skip();
+        }
+
+        /// <summary>
+        /// The carried token is long. A string begins with a quote after any separators: from there
+        /// its bytes are skipped. Anything else is not an envelope worth reading.
+        /// </summary>
+        private void Skip()
+        {
+            var start = 0;
+            while (start < _carry.Length && _carry[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n' or (byte)',' or (byte)':')
+                start++;
+            if (start >= _carry.Length || _carry[start] != (byte)'"')
+            {
+                _failed = true;
+                return;
+            }
+            var before = _carry[..start];
+            var rest = _carry.AsSpan(start + 1);
+            _escaped = false;
+            _carry = [];
+            // The carry holds no closing quote, or the reader would have read the string whole.
+            _skipping = before;
+            if (ClosingQuote(rest) is { } end)
+            {
+                _skipping = null;
+                _ignoreNext = true;
+                _carry = [.. before, (byte)'"', (byte)'"', .. rest[(end + 1)..]];
+            }
+        }
+
+        /// <summary>Where the skipped string's closing quote is in this piece, or null; keeps the escape state across pieces.</summary>
+        private int? ClosingQuote(ReadOnlySpan<byte> piece)
+        {
+            for (var index = 0; index < piece.Length; index++)
+            {
+                if (_escaped) _escaped = false;
+                else if (piece[index] == (byte)'\\') _escaped = true;
+                else if (piece[index] == (byte)'"') return index;
+            }
+            return null;
         }
 
         private void Take(ref Utf8JsonReader reader)
         {
+            if (_ignoreNext && reader.TokenType is JsonTokenType.PropertyName or JsonTokenType.String)
+            {
+                // The empty string that stands for a skipped one names nothing and is no value.
+                _ignoreNext = false;
+                _property = null;
+                return;
+            }
             if (reader.TokenType == JsonTokenType.PropertyName)
             {
                 _property = reader.GetString();

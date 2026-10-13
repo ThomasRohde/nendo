@@ -262,6 +262,77 @@ public sealed class HostHardeningTests
         await WaitUntilAsync(() => host.InFlightRequests == 0, "the stalled request to give its place back");
     }
 
+    /// <summary>
+    /// MHS-09: the listen exemption from the timeout was decided by the client's Mcp-Method
+    /// header, before any body was read, so a request carrying that header was never stopped.
+    /// It is decided by the body's own method now, and a body that never arrives is not one.
+    /// </summary>
+    [TestMethod]
+    public async Task ARequestCarryingTheListenHeaderStillMeetsTheTimeout()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot) { RequestTimeout = TimeSpan.FromMilliseconds(400) });
+        using var stalled = await PartialRequest.OpenAsync(host.Endpoint, ToolsCall("held"), "subscriptions/listen");
+        var (status, body) = await stalled.ReadResponseAsync();
+        Assert.AreEqual(503, status, body);
+        StringAssert.Contains(body, "NENDO_REQUEST_TIMEOUT");
+        await WaitUntilAsync(() => host.InFlightRequests == 0, "the stalled request to give its place back");
+    }
+
+    /// <summary>
+    /// MHS-08: a body over the cap was scanned for its id before the request took a place, so
+    /// neither the bound on requests in flight nor the timeout applied to the scan.
+    /// </summary>
+    [TestMethod]
+    public async Task AnOversizedBodyIsScannedHoldingAPlaceAndUnderTheTimeout()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service,
+            AgentAccessMode.ReadOnly,
+            new NendoLocalMcpHostOptions(workspace.DiscoveryRoot) { RequestTimeout = TimeSpan.FromSeconds(2) });
+        var declared = (int)NendoMcpSecurityMiddleware.MaximumRequestBodyBytes + 64 * 1024;
+        // The head of a JSON-RPC body whose id would come after a long value, the rest held back.
+        var sending = Enumerable.Repeat((byte)'A', declared).ToArray();
+        var head = Encoding.UTF8.GetBytes("{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"x\",\"arguments\":{\"value\":\"");
+        head.CopyTo(sending, 0);
+        using var oversized = await PartialRequest.OpenAsync(host.Endpoint, sending, "tools/call", sentBytes: 1024);
+        await WaitUntilAsync(() => host.InFlightRequests == 1, "the oversized request to hold a place while it is scanned");
+        var (status, body) = await oversized.ReadResponseAsync();
+        Assert.AreEqual(503, status, body);
+        StringAssert.Contains(body, "NENDO_REQUEST_TIMEOUT");
+        await WaitUntilAsync(() => host.InFlightRequests == 0, "the oversized request to give its place back");
+    }
+
+    /// <summary>MHS-08: a long string ahead of the id is skipped, not carried and parsed again on every piece.</summary>
+    [TestMethod]
+    public async Task ALongStringAheadOfTheIdScansInLinearTime()
+    {
+        var blob = new string('A', 15 * 1024 * 1024);
+        var body = Encoding.UTF8.GetBytes(
+            "{\"jsonrpc\":\"2.0\",\"method\":\"tools/call\",\"params\":{\"name\":\"nendo.data.set_field\",\"arguments\":{\"value\":\"" +
+            blob + "\\\"quoted\\\\\"}},\"id\":7}");
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var envelope = await new NendoMcpSecurityMiddleware.EnvelopeScanner().ScanAsync(new MemoryStream(body), 0, CancellationToken.None);
+        watch.Stop();
+        Assert.AreEqual(7L, envelope.Id?.GetValue<long>(), "The id after the long string was not found.");
+        Assert.AreEqual(("tools/call", "nendo.data.set_field"), (envelope.Method, envelope.ToolName));
+        Assert.IsLessThan(1500L, watch.ElapsedMilliseconds, $"Scanning a 15 MiB string ahead of the id took {watch.ElapsedMilliseconds} ms.");
+    }
+
+    private static byte[] ToolsCall(string id) => JsonSerializer.SerializeToUtf8Bytes(new
+    {
+        jsonrpc = "2.0",
+        id,
+        method = "tools/call",
+        @params = new { name = "nendo.lease.status", arguments = new { } },
+    });
+
     private static byte[] Initialize(string client) => JsonSerializer.SerializeToUtf8Bytes(new
     {
         jsonrpc = "2.0",
@@ -299,16 +370,17 @@ public sealed class HostHardeningTests
             _rest = rest;
         }
 
-        internal static async Task<PartialRequest> OpenAsync(Uri endpoint, byte[] body)
+        internal static async Task<PartialRequest> OpenAsync(Uri endpoint, byte[] body, string method = "initialize", int? sentBytes = null)
         {
             var client = new TcpClient();
             await client.ConnectAsync(IPAddress.Loopback, endpoint.Port);
-            var request = new PartialRequest(client, body[(body.Length / 2)..]);
+            var sent = sentBytes ?? body.Length / 2;
+            var request = new PartialRequest(client, body[sent..]);
             var head = $"POST {endpoint.AbsolutePath} HTTP/1.1\r\nHost: 127.0.0.1:{endpoint.Port}\r\n" +
                 "Content-Type: application/json\r\nAccept: application/json, text/event-stream\r\n" +
-                $"Mcp-Method: initialize\r\nContent-Length: {body.Length}\r\n\r\n";
+                $"Mcp-Method: {method}\r\nContent-Length: {body.Length}\r\n\r\n";
             await request._stream.WriteAsync(Encoding.ASCII.GetBytes(head));
-            await request._stream.WriteAsync(body.AsMemory(0, body.Length / 2));
+            await request._stream.WriteAsync(body.AsMemory(0, sent));
             await request._stream.FlushAsync();
             return request;
         }

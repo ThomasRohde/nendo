@@ -10436,3 +10436,80 @@ Not run, and left open (each is on the roadmap):
 - R2LAT-05: `1,234` is refused where the language writes decimals with a dot.
 - R2LAT-12: Does not equal with a plain date on a date-and-time field is refused.
 - ESQ-05: a matrix keeps its own unset lanes under a grouping-field `ne`.
+
+### Twentieth pass: MCP authoring and host contract (W-227)
+
+2026-10-13: the nineteen findings planned as W-227 (1 P2, 18 P3) are fixed; none was refuted,
+though MAA-07's second scenario and MAA-14's activity-label prong were already dropped by the
+verifier and are not acted on. The guards are a new Local MCP test class,
+`AuthoringContractReviewTests` (with a small `AuthoringRig` that drives the authoring service as
+the tools do and accepts as the Desktop does, through the proposal store), and new cases in
+`AuthoringErgonomicsTests`, `AuthoringExampleTests`, `DiscoveryLifecycleTests` and
+`HostHardeningTests`. Every guard failed with its defect put back, and the quoted texts are from
+those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [MAA-05](#maa-05) | A `ui.moveNode` that leaves `parentNodeId` out keeps the node's current parent, filled in at the boundary from the file's definition and the change set's earlier operations (the anchor resolver's own placement); an explicit null still makes it a root, and the operation's summary says both. A move of a node that is nowhere is refused when it is added. | `Expected:<Previewable>. Actual:<Invalid>. … MAA-05: a move that left parentNodeId out was read as a move to the root. NUI001 The semantic contract version is missing or invalid. \| NUI012 Node kind 'fieldBinding' cannot be a surface root.` |
+| [MAA-02](#maa-02) | A draft the definition moved under is captured again at validate when none of its operations pins `expectedDefinitionRevision` and none holds a placement the host resolved when it arrived (an anchor, or a `ui.moveNode` whose parent was kept), and the result carries warning `NCS001` naming both revisions. A pinned or host-placed draft is `NENDO_CHANGE_SET_STALE` naming both revisions, the mutation, and the remedy: amend from it, or reject and begin again. | `ADraftTheFileMovedUnderValidatesAtTheNewRevisionUnlessItPinsOne threw exception: Nendo.LocalMcp.NendoAgentAuthoringException: The application definition changed after the draft began.` |
+| [MAA-03](#maa-03) | Compile keeps a map from each canonical `operationId` to the mutation it was sent in, through inline properties, anchor moves and joined chunks, and an invalid result's refusal hint ends "It is in mutation N as sent: nendo.change_set.amend with dropFromMutationOrdinal N replaces that mutation and every one after it." The `authoringRules` sentence points at it. | `String 'Correct the named operation and validate the change set again.' does not contain string 'mutation 2 as sent'. MAA-03: operation.agent.change-set-….011 cannot be mapped back to the mutation amend takes.` |
+| [MAA-04](#maa-04) | A `beforeNodeId` or `afterNodeId` sent as null is a key not sent, and so is a null `position` beside an anchor: they leave the payload before it is digested, and the anchor test reads `ValueKind != Null`. Only null anchors with no position meet the Engine's "position requires an integer", named by mutation and operation, never "argument 'key'". | `Mutation 0, operation 0 (ui.addNode 'notesAll'): Give exactly one of position, beforeNodeId and afterNodeId.` |
+| [MAA-06](#maa-06) | `ShapeOf` counts lanes by the renderer's `reachableGroups` rule: a `filterClause` of the surface on the grouping field with `ne` removes its value and with `eq` keeps only it, on both matrix axes, choice board columns and reference board columns. A reference board checks the ceiling as the renderer does, against every record of the target type (the clone's count) before any filter, and says it would draw none past it; under it, a filter that leaves nothing says "the board's own filter excludes every column", and a filter over records the preview holds only in part states no count. | `Assert.AreEqual failed. … Expected: "3 rows by 2 columns, 6 cells"` (the shape read four rows) |
+| [MAA-07](#maa-07) | Revalidate reads the new revision before it rejects the old proposal, rejects with `CancellationToken.None`, and registers the new draft before anything else can wait, so a cancellation after the reject leaves a draft to validate again. Scenario (2) is documented behaviour and unchanged. | `ARevalidateCancelledAfterItsRejectKeepsTheChangeSet threw exception: Nendo.LocalMcp.NendoAgentAuthoringException: The change set does not exist.` |
+| [MAA-09](#maa-09) | The operations behind a proposal are let go when it leaves the queue by any route: from the host's queue-change notice when the service's gate is free, and at the start of every authoring call. What became of the change set is kept (bounded), so preview of one the person accepted reads back `active`, a rejected one says it was rejected (the store remembers rejections by change set), and one whose fate has aged out says it settled and to read the file first. | `Expected:<0>. Actual:<1>. … MAA-09: the person's accept left the operations held.` |
+| [MAA-10](#maa-10) | A payload missing a key the published table lists as required is refused naming it, and saying that null is how to clear or default it. That covers `application.setLook`, `setPurpose`, `setNewFileLabel` and `schema.setFieldSequence`, which the Engine binds as optional. Every published example already sends its required keys. | `Expected exception type:<Nendo.Engine.NendoValidationException> but no exception was thrown. 'action' expression: '() => rig.AddAsync(… Op("application.setLook", new { tone = "teal" })))'.` |
+| [MAA-11](#maa-11) | `JoinChunks` drops `sha256` and `byteLength` from the first put when later chunks join it: they checked the first part's bytes, not the whole file's. The `extension.putFile` summary says that `sha256` beside text or base64 checks only that operation's bytes, and that the review shows the joined file's size and lines. | `AChunkedFileWhoseFirstPartCarriesItsHashValidates threw exception: Nendo.Engine.NendoValidationException: extension.putFile sha256 does not match the bytes sent for view.js; they hash to f187aa14…` |
+| [MAA-13](#maa-13) | validate, revalidate and preview carry the caller's own `changeSetId` and `owner`, as the resource read does: `ValidateDraftAsync`'s projection, a draft's preview and `TryGetOwned` fill them. | `Expected:<(change-set-ded9…, agent-e577…)>. Actual:<(, )>. … MAA-13: validate` |
+| [MAA-14](#maa-14) | An invalid validate or revalidate records no proposal in its activity entry, and the `proposalId` description says an invalid result's ID names the clone already discarded, which no read lists. | `Assert.IsNull failed. 'value' expression: 'entry.ProposalId'. MAA-14: the activity entry names proposal-a93d…, a clone already discarded.` |
+| [MAA-15](#maa-15) | `NENDO_DRAFT_LIMIT` names the count and the limit, every open draft by `changeSetId` and title, and the way out: validate one, reject one, or release the lease. | `String 'This session already holds 8 open change-set drafts, the most limits.draftsPerSession (8) allows: . Validate one, …' does not contain string 'change-set-…'` |
+| [MAA-16](#maa-16) | The Engine's proposal preview carries the compiled file-scoped views (`PreviewViews`, set from the bounded compilation beside the overview and cleared on a refusal), and the summary lists each with `entityId` null, so the Agent view's review counts the screen and reads "The whole file". `view-agent.ts` needed no change. | `Assert.IsNotNull failed. 'value' expression: 'view'. MAA-16: a proposal that adds a custom view as a screen of the file listed no screen.` |
+| [MAA-17](#maa-17) | The example's note reads fourteen operations and fifty-three one property at a time, and a test recomputes both from the example. begin's description and its `changeSetId` add revalidate and accept; add_operations' family list says `application.*`; the diagnostic `hint` description says amend applies to a draft and a proposal is revalidated or rejected; the contract's replay sentence names revalidate and keeps add and amend replays with their draft. | `String '… The whole page below is fifteen operations; one property at a time it would be forty.' does not contain string 'The whole page below is fourteen operations'` |
+| [MAA-18](#maa-18) | `keptInNewFiles` on `data.createRecord` in a change set is refused naming `data.setKeptInNewFiles`, which may follow in the same mutation (the guard validates exactly that); the rule and `schema.setKeptInNewFiles`' summary say "data.setKeptInNewFiles in a change set, keptInNewFiles on the create tools". | `String 'data.createRecord does not take keptInNewFiles; it takes entityId, recordId, values, expectedTargetVersions.' does not contain string 'data.setKeptInNewFiles'.` |
+| [MHS-07](#mhs-07) | A discovery entry records `processStartedAt`; it is live only while the process under its ID started then (an older entry without it, only while that process started before the entry was written). A process this user may not inspect is kept as live, not swept. The sweep also removes a `.{run}.{guid}.tmp` older than a minute. | `Assert.IsEmpty failed. Expected collection of size 0. Actual: 2. … A crashed host's entry was listed under a reused process ID.`; with the sweep put back: `Assert.IsFalse failed. 'condition' expression: 'File.Exists(orphan)'. The sweep left a half-written entry behind.` |
+| [MHS-08](#mhs-08) | An oversized body is scanned for its id after it takes a request-gate place and under the request timeout. The scanner skips a string longer than 4 KiB to its closing quote, escapes included, and hands the reader an empty string in its place, rather than carrying and parsing the token again on every 16 KiB piece. | `Actual value <3390> is not less than expected value <1500>. … Scanning a 15 MiB string ahead of the id took 3390 ms.`; with the scan back before the gate: `Timed out waiting for the oversized request to hold a place while it is scanned.` |
+| [MHS-09](#mhs-09) | Every request runs under the timeout through its body read; the timeout is lifted only when the parsed body's own JSON-RPC method is `subscriptions/listen`. | `Expected:<503>. Actual:<408>. … HTTP/1.1 408 Request Timeout` (only Kestrel's minimum data rate stopped the request) |
+| [MHS-10](#mhs-10) | One sentence, `NendoHostAuthority.ClosedMessage`, for the perimeter's 401, `NendoToolErrors.AuthorityMessage`'s new `HOST_CLOSED` arm and the resource path, which now shares that table; the host's list, read, skills and tool filters translate a closed admission rather than throwing it bare. | `String 'NENDO_HOST_CLOSED: Agent authority rejected the request.' does not contain string 'NENDO_HOST_CLOSED: This agent endpoint is closed: …'`; with the filter helper put back: `Expected exception type:<ModelContextProtocol.McpProtocolException>. Actual exception type:<System.InvalidOperationException>.` |
+
+Two existing tests asserted the refusal MAA-02 removes. `AuthoringProtocolTests.DraftIsSessionBoundBoundedAndStalesWhenDefinitionChanges`
+is renamed `…AndValidatesAtTheNewRevisionWhenDefinitionChanges` and asserts the draft validates
+at the current revision; `AuthoringRecoveryTests.AValidateThatThrowsLeavesTheDraftOpenRatherThanFrozen`
+keeps its point by pinning the revision, and now also asserts the refusal names the pin.
+`AuthoringErgonomicsTests.ASurfaceWhoseSizeCannotBeGuessedStatesItInThePreview` adds the ne
+clause MAA-06 measures. `HostHardeningTests.PartialRequest` takes the `Mcp-Method` header and
+how much of the body to send.
+
+An independent review of the fixes found nothing that had to be fixed and three things that
+should be, all fixed. add_operations resolves placement when the operations arrive, so
+capturing a draft again at a newer revision replayed a stale placement and could undo the
+person's own move: a draft holding a host-resolved placement is now refused as stale like a
+pinned one, and a draft captured again carries a warning (`Expected exception type:<Nendo.LocalMcp.NendoAgentAuthoringException>
+but no exception was thrown. … MAA-02 review: the draft was captured again and would move the
+name back into the section the person took it out of.`; with the warning put back, `MAA-02
+review: the draft was validated at a newer revision and nothing said so.`). The reference-board
+shape compared the filtered, bounded sample with the ceiling, where the renderer counts every
+record first (`String 'one column per Client record, 1 of them' does not contain string '30 of
+them, more than the 24 a board draws, so it would draw none'`), and called a board its own filter
+emptied a type with no records (`… 'one column per Client record, and there are none yet, so it
+would draw nothing' does not contain string 'the board's own filter excludes every column'`). The
+host's queue notice had no guard, because the count it was measured by pruned by itself: the
+count now reads without pruning, and a host test accepts through the store as the Desktop does
+(with `authoring.ReleaseSettled()` deleted from the host: `Expected:<0>. Actual:<1>. … MAA-09: the
+person's accept left the operations held until the next agent call.`). Of the smaller items, a
+discovery entry whose process this user may not inspect is kept rather than swept (`Expected
+collection of size 1. Actual: 0. … An entry whose process could not be inspected was treated as
+dead, and the sweep would delete it.`, run against the System process, and inconclusive where
+that process can be inspected); a settled change set whose fate is no longer known says so
+rather than "rejected"; and begin's description, its advisory and `outstandingProposals` state
+the new rule. Nendo's Help names `NENDO_CHANGE_SET_STALE`'s new meaning in
+`src/Nendo.Workbench/src/help-agents.ts`.
+
+Documents updated: `docs/contracts/mcp-interface.md` (the oversized-body scan, the listen
+exemption, the replay sentence and the draft limit, the begin, add_operations, validate,
+revalidate and preview rows, the preview's `shape` and `surfaces`, `nendo://host/instances`, and
+`NENDO_HOST_CLOSED`).
+
+Left open: none of the nineteen. MAA-16 touched the Engine's proposal model
+(`ProposalModel.cs`, `ProposalWorkspace.cs`, `NendoWriteCoordinator.Proposals.cs`):
+`PreviewViews` is set and cleared exactly where `PreviewOverview` is, and nothing new is stored. The
+MHS-10 queued-write path and the filter path are measured through the translators and the two
+admission helpers rather than by closing a live host mid-call, which would be a race.

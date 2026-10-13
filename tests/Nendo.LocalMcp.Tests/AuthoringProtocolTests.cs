@@ -320,7 +320,7 @@ public sealed class AuthoringProtocolTests
     }
 
     [TestMethod]
-    public async Task DraftIsSessionBoundBoundedAndStalesWhenDefinitionChanges()
+    public async Task DraftIsSessionBoundBoundedAndValidatesAtTheNewRevisionWhenDefinitionChanges()
     {
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateEmptyAsync();
@@ -406,17 +406,19 @@ public sealed class AuthoringProtocolTests
                 [ReadingQueueAuthoringFixture.Operations()[0]],
                 "valid-operation")));
         await workspace.Service.CreateIdeaSchemaAsync("definition-changed");
-        await AssertToolErrorAsync(
-            client,
+        // A draft has not been reviewed, and none of its operations pins a revision, so it is
+        // validated at the revision the file has now rather than refused as stale (MAA-02).
+        var moved = Result<NendoAgentProposalPreview>(await client.CallToolAsync(
             "nendo.change_set.validate",
             new Dictionary<string, object?>
             {
                 ["applicationHandle"] = lease.ApplicationHandle, ["leaseId"] = lease.LeaseId,
                 ["changeSetId"] = begun.ChangeSetId,
-                ["idempotencyKey"] = "validate-stale",
-            },
-            "NENDO_CHANGE_SET_STALE");
-        Assert.IsEmpty(host.GetPendingProposals());
+                ["idempotencyKey"] = "validate-moved",
+            }));
+        Assert.AreEqual(NendoProposalState.Previewable, moved.State);
+        Assert.AreEqual((await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision, moved.CapturedDefinitionRevision);
+        Assert.HasCount(1, host.GetPendingProposals());
     }
 
     [TestMethod]

@@ -68,10 +68,11 @@ internal static class NendoToolErrors
             $"NENDO_{NendoText.ErrorCode(calculation.Code)}",
             calculation.Message),
         // Every engine validation message is a constant template that interpolates
-        // stable IDs, operation types, property names, declared choice IDs or counts —
-        // never a path and never a stored value. One blind "arguments are invalid" stood
-        // in for all of them and cost an outside reviewer a rebuilt change set per
-        // guess at a payload key the message already named.
+        // stable IDs, operation types, property names, declared choice IDs or counts, and
+        // may echo what the caller itself sent, such as a CSV cell or header it is refused
+        // over (ESQ-07, ESQ-12) — never a path and never a value the file stores. One blind
+        // "arguments are invalid" stood in for all of them and cost an outside reviewer a
+        // rebuilt change set per guess at a payload key the message already named.
         NendoValidationException validation => Error(
             "NENDO_INVALID_REQUEST",
             validation.Message),
@@ -184,7 +185,7 @@ internal static class NendoToolErrors
     // Each says what the agent can do next. NENDO_LEASE_HELD used to stop at "another
     // agent has edit access", which left an agent whose own acquire response was lost
     // unable to tell that the holder was itself (F-175).
-    private static string AuthorityMessage(string code) => code switch
+    internal static string AuthorityMessage(string code) => code switch
     {
         "EDIT_DATA_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.DataMutation),
         "SHAPE_APP_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.ApplicationAuthoring),
@@ -201,6 +202,7 @@ internal static class NendoToolErrors
         "INVALID_LEASE" =>
             "A valid application handle and edit lease are required. Pass the applicationHandle and leaseId from " +
             "nendo.lease.acquire; a lease released, revoked or from before the file was reopened no longer counts.",
+        "HOST_CLOSED" => NendoHostAuthority.ClosedMessage,
         _ => "Agent authority rejected the request.",
     };
 }

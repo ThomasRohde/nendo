@@ -20,6 +20,27 @@ internal interface IApprovesWhatTheFileAsks
 [DoNotParallelize]
 public sealed class AuthoringExampleTests
 {
+    /// <summary>
+    /// MAA-17: the note sizes a batch, so its numbers are the example's own. It said fifteen and
+    /// forty while the page was fourteen operations carrying thirty-nine inline properties.
+    /// </summary>
+    [TestMethod]
+    public void TheInlinePropertiesNoteCountsItsOwnExample()
+    {
+        var example = NendoAuthoringExamples.Description().Examples.Single(value => value.Name == "two-commands-and-a-filtered-list");
+        var page = example.Mutations.Single(mutation => mutation.Operations.All(operation => operation.OperationType == "ui.addNode"));
+        var submitted = page.Operations.Count;
+        var expanded = submitted + page.Operations.Sum(operation =>
+            operation.Payload.TryGetProperty("properties", out var properties) ? properties.EnumerateObject().Count() : 0);
+        string[] words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+            "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+        string[] tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+        string Word(int value) => value < 20 ? words[value] : value % 10 == 0 ? tens[value / 10] : $"{tens[value / 10]}-{words[value % 10]}";
+        var note = example.Notes[0];
+        StringAssert.Contains(note, $"The whole page below is {Word(submitted)} operations", note);
+        StringAssert.Contains(note, $"one property at a time it would be {Word(expanded)}.", note);
+    }
+
     [TestMethod]
     public async Task EveryPublishedExampleValidatesThroughTheRealAuthoringBoundary()
     {

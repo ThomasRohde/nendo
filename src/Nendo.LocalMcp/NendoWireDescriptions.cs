@@ -88,7 +88,7 @@ internal static class NendoWireDescriptions
             [(typeof(NendoCompilerDiagnostic), nameof(NendoCompilerDiagnostic.PropertyPath))] =
                 "The property it concerns, or null.",
             [(typeof(NendoCompilerDiagnostic), nameof(NendoCompilerDiagnostic.Hint))] =
-                "What to change, to correct it with nendo.change_set.amend.",
+                "What to change. On an invalid validate the change set is still a draft, and the hint names the mutation to correct with nendo.change_set.amend; a proposal's diagnostics are never amended: revalidate or reject it.",
             [(typeof(NendoCompilerDiagnostic), nameof(NendoCompilerDiagnostic.OperationId))] =
                 "The operation a validation refused, or null when the refusal is not about one. A change set that does not validate reports each independent refusal, up to five.",
 

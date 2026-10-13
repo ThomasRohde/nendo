@@ -184,7 +184,7 @@ public sealed record NendoDataApplyResult(
 }
 
 public sealed record NendoChangeSetBeginResult(
-    [property: Description("Server-minted change-set ID. Pass it to add_operations, amend, validate, preview and reject.")]
+    [property: Description("Server-minted change-set ID. Pass it to add_operations, amend, validate, revalidate, preview, reject and accept.")]
     string ChangeSetId,
     [property: Description("The title the person sees on the proposal.")]
     string Title,
@@ -198,7 +198,7 @@ public sealed record NendoChangeSetBeginResult(
     /// proposal captured a definition revision, and accepting any one of them
     /// advances that revision and invalidates the rest.
     /// </summary>
-    [Description("How many other change sets are already open against this file. Accepting any one of them advances the definition revision and makes the others stale.")]
+    [Description("How many other change sets are already open against this file. Accepting any one of them advances the definition revision: the validated ones go stale, and so does a draft that pins a revision or places nodes by anchor.")]
     public int OutstandingProposals { get; init; }
 
     /// <summary>What to do about <see cref="OutstandingProposals"/>, when there are any.</summary>

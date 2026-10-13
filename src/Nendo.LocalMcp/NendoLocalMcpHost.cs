@@ -145,6 +145,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     /// <summary>Requests past the perimeter and not yet answered.</summary>
     internal int InFlightRequests => _requests.InFlight;
 
+    /// <summary>How many proposals' operations the authoring service still holds, for the tests that prove they are released.</summary>
+    internal int KeptProposalCount => _authoring.KeptProposalCount;
+
     internal int WaitingRequests => _requests.Waiting;
 
     /// <summary>
@@ -326,7 +329,13 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         // every proposal; the queue changes when one joins, is promoted or is rejected.
         var feed = new NendoChangeFeed();
         Action<long> committed = _ => feed.Signal(NendoChangeFeed.Manifest, NendoChangeFeed.Proposals);
-        Action proposalsChanged = () => feed.Signal(NendoChangeFeed.Proposals);
+        // A proposal the person accepted or rejected in Nendo also lets go of the operations the
+        // authoring service kept for it (MAA-09).
+        Action proposalsChanged = () =>
+        {
+            feed.Signal(NendoChangeFeed.Proposals);
+            authoring.ReleaseSettled();
+        };
         applicationService.Committed += committed;
         applicationService.CommittedChanges += feed.SignalChanges;
         proposalStore.ProposalsChanged += proposalsChanged;
@@ -406,7 +415,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         // client was locked out (ADR-0009).
                         server.Filters.Request.ListToolsFilters.Add(next => async (context, token) =>
                         {
-                            authority.RequireActive();
+                            NendoMcpErrors.RequireActive(authority);
                             var result = await next(context, token);
                             result.Tools = result.Tools.OrderBy(tool => tool.Name, StringComparer.Ordinal).ToList();
                             result.CacheScope = CacheScope.Private;
@@ -415,7 +424,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         });
                         server.Filters.Request.ListResourcesFilters.Add(next => async (context, token) =>
                         {
-                            authority.RequireActive();
+                            NendoMcpErrors.RequireActive(authority);
                             var result = await next(context, token);
                             result.CacheScope = CacheScope.Private;
                             result.TimeToLive = TimeSpan.Zero;
@@ -423,7 +432,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                         });
                         server.Filters.Request.ListResourceTemplatesFilters.Add(next => async (context, token) =>
                         {
-                            authority.RequireActive();
+                            NendoMcpErrors.RequireActive(authority);
                             var result = await next(context, token);
                             result.CacheScope = CacheScope.Private;
                             result.TimeToLive = TimeSpan.Zero;
@@ -442,7 +451,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             Method = "skills/list",
                             Handler = async (_, token) =>
                             {
-                                authority.RequireActive();
+                                NendoMcpErrors.RequireActive(authority);
                                 return NendoHostSkill.ListResult(await NendoFileSkills.ReadAsync(applicationService, token));
                             },
                         });
@@ -452,7 +461,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             RoutingNameParameter = "uri",
                             Handler = async (request, token) =>
                             {
-                                authority.RequireActive();
+                                NendoMcpErrors.RequireActive(authority);
                                 return NendoHostSkill.GetResult(request.Params, await NendoFileSkills.ReadAsync(applicationService, token));
                             },
                         });
@@ -476,7 +485,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             using var refusal = NendoToolRefusal.Begin();
                             try
                             {
-                                authority.RequireActive();
+                                NendoMcpErrors.RequireActiveForTool(authority);
                                 NendoToolBoundary.Validate(context.Params, mode);
                                 var result = await next(context, token);
                                 activity.Record(slot, context.Params.Name, context.Server, rejected: result.IsError is true);
@@ -513,7 +522,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             using var failed = NendoAgentFailures.Begin("resource", name, failures.Sink);
                             try
                             {
-                                authority.RequireActive();
+                                NendoMcpErrors.RequireActive(authority);
                                 // A query is a set, not a sequence: either order, and an empty
                                 // value left out. The SDK matched the URI before this filter
                                 // ran, so a rewritten one is matched again here.

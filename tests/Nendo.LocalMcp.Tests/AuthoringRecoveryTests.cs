@@ -273,8 +273,9 @@ public sealed class AuthoringRecoveryTests
     }
 
     /// <summary>
-    /// A validate that ends without a verdict — here, the definition moving under the
-    /// draft — used to leave it frozen, so the only tool that answered was reject.
+    /// A validate that ends without a verdict — here, the definition moving under a draft
+    /// that pins the revision it was written against — used to leave it frozen, so the only
+    /// tool that answered was reject.
     /// </summary>
     [TestMethod]
     public async Task AValidateThatThrowsLeavesTheDraftOpenRatherThanFrozen()
@@ -291,11 +292,11 @@ public sealed class AuthoringRecoveryTests
         var begun = Result<NendoChangeSetBeginResult>(await client.CallToolAsync("nendo.change_set.begin",
             new Dictionary<string, object?>(owned) { ["title"] = "Rename under a moving file", ["idempotencyKey"] = "stale-begin" }));
         var scoped = new Dictionary<string, object?>(owned) { ["changeSetId"] = begun.ChangeSetId };
+        var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await AddAsync(client, scoped, "Rename the record type",
-            [Operation("schema.renameEntity", new { entityId = NendoApplicationService.IdeaEntityId, displayName = "Sparks" })], "stale-add");
+            [Operation("schema.renameEntity", new { entityId = NendoApplicationService.IdeaEntityId, displayName = "Sparks", expectedDefinitionRevision = revision })], "stale-add");
 
         // The person renames it first, through the host.
-        var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         var theirs = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
             $"proposal-{Guid.NewGuid():N}", "Theirs first", "test",
             new([new("test", "theirs", "test", "Theirs first",
@@ -306,6 +307,7 @@ public sealed class AuthoringRecoveryTests
             new Dictionary<string, object?>(scoped) { ["idempotencyKey"] = "stale-validate" });
         Assert.IsTrue(stale.IsError);
         StringAssert.Contains(JsonSerializer.Serialize(stale), "NENDO_CHANGE_SET_STALE");
+        StringAssert.Contains(JsonSerializer.Serialize(stale), "pins expectedDefinitionRevision");
 
         // Amend still answers, and so does reject; neither says the draft is frozen.
         var amended = await client.CallToolAsync("nendo.change_set.amend", new Dictionary<string, object?>(scoped)

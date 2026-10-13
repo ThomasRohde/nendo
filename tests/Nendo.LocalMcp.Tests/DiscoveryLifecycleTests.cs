@@ -225,6 +225,83 @@ public sealed class DiscoveryLifecycleTests
         Assert.IsTrue(File.Exists(host.DiscoveryPath));
     }
 
+    /// <summary>
+    /// MHS-07: Windows reuses a process ID once its process ends, so an entry trusted on the ID
+    /// alone read as live under whatever took the number. Here the number is this test's own
+    /// process, which started after the entries say they were written.
+    /// </summary>
+    [TestMethod]
+    public async Task AnEntryWhoseProcessStartedAfterItWasWrittenIsNotLiveAndIsSwept()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        Directory.CreateDirectory(workspace.DiscoveryRoot);
+        using var current = System.Diagnostics.Process.GetCurrentProcess();
+        var started = new DateTimeOffset(current.StartTime.ToUniversalTime(), TimeSpan.Zero);
+        string Entry(string run, DateTimeOffset? processStartedAt)
+        {
+            var path = Path.Combine(workspace.DiscoveryRoot, $"{run}.json");
+            File.WriteAllText(path, JsonSerializer.Serialize(
+                new NendoDiscoveryDocument(1, "http://127.0.0.1:65001/mcp", run, Environment.ProcessId, started.AddHours(-1),
+                    AgentAccessMode.ReadOnly, "app", "instance", "crashed.nendo") { ProcessStartedAt = processStartedAt },
+                NendoMcpJson.Options));
+            return path;
+        }
+        var unstamped = Entry("reused-unstamped", null);
+        var stamped = Entry("reused-stamped", started.AddHours(-1));
+        var orphan = Path.Combine(workspace.DiscoveryRoot, ".crashed-run.0123.tmp");
+        var fresh = Path.Combine(workspace.DiscoveryRoot, ".writing-run.4567.tmp");
+        File.WriteAllText(orphan, "{");
+        File.WriteAllText(fresh, "{");
+        File.SetLastWriteTimeUtc(orphan, DateTime.UtcNow.AddMinutes(-5));
+
+        var store = new NendoDiscoveryStore(workspace.DiscoveryRoot);
+        Assert.IsEmpty(store.ReadLiveEntries(), "A crashed host's entry was listed under a reused process ID.");
+
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.ReadOnly, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        Assert.IsFalse(File.Exists(unstamped), "The sweep kept an entry written before its process started.");
+        Assert.IsFalse(File.Exists(stamped), "The sweep kept an entry stamped with another start time.");
+        Assert.IsFalse(File.Exists(orphan), "The sweep left a half-written entry behind.");
+        Assert.IsTrue(File.Exists(fresh), "The sweep removed a temporary file a host may still be writing.");
+        var live = store.ReadLiveEntries().Single();
+        Assert.AreEqual(Path.GetFileNameWithoutExtension(host.DiscoveryPath), live.HostRunId);
+        Assert.IsNotNull(live.ProcessStartedAt, "A host does not stamp its own entry with its start time.");
+    }
+
+    /// <summary>
+    /// W-227 review: a process this user may not inspect is not known to be another one, so its
+    /// entry is kept and listed rather than swept. The System process stands in for it.
+    /// </summary>
+    [TestMethod]
+    public void AnEntryWhoseProcessCannotBeInspectedIsKept()
+    {
+        try
+        {
+            using var system = System.Diagnostics.Process.GetProcessById(4);
+            _ = system.HasExited ? default : system.StartTime;
+            Assert.Inconclusive("This user may inspect the System process, so it cannot stand in for one that cannot be.");
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+        }
+        var root = Path.Combine(Path.GetTempPath(), $"nendo-discovery-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            File.WriteAllText(Path.Combine(root, "uninspectable.json"), JsonSerializer.Serialize(
+                new NendoDiscoveryDocument(1, "http://127.0.0.1:65002/mcp", "uninspectable", 4, DateTimeOffset.UtcNow,
+                    AgentAccessMode.ReadOnly, "app", "instance", "elsewhere.nendo") { ProcessStartedAt = DateTimeOffset.UtcNow },
+                NendoMcpJson.Options));
+            var live = new NendoDiscoveryStore(root).ReadLiveEntries();
+            Assert.HasCount(1, live, "An entry whose process could not be inspected was treated as dead, and the sweep would delete it.");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private static void AssertProtectedAcl(string path, bool isDirectory)
     {
         FileSystemSecurity security = isDirectory

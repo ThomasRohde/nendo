@@ -17,9 +17,25 @@ internal sealed partial class NendoAgentAuthoringService
 {
     private readonly record struct PlacedNode(string SurfaceId, string? ParentNodeId, int Position);
 
+    // An anchor sent as an explicit null is an anchor not given (MAA-04): tool-call generators write
+    // every optional key, and a null beforeNodeId used to be refused as a second placement.
     private static bool HasAnchor(NendoAgentOperationInput operation) =>
         operation.OperationType is "ui.addNode" or "ui.moveNode" &&
-        (operation.Payload.Element.TryGetProperty("beforeNodeId", out _) || operation.Payload.Element.TryGetProperty("afterNodeId", out _));
+        (Given(operation.Payload.Element, "beforeNodeId") || Given(operation.Payload.Element, "afterNodeId"));
+
+    private static bool Given(JsonElement payload, string name) =>
+        payload.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null;
+
+    /// <summary>
+    /// A move that leaves parentNodeId out keeps the node's parent (MAA-05). The Engine reads an
+    /// absent parent as a root, so a reorder by position alone pulled a child out of its page;
+    /// the parent is filled in here, from the same placement the anchors read. An explicit null
+    /// still makes the node a root.
+    /// </summary>
+    private static bool KeepsParent(NendoAgentOperationInput operation) =>
+        operation.OperationType == "ui.moveNode" &&
+        !operation.Payload.Element.TryGetProperty("parentNodeId", out _) &&
+        !HasAnchor(operation);
 
     private async Task<IReadOnlyList<NendoAgentMutationInput>> ResolveAnchorsAsync(
         IReadOnlyList<NendoAgentMutationInput> earlier,
@@ -27,7 +43,7 @@ internal sealed partial class NendoAgentAuthoringService
         int firstMutationOrdinal,
         CancellationToken cancellationToken)
     {
-        if (!mutations.Any(mutation => mutation.Operations.Any(HasAnchor))) return mutations;
+        if (!mutations.Any(mutation => mutation.Operations.Any(operation => HasAnchor(operation) || KeepsParent(operation)))) return mutations;
         var nodes = (await application.GetDefinitionSnapshotAsync(cancellationToken)).UiNodes
             .ToDictionary(node => node.NodeId, node => new PlacedNode(node.SurfaceId, node.ParentNodeId, node.Position), StringComparer.Ordinal);
         foreach (var operation in earlier.SelectMany(mutation => mutation.Operations).SelectMany(Expand)) Place(nodes, operation);
@@ -42,7 +58,9 @@ internal sealed partial class NendoAgentAuthoringService
                 IReadOnlyList<NendoAgentOperationInput> placed;
                 try
                 {
-                    placed = HasAnchor(operation) ? Anchor(nodes, operation) : [operation];
+                    placed = HasAnchor(operation) ? Anchor(nodes, operation)
+                        : KeepsParent(operation) ? [WithCurrentParent(nodes, operation)]
+                        : [operation];
                 }
                 catch (NendoValidationException exception)
                 {
@@ -67,7 +85,7 @@ internal sealed partial class NendoAgentAuthoringService
         var before = Text(payload, "beforeNodeId");
         var after = Text(payload, "afterNodeId");
         var nodeId = Text(payload, "nodeId") ?? throw new NendoValidationException($"{operation.OperationType} requires nodeId.");
-        if (before is not null && after is not null || payload.TryGetProperty("position", out _))
+        if (before is not null && after is not null || Given(payload, "position"))
             throw new NendoValidationException("Give exactly one of position, beforeNodeId and afterNodeId.");
         var anchorId = before ?? after!;
         if (anchorId == nodeId) throw new NendoValidationException($"{nodeId} cannot be placed beside itself.");
@@ -122,7 +140,7 @@ internal sealed partial class NendoAgentAuthoringService
         var placed = new NendoAgentOperationInput(operation.OperationType, Object(writer =>
         {
             foreach (var property in payload.EnumerateObject()
-                         .Where(property => property.Name is not ("beforeNodeId" or "afterNodeId" or "parentNodeId")))
+                         .Where(property => property.Name is not ("beforeNodeId" or "afterNodeId" or "parentNodeId" or "position")))
             {
                 property.WriteTo(writer);
             }
@@ -131,6 +149,22 @@ internal sealed partial class NendoAgentAuthoringService
             writer.WriteNumber("position", position.Value);
         }));
         return [placed, .. moves];
+    }
+
+    /// <summary>The move with the node's current parent written out, as the file and the change set's earlier operations leave it.</summary>
+    private static NendoAgentOperationInput WithCurrentParent(Dictionary<string, PlacedNode> nodes, NendoAgentOperationInput operation)
+    {
+        var payload = operation.Payload.Element;
+        var nodeId = Text(payload, "nodeId") ?? throw new NendoValidationException("ui.moveNode requires nodeId.");
+        if (!nodes.TryGetValue(nodeId, out var current))
+            throw new NendoValidationException(
+                $"{nodeId} is not a node in this file or earlier in this change set, so there is nothing to move.");
+        return new NendoAgentOperationInput(operation.OperationType, Object(writer =>
+        {
+            foreach (var property in payload.EnumerateObject()) property.WriteTo(writer);
+            if (current.ParentNodeId is null) writer.WriteNull("parentNodeId");
+            else writer.WriteString("parentNodeId", current.ParentNodeId);
+        }));
     }
 
     /// <summary>Applies one expanded operation to the placement it leaves, so a later anchor sees it.</summary>

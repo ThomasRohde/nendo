@@ -21,12 +21,43 @@ internal static class NendoMcpErrors
         "NENDO_READ_INTERRUPTED",
         $"The file changed during each of {attempts} attempts at this read, so no answer from one moment of it was put together. Read it again.");
 
+    /// <summary>
+    /// The admission check a list, a read or a skills call makes, refused by code and sentence.
+    /// The bare exception reached the client as a code-less internal error (MHS-10).
+    /// </summary>
+    internal static void RequireActive(NendoHostAuthority authority)
+    {
+        try
+        {
+            authority.RequireActive();
+        }
+        catch (NendoAgentAuthorityException closed)
+        {
+            throw Translate(closed);
+        }
+    }
+
+    /// <summary>The same check in a tool call, refused as a tool result with the code in <c>_meta</c>.</summary>
+    internal static void RequireActiveForTool(NendoHostAuthority authority)
+    {
+        try
+        {
+            authority.RequireActive();
+        }
+        catch (NendoAgentAuthorityException closed)
+        {
+            throw NendoToolErrors.Translate(closed);
+        }
+    }
+
     internal static McpProtocolException Translate(Exception exception) => exception switch
     {
         McpProtocolException protocol => protocol,
+        // The tool path's sentences, which say what to do next (MHS-10): every authority code
+        // used to read "Agent authority rejected the request." here.
         NendoAgentAuthorityException authority => Invalid(
             $"NENDO_{authority.Code}",
-            "Agent authority rejected the request."),
+            NendoToolErrors.AuthorityMessage(authority.Code)),
         NendoRecoveryRequiredException => Invalid(
             "NENDO_RECOVERY_REQUIRED",
             "The file requires recovery before it can be inspected."),

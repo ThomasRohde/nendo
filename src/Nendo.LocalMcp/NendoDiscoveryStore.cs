@@ -40,6 +40,14 @@ internal sealed record NendoDiscoveryDocument(
     string DisplayName)
 {
     public NendoDiscoveryProtocol Protocol { get; init; } = NendoDiscoveryStore.Protocol;
+
+    /// <summary>
+    /// When the writing process started. A process ID alone is reused by Windows once its
+    /// process ends, so a crashed Nendo's entry read as live under whatever took the number;
+    /// the entry is trusted only while the process holding that ID started at this moment
+    /// (MHS-07). Null in an entry from a host that predates it.
+    /// </summary>
+    public DateTimeOffset? ProcessStartedAt { get; init; }
 }
 
 /// <param name="IsThisOne">
@@ -109,7 +117,10 @@ internal sealed class NendoDiscoveryStore(string root)
             authority.Mode,
             applicationId,
             instanceId,
-            Label(displayName));
+            Label(displayName))
+        {
+            ProcessStartedAt = ProcessStart(Environment.ProcessId).Started,
+        };
         var finalPath = Path.Combine(_root, $"{authority.HostRunId}.json");
         var temporaryPath = Path.Combine(_root, $".{authority.HostRunId}.{Guid.NewGuid():N}.tmp");
         try
@@ -239,13 +250,75 @@ internal sealed class NendoDiscoveryStore(string root)
             endpoint.Scheme != Uri.UriSchemeHttp ||
             endpoint.Host != "127.0.0.1" ||
             document.ProcessId <= 0 ||
-            !IsProcessAlive(document.ProcessId)
+            !IsWriterAlive(document)
             ? null
             : document;
     }
 
+    /// <summary>
+    /// Whether the process that wrote the entry is still the one running under its ID: it must
+    /// have started when the entry says, or, for an entry that does not say, before the entry was
+    /// written. A process that started later took a dead host's number (MHS-07).
+    /// </summary>
+    private static bool IsWriterAlive(NendoDiscoveryDocument document)
+    {
+        var process = ProcessStart(document.ProcessId);
+        if (!process.Running) return false;
+        // A process this user may not inspect is not known to be another one: the entry is kept
+        // rather than swept, as before the start time was read (W-227 review).
+        if (process.Started is not { } started) return true;
+        return document.ProcessStartedAt is { } recorded
+            ? (started - recorded).Duration() < StartTolerance
+            : started <= document.CreatedAt + StartTolerance;
+    }
+
+    private static readonly TimeSpan StartTolerance = TimeSpan.FromSeconds(1);
+
+    /// <summary>Whether a process runs under the ID, and when it started, which is null when this user may not read it.</summary>
+    private readonly record struct ProcessLiveness(bool Running, DateTimeOffset? Started);
+
+    private static ProcessLiveness ProcessStart(int processId)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            try
+            {
+                return process.HasExited
+                    ? new(false, null)
+                    : new(true, new DateTimeOffset(process.StartTime.ToUniversalTime(), TimeSpan.Zero));
+            }
+            catch (System.ComponentModel.Win32Exception)
+            {
+                return new(true, null);
+            }
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
+        {
+            return new(false, null);
+        }
+    }
+
+    /// <summary>How old a half-written entry must be before the sweep removes it, so it never races a host writing one.</summary>
+    private static readonly TimeSpan OrphanAge = TimeSpan.FromMinutes(1);
+
     private void CleanupStaleEntries()
     {
+        // A host that crashed between creating its temporary file and moving it into place left
+        // the temporary file behind, and the sweep read only *.json (MHS-07).
+        foreach (var path in Directory.EnumerateFiles(_root, ".*.tmp", SearchOption.TopDirectoryOnly))
+        {
+            try
+            {
+                if (DateTime.UtcNow - File.GetLastWriteTimeUtc(path) > OrphanAge) DeleteIfPresent(path);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
         foreach (var path in Directory.EnumerateFiles(_root, "*.json", SearchOption.TopDirectoryOnly))
         {
             try
@@ -267,19 +340,6 @@ internal sealed class NendoDiscoveryStore(string root)
             {
                 // Do not weaken or replace an entry the current process cannot inspect.
             }
-        }
-    }
-
-    private static bool IsProcessAlive(int processId)
-    {
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
         }
     }
 

@@ -59,6 +59,7 @@ internal sealed class ProposalContext(
     internal IReadOnlyList<NendoCompilerDiagnostic> Diagnostics { get; set; } = [];
     internal IReadOnlyList<NendoApplicationPlan> PreviewApplications { get; set; } = [];
     internal NendoOverviewPlan? PreviewOverview { get; set; }
+    internal IReadOnlyList<NendoSurfaceNodePlan> PreviewViews { get; set; } = [];
     internal IReadOnlyDictionary<string, int> PreviewRecordCounts { get; set; } = new Dictionary<string, int>();
     internal IReadOnlyList<NendoProposalEntitySummary> PreviewEntities { get; set; } = [];
     internal string? MinimumHostVersionBefore { get; set; }
@@ -86,6 +87,7 @@ internal sealed class ProposalContext(
         PreviewApplications = PreviewApplications,
         Origin = Origin,
         PreviewOverview = PreviewOverview,
+        PreviewViews = PreviewViews,
         PreviewRecordCounts = PreviewRecordCounts,
         PreviewEntities = PreviewEntities,
         MinimumHostVersionBefore = MinimumHostVersionBefore,

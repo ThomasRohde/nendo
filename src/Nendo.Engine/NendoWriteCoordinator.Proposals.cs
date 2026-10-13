@@ -135,6 +135,7 @@ public sealed partial class NendoWriteCoordinator
                 }) : compilation;
                 context.PreviewApplications = boundedPreview.Applications;
                 context.PreviewOverview = boundedPreview.Overview;
+                context.PreviewViews = boundedPreview.Views;
                 // The clone has validated all typed schema/data operations. A
                 // custom surface is optional; if present it must compile fully. A
                 // skill package must say what it is, whatever else is in the file.
@@ -148,6 +149,7 @@ public sealed partial class NendoWriteCoordinator
                     store, proposalId, changeSet, exception, failure, active, workspacePath, cancellationToken);
                 context.PreviewApplications = [];
                 context.PreviewOverview = null;
+                context.PreviewViews = [];
                 context.State = NendoProposalState.Invalid;
             }
             catch (Exception exception) when (exception is not NendoException)

@@ -131,7 +131,7 @@ public sealed record NendoAgentPreviewSummary(
 }
 
 public sealed record NendoAgentProposalPreview(
-    [property: Description("The proposal's ID, as nendo://application/proposals and Pending changes name it.")]
+    [property: Description("The proposal's ID, as nendo://application/proposals and Pending changes name it. On an invalid validate or revalidate it names the clone already discarded, which no read lists; the diagnostics are in this result.")]
     string ProposalId,
     [property: Description("The title the person sees.")]
     string Title,
@@ -205,6 +205,8 @@ public sealed class NendoAgentProposalStore
     private const int MaximumAcceptedKept = 64;
     private readonly Dictionary<string, Entry> _accepted = new(StringComparer.Ordinal);
     private readonly Queue<string> _acceptedOrder = new();
+    private readonly HashSet<string> _rejected = new(StringComparer.Ordinal);
+    private readonly Queue<string> _rejectedOrder = new();
     private string? _applicationId;
     private string? _instanceId;
 
@@ -314,8 +316,34 @@ public sealed class NendoAgentProposalStore
                 value.ChangeSetId == changeSetId &&
                 value.HostRunId == hostRunId &&
                 value.ApplicationHandle == applicationHandle);
-            return entry is null ? null : ProjectPreview(entry.Preview);
+            // The caller's own proposal carries its change set and owner, as the resource read does
+            // (MAA-13): the fields say "null for a proposal another client prepared".
+            return entry is null ? null : ProjectPreview(entry.Preview) with
+            {
+                ChangeSetId = entry.ChangeSetId,
+                Owner = NendoTransportIdentity.Pseudonym(entry.ApplicationHandle),
+            };
         }
+    }
+
+    /// <summary>Whether a proposal validated from this change set is still in the queue.</summary>
+    internal bool Holds(string changeSetId)
+    {
+        lock (_gate)
+        {
+            return _entries.Values.Any(value => value.ChangeSetId == changeSetId);
+        }
+    }
+
+    /// <summary>The accepted proposal a change set became, while this host run still keeps it, or null.</summary>
+    internal NendoAgentProposalPreview? TryGetAcceptedByChangeSet(string changeSetId)
+    {
+        string? proposalId;
+        lock (_gate)
+        {
+            proposalId = _accepted.Values.FirstOrDefault(value => value.ChangeSetId == changeSetId)?.Preview.ProposalId;
+        }
+        return proposalId is null ? null : TryGetAccepted(proposalId);
     }
 
     /// <summary>How many validated proposals a session still owns: each is a clone of the file.</summary>
@@ -449,8 +477,25 @@ public sealed class NendoAgentProposalStore
         await RequireMatchingFileAsync(application, cancellationToken);
         _ = Get(proposalId);
         var outcome = await application.RejectProposalAsync(proposalId, cancellationToken);
+        lock (_gate)
+        {
+            if (_entries.TryGetValue(proposalId, out var entry) && _rejected.Add(entry.ChangeSetId))
+            {
+                _rejectedOrder.Enqueue(entry.ChangeSetId);
+                while (_rejectedOrder.Count > MaximumAcceptedKept) _rejected.Remove(_rejectedOrder.Dequeue());
+            }
+        }
         Remove(proposalId);
         return outcome;
+    }
+
+    /// <summary>Whether a proposal validated from this change set was rejected in this host run, while that is still remembered.</summary>
+    internal bool WasRejected(string changeSetId)
+    {
+        lock (_gate)
+        {
+            return _rejected.Contains(changeSetId);
+        }
     }
 
     public async Task CloseFileSessionAsync(
@@ -621,10 +666,13 @@ public sealed class NendoAgentProposalStore
         // file rather than to a record type. Left out here, a proposal that adds one
         // is reviewed as adding no screen at all: the diff names it and this summary
         // did not, which is the two of them disagreeing about the same change set.
-        var surfaces = applications.SelectMany(app => SurfacesOf(app, applications))
+        // A file-scoped custom view is the same case (MAA-16): it belongs to the file, the compiler
+        // keeps it apart from the applications, and a proposal adding one read as adding no screen.
+        var surfaces = applications.SelectMany(app => SurfacesOf(app, applications, preview))
             .Concat(preview.PreviewOverview is null
                 ? []
-                : [Describe(preview.PreviewOverview.Surface, null, null, applications)])
+                : [Describe(preview.PreviewOverview.Surface, null, null, applications, preview)])
+            .Concat(preview.PreviewViews.Select(view => Describe(view, null, null, applications, preview)))
             .ToArray();
         return new NendoAgentPreviewSummary(
             applications.Count == 0 ? null : applications[0].ContractVersion,
@@ -644,18 +692,19 @@ public sealed class NendoAgentProposalStore
         };
     }
 
-    private static IEnumerable<NendoAgentPreviewSurface> SurfacesOf(NendoApplicationPlan app, IReadOnlyList<NendoApplicationPlan> applications)
+    private static IEnumerable<NendoAgentPreviewSurface> SurfacesOf(
+        NendoApplicationPlan app, IReadOnlyList<NendoApplicationPlan> applications, NendoProposalPreview preview)
     {
         var entityId = app.Entity.SemanticId;
         foreach (var root in app.Surfaces)
         {
-            yield return Describe(root, entityId, app, applications);
+            yield return Describe(root, entityId, app, applications, preview);
             // A command may sit inside a record page rather than stand alone, and
             // it is still a button this proposal adds. List it wherever it is, or
             // the review names everything except the thing that writes.
             foreach (var nested in Nested(root).Where(node => node.Kind == "recordCommand"))
             {
-                yield return Describe(nested, entityId, app, applications);
+                yield return Describe(nested, entityId, app, applications, preview);
             }
         }
     }
@@ -664,7 +713,8 @@ public sealed class NendoAgentProposalStore
         NendoSurfaceNodePlan node,
         string? entityId,
         NendoApplicationPlan? app,
-        IReadOnlyList<NendoApplicationPlan> applications) => new(
+        IReadOnlyList<NendoApplicationPlan> applications,
+        NendoProposalPreview preview) => new(
         node.SemanticId,
         node.Kind,
         node.Properties.TryGetValue("title", out var title) && title.ValueKind == JsonValueKind.String
@@ -674,7 +724,7 @@ public sealed class NendoAgentProposalStore
                 : null,
         entityId)
     {
-        Shape = ShapeOf(node, app, applications),
+        Shape = ShapeOf(node, app, applications, preview),
     };
 
     /// <summary>
@@ -684,28 +734,49 @@ public sealed class NendoAgentProposalStore
     /// draws one column per record of the target type — none at all when that type is
     /// still empty, which is worth knowing before accepting rather than after.
     /// </summary>
-    private static string? ShapeOf(NendoSurfaceNodePlan node, NendoApplicationPlan? app, IReadOnlyList<NendoApplicationPlan> applications)
+    private static string? ShapeOf(
+        NendoSurfaceNodePlan node, NendoApplicationPlan? app, IReadOnlyList<NendoApplicationPlan> applications, NendoProposalPreview preview)
     {
         if (app is null) return null;
         switch (node.Kind)
         {
             case "matrixSurface":
-                if (GroupCount(app, Property(node, "rowByFieldId")) is not { } rows) return null;
-                if (GroupCount(app, Property(node, "columnByFieldId")) is not { } columns) return null;
+                if (GroupCount(node, app, Property(node, "rowByFieldId")) is not { } rows) return null;
+                if (GroupCount(node, app, Property(node, "columnByFieldId")) is not { } columns) return null;
                 return $"{rows} rows by {columns} columns, {rows * columns} cells";
             case "boardSurface":
-                var grouping = Field(app, Property(node, "groupByFieldId"));
+                var groupByFieldId = Property(node, "groupByFieldId");
+                var grouping = Field(app, groupByFieldId);
                 if (grouping?.Reference is { } reference)
                 {
+                    // The target type need not have a screen, so its name and count come from the clone's
+                    // record types; its records, for a filter, from its plan when it has one.
                     var target = applications.FirstOrDefault(other => other.Entity.SemanticId == reference.TargetEntityId);
-                    if (target is null) return null;
+                    var name = target?.Entity.DisplayName ??
+                               preview.PreviewEntities.FirstOrDefault(entity => entity.EntityId == reference.TargetEntityId)?.DisplayName;
+                    if (name is null) return null;
+                    // The renderer checks the ceiling against every record of the target type, before
+                    // any filter, and draws no column past it; the preview's plan holds a bounded
+                    // sample of the records, so the whole count comes from the clone (W-227 review).
+                    var total = preview.PreviewRecordCounts.TryGetValue(reference.TargetEntityId, out var counted)
+                        ? counted
+                        : target?.Records.Count ?? 0;
                     // "per {name} record" reads the same whether the person named the type
                     // Account or Initiatives; "per Initiatives, 6 of them" did not (W-044).
-                    return target.Records.Count == 0
-                        ? $"one column per {target.Entity.DisplayName} record, and there are none yet, so it would draw nothing"
-                        : $"one column per {target.Entity.DisplayName} record, {target.Records.Count} of them";
+                    if (total == 0) return $"one column per {name} record, and there are none yet, so it would draw nothing";
+                    if (total > MaximumReferenceColumns)
+                        return $"one column per {name} record, {total} of them, more than the {MaximumReferenceColumns} a board " +
+                               "draws, so it would draw none";
+                    var filtered = node.Children.Any(child => child.Kind == "filterClause" && Property(child, "fieldId") == groupByFieldId);
+                    if (!filtered) return $"one column per {name} record, {total} of them";
+                    // A filter is read only over every record; a sample would guess.
+                    if (target is null || target.Records.Count < total) return null;
+                    var drawn = Reachable(node, groupByFieldId!, target.Records.Select(record => record.SemanticId)).Count;
+                    return drawn == 0
+                        ? $"one column per {name} record, and the board's own filter excludes every column, so it would draw nothing"
+                        : $"one column per {name} record, {drawn} of them";
                 }
-                return GroupCount(app, Property(node, "groupByFieldId")) is { } lanes ? $"{lanes} columns" : null;
+                return GroupCount(node, app, groupByFieldId) is { } lanes ? $"{lanes} columns" : null;
             default:
                 return null;
         }
@@ -724,12 +795,48 @@ public sealed class NendoAgentProposalStore
     /// count is only stated where it is exact, because a guessed size is worse in a
     /// review than none.
     /// </summary>
-    private static int? GroupCount(NendoApplicationPlan app, string? fieldId) => Field(app, fieldId) switch
+    private static int? GroupCount(NendoSurfaceNodePlan node, NendoApplicationPlan app, string? fieldId) => Field(app, fieldId) switch
     {
-        { StorageKind: NendoStorageKind.Boolean } => 2,
-        { Presentation: "singleChoice", Options.Count: > 0 } field => field.Options.Count,
+        { StorageKind: NendoStorageKind.Boolean } => Reachable(node, fieldId!, ["true", "false"]).Count,
+        { Presentation: "singleChoice", Options.Count: > 0 } field => Reachable(node, fieldId!, field.Options).Count,
         _ => null,
     };
+
+    /// <summary>The ceiling above which a reference board draws no columns, as the vocabulary publishes it.</summary>
+    private static readonly int MaximumReferenceColumns = NendoSemanticVocabulary.Description().Boards!.MaximumReferenceColumns;
+
+    /// <summary>
+    /// The lanes a surface can draw on one field, by the renderer's own rule (surface-model.ts
+    /// reachableGroups): a filterClause of the surface on that field with ne removes its value and
+    /// with eq keeps only its value. Any other operator says nothing definite, so every lane stays.
+    /// The shape counted every option, so a grid narrowed by "stage ne Lost" previewed a row too many (MAA-06).
+    /// </summary>
+    private static IReadOnlyList<string> Reachable(NendoSurfaceNodePlan node, string fieldId, IEnumerable<string> groups)
+    {
+        var reachable = groups.ToList();
+        foreach (var clause in node.Children.Where(child => child.Kind == "filterClause" && Property(child, "fieldId") == fieldId))
+        {
+            if (!clause.Properties.TryGetValue("value", out var stated)) continue;
+            var value = stated.ValueKind switch
+            {
+                JsonValueKind.String => stated.GetString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                _ => null,
+            };
+            if (value is null) continue;
+            switch (Property(clause, "operator"))
+            {
+                case "ne":
+                    reachable.RemoveAll(group => group == value);
+                    break;
+                case "eq":
+                    reachable.RemoveAll(group => group != value);
+                    break;
+            }
+        }
+        return reachable;
+    }
 
     private static IEnumerable<NendoSurfaceNodePlan> Nested(NendoSurfaceNodePlan node) =>
         node.Children.Concat(node.Children.SelectMany(Nested));

@@ -17,7 +17,7 @@ internal sealed class NendoAuthoringTools(
         OpenWorld = false,
         ReadOnly = false,
         UseStructuredContent = true)]
-    [Description("Begin a private change-set draft for this handle at the file's current definition revision and return its changeSetId, which add_operations, amend, validate, preview and reject take. title is what the person sees on the proposal. A session holds at most limits.draftsPerSession open drafts (nendo://application/vocabulary); one more is refused as NENDO_DRAFT_LIMIT. outstandingProposals and advisory report other change sets open against the file: accepting any one advances the definition revision and leaves the rest stale. A draft never validated is discarded when the lease ends; a validated proposal stays. An exact retry under the same idempotencyKey returns the same draft.")]
+    [Description("Begin a private change-set draft for this handle at the file's current definition revision and return its changeSetId, which add_operations, amend, validate, revalidate, preview, reject and accept take. title is what the person sees on the proposal. A session holds at most limits.draftsPerSession open drafts (nendo://application/vocabulary); one more is refused as NENDO_DRAFT_LIMIT. outstandingProposals and advisory report other change sets open against the file: accepting any one advances the definition revision, which stales every validated proposal (revalidate it) and every draft that pins expectedDefinitionRevision or places nodes by anchor or by a move without parentNodeId; another draft validates at the new revision. A draft never validated is discarded when the lease ends; a validated proposal stays. An exact retry under the same idempotencyKey returns the same draft.")]
     public Task<NendoChangeSetBeginResult> BeginAsync(
         RequestContext<CallToolRequestParams> context,
         [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
@@ -47,7 +47,7 @@ internal sealed class NendoAuthoringTools(
         each operation has operationType and payload. The host supplies operation IDs. Use stable semantic IDs, never SQL or physical names.
         Families: schema.* (record types, fields, references, choices, hierarchies), ui.* (screens),
         behaviour.setDefinition/removeDefinition (calculations, functions, actions, triggers), extension.* (custom-view
-        packages), application.setPurpose and setLook, and data.* (records).
+        packages), application.* (purpose, look, new-file label, search index), and data.* (records).
         A payload the host cannot bind is refused here, naming the mutation, operation and key; nothing enters the draft.
         The contract lives in nendo://application/vocabulary, not in this description: operations carries every canonical
         operation with the payload fields it requires and accepts, authoringRules the rules that are easy to break and
@@ -136,7 +136,7 @@ internal sealed class NendoAuthoringTools(
                 changeSetId,
                 idempotencyKey,
                 cancellationToken),
-            result => result.ProposalId);
+            Kept);
 
     [McpServerTool(
         Name = "nendo.change_set.revalidate",
@@ -157,7 +157,7 @@ internal sealed class NendoAuthoringTools(
             context,
             "nendo.change_set.revalidate",
             () => authoring.RevalidateAsync(applicationHandle, leaseId, changeSetId, idempotencyKey, cancellationToken),
-            result => result.ProposalId);
+            Kept);
 
     [McpServerTool(
         Name = "nendo.change_set.preview",
@@ -208,6 +208,13 @@ internal sealed class NendoAuthoringTools(
                 idempotencyKey,
                 cancellationToken),
             result => result.ProposalId);
+
+    /// <summary>
+    /// The proposal a validate leaves, for the activity entry. An invalid result's clone is already
+    /// discarded, and an entry naming it pointed at a proposal no read lists (MAA-14).
+    /// </summary>
+    private static string? Kept(NendoAgentProposalPreview result) =>
+        result.State == Nendo.Engine.NendoProposalState.Invalid ? null : result.ProposalId;
 
     private Task<T> ExecuteAsync<T>(
         RequestContext<CallToolRequestParams> context,
