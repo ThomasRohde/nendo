@@ -10513,3 +10513,90 @@ Left open: none of the nineteen. MAA-16 touched the Engine's proposal model
 `PreviewViews` is set and cleared exactly where `PreviewOverview` is, and nothing new is stored. The
 MHS-10 queued-write path and the filter path are measured through the translators and the two
 admission helpers rather than by closing a live host mid-call, which would be a race.
+
+### Twenty-first pass: Studio as the person sees it (W-225)
+
+2026-10-13: the eighteen findings planned as W-225 (2 P2, 16 P3) are closed: sixteen fixed, UIT-05
+refuted as already fixed, and UIT-21 fixed in the contract it was about. UIT-19 is built as the
+owner accepted it on 2026-10-13. The guards are a new Workbench test file,
+`scripts/studio-review.test.mjs`, which renders through the functions the views draw with (two new
+markup modules, `proposal-markup.ts` and `structure-markup.ts`, and `surface-cards.ts`), eleven new
+checks in `tools/Gate-WorkbenchShell.mjs`, a new Engine test,
+`BehaviourDefinitionTests.EachBindingKindNamesWhatTheCalculationReads`, and assertions in the MCP
+contract test `BehaviourAuthoringProtocolTests`. Every guard failed with its defect put back, and
+the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [UIT-02](#uit-02) | Accepting a proposal Structure, Screens or Data prepared returns to that page with the outcome on it. Only a proposal that builds the file's first screens lands on Use, and a screen the Add view form made opens in Use, selected (W-062); a panel names its page and leaves the person where they were (`viewAfterAccepting`, `addedViewLanding`). An earlier pass had already added the visible outcome. | Shell lane: `UIT-02: accepting a field added on Structure landed on use, not Structure.` and `W-062: accepting an added screen landed on surfaces, saying "Add view Landing test accepted. Landing test …`; node: `promoteProposal does not choose its landing through viewAfterAccepting` and `an added screen is accepted onto Screens while the outcome says it is open now` |
+| [UIT-05](#uit-05) | Refuted: already fixed by ESM-14 in the W-208 pass (f691190). The review reads "Retire Notes on Client; retain stored data." and "Rename the record type Task to Work item.", and `SemanticDiffReviewTests.ESM14_RetireRenameBackfillChoiceAndRemovalNameTheirSubjects` holds every line. | Not falsified again in this pass; the W-208 guard stands. |
+| [UIT-01](#uit-01) | The Preview panel names the record types and screens the change addresses, read from the IDs its lines carry; a schema-only change has no Screen row; the read-only preview opens on the touched screen. | `the panel still names the first titled screen of the whole file` |
+| [UIT-03](#uit-03) | A Screens card shows the compiler's warning (NUI452 among them) as **Warning** with its sentence, **Missing package** for a view whose package the file lacks, and **Off** while custom views do not run. The file's own views get the same chip. | Shell lane: `UIT-03: the Links view, whose package the file lacks, reads {"chip":"Healthy","note":null}.`; node: `a view whose package is missing reads Healthy` |
+| [UIT-04](#uit-04) | Fixed by wording, as triaged: where History will not undo a proposal as a whole (Add view, a required field with its backfill), each review line, Studio's and the Agent page's, reads "Can be undone, but not from History" and a sentence under the preview says why. History says the same beside an entry it does not offer to undo, and nothing beside one it has already undone or where the host does not compute the offer (the browser preview). Help says what History's Undo covers. Eligibility is unchanged. | `+ 'Can be undone', + 'Can be undone if nothing has changed it since'` where `'…, but not from History'` was expected; `an undone entry is still said to be beyond History` |
+| [UIT-06](#uit-06) | History names the origin `studio` (a Studio delete, a keep mark, an index build, History's own Undo) "you". The guard reads the "studio" literals from `DesktopSessionController.cs` and `SqliteNendoStore.Compensation.cs`. | `History names the person’s own change "by studio"` |
+| [UIT-09](#uit-09) | Each review line's mark follows what it does, in Studio's review and the Agent page's: ＋ for an addition, － in the danger tone for a removal or retirement, • for a change. | `the review still draws a fixed plus beside every change`; `the Agent page still draws a fixed plus beside every change` |
+| [UIT-10](#uit-10) | For a proposal Studio prepared (origin `workbench`) the review's first button is **Discard**: it rejects the proposal and says "‹title› discarded. Nothing in the file changed." Any other proposal shown there, a custom view's (ADR-0013) or an agent's opened by a retried acceptance, has **Back**, which leaves it waiting. Escape leaves the review without rejecting anything, and the trail's Back returns to it. | Shell lane: `UIT-10: after Back the host still holds proposal-bd14ca37786048718993657374813d65, which nothing in Studio reaches.` and `UIT-10: Escape rejected proposal-fa00e53c30e64e55a77909aaf9fb34c8; a stray key cost the person the proposal.`; node: `Back does not discard the proposal`, `the Escape handler presses the first data-dismiss, which rejects the proposal`, `a proposal from agent-342b6a7d16b4 is treated as Studio's own` |
+| [UIT-11](#uit-11) | The Help article's location line has its own class, `help-location`, so the breadcrumb's `/` separator no longer hangs after it. | `UIT-11: the Help location line "About this app · Board glance" ends in "/", a separator with nothing after it.` |
+| [UIT-12](#uit-12) | **Show as Markdown** is laid out and coloured as its row's other actions; a disabled column action is no longer cobalt. | `UIT-12: Show as Markdown is rgb(197, 197, 197), its row's Make required rgb(96, 205, 255).` |
+| [UIT-13](#uit-13) | An action bar placed straight in a dialog card (Make required, Reactivate, Convert reference) no longer bleeds past the card. | `UIT-13: the action bar spans 310,996 across a card of 333,973, and Preview sits 1px from the card's edge.` |
+| [UIT-14](#uit-14) | Opening **Add view…** scrolls its form into view before its first field takes the focus; redraws inside the form keep the place. | `UIT-14: at 800x700 focus is on the Add view title at 671,701, outside the pane's visible 96,672.` |
+| [UIT-15](#uit-15) | A card is titled by the root's title, else its label, else the record type, and an action lists the fields its steps set. | `the action is titled by its record type` |
+| [UIT-16](#uit-16) | Each board has its own rename form on its card, bound to its node; the single "Board title" form under the list is gone. | `two boards should have two rename controls bound to their nodes:` (none were) |
+| [UIT-17](#uit-17) | The File menu may run from under the title bar to 16px above the window's foot. | `UIT-17: at 1440x900 the File menu's last item "Close fileReturn to the start " ends at 848 below the panel's 790 (815px of content in 748).` |
+| [UIT-19](#uit-19) | As accepted: Structure lists a record type's calculated fields in a read-only **Calculated** group with the formula, result type, *May be empty* and what each reads, stored fields and other calculations both, and counts them apart (*3 stored fields · 1 calculated*). A stored field a calculation reads says so and does not offer Retire, and **Retire record type** is withheld, with the reason, while the type owns a calculation or one elsewhere reads it. The Engine's schema snapshot and the MCP schema read carry each calculation's `readsFieldIds`, `readsCalculationIds` and `readsEntityIds`, the IDs the retirement check refuses under. | Shell lane: `UIT-19: Structure leaves out the record type's calculated field: …`; node: `Structure does not draw the Calculated group` and `a calculation that reads a calculation reads "no field"`; Engine: `totalSum names the wrong calculations: . Different number of elements.` and `projectTotal names the wrong record types: tasks.`; MCP: `The schema read does not say which fields a calculation reads.` |
+| [UIT-20](#uit-20) | A proposal that removes a package names each screen and panel that will say the package is missing, by title and place, less any the same proposal removes, directly or with the page it sits on. | `the review does not list the uses`; `a panel whose page goes with the package is listed as one that will show the notice` |
+| [UIT-21](#uit-21) | `studio.md` §2 now says what Screens does: each screen's health, a board renamed on its card, no per-screen disable or restore, custom screens switched off by recovery or a definition that does not compile and brought back by a fixing proposal. No guard: a document. | — |
+
+The node guards were falsified in two runs with every defect put back (eleven of eleven tests
+failed, then seven of seven for the review's fixes); the shell-lane checks in two runs of
+`Review-WorkbenchShell.ps1` with the runtime-safe reversals (nine of nine failed, then two of two).
+Each file was restored from its backup and compared byte for byte.
+
+An independent review of the fixes found one defect that had to be fixed and four that should be,
+all fixed. Returning a Studio proposal to its page sent an accepted Add view to Screens while the
+outcome said the view was "open now", which would have broken W-062 and the Add view step of
+`Review-ExtensionViews.mjs` (G17, which expects Use); a screen the form made now opens in Use
+(`W-062: accepting an added screen landed on surfaces` with the landing put back). Back kept
+`data-dismiss`, so Escape rejected the proposal and a package import would have needed the native
+picker again; Escape now has its own way out, which rejects nothing, and the rejecting button reads
+**Discard** (`UIT-10: Escape rejected proposal-fa00…; a stray key cost the person the proposal.`).
+Discard rejected any proposal not from a custom view, an agent's included, without the Agent page's
+question; it now rejects only a proposal Studio prepared (`a proposal from agent-342b6a7d16b4 is
+treated as Studio's own`). The calculations contract said the MCP schema read carried
+`readsFieldIds` when it did not; it now does, with `readsCalculationIds` and `readsEntityIds`,
+stated in `mcp-interface.md` and held by the MCP contract test (`The schema read does not say which
+fields a calculation reads.`). A calculation that reads only other calculations read "Reads no
+field"; it names them (`a calculation that reads a calculation reads "no field"`). Smaller, also
+fixed: History no longer says "but not from History" beside an entry it has undone, or in the
+preview; the Engine test pins same-record, traversal, sum and calculation bindings; Retire record
+type is withheld under a calculation that owns or reads the type; a panel on a page the proposal
+removes is not listed; Discard is disabled while another action runs; and the Agent page's review
+uses the same marks.
+
+`tools/Review-OutcomeRuntime.mjs` renames the board through the card's form and, since the rename
+is now accepted back onto Screens, reads the saved title from the board's card instead of the Use
+screen's title. That lane drives a real host, so it was edited and syntax-checked here, not run.
+`Review-ExtensionViews.mjs` G17 was read against the fixed landing and needed no change; it drives
+a real host too and was not run.
+
+Documents updated: `docs/contracts/studio.md` (§2, Calculated fields in Structure, Reviewing a
+proposal Studio prepared), `docs/contracts/custom-views.md` (Discard and Escape; the Remove review
+names the uses; Missing package on Screens), `docs/contracts/calculations-and-actions.md` and
+`docs/contracts/mcp-interface.md` (`readsFieldIds`, `readsCalculationIds`, `readsEntityIds`), Help
+(what History's Undo covers; Structure's Calculated group), and the guides `getting-started.md`,
+`screens.md` and `files-and-data.md`.
+
+Checks run: `npx tsc --noEmit` clean; `npm test` 666 of 666; `Review-WorkbenchShell.ps1` passed
+twice after the review's fixes with no browser exceptions; the Engine's `BehaviourDefinitionTests`,
+`RuntimeBehaviourFixtureTests` and retirement tests, 39 of 39; the `Nendo.LocalMcp.Tests` project,
+295 passed and 5 skipped of 300; `Test-Site.ps1 -SkipInstall` passed; `Test-Repository.ps1`
+passed. The Desktop tests, the real-host lanes and Test-Production were not run.
+
+Left open:
+
+- UIT-10's other ways out: leaving the review by the navigation, or by Escape and then preparing
+  another proposal, leaves the first in the host until the file closes.
+- UIT-04's mapping is the Workbench's reading of History's eligibility from the review's line
+  kinds; a single `ui.removeNode` that History does not offer still reads as undoable.
+- UIT-19 shows calculations only. A trigger or an automatic action that reads a field or a record
+  type blocks its retirement too, and Structure does not yet say so.

@@ -272,6 +272,8 @@ public sealed class BehaviourDefinitionTests
         Assert.AreEqual("project.completedTasks", calculated.CalculationId);
         Assert.AreEqual(NendoBehaviourScalar.Integer, calculated.ResultType);
         Assert.IsFalse(calculated.ResultNullable);
+        // What it reads, so Structure can say which fields it keeps from being retired (UIT-19).
+        CollectionAssert.AreEqual(new[] { "done", "project" }, calculated.ReadsFieldIds.ToArray());
 
         // It is not a stored field, has no column, and no record carries a value for it.
         Assert.IsFalse(projects.Fields.Any(field => field.FieldId == "completedTasks"),
@@ -281,6 +283,49 @@ public sealed class BehaviourDefinitionTests
             new NendoRequestContext("test", "p1", "test")));
         var record = (await service.GetSnapshotAsync()).Records.Single(r => r.EntityId == "projects");
         Assert.IsFalse(record.Values.ContainsKey("completedTasks"));
+    }
+
+    /// <summary>
+    /// What each kind of binding reads, as Structure and the schema read report it (UIT-19): a
+    /// field on the same record, a field reached through a reference, an aggregate's back
+    /// reference and the calculation it totals, and a calculation read from the same record.
+    /// The retirement check refuses under exactly these, so a missed kind would leave Structure
+    /// offering a Retire the host then refuses.
+    /// </summary>
+    [TestMethod]
+    public async Task EachBindingKindNamesWhatTheCalculationReads()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Seed(coordinator);
+        async Task Install(NendoBehaviourDefinition definition)
+        {
+            var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+            await coordinator.ApplyAsync(Mutation(new SetBehaviourDefinitionOperation("set-" + definition.DefinitionId, definition, revision)));
+        }
+        await Install(new NendoCalculationDefinition("task.isDone", "tasks", "isDone", "Is done", NendoBehaviourScalar.Boolean, false, "done",
+            [NendoBehaviourBinding.SameRecordField("done", "tasks", "done", NendoBehaviourScalar.Boolean, false)]));
+        await Install(new NendoCalculationDefinition("task.projectTotal", "tasks", "projectTotal", "Project total", NendoBehaviourScalar.Integer, false, "total",
+            [NendoBehaviourBinding.ReferenceTraversal("total", "tasks", "project", "projects", "total", NendoBehaviourScalar.Integer, false)]));
+        await Install(new NendoCalculationDefinition("project.totalSum", "projects", "totalSum", "Total of task totals", NendoBehaviourScalar.Integer, false, "sum",
+            [NendoBehaviourBinding.RelatedSum("sum", "projects", "tasks", "project", null, NendoBehaviourScalar.Integer).WithMemberCalculation("task.projectTotal")]));
+        await Install(new NendoCalculationDefinition("project.sumAgain", "projects", "sumAgain", "Sum again", NendoBehaviourScalar.Integer, false, "sum",
+            [NendoBehaviourBinding.SameRecordCalculation("sum", "projects", "project.totalSum", NendoBehaviourScalar.Integer, false)]));
+
+        var entities = (await service.GetSnapshotAsync()).Entities;
+        NendoDerivedFieldSnapshot Of(string entityId, string fieldId) =>
+            entities.Single(entity => entity.EntityId == entityId).DerivedFields.Single(field => field.FieldId == fieldId);
+        void Reads(NendoDerivedFieldSnapshot field, string[] fields, string[] calculations, string[] types)
+        {
+            CollectionAssert.AreEqual(fields, field.ReadsFieldIds.ToArray(), $"{field.FieldId} names the wrong fields: {string.Join(", ", field.ReadsFieldIds)}");
+            CollectionAssert.AreEqual(calculations, field.ReadsCalculationIds.ToArray(), $"{field.FieldId} names the wrong calculations: {string.Join(", ", field.ReadsCalculationIds)}");
+            CollectionAssert.AreEqual(types, field.ReadsEntityIds.ToArray(), $"{field.FieldId} names the wrong record types: {string.Join(", ", field.ReadsEntityIds)}");
+        }
+        Reads(Of("tasks", "isDone"), ["done"], [], ["tasks"]);
+        Reads(Of("tasks", "projectTotal"), ["project", "total"], [], ["projects", "tasks"]);
+        Reads(Of("projects", "totalSum"), ["project"], ["task.projectTotal"], ["projects", "tasks"]);
+        Reads(Of("projects", "sumAgain"), [], ["project.totalSum"], ["projects"]);
     }
 
     [TestMethod]

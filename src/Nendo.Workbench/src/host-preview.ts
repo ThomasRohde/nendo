@@ -587,6 +587,8 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     return {
       proposalId,
       title,
+      // What the native host records for a proposal Studio prepares.
+      origin: 'workbench',
       state: 'previewable',
       retention: 'retainUntilExplicitCleanup',
       sourceApplicationId: this.session.manifest!.applicationId,
@@ -812,6 +814,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     const proposal: ProposalPreview = {
       proposalId: `proposal-${crypto.randomUUID().replaceAll('-', '')}`,
       title,
+      origin: 'workbench',
       state: 'previewable',
       retention: 'retainUntilExplicitCleanup',
       sourceApplicationId: manifest.applicationId,

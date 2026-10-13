@@ -153,7 +153,17 @@ public sealed record NendoMcpDerivedField(
     string CalculationId,
     NendoBehaviourScalar ResultType,
     bool ResultNullable,
-    string Expression);
+    string Expression)
+{
+    /// <summary>The stored fields its formula reads, by stable ID. Retiring one is refused as <c>retired-binding</c> while this calculation stays.</summary>
+    public IReadOnlyList<string> ReadsFieldIds { get; init; } = [];
+
+    /// <summary>The calculations it reads, by calculation ID.</summary>
+    public IReadOnlyList<string> ReadsCalculationIds { get; init; } = [];
+
+    /// <summary>The record types its bindings start from or reach; retiring one is refused while this calculation stays.</summary>
+    public IReadOnlyList<string> ReadsEntityIds { get; init; } = [];
+}
 
 /// <summary>
 /// One record's calculated result.

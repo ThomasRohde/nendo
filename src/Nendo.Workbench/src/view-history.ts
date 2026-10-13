@@ -2,7 +2,7 @@ import { compensateRevision, foldHistory, handlePageFailure } from './actions';
 import { state } from './app-state';
 import { client } from './client';
 import { canCompensate, counted, escapeAttribute, escapeHtml, foldDate, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
-import { operationDetailsMarkup } from './history-markup';
+import { historyUndoOffer, operationDetailsMarkup } from './history-markup';
 import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
 import { icon } from './icons';
 import { content, rerender, setBusy, showError } from './shell';
@@ -102,7 +102,7 @@ export async function loadHistoryDetails(revisionId: string, cursor: string | nu
     if (!slot) return;
     // A create or a restore reads as History undoes it only where History offers that Undo (R2RM-05).
     const revision = state.history.find(item => item.revisionId === revisionId);
-    const offered = revision !== undefined && canCompensate(revision, state.history);
+    const offered = historyUndoOffer(revision, state.history, client.mode === 'desktop');
     slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities, offered)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
     slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
     slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));

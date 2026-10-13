@@ -187,7 +187,8 @@ try {
   await reload();
   await click('#nav-surfaces');
   await ready();
-  await evaluate(`document.querySelector('#board-title').value = 'Receipt recovered'; document.querySelector('#rename-board-form').requestSubmit()`);
+  // A board renames itself from its own card (UIT-16); this file has one board.
+  await evaluate(`document.querySelector('[data-board-rename] [data-board-title]').value = 'Receipt recovered'; document.querySelector('[data-board-rename]').requestSubmit()`);
   await ready();
   await waitFor(() => evaluate(`!!document.querySelector('#accept-proposal')`), 'rename proposal');
   await evaluate(`window.review.failHistory = true`);
@@ -195,13 +196,14 @@ try {
   await ready();
   assert(await evaluate(`!document.querySelector('[data-testid="proposal-review"]') && document.querySelector('#announcement').textContent.includes('accepted.') && document.querySelector('#announcement').textContent.includes('Refresh')`), 'Confirmed acceptance was hidden by failed refresh');
   // The announcement is a live region nobody sees. The notice a person reads sits in
-  // the page, and a Use screen chases its tile reads and redraws when they land, within
-  // a second of arriving. Wait past that and measure what is on the page, not what was
-  // said as it arrived: the sentence, and the one button that answers it.
+  // the page, and the page chases its reads and redraws when they land, within a second
+  // of arriving. Wait past that and measure what is on the page, not what was said as it
+  // arrived: the sentence, and the one button that answers it. A rename prepared on
+  // Screens is accepted back onto Screens (UIT-02).
   await sleep(2500);
   const retained = await evaluate(`(() => { const slot = document.querySelector('.message-slot:not([hidden])'); return { text: slot?.textContent ?? null, refresh: !!document.querySelector('#refresh-outcome-view') }; })()`);
   assert(retained.text !== null && retained.text.includes('accepted.') && retained.text.includes('Refresh') && retained.refresh,
-    `The accepted-but-unrefreshed notice did not survive the reads the Use screen chases: ${JSON.stringify(retained)}`);
+    `The accepted-but-unrefreshed notice did not survive the reads the page chases: ${JSON.stringify(retained)}`);
   const afterRefresh = await evaluate(`window.review.rpc('session.getSnapshot')`);
   assert(afterRefresh.manifest.changeSequence === baseSequence + 2, 'Rename did not create exactly one effect');
   await screenshot('accepted-refresh-unavailable-dark.png');
@@ -211,7 +213,7 @@ try {
   // The window follows the file, so the saved title can be on screen before Refresh
   // view is pressed. The button going away is what says the refresh finished.
   await waitFor(() => evaluate(`!document.querySelector('#refresh-outcome-view')`), 'Refresh view to finish and take its notice with it');
-  assert(await evaluate(`document.querySelector('#workspace-title').textContent === 'Receipt recovered' && !document.querySelector('.message-slot:not([hidden])')`),
+  assert(await evaluate(`[...document.querySelectorAll('.surface-card h3')].some(heading => heading.textContent === 'Receipt recovered') && !document.querySelector('.message-slot:not([hidden])')`),
     'Refresh view did not leave the saved title on screen with the notice cleared');
   await reload();
   assert(await evaluate(`(async () => (await window.review.rpc('semantic.compile')).applications[0].surfaces.find(n => n.kind === 'boardSurface').properties.title === 'Receipt recovered')()`), 'Reload did not recover saved definition');
@@ -296,7 +298,7 @@ try {
   for (const mode of ['after', 'before']) {
     await click('#nav-surfaces');
     await ready();
-    await evaluate(`document.querySelector('#board-title').value = 'Acceptance recovered ${mode}'; document.querySelector('#rename-board-form').requestSubmit()`);
+    await evaluate(`document.querySelector('[data-board-rename] [data-board-title]').value = 'Acceptance recovered ${mode}'; document.querySelector('[data-board-rename]').requestSubmit()`);
     await ready();
     await waitFor(() => evaluate(`!!document.querySelector('#accept-proposal')`), 'proposal acceptance review');
     await evaluate(`window.review.dropData = '${mode}'; window.review.discardedInput = null; window.review.discardedReceipt = null`);

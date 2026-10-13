@@ -558,6 +558,8 @@ export function renderSurfacePreview(
   plans: ApplicationPlan[],
   counts: Record<string, number> = {},
   overview: OverviewPlan | null = null,
+  // Where the proposal's changes land, so the preview opens on them rather than on the first screen (UIT-01).
+  start: { entityId: string; surfaceId: string | null } | null = null,
 ): void {
   if (!plans.length && overview === null) { root.remove(); return; }
   if (!plans.length) {
@@ -565,9 +567,10 @@ export function renderSurfacePreview(
     return;
   }
   const overviewBlock = overview === null ? '' : overviewPreviewMarkup(overview);
-  let entityIndex = 0;
+  let entityIndex = Math.max(0, start === null ? 0 : plans.findIndex(plan => plan.entity.semanticId === start.entityId));
   let selected = 0;
-  let surfaceId = surfacesOf(plans[0])[0]?.id ?? '';
+  let surfaceId = (start?.surfaceId != null && surfacesOf(plans[entityIndex]).some(surface => surface.id === start.surfaceId) ? start.surfaceId : null)
+    ?? surfacesOf(plans[entityIndex])[0]?.id ?? '';
   const render = (): void => {
     const app = plans[entityIndex];
     root.innerHTML = `<h3>Read-only screen preview</h3>${overviewBlock}${surfacePreviewMarkup(app, surfaceId, selected, counts[app.entity.semanticId] ?? app.records.length, plans)}`;

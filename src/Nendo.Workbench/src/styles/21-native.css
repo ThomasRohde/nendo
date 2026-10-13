@@ -109,10 +109,14 @@ body {
 .brand .file-menu summary .outline-icon { width: 14px; height: 14px; }
 .brand #file-icon { display: none; }
 
+/* The menu opens just under the title bar, so it may run to the window's foot. The old cap
+   left 110px of a 900px window unused and put Close file behind the menu's own scrollbar
+   (UIT-17). */
 .brand .file-menu-panel {
   top: calc(100% + 2px);
   right: auto;
   left: 0;
+  max-height: calc(100dvh - var(--title-bar-height, 48px) - 16px);
 }
 
 .rail-head {

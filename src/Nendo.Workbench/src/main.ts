@@ -561,8 +561,10 @@ document.addEventListener('keydown', event => {
   // to the surface behind it (UIS-04).
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('details[open]:not([data-section]), #place-pickers') != null) return;
-  const dismiss = content.querySelector<HTMLButtonElement>('[data-dismiss]:not(:disabled)');
-  if (dismiss === null) return;
+  // A page may give Escape its own way out (data-escape): the proposal review leaves without
+  // rejecting, where its Discard button rejects.
+  const dismiss = content.querySelector<HTMLButtonElement>('[data-escape]') ?? content.querySelector<HTMLButtonElement>('[data-dismiss]:not(:disabled)');
+  if (dismiss === null || dismiss.disabled) return;
   event.preventDefault();
   dismiss.click();
 });

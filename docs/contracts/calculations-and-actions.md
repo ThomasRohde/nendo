@@ -855,7 +855,13 @@ binding key made a whole draft unusable. In the case that caused this change, th
 draft held ninety operations.
 
 The calculated fields of a record type appear under `derivedFields` on its
-schema, never under `fields`. The results of each record travel beside its
+schema, never under `fields`. Each says what it reads: `readsFieldIds`, the stored
+fields its bindings read; `readsCalculationIds`, the calculations; and `readsEntityIds`,
+the record types its bindings start from or reach. A retirement of any of those fields or
+record types, or of the type that owns the calculation, is refused as `retired-binding`,
+so the MCP schema read and Studio's Structure both say what blocks one before it is tried:
+Structure lists the calculations in a read-only Calculated group and withholds Retire from
+a field or record type they hold (UIT-19). The results of each record travel beside its
 values with an exact `numericLexeme`. A calculated decimal is the value most
 likely to be a total that somebody relies on. It is therefore the last value that
 should reach a client as a rounded JavaScript number. A data write that fired an

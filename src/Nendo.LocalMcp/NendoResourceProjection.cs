@@ -142,7 +142,13 @@ internal sealed class NendoResourceProjection(
                 .OrderBy(field => field.FieldId, StringComparer.Ordinal)
                 .Select(field => new NendoMcpDerivedField(
                     field.FieldId, field.DisplayName, field.CalculationId,
-                    field.ResultType, field.ResultNullable, field.Expression))
+                    field.ResultType, field.ResultNullable, field.Expression)
+                {
+                    // What blocks retiring a field or a record type, said before an agent tries (UIT-19).
+                    ReadsFieldIds = field.ReadsFieldIds,
+                    ReadsCalculationIds = field.ReadsCalculationIds,
+                    ReadsEntityIds = field.ReadsEntityIds,
+                })
                 .ToArray(),
         };
     }

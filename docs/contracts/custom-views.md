@@ -1334,8 +1334,9 @@ views…** opens it. It shows:
 The switches are device settings, like the theme. They never reach the file, and
 they stay usable in a file opened read-only, because turning views off is how a
 person gets away from a view that misbehaves. Import and removal change the file's
-definition, so each opens a proposal in Studio's review. Back returns to where it
-began, and accepting a proposal that only brings code returns there too.
+definition, so each opens a proposal in Studio's review. **Discard** rejects the proposal
+and returns to where it began (Escape leaves it waiting instead), and accepting a proposal that only brings code returns
+there too ([Studio](studio.md#reviewing-a-proposal-studio-prepared)).
 
 **Studio → Health** has a Custom views card: Running, or Off with the reason, and
 how many packages the file carries.
@@ -1414,8 +1415,10 @@ folder, never a path.
 **Remove** (`extension.remove {packageId}`) prepares a proposal, "Remove the custom
 view package ‹title›": a removal of each file, with the content it expects, then
 `extension.removePackage`. After acceptance, a view that names the package shows
-the `missing` notice. The content stays in history, and the revision can be
-compensated.
+the `missing` notice, and the review names each such screen and panel by its title
+and place before Accept, less any the same proposal removes (UIT-20). On Screens the
+card of a view whose package the file lacks reads *Missing package* rather than
+*Healthy*. The content stays in history, and the revision can be compensated.
 
 ## Host methods and events
 

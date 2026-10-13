@@ -56,24 +56,24 @@
 .recovery-findings > details { margin-top: var(--space-4); }
 .recovery-findings > details summary { cursor: pointer; }
 
-/* Surfaces: label, field and action belong on one aligned baseline. The label
+/* Surfaces: a board card's rename has its label, field and action on one aligned baseline. The label
    is a sibling of the input here, so place all three explicitly. */
-.rename-form {
+.board-rename {
   display: grid;
   align-items: end;
   column-gap: var(--space-3);
   row-gap: 5px;
 }
 
-.rename-form label {
+.board-rename label {
   grid-area: 1 / 1;
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 650;
 }
 
-.rename-form input { grid-area: 2 / 1; width: 100%; }
-.rename-form button { grid-area: 2 / 2; }
+.board-rename input { grid-area: 2 / 1; width: 100%; }
+.board-rename button { grid-area: 2 / 2; }
 
 /* Several components set `display` on a class that also carries `hidden`, which
    beats the user-agent rule and leaves an empty framed box on screen. */
@@ -210,6 +210,11 @@
   background: var(--surface-raised);
 }
 
+/* The bleed above reaches through a .record-form's padding. The Make required, Reactivate and
+   Convert reference forms put their bar straight in the card, which has none, so it ran 24px
+   past both edges and the card's clip left Preview flush against its border (UIT-13). */
+.record-form-card > .form-actions { margin-right: 0; margin-left: 0; }
+
 /* --- Data grid ------------------------------------------------------------- */
 
 .record-grid .ag-header {
@@ -256,6 +261,13 @@
   height: 26px;
   border: 1px solid color-mix(in srgb, var(--cobalt) 25%, var(--line));
   font-size: 0.85rem;
+}
+
+/* A line that takes something away wears the danger tone, not the plus of an addition (UIT-09). */
+.change-mark[data-change="remove"] {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
 }
 
 .proposal-changes article { gap: var(--space-3); align-items: start; }
@@ -418,7 +430,7 @@
 
 /* A board title is a short label; let the field stop at a readable measure
    rather than stretching the full width of the panel. */
-.rename-form { grid-template-columns: minmax(0, 26rem) auto; justify-content: start; }
+.board-rename { grid-template-columns: minmax(0, 26rem) auto; justify-content: start; }
 
 /* Opening a record is a quiet icon at the row's start. It stays faint until the
    row is pointed at or holds the focus, so a column of identical controls no

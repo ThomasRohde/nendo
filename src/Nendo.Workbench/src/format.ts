@@ -315,7 +315,9 @@ export function activityLabel(activity: AgentActivity): string {
  * itself. The guides and Help said History shows this before the entry drew it (2026-10-10).
  */
 export function originLabel(origin: string, packages: ReadonlyArray<{ packageId: string; title: string }>): string {
-  if (origin === 'workbench' || origin === 'surface') return 'you';
+  // The host records a Studio delete, a keep mark, a search-index build and History's own Undo
+  // as 'studio' when the page names no writer; all are the person's own (UIT-06).
+  if (origin === 'workbench' || origin === 'surface' || origin === 'studio') return 'you';
   // The person's own CSV import is recorded under its own origin, and History drew it as
   // "by csv" (R2AP-10).
   if (origin === 'csv') return 'you (CSV import)';

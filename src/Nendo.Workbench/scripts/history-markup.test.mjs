@@ -15,7 +15,8 @@ const made = (triggerName) => ({
 });
 
 test('an operation an automatic action made names the action by its trigger; the author’s own names none', () => {
-  const markup = operationDetailsMarkup([operation('edit-done'), operation('generated-1', made('Keep the project stage current'))]);
+  // A save's revision, which History offers to undo; one it does not offer says so (UIT-04, studio-review.test.mjs).
+  const markup = operationDetailsMarkup([operation('edit-done'), operation('generated-1', made('Keep the project stage current'))], [], true);
   const lines = [...markup.matchAll(/<li>(.*?)<\/li>/g)].map(match => match[1].replace(/<[^>]+>/g, ''));
   assert.deepEqual(lines, [
     'Set field · Can be undone',

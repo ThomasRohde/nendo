@@ -186,6 +186,29 @@ export function addViewProposal(input: AddViewInput, context: AddViewContext): R
 export interface ViewUse { nodeId: string; surfaceId: string; kind: ViewKind; title: string; entityId: string | null; pageTitle: string | null }
 
 /**
+ * Where accepting a view the Add view form made puts the person (W-062): a screen opens in Use,
+ * selected; a panel has no page without a record, so it is named and the person stays put.
+ * Accepting a Studio proposal returns to the page it came from (UIT-02), so the screen's landing
+ * has to name Use itself, or the sentence says "open now" over Screens.
+ */
+export function addedViewLanding(
+  added: { kind: ViewKind; title: string; entityId: string; pageTitle: string | null },
+  entities: readonly Pick<EntitySnapshot, 'entityId' | 'displayName'>[],
+): { view: 'use' | null; sentence: string } {
+  const entityName = entities.find((entity) => entity.entityId === added.entityId)?.displayName ?? 'records';
+  if (added.kind === 'panel')
+    return { view: null, sentence: `${added.title} is a panel on ${added.pageTitle ?? 'the record page'}. Open any ${entityName} record to see it.` };
+  return { view: 'use', sentence: `${added.title} is under View in ${entityName}, and open now.` };
+}
+
+/** Where a person finds one use of a package: the Custom views card and the Remove review say it the same way. */
+export function viewUsePlace(use: ViewUse, entities: readonly Pick<EntitySnapshot, 'entityId' | 'displayName'>[]): string {
+  const entityName = entities.find((entity) => entity.entityId === use.entityId)?.displayName ?? 'records';
+  if (use.kind === 'panel') return `a panel on ${use.pageTitle ?? 'the record page'}, for each ${entityName} record`;
+  return `${use.kind === 'graph' ? 'a graph' : 'a screen'} under View in ${entityName}`;
+}
+
+/**
  * Where each package is shown: the views that name it, with the record type a screen is
  * listed under and the page a panel sits on. It answers the owner's question on first use
  * (C-189) -- which package to install to see a graph that was already there.

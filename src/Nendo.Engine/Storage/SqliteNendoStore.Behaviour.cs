@@ -152,7 +152,28 @@ internal sealed partial class SqliteNendoStore
                     calculation.DefinitionId,
                     calculation.ResultType,
                     calculation.ResultNullable,
-                    calculation.Expression))
+                    calculation.Expression)
+                {
+                    // The same field properties ValidateRetiredBehaviourAsync refuses a retirement under.
+                    ReadsFieldIds = calculation.Bindings
+                        .SelectMany(binding => new[] { binding.FieldId, binding.ReferenceFieldId, binding.RelatedReferenceFieldId, binding.PredicateFieldId, binding.ValueFieldId })
+                        .OfType<string>()
+                        .Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal)
+                        .ToArray(),
+                    ReadsCalculationIds = calculation.Bindings
+                        .SelectMany(binding => binding.ReadCalculations)
+                        .Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal)
+                        .ToArray(),
+                    ReadsEntityIds = calculation.Bindings
+                        .SelectMany(binding => new[] { binding.EntityId, binding.RelatedEntityId })
+                        .Where(entityId => !string.IsNullOrEmpty(entityId))
+                        .Select(entityId => entityId!)
+                        .Distinct(StringComparer.Ordinal)
+                        .Order(StringComparer.Ordinal)
+                        .ToArray(),
+                })
                 .ToArray();
         }
         return derived;

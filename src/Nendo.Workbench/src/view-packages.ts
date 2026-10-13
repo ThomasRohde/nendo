@@ -2,7 +2,7 @@ import { openWorkspaceView, prepareApplication } from './actions';
 import { selectedSurfaces, state, type ViewName } from './app-state';
 import { client } from './client';
 import {
-  addViewProposal, edgeChoices, pageChoices, refusalFor, showableFields, viewEntities, viewKinds, viewsOfPackage,
+  addedViewLanding, addViewProposal, edgeChoices, pageChoices, refusalFor, showableFields, viewEntities, viewKinds, viewsOfPackage, viewUsePlace,
   type AddViewInput, type ViewKind, type ViewUse,
 } from './custom-view-recipe';
 import { storageKindName } from './extension-model';
@@ -117,8 +117,7 @@ function entityName(entityId: string | null): string {
 }
 
 function whereItIs(use: ViewUse): string {
-  if (use.kind === 'panel') return `a panel on ${use.pageTitle ?? 'the record page'}, for each ${entityName(use.entityId)} record`;
-  return `${use.kind === 'graph' ? 'a graph' : 'a screen'} under View in ${entityName(use.entityId)}`;
+  return viewUsePlace(use, state.session.entities);
 }
 
 /** The screens and pages that show this package, each named where a person would find it. */
@@ -209,7 +208,12 @@ function wireAddView(root: ParentNode): void {
       if (pkg === undefined) return;
       if (draft?.packageId === pkg.packageId) { draft = null; rerender(); return; }
       draft = initialDraft(pkg);
-      redrawForm('add-view-title');
+      rerender();
+      // Opening the form brings it into view before its first field takes the focus: below a
+      // package's list of uses it opened past the bottom of a short window, with focus on a
+      // field nobody could see (UIT-14). Redraws inside the form keep the place instead.
+      content.querySelector<HTMLElement>('#add-view-form')?.scrollIntoView({ block: 'nearest' });
+      focusWithoutInteraction(content.querySelector<HTMLElement>('#add-view-title'));
     });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-view-open]'))
     button.addEventListener('click', () => void openView(button.dataset.viewEntity!, button.dataset.viewOpen!));
@@ -287,16 +291,17 @@ async function openView(entityId: string, nodeId: string): Promise<void> {
  * is and say so. A screen is selected in Use; a panel has no page without a record, so it is
  * named rather than opened. Returns the sentence, or null for any other proposal.
  */
-export function landAddedView(proposalId: string): string | null {
+export function landAddedView(proposalId: string): { view: 'use' | null; sentence: string } | null {
   const added = adding;
   if (added === null || added.proposalId !== proposalId) return null;
   adding = null;
-  if (added.kind === 'panel')
-    return `${added.title} is a panel on ${added.pageTitle ?? 'the record page'}. Open any ${entityName(added.entityId)} record to see it.`;
-  state.selectedApplicationEntity = added.entityId;
-  state.showOverview = false;
-  selectedSurfaces.set(added.entityId, added.nodeId);
-  return `${added.title} is under View in ${entityName(added.entityId)}, and open now.`;
+  const landing = addedViewLanding(added, state.session.entities);
+  if (landing.view === 'use') {
+    state.selectedApplicationEntity = added.entityId;
+    state.showOverview = false;
+    selectedSurfaces.set(added.entityId, added.nodeId);
+  }
+  return landing;
 }
 
 export function wireCustomViewsPanel(root: ParentNode): void {

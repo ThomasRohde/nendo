@@ -161,7 +161,24 @@ public sealed record NendoDerivedFieldSnapshot(
     string CalculationId,
     NendoBehaviourScalar ResultType,
     bool ResultNullable,
-    string Expression);
+    string Expression)
+{
+    /// <summary>
+    /// The stable IDs of the fields its formula reads, ordered, as the retirement check reads them:
+    /// a field named here cannot be retired while this calculation stays. Studio's Structure says so
+    /// beside the field rather than leaving it to a refusal (UIT-19).
+    /// </summary>
+    public IReadOnlyList<string> ReadsFieldIds { get; init; } = [];
+
+    /// <summary>The calculations its formula reads, by ID and ordered: on the same record, or through each member of an aggregate.</summary>
+    public IReadOnlyList<string> ReadsCalculationIds { get; init; } = [];
+
+    /// <summary>
+    /// The record types its bindings start from or reach, ordered. Retiring one is refused while
+    /// this calculation stays, as is retiring the record type that owns it.
+    /// </summary>
+    public IReadOnlyList<string> ReadsEntityIds { get; init; } = [];
+}
 
 public sealed record NendoEntitySnapshot(
     string EntityId,

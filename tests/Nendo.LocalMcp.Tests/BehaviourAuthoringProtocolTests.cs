@@ -240,6 +240,12 @@ public sealed class BehaviourAuthoringProtocolTests
         Assert.IsFalse(schema.Fields.Any(field => field.FieldId is "completion" or "taskCount"),
             "A calculated field must never arrive as a stored one.");
         Assert.AreEqual("count", schema.DerivedFields.Single(field => field.FieldId == "taskCount").Expression);
+        // And what each reads, which is what keeps a field or a record type from being retired (UIT-19).
+        var counting = schema.DerivedFields.Single(field => field.FieldId == "taskCount");
+        CollectionAssert.AreEqual(new[] { "project" }, counting.ReadsFieldIds.ToArray(), "The schema read does not say which fields a calculation reads.");
+        CollectionAssert.AreEqual(new[] { "projects", "tasks" }, counting.ReadsEntityIds.ToArray(), "The schema read does not say which record types a calculation reads.");
+        CollectionAssert.AreEqual(new[] { "project.taskCount" }, schema.DerivedFields.Single(field => field.FieldId == "completion").ReadsCalculationIds.ToArray(),
+            "The schema read does not say which calculations a calculation reads.");
 
         // And the results read back exactly, as digits rather than as a number some
         // client's JSON parser rounded on the way in.

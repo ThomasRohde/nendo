@@ -33,11 +33,17 @@ A user should experience records as typed objects with understandable properties
 The minimum Studio destinations are:
 
 1. **Data**: table, record inspector, search, filters, sorts, import and export;
-2. **Structure**: entities, fields, constraints, relationships and physical mapping;
-3. **Screens**: generated and custom semantic views plus validation/disable/restore,
-   and the Custom views panel: this device's two switches for custom views, and
-   import, export and removal of the file's view packages
-   ([custom views](custom-views.md#studio));
+2. **Structure**: entities, fields, constraints, relationships and physical mapping,
+   and each record type's calculated fields, read-only (see [calculated fields](#calculated-fields-in-structure));
+3. **Screens**: the compiled screens of each record type, each with its health: *Healthy*,
+   *Warning* with the compiler's sentence, *Missing package* for a custom view whose package
+   the file lacks, or *Off* while custom views do not run. A board is renamed on its own card.
+   Screens has no per-screen disable or restore: every custom screen switches off on its own
+   in recovery or under a definition that does not compile, when Screens lists the compiler's
+   errors instead, and a proposal that fixes the definition brings them back
+   ([ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md)). Below them is the
+   Custom views panel: this device's two switches for custom views, and import, export and
+   removal of the file's view packages ([custom views](custom-views.md#studio));
 4. **History**: revisions, attribution, semantic changes and Undo where it is supported;
 5. **Health**: compatibility, integrity, drift, backup, recovery and safe mode, and
    whether custom views run.
@@ -141,6 +147,38 @@ and a digit count whose example follows the inputs, or **Stop numbering**. Each 
 proposal. Allow duplicates is disabled on a numbered field, saying why. On a new record a numbered
 field that is empty is not required and says *Assigned when saved*, with the next code as an
 example; a code typed there is kept if it is free.
+
+### Calculated fields in Structure
+
+A record type's calculated fields ([calculations and actions](calculations-and-actions.md))
+follow its stored fields in a read-only **Calculated** group: name, stable ID, result type
+(and *May be empty* where the result can be), the formula as written, and the fields it reads.
+The heading counts them apart: *6 stored fields · 1 calculated*. A stored field that a
+calculation reads says so under its name (*Seeds per gram reads this field, so it cannot be
+retired while that calculation stays*) and does not offer **Retire**, since the host would
+refuse the retirement as `retired-binding`; **Retire record type** is withheld the same way
+while the type owns a calculation or one elsewhere reads it. A calculation that reads other
+calculations names them among its reads. The reads come from the record type's schema,
+`derivedFields[].readsFieldIds`, `readsCalculationIds` and `readsEntityIds`, matched by ID as
+the host's check matches them (UIT-19, accepted 2026-10-13).
+
+### Reviewing a proposal Studio prepared
+
+Accepting a proposal that Structure, Screens or Data prepared returns to that page, with the
+outcome on it (*Add Effort points field accepted.*). Only a proposal that builds the file's
+first screens lands on Use, where they now are; a view the Add view form made lands on the
+view. For a proposal Studio itself prepared (origin `workbench`) the review's first button
+is **Discard**: it rejects the proposal (`proposal.reject`) and says so, so no validated copy
+of the file is left waiting where nothing reaches it. Any other proposal opened there, a
+custom view's or an agent's, has **Back**, which leaves it waiting for its author or for the
+Agent page, where Reject asks first. Escape leaves the review without rejecting anything, and
+the trail's Back returns to it; a package import or update is not lost to a stray key. The **Preview** panel names the record
+types and screens the change addresses, read from the IDs its lines carry, and the read-only
+preview opens on the first of them. Each line is marked as an addition, a removal (a retired
+field or a removed package, among others) or a change. Where History would not undo the
+proposal as a whole, each line reads *Can be undone, but not from History*, and History says the
+same beside an entry it does not offer to undo. A proposal that removes a package names each
+screen and panel that will then say the package is missing.
 
 Saved views are desirable, but they are secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before it supports a general view-management system.
 

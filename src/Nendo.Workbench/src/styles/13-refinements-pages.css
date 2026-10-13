@@ -354,8 +354,14 @@
 .field-presentation,
 .field-kind { color: var(--ink); font-size: 0.83rem; }
 
-.field-kind { display: grid; gap: 2px; justify-items: start; }
-.field-kind .text-button { margin-left: -9px; color: var(--cobalt); font-size: 0.76rem; }
+/* Each column's action reads as one: Convert reference, and Show as Markdown beside a long
+   text field, which kept the muted colour and centred wrap of a label (UIT-12). */
+.field-kind,
+.field-presentation { display: grid; gap: 2px; justify-items: start; }
+.field-kind .text-button,
+.field-presentation .text-button { margin-left: -9px; font-size: 0.76rem; text-align: left; }
+.field-kind .text-button:not(:disabled),
+.field-presentation .text-button:not(:disabled) { color: var(--cobalt); }
 
 .field-requirement {
   display: grid;
@@ -373,6 +379,26 @@
 .field-rules .field-tag { margin-left: 0; color: var(--cobalt); background: var(--cobalt-soft); }
 .field-rules .text-button:disabled { color: var(--muted); }
 .record-form .field-note { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; font-weight: 400; }
+
+/* A stored field a calculation reads, said under its name where Retire is withheld (UIT-19). */
+.field-read-by { margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.4; }
+/* The same sentence for a record type its calculations hold, under the type's title. */
+.definition-card > .field-read-by { padding: 0 20px var(--space-3); }
+
+/* Structure's calculated fields (UIT-19): read-only, under the stored ones, the formula as code. */
+.calculated-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  margin: 0;
+  padding: var(--space-3) 20px var(--space-2);
+  border-top: 1px solid var(--line);
+  font-size: 0.92rem;
+}
+.calculated-heading span { color: var(--muted); font-size: 0.78rem; font-weight: 400; }
+.calculated-formula { color: var(--ink); font-family: var(--mono); font-size: 0.8rem; white-space: normal; overflow-wrap: anywhere; }
+.calculated-empty { color: var(--muted); font-size: 0.76rem; }
 .numbering-example { margin: 0; color: var(--ink); font-family: var(--mono); font-size: 0.83rem; }
 
 /* --- Surfaces -------------------------------------------------------------- */
@@ -417,8 +443,12 @@
 
 .health-chip .outline-icon { width: 14px; height: 14px; margin-right: 5px; }
 
-.rename-form { margin-top: var(--space-5); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-5); }
-.rename-form input { min-height: 38px; }
+/* What stands in a root's way, said under its detail beside the chip that names it (UIT-03). */
+.surface-detail .surface-warning { color: var(--ink); }
+
+/* A board renames itself from its own card (UIT-16): the form spans the card under its detail. */
+.surface-card > .board-rename { grid-column: 1 / -1; padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.board-rename input { min-height: 34px; }
 
 /* Studio → Screens → Custom views (ADR-0013): this device's two switches, and the packages
    the file carries. The switches reuse the Agent page's toggle; a package reads like a

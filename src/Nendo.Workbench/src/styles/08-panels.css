@@ -54,7 +54,6 @@
 }
 
 .definition-card,
-.rename-form,
 .context-note,
 .record-form-card {
   border: 1px solid var(--line);
@@ -236,10 +235,6 @@
 .surface-preview.board span:nth-child(1) { height: 72%; }
 .surface-preview.board span:nth-child(2) { height: 100%; }
 .surface-preview.board span:nth-child(3) { height: 48%; }
-
-.rename-form {
-  gap: 18px;
-}
 
 .diagnostics,
 .empty-inline {

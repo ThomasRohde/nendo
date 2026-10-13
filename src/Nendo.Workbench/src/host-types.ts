@@ -88,6 +88,12 @@ export interface EntitySnapshot {
     resultType: string | number;
     resultNullable: boolean;
     expression: string;
+    /** The stable IDs of the fields its formula reads; a field named here cannot be retired while it stays (UIT-19). */
+    readsFieldIds?: string[];
+    /** The calculations it reads, by calculation ID. */
+    readsCalculationIds?: string[];
+    /** The record types its bindings start from or reach; retiring one is refused while it stays. */
+    readsEntityIds?: string[];
   }>;
 }
 

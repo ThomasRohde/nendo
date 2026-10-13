@@ -264,10 +264,15 @@ There is no visual screen editor. Screens are built as proposals:
    the file unchanged.
 
 Studio's **Screens** page lists the compiled screens of each record type, with
-their kind and what they are bound to. When the definition does not compile, it
-shows each error with a hint. Studio makes two kinds of screen edit itself:
-renaming a board, and adding a custom view with **Add view…** under **Custom
-views**. Both go through a proposal and a review.
+their kind, what they are bound to, and whether each is **Healthy**. A custom view
+whose package is not in the file reads **Missing package**, one that does not run
+while custom views are switched off reads **Off**, and a compiler warning is shown
+on its screen's card. When the definition does not compile, the page shows each
+error with a hint. Studio makes two kinds of screen edit itself: renaming a board,
+on that board's own card, and adding a custom view with **Add view…** under
+**Custom views**. Both go through a proposal and a review. Accepting a rename returns
+you to Screens, accepting a new view opens it, and the review's **Discard** rejects the
+proposal. Escape leaves the review without discarding it.
 
 A file records the lowest Nendo version that can draw its screens. An older
 Nendo refuses the file instead of drawing part of it.

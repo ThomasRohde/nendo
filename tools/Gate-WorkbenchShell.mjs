@@ -1206,6 +1206,194 @@ async page => {
     assert(problems.length === 0, problems.join('; ') + '.');
   }, 1440, 900);
 
+  // --- Studio as the person sees it: the broad review's W-225 findings -------------------------
+
+  const appView = () => page.evaluate(() => import('/src/app-state.ts').then(module => module.state.view));
+  const prepareField = async (name) => {
+    await page.click('#nav-structure');
+    await until(() => document.querySelector('#add-field')?.disabled === false, null, 'Structure', 6000);
+    await page.click('#add-field');
+    await page.locator('#add-field-form input[name="fieldName"]').fill(name);
+    await page.click('#add-field-form button[type="submit"]');
+    await until(() => document.querySelector('#accept-proposal')?.disabled === false, null, 'the field proposal', 6000);
+  };
+
+  // UIT-02: accepting a field added on Structure stays on Structure, and a sentence on the page says so.
+  await check('UIT-02 accept stays on Structure', 'idea', async () => {
+    await prepareField('Effort points');
+    await page.click('#accept-proposal');
+    await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'the review to close', 6000);
+    await page.waitForTimeout(300);
+    const view = await appView();
+    const said = await message();
+    assert(view === 'structure', `UIT-02: accepting a field added on Structure landed on ${view}, not Structure.`);
+    assert(said.includes('Add Effort points field accepted.') || said.includes('accepted.'), `UIT-02: nothing on the page says the field was accepted (message slot: ${JSON.stringify(said)}).`);
+  });
+
+  // UIT-10: the review's Back discards a Studio proposal: the host no longer holds it, and the page says so.
+  await check('UIT-10 Back discards the proposal', 'idea', async () => {
+    await prepareField('Back test');
+    const proposalId = await page.evaluate(() => import('/src/app-state.ts').then(module => module.state.proposal?.proposalId ?? null));
+    assert(proposalId !== null, 'UIT-10: no proposal was prepared to go back from.');
+    await page.click('#close-proposal');
+    await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'Back to leave the review', 6000);
+    await page.waitForTimeout(300);
+    const held = await request('proposal.get', { proposalId });
+    assert(held === null || held?.proposalId !== proposalId, `UIT-10: after Back the host still holds ${proposalId}, which nothing in Studio reaches.`);
+    const said = await message();
+    assert(said.includes('discarded'), `UIT-10: Back says nothing about the proposal it left (message slot: ${JSON.stringify(said)}).`);
+  });
+
+  // UIT-10 with the review's Escape: leaving by Escape rejects nothing, and the trail's Back returns to the review.
+  await check('UIT-10 Escape leaves the proposal waiting', 'idea', async () => {
+    await prepareField('Escape test');
+    const proposalId = await page.evaluate(() => import('/src/app-state.ts').then(module => module.state.proposal?.proposalId ?? null));
+    await page.evaluate(() => document.querySelector('.proposal-changes h3')?.setAttribute('tabindex', '-1'));
+    await page.focus('.proposal-changes h3');
+    await page.keyboard.press('Escape');
+    await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'Escape to leave the review', 6000);
+    await page.waitForTimeout(300);
+    const held = await request('proposal.get', { proposalId });
+    assert(held?.proposalId === proposalId, `UIT-10: Escape rejected ${proposalId}; a stray key cost the person the proposal.`);
+    await page.keyboard.press('Alt+ArrowLeft');
+    await until(() => document.querySelector('[data-testid="proposal-review"]') !== null, null, 'the trail’s Back to reopen the review', 6000);
+    const label = await page.evaluate(() => document.querySelector('#close-proposal')?.textContent);
+    assert(label === 'Discard', `UIT-10: the button that rejects the proposal reads "${label}".`);
+  });
+
+  // W-062 with UIT-02: a screen the Add view form made is accepted onto Use, where the outcome says it is open.
+  await check('W-062 Add view lands on Use', 'idea', async () => {
+    await page.click('#nav-surfaces');
+    await until(() => document.querySelector('[data-view-add]') !== null, null, 'the Custom views panel', 6000);
+    await page.click('[data-view-add]');
+    await until(() => document.querySelector('#add-view-form button[type="submit"]')?.disabled === false, null, 'an Add view form ready to preview', 6000);
+    await page.locator('#add-view-title').fill('Landing test');
+    await page.click('#add-view-form button[type="submit"]');
+    await until(() => document.querySelector('#accept-proposal')?.disabled === false, null, 'the Add view proposal', 6000);
+    await page.click('#accept-proposal');
+    await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'the review to close', 6000);
+    await page.waitForTimeout(300);
+    const view = await appView();
+    const said = await message();
+    assert(view === 'use' && said.includes('open now'), `W-062: accepting an added screen landed on ${view}, saying ${JSON.stringify(said)}.`);
+  });
+
+  // UIT-03: a custom view whose package the file lacks does not read Healthy on Surfaces.
+  await check('UIT-03 Surfaces names a missing package', 'idea', async () => {
+    await page.click('#nav-surfaces');
+    await until(() => document.querySelector('.surface-card') !== null, null, 'Surfaces', 6000);
+    const links = await page.evaluate(() => {
+      const card = [...document.querySelectorAll('.surface-card')].find(candidate => candidate.querySelector('h3')?.textContent === 'Links');
+      return card ? { chip: card.querySelector('.health-chip')?.textContent.trim(), note: card.querySelector('.surface-warning')?.textContent ?? null } : null;
+    });
+    assert(links !== null, 'UIT-03: the preview file has no Links card to measure.');
+    assert(links.chip !== 'Healthy' && links.chip === 'Missing package' && links.note !== null, `UIT-03: the Links view, whose package the file lacks, reads ${JSON.stringify(links)}.`);
+  });
+
+  // UIT-11: a Help topic's location line has no separator hanging after it.
+  await check('UIT-11 Help location has no slash', 'idea', async () => {
+    await page.click('#nav-help');
+    await until(() => document.querySelector('.help-article h2') !== null, null, 'Help', 6000);
+    const line = await page.evaluate(() => {
+      const element = document.querySelector('.help-article > p:first-child');
+      return element ? { text: element.textContent, after: getComputedStyle(element, '::after').content } : null;
+    });
+    assert(line !== null, 'UIT-11: the Help article has no location line to measure.');
+    assert(line.after === 'none' || line.after === 'normal', `UIT-11: the Help location line "${line.text}" ends in ${line.after}, a separator with nothing after it.`);
+  });
+
+  // UIT-12: Show as Markdown is drawn as an action, the colour of Make required beside it.
+  await check('UIT-12 Show as Markdown is an action', 'idea', async () => {
+    await page.click('#nav-structure');
+    await until(() => document.querySelector('[data-presentation-field]') !== null, null, 'a Show as Markdown action', 6000);
+    const colours = await page.evaluate(() => {
+      const button = document.querySelector('[data-presentation-field]:not(:disabled)');
+      const row = button.closest('.field-row');
+      const required = row.querySelector('[data-require-field]:not(:disabled)');
+      const style = getComputedStyle(button);
+      return { markdown: style.color, required: getComputedStyle(required).color, align: getComputedStyle(button.parentElement).justifyItems };
+    });
+    assert(colours.markdown === colours.required, `UIT-12: Show as Markdown is ${colours.markdown}, its row's Make required ${colours.required}.`);
+  }, 1024, 768);
+
+  // UIT-13: the Make required form's action bar stays inside its card.
+  await check('UIT-13 Make required bar inside the card', 'idea', async () => {
+    await page.click('#nav-structure');
+    await until(() => document.querySelector('[data-require-field]:not(:disabled)') !== null, null, 'Make required', 6000);
+    await page.click('[data-require-field]:not(:disabled)');
+    await until(() => document.querySelector('#preview-requirement') !== null, null, 'the Make required form', 6000);
+    const fit = await page.evaluate(() => {
+      const card = document.querySelector('.record-form-card').getBoundingClientRect();
+      const bar = document.querySelector('.record-form-card > .form-actions').getBoundingClientRect();
+      const button = document.querySelector('#preview-requirement').getBoundingClientRect();
+      return { card: [Math.round(card.left), Math.round(card.right)], bar: [Math.round(bar.left), Math.round(bar.right)], inset: Math.round(card.right - button.right) };
+    });
+    assert(fit.bar[0] >= fit.card[0] - 0.5 && fit.bar[1] <= fit.card[1] + 0.5 && fit.inset >= 8,
+      `UIT-13: the action bar spans ${fit.bar} across a card of ${fit.card}, and Preview sits ${fit.inset}px from the card's edge.`);
+  }, 1024, 768);
+
+  // UIT-14: opening Add view… brings its form into view before focusing its first field.
+  await check('UIT-14 Add view form in view', 'idea', async () => {
+    await page.click('#nav-surfaces');
+    await until(() => document.querySelector('[data-view-add]') !== null, null, 'the Custom views panel', 6000);
+    await page.focus('[data-view-add]');
+    await page.keyboard.press('Enter');
+    await until(() => document.activeElement?.id === 'add-view-title', null, 'focus in the Add view form', 6000);
+    await page.waitForTimeout(300);
+    const where = await page.evaluate(() => {
+      const box = document.activeElement.getBoundingClientRect();
+      const pane = document.querySelector('#studio-content').getBoundingClientRect();
+      return { field: [Math.round(box.top), Math.round(box.bottom)], pane: [Math.round(pane.top), Math.round(pane.bottom)] };
+    });
+    assert(where.field[0] >= where.pane[0] - 0.5 && where.field[1] <= where.pane[1] + 0.5,
+      `UIT-14: at 800x700 focus is on the Add view title at ${where.field}, outside the pane's visible ${where.pane}.`);
+  }, 800, 700);
+
+  // UIT-17: the File menu shows Close file without scrolling at 1440x900.
+  await check('UIT-17 File menu shows Close file', 'idea', async () => {
+    await page.click('#file-menu > summary');
+    await page.waitForTimeout(300);
+    const menu = await page.evaluate(() => {
+      const panel = document.querySelector('#file-actions')?.closest('.file-menu-panel');
+      const buttons = [...panel.querySelectorAll('button')].filter(button => button.offsetParent !== null);
+      const last = buttons[buttons.length - 1];
+      const box = panel.getBoundingClientRect();
+      return { last: last.textContent.trim().slice(0, 30), lastBottom: Math.round(last.getBoundingClientRect().bottom), panelBottom: Math.round(box.bottom), scroll: panel.scrollHeight, client: panel.clientHeight };
+    });
+    assert(menu.scroll <= menu.client + 1 && menu.lastBottom <= menu.panelBottom, `UIT-17: at 1440x900 the File menu's last item "${menu.last}" ends at ${menu.lastBottom} below the panel's ${menu.panelBottom} (${menu.scroll}px of content in ${menu.client}).`);
+  }, 1440, 900);
+
+  // UIT-19: a calculated field is listed under Structure's Calculated group, and the field it reads
+  // says why it cannot be retired. The preview file carries no calculation, so one is added to the
+  // page's own session first.
+  await check('UIT-19 Structure lists calculated fields', 'idea', async () => {
+    await page.click('#nav-structure');
+    await until(() => document.querySelector('.definition-card .field-row:not(.field-row-head)') !== null, null, 'Structure', 6000);
+    const read = await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      const entity = state.session.entities.find(candidate => candidate.entityId === document.querySelector('#structure-entity')?.value);
+      const target = entity.fields.find(field => !field.retired);
+      entity.derivedFields = [{ fieldId: 'w225.calc', displayName: 'Effort per day', calculationId: 'w225.calc', resultType: 'Decimal', resultNullable: true,
+        expression: 'a_rather_long_formula_name_that_must_wrap / another_long_name_to_divide_by + yet_another_long_name', readsFieldIds: [target.fieldId] }];
+      (await import('/src/shell.ts')).rerender();
+      return target.fieldId;
+    });
+    await page.waitForTimeout(300);
+    const seen = await page.evaluate((fieldId) => {
+      const card = document.querySelector('.definition-card').getBoundingClientRect();
+      const group = document.querySelector('[data-testid="calculated-fields"]');
+      const row = document.querySelector('[data-calculated-field="w225.calc"]');
+      const retire = document.querySelector(`[data-retire-field="${CSS.escape(fieldId)}"]`);
+      return { group: group !== null, formula: row?.querySelector('.calculated-formula')?.textContent ?? null, count: document.querySelector('.definition-title-actions strong')?.textContent ?? '',
+        right: row ? Math.round(row.getBoundingClientRect().right) : null, card: Math.round(card.right), scroll: row ? row.scrollWidth > row.clientWidth + 1 : null,
+        retireDisabled: retire?.disabled ?? null, readBy: retire?.closest('.field-identity')?.querySelector('.field-read-by')?.textContent ?? null };
+    }, read);
+    assert(seen.group && seen.formula !== null, `UIT-19: Structure leaves out the record type's calculated field: ${JSON.stringify(seen)}.`);
+    assert(seen.count.includes('1 calculated'), `UIT-19: the heading counts "${seen.count}", not the calculated field apart.`);
+    assert(seen.right <= seen.card + 0.5 && seen.scroll === false, `UIT-19: the calculated row ends at ${seen.right}, past its card's ${seen.card}, or scrolls sideways.`);
+    assert(seen.retireDisabled === true && seen.readBy?.includes('Effort per day reads this field'), `UIT-19: the field the calculation reads still offers Retire, or does not say why not: ${JSON.stringify(seen)}.`);
+  }, 900, 800);
+
   return { complete: failures.length === 0, checks, errors, failure: failures.join(' || ') };
   })(); } catch (error) {
     return { complete: false, checks, errors, failure: [...failures, String(error?.message ?? error)].join(' || ') };
