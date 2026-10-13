@@ -1772,6 +1772,12 @@ async page => {
     await page.mouse.wheel(0, deltaY);
     if (ctrl) await page.keyboard.up('Control');
   };
+  // The drawing's zoom. A force layout still settling moves the frame by a fraction of a pixel
+  // and its scale by less than a millionth (scale 0.9999998 to 1, measured 2026-10-14); a wheel
+  // that zooms moves the scale by a tenth or more, so the scale, not the exact transform, says
+  // whether the wheel zoomed.
+  const zoomOf = transform => Number(/scale\(([^)]+)\)/.exec(transform ?? '')?.[1] ?? 1);
+  const sameZoom = (a, b) => Math.abs(zoomOf(a) - zoomOf(b)) < 0.01;
   const scrolledFrom = top => frame.waitForFunction(top => Math.round(document.querySelector('[data-gate-scroller]').scrollTop) !== top, top, { timeout: 2000 }).catch(() => undefined);
 
   // GDN-02: the wheel over a note's local graph scrolls the page and leaves the drawing as it was;
@@ -1785,11 +1791,11 @@ async page => {
   await wheelOver('#local-graph', localBefore.top > 0 ? -240 : 240);
   await scrolledFrom(localBefore.top);
   const localAfter = await drawingAt('#local-graph');
-  assert(localAfter.top !== localBefore.top && localAfter.transform === localBefore.transform,
+  assert(localAfter.top !== localBefore.top && sameZoom(localAfter.transform, localBefore.transform),
     `GDN-02: the wheel over a note's local graph must scroll the page and leave the drawing as it was: ${JSON.stringify({ before: localBefore, after: localAfter })}.`);
   await wheelOver('#local-graph', -240, { ctrl: true });
   await frame.waitForFunction(was => document.querySelector('#local-graph g.viewport').getAttribute('transform') !== was, localAfter.transform, { timeout: 2000 }).catch(() => undefined);
-  assert((await drawingAt('#local-graph')).transform !== localAfter.transform, 'GDN-02: Ctrl and the wheel must still zoom the local graph.');
+  assert(!sameZoom((await drawingAt('#local-graph')).transform, localAfter.transform), 'GDN-02: Ctrl and the wheel must still zoom the local graph.');
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.evaluate(({ fixture, homeContext }) => { window.broker.offerScreens(true); window.broker.setFixture({ ...fixture, context: homeContext }); window.broker.remount(); }, { fixture, homeContext });
   await page.waitForTimeout(300);
@@ -1801,7 +1807,7 @@ async page => {
   await wheelOver('#home-graph', 240);
   await scrolledFrom(heroBefore.top);
   const heroAfter = await drawingAt('#home-graph');
-  assert(heroAfter.top > heroBefore.top && heroAfter.transform === heroBefore.transform,
+  assert(heroAfter.top > heroBefore.top && sameZoom(heroAfter.transform, heroBefore.transform),
     `GDN-02: the wheel over the Overview's graph must scroll the page down and leave the drawing as it was: ${JSON.stringify({ before: heroBefore, after: heroAfter })}.`);
   await page.setViewportSize({ width: 1440, height: 900 });
 
