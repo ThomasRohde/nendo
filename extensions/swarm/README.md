@@ -39,8 +39,17 @@ biological or scientific prediction.
 The graph supports start events, tasks, exclusive gateways and end events.
 Parallel tokens, arbitrary expressions and general BPMN execution are outside
 this app. Simulation stops with its view; the file has no automatic actions.
-Unsaved drafts last in the open view only. Save before switching Nendo tabs or
-closing the file. Refused saves keep the draft and show the reason.
+An unsaved behaviour is kept as a draft in this device's browser storage for this
+file, never in the file: leaving the screen or closing the file finds it again on
+return, said as kept from before. **Reload saved** drops it, and so does a save.
+Refused saves keep the draft and show the reason, and a change made while a save
+is on its way stays a draft. The save's own change, which Nendo may announce a
+moment after the save is done, is never taken for somebody else's. Saved experiments are listed newest first. A species
+name longer than 80 characters is cut in Nendo's toolbar, which offers at most 64
+species, the selected one always among them. A transition whose From or To is a
+node of another species is left out of the diagram, and one whose Route points do
+not read is drawn along a route of its own; the view names each, and a save leaves
+the first as it is.
 
 ## Build
 

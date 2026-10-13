@@ -620,6 +620,76 @@ async (page) => {
     await view.evaluate(() => document.getElementById('editor').close());
   }
 
+  // ---- W-213: the broad review's Atlas findings, each on BCM in a fresh frame.
+  const fresh = async (file, what) => {
+    await page.evaluate(value => { window.broker.pushTheme('light'); window.broker.setFixture(value); window.broker.remount(); }, file);
+    await attach();
+    await until(() => /635 total$/.test(document.getElementById('status').textContent), null, `${what} did not load.`);
+  };
+  // ABS-13: a screen whose configuration names a mode opens on it, Importance × health included.
+  const portfolioFirst = clone(bcm);
+  portfolioFirst.context.configuration.mode = 'portfolio';
+  await fresh(portfolioFirst, 'BCM with configuration.mode portfolio');
+  const firstDraw = await view.evaluate(() => ({ portfolio: !document.getElementById('portfolio').hidden, map: !document.getElementById('map').hidden }));
+  assert(firstDraw.portfolio && !firstDraw.map, `A screen whose configuration names the mode "portfolio" opened on the map: ${JSON.stringify(firstDraw)}`);
+  // ABS-17: a capability whose importance is a retired choice keeps its place in Importance × health.
+  const retired = clone(portfolioFirst);
+  retired.schema.entities.find(entity => entity.entityId === 'bcm.capability').fields.find(field => field.fieldId === 'cap.importance').choices.find(choice => choice.id === 'Supporting').retired = true;
+  await fresh(retired, 'BCM with the Supporting importance retired');
+  const retiredPlaced = await view.evaluate(() => ({ placed: Number(document.getElementById('portfolio').dataset.placed),
+    other: document.querySelectorAll('#portfolio td[data-importance="other"] .portfolio-chip').length }));
+  assert(retiredPlaced.placed === 635 && retiredPlaced.other > 0,
+    `Capabilities whose importance is a retired choice were left out of Importance × health without a word: ${JSON.stringify(retiredPlaced)}`);
+  // ABS-10: a read past the Atlas's 5,000 records of a type is said, not silently cut.
+  await fresh(bcm, 'BCM');
+  await page.evaluate(() => {
+    const base = window.broker.records('bcm.assessment')[0];
+    for (let i = 0; i < 2600; i++) window.broker.put('bcm.assessment', { ...base, recordId: `w213-extra-${String(i).padStart(4, '0')}`, values: { ...base.values, 'assess.date': '2025-01-01' } });
+    window.broker.pushChanges();
+  });
+  await until(() => !document.getElementById('notice').hidden && /Read in part: the Atlas reads at most 5,000 /.test(document.getElementById('notice').textContent), null,
+    'A read of 5,024 assessments, past the Atlas\u2019s 5,000, was cut without a word.');
+  // ABS-18: the cards are one tab stop, and the arrows move between them.
+  await fresh(bcm, 'BCM');
+  const stops = await view.evaluate(() => ({ cards: document.querySelectorAll('.cap').length, stops: [...document.querySelectorAll('.cap')].filter(card => card.tabIndex >= 0).length }));
+  assert(stops.cards > 10 && stops.stops === 1, `${stops.stops} of ${stops.cards} capability cards are tab stops, so the keyboard must cross them all to reach the inspector.`);
+  await view.locator('.cap[tabindex="0"]').focus();
+  const fromCard = await view.evaluate(() => document.activeElement.dataset.id);
+  await page.keyboard.press('ArrowRight');
+  const toCard = await view.evaluate(() => ({ id: document.activeElement.dataset.id ?? null, card: document.activeElement.classList.contains('cap'),
+    stops: [...document.querySelectorAll('.cap')].filter(card => card.tabIndex >= 0).map(card => card.dataset.id) }));
+  assert(toCard.card && toCard.id !== fromCard && JSON.stringify(toCard.stops) === JSON.stringify([toCard.id]), `ArrowRight on a card did not move to the next card: ${JSON.stringify({ fromCard, toCard })}`);
+  // ABS-09 and ABS-14: in the editor, on a capability with no lifecycle and a sibling above it.
+  const byParent = new Map();
+  for (const capability of bcm.records['bcm.capability']) byParent.set(capability.values['cap.parent'] ?? null, [...(byParent.get(capability.values['cap.parent'] ?? null) ?? []), capability]);
+  const topLevel = byParent.get(null).find(capability => (byParent.get(capability.recordId) ?? []).length >= 2);
+  const second = byParent.get(topLevel.recordId).sort((a, b) => a.values['cap.order'] - b.values['cap.order'])[1];
+  const unset = clone(bcm);
+  unset.records['bcm.capability'].find(capability => capability.recordId === second.recordId).values['cap.lifecycle'] = null;
+  await fresh(unset, 'BCM with a capability without a lifecycle');
+  await select(second.recordId);
+  await view.locator('#inspector').getByRole('button', { name: 'Edit', exact: true }).click();
+  await until(() => document.getElementById('editor').open, null, 'The editor did not open on the capability without a lifecycle.');
+  const lifecycleShown = await view.locator('[name="lifecycle"]').inputValue();
+  const keysFrom = await page.evaluate(() => window.broker.requests.length);
+  await view.locator('[name="description"]').focus();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await page.keyboard.press('F2');
+  // Settled once a ping sent now comes back: a move the keys set off would have been asked for first.
+  const ping = await page.evaluate(() => window.broker.ping());
+  await page.waitForFunction(id => window.broker.pongs.includes(id), ping);
+  const typed = { moves: (await page.evaluate(start => window.broker.requests.slice(start).filter(request => request.m === 'records.move').length, keysFrom)),
+    renameBox: await view.evaluate(() => document.querySelector('.cap-rename') !== null) };
+  assert(typed.moves === 0 && !typed.renameBox, `Keys typed in the editor reached the map: ${JSON.stringify(typed)}`);
+  await view.fill('[name="name"]', `${second.values['cap.name']} (renamed)`);
+  const saveFrom = await page.evaluate(() => window.broker.requests.length);
+  await view.click('#save');
+  await until(() => !document.getElementById('editor').open, null, 'The rename of the capability without a lifecycle did not save.');
+  const lifecycleSave = await page.evaluate(start => window.broker.requests.slice(start).find(request => request.m === 'records.update'), saveFrom);
+  assert(lifecycleShown === '' && lifecycleSave && lifecycleSave.p.values['cap.lifecycle'] == null,
+    `Saving a name change gave a capability without a lifecycle the first choice: shown ${JSON.stringify(lifecycleShown)}, written ${JSON.stringify(lifecycleSave?.p.values['cap.lifecycle'])}`);
+  results.w213 = { firstDraw, retiredPlaced, stops, typed, lifecycle: lifecycleSave.p.values['cap.lifecycle'] ?? null };
+
   // ---- Nendo's own chrome (W-090). Everything above ran on a host that does not draw a view's
   // controls, where the Atlas draws its own. On one that does, the Atlas draws none: it declares
   // them, and Nendo draws them, lists them in Ctrl K and sends a press back as a command. It takes
@@ -726,6 +796,27 @@ async (page) => {
     'The card menu holds ' + JSON.stringify(results.chrome.menu));
   assert(menu.x > 0 && menu.y > 0, 'The menu was not asked for at the pointer: ' + JSON.stringify([menu.x, menu.y]));
   await until(() => document.getElementById('breadcrumbs').textContent.includes('Customer & market'), null, 'Picking Focus this group did not focus it.');
+  // ABS-16: Change since over more than 64 assessment dates. Nendo's select holds 64, one more
+  // refused the whole row, and the Atlas left Nendo's toolbar for the rest of the visit.
+  const manyDates = clone(bcm);
+  const datedCapability = manyDates.records['bcm.capability'][0].recordId;
+  for (let i = 0; i < 70; i++) manyDates.records['bcm.assessment'].push({ entityId: 'bcm.assessment', recordId: `w213-date-${i}`, version: 1, exact: {}, labels: {}, calculated: {},
+    values: { 'assess.capability': datedCapability, 'assess.dimension': 'Maturity', 'assess.score': 3, 'assess.date': `2024-${String(1 + Math.floor(i / 28)).padStart(2, '0')}-${String(1 + (i % 28)).padStart(2, '0')}` } });
+  const refusalsBefore = (await page.evaluate(() => window.broker.chromeRefusals)).length;
+  await page.evaluate(value => { window.broker.setFixture(value); window.broker.remount(); }, manyDates);
+  await attach();
+  await until(() => /635 total$/.test(document.getElementById('status').textContent), null, 'The file with 73 assessment dates did not load.');
+  await page.evaluate(() => window.broker.command('colour', 'change'));
+  let manySince = null;
+  for (let attempt = 0; attempt < 120 && manySince === null; attempt++) {
+    const now = await page.evaluate(() => ({ refusals: window.broker.chromeRefusals, since: window.broker.toolbars.at(-1)?.items.find(item => item.id === 'since') ?? null }));
+    if (now.refusals.length > refusalsBefore) assert(false, `Nendo refused the Atlas's row once Change since listed 73 dates, and the Atlas left Nendo's toolbar: ${JSON.stringify(now.refusals.at(-1))}`);
+    if (now.since !== null) manySince = now.since; else await page.waitForTimeout(25);
+  }
+  const stillNative = await view.evaluate(() => document.documentElement.classList.contains('native-chrome'));
+  assert(manySince !== null && manySince.options.length === 64 && manySince.options.some(option => option.value === manySince.value) && stillNative,
+    `Change since over 73 dates did not declare the 64 most recent within Nendo's row: ${JSON.stringify({ options: manySince?.options.length, value: manySince?.value, stillNative })}`);
+  results.chrome.since = { dates: 73, declared: manySince.options.length };
   // The fixture read every toolbar and menu above by the Workbench's own rules (W-091).
   const refused = await page.evaluate(() => window.broker.chromeRefusals);
   assert(refused.length === 0, 'Nendo would refuse what the Atlas declared or asked for: ' + JSON.stringify(refused));

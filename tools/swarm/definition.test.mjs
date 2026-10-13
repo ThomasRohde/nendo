@@ -43,3 +43,24 @@ test('preset return paths never pass through unrelated behaviour nodes', () => {
     });
   }
 });
+// ABS-12: records edited in Studio can disagree. One transition whose node was moved to another
+// species, or whose Route points do not read, made the whole species unloadable with a raw error.
+test('a species with an inconsistent transition still loads, leaves it out or routes it afresh, and names it', () => {
+  const r = fixture().records;
+  const records = { species: r['sw.species'], habitats: r['sw.habitat'], nodes: structuredClone(r['sw.node']), links: structuredClone(r['sw.link']) };
+  const links = records.links.filter(l => l.values['sw.link.species'] === 'sw_species_murmuration');
+  const moved = records.nodes.find(n => n.recordId === links[0].values['sw.link.target']);
+  moved.values['sw.node.species'] = 'sw_species_fireflies';
+  const crossing = links.filter(l => [l.values['sw.link.source'], l.values['sw.link.target']].includes(moved.recordId)).map(l => l.recordId);
+  const unread = links.find(l => !crossing.includes(l.recordId));
+  unread.values['sw.link.waypoints'] = '[{';
+  const problems = [];
+  let model = null, xml = null, failure = null;
+  try { model = fromRecords(records, 'sw_species_murmuration', null, problems); xml = diagramXML(model); } catch (error) { failure = error; }
+  assert.equal(failure, null, `One inconsistent transition stopped the species from loading: ${failure?.message}`);
+  assert.deepEqual(problems.filter(p => p.leftOut).map(p => p.recordId).sort(), [...crossing].sort(), 'A transition to a node of another species was not left out and named.');
+  assert.deepEqual(problems.filter(p => !p.leftOut).map(p => p.recordId), [unread.recordId], 'A transition whose Route points do not read was not named.');
+  assert.deepEqual(model.links.find(l => l.id === unread.recordId).waypoints, []);
+  assert.ok(crossing.every(id => !xml.includes(`id="${id}"`)) && xml.includes(`id="${unread.recordId}"`));
+  assert.ok(problems.every(p => p.message.includes(p.recordId)));
+});

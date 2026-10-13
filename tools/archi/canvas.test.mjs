@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { buildMirror, geometry, archiOnlineCommit, toRecords, writesFor, isNodeGhosted, isConnectableGhosted, VIEWPOINTS } from '../../extensions/archi/canvas.js';
+import { buildMirror, geometry, archiOnlineCommit, toRecords, writesFor, isNodeGhosted, isConnectableGhosted, VIEWPOINTS, unreadableValues, exportArchimate } from '../../extensions/archi/canvas.js';
 
 // W-110: the workbench draws from a mirror of Archi.nendo's records, through archi-online's own
 // geometry. The reference is archi-online's geometry of its own parse of the same file
@@ -138,4 +138,26 @@ test("a view's stored viewpoint reaches the mirror, and ghosts exactly the boxes
     if (viewpoint === 'strategy') assert.ok(expected.length > 10 && touching.length > 5, `strategy ghosts only ${expected.length} boxes and ${touching.length} lines`);
   }
   assert.equal(VIEWPOINTS.length, 25);
+});
+
+// ABS-07: Bendpoints and Legend options are long text a person edits on a record page. One value
+// that does not read as JSON must not stop the canvas, Analysis, the editor, the validator and
+// the exports, which all draw from the mirror; the item is drawn without it and named.
+test('a diagram item whose bendpoints or legend do not read is drawn without them and named, and the model still reads', () => {
+  const broken = structuredClone(records);
+  const line = broken['ar.item'].find(item => typeof item.values['ar.item.bendpoints'] === 'string');
+  line.values['ar.item.bendpoints'] = '[{"x": 1';
+  const viewId = line.values['ar.item.view'];
+  broken['ar.item'].push({ entityId: 'ar.item', recordId: 'ar-id-abs07-note', version: 1, values: { 'ar.item.view': viewId, 'ar.item.kind': 'Note',
+    'ar.item.x': 10, 'ar.item.y': 10, 'ar.item.width': 185, 'ar.item.height': 80, 'ar.item.content': 'Legend', 'ar.item.legend': '{not json' } });
+  let mirror = null, failure = null;
+  try { mirror = buildMirror(broken); } catch (error) { failure = error; }
+  assert.equal(failure, null, `One unreadable Bendpoints or Legend value stopped the whole model from reading: ${failure?.message}`);
+  assert.deepEqual(mirror.connections[line.recordId].bendpoints, [], 'A connection whose bendpoints do not read was not drawn straight.');
+  assert.equal(mirror.nodes['ar-id-abs07-note'].legendOptions, undefined, 'A note whose legend does not read kept a legend.');
+  assert.ok(geometry(mirror, viewId).routes.has(line.recordId), 'The connection whose bendpoints do not read was not drawn.');
+  assert.deepEqual(unreadableValues(broken).map(entry => [entry.recordId, entry.field, entry.viewId]),
+    [[line.recordId, 'bendpoints', viewId], ['ar-id-abs07-note', 'legend', viewId]], 'The unreadable values are not named by their records.');
+  assert.deepEqual(unreadableValues(records), [], 'Archisurance itself has a value that does not read.');
+  assert.match(exportArchimate(broken).xml, /<archimate:model /, 'Save as .archimate failed over one unreadable value.');
 });

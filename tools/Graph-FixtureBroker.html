@@ -33,6 +33,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //                                               write is kept at once, its answer arrives ms later
 //   drop(method, { code, message }, times)      keep the next requests of one method, then answer
 //                                               them with this error, as a reply lost on the way
+//   delayChanges(ms, times)                     send the next changes events ms late, as the
+//                                               Workbench's broker may hold one back (W-213)
 //   remount()                                   a fresh frame, as a new placeholder would start one
 //   offerWrites(on)                             offer records.create, records.delete, records.batch,
 //                                               records.undo and records.redo from the next connect on
@@ -114,7 +116,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
       'tone-teal': '#4ecdc4', 'tone-blue': '#6f9bff', 'tone-violet': '#b392ff', 'tone-grey': '#a3abb8',
     },
   };
-  const requests = [], events = [], hellos = [], refused = [], pongs = [], failures = [], holds = [], drops = [];
+  const requests = [], events = [], hellos = [], refused = [], pongs = [], failures = [], holds = [], drops = [], lateChanges = [];
   // A batch's writeKey and what it was answered: the same key and writes again answer the same,
   // the same key with other writes is refused, as the host's idempotency key does.
   const keyed = new Map();
@@ -139,8 +141,12 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   }
 
   function emit(name, data) {
-    events.push({ n: name, t: now(), at: requests.length });
-    post({ t: 'evt', n: name, d: data });
+    const send = () => {
+      events.push({ n: name, t: now(), at: requests.length });
+      post({ t: 'evt', n: name, d: data });
+    };
+    const late = name === 'changes' ? takeOne(lateChanges, 'changes') : null;
+    if (late !== null) setTimeout(send, late.ms); else send();
   }
 
   function refusal(code, message) {
@@ -675,6 +681,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     fail(method, error, times = 1) { failures.push({ method, error: clone(error), times }); return true; },
     hold(method, ms, times = 1) { holds.push({ method, ms, times }); return true; },
     drop(method, error, times = 1) { drops.push({ method, error: clone(error), times }); return true; },
+    delayChanges(ms, times = 1) { lateChanges.push({ method: 'changes', ms, times }); return true; },
     remount() { mount(); return true; },
     offerChrome(on) { chrome = on === true; return chrome; },
     offerWrites(on) { writes = on === true; return writes; },

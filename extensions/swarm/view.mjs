@@ -12,10 +12,40 @@ const notice = text => { $('status').textContent = text; };
 const problem = error => { $('problem').textContent = error?.message ?? String(error); $('problem').hidden = false; };
 const clearProblem = () => { $('problem').hidden = true; $('problem').textContent = ''; };
 const canWrite = () => !api.context.readOnly && !replayMode && !saving && !loading;
+// Every edit counts, so a save knows whether the person changed anything while it was written (ABS-11).
+let edits = 0;
+// Transitions the diagram leaves out because their ends are in another species (ABS-12): a save keeps them.
+let leftOutLinks = new Set();
+// The file's change sequence once this view's own save was read back (ABS-11). Nendo may hold a
+// changes event back for up to a quarter of a second, so the save's own can arrive after the save
+// is done; one at or below this sequence is the view's own write, not somebody else's.
+let savedThrough = 0;
+const changeSequenceNow = async () => { try { return (await api.records.query({ entityId: 'sw.species', limit: 1 })).changeSequence ?? 0; } catch { return 0; } };
+// Replays running now, for the measurement surface (ABS-20).
+let replaying = 0;
+/**
+ * The species as Nendo's select takes them (ABS-19): a label is at most 80 characters and a select
+ * at most 64 options, and one too long refuses the whole toolbar, Play, Reset and Save with it.
+ * A longer name is cut with an ellipsis; past 64 species the selected one is always offered.
+ */
+function speciesOptions() {
+  // Nendo counts UTF-16 units; the cut keeps whole characters, so a surrogate pair is never split.
+  const label = r => {
+    const name = String(r.values['sw.species.name'] ?? '').trim() || '(unnamed)';
+    if (name.length <= 80) return name;
+    let kept = '';
+    for (const character of name) { if (kept.length + character.length > 79) break; kept += character; }
+    return `${kept}…`;
+  };
+  const shown = records.species.slice(0, 64);
+  const chosen = records.species.find(r => r.recordId === selectedSpecies);
+  if (chosen && !shown.includes(chosen)) shown[63] = chosen;
+  return shown.map(r => ({ value: r.recordId, label: label(r) }));
+}
 function toolbar() {
   if (!records) return;
   api.ui.setToolbar({ items: [
-    { kind: 'select', id: 'species', label: 'Species', value: selectedSpecies, options: records.species.map(r => ({ value: r.recordId, label: r.values['sw.species.name'] })) },
+    { kind: 'select', id: 'species', label: 'Species', value: selectedSpecies, options: speciesOptions() },
     { kind: 'button', id: 'play', label: playing ? 'Pause' : 'Play', disabled: !sim || loading, keys: 'Alt+P' },
     { kind: 'button', id: 'reset', label: 'Reset', disabled: !sim || loading },
     { kind: 'button', id: 'save-behaviour', label: saving ? 'Saving…' : 'Save behaviour', disabled: !dirty || !canWrite(), keys: 'Ctrl+S' },
@@ -26,6 +56,7 @@ function toolbar() {
 }
 function markDirty() {
   if (importing || replayMode) return;
+  edits += 1;
   dirty = true; $('draft-state').textContent = 'Unsaved behaviour'; toolbar(); keepSoon();
 }
 // The behaviour being edited outlasts the view: Nendo stops a view when the person goes to another
@@ -155,9 +186,11 @@ async function readAll() {
   for (const [key, entityId] of Object.entries(prefix)) out[key] = await api.records.queryAll({ entityId }, { max: 2000 });
   return out;
 }
+/** Replay buttons do nothing while a replay or a load runs (ABS-20): two replays at once, the last to finish won. */
+const replayButtons = disabled => { for (const button of document.querySelectorAll('.experiment-row button')) button.disabled = disabled; };
 async function load() {
   if (loading) { pendingReload = true; return; }
-  loading = true; playing = false; toolbar();
+  loading = true; playing = false; toolbar(); replayButtons(true);
   try {
     records = await readAll();
     if (!records.species.length || !records.habitats.length) throw new Error('This Swarm file needs a species and a habitat. Restore the seeded app or add records in Studio.');
@@ -165,18 +198,21 @@ async function load() {
     if (kept && records.species.some(r => r.recordId === kept.species)) selectedSpecies = kept.species;
     if (!records.species.some(r => r.recordId === selectedSpecies)) selectedSpecies = records.species.find(r => r.recordId === 'sw_species_murmuration')?.recordId ?? records.species[0].recordId;
     selectedHabitat ??= records.habitats[0].recordId;
-    model = fromRecords(records, selectedSpecies, selectedHabitat); dirty = false; externalChange = false; replayMode = false;
+    const inconsistent = [];
+    model = fromRecords(records, selectedSpecies, selectedHabitat, inconsistent); dirty = false; externalChange = false; replayMode = false;
+    leftOutLinks = new Set(inconsistent.filter(entry => entry.leftOut).map(entry => entry.recordId));
     const restored = kept && kept.species === selectedSpecies;
     if (restored) { model = { ...kept.model, habitat: model.habitat }; dirty = true; externalChange = kept.base !== baseOf(selectedSpecies); }
     recovering = false;
     keepDraft();
     await loadDiagram(); sim = new Simulation(model); controls(); redraw(true); updateMetrics(); renderExperiments();
     $('workspace').setAttribute('aria-busy', 'false'); clearProblem();
+    if (inconsistent.length) problem(inconsistent.map(entry => entry.message).join('\n'));
     notice(!restored ? 'Ready. Edit the behaviour, or press Play and startle a group.'
       : externalChange ? 'Your unsaved behaviour was kept from before, but the saved behaviour changed since. Reload saved discards the draft.'
         : 'Your unsaved behaviour was kept from before. Save behaviour keeps it in the file; Reload saved discards it.');
   } catch (e) { sim = null; problem(e); }
-  finally { loading = false; toolbar(); if (pendingReload) { pendingReload = false; await load(); } }
+  finally { loading = false; toolbar(); replayButtons(false); if (pendingReload) { pendingReload = false; await load(); } }
 }
 const pack = (object, p, keys) => Object.fromEntries(keys.map(k => [`${p}.${k}`, object[k] ?? null]));
 function writesForDraft() {
@@ -190,7 +226,7 @@ function writesForDraft() {
     const targetVersions = Object.fromEntries(Object.entries(targets).filter(([k]) => k in changed));
     writes.push(old ? { op: 'update', entityId, recordId: id, version: old.version, values: changed, targetVersions } : { op: 'create', entityId, recordId: id, values, targetVersions });
   }
-  for (const r of records.links.filter(r => r.values['sw.link.species'] === selectedSpecies && !model.links.some(l => l.id === r.recordId))) writes.push({ op: 'delete', entityId: r.entityId, recordId: r.recordId, version: r.version });
+  for (const r of records.links.filter(r => r.values['sw.link.species'] === selectedSpecies && !model.links.some(l => l.id === r.recordId) && !leftOutLinks.has(r.recordId))) writes.push({ op: 'delete', entityId: r.entityId, recordId: r.recordId, version: r.version });
   for (const r of records.nodes.filter(r => r.values['sw.node.species'] === selectedSpecies && !model.nodes.some(n => n.id === r.recordId))) writes.push({ op: 'delete', entityId: r.entityId, recordId: r.recordId, version: r.version });
   // Species update first; later references use its returned batch version implicitly.
   edit(s, 'sw.species', selectedSpecies, pack(model.species, 'sw.species', ['population', 'speed', 'perception', 'cohesion', 'alignment', 'separation', 'seed']));
@@ -216,6 +252,7 @@ async function saveBehaviour() {
   if (externalChange) { problem('The file changed while you were editing. Your draft is kept. Reload saved before making a new edit.'); return; }
   saving = true; playing = false; toolbar();
   try {
+    const editsSaved = edits;
     const writes = writesForDraft();
     try {
       if (writes.length) await api.records.batch(writes, { label: `Swarm: save ${model.species.name} behaviour` });
@@ -226,9 +263,15 @@ async function saveBehaviour() {
         : `The behaviour was not saved. Your draft is kept. ${e.message}`);
       return;
     }
-    dirty = false; externalChange = false; keepDraft(); $('draft-state').textContent = 'Saved behaviour';
+    // ABS-11: a change made while the save was on its way is not in it, so it stays a draft.
+    const changedMeanwhile = edits !== editsSaved;
+    if (!changedMeanwhile) { dirty = false; keepDraft(); $('draft-state').textContent = 'Saved behaviour'; }
+    externalChange = false;
     try { records = await readAll(); } catch (e) { problem(`The behaviour was saved, but reading it back failed. Reload saved to see it. ${e.message}`); return; }
-    clearProblem(); notice('Behaviour saved in one revision. Reset to run it from the seed.');
+    savedThrough = Math.max(savedThrough, await changeSequenceNow());
+    if (changedMeanwhile) keepDraft();
+    clearProblem(); notice(changedMeanwhile ? 'Behaviour saved in one revision, but not the change made while it was saving: it is still a draft. Save behaviour again to keep it.'
+      : 'Behaviour saved in one revision. Reset to run it from the seed.');
   } catch (e) { problem(`The behaviour was not saved. Your draft is kept. ${e.message}`); }
   finally { saving = false; toolbar(); }
 }
@@ -238,33 +281,40 @@ async function saveExperiment(name) {
   try {
     const s = records.species.find(r => r.recordId === selectedSpecies), h = records.habitats.find(r => r.recordId === selectedHabitat);
     const snapshot = sim.snapshot(name);
+    // A record ID that sorts by when it was made (ABS-21): the list shows the newest first.
+    const recordId = `sw_experiment_${String(Date.now()).padStart(15, '0')}_${crypto.randomUUID().slice(0, 8)}`;
     await api.records.create('sw.experiment', {
       'sw.experiment.name': name, 'sw.experiment.species': s.recordId, 'sw.experiment.habitat': h.recordId,
       'sw.experiment.seed': snapshot.model.species.seed, 'sw.experiment.steps': snapshot.ticks,
       'sw.experiment.population': snapshot.model.species.population, 'sw.experiment.snapshot': JSON.stringify(snapshot),
-    }, { targetVersions: { 'sw.experiment.species': s.version, 'sw.experiment.habitat': h.version } });
-    records.experiments = await api.records.queryAll({ entityId: 'sw.experiment' }, { max: 2000 }); renderExperiments(); $('save-dialog').close(); $('experiments').open = true; clearProblem(); notice(`Saved “${name}”, including the rules used by this run.`);
+    }, { recordId, targetVersions: { 'sw.experiment.species': s.version, 'sw.experiment.habitat': h.version } });
+    records.experiments = await api.records.queryAll({ entityId: 'sw.experiment' }, { max: 2000 }); savedThrough = Math.max(savedThrough, await changeSequenceNow()); renderExperiments(); $('save-dialog').close(); $('experiments').open = true; clearProblem(); notice(`Saved “${name}”, including the rules used by this run.`);
   } catch (e) { problem(`The experiment was not saved. ${e.message}`); }
   finally { saving = false; toolbar(); updateMetrics(); }
 }
 async function replayExperiment(record) {
+  if (loading || saving) return;
   if (dirty) { problem('Save your behaviour or Reload saved before opening an experiment.'); return; }
-  playing = false; loading = true; toolbar(); notice('Replaying captured steps…');
+  playing = false; loading = true; replaying += 1; toolbar(); replayButtons(true); notice('Replaying captured steps…');
   try {
     const snapshot = JSON.parse(record.values['sw.experiment.snapshot']);
     const restored = await replayAsync(snapshot, (tick, total) => notice(`Replaying captured steps… ${Math.round(tick / total * 100)}%`)); model = structuredClone(snapshot.model); sim = restored; replayMode = true;
     await loadDiagram(); controls(); redraw(true); updateMetrics(); clearProblem(); notice(`Replayed “${record.values['sw.experiment.name']}” at step ${sim.tick}. Its captured rules are shown. Reload saved returns to the live species.`);
   } catch (e) { problem(`This experiment could not be replayed: ${e.message}`); }
-  finally { loading = false; toolbar(); if (pendingReload) { pendingReload = false; await load(); } }
+  finally { replaying -= 1; loading = false; toolbar(); replayButtons(false); if (pendingReload) { pendingReload = false; await load(); } }
 }
 function renderExperiments() {
   $('experiment-count').textContent = records.experiments.length; $('experiment-list').replaceChildren();
   if (!records.experiments.length) { const p = document.createElement('p'); p.textContent = 'Save a run to keep its behaviour and replay it later.'; $('experiment-list').append(p); }
-  for (const record of [...records.experiments].reverse()) {
+  // Newest first: by the time in the record ID, then those saved before it had one, last read first (ABS-21).
+  const timed = r => /^sw_experiment_\d{15}_/.test(r.recordId);
+  const ordered = [...records.experiments.filter(timed).sort((a, b) => (a.recordId < b.recordId ? 1 : a.recordId > b.recordId ? -1 : 0)),
+    ...records.experiments.filter(r => !timed(r)).reverse()];
+  for (const record of ordered) {
     const row = document.createElement('div'); row.className = 'experiment-row';
     const copy = document.createElement('span'); copy.className = 'experiment-copy'; copy.textContent = record.values['sw.experiment.name'];
     const small = document.createElement('small'); small.textContent = `${record.values['sw.experiment.population']} creatures · ${record.values['sw.experiment.steps']} steps · seed ${record.values['sw.experiment.seed']}`; copy.append(small);
-    const button = document.createElement('button'); button.textContent = 'Replay'; button.type = 'button'; button.addEventListener('click', () => replayExperiment(record)); row.append(copy, button); $('experiment-list').append(row);
+    const button = document.createElement('button'); button.textContent = 'Replay'; button.type = 'button'; button.disabled = loading; button.addEventListener('click', () => replayExperiment(record)); row.append(copy, button); $('experiment-list').append(row);
   }
 }
 function redraw(clear = false) {
@@ -338,8 +388,9 @@ async function boot() {
     }
   }));
   unsubscribe.push(api.on('theme', () => refreshPalette()));
-  unsubscribe.push(api.on('changes', () => {
+  unsubscribe.push(api.on('changes', sequence => {
     if (saving) return;
+    if (Number.isFinite(sequence) && sequence <= savedThrough) return;
     if (dirty || replayMode) { externalChange = true; notice('The file changed elsewhere. Your draft or captured run is kept. Reload saved to read the latest records.'); }
     else load();
   }));
@@ -347,6 +398,6 @@ async function boot() {
   window.addEventListener('pagehide', () => { keepDraft(); unsubscribe.forEach(fn => fn()); resize.disconnect(); diagram.destroy(); });
   refreshPalette(); await load(); requestAnimationFrame(animate);
   // A compact read-only measurement surface: no storage or privileged host access.
-  window.swarm = { get model() { return structuredClone(model); }, get metrics() { return structuredClone(sim?.metrics); }, get tick() { return sim?.tick; }, get dirty() { return dirty; }, get snapshot() { return sim?.snapshot(); }, get digest() { return sim?.digest(); } };
+  window.swarm = { get model() { return structuredClone(model); }, get metrics() { return structuredClone(sim?.metrics); }, get tick() { return sim?.tick; }, get dirty() { return dirty; }, get saving() { return saving; }, get replaying() { return replaying; }, get snapshot() { return sim?.snapshot(); }, get digest() { return sim?.digest(); } };
 }
 boot().catch(problem);

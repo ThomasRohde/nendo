@@ -56,5 +56,8 @@ dialog p { color: var(--nendo-muted); font-size: 13px; }
 .djs-element.selected .djs-outline { stroke: var(--nendo-cobalt) !important; }
 .djs-element.swarm-active .djs-visual > rect, .djs-element.swarm-active .djs-visual > polygon { fill: var(--nendo-cobalt-soft) !important; stroke: var(--nendo-cobalt) !important; }
 .djs-container .djs-hit { fill: none !important; }
+/* ABS-08: bpmn-js writes a white box under a decision's or an event's label as it is edited; its
+   text took Nendo's ink, white in the dark theme. Both come from the theme instead. */
+.djs-direct-editing-parent { color: var(--nendo-ink) !important; background-color: var(--nendo-surface) !important; }
 @media (max-width: 800px) { #workspace { grid-template-columns: minmax(0, 1fr); } .habitat-pane { border-right: 0; border-bottom: 1px solid var(--nendo-line); } #habitat-stage { min-height: 220px; } #diagram { height: 300px; } }
 @media (max-width: 410px) { .habitat-pane, .behaviour-pane { padding: 12px; } .parameters { grid-template-columns: repeat(2, minmax(0, 1fr)); } .inspector-fields { grid-template-columns: minmax(0, 1fr); } .draft-line { grid-column: auto; flex-wrap: wrap; } .pane-heading { flex-wrap: wrap; } }

@@ -122,7 +122,7 @@ test('R02-001 a property draft that already matches the file is settled, so late
 
 test('R02-002 reversed read completion installs only the newest model', async () => {
   const replies = [], rendered = [], state = { loaded: true };
-  const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M,
+  const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M, READ_MAX: 50000,
     nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
     render: () => rendered.push(state.model.records.get('owner').version), startEmptyModel() {},
   });
@@ -138,7 +138,7 @@ test('R02-002 reversed read completion installs only the newest model', async ()
 
 test('R02-002 a superseded read waits for the newest model before a queued writer can continue', async () => {
   const replies = [], state = { loaded: true }, observed = [];
-  const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M,
+  const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M, READ_MAX: 50000,
     nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
     render() {}, startEmptyModel() {},
   });
@@ -188,12 +188,12 @@ function newElements(count, extraBox = false) {
   return { before, after, viewId: view.id };
 }
 
-function controller(draft, batch = true) {
+function controller(draft, batch = true, failAt = null) {
   let stored = structuredClone(fixture), readCalls = 0;
   const calls = [], statuses = [], saved = new Map();
   const state = { readOnly: false, openView: draft.viewId, pending: 0 };
   const context = vm.createContext({
-    state, editor: { model: () => draft.after, viewId: () => draft.viewId }, editSets: fixture, editBase: draft.before,
+    state, editor: { model: () => draft.after, viewId: () => draft.viewId, canUndo: () => false }, editSets: fixture, editBase: draft.before,
     canvasModule: { writesFor }, EDITS_KEY: 'archi-edits',
     localStorage: { setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) },
     declareToolbar() {}, markStale() {}, refreshVisualiser() {}, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
@@ -201,6 +201,7 @@ function controller(draft, batch = true) {
     nendo: { has: () => batch, records: {
       async batch(writes) {
         calls.push(writes);
+        if (calls.length === failAt) throw new Error('Something it changes has changed since.');
         // The fixture enforces the Engine's per-call created-record version exemption. A
         // second chunk must name a target version for records created by the first chunk.
         const known = new Map(Object.values(stored).flat().map(record => [record.recordId, record]));
@@ -222,7 +223,7 @@ function controller(draft, batch = true) {
   vm.runInContext(section('let writing = Promise.resolve();', '// ---------------------------------------------------------------- the tree') +
     section('function keepEdits(', 'function renderEditor(') +
     section('function commitEdits(', 'function discardEdits(') +
-    '\nglobalThis.api = { write, waitingWrites, editsChanged, commitEdits };', context);
+    '\nglobalThis.api = { write, waitingWrites, editsChanged, commitEdits, saved, undoName };', context);
   context.api.editsChanged();
   return { api: context.api, calls, saved, statuses, state, stored: () => stored, readCalls: () => readCalls };
 }
@@ -345,7 +346,7 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
   const declared = [];
   let left = null;
   const context = vm.createContext({
-    M, describe: error => error?.message ?? String(error), summary: () => '1 element',
+    M, describe: error => error?.message ?? String(error), summary: () => '1 element', TextEncoder, $: () => null,
     state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, zoom: 1, transparent: false },
     canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
     editor: { canUndo: () => false, canRedo: () => false },
@@ -359,7 +360,7 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
       return icons ? Promise.reject(new Error(`items[9].icon must be one of Nendo's icons: plus, minus, layers.`)) : Promise.resolve();
     } } },
   });
-  vm.runInContext(section('function declareToolbar(', 'function arrange(') + '\ndeclareToolbar();', context);
+  vm.runInContext(section('const TOOLBAR_BYTES', 'function arrange(') + '\ndeclareToolbar();', context);
   for (let waited = 0; declared.length < 2 && waited < 50; waited++) await new Promise(resolve => setTimeout(resolve, 10));
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(declared.length, 2, 'The row was not declared again.');
@@ -370,3 +371,171 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
   for (const id of ['clipboard', 'layout', 'undo', 'redo']) assert.equal(find(declared[1].items, id).iconOnly, false, `${id} has no words.`);
   assert.equal(find(declared[1].items, 'arrange').icon, 'layers', 'An icon every Nendo has was dropped too.');
 });
+
+// ---- W-213: the Archi findings of the broad review.
+
+test('ABS-04 after a delete of more than 200 writes, Undo no longer names the gesture before it', async () => {
+  const plan = largestFolderDelete();
+  const host = controller(newElements(0));
+  host.api.saved.undo.push({ label: 'Move Customer', revision: 'revision-move' });
+  await host.api.write(() => plan.writes, `Delete ${plan.name}`);
+  assert.ok(!host.statuses.some(status => status.problem), host.statuses.map(status => status.message).join(' | '));
+  assert.equal(host.api.undoName(), null,
+    `After Delete ${plan.name} (${plan.writes.length} writes, ${Math.ceil(plan.writes.length / 200)} revisions), Undo names "${host.api.undoName()}" and would run that earlier gesture instead.`);
+});
+
+test('ABS-04 a delete refused after its first batch says it was done only in part, and leaves no Undo', async () => {
+  const plan = largestFolderDelete();
+  const host = controller(newElements(0), true, 2);
+  host.api.saved.undo.push({ label: 'Move Customer', revision: 'revision-move' });
+  await host.api.write(() => plan.writes, `Delete ${plan.name}`);
+  const said = host.statuses.at(-1);
+  assert.equal(host.calls.length, 2);
+  assert.ok(said.problem && /was done only in part: 1 of 2 saves went through before this was refused/.test(said.message),
+    `A delete whose first batch was kept was reported as refused whole: "${said.message}"`);
+  assert.equal(host.api.undoName(), null, 'A delete done in part left Undo naming the gesture before it.');
+});
+
+function specializedModel(count, length) {
+  const records = structuredClone(fixture);
+  const elementTypes = records['ar.type'].filter(type => type.values['ar.type.category'] === 'Element');
+  records['ar.specialization'] = Array.from({ length: count }, (_, index) => ({ entityId: M.E.specialization,
+    recordId: `ar-id-${String(index).padStart(32, '0')}`, version: 1, values: {
+      'ar.specialization.name': `Specialization ${index} `.padEnd(length, 'x'), 'ar.specialization.type': elementTypes[index % elementTypes.length].recordId } }));
+  return M.buildModel(records);
+}
+
+for (const editing of [true, false]) {
+  test(`ABS-05 with 63 specializations of 80 characters the row stays within Nendo's 16 KiB ${editing ? 'while a view is edited, and keeps Edit, Commit, Discard and Undo' : 'with no view open'}`, async () => {
+    const declared = [];
+    let left = null;
+    const context = vm.createContext({
+      M, describe: error => error?.message ?? String(error), summary: () => '120 elements · 176 relationships · 17 views', TextEncoder, $: () => null,
+      SPECIALIZED: 'new-specialized:',
+      state: { nativeChrome: true, model: specializedModel(63, 80), filter: { text: '', layer: '', specialization: '' }, openView: editing ? 'ar-view' : null,
+        readOnly: false, editing, pending: editing ? 3 : 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, zoom: 1, transparent: false },
+      canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
+      editor: { canUndo: () => false, canRedo: () => false },
+      undoName: () => 'Move Customer', redoName: () => null,
+      leaveNativeChrome: reason => { left = reason; },
+      nendo: { ui: { setToolbar(toolbar) { declared.push(toolbar); return Promise.resolve(); } } },
+    });
+    vm.runInContext(section('const TOOLBAR_BYTES', 'function arrange(') + section('function specializedItems(', 'function newSpecialized(') + '\ndeclareToolbar();', context);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(declared.length, 1);
+    assert.equal(left, null);
+    const bytes = Buffer.byteLength(JSON.stringify(declared[0]), 'utf8');
+    assert.ok(bytes <= 16 * 1024, `The row is ${bytes} bytes, over Nendo's 16 KiB: Nendo refuses it whole, and the workbench's own row has no Edit, Commit or Discard.`);
+    const ids = new Set(JSON.stringify(declared[0]).match(/"id":"[^"]+"/g).map(entry => entry.slice(6, -1)));
+    const wanted = editing ? ['edit', 'commit', 'discard', 'undo', 'new-element', 'archi-file'] : ['undo', 'new-element', 'archi-file', 'find', 'layer'];
+    assert.deepEqual(wanted.filter(id => !ids.has(id)), [], 'Keeping the row small took away a control it must keep.');
+  });
+}
+
+test('ABS-05 the workbench\u2019s own row can still edit a view, and commit or discard its edits', () => {
+  const page = readFileSync(new URL('../../extensions/archi/index.html', import.meta.url), 'utf8');
+  const own = page.slice(page.indexOf('<header id="own-toolbar"'), page.indexOf('</header>'));
+  assert.deepEqual(['own-edit', 'own-commit', 'own-discard'].filter(id => !own.includes(`id="${id}"`)), [],
+    'The row the workbench falls back to when Nendo refuses its declaration has no Edit, Commit or Discard, so waiting edits are stranded.');
+});
+
+for (const named of [true, false]) {
+  test(`ABS-06 F2 on ${named ? 'a named' : 'an unnamed'} relationship starts from its stored name, and one more letter is all that is saved`, async () => {
+    const model = M.buildModel(fixture);
+    const relationship = model.of(M.E.concept).find(record => record.values['ar.concept.category'] === 'Relationship' && Boolean(record.values['ar.concept.name']) === named);
+    const stored = relationship.values['ar.concept.name'] ?? '';
+    const writes = [];
+    const tree = { innerHTML: '', contains: () => false, querySelector: selector => (selector === 'input.rename' ? { focus() {}, select() {} } : null) };
+    const empty = { hidden: false, textContent: '' };
+    const context = vm.createContext({ M, $: id => (id === 'tree' ? tree : empty), tone: () => '', LAYER_TONE: {}, FOLDER_TONE: {}, CSS: { escape: value => value },
+      escape: text => String(text ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])),
+      document: { activeElement: null }, render() {}, select() {},
+      state: { model, renaming: relationship.recordId, selected: relationship.recordId, filter: { text: '', layer: '', specialization: '' },
+        expanded: new Set(model.of(M.E.folder).map(folder => folder.recordId)), modelOpen: true, readOnly: false },
+      modelRecord: () => model.of(M.E.model)[0],
+      write: plan => { writes.push(...plan()); return Promise.resolve(true); },
+    });
+    vm.runInContext(section('function rows()', '// ---------------------------------------------------------------- the centre') + '\nglobalThis.api = { renderTree, finishRename };', context);
+    context.api.renderTree();
+    const box = /class="rename" value="([^"]*)"/.exec(tree.innerHTML);
+    assert.ok(box, 'F2 drew no rename box for the relationship.');
+    const prefilled = box[1].replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    assert.equal(prefilled, stored, `The rename box starts from "${prefilled}", not the relationship's stored name "${stored}".`);
+    context.api.finishRename({ value: `${prefilled}s` }, true);
+    assert.deepEqual(writes.map(write => write.values), [{ 'ar.concept.name': `${stored}s` }],
+      `A one-letter fix saved ${JSON.stringify(writes.map(write => write.values))} into the relationship's name.`);
+  });
+}
+
+test('ABS-10 a record type read past its cap is said, and no file is saved from it', async () => {
+  const max = Number(/const READ_MAX = (\d+);/.exec(source)[1]);
+  const state = { loaded: true };
+  const context = vm.createContext({ state, READS: { concepts: M.E.concept, views: M.E.view }, M, READ_MAX: max,
+    nendo: { records: { async queryAll({ entityId }, { max: asked }) {
+      if (entityId !== M.E.concept) return [];
+      return Array.from({ length: asked }, (_, index) => ({ entityId, recordId: `c${index}`, version: 1, values: { 'ar.concept.category': 'Element' } }));
+    } } },
+    render() {}, startEmptyModel() {},
+  });
+  vm.runInContext(section('// ---------------------------------------------------------------- reading', '/**\n * A new Archi model') + '\nglobalThis.load = readAll;', context);
+  await context.load();
+  assert.deepEqual([...state.cut], [M.E.concept], `A type that holds more than ${max} records was read without a word that it was cut.`);
+  assert.equal(state.sets.concepts.length, max);
+  const statuses = [];
+  let exported = 0;
+  const saving = vm.createContext({ M, state, READ_MAX: max, canvasReady: Promise.resolve(), summary: () => '', download() {},
+    canvasModule: { exportArchimate: () => { exported++; return { xml: '', fileName: 'Model.archimate' }; } },
+    setStatus: (message, problem) => statuses.push({ message, problem }) });
+  vm.runInContext(section('/** Each record type the workbench reads', 'function validatorStale(') + section('async function saveArchimate(', '/**\n * The model as Open Exchange XML') + '\nglobalThis.save = saveArchimate;', saving);
+  await saving.save();
+  assert.equal(exported, 0, 'Save as .archimate wrote a file from a model read in part.');
+  assert.match(statuses.at(-1).message, /^Not saved: the file holds more than 50,000 concepts, and/, `Save names the record type by its ID: ${statuses.at(-1).message}`);
+});
+
+test('ABS-22 edits kept from view A, found while view B is edited, name view A until an edit is made on B', () => {
+  let editorOptions = null;
+  const model = M.buildModel(fixture);
+  const [viewA, viewB] = model.of(M.E.view);
+  const stored = new Map([['archi-edits', JSON.stringify({ viewId: viewA.recordId, writes: [{ op: 'update', entityId: M.E.item, recordId: 'box', version: 1, values: { 'ar.item.x': 5 } }] })]]);
+  const statuses = [];
+  const centre = { innerHTML: '', querySelector: () => null };
+  const context = vm.createContext({ M, state: { model, sets: {}, styleShown: false, diagramSelection: [], pending: 0, openView: viewB.recordId },
+    $: () => centre, canvas: null, drawnSets: null, requestAnimationFrame() {}, declareToolbar() {}, markStale() {}, refreshVisualiser() {}, select() {}, renderCentre() {},
+    localStorage: { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value), removeItem: key => stored.delete(key) },
+    setStatus: (message, problem = false) => statuses.push({ message, problem }),
+    canvasModule: { buildMirror: () => ({}), applyWrites: sets => sets, writesFor: () => [{ op: 'update', entityId: M.E.item, recordId: 'box', version: 1, values: { 'ar.item.x': 5 } }],
+      createEditor: (host, start, options) => { editorOptions = options; return { show() {}, viewId: () => viewB.recordId, select() {}, fit() {}, model: () => ({}), busy: () => false }; } },
+  });
+  vm.runInContext(section('const EDITS_KEY', 'function stopEditor(') + '\nglobalThis.open = renderEditor;', context);
+  context.open(viewB);
+  const said = statuses.find(status => /edits were waiting/.test(status.message));
+  assert.ok(said && said.message.includes(M.label(model, viewA)) && said.problem,
+    `Edits made on ${M.label(model, viewA)} were said to be "here again" on ${M.label(model, viewB)}: ${JSON.stringify(said)}`);
+  assert.equal(JSON.parse(stored.get('archi-edits')).viewId, viewA.recordId, 'Opening another view replaced the view the kept edits were made on.');
+  // An edit made on view B now: the edits are named under B, where the person made the newest.
+  editorOptions.onChange({}, 'Move');
+  assert.equal(JSON.parse(stored.get('archi-edits')).viewId, viewB.recordId, 'Edits made on view B after kept edits from view A are still named under view A.');
+});
+
+test('ABS-23 a layout that needs more than 200 writes is taken back at once and said', async () => {
+  const statuses = [];
+  let undone = 0;
+  const state = { pending: 0 };
+  const context = vm.createContext({ state, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
+    editor: { async layout() { state.pending = 214; return null; }, undo() { undone++; state.pending = 0; } } });
+  vm.runInContext(section('async function layoutView(', 'function showAutomaticRelationships(') + '\nglobalThis.lay = layoutView;', context);
+  await context.lay('right');
+  assert.equal(undone, 1, `A layout of 214 writes was left waiting, where Commit can never save it: ${JSON.stringify(statuses.at(-1))}`);
+  assert.ok(statuses.at(-1).problem && /214 record writes, and at most 200/.test(statuses.at(-1).message), statuses.at(-1).message);
+});
+test('ABS-23 a layout that would pass 200 beside edits already waiting names its own writes', async () => {
+  const statuses = [];
+  const state = { pending: 20 };
+  const context = vm.createContext({ state, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
+    editor: { async layout() { state.pending = 210; return null; }, undo() { state.pending = 20; } } });
+  vm.runInContext(section('async function layoutView(', 'function showAutomaticRelationships(') + '\nglobalThis.lay = layoutView;', context);
+  await context.lay('down');
+  assert.match(statuses.at(-1).message, /it needs 190 record writes beside the 20 already waiting, and at most 200/,
+    `The layout's message counted the edits already waiting as its own: ${statuses.at(-1).message}`);
+});
+

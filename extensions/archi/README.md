@@ -112,7 +112,8 @@ Properties. The file you were in does not change.
   bottom** place the boxes selected, or every box at the top of the view
   when fewer than two are, in layers with ELK, and route the lines between them at right
   angles; what is nested in a box moves with it. It is archi-online's own layout: one edit
-  waiting and one Undo step. **Automatic relationships…**, behind the gear, is Archi's preferences page for
+  waiting and one Undo step. A layout that needs more than the 200 writes a Commit can save is
+  taken back at once, as Generate view's is, and the status line says to lay out a selection. **Automatic relationships…**, behind the gear, is Archi's preferences page for
   nesting: whether nesting a box made from the palette, dropped from the tree or moved offers a
   relationship, which types it offers parent to child and child to parent (a Specialization
   always runs child to parent), and which types a nesting stands for, so their lines are not
@@ -130,7 +131,10 @@ Properties. The file you were in does not change.
   is now used by something new, it is refused, says so, and writes nothing. The steps are this
   visit's: they go when the workbench is left, and a change made elsewhere refuses the steps it
   touches. A gesture of more than 200 writes, or one made on a Nendo without `records.undo`, is
-  not undoable here. Nendo claims no universal undo.
+  not undoable here, and Undo then names nothing older: the steps before it end there (W-213),
+  so Ctrl Z never runs the gesture before it instead. A delete that large says so in its
+  confirmation, and one refused after its first batches says it was done only in part. Nendo
+  claims no universal undo.
 - **Generate view for…** (W-115), in the tree's menu on an element and in New: a new view of
   the element, or of the boxes selected on the view while editing, and the elements related to
   them, to a depth of one to six, incoming, outgoing or both, optionally with every
@@ -181,13 +185,18 @@ Properties. The file you were in does not change.
   model…** first, and in a file that already holds a model the dialog says so and offers
   nothing. Choose the file in the dialog, or drop it anywhere on the workbench. The dialog
   says what the file holds and what is left out, because Archi.nendo holds no images: image
-  objects, the connections that end on one, and the pictures on figures and specializations.
-  **Open** saves the model in batches of at most 200 record writes, each a change in History
-  named *Open ‹file› (n of m)*. History cannot undo them; to start again, make a new Archi
-  model. **Save as .archimate** downloads the model as plain XML that Desktop Archi opens,
-  each object under the Archi ID it came with, or its record ID without `ar-` when the
+  objects, the connections that end on one, and the pictures on figures and specializations;
+  nor Sketch and Canvas views, which it counts too, with any view reference to one and the
+  connections to such a reference. A file that is not well-formed XML, such as one cut short
+  while it downloaded, is refused in the parser's own words, and so is one that Nendo would refuse part
+  of: a reference to something the file does not hold, or a relationship ArchiMate does not
+  allow between its two ends, named in the dialog (W-213). **Open** saves the model in batches
+  of at most 200 record writes, each a change in History named *Open ‹file› (n of m)*. History
+  cannot undo them; to start again, make a new Archi model. **Save as .archimate** downloads
+  the model as plain XML that Desktop Archi opens, each object under the Archi ID it came with, or its record ID without `ar-` when the
   workbench made it. Edits still waiting to be committed are not in it, and the status line
-  says so.
+  says so. The workbench reads at most 50,000 records of a kind; a file that holds more is said
+  to be read in part, and neither Save writes a file that would leave the rest out.
   **Open Exchange XML** (W-121): the same dialog reads The Open Group's exchange format,
   told from an .archimate by what the file holds, as archi-online reads it, and **Open
   Exchange XML…** in the menu opens it too. **Save as Exchange XML** downloads the model in
@@ -214,7 +223,17 @@ Properties. The file you were in does not change.
   Views → *Empty views* list the zeros (Nendo 1.40.0, which filters on a calculated field).
 
 On a Nendo that cannot draw the controls in its own row, the workbench draws them above the
-tree.
+tree, with Edit, Commit and Discard, so edits waiting on a view are never stranded. The row it
+declares to Nendo is kept within Nendo's 16 KiB: with many specializations, New's
+specialization entries lose their detail lines, then their number, and the specialization
+filter its options, until it fits (W-213).
+
+A diagram item whose Bendpoints or Legend options are not readable JSON, after an edit on its
+record page or by an agent, is drawn without them; the status line says so when the workbench
+starts, and the validator lists each one under Model integrity, opening it on its view (W-213).
+Waiting edits found again in this browser on another view than the one they were made on say
+which view that was. A rename in the tree starts from the stored name, never from the label
+the tree shows a relationship by.
 
 ## Files
 
@@ -328,3 +347,21 @@ themes. Falsified by leaving properties and then specializations out of `writesF
 (*The model read back is not the model archi-online made.*), and by saving the tools' changes
 without the 200-write bound (*A replace over 200 writes was not refused: the view says "Replace ^
 with x  in 345 places."*).
+
+The broad review's findings (W-213) are measured in the same lane. `io.test.mjs` finds a
+relationship to an element nobody makes and one ArchiMate does not allow before any write, names
+Sketch and Canvas views in the Left out line, leaves out a view reference to a Sketch view rather
+than refusing the file, and plans the importer's model properties against
+the file's own Model record. `canvas.test.mjs` reads a model with a connection's Bendpoints and
+a note's Legend options that are not JSON, draws both without them, names both, and saves it.
+`view.test.mjs` runs the shipped `view.js`: Undo names nothing older after a delete of more than
+200 writes, and a delete refused after its first batch says it was done in part; the row keeps
+within 16 KiB with 63 specializations of 80 characters, editing or not, and keeps Edit, Commit,
+Discard and Undo, and the own row has Edit, Commit and Discard; F2 on a relationship starts from
+its stored name; a type read past 50,000 records is said by its name and Save refused; kept edits
+name the view they were made on until an edit is made on another; and a layout over 200 writes is
+taken back, naming its own writes apart from those already waiting. The browser lane drops an
+.archimate and an Exchange file cut short (the refusal quotes the parser's line and column), a
+file with a Sketch and a Canvas view and a reference to the Sketch, and one with a
+relationship to nothing on the Open dialog, and double-clicks a box in the editor in both themes,
+measuring the rename box's text against its background (contrast at least 4.5).

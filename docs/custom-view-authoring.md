@@ -425,7 +425,7 @@ A view draws its own document, so Nendo's focus rings, keyboard traversal and te
 alternatives stop at its frame. The view kit carries them across (W-064). It is one
 versioned file, `tools/view-kit/nendo-view-kit.js`, that a package copies into itself at
 `kit/nendo-view-kit.js` (the Gantt, the Dependency graph, the Systems Lens, Work
-dependencies, Archi and Garden all do) and imports as a module, even from a classic script:
+dependencies, Archi, the Capability Atlas and Garden all do) and imports as a module, even from a classic script:
 
 ```js
 const kit = await import('./kit/nendo-view-kit.js');

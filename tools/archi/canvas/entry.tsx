@@ -19,12 +19,12 @@ import { computeAbsBounds } from '@archi/canvas/view-editor/bounds';
 import { createConnectionRouteResolver, type Point } from '@archi/canvas/geometry';
 import { createNestedConnectionVisibilityResolver } from '@archi/model/ops';
 import { hydrateSettingsStore, useSettingsStore } from '@archi/settings/app-settings';
-import { buildMirror, type RecordSets } from './mirror';
+import { buildMirror, unreadableValues, type RecordSets } from './mirror';
 import { applyWrites, toRecords, writesFor } from './records';
 import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS, layoutModel, generatedViewModel,
   automaticRelationshipSettings, setAutomaticRelationshipSetting } from './editor';
 
-export { buildMirror, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
+export { buildMirror, unreadableValues, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
 // W-115: auto-layout, Generate View For and the automatic relationships preferences, with ELK in a worker.
 export { layoutModel, generatedViewModel, automaticRelationshipSettings, setAutomaticRelationshipSetting };
 export { useElkWorkerFactory, ELK_WORKER_URL } from './elk';
@@ -37,7 +37,8 @@ export { VIEWPOINTS, isAllowedElementInViewpoint, viewpointName } from '@archi/m
 export { GHOST_OPACITY, isNodeGhosted, isConnectableGhosted };
 // Open and save .archimate files (W-120).
 export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
-  parseArchimateText, ArchimateFileError, recordIdOf, readExchange, readModelFile, modelFileFormat, exportExchange } from './io';
+  parseArchimateText, ArchimateFileError, recordIdOf, readExchange, readModelFile, modelFileFormat, exportExchange,
+  importProblems, importProblemSentence } from './io';
 // archi-online's own .archimate writer over a model, for the lanes that compare two readings of one file.
 export { serializeArchimate } from '@archi/model/io/archimate-xml/serialize';
 export { serializeExchange } from '@archi/model/io/exchange-xml/serialize';

@@ -35,11 +35,12 @@ export const present = value => value !== undefined && value !== null && value !
 /**
  * The model as rows per record type, in the order they can be written. The mapping is the
  * workbench's own (tools/archi/canvas/io.ts, in canvas.js), so a file the workbench opens and one
- * this importer loads hold the same records.
+ * this importer loads hold the same records. The model's own properties point at `modelRecordId`,
+ * the file's Model record, which is the seeded one only in a file Build-Archi made (ABS-27).
  */
-export function plan(model) {
+export function plan(model, modelRecordId = MODEL.recordId) {
   const rootFolders = Object.fromEntries(ROOT_FOLDERS.map(folder => [folder.values['ar.folder.kind'], folder.recordId]));
-  const planned = planImport(model, { rootFolders, modelRecordId: MODEL.recordId });
+  const planned = planImport(model, { rootFolders, modelRecordId });
   const byEntity = new Map(['ar.folder', 'ar.specialization', 'ar.concept', 'ar.view', 'ar.item', 'ar.property'].map(entityId => [entityId, []]));
   for (const { entityId, recordId, values } of planned.creates) byEntity.get(entityId).push({ recordId, values });
   return {
@@ -48,6 +49,20 @@ export function plan(model) {
     modelValues: planned.modelValues,
     rootUpdates: planned.rootUpdates,
   };
+}
+
+/**
+ * The file's own Model record, as { recordId, version } (ABS-27). A file from File › New Archi model
+ * keeps none (ADR-0022), and the workbench makes one under an ID of its own, so the importer
+ * reads it rather than assuming Build-Archi's seeded ID. Where there is none, `create` makes one
+ * under the seeded ID before anything points at it.
+ */
+export async function modelRecordOf(file, create) {
+  const held = await file.read.records('ar.model');
+  if (held.length === 0) await create({ recordId: MODEL.recordId, values: MODEL.values });
+  const record = held[0] ?? (await file.read.records('ar.model'))[0];
+  if (!record) fail('The file holds no Model record and one could not be made, so nothing was imported.');
+  return { recordId: record.recordId, version: record.recordVersion };
 }
 
 /**

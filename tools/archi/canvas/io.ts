@@ -15,6 +15,8 @@ import {
   MAX_ARCHIVE_ENTRIES, MAX_ARCHIVE_ENTRY_BYTES, MAX_ARCHIVE_UNCOMPRESSED_BYTES, MAX_DOCUMENT_BYTES, MAX_MODEL_XML_BYTES,
 } from '@archi/model/io/document-limits';
 import { DUBLIN_CORE_FIELDS, type ModelState } from '@archi/model/types';
+import { isAllowedRelationship } from '@archi/model/rules';
+import { isRelationshipType, type RelationshipType } from '@archi/model/metamodel';
 import { buildMirror, type NendoRecord, type RecordSets } from './mirror';
 
 type Values = Record<string, unknown>;
@@ -26,6 +28,12 @@ export interface LeftOut {
   /** Pictures that diagram objects and specializations show, and the archive's image files. */
   pictures: number;
   archiveImages: number;
+  /** Archi's Sketch and Canvas views, which archi-online's reader skips and Archi.nendo cannot hold (ABS-02). */
+  sketchViews?: number;
+  canvasViews?: number;
+  /** View references to a view the file does not open (a Sketch or Canvas view), and the connections that end on one. */
+  viewReferences?: number;
+  referenceConnections?: number;
 }
 
 /** A thrown refusal a person can read: what is wrong with the file, not where the parser was. */
@@ -47,10 +55,53 @@ export const REFERENCE_FIELDS = new Set(['ar.folder.parent', 'ar.specialization.
   'ar.item.refView', 'ar.item.parent', 'ar.item.source', 'ar.item.target', 'ar.property.concept', 'ar.property.view',
   'ar.property.folder', 'ar.property.item', 'ar.property.model']);
 
+/** The record type each reference field points at. */
+const TARGET_OF: Record<string, string> = { 'ar.folder.parent': 'ar.folder', 'ar.specialization.type': 'ar.type', 'ar.concept.type': 'ar.type',
+  'ar.concept.folder': 'ar.folder', 'ar.concept.source': 'ar.concept', 'ar.concept.target': 'ar.concept', 'ar.concept.specialization': 'ar.specialization',
+  'ar.view.folder': 'ar.folder', 'ar.item.view': 'ar.view', 'ar.item.concept': 'ar.concept', 'ar.item.refView': 'ar.view',
+  'ar.item.parent': 'ar.item', 'ar.item.source': 'ar.item', 'ar.item.target': 'ar.item', 'ar.property.concept': 'ar.concept',
+  'ar.property.view': 'ar.view', 'ar.property.folder': 'ar.folder', 'ar.property.item': 'ar.item', 'ar.property.model': 'ar.model' };
+
 const present = (value: unknown) => value !== undefined && value !== null && value !== '';
 const titled = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
 // ---------------------------------------------------------------- reading
+
+const XSI = 'http://www.w3.org/2001/XMLSchema-instance';
+
+/**
+ * The XML as the browser reads it, refused when it is not well-formed (ABS-01). archi-online's
+ * readers look for a parser error only when the document element is not <model>, but Chromium
+ * keeps the root of a file that is cut short and puts the error inside it, so a file that broke
+ * off after its elements read as a smaller model. Where no DOMParser exists (a test in Node),
+ * there is nothing to check with, and archi-online's own reader refuses there anyway.
+ */
+function wellFormed(xml: string): Document | null {
+  if (typeof DOMParser === 'undefined') return null;
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const error = doc.getElementsByTagName('parsererror')[0];
+  if (error) {
+    // The parser's own words, such as Chromium's "error on line 3241 at column 1: Premature end
+    // of data in tag folder line 2", without the page it wraps them in.
+    const said = (error.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const detail = /error on line \d+ at column \d+:.*?(?= Below is a rendering|$)/.exec(said)?.[0].trim() ?? said.replace(/^This page contains the following errors: ?/, '');
+    const cut = /end of data|premature end|find end of|EndTag|unclosed|not closed/i.test(detail) ? ' It may have been cut short while it was downloaded or copied.' : '';
+    throw new ArchimateFileError(`The file is not well-formed XML (${detail || 'the browser gave no reason'}).${cut}`);
+  }
+  return doc;
+}
+
+/** How many Sketch and Canvas views a model file holds: archi-online skips them without a word (ABS-02). */
+function otherViews(doc: Document | null): { sketchViews: number; canvasViews: number } {
+  let sketchViews = 0, canvasViews = 0;
+  if (doc === null) return { sketchViews, canvasViews };
+  for (const element of Array.from(doc.getElementsByTagName('element'))) {
+    const type = (element.getAttributeNS(XSI, 'type') ?? '').replace(/^[^:]*:/, '');
+    if (type === 'SketchModel') sketchViews += 1;
+    else if (type === 'CanvasModel') canvasViews += 1;
+  }
+  return { sketchViews, canvasViews };
+}
 
 const isZip = (bytes: Uint8Array) => bytes.length >= 4 && bytes[0] === 0x50 && bytes[1] === 0x4b &&
   ((bytes[2] === 3 && bytes[3] === 4) || (bytes[2] === 5 && bytes[3] === 6) || (bytes[2] === 7 && bytes[3] === 8));
@@ -87,11 +138,12 @@ export function readArchimate(bytes: Uint8Array): { model: ModelState; leftOut: 
     xml = new TextDecoder().decode(bytes);
   }
   if (xml.length > MAX_MODEL_XML_BYTES) throw new ArchimateFileError(`The model is larger than ${mib(MAX_MODEL_XML_BYTES)}.`);
+  const doc = wellFormed(xml);
   let model: ModelState;
   try { model = parseArchimate(xml); } catch (error) {
     throw new ArchimateFileError(`This is not an Archi model that can be opened: ${(error as Error).message}`);
   }
-  return { model, leftOut: leftOutOf(model, archiveImages) };
+  return { model, leftOut: { ...leftOutOf(model, archiveImages), ...otherViews(doc) } };
 }
 
 /** What a model holds that Archi.nendo cannot: image objects, the connections to them, and pictures. */
@@ -119,7 +171,9 @@ function leftOutOf(model: ModelState, archiveImages: number): LeftOut {
  */
 export function readExchange(bytes: Uint8Array): { model: ModelState; leftOut: LeftOut; language: string } {
   if (bytes.length > MAX_MODEL_XML_BYTES) throw new ArchimateFileError(`The file is larger than ${Math.round(MAX_MODEL_XML_BYTES / 1048576)} MiB.`);
-  const result = parseExchangeDocument(new TextDecoder().decode(bytes));
+  const text = new TextDecoder().decode(bytes);
+  wellFormed(text);
+  const result = parseExchangeDocument(text);
   if (!result.model || result.errors.length > 0)
     throw new ArchimateFileError(`This is not an Open Exchange model that can be opened: ${result.errors.map(error => error.message).join(' ') || 'it could not be read.'}`);
   return { model: result.model, leftOut: leftOutOf(result.model, 0), language: result.language };
@@ -144,9 +198,15 @@ export function leftOutSentence(leftOut: LeftOut): string | null {
   if (leftOut.imageObjects > 0) parts.push(count(leftOut.imageObjects, 'image object', 'image objects'));
   if (leftOut.imageConnections > 0) parts.push(count(leftOut.imageConnections, 'connection to an image', 'connections to images'));
   if (leftOut.pictures > 0) parts.push(count(leftOut.pictures, 'picture on a figure or specialization', 'pictures on figures and specializations'));
-  if (parts.length === 0 && leftOut.archiveImages === 0) return null;
-  if (parts.length === 0) parts.push(count(leftOut.archiveImages, 'image file', 'image files'));
-  return `Left out: ${parts.join(', ')}. Archi.nendo holds no images.`;
+  if (parts.length === 0 && leftOut.archiveImages > 0) parts.push(count(leftOut.archiveImages, 'image file', 'image files'));
+  const views: string[] = [];
+  if ((leftOut.sketchViews ?? 0) > 0) views.push(count(leftOut.sketchViews!, 'Sketch view', 'Sketch views'));
+  if ((leftOut.canvasViews ?? 0) > 0) views.push(count(leftOut.canvasViews!, 'Canvas view', 'Canvas views'));
+  if ((leftOut.viewReferences ?? 0) > 0) views.push(count(leftOut.viewReferences!, 'view reference to one', 'view references to them'));
+  if ((leftOut.referenceConnections ?? 0) > 0) views.push(count(leftOut.referenceConnections!, 'connection to such a reference', 'connections to such references'));
+  if (parts.length === 0 && views.length === 0) return null;
+  const holds = [parts.length > 0 ? 'images' : null, views.length > 0 ? 'Sketch or Canvas views' : null].filter(Boolean);
+  return `Left out: ${[...parts, ...views].join(', ')}. Archi.nendo holds no ${holds.join(' and no ')}.`;
 }
 
 // ---------------------------------------------------------------- planning
@@ -196,7 +256,7 @@ function dependencyOrder<T extends { recordId: string }>(records: T[], dependsOn
 
 /** The model as Archi.nendo's records, in the order they can be written. */
 export function planImport(model: ModelState, target: ImportTarget, leftOut?: LeftOut): ImportPlan {
-  const left = leftOut ?? { imageObjects: 0, imageConnections: 0, pictures: 0, archiveImages: 0 };
+  const left: LeftOut = leftOut ?? { imageObjects: 0, imageConnections: 0, pictures: 0, archiveImages: 0 };
   const rid = recordIdOf;
   const rootFolder = new Map<string, string>();
   for (const folder of Object.values(model.folders)) {
@@ -262,7 +322,11 @@ export function planImport(model: ModelState, target: ImportTarget, leftOut?: Le
 
   const style = (item: Record<string, unknown>) => Object.fromEntries(STYLE.map(name => [name, item[name]]));
   const imageNodes = new Set(Object.values(model.nodes).filter(node => node.nodeType === 'image').map(node => node.id));
-  const nodes = dependencyOrder(Object.values(model.nodes).filter(node => node.nodeType !== 'image').map(node => {
+  // A view reference to a view archi-online does not read (a Sketch or Canvas view) has nothing to
+  // point at, and the preflight would refuse a valid file over it: it is left out and counted.
+  const lostReferences = new Set(Object.values(model.nodes).filter(node => node.nodeType === 'ref' &&
+    !model.views[(node as unknown as { refViewId?: string }).refViewId ?? '']).map(node => node.id));
+  const nodes = dependencyOrder(Object.values(model.nodes).filter(node => node.nodeType !== 'image' && !lostReferences.has(node.id)).map(node => {
     const any = node as unknown as Record<string, unknown> & { id: string; viewId: string; parentId: string; bounds: { x: number; y: number; width: number; height: number }; properties?: { key: string; value: string }[] };
     const parentIsView = any.parentId === any.viewId;
     const siblings = parentIsView ? model.views[any.viewId].childIds : model.nodes[any.parentId].childIds;
@@ -276,14 +340,19 @@ export function planImport(model: ModelState, target: ImportTarget, leftOut?: Le
     }) };
   }), record => (record.parent ? [rid(record.parent)] : []));
 
-  const droppedConnections = new Set<string>();
-  for (let grew = true; grew;) {
-    grew = false;
-    for (const connection of Object.values(model.connections)) {
-      if (droppedConnections.has(connection.id)) continue;
-      if ([connection.sourceId, connection.targetId].some(id => imageNodes.has(id) || droppedConnections.has(id))) { droppedConnections.add(connection.id); grew = true; }
+  const endingOn = (gone: Set<string>) => {
+    const dropped = new Set<string>();
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const connection of Object.values(model.connections)) {
+        if (dropped.has(connection.id)) continue;
+        if ([connection.sourceId, connection.targetId].some(id => gone.has(id) || dropped.has(id))) { dropped.add(connection.id); grew = true; }
+      }
     }
-  }
+    return dropped;
+  };
+  const imageConnections = endingOn(imageNodes);
+  const droppedConnections = endingOn(new Set([...imageNodes, ...lostReferences]));
   const ranks = connectionRanks(model, droppedConnections);
   const connections = dependencyOrder(Object.values(model.connections).filter(connection => !droppedConnections.has(connection.id)).map(connection => {
     const any = connection as unknown as Record<string, unknown> & { id: string; viewId: string; sourceId: string; targetId: string; bendpoints: unknown[]; properties?: { key: string; value: string }[] };
@@ -316,7 +385,8 @@ export function planImport(model: ModelState, target: ImportTarget, leftOut?: Le
     creates: [...strip(folders), ...strip(specializations), ...strip(elements), ...strip(relationships), ...strip(views),
       ...strip(nodes), ...strip(connections), ...properties],
     modelValues, rootUpdates, modelRecordId: target.modelRecordId,
-    leftOut: { ...left, imageObjects: imageNodes.size, imageConnections: droppedConnections.size },
+    leftOut: { ...left, imageObjects: imageNodes.size, imageConnections: imageConnections.size,
+      ...(lostReferences.size > 0 ? { viewReferences: lostReferences.size, referenceConnections: droppedConnections.size - imageConnections.size } : {}) },
     counts: { elements: elements.length, relationships: relationships.length, views: views.length, objects: nodes.length,
       connections: connections.length, folders: folders.length },
   };
@@ -362,6 +432,57 @@ function connectionRanks(model: ModelState, dropped: Set<string>): Map<string, n
   return new Map(ranked.map((id, index) => [id, (index + 1) * 1024]));
 }
 
+/**
+ * What would make Nendo refuse the plan part-way (ABS-03), found before anything is written: a
+ * reference to a record that nobody makes and the file does not hold, and a relationship that
+ * ArchiMate does not allow between its two ends, which Archi.nendo's link rule refuses (its table
+ * is generated from the same matrix, tools/archi-relationships.mjs). Archi itself writes neither,
+ * but another tool or an older model can. Each problem names the record; the first is what the
+ * Open dialog says.
+ */
+export function importProblems(plan: ImportPlan, sets: RecordSets): string[] {
+  const made = new Map<string, PlannedRecord>(plan.creates.map(record => [`${record.entityId} ${record.recordId}`, record]));
+  const held = new Set<string>();
+  for (const list of Object.values(sets)) for (const record of list ?? []) held.add(`${record.entityId} ${record.recordId}`);
+  const exists = (entityId: string, recordId: string) => made.has(`${entityId} ${recordId}`) || held.has(`${entityId} ${recordId}`)
+    || (entityId === 'ar.model' && recordId === plan.modelRecordId);
+  const archiIdOf = (record: PlannedRecord) => String(record.values[`${record.entityId}.archiId`] ?? record.recordId);
+  const typeKey = (record: PlannedRecord | undefined) => {
+    const type = record?.values['ar.concept.type'];
+    return typeof type === 'string' && type.startsWith('ar.type.r.') ? type.slice('ar.type.r.'.length) : null;
+  };
+  const problems: string[] = [];
+  for (const record of plan.creates) {
+    for (const [field, value] of Object.entries(record.values)) {
+      if (!REFERENCE_FIELDS.has(field) || typeof value !== 'string') continue;
+      const target = TARGET_OF[field];
+      if (exists(target, value)) continue;
+      problems.push(target === 'ar.type'
+        ? `${archiIdOf(record)} is of the type ${value.slice('ar.type.r.'.length)}, which Archi.nendo does not hold.`
+        : `${archiIdOf(record)} points at ${value.replace(/^ar-/, '')}, which the file does not hold.`);
+    }
+  }
+  for (const record of plan.creates) {
+    if (record.entityId !== 'ar.concept' || record.values['ar.concept.category'] !== 'Relationship') continue;
+    const relationship = typeKey(record);
+    const source = typeKey(made.get(`ar.concept ${record.values['ar.concept.source']}`));
+    const target = typeKey(made.get(`ar.concept ${record.values['ar.concept.target']}`));
+    if (!relationship || !source || !target || !isRelationshipType(relationship)) continue;
+    if (!isAllowedRelationship(relationship as RelationshipType, source, target)) {
+      const name = typeof record.values['ar.concept.name'] === 'string' && record.values['ar.concept.name'] ? ` "${record.values['ar.concept.name']}"` : '';
+      problems.push(`${archiIdOf(record)}${name} is a ${relationship} from a ${source} to a ${target}, which ArchiMate does not allow.`);
+    }
+  }
+  return problems;
+}
+
+/** The problems as the one sentence the Open dialog says, or null when there are none. */
+export function importProblemSentence(problems: string[]): string | null {
+  if (problems.length === 0) return null;
+  const more = problems.length > 1 ? ` ${problems.length - 1} more like it.` : '';
+  return `Nendo would refuse part of it, so nothing is opened: ${problems[0]}${more} Correct it in Archi and save the file again.`;
+}
+
 // ---------------------------------------------------------------- writing
 
 export interface ImportWrite {
@@ -390,11 +511,7 @@ export function holdsNoModel(sets: RecordSets): boolean {
 export function importBatches(plan: ImportPlan, sets: RecordSets, size = 200): ImportWrite[][] {
   const held = new Map<string, NendoRecord>();
   for (const list of Object.values(sets)) for (const record of list ?? []) held.set(`${record.entityId} ${record.recordId}`, record);
-  const targetOf: Record<string, string> = { 'ar.folder.parent': 'ar.folder', 'ar.specialization.type': 'ar.type', 'ar.concept.type': 'ar.type',
-    'ar.concept.folder': 'ar.folder', 'ar.concept.source': 'ar.concept', 'ar.concept.target': 'ar.concept', 'ar.concept.specialization': 'ar.specialization',
-    'ar.view.folder': 'ar.folder', 'ar.item.view': 'ar.view', 'ar.item.concept': 'ar.concept', 'ar.item.refView': 'ar.view',
-    'ar.item.parent': 'ar.item', 'ar.item.source': 'ar.item', 'ar.item.target': 'ar.item', 'ar.property.concept': 'ar.concept',
-    'ar.property.view': 'ar.view', 'ar.property.folder': 'ar.folder', 'ar.property.item': 'ar.item', 'ar.property.model': 'ar.model' };
+  const targetOf = TARGET_OF;
 
   const writes: Omit<ImportWrite, 'targetVersions'>[] = [];
   const modelHeld = held.get(`ar.model ${plan.modelRecordId}`);

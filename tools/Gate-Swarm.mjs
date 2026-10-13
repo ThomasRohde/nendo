@@ -3,7 +3,8 @@ async page => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('__BROKER_URL__');
-  await page.evaluate(fixture => { window.broker.offerWrites(true); window.broker.offerChrome(true); window.broker.setFixture(fixture); }, '__SWARM_FIXTURE__');
+  const swarmFixture = '__SWARM_FIXTURE__';
+  await page.evaluate(fixture => { window.broker.offerWrites(true); window.broker.offerChrome(true); window.broker.setFixture(fixture); }, swarmFixture);
   const origin = await page.evaluate(() => window.broker.viewOrigin);
   const frame = await new Promise(async (resolve, reject) => {
     for (let i = 0; i < 200; i++) { const f = page.frames().find(f => f.url().startsWith(origin + '/')); if (f) { resolve(f); return; } await page.waitForTimeout(50); }
@@ -63,7 +64,8 @@ async page => {
   assert((await record('sw.species', 'sw_species_fireflies')).values['sw.species.speed'] !== 2.7, 'Refused save changed another species.');
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
   await frame.getByLabel('Speed', { exact: true }).fill('2.4'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
-  await page.evaluate(() => window.broker.pushChanges()); await frame.waitForFunction(() => document.querySelector('#status').textContent.includes('changed elsewhere'));
+  // Somebody else's change moves the file's change sequence on, as every change in Nendo does (W-213: the view ignores a sequence its own save already read).
+  await page.evaluate(() => { window.broker.touch('sw.species', 'sw_species_fireflies'); window.broker.pushChanges(); }); await frame.waitForFunction(() => document.querySelector('#status').textContent.includes('changed elsewhere'));
   const blockedBefore = await batches(); await command('save-behaviour');
   assert(await batches() === blockedBefore, 'An external change was overwritten by the old draft.');
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
@@ -126,6 +128,67 @@ async page => {
   await reopened.waitForFunction(() => document.querySelector('#run-state').textContent === 'Captured run');
   assert(JSON.stringify(await reopened.evaluate(() => window.swarm.digest)) === JSON.stringify(digest), 'Reopen did not preserve the captured experiment.');
   await reopened.getByRole('button', { name: 'Reload saved' }).click(); await reopened.waitForFunction(() => window.swarm.tick === 0);
+  // ---- W-213. ABS-21: saved experiments are listed newest first. Two more runs after "First flock".
+  const saveRun = async name => {
+    await command('save-experiment');
+    await reopened.getByLabel('Name', { exact: true }).fill(name);
+    await reopened.getByRole('button', { name: 'Save experiment', exact: true }).click();
+    await reopened.waitForFunction(wanted => [...document.querySelectorAll('.experiment-copy')].some(row => row.firstChild.textContent === wanted), name);
+  };
+  await saveRun('Second flock'); await saveRun('Third flock'); await saveRun('Fourth flock');
+  // Nendo reads records in record-ID order; the fixture keeps them as written, so they are put in
+  // Nendo's order and read again before the list is measured.
+  await reopened.evaluate(() => { for (const row of document.querySelectorAll('.experiment-row')) row.dataset.read = 'before'; });
+  const byRecordId = await page.evaluate(() => window.broker.records('sw.experiment').sort((a, b) => (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0)));
+  const sameFile = Object.fromEntries(await Promise.all(['sw.species', 'sw.node', 'sw.link', 'sw.habitat'].map(async entityId => [entityId, await page.evaluate(id => window.broker.records(id), entityId)])));
+  await page.evaluate(({ fixture, records }) => { window.broker.setFixture({ ...fixture, records }); window.broker.pushChanges(); }, { fixture: swarmFixture, records: { ...sameFile, 'sw.experiment': byRecordId } });
+  await reopened.waitForFunction(() => document.querySelectorAll('.experiment-row').length === 4 && !document.querySelector('.experiment-row[data-read]'), null, { timeout: 8000 })
+    .catch(async () => { throw Error('The experiments were not read again in record-ID order: ' + JSON.stringify(await reopened.evaluate(() => ({ rows: document.querySelectorAll('.experiment-row').length, status: document.getElementById('status').textContent })))); });
+  const listed = await reopened.evaluate(() => [...document.querySelectorAll('.experiment-copy')].map(row => row.firstChild.textContent));
+  assert(JSON.stringify(listed) === JSON.stringify(['Fourth flock', 'Third flock', 'Second flock', 'First flock']), `Saved experiments are not listed newest first: ${JSON.stringify(listed)}`);
+  // ABS-20: a second Replay pressed while one runs is ignored; two ran at once and the last to finish won.
+  await reopened.evaluate(() => {
+    window.__replayed = [];
+    new MutationObserver(() => { const text = document.getElementById('status').textContent; if (/^Replayed /.test(text)) window.__replayed.push(text); })
+      .observe(document.getElementById('status'), { childList: true, characterData: true, subtree: true });
+    const [first, second] = document.querySelectorAll('.experiment-row button');
+    first.click(); second.click();
+  });
+  // Settled once no replay runs: a second one, had it started, has finished too.
+  await reopened.waitForFunction(() => window.__replayed.length > 0 && window.swarm.replaying === 0, null, { timeout: 8000 });
+  const replays = await reopened.evaluate(() => ({ said: window.__replayed, now: document.getElementById('status').textContent }));
+  assert(replays.said.length === 1 && /^Replayed “Fourth flock”/.test(replays.now), `Two Replays pressed one after the other both ran, and the last to finish won: ${JSON.stringify(replays)}`);
+  await reopened.getByRole('button', { name: 'Reload saved' }).click(); await reopened.waitForFunction(() => document.querySelector('#run-state').textContent === 'Paused' && !window.swarm.dirty);
+  // ABS-11: a change made while a save is on its way stays a draft; it was called saved and lost.
+  const heldSpecies = await reopened.evaluate(() => window.swarm.model.species.id);
+  await reopened.getByLabel('Speed', { exact: true }).fill('2.2'); await reopened.getByLabel('Speed', { exact: true }).dispatchEvent('change');
+  const heldBefore = await batches();
+  // The save's own changes event comes after the save is done, as Nendo's broker may hold one back.
+  const eventsBefore = await page.evaluate(() => window.broker.events.length);
+  await page.evaluate(() => { window.broker.hold('records.batch', 900); window.broker.delayChanges(1500); });
+  await command('save-behaviour');
+  await page.waitForFunction(count => window.broker.requests.filter(request => request.m === 'records.batch').length > count, heldBefore);
+  await reopened.getByLabel('Population', { exact: true }).fill('300'); await reopened.getByLabel('Population', { exact: true }).dispatchEvent('change');
+  await reopened.waitForFunction(() => !window.swarm.saving, null, { timeout: 8000 });
+  const meanwhile = await reopened.evaluate(() => ({ dirty: window.swarm.dirty, population: window.swarm.model.species.population, state: document.getElementById('draft-state').textContent,
+    kept: Object.keys(localStorage).some(key => key.startsWith('swarm.draft.v1.')), status: document.getElementById('status').textContent }));
+  const heldStored = (await record('sw.species', heldSpecies)).values;
+  assert(heldStored['sw.species.speed'] === 2.2 && heldStored['sw.species.population'] !== 300, `The held save did not write what it was sent with: ${JSON.stringify(heldStored)}`);
+  assert(meanwhile.dirty && meanwhile.population === 300 && meanwhile.kept && meanwhile.state === 'Unsaved behaviour',
+    `A change made while the save was on its way was called saved, and its draft dropped: ${JSON.stringify(meanwhile)}`);
+  // The late changes event is the view's own save: the draft can still be saved, not refused as changed elsewhere.
+  await page.waitForFunction(start => window.broker.events.slice(start).some(event => event.n === 'changes'), eventsBefore, { timeout: 8000 });
+  const secondBefore = await batches();
+  await command('save-behaviour');
+  await page.waitForFunction(count => window.broker.requests.filter(request => request.m === 'records.batch').length > count, secondBefore, { timeout: 3000 }).catch(() => undefined);
+  const second = { batches: (await batches()) - secondBefore, stored: (await record('sw.species', heldSpecies)).values['sw.species.population'],
+    problem: await reopened.evaluate(() => document.getElementById('problem').hidden ? null : document.getElementById('problem').textContent),
+    status: await reopened.evaluate(() => document.getElementById('status').textContent) };
+  assert(second.batches === 1, `The save's own late changes event was taken for somebody else's, and the draft could not be saved: ${JSON.stringify(second)}`);
+  await reopened.waitForFunction(() => !window.swarm.saving && !window.swarm.dirty, null, { timeout: 8000 })
+    .catch(async () => { throw Error('The second save did not finish as saved: ' + JSON.stringify(await reopened.evaluate(() => ({ dirty: window.swarm.dirty, saving: window.swarm.saving, status: document.getElementById('status').textContent, problem: document.getElementById('problem').textContent })))); });
+  assert((await record('sw.species', heldSpecies)).values['sw.species.population'] === 300, 'The draft saved after a late changes event did not write its population.');
+  await reopened.getByRole('button', { name: 'Reload saved' }).click(); await reopened.waitForFunction(() => !window.swarm.dirty && !window.swarm.saving);
   const colours = {};
   for (const mode of ['light', 'dark']) {
     await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(100);
@@ -134,6 +197,21 @@ async page => {
       expected: ['cobalt', 'healthy', 'warning', 'danger', 'tone-violet'].map(token => { const e = document.createElement('i'); e.style.color = `var(--nendo-${token})`; document.body.append(e); const colour = getComputedStyle(e).color; e.remove(); return colour; }) }));
     assert(new Set(colours[mode].states).size === 5, `${mode}: creature states do not have five distinct theme colours: ${JSON.stringify(colours[mode])}`);
     assert(JSON.stringify(colours[mode].states) === JSON.stringify(colours[mode].expected), `${mode}: the state legend kept colours from the previous theme.`);
+    // ABS-08: a decision's label is edited in a box bpmn-js makes white; its text must show in both themes.
+    await reopened.locator('[data-element-id="sw_murmuration_danger"] > .djs-hit').dblclick();
+    await reopened.waitForFunction(() => document.activeElement?.classList.contains('djs-direct-editing-content'), null, { timeout: 5000 });
+    const label = await reopened.evaluate(() => { const box = getComputedStyle(document.querySelector('.djs-direct-editing-parent')); return { color: box.color, background: box.backgroundColor }; });
+    await page.keyboard.press('Escape');
+    await reopened.waitForFunction(() => !document.activeElement?.classList.contains('djs-direct-editing-content'));
+    const luminance = colour => {
+      const [r, g, b] = colour.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => { const v = value / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [lighter, darker] = [luminance(label.color), luminance(label.background)].sort((a, b) => b - a);
+    label.contrast = Math.round((lighter + 0.05) / (darker + 0.05) * 100) / 100;
+    colours[mode].label = label;
+    assert(label.contrast >= 4.5, `${mode}: a decision's label is edited as ${label.color} on ${label.background} (contrast ${label.contrast}), so the text cannot be read.`);
+    assert(!(await reopened.evaluate(() => window.swarm.dirty)), 'Escape from a label edit changed the behaviour.');
     await page.screenshot({ path: '__OUTPUT__/' + mode + '.png', fullPage: true });
   }
   assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink, 'Effective theme did not change the frame.');
@@ -141,6 +219,43 @@ async page => {
   const narrow = await reopened.evaluate(() => { const a = document.querySelector('#habitat').getBoundingClientRect(), b = document.querySelector('#diagram').getBoundingClientRect(); return { habitatBottom: a.bottom, diagramTop: b.top, width: innerWidth, overflow: document.documentElement.scrollWidth - innerWidth }; });
   assert(narrow.diagramTop > narrow.habitatBottom && narrow.overflow <= 1, `Narrow panes must stack without overflow: ${JSON.stringify(narrow)}`);
   await page.screenshot({ path: '__OUTPUT__/narrow.png', fullPage: true });
+  // ABS-12: a transition to a node of another species, and one whose Route points do not read, leave
+  // the species loadable; each is named, and a save leaves the first as it is.
+  const held = await page.evaluate(() => ({ links: window.broker.records('sw.link'), nodes: window.broker.records('sw.node') }));
+  const ownLinks = held.links.filter(link => link.values['sw.link.species'] === 'sw_species_murmuration');
+  const otherNode = held.nodes.find(node => node.values['sw.node.species'] === 'sw_species_fireflies');
+  const crossing = { entityId: 'sw.link', recordId: 'sw_w213_crossing', version: 1, values: { ...ownLinks[0].values, 'sw.link.name': 'Crossing', 'sw.link.target': otherNode.recordId, 'sw.link.waypoints': null } };
+  const unreadable = { ...ownLinks[1], version: ownLinks[1].version + 1, values: { ...ownLinks[1].values, 'sw.link.waypoints': '[{' } };
+  await page.evaluate(({ crossing, unreadable }) => { window.broker.put('sw.link', crossing); window.broker.put('sw.link', unreadable); window.broker.pushChanges(); }, { crossing, unreadable });
+  await reopened.waitForFunction(() => document.getElementById('problem').textContent.includes('sw_w213_crossing'), null, { timeout: 8000 }).catch(() => undefined);
+  const inconsistent = await reopened.evaluate(() => ({ problem: document.getElementById('problem').textContent, tick: window.swarm.tick ?? null, links: window.swarm.model?.links.map(link => link.id) ?? [] }));
+  assert(inconsistent.tick === 0 && inconsistent.problem.includes('sw_w213_crossing') && inconsistent.problem.includes(unreadable.recordId) &&
+    inconsistent.links.includes(unreadable.recordId) && !inconsistent.links.includes('sw_w213_crossing'),
+    `A species with an inconsistent transition did not load, or did not name it: ${JSON.stringify(inconsistent)}`);
+  await reopened.getByLabel('Speed', { exact: true }).fill('2.3'); await reopened.getByLabel('Speed', { exact: true }).dispatchEvent('change');
+  await command('save-behaviour'); await reopened.waitForFunction(() => !window.swarm.dirty && !window.swarm.saving);
+  assert(await record('sw.link', 'sw_w213_crossing') !== undefined, 'Saving the behaviour deleted a transition the diagram left out.');
+  // ABS-19: a species name over 80 characters, and more than 64 species, still leave Nendo's toolbar.
+  const refusalsBefore = (await page.evaluate(() => window.broker.chromeRefusals)).length;
+  const own = (await page.evaluate(() => window.broker.records('sw.species'))).find(species => species.recordId === 'sw_species_murmuration');
+  // A bird where the 80-character cut falls: two UTF-16 units that must not be split.
+  const longName = 'A murmuration of starlings over the reed beds at dusk, turning as one and then '.slice(0, 78) + '\u{1F426} breaking apart again';
+  await page.evaluate(({ own, longName }) => {
+    window.broker.put('sw.species', { ...own, version: own.version + 1, values: { ...own.values, 'sw.species.name': longName } });
+    for (let i = 0; i < 70; i++) window.broker.put('sw.species', { entityId: 'sw.species', recordId: `sw_species_w213_${String(i).padStart(2, '0')}`, version: 1, values: { ...own.values, 'sw.species.name': `Extra ${i}` } });
+    window.broker.pushChanges();
+  }, { own, longName });
+  await reopened.waitForFunction(name => window.swarm.model?.species.name === name, longName, { timeout: 8000 });
+  let speciesSelect = null;
+  for (let i = 0; i < 60 && speciesSelect === null; i++) {
+    await page.waitForTimeout(50);
+    const state = await page.evaluate(() => ({ refusals: window.broker.chromeRefusals, select: window.broker.toolbars.at(-1)?.items.find(item => item.id === 'species') }));
+    if (state.refusals.length > refusalsBefore) assert(false, `Nendo refused Swarm's toolbar over a species name of ${longName.length} characters and 73 species, so Play, Reset and Save were gone: ${JSON.stringify(state.refusals.at(-1))}`);
+    if (state.select?.options.some(option => option.value === 'sw_species_murmuration' && option.label.endsWith('…'))) speciesSelect = state.select;
+  }
+  assert(speciesSelect !== null && speciesSelect.options.length <= 64 && speciesSelect.options.every(option => option.label.length <= 80 && option.label.isWellFormed()),
+    `Swarm declared a species select Nendo refuses, or cut a name inside a character: ${JSON.stringify(speciesSelect && { count: speciesSelect.options.length, longest: Math.max(...speciesSelect.options.map(option => option.label.length)),
+      split: speciesSelect.options.filter(option => !option.label.isWellFormed()).map(option => option.value) })}`);
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
-  return { complete: true, opened, narrow, colours, pausedStep: paused, checks: ['paused opening', 'geometry', 'play/pause', 'disturbance', 'graph changes motion', 'one-batch save', 'captured replay', 'refused save retains draft', 'external change blocks overwrite', 'kept save not called unsaved', 'draft outlasts the view', 'add/connect/remove', 'invalid graph refusal', 'reopen', 'Light/Dark', 'narrow layout'], errors };
+  return { complete: true, opened, narrow, colours, pausedStep: paused, checks: ['paused opening', 'geometry', 'play/pause', 'disturbance', 'graph changes motion', 'one-batch save', 'captured replay', 'refused save retains draft', 'external change blocks overwrite', 'kept save not called unsaved', 'draft outlasts the view', 'add/connect/remove', 'invalid graph refusal', 'reopen', 'newest experiment first', 'one replay at a time', 'edit during a save stays a draft', 'label editor readable', 'Light/Dark', 'narrow layout', 'inconsistent transitions named', 'long species names and 73 species'], errors };
 }

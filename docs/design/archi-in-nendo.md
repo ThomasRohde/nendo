@@ -122,7 +122,7 @@ not built, with the reason.
 | Share links, gists, read-only viewer URLs, PWA, IndexedDB autosave, dock layout | Out: they are the browser's answer to what the file and Nendo's window already do | none |
 | Presentation mode, settings dialog | Later | none yet |
 | Collaboration | Out, as in archi-online and in Nendo's vision | none |
-| Sketch and Canvas views | Out, as in archi-online | none |
+| Sketch and Canvas views | Out, as in archi-online; the Open dialog counts them under Left out | none |
 
 ## Nendo limits this design meets
 
@@ -365,8 +365,15 @@ files a person hands a view), or drops it on the workbench.
 - **Batches.** Archisurance is 778 records and a Model update: four `records.batch` calls of
   at most 200, each one revision named *Open ‹file› (n of m)*. A reference to a record an
   earlier batch made names version 1, one to a record the file held names its version, one
-  within the batch names none. A refusal part-way leaves the earlier batches, and the status
-  line says how many went through.
+  within the batch names none. Before the dialog offers Open, the plan is checked for what
+  Nendo would refuse part-way (W-213): every reference must name a record the plan makes or
+  the file holds, and every relationship must be one ArchiMate allows between its two ends,
+  which is what Archi.nendo's link rule enforces from the same matrix. A file that fails is
+  refused, naming the first offender, before anything is written, as ADR-0026 item 10 asks. A
+  file that is not well-formed XML is refused too: Chromium keeps the root of a file cut short,
+  and archi-online's readers look for a parser error only when the root is wrong. A refusal
+  part-way, which the check leaves to a change made elsewhere meanwhile, leaves the earlier
+  batches, and the status line says how many went through.
 - **Order.** Archi keeps a folder's concepts and views, and each object's outgoing and
   incoming connections, in the order its file holds them, and archi-online's semantics compare
   that order. The `order` stage gives concepts and views an *Order in folder*; a connection's

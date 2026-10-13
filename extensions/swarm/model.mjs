@@ -14,6 +14,9 @@ const escape = value => String(value ?? '').replace(/[<>&"']/g, c => ({ '<': '&l
 export function diagramXML(model) {
   const tags = { Start: 'startEvent', Action: 'task', Decision: 'exclusiveGateway', End: 'endEvent' };
   const items = model.nodes.map(n => `<bpmn:${tags[n.kind]} id="${escape(n.id)}" name="${escape(n.name)}"/>`).join('');
+  // A transition whose ends are not both drawn has nothing to join (ABS-12): fromRecords names it.
+  const drawn = new Set(model.nodes.map(n => n.id));
+  model = { ...model, links: model.links.filter(l => drawn.has(l.source) && drawn.has(l.target)) };
   const flows = model.links.map(l => `<bpmn:sequenceFlow id="${escape(l.id)}" sourceRef="${escape(l.source)}" targetRef="${escape(l.target)}" name="${l.branch === 'Next' ? '' : escape(l.branch)}"/>`).join('');
   const shapes = model.nodes.map(n => { const s = size(n.kind); return `<bpmndi:BPMNShape id="${escape(n.id)}_di" bpmnElement="${escape(n.id)}"><dc:Bounds x="${n.x}" y="${n.y}" width="${s.width}" height="${s.height}"/></bpmndi:BPMNShape>`; }).join('');
   const edges = model.links.map((l, index) => {
@@ -54,10 +57,34 @@ export function preset(key = 'murmuration') {
   }
   return { species, habitat: { id: 'sw_habitat_meadow', name: 'Open meadow', width: 1000, height: 620 }, nodes, links };
 }
-export function fromRecords(records, speciesId, habitatId) {
+/**
+ * One species as the view's model. Records edited in Studio can disagree with each other (ABS-12):
+ * a transition whose From or To is a node of another species, or gone, is left out of the
+ * diagram, and one whose Route points do not read is drawn along a route of its own. Each is
+ * pushed to `problems` as { recordId, leftOut, message }, so the view can name it, and a save
+ * leaves a left-out transition as it is rather than deleting it.
+ */
+export function fromRecords(records, speciesId, habitatId, problems = []) {
   const unpack = (r, prefix) => ({ id: r.recordId, ...Object.fromEntries(Object.entries(r.values).map(([k, v]) => [k.slice(prefix.length + 1), v])) });
+  const nodes = records.nodes.filter(r => r.values['sw.node.species'] === speciesId).map(r => unpack(r, 'sw.node'));
+  const drawn = new Set(nodes.map(n => n.id));
+  const links = [];
+  for (const r of records.links.filter(r => r.values['sw.link.species'] === speciesId)) {
+    const l = unpack(r, 'sw.link');
+    if (!drawn.has(l.source) || !drawn.has(l.target)) {
+      problems.push({ recordId: r.recordId, leftOut: true, message: `Transition ${r.recordId} joins a node that is not in this species, so it is left out of the diagram. Correct its From or To in Studio.` });
+      continue;
+    }
+    let points = [];
+    try { points = l.waypoints ? JSON.parse(l.waypoints) : []; } catch { points = null; }
+    if (!Array.isArray(points) || !points.every(p => Number.isFinite(p?.x) && Number.isFinite(p?.y))) {
+      problems.push({ recordId: r.recordId, leftOut: false, message: `Transition ${r.recordId} has Route points that do not read, so it is drawn along a route of its own; saving the behaviour writes that route.` });
+      points = [];
+    }
+    l.waypoints = points;
+    links.push(l);
+  }
   return { species: unpack(records.species.find(r => r.recordId === speciesId), 'sw.species'),
     habitat: unpack(records.habitats.find(r => r.recordId === habitatId) ?? records.habitats[0], 'sw.habitat'),
-    nodes: records.nodes.filter(r => r.values['sw.node.species'] === speciesId).map(r => unpack(r, 'sw.node')),
-    links: records.links.filter(r => r.values['sw.link.species'] === speciesId).map(r => { const l = unpack(r, 'sw.link'); l.waypoints = l.waypoints ? JSON.parse(l.waypoints) : []; return l; }) };
+    nodes, links };
 }

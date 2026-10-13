@@ -13,6 +13,7 @@
 import { bindAtlas, hierarchy, projectHierarchy, maturityLabels, relatedName, relatedRow, dropTarget, stepTarget, coverageCounts, coverageMatrix } from './model.js';
 import { mapSvg, printPalette, paletteTokens } from './export.js';
 import { layoutCapabilities, fitViewport } from './layout-profile.js';
+import { roving } from './kit/nendo-view-kit.js';
 
 // ---------------------------------------------------------------------------------------------
 // State
@@ -24,6 +25,14 @@ let records = [], relatedRecords = new Map();
 let model = hierarchy([], binding.title);
 // Whether the file declares no capability hierarchy, which is the one thing the map needs.
 let undeclared = false;
+// The most records the Atlas reads: capabilities as the tree, and each record type that refers to
+// them (ABS-10). One more is asked for, so a read that was cut is known, and said, rather than
+// silently drawing the latest assessment, Change since or coverage from part of the file.
+const CAPABILITY_MAX = 10000, RELATED_MAX = 5000;
+let cutNotice = null;
+// The mode a view's configuration names, applied once the first read has bound the view (ABS-13):
+// before then, Importance × health and Capability × application are never available.
+let configuredMode = null;
 
 // What the person is looking at.
 let selected = null;        // record ID of the selected capability
@@ -336,6 +345,7 @@ function renderMap(refit) {
     if (!node.synthetic) drawing.append(card(node, lit));
   }
   if (renaming) drawing.append(renaming.input);
+  cards.refresh();
   if (refit) fit();
   else applyTransform();
 }
@@ -353,6 +363,8 @@ function card(node, lit) {
 
   const b = button('', () => select(node.id), classes.join(' '));
   b.dataset.id = node.id;
+  // One tab stop for the whole map (ABS-18): the selected card, else the first; arrows move between them.
+  b.tabIndex = selected === node.id ? 0 : -1;
   const maturity = binding.has('maturity') ? `, ${maturityText(binding.value(record, 'maturity'), 'Unassessed').replace(/^\d+ · /, '')}` : '';
   b.setAttribute('aria-label',
     `${binding.title(record)}${maturity}${isGroup ? ', group' : ''}${hidden ? ', ' + hidden + ' capabilities inside' : ''}`);
@@ -518,8 +530,15 @@ function renderPortfolio() {
   const importance = [...(binding.choices.importance ?? [])].reverse();
   const scale = binding.assessments?.scale ?? { min: 1, max: 5 };
   const scores = Array.from({ length: scale.max - scale.min + 1 }, (_, i) => scale.min + i);
+  // ABS-17: a capability whose importance is a retired choice, or one the schema does not know,
+  // matched no row and was left out without a word; it is placed in a row of its own.
+  const offered = new Set(importance.map(choice => choice.id));
+  const importanceOf = choice => record => {
+    const value = binding.value(record, 'importance');
+    return choice.other ? value != null && !offered.has(value) : value === choice.id;
+  };
   const cell = (choice, score) => inScope.filter(record =>
-    binding.value(record, 'importance') === choice && (binding.assessed(record, 'health')?.score ?? null) === score);
+    importanceOf(choice)(record) && (binding.assessed(record, 'health')?.score ?? null) === score);
   const grid = el('table', 'portfolio-grid');
   grid.setAttribute('aria-label', `${binding.choiceName('importance', null) ?? 'Importance'} against ${binding.assessments?.dimensionName('health') ?? 'health'}`);
   const head = el('tr');
@@ -529,15 +548,17 @@ function renderPortfolio() {
   grid.tHead.append(head);
   const body = el('tbody');
   let placed = 0;
-  for (const choice of [...importance, { id: null, displayName: 'No importance set', tone: 'grey' }]) {
+  const rows = [...importance, { id: null, other: true, displayName: 'Retired or unknown importance', tone: 'grey' },
+    { id: null, displayName: 'No importance set', tone: 'grey' }];
+  for (const choice of rows) {
     const row = el('tr');
     const label = el('th', null, choice.displayName);
     row.append(label);
     for (const score of [...scores, null]) {
-      const members = cell(choice.id, score);
+      const members = cell(choice, score);
       placed += members.length;
       const td = el('td', 'portfolio-cell');
-      td.dataset.importance = choice.id ?? '';
+      td.dataset.importance = choice.other ? 'other' : choice.id ?? '';
       td.dataset.health = score == null ? '' : String(score);
       if (members.length) td.append(el('strong', 'numeric', String(members.length)));
       for (const record of members) {
@@ -823,7 +844,7 @@ function render(refit = false) {
   else renderTable();
   inspector();
   say(footer());
-  const notices = [...(undeclared ? [undeclaredNotice()] : []), ...binding.problems];
+  const notices = [...(undeclared ? [undeclaredNotice()] : []), ...binding.problems, ...(cutNotice ? [cutNotice] : [])];
   $('notice').hidden = notices.length === 0;
   $('notice').textContent = notices.join(' ');
   declareToolbar();
@@ -885,10 +906,15 @@ async function refresh() {
     binding = bindAtlas(nendo.context, schema);
     const relatedTypes = [...new Set(binding.related.map(entry => entry.entityId))];
     const [nodes, ...lists] = await Promise.all([
-      nendo.records.treeAll({ entityId: binding.entityId, depth: 32 }, { max: 10000 }),
-      ...relatedTypes.map(entityId => nendo.records.queryAll({ entityId }, { max: 5000 })),
+      nendo.records.treeAll({ entityId: binding.entityId, depth: 32 }, { max: CAPABILITY_MAX + 1 }),
+      ...relatedTypes.map(entityId => nendo.records.queryAll({ entityId }, { max: RELATED_MAX + 1 })),
     ]);
     if (request !== loading) return;
+    const nameOf = entityId => schema?.entities?.find(entity => entity.entityId === entityId)?.displayName ?? entityId;
+    const cut = [...(nodes.length > CAPABILITY_MAX ? [`${CAPABILITY_MAX.toLocaleString('en')} ${nameOf(binding.entityId)}`] : []),
+      ...relatedTypes.filter((entityId, index) => lists[index].length > RELATED_MAX).map(entityId => `${RELATED_MAX.toLocaleString('en')} ${nameOf(entityId)}`)];
+    cutNotice = cut.length === 0 ? null
+      : `Read in part: the Atlas reads at most ${cut.join(' and ')} records, and the file holds more, so what it shows from the rest (the latest assessments, Change since, coverage) may be missing or out of date.`;
     // The first map is fitted. After that a change keeps the camera where the person put it,
     // unless the focused group has gone.
     const first = layout === null;
@@ -899,6 +925,7 @@ async function refresh() {
     records = model.records;
     covered = binding.coverage === null ? new Map() : coverageCounts(model, binding.coverage, relatedRecords.get(binding.coverage.entityId) ?? []);
     undeclared = false;
+    if (configuredMode !== null) { setModeQuietly(configuredMode); configuredMode = null; }
     if (!model.byId.has(selected)) selected = null;
     const lostScope = scope !== null && !model.byId.has(scope);
     if (lostScope) scope = null;
@@ -959,7 +986,10 @@ function edit(record, parent) {
   fillSelect('target', maturityChoices(), binding.value(record, 'target'));
   fillSelect('importance', choiceOptions('importance'), binding.value(record, 'importance'));
   fillSelect('investment', choiceOptions('investment'), binding.value(record, 'investment'));
-  fillSelect('lifecycle', choiceOptions('lifecycle'), binding.value(record, 'lifecycle') ?? binding.choices.lifecycle?.[0]?.id ?? null, null);
+  // A new capability starts at the first lifecycle choice; an existing one without a lifecycle
+  // keeps none (ABS-09), where saving any field set it to the first choice unseen.
+  const lifecycle = binding.value(record, 'lifecycle');
+  fillSelect('lifecycle', choiceOptions('lifecycle'), record ? lifecycle : binding.choices.lifecycle?.[0]?.id ?? null, record && lifecycle == null ? 'Not set' : null);
   // Only places a capability can go are offered: not itself, and not anything under it. The
   // Engine refuses the rest anyway; this keeps the list to choices that can succeed.
   const beneath = new Set(record ? [record.recordId, ...model.descendants(record.recordId).map(item => item.recordId)] : []);
@@ -1376,12 +1406,16 @@ async function saveRename() {
   document.querySelector(`.cap[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
 }
 
-document.addEventListener('keydown', event => {
+/** Whether a key belongs to what the person is typing in, or to the editor over the map (ABS-14). */
+const typing = event => Boolean(event.target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) || $('editor').open;
+
+function mapKeys(event) {
   if (event.key === 'Escape' && drag?.moving) {
     endPan(true);
     say(statusLine());
     return;
   }
+  if (typing(event)) return;
   if (renaming || mode !== 'map' || !selected || !model.byId.has(selected)) return;
   if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && Object.hasOwn(steps, event.key)) {
     event.preventDefault();
@@ -1394,7 +1428,18 @@ document.addEventListener('keydown', event => {
     event.preventDefault();
     startRename(selected);
   }
-});
+}
+document.addEventListener('keydown', mapKeys);
+
+// The cards are one tab stop, and the arrows move to the nearest card that way (ABS-18), as the
+// view kit's roving() does for the graph views. Alt+Shift+arrows on a card are the move keys,
+// not the roving ones: they reach mapKeys alone.
+const cards = roving($('drawing'), { items: '.cap', orientation: 'spatial' });
+$('drawing').addEventListener('keydown', event => {
+  if (!Object.hasOwn(steps, event.key) || !(event.altKey || event.ctrlKey || event.metaKey)) return;
+  event.stopPropagation();
+  mapKeys(event);
+}, true);
 
 // Resizing refits once the size settles; the packing itself does not change.
 let resizeTimer;
@@ -1424,7 +1469,7 @@ function canAdd() {
   return binding.labelFieldId !== null && nendo.context?.readOnly !== true;
 }
 
-function declareToolbar() {
+function declareToolbar(withoutOptional = false) {
   if (!nativeChrome || projection === null) return;
   const levelOptions = [
     ...Array.from({ length: Math.max(1, projection.maxDepth) }, (_, i) => ({ value: String(i + 1), label: String(i + 1) })),
@@ -1439,8 +1484,12 @@ function declareToolbar() {
     { kind: 'choice', id: 'levels', label: 'Levels', value: chosen(levelOptions, Number.isFinite(levels) ? String(levels) : 'all'), options: levelOptions },
   ];
   if (colours.length > 1) items.push({ kind: 'select', id: 'colour', label: 'Colour', value: chosen(colours, colour), options: colours });
-  const dates = binding.assessmentDates().map(date => ({ value: date, label: date }));
-  if (colour === 'change' && dates.length) items.push({ kind: 'select', id: 'since', label: 'Since', value: chosen(dates, sinceDate()), options: dates });
+  // Nendo's select holds at most 64 options, and a longer one refuses the whole row (ABS-16): the
+  // 64 most recent dates, the chosen one always among them. The Atlas's own select keeps them all.
+  const recent = binding.assessmentDates().slice(-64);
+  if (sinceDate() !== null && !recent.includes(sinceDate())) recent.splice(0, 1, sinceDate());
+  const dates = recent.map(date => ({ value: date, label: date }));
+  if (colour === 'change' && dates.length && !withoutOptional) items.push({ kind: 'select', id: 'since', label: 'Since', value: chosen(dates, sinceDate()), options: dates });
   items.push({ kind: 'spacer' }, { kind: 'search', id: 'find', label: 'Find a capability', placeholder: 'Find a capability…', value: $('search').value.slice(0, 256), keys: 'Ctrl+F' });
   declaredZoom = $('zoom').textContent;
   if (mode === 'map') {
@@ -1467,7 +1516,12 @@ function declareToolbar() {
       ] },
     );
   }
-  nendo.ui.setToolbar({ items, add: canAdd() ? 'add-capability' : null }).catch(error => leaveNativeChrome(error.message));
+  nendo.ui.setToolbar({ items, add: canAdd() ? 'add-capability' : null }).catch(error => {
+    // A refusal over an optional control declares the row again without it, before the Atlas
+    // gives up Nendo's row for the visit (ABS-16).
+    if (!withoutOptional && items.some(item => item.id === 'since')) { declareToolbar(true); return; }
+    leaveNativeChrome(error.message);
+  });
 }
 
 /** A Nendo that refuses the declaration leaves the Atlas its own toolbar, and the Atlas says why. */
@@ -1607,7 +1661,7 @@ function adoptNativeChrome() {
 try {
   const context = await nendo.ready;
   adoptNativeChrome();
-  if (context.configuration?.mode) setMode(context.configuration.mode);
+  configuredMode = typeof context.configuration?.mode === 'string' ? context.configuration.mode : null;
   await refresh();
   nendo.on('changes', () => {
     clearTimeout(refreshTimer);

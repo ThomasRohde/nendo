@@ -689,7 +689,9 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
   border: 1.5px solid var(--accent);
   border-radius: 2px;
   resize: none;
-  background: #fff;
+  /* ABS-08: the box and its text both from the theme, so typed text shows in the dark theme too. */
+  background: var(--input-bg);
+  color: var(--text);
   padding: 3px;
   box-sizing: border-box;
   user-select: text;

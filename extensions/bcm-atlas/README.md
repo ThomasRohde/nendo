@@ -50,11 +50,16 @@ investment, neutral) and the compact and ordered reference layouts.
   group is refused before anything is written. **Alt+Shift+Up/Down** move the selected card
   among its siblings, **Alt+Shift+Right** puts it under the card above and **Alt+Shift+Left**
   after its parent, as in Nendo's outline. **F2** renames it in place. Each move is one
-  versioned write; a refused one shows the map as the file holds it and says why.
+  versioned write; a refused one shows the map as the file holds it and says why. These keys
+  do nothing while you type in a field or while the editor is open.
+- **The keyboard.** The map's cards are one tab stop, the selected card or else the first, so
+  Tab goes on to the inspector; the arrows move to the nearest card that way, and Enter or
+  Space selects it (the view kit's `roving()`, carried at `kit/nendo-view-kit.js`).
 - **Edit** and **+ Child** change the model; **Open record** opens Nendo's own record page
   with the related application support and initiatives.
   A capability edit leaves assessment-derived maturity alone. An existing rating outside
-  the displayed scale stays selected as its current value until explicitly changed or cleared.
+  the displayed scale stays selected as its current value until explicitly changed or cleared,
+  and an existing capability without a lifecycle is shown as *Not set* and keeps none.
 - **Export** writes the map as **SVG**, to edit, or **PNG**, twice the size, for a slide: the
   scope at the chosen levels in the chosen colour, with a title, the file's banner and the
   legend, whatever part of it the camera shows. The SVG is plain shapes and text with hex
@@ -69,8 +74,10 @@ All four record types have authored detail screens.
 Nendo shows these controls in the toolbar above the map, lists them in Ctrl K under the view's
 title, and runs their keys:
 
-- Map, Assessment and Outline;
-- Levels, Colour and Find (Ctrl F);
+- Map, Assessment and Outline, and Importance × health where the view binds an importance
+  part and IT health assessments, and Capability × application where it binds coverage;
+- Levels, Colour and Find (Ctrl F), and with Change since the date it is measured from, the
+  64 most recent assessment dates, the chosen one always among them;
 - Pan, and the zoom: Ctrl − and Ctrl + zoom, and Ctrl 0 fits;
 - the layout, under the settings button;
 - Export.
@@ -79,7 +86,8 @@ Nendo's own **Add Capability** adds a capability under the selected card, or els
 focused group. A right-click on a card opens Nendo's menu, with Open record, Edit, Add a
 capability under it, Rename, Focus this group and the four moves, each greyed where it cannot
 happen. The breadcrumbs join the summary line. On an older Nendo the Atlas shows its own
-toolbar, as it always has.
+toolbar, as it always has; it does so too if Nendo refuses the row, after declaring it once
+again without the Since control.
 
 ## Showing it in a file
 
@@ -108,7 +116,7 @@ a `fieldBinding`.
 | `target` | whole number | With maturity: the gap colour, the Target and Gap columns and the below-target count |
 | `importance` | choice | Importance colour in each choice's own tone, the badge and the column |
 | `investment` | choice | Investment colour, the badge and the Direction column |
-| `lifecycle` | choice | The badge, and a new capability's first choice. The view's `statusFieldId` when the configuration names none |
+| `lifecycle` | choice | The badge, and a new capability's first choice; an existing one without a lifecycle keeps none. The view's `statusFieldId` when the configuration names none |
 | `reviewed` | date | Reviewed in the inspector and editor |
 | `evidence` | text | Evidence in the inspector and editor |
 
@@ -130,6 +138,15 @@ order is never the inspector's.
 
 **The banner** at the right of the figures is `configuration.banner`, `{title, note}`.
 Without one there is no banner.
+
+**The mode** the Atlas opens on is `configuration.mode`: `map` (the default), `assessment`,
+`outline`, `portfolio` (Importance × health) or `matrix` (Capability × application). It is
+applied once the first read has bound the view, so a screen of its own can open on Importance ×
+health; a mode the view cannot show opens the map.
+
+**How much it reads.** The Atlas reads at most 10,000 capabilities and 5,000 records of each
+record type that refers to them. A file that holds more is said in the notice above the map,
+because the latest assessments, Change since and coverage may then come from part of it.
 
 **Coverage** is `configuration.coverage`: `entityId` names the link record type, and
 `capability`, `application`, `role` and `fit` its reference to the capabilities, its reference to
@@ -266,6 +283,15 @@ that Importance × health is not offered without IT health assessments,
 that the parts it does not bind are not offered, that the unbound one is named, that
 scores and tones follow its own fields, that its related sections are found, and that the
 editor writes only its own bound fields with the parent's version.
+
+For the broad review (W-213) the lane opens BCM with `configuration.mode` `portfolio` and finds
+Importance × health on the first draw; reads 5,024 assessments and finds the notice saying the
+read was cut; places a capability whose importance is a retired choice in a row of its own,
+still all 635; saves a capability without a lifecycle after a change to its name and finds no
+lifecycle written; types Alt+Shift+Up and F2 in the editor's definition and finds no move sent
+and no rename box; counts one card in the tab order and moves between cards with the arrows;
+and, with Nendo's toolbar, colours by Change since over 70 assessment dates and finds the row
+accepted with 64 dates and the Atlas still in Nendo's toolbar.
 
 Install a changed package with
 `node tools/Put-NendoPackage.mjs extensions/bcm-atlas`, which proposes only the files

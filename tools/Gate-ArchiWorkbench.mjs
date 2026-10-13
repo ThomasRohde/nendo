@@ -1659,6 +1659,29 @@ async (page) => {
     });
     assert(editorColours[mode].palette === editorColours[mode].token && editorColours[mode].paper === 'rgb(255, 255, 255)',
       `In the ${mode} theme the editor's palette is not Nendo's surface, or its paper is not white: ${JSON.stringify(editorColours[mode])}.`);
+    // ABS-08: a double-click on a box renames it in place, in a box whose text must show in both
+    // themes; in the dark one it was white text on a white box.
+    const boxIds = new Set((await records('ar.item')).filter(item => item.values['ar.item.kind'] === 'Element').map(item => item.recordId));
+    const renamed = await view.evaluate(ids => [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.dataset.nodeId)
+      .find(id => ids.includes(id) && !document.querySelector(`.archi-editor [data-node-id="${id}"] [data-node-id]`)), [...boxIds]);
+    const renameBox = await boxOf(renamed);
+    await page.mouse.dblclick(editFrame.x + renameBox.x + renameBox.width / 2, editFrame.y + renameBox.y + renameBox.height / 2);
+    await until(() => !!document.querySelector('.archi-editor textarea.direct-edit'), null, `A double-click on a box did not open its rename in the ${mode} theme.`);
+    const renameColours = await view.evaluate(() => {
+      const style = getComputedStyle(document.querySelector('textarea.direct-edit'));
+      return { color: style.color, background: style.backgroundColor };
+    });
+    await page.keyboard.press('Escape');
+    await until(() => !document.querySelector('.archi-editor textarea.direct-edit'), null, 'Escape did not close the box rename.');
+    const luminance = colour => {
+      const [r, g, b] = colour.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => { const v = value / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const [lighter, darker] = [luminance(renameColours.color), luminance(renameColours.background)].sort((a, b) => b - a);
+    renameColours.contrast = Math.round((lighter + 0.05) / (darker + 0.05) * 100) / 100;
+    editorColours[mode].rename = renameColours;
+    assert(renameColours.contrast >= 4.5,
+      `In the ${mode} theme the box rename types ${renameColours.color} on ${renameColours.background} (contrast ${renameColours.contrast}), so the text cannot be read.`);
   }
   await page.evaluate(() => { window.broker.startAt(null); window.broker.command('edit', false, 'toolbar'); });
   await until(() => !!document.querySelector('.canvas-host .paper') && !document.querySelector('.archi-editor'), null, 'Leaving Edit did not return to the drawn view.');
@@ -2321,6 +2344,53 @@ async (page) => {
     'A dropped Exchange XML file did not open the dialog saying what it holds, read as Open Exchange XML.');
   await view.click('#open-archimate button[value="cancel"]');
   await until(() => !document.getElementById('open-archimate').open, null, 'Cancel left the dialog open.');
+  // W-213: what the dialog says of a file before Open writes anything. Each is dropped, read and
+  // cancelled; the check after the last Cancel below measures that none of them wrote a record.
+  const dropNamed = (text, name) => view.evaluate(({ text, name }) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], name, { type: 'application/xml' }));
+    document.getElementById('centre').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+  }, { text, name });
+  const dialogSays = async (text, name, what) => {
+    await dropNamed(text, name);
+    await until(() => document.getElementById('open-archimate').open && /\S/.test(document.getElementById('open-archimate-summary').textContent) &&
+      !/^Reading /.test(document.getElementById('open-archimate-summary').textContent), null, `The dialog did not read ${what}.`);
+    const said = await view.evaluate(() => ({ summary: document.getElementById('open-archimate-summary').textContent,
+      problem: document.getElementById('open-archimate-summary').classList.contains('problem'), openDisabled: document.getElementById('open-archimate-open').disabled }));
+    await view.click('#open-archimate button[value="cancel"]');
+    await until(() => !document.getElementById('open-archimate').open, null, 'Cancel left the dialog open.');
+    return said;
+  };
+  results.openRefusals = {};
+  // ABS-01: an .archimate cut short before its relationships, as a download that broke off, and an
+  // Exchange file cut before its relationships, are refused; they read as smaller, whole models.
+  for (const [name, text, cutBefore] of [['Archisurance.archimate', savedXml, 'type="relations"'], ['Archisurance.xml', exchangeXml, '<relationships>']]) {
+    const said = await dialogSays(text.slice(0, text.indexOf(cutBefore)), name, `${name} cut short`);
+    results.openRefusals[name] = said.summary;
+    assert(said.problem && said.openDisabled && /not well-formed XML/.test(said.summary),
+      `${name} cut short before its relationships was not refused, and Open would write it: ${JSON.stringify(said)}.`);
+    // The refusal quotes the parser: where the file breaks off, and why.
+    assert(/not well-formed XML \(error on line \d+ at column \d+: [^)]+\)/.test(said.summary),
+      `${name} was refused without the parser's words, so the person cannot tell where it breaks off: ${JSON.stringify(said.summary)}.`);
+  }
+  // ABS-02: Sketch and Canvas views are left out, and the dialog says so.
+  const views = savedXml.match(/<folder [^>]*type="diagrams"[^>]*>/)[0];
+  const sketches = savedXml.replace(views, views + '<element xsi:type="archimate:SketchModel" name="Whiteboard" id="id-w213-sketch"><child xsi:type="archimate:Sticky" id="id-w213-sticky" name="An idea"><bounds x="12" y="12" width="75" height="63"/></child></element>' +
+    '<element xsi:type="canvas:CanvasModel" name="Canvas" id="id-w213-canvas"/>')
+    // A view reference to the Sketch view, which archi-online skips: left out with it, not refused.
+    .replace(/(<element xsi:type="archimate:ArchimateDiagramModel"[^>]*[^/]>)/, '$1<child xsi:type="archimate:DiagramModelReference" id="id-w213-reference" model="id-w213-sketch"><bounds x="900" y="12" width="120" height="55"/></child>');
+  const sketched = await dialogSays(sketches, 'Archisurance.archimate', 'a file with a Sketch and a Canvas view, and a reference to the Sketch');
+  results.openRefusals.sketches = sketched.summary;
+  assert(sketched.summary === 'Archisurance: 120 elements, 176 relationships, 17 views. Left out: 1 Sketch view, 1 Canvas view, 1 view reference to one. Archi.nendo holds no Sketch or Canvas views.' && !sketched.openDisabled,
+    `The dialog did not say that the file's Sketch and Canvas views are left out: ${JSON.stringify(sketched)}.`);
+  // ABS-03: a relationship to an element the file does not hold is refused before the first batch.
+  const relations = savedXml.match(/<folder [^>]*type="relations"[^>]*>/)[0];
+  const actor = savedXml.match(/<element xsi:type="archimate:BusinessActor"[^>]* id="([^"]+)"/)[1];
+  const dangling = await dialogSays(savedXml.replace(relations, `${relations}<element xsi:type="archimate:AssociationRelationship" id="id-w213-dangling" source="${actor}" target="id-nowhere"/>`),
+    'Archisurance.archimate', 'a file with a relationship to nothing');
+  results.openRefusals.dangling = dangling.summary;
+  assert(dangling.problem && dangling.openDisabled && /Nendo would refuse part of it, so nothing is opened: id-w213-dangling points at id-nowhere/.test(dangling.summary),
+    `A relationship to an element the file does not hold was not refused before Open: ${JSON.stringify(dangling)}.`);
   await dropFile(savedXml);
   await until(() => document.getElementById('open-archimate').open &&
     /^Archisurance: 120 elements, 176 relationships, 17 views\.$/.test(document.getElementById('open-archimate-summary').textContent), null,

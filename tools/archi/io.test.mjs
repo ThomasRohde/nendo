@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { exportArchimate, exportExchange, holdsNoModel, importBatches, modelFileFormat, modelForExport, planImport } from '../../extensions/archi/canvas.js';
+import { exportArchimate, exportExchange, holdsNoModel, importBatches, importProblems, importProblemSentence, leftOutSentence, modelFileFormat, modelForExport, planImport } from '../../extensions/archi/canvas.js';
 import { EXCHANGE_SCHEMAS, validateExchangeXml } from '../../extensions/archi/xsd.js';
 import { archiSchema } from './fixtures.mjs';
+import { modelRecordOf, plan } from './archimate-records.mjs';
 
 // W-120: the workbench saves Archi.nendo's records as an .archimate file and opens one into an
 // empty model. Reading XML needs a browser's DOMParser, so the XML itself is measured in the
@@ -141,4 +142,73 @@ test('the Open dialog tells Exchange XML from an .archimate by what the file hol
   assert.equal(modelFileFormat(bytes(exportExchange(records).xml)), 'exchange');
   assert.equal(modelFileFormat(bytes(exportArchimate(records).xml)), 'archimate');
   assert.equal(modelFileFormat(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0])), 'archimate', 'An archive is an .archimate.');
+});
+
+// ABS-03: Open writes a model in batches of 200, each its own revision, so a reference to nothing
+// or a relationship the link rule refuses near the end left a half-imported model. Both are now
+// found before anything is written, and the Open dialog refuses the file naming the first.
+test('a relationship to nothing, or one ArchiMate does not allow, is found before anything is written', () => {
+  const sets = emptyFile();
+  assert.deepEqual(importProblems(planImport(modelForExport(records), { rootFolders, modelRecordId }), sets), [], 'Archisurance itself has an import problem.');
+  const relations = Object.values(modelForExport(records).folders).find(folder => folder.folderType === 'relations');
+  const withRelationship = relationship => {
+    const model = modelForExport(records);
+    model.relationships[relationship.id] = { kind: 'relationship', name: '', documentation: '', properties: [], profileIds: [], folderId: relations.id, ...relationship };
+    model.folders[relations.id].itemIds.push(relationship.id);
+    return planImport(model, { rootFolders, modelRecordId });
+  };
+  const element = type => Object.values(modelForExport(records).elements).find(candidate => candidate.type === type).id;
+  const dangling = importProblems(withRelationship({ id: 'id-dangling', type: 'AssociationRelationship', sourceId: element('BusinessActor'), targetId: 'id-nowhere' }), sets);
+  assert.equal(dangling.length, 1, `A relationship to an element nobody makes was not found before the writes: ${JSON.stringify(dangling)}`);
+  assert.match(dangling[0], /^id-dangling points at id-nowhere, which the file does not hold\.$/);
+  const objects = Object.values(modelForExport(records).elements).filter(candidate => candidate.type === 'BusinessObject').map(candidate => candidate.id);
+  const refused = importProblems(withRelationship({ id: 'id-refused', name: 'Triggers', type: 'TriggeringRelationship', sourceId: objects[0], targetId: objects[1] }), sets);
+  assert.equal(refused.length, 1, `A relationship the link rule refuses was not found before the writes: ${JSON.stringify(refused)}`);
+  assert.match(refused[0], /^id-refused "Triggers" is a TriggeringRelationship from a BusinessObject to a BusinessObject, which ArchiMate does not allow\.$/);
+  assert.match(importProblemSentence([...dangling, ...refused]), /^Nendo would refuse part of it, so nothing is opened: id-dangling points at id-nowhere.* 1 more like it\./);
+  assert.equal(importProblemSentence([]), null);
+});
+
+// ABS-02: archi-online's reader skips Sketch and Canvas views without a word; the Open dialog's
+// Left out line says how many there were. (Counting them reads the XML, which needs a browser's
+// DOMParser; Gate-ArchiWorkbench.mjs drops such a file on the workbench.)
+test('the Left out line names Sketch and Canvas views, with or without images', () => {
+  const none = { imageObjects: 0, imageConnections: 0, pictures: 0, archiveImages: 0 };
+  assert.equal(leftOutSentence(none), null);
+  assert.equal(leftOutSentence({ ...none, sketchViews: 1, canvasViews: 2 }), 'Left out: 1 Sketch view, 2 Canvas views. Archi.nendo holds no Sketch or Canvas views.',
+    'The Left out line says nothing of the Sketch and Canvas views the file holds.');
+  assert.equal(leftOutSentence({ ...none, imageObjects: 2, sketchViews: 1 }), 'Left out: 2 image objects, 1 Sketch view. Archi.nendo holds no images and no Sketch or Canvas views.');
+  assert.equal(leftOutSentence({ ...none, archiveImages: 3 }), 'Left out: 3 image files. Archi.nendo holds no images.');
+});
+
+// ABS-27: tools/Import-Archimate.mjs planned every model property against Build-Archi's seeded
+// Model record ID and then read a Model record that a new Archi model does not keep.
+test('the importer points the model’s properties at the file’s own Model record, and makes one where a new model has none', async () => {
+  const model = modelForExport(records);
+  model.info.properties = [{ key: 'Owner', value: 'Architecture' }];
+  const properties = plan(model, 'ar.model.r.0123').writes.find(([entityId]) => entityId === 'ar.property')[1].filter(record => record.values['ar.property.model']);
+  assert.deepEqual(properties.map(record => record.values['ar.property.model']), ['ar.model.r.0123'],
+    'The model’s properties point at the seeded Model record, not the one the file holds.');
+  const existing = { read: { records: async () => [{ recordId: 'ar.model.r.abc', recordVersion: 3, values: {} }] } };
+  assert.deepEqual(await modelRecordOf(existing, async () => assert.fail('A second Model record was made.')), { recordId: 'ar.model.r.abc', version: 3 });
+  const held = [];
+  const made = await modelRecordOf({ read: { records: async () => held } }, async record => held.push({ recordId: record.recordId, recordVersion: 1, values: record.values }));
+  assert.deepEqual(made, { recordId: 'ar.model.r.model', version: 1 }, 'A file without a Model record got none, so the import would stop after writing everything else.');
+});
+
+// W-213 review: a view reference to a Sketch or Canvas view, which archi-online does not read,
+// pointed at no planned view, and the preflight refused a valid file. It is left out and counted.
+test('a view reference to a view the file does not open is left out and counted, not refused', () => {
+  const model = modelForExport(records);
+  const view = Object.values(model.views)[0];
+  const reference = { id: 'id-ref-to-sketch', nodeType: 'ref', viewId: view.id, parentId: view.id, refViewId: 'id-a-sketch',
+    bounds: { x: 10, y: 10, width: 120, height: 55 }, childIds: [], sourceConnectionIds: [], targetConnectionIds: [] };
+  model.nodes[reference.id] = reference;
+  view.childIds.push(reference.id);
+  const plan = planImport(model, { rootFolders, modelRecordId });
+  const problems = importProblems(plan, emptyFile());
+  assert.deepEqual(problems, [], `A valid file with a reference to a Sketch view was refused: ${JSON.stringify(problems)}`);
+  assert.ok(!plan.creates.some(record => record.recordId === 'ar-id-ref-to-sketch'), 'The reference to a view nobody makes was planned.');
+  assert.equal(plan.leftOut.viewReferences, 1, 'The left-out view reference was not counted.');
+  assert.match(leftOutSentence({ ...plan.leftOut, sketchViews: 1 }), /1 Sketch view, 1 view reference to one\. Archi\.nendo holds no Sketch or Canvas views\./);
 });

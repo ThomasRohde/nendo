@@ -29,6 +29,41 @@ const byOrder = (field: string) => (a: NendoRecord, b: NendoRecord) =>
   ((a.values[field] as number | null) ?? Number.MAX_SAFE_INTEGER) - ((b.values[field] as number | null) ?? Number.MAX_SAFE_INTEGER)
   || (a.recordId < b.recordId ? -1 : a.recordId > b.recordId ? 1 : 0);
 
+/**
+ * Bendpoints and Legend options are long text that holds JSON, which a person can edit on a
+ * diagram item's record page and an agent can write (ABS-07). One value that does not read must
+ * not stop the whole workbench: a connection whose bendpoints do not read is drawn straight, a
+ * note whose legend does not read is drawn as a plain note, and unreadableValues names each, so
+ * the status line and the validator can send the person to the record.
+ */
+const readBendpoints = (value: unknown): unknown[] | null => {
+  if (typeof value !== 'string') return [];
+  try {
+    const points = JSON.parse(value);
+    return Array.isArray(points) && points.every(point => point !== null && typeof point === 'object') ? points : null;
+  } catch { return null; }
+};
+const readLegend = (value: unknown): Record<string, unknown> | null | undefined => {
+  if (typeof value !== 'string') return undefined;
+  try {
+    const legend = JSON.parse(value);
+    return legend !== null && typeof legend === 'object' && !Array.isArray(legend) ? legend : null;
+  } catch { return null; }
+};
+
+export interface UnreadableValue { recordId: string; viewId: string; field: 'bendpoints' | 'legend' }
+
+/** Every diagram item whose Bendpoints or Legend options do not read as the JSON they hold. */
+export function unreadableValues(sets: RecordSets): UnreadableValue[] {
+  const found: UnreadableValue[] = [];
+  for (const item of Object.values(sets).flatMap(list => list ?? []).filter(record => record.entityId === 'ar.item')) {
+    const viewId = text(item.values['ar.item.view']);
+    if (readBendpoints(item.values['ar.item.bendpoints']) === null) found.push({ recordId: item.recordId, viewId, field: 'bendpoints' });
+    if (readLegend(item.values['ar.item.legend']) === null) found.push({ recordId: item.recordId, viewId, field: 'legend' });
+  }
+  return found;
+}
+
 export function buildMirror(sets: RecordSets): ModelState {
   const all = Object.values(sets).flatMap(list => list ?? []);
   const of = (entityId: string) => all.filter(record => record.entityId === entityId);
@@ -133,7 +168,7 @@ export function buildMirror(sets: RecordSets): ModelState {
         sourceId: text(values['ar.item.source']), targetId: text(values['ar.item.target']),
         ...(typeof values['ar.item.connectionType'] === 'number' ? { connectionType: values['ar.item.connectionType'] } : {}),
         ...(typeof values['ar.item.nameVisible'] === 'boolean' ? { nameVisible: values['ar.item.nameVisible'] } : {}),
-        bendpoints: typeof values['ar.item.bendpoints'] === 'string' ? JSON.parse(values['ar.item.bendpoints'] as string) : [],
+        bendpoints: readBendpoints(values['ar.item.bendpoints']) ?? [],
         sourceConnectionIds: [], targetConnectionIds: [], ...style(values) } as unknown as DiagramConnection;
       model.connections[item.recordId] = connection;
       continue;
@@ -149,7 +184,7 @@ export function buildMirror(sets: RecordSets): ModelState {
       ...(nodeType === 'group' ? { name: text(values['ar.item.name']), documentation: text(values['ar.item.documentation']), properties: props(item.recordId) } : {}),
       ...(nodeType === 'note' ? { content: text(values['ar.item.content']), properties: props(item.recordId),
         ...(typeof values['ar.item.name'] === 'string' ? { name: values['ar.item.name'] } : {}),
-        ...(typeof values['ar.item.legend'] === 'string' ? { legendOptions: JSON.parse(values['ar.item.legend'] as string) } : {}) } : {}),
+        ...(readLegend(values['ar.item.legend']) ? { legendOptions: readLegend(values['ar.item.legend']) } : {}) } : {}),
       ...(nodeType === 'ref' ? { refViewId: text(values['ar.item.refView']) } : {}),
       ...(typeof values['ar.item.border'] === 'number' ? { borderType: values['ar.item.border'] } : {}),
     } as unknown as DiagramNode;

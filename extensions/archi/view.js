@@ -24,7 +24,15 @@ const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concept
 const APPEARANCE_KEY = 'archi-appearance';
 function appearanceKept() { try { return localStorage.getItem(APPEARANCE_KEY) === 'shown'; } catch { return false; } }
 
+/*
+ * The most records of one type the workbench reads (ABS-10). One more is asked for, so a type that
+ * holds more is known to have been cut, and Save as .archimate or Exchange XML, which would leave
+ * the rest out of the file, is refused rather than written short.
+ */
+const READ_MAX = 50000;
+
 const state = {
+  cut: [],
   model: null, selected: null, expanded: new Set(), modelOpen: true, filter: { text: '', layer: '', specialization: '' },
   nativeChrome: false, renaming: null, draftProperties: null, readOnly: false, loaded: false,
   sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false, styleShown: appearanceKept(),
@@ -46,9 +54,10 @@ function readAll() {
   // the newly installed model, not merely finish waiting for an obsolete response.
   const reading = (async () => {
     const entries = await Promise.all(Object.entries(READS).map(async ([key, entityId]) =>
-      [key, await nendo.records.queryAll({ entityId }, { max: 50000 })]));
+      [key, await nendo.records.queryAll({ entityId }, { max: READ_MAX + 1 })]));
     if (reading !== newestRead) return newestRead;
-    const sets = Object.fromEntries(entries);
+    state.cut = entries.filter(([, list]) => list.length > READ_MAX).map(([key]) => READS[key]);
+    const sets = Object.fromEntries(entries.map(([key, list]) => [key, list.length > READ_MAX ? list.slice(0, READ_MAX) : list]));
     state.sets = sets;
     state.model = M.buildModel(sets);
     if (state.openView && !state.model.records.has(state.openView)) state.openView = null;
@@ -161,8 +170,14 @@ async function writeNow(plan, label, atomic, undoable) {
       }
     }
   } catch (error) {
-    outcome = `${label} was refused: ${describe(error)}`;
+    // A batch refused after earlier ones went through leaves those (ABS-04): said as a part, not
+    // as a refusal of the whole, and, being several revisions, it cannot be undone here.
+    const sent = Math.ceil(writes.length / 200);
+    outcome = batched && revisions.length > 0
+      ? `${label} was done only in part: ${revisions.length} of ${sent} saves went through before this was refused: ${describe(error)} What went through cannot be undone here.`
+      : `${label} was refused: ${describe(error)}`;
     problem = true;
+    if (batched && revisions.length > 0) { saved.undo = []; saved.redo = []; }
   }
   if (!problem) {
     // A new gesture leaves nothing to redo, and is a step of its own when Nendo can take it back.
@@ -170,6 +185,10 @@ async function writeNow(plan, label, atomic, undoable) {
     if (undoable && revisions.length === 1 && typeof revisions[0] === 'string' && nendo.has('records.undo')) {
       saved.undo.push({ label, revision: revisions[0] });
       if (saved.undo.length > STEPS_KEPT) saved.undo.shift();
+    } else if (undoable && revisions.length > 1) {
+      // ABS-04: several revisions are not one step Nendo can take back. Undo must not then name
+      // and run the gesture before this one, as if it were next: the steps before it end here.
+      saved.undo = [];
     }
   }
   // Said once the model is read back, so what the status line reports is what the view shows.
@@ -279,7 +298,7 @@ function renderTree() {
     const twisty = openable && row.children > 0 ? (row.expanded ? '▾' : '▸') : '';
     const draggable = row.entityId !== M.E.model && !(row.entityId === M.E.folder && row.depth === 1) && !state.readOnly;
     const name = state.renaming === row.id
-      ? `<input class="rename" value="${escape(row.label)}" aria-label="New name" maxlength="400">`
+      ? `<input class="rename" value="${escape(storedName(state.model.records.get(row.id)))}" aria-label="New name" maxlength="400">`
       : `<span class="label">${escape(row.label)}</span>`;
     return `<li class="row" role="treeitem" data-id="${escape(row.id)}" aria-level="${row.depth + 1}" style="--depth:${row.depth}"
       aria-selected="${row.id === inTree}" tabindex="${row.id === active ? 0 : -1}"
@@ -361,12 +380,22 @@ function startRename() {
   renderTree();
 }
 
+/**
+ * The name a rename starts from and is compared with: the record's own name (ABS-06). The tree
+ * labels a relationship with its two ends, and an unnamed one with its type; neither is its name,
+ * and either, edited in place, was saved into it.
+ */
+function storedName(record) {
+  const fieldId = { [M.E.folder]: 'ar.folder.name', [M.E.view]: 'ar.view.name', [M.E.concept]: 'ar.concept.name', [M.E.model]: 'ar.model.name' }[record?.entityId];
+  return fieldId ? String(record.values[fieldId] ?? '') : '';
+}
+
 function finishRename(input, keep) {
   const id = state.renaming;
   state.renaming = null;
   const record = state.model.records.get(id);
   const name = input.value.trim();
-  if (keep && record && name !== M.label(state.model, record) && (name || record.entityId === M.E.concept)) {
+  if (keep && record && name !== storedName(record) && (name || record.entityId === M.E.concept)) {
     write(() => [M.renameWrite(state.model, id, name)], `Rename ${M.label(state.model, record)}`).then(() => select(id, { focus: true }));
   } else { renderTree(); $('tree').querySelector('[tabindex="0"]')?.focus(); }
 }
@@ -730,7 +759,9 @@ function remove() {
     .filter(([, , n]) => n > 0).map(([one, many, n]) => `${n} ${n === 1 ? one : many}`);
   pendingDelete = { plan, id: record.recordId, name: M.label(state.model, record), parent: selectedParent(record) };
   $('confirm-delete-title').textContent = `Delete ${pendingDelete.name}?`;
-  $('confirm-delete-text').textContent = `This removes ${parts.join(', ')} from the model, as Archi does: relationships and diagram objects go with what they belong to.`;
+  const large = plan.writes.length > 200
+    ? ` It is ${plan.writes.length} record changes, saved in ${Math.ceil(plan.writes.length / 200)} parts, so Undo cannot take it back.` : '';
+  $('confirm-delete-text').textContent = `This removes ${parts.join(', ')} from the model, as Archi does: relationships and diagram objects go with what they belong to.${large}`;
   $('confirm-delete').returnValue = '';
   $('confirm-delete').showModal();
 }
@@ -754,13 +785,41 @@ function summary() {
   return `${elements} elements · ${concepts.length - elements} relationships · ${state.model?.of(M.E.view).length ?? 0} views`;
 }
 
+/*
+ * Nendo refuses a toolbar declaration over 16 KiB of JSON whole (ABS-05), and a refusal leaves
+ * the workbench's own row for the rest of the visit. The New menu's specializations and the
+ * specialization filter grow with the model, so the declaration is measured before it is sent
+ * and those optional parts are trimmed until it fits: first their detail lines, then their
+ * number, the filter last. Edit, Commit, Discard and Undo are never what is trimmed.
+ */
+const TOOLBAR_BYTES = 16 * 1024;
+const TRIMS = [{ detail: true, most: 40, options: 63 }, { detail: false, most: 40, options: 63 }, { detail: false, most: 20, options: 63 },
+  { detail: false, most: 20, options: 31 }, { detail: false, most: 8, options: 31 }, { detail: false, most: 0, options: 15 }, { detail: false, most: 0, options: 0 }];
+const toolbarBytes = toolbar => new TextEncoder().encode(JSON.stringify(toolbar)).length;
+
 function declareToolbar() {
+  ownEditControls();
   if (!state.nativeChrome) return;
-  const items = [
+  let toolbar = null;
+  for (const trim of TRIMS) {
+    toolbar = { items: knownIcons(toolbarItems(trim)), add: 'new-element' };
+    if (toolbarBytes(toolbar) <= TOOLBAR_BYTES) break;
+  }
+  nendo.ui.setToolbar(toolbar).catch(error => {
+    // A Nendo from before W-115 has no clipboard, layout, undo or redo icon and refuses the
+    // row: it is declared again with words where those icons would be.
+    if (!plainIcons && /icon/i.test(describe(error))) { plainIcons = true; declareToolbar(); return; }
+    leaveNativeChrome(describe(error));
+  });
+}
+
+/** The row's controls, with the optional parts as `trim` allows them (ABS-05). */
+function toolbarItems(trim) {
+  return [
     { kind: 'search', id: 'find', label: 'Find in the model', placeholder: 'Find…', value: state.filter.text.slice(0, 256), keys: 'Ctrl+F' },
     { kind: 'select', id: 'layer', label: 'Layer', value: state.filter.layer || 'all',
       options: [{ value: 'all', label: 'All layers' }, ...M.LAYERS.map(layer => ({ value: layer, label: layer }))] },
-    ...specializationFilter(),
+    ...specializationFilter(trim.options),
     { kind: 'separator' },
     { kind: 'text', text: summary() },
     { kind: 'menu', id: 'new', label: 'New', icon: 'plus', items: [
@@ -768,7 +827,7 @@ function declareToolbar() {
       { id: 'new-folder', label: 'Folder', detail: 'Inside the selected folder' },
       { id: 'new-view', label: 'View', detail: 'In the Views folder' },
       { id: 'generate-view', label: 'View for the selected elements…', detail: 'Generate View For: the elements and those related to them' },
-      ...specializedItems(40),
+      ...specializedItems(trim.most, trim.detail),
     ] },
     { kind: 'button', id: 'rename', label: 'Rename', icon: 'edit', iconOnly: true, keys: 'F2' },
     { kind: 'button', id: 'delete', label: 'Delete…', icon: 'trash', iconOnly: true },
@@ -814,12 +873,20 @@ function declareToolbar() {
       { kind: 'button', id: 'zoom-in', label: 'Zoom in', icon: 'plus', iconOnly: true, keys: 'Ctrl+Plus' },
     ] }] : []),
   ];
-  nendo.ui.setToolbar({ items: knownIcons(items), add: 'new-element' }).catch(error => {
-    // A Nendo from before W-115 has no clipboard, layout, undo or redo icon and refuses the
-    // row: it is declared again with words where those icons would be.
-    if (!plainIcons && /icon/i.test(describe(error))) { plainIcons = true; declareToolbar(); return; }
-    leaveNativeChrome(describe(error));
-  });
+}
+
+/**
+ * Edit, Commit and Discard in the workbench's own row (ABS-05): when Nendo's row is refused, the
+ * edits waiting on a view can still be committed or discarded, and a view can still be edited.
+ */
+function ownEditControls() {
+  const edit = $('own-edit'), commit = $('own-commit'), discard = $('own-discard');
+  if (!edit) return;
+  edit.hidden = !(state.openView && !state.readOnly && canvasModule?.createEditor);
+  edit.setAttribute('aria-pressed', String(state.editing));
+  commit.hidden = discard.hidden = !state.editing;
+  commit.disabled = discard.disabled = state.pending === 0;
+  commit.textContent = state.pending > 0 ? `Commit ${state.pending}` : 'Commit';
 }
 
 const NEW_ICONS = new Set(['clipboard', 'layout', 'undo', 'redo']);
@@ -959,6 +1026,9 @@ function setFilter(change) {
  */
 const EDITS_KEY = 'archi-edits';
 let editor = null, editBase = null, editSets = null, selectionFromEditor = false;
+// The view the waiting edits were made on, when they were found again in this browser (ABS-22):
+// kept until they are committed or discarded, so opening another view does not take its place.
+let keptViewId = null;
 
 /** The edits kept in this browser, and the view they were made on; null when none wait. */
 function readEdits() {
@@ -970,8 +1040,8 @@ function readEdits() {
 
 function keepEdits(writes) {
   try {
-    if (writes.length === 0) localStorage.removeItem(EDITS_KEY);
-    else localStorage.setItem(EDITS_KEY, JSON.stringify({ viewId: editor?.viewId() ?? state.openView, writes }));
+    if (writes.length === 0) { keptViewId = null; localStorage.removeItem(EDITS_KEY); }
+    else localStorage.setItem(EDITS_KEY, JSON.stringify({ viewId: keptViewId ?? editor?.viewId() ?? state.openView, writes }));
   } catch { /* kept for this visit only */ }
 }
 
@@ -1000,10 +1070,13 @@ function renderEditor(view) {
     host = centre.querySelector('.editor-host');
     editSets = state.sets;
     editBase = canvasModule.buildMirror(state.sets);
-    const saved = readEdits()?.writes ?? null;
+    const kept = readEdits();
+    const saved = kept?.writes ?? null;
+    keptViewId = saved ? kept.viewId : null;
     const start = saved ? canvasModule.buildMirror(canvasModule.applyWrites(state.sets, saved)) : editBase;
     editor = canvasModule.createEditor(host, start, {
-      onChange: editsChanged,
+      // An edit made now is made on the view open now, so the kept edits are named under it.
+      onChange: () => { keptViewId = null; editsChanged(); },
       onSelect: ids => {
         const id = ids[0];
         const item = state.model.records.get(id);
@@ -1020,7 +1093,12 @@ function renderEditor(view) {
     });
     editor.show(view.recordId);
     fitEditorSoon();
-    if (saved) setStatus(`${saved.length} edits were waiting to be committed, and are here again.`);
+    if (saved) {
+      const madeOn = keptViewId && keptViewId !== view.recordId ? state.model.records.get(keptViewId) : null;
+      setStatus(madeOn
+        ? `${saved.length} edits were waiting to be committed on the view ${M.label(state.model, madeOn)}, not on this one. Open ${M.label(state.model, madeOn)} to see them, then Commit or Discard.`
+        : `${saved.length} edits were waiting to be committed, and are here again.`, Boolean(madeOn));
+    }
     editsChanged();
   } else if (editSets !== state.sets && !editor.busy()) {
     // The file changed: after a commit, a change in the tree, or somebody else's. Whatever still
@@ -1152,8 +1230,17 @@ $('generate-view').addEventListener('close', async () => {
 async function layoutView(direction) {
   if (!editor) { setStatus('Press Edit to lay out the view.', true); return; }
   setStatus('Laying out the view…');
+  const before = state.pending;
   try {
     const refusal = await editor.layout(direction);
+    // ABS-23: a layout that moves more than a Commit can save would wait for ever; as Generate
+    // view does, it is taken back at once, and the person is told to lay out fewer boxes.
+    if (refusal === null && state.pending > 200) {
+      const own = state.pending - before;
+      editor.undo();
+      setStatus(`The layout was taken back: it needs ${own} record writes${before > 0 ? ` beside the ${before} already waiting` : ''}, and at most 200 can be saved together. Select some boxes and lay out those.`, true);
+      return;
+    }
     setStatus(refusal ?? 'Laid out by ELK. Commit to keep it, or Undo.', refusal !== null);
   } catch (error) { setStatus(`The layout was refused: ${describe(error)}`, true); }
 }
@@ -1220,8 +1307,42 @@ async function validate() {
   if (!canvasModule) await canvasReady;
   if (!canvasModule?.validateModel || !state.sets) { setStatus('The validator has not loaded yet.', true); return; }
   const model = validatedModel();
-  state.validator = { ...state.validator, issues: canvasModule.validateModel(model, validatorConfig()), of: { sets: state.sets, model: editor ? model : null }, current: null };
+  const issues = [...unreadableIssues(), ...canvasModule.validateModel(model, validatorConfig())];
+  state.validator = { ...state.validator, issues, of: { sets: state.sets, model: editor ? model : null }, current: null };
   renderValidator();
+}
+
+/**
+ * A diagram item whose Bendpoints or Legend options are not readable JSON is drawn without them
+ * (ABS-07), and named here as a model-integrity error, so the person can open it and its record.
+ */
+function unreadableIssues() {
+  return (canvasModule.unreadableValues?.(state.sets) ?? []).map(entry => {
+    const item = state.model?.records.get(entry.recordId), view = state.model?.records.get(entry.viewId);
+    const what = entry.field === 'bendpoints' ? 'Bendpoints' : 'Legend options';
+    return { severity: 'error', source: 'integrity', rule: 'unreadable-json',
+      message: `${item?.values['ar.item.kind'] ?? 'Diagram item'} ${entry.recordId} has ${what} that are not readable JSON, so it is drawn without them. Correct them on its record page.`,
+      location: { modelTree: { labelPath: [view ? M.label(state.model, view) : entry.viewId], idPath: [entry.viewId] }, view: { viewId: entry.viewId, objectId: entry.recordId } } };
+  });
+}
+
+/** What the status line says about values that do not read, or null when every one does (ABS-07). */
+function unreadableNote() {
+  const found = canvasModule?.unreadableValues?.(state.sets ?? {}) ?? [];
+  if (found.length === 0) return null;
+  const first = found[0], view = state.model?.records.get(first.viewId);
+  const what = first.field === 'bendpoints' ? 'Bendpoints' : 'Legend options';
+  return `${found.length === 1 ? 'A diagram item' : `${found.length} diagram items`} could not be read whole: ${first.recordId}${view ? ` on ${M.label(state.model, view)}` : ''} has ${what} that are not readable JSON, so it is drawn without them. The validator lists ${found.length === 1 ? 'it' : 'them'}.`;
+}
+
+/** Each record type the workbench reads, as the person knows it. */
+const TYPE_WORDS = { [M.E.model]: 'models', [M.E.folder]: 'folders', [M.E.type]: 'concept types', [M.E.concept]: 'concepts',
+  [M.E.specialization]: 'specializations', [M.E.view]: 'views', [M.E.item]: 'diagram objects and connections', [M.E.property]: 'properties' };
+
+/** Why nothing can be saved as a file now: a type the workbench read only in part (ABS-10). */
+function cutRefusal() {
+  return state.cut.length === 0 ? null
+    : `Not saved: the file holds more than ${READ_MAX.toLocaleString('en')} ${state.cut.map(entityId => TYPE_WORDS[entityId] ?? entityId).join(' and more than as many ')}, and the workbench reads only that many of a kind, so the saved file would leave the rest out.`;
 }
 
 function validatorStale() {
@@ -1494,6 +1615,9 @@ async function readChosen(file) {
     // An .archimate file, plain or an archive, or Open Exchange XML (W-121), told apart by what it holds.
     const { model, leftOut, format } = canvasModule.readModelFile(new Uint8Array(await file.arrayBuffer()));
     const plan = canvasModule.planImport(model, importTarget(), leftOut);
+    // ABS-03: what Nendo would refuse part-way, after the first batches were kept, is refused now.
+    const refusal = canvasModule.importProblemSentence(canvasModule.importProblems(plan, state.sets));
+    if (refusal) throw new Error(refusal);
     opening = { name: file.name, model, leftOut };
     const counts = plan.counts;
     summary.textContent = [`${model.info.name || file.name}: ${counts.elements} elements, ${counts.relationships} relationships, ${counts.views} views.`,
@@ -1522,6 +1646,8 @@ function openChosen() {
   const run = writing.then(async () => {
     if (!canvasModule.holdsNoModel(state.sets)) { setStatus(`${name} was not opened: this file holds a model now.`, true); return; }
     const plan = canvasModule.planImport(model, importTarget(), leftOut);
+    const refusal = canvasModule.importProblemSentence(canvasModule.importProblems(plan, state.sets));
+    if (refusal) { setStatus(`${name} was not opened. ${refusal}`, true); return; }
     const batches = canvasModule.importBatches(plan, state.sets, 200);
     let saved = 0, outcome = null, problem = false;
     try {
@@ -1551,6 +1677,7 @@ function openChosen() {
 async function saveArchimate() {
   await canvasReady;
   if (!canvasModule?.exportArchimate || !state.sets) { setStatus('Saving an .archimate file needs the diagram code, which could not load.', true); return; }
+  if (cutRefusal()) { setStatus(cutRefusal(), true); return; }
   let file;
   try { file = canvasModule.exportArchimate(state.sets); } catch (error) { setStatus(`The model could not be saved as .archimate: ${describe(error)}`, true); return; }
   download(new Blob([file.xml], { type: 'application/xml' }), file.fileName);
@@ -1566,6 +1693,7 @@ async function saveArchimate() {
 async function saveExchange() {
   await canvasReady;
   if (!canvasModule?.exportExchange || !state.sets) { setStatus('Saving Exchange XML needs the diagram code, which could not load.', true); return; }
+  if (cutRefusal()) { setStatus(cutRefusal(), true); return; }
   let file;
   try { file = canvasModule.exportExchange(state.sets); } catch (error) { setStatus(`The model could not be saved as Exchange XML: ${describe(error)}`, true); return; }
   setStatus('Checking the Exchange XML against Archi 5.9’s schemas…');
@@ -1853,6 +1981,9 @@ function wire() {
   $('own-save-exchange').addEventListener('click', () => saveExchange());
   $('own-export-png').addEventListener('click', () => exportView('png', 2));
   $('own-export-svg').addEventListener('click', () => exportView('svg'));
+  $('own-edit').addEventListener('click', () => toggleEditing(!state.editing));
+  $('own-commit').addEventListener('click', () => commitEdits());
+  $('own-discard').addEventListener('click', () => discardEdits());
   // The picker opens on this click, inside the view: a command from Nendo's toolbar cannot open it.
   $('open-archimate-choose').addEventListener('click', () => $('open-archimate-file').click());
   $('open-archimate-file').addEventListener('change', event => {
@@ -1922,21 +2053,21 @@ function wire() {
  */
 const SPECIALIZED = 'new-specialized:';
 
-/** New of each specialization of an element type, as archi-online's tree offers them, up to `most`. */
-function specializedItems(most) {
+/** New of each specialization of an element type, as archi-online's tree offers them, up to `most`, with or without a detail line. */
+function specializedItems(most, detail = true) {
   const all = state.model ? M.elementSpecializations(state.model) : [];
-  if (all.length === 0) return [];
+  if (all.length === 0 || most === 0) return [];
   return [{ kind: 'separator' }, ...all.slice(0, most).map(({ specialization, type }) => ({ id: `${SPECIALIZED}${specialization.recordId}`,
     label: `${specialization.values['ar.specialization.name'] || '(unnamed)'} (${type.values['ar.type.name']})`.slice(0, 80),
-    detail: `A new ${type.values['ar.type.name']} with this specialization` }))];
+    ...(detail ? { detail: `A new ${type.values['ar.type.name']} with this specialization` } : {}) }))];
 }
 
-/** The tree's filter by specialization, where the model has any. */
-function specializationFilter() {
+/** The tree's filter by specialization, where the model has any, with at most `most` of them (ABS-05). */
+function specializationFilter(most = 63) {
   const all = state.model?.of(M.E.specialization) ?? [];
-  if (all.length === 0) return [];
+  if (all.length === 0 || most === 0) return [];
   const options = all.map(s => ({ value: s.recordId, label: `${s.values['ar.specialization.name'] || '(unnamed)'} (${state.model.records.get(s.values['ar.specialization.type'])?.values['ar.type.name'] ?? '?'})`.slice(0, 80) }))
-    .sort((a, b) => a.label.localeCompare(b.label)).slice(0, 63);
+    .sort((a, b) => a.label.localeCompare(b.label)).slice(0, Math.min(63, most));
   const value = options.some(option => option.value === state.filter.specialization) ? state.filter.specialization : 'all';
   return [{ kind: 'select', id: 'specialization', label: 'Specialization', value, options: [{ value: 'all', label: 'All specializations' }, ...options] }];
 }
@@ -2284,5 +2415,10 @@ if (nendo === undefined) {
     nendo.on('changes', schedule);
     nendo.on('context', next => { state.readOnly = next.readOnly === true; schedule(); });
     return readAll();
-  }).then(() => setStatus(summary())).catch(error => setStatus(`The workbench could not start. ${describe(error)}`, true));
+  }).then(async () => {
+    setStatus(summary());
+    await canvasReady;
+    const problem = cutRefusal()?.replace(/^Not saved: /, 'Read in part: ') ?? unreadableNote();
+    if (problem) setStatus(problem, true);
+  }).catch(error => setStatus(`The workbench could not start. ${describe(error)}`, true));
 }

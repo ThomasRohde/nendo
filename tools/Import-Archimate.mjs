@@ -15,7 +15,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import { fail, target, withLease } from './archi-mcp.mjs';
-import { parser, plan, present } from './archi/archimate-records.mjs';
+import { modelRecordOf, parser, plan, present } from './archi/archimate-records.mjs';
 
 // Every reference a record makes is to a record written before it, all at version 1: seeded
 // folders and types are untouched until the last step, and every other target is new.
@@ -28,13 +28,19 @@ const REFERENCES = {
   'ar.property': ['ar.property.concept', 'ar.property.view', 'ar.property.folder', 'ar.property.item', 'ar.property.model'],
 };
 
-async function write(file, planned) {
+async function write(file, model) {
   if ((await file.read.records('ar.concept')).length > 0) fail('Archi.nendo already holds concepts. Import into a file built from empty.');
   await withLease(file.client, async owned => {
+    // ABS-27: the file's own Model record, made first where a new model has none, so the model's
+    // properties point at it and its name and metadata have somewhere to go.
+    const modelRecord = await modelRecordOf(file, record => file.client.tool('nendo.data.create_records',
+      { ...owned, entityId: 'ar.model', records: [record], idempotencyKey: `archi-import-model-${record.recordId}` }));
+    const planned = plan(model, modelRecord.recordId);
     for (const [entityId, records] of planned.writes) {
       for (let start = 0; start < records.length; start += 50) {
         const slice = records.slice(start, start + 50).map(record => {
-          const expected = Object.fromEntries(REFERENCES[entityId].filter(fieldId => present(record.values[fieldId])).map(fieldId => [fieldId, 1]));
+          const expected = Object.fromEntries(REFERENCES[entityId].filter(fieldId => present(record.values[fieldId]))
+            .map(fieldId => [fieldId, fieldId === 'ar.property.model' ? modelRecord.version : 1]));
           return Object.keys(expected).length > 0
             ? { recordId: record.recordId, values: record.values, expectedTargetVersions: expected }
             : { recordId: record.recordId, values: record.values };
@@ -46,8 +52,7 @@ async function write(file, planned) {
     }
     // Last, because a changed record moves past version 1: the seeded top-level folders take the
     // IDs Archi gave them and what Archi says of them, and the model record its name and metadata.
-    const modelRecord = (await file.read.records('ar.model'))[0];
-    let version = modelRecord.recordVersion;
+    let version = (await file.read.records('ar.model')).find(record => record.recordId === modelRecord.recordId).recordVersion;
     for (const [fieldId, value] of Object.entries(planned.modelValues)) {
       const answer = await file.client.tool('nendo.data.set_field', { ...owned, entityId: 'ar.model', recordId: modelRecord.recordId,
         fieldId, expectedRecordVersion: version, value, idempotencyKey: `archi-import-model-${fieldId}-${version}` });
@@ -114,5 +119,5 @@ if (planned.images > 0) console.log(`Left out: ${planned.images} image objects (
 if (args.includes('--dry-run')) process.exit(0);
 
 const file = await target('nendo-archi-import');
-if (!args.includes('compare')) await write(file, planned);
+if (!args.includes('compare')) await write(file, model);
 await compare(file, model);
