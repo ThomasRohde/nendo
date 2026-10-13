@@ -1079,7 +1079,6 @@
     return;
   }
   nendo.ready.then(context => {
-    document.documentElement.lang = context.locale || 'en';
     adoptNativeChrome();
     applyConfiguration(context.configuration);
     applyTheme(nendo.ui.theme);

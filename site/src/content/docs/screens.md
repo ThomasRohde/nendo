@@ -70,7 +70,9 @@ A board groups cards into columns by one field, which you name in
   columns. Above that, it draws no columns and states the record type, its record
   count and the limit. The reference field must be bound to a target type.
 
-Both kinds have an **Ungrouped** column for records with no value. Dragging a
+Both kinds have an **Ungrouped** column for records with no value. A board whose
+own filter on the grouping field uses any operator but **Not set** (`isNull`) can
+hold no record without a value, so it draws no Ungrouped column. Dragging a
 card to a named column writes the grouping field; Ungrouped is not a drop target,
 so clear the field on the record's form. A tile on a board can count the whole board or
 one column (`scope: group`).
@@ -191,14 +193,26 @@ On a list, board, gallery or matrix, a tile covers all records the screen's
 filter matches, not only the loaded page. Breakdown and trend charts show an
 empty group or period as zero; they do not leave it out. A grouped chart has at
 most 366 groups. Select a chart segment, bucket or matrix cell to open the record
-type's first list narrowed to that group.
+type's first list narrowed to that group. A trend bucket that the range cuts, such
+as the first month of the last 30 days, is labelled with the days it holds
+(Sep 11–30) and opens exactly those days; when the range covers two years, the
+label names the year (Oct 13–31 2025).
 
 ## Filters
 
 A **filter clause** keeps the records where one stored field compares to a
 value. The operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull` and
 `isNotNull`. The value is a fixed value, today, now or empty. All clauses on a
-node must match. There is no OR and no grouping of clauses.
+node must match. There is no OR and no grouping of clauses. A record with no value
+in the field matches only `isNull`: `ne Done` keeps the records whose status is
+something other than Done and leaves out those with none.
+
+A sort by a choice field follows the order its choices are set out in; a sort by
+a reference follows the names of the records it points at. A decimal can be typed
+with a dot or a comma (`12,5`). If your Windows language writes decimals with a
+dot, `1,234` is refused as a possible thousands separator; type `1234` or `1.234`.
+Filtering a date-and-time field by a plain date means that day on this computer:
+Equals finds the whole day, and Does not equal needs a time.
 
 One read carries at most **eight** filters in total. Filters that Nendo adds
 itself count towards the eight:

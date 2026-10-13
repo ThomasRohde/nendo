@@ -62,7 +62,9 @@ a scalar: no formula DTO crosses this boundary.
   or reconstruct the value from history.
 - Boolean is true, false, or null when optional. Date is a valid `yyyy-MM-dd`.
   Datetime requires an ISO timestamp with explicit UTC or offset, seconds and
-  up to seven fractional digits. UUID requires the hyphenated D form. Reference
+  up to seven fractional digits. UUID requires the hyphenated D form, in either
+  case; it is stored as written and compared without regard to case, so the two
+  cases of one UUID are one value to a filter and a sort (ESQ-17). Reference
   integrity and stable choices come from the [relationships
   contract](relationships.md). They do not come from string inspection.
 

@@ -6,7 +6,10 @@ cursor discipline.
 The existing typed record query gets one optional sort field, a direction, and
 up to eight AND predicates. The predicates are:
 
-- equal and not-equal;
+- equal and not-equal. Neither matches a record without a value: `ne Done` is
+  "has a value other than Done", so a task with no status is not in it (ESQ-05,
+  the owner's choice of 2026-10-13). `isNull` finds the records without one, and
+  Studio's *Does not equal* says so;
 - ordered comparisons;
 - text contains;
 - explicit null and not-null;
@@ -37,7 +40,13 @@ as for any query.
 The field search in the UI uses contains. Contains is ordinal, case-insensitive
 and literal (no wildcard language). Text sort is ordinal. Integers and decimals
 compare exactly. Datetimes compare their instants, and the stored offsets do not
-change. Missing values sort first in ascending order and last in descending
+change. A UUID compares without regard to case in every predicate and in the
+sort, since both cases spell one value (ESQ-17). A single choice sorts in its
+options' configured order, as Studio lists them; a value no option holds sorts
+after the options ascending and before them descending, and a missing value is
+missing as above; a reference sorts by its target's label, the text its cell shows,
+compared as the label field's kind (ESQ-16). Both hold on the writable and the
+read-only path. Missing values sort first in ascending order and last in descending
 order. When sort values are equal, ascending record ID is the deterministic
 final key. The default order remains record-ID order.
 
@@ -92,6 +101,15 @@ choice, on every active record type. A file has an index once
 **The order.** Records rank by BM25, by their best-matching field, then by record type and
 record ID.
 
+**Scripts written without spaces.** The index splits text into words at spaces and
+punctuation (`unicode61`, ADR-0028). Thai, Lao, Khmer, Burmese, Chinese and Japanese are
+written without spaces between words, so a word inside such a sentence is not found: `学生`
+does not find `北京大学的学生`, and a Japanese run is found only by its beginning. Thai is
+also split at every vowel sign and tone mark. Turkish dotless `ı` is not folded to `i`. This
+is a recorded limitation, not a defect (R2LAT-02; ADR-0028, 2026-10-13 note). A term counts
+as a word when it holds a letter or digit by code point, so a word of letters from outside
+the Basic Multilingual Plane is searched.
+
 **A hit** carries:
 
 - the record's version;
@@ -110,4 +128,12 @@ after every kind of write.
 Read-only snapshots use the same typed filtered set for pages, counts, numeric
 aggregates, groups, date buckets and cells. Stored, calculated and `descendantOf`
 predicates apply before folding. `ReviewStorageRegressionTests` compares all five
-folds with their writable answers and checks the corresponding page.
+folds with their writable answers and checks the corresponding page. They also make
+the file's field checks, so a field the type lacks, a kind that cannot be folded, a
+bucket field that is not a Date and a whole-number sum past its range are refused
+read-only as the file refuses them (ESQ-10; `QueryCsvLocaleReviewTests`).
+
+A chart range (`last30Days`, `thisYear`, …) and a command step's `today` resolve against the
+machine's civil day. The Engine reads the machine's time zone again from Windows at most once
+a minute, so a zone changed while Nendo keeps running moves its today as it moves the
+Workbench's (R2LAT-06).

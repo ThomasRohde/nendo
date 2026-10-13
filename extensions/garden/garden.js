@@ -25,7 +25,6 @@ export const TEND_SCREEN = 'gd.note.tend';
     notFramed.hidden = false;
     return;
   }
-  document.documentElement.lang = context.locale ?? 'en';
   const kit = await import('./kit/nendo-view-kit.js');
   kit.installFocusRing(document);
   if (context.placement === 'recordPage') await startPanel(nendo, context, kit);

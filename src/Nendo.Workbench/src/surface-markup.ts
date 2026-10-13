@@ -22,6 +22,7 @@ import { accentDot, fieldValueMarkup, recordCardMarkup, recordFieldDisplay, summ
 import { viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
 import type { ApplicationPlan, FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
 import { outlineSurfaceMarkup } from './outline-surface-markup';
+import { accumulatorIsCurrent, windowIsCurrent } from './record-window';
 
 /**
  * What one selected surface looks like: a list, a board, a calendar, the totals
@@ -85,7 +86,7 @@ export function surfaceBodyMarkup(plan: ApplicationPlan): string {
   if (node.kind === 'timelineSurface') return timelineMarkup(plan, node);
   // An outline reads its tree a level at a time, and draws what it has while it reads again.
   if (node.kind === 'outlineSurface') return outlineSurfaceMarkup(plan, node);
-  if (surfaceWindows.get(node.semanticId)?.page.changeSequence !== state.session.manifest?.changeSequence)
+  if (!windowIsCurrent(surfaceWindows.get(node.semanticId), state.session.manifest?.changeSequence))
     return '<div class="first-record-state" aria-busy="true"><div class="record-glyph" aria-hidden="true">…</div><h3>Loading this view</h3><p>Reading the records this view shows.</p></div>';
   // A gallery reads a list's window, so it waits on the same staleness guard and only
   // then draws that window as cards.
@@ -156,7 +157,7 @@ export function calendarMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
     return `${controls}<div class="first-record-state" role="alert"><div class="record-glyph" aria-hidden="true">!</div><h3>This calendar could not be read</h3><p>${escapeHtml(accumulated.failure)}</p><button class="secondary-button" type="button" data-calendar-retry>Try again</button></div>`;
   if (dateFieldId === null)
     return `${controls}<div class="first-record-state"><h3>This calendar has no date field</h3><p>The definition names no date to place records by.</p></div>`;
-  if (accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence)
+  if (!accumulatorIsCurrent(accumulated, state.session.manifest?.changeSequence))
     return `${controls}<div class="first-record-state" aria-busy="true"><div class="record-glyph" aria-hidden="true">…</div><h3>Loading this calendar</h3><p>Reading the records it places.</p></div>`;
 
   const loadedLine = `<p class="calendar-state" role="status">${escapeHtml(loadedStateLabel(entries.length, complete, mode))}</p>`;
@@ -224,7 +225,7 @@ export function timelineMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
     return `${controls}<div class="first-record-state" role="alert"><div class="record-glyph" aria-hidden="true">!</div><h3>This timeline could not be read</h3><p>${escapeHtml(accumulated.failure)}</p><button class="secondary-button" type="button" data-timeline-retry>Try again</button></div>`;
   if (dateFieldId === null)
     return `${controls}<div class="first-record-state"><h3>This timeline has no date field</h3><p>The definition names no date to place records by.</p></div>`;
-  if (accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence)
+  if (!accumulatorIsCurrent(accumulated, state.session.manifest?.changeSequence))
     return `${controls}<div class="first-record-state" aria-busy="true"><div class="record-glyph" aria-hidden="true">…</div><h3>Loading this timeline</h3><p>Reading the records it places.</p></div>`;
 
   const loadedLine = `<p class="timeline-state" role="status">${escapeHtml(timelineStateLabel(entries.length, complete, mode, year))}</p>`;
@@ -348,7 +349,10 @@ export function boardMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): strin
   // folded into the null total.
   const malformed = ungrouped.filter((record) => record.values[board.groupByFieldId] != null &&
     stringValue(record.values[board.groupByFieldId]).length > 0);
-  const showFallback = ungrouped.length > 0 || columnTiles;
+  // The lane is drawn for its total only when an unset record can be on the board: under the
+  // board's own `ne` or `eq` on the grouping field none can, and its 0 would be false (ESQ-05).
+  // A loaded record with a value outside the columns still shows it, with the data issue.
+  const showFallback = ungrouped.length > 0 || (columnTiles && board.unsetReachable);
   // A stored value the board has no column for is a data issue either way, but not the
   // same one: a choice outside the options is a value nobody configured, and a reference
   // to a record that is not in the target type is a target that is not there.

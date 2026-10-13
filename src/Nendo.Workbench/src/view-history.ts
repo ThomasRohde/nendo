@@ -1,7 +1,7 @@
 import { compensateRevision, foldHistory, handlePageFailure } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { canCompensate, counted, escapeAttribute, escapeHtml, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
+import { canCompensate, counted, escapeAttribute, escapeHtml, foldDate, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
 import { operationDetailsMarkup } from './history-markup';
 import { type HistoryFoldPreview, type ReadPage, type RevisionSummary, type StoredOperationSnapshot, WorkbenchHostError } from './host';
 import { icon } from './icons';
@@ -44,7 +44,7 @@ function foldMarkup(): string {
     <span class="callout-icon">${icon(near ? 'alert' : 'history')}</span>
     <strong>${preview.operationRows.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes recorded (${Math.round(used * 100)}%)</strong>
     <p>${near ? 'This file is close to the number of changes it can record. Fold older history to keep writing.' : 'A file records every change until it reaches this number. Folding older history makes room.'}
-    ${preview.lastFoldedAt === null ? '' : ` History was last folded on ${escapeHtml(new Date(preview.lastFoldedAt).toLocaleDateString())}.`}</p>
+    ${preview.lastFoldedAt === null ? '' : ` History was last folded on ${escapeHtml(foldDate(preview.lastFoldedAt))}.`}</p>
     ${preview.canFold
       ? `<p><button class="secondary-button" data-fold-history type="button">Fold older history…</button>
          <span class="quiet">${preview.revisions.toLocaleString()} older changes can be folded; the most recent ${preview.keep.toLocaleString()} stay.</span></p>`

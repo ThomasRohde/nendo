@@ -6,12 +6,22 @@ This contract gives the faithful Nendo CSV profile for import and export.
 ## Faithful Nendo profile
 
 - The encoding is UTF-8. An optional BOM is accepted, and invalid UTF-8 is
-  rejected. The profile uses a comma delimiter, double-quote escaping and CRLF
+  rejected. A file the native export writes starts with the BOM, so a
+  spreadsheet opened on it by a double-click reads it as UTF-8 rather than in
+  the ANSI code page (R2LAT-11); the agent's export resource is text and carries
+  none. The profile uses a comma delimiter, double-quote escaping and CRLF
   output. Input can use CRLF or LF. Embedded CR and LF inside quoted cells are
   kept exactly. Text values are not trimmed of whitespace.
+- A line on which nothing is read, not even a quote, is a blank line and not a
+  row: a trailing blank line adds no empty record, and a blank line between rows
+  does not refuse a wider file (ESQ-13). A quoted empty cell, `""`, is a value.
+  A refusal names a row by its place in the file, blank lines counted.
 - There is one header row. Before import, Nendo shows an explicit mapping from
-  each source column to a stable destination field. Duplicate/missing headers
-  are diagnostics. They are not mapped silently. Import targets one selected
+  each source column to a stable destination field. A trailing column whose
+  header and every cell are empty, as a spreadsheet writes past its data, is
+  dropped (ESQ-07). Any other blank or repeated header refuses the file before
+  the mapping, naming the column number and the header (`CSV columns 1 and 3 are
+  both “Name”`). Headers are never mapped silently. Import targets one selected
   active record type.
 - Null is the decoded cell `\N`. If non-null text begins with a backslash, the
   exporter escapes it by adding one leading backslash. The importer removes
@@ -19,15 +29,23 @@ This contract gives the faithful Nendo CSV profile for import and export.
   and literal `\N` are distinct. Quoting is CSV syntax and has no null semantics.
 - Integers and decimals use exact invariant strings. There is no JavaScript
   numeric conversion. Booleans are `true`/`false`. Dates, datetimes and UUIDs
-  use the accepted scalar contract. Choice values are stable IDs. A reference
+  use the accepted scalar contract. A cell that does not hold its kind's form is
+  refused with the form it expects and the value it got, for example `Invalid
+  Boolean value: expects true or false, in lower case, got “TRUE”.` (ESQ-12). Choice values are stable IDs. A reference
   holds a record ID, or, when its mapping names a match field, the value of a
   unique field of the target type such as a code (ADR-0020, 2026-09-29
   amendment; W-075). A code names a row of the same import first and a record the
   file holds second, compared without regard to case, and is refused by its row
   when it names nothing, names two rows, or names a row and a different record.
+  A code is read as the decode reads it: a cell that is empty, or null under the
+  profile, holds no code, and the Nendo profile's escaped leading backslash is
+  one literal backslash (ESQ-01).
   A declared hierarchy whose parent column is matched by a code the import
-  carries is imported parents first; each row keeps its line number, and parents
-  that lead back to themselves are refused.
+  carries is imported parents first; each row keeps its line number, a row whose
+  parent cell is empty or null is at the top level, and parents that lead back to
+  themselves are refused. History names a batch by the rows of the file it holds,
+  which after that reordering need not be consecutive (`Import 3 CSV rows: 4, 3,
+  2`; ESQ-14).
   References must resolve to records of the configured target type.
   Accepted mutations capture the target versions. There is no label matching and
   no inferred repair.

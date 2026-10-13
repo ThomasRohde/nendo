@@ -139,7 +139,8 @@ internal sealed class NendoImportService(NendoApplicationService application)
         await RequireTargetAsync(entityId, mappings, cancellationToken);
         // A tree whose parent column holds codes is written parents first (W-075). The order
         // is a pure function of the text, so an exact retry derives the same record IDs.
-        document = await application.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken);
+        var options = new NendoCsvOptions(nendoProfile, emptyIsNull);
+        document = await application.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken, options);
         var seed = Seed(idempotencyKey);
 
         // A CSV row carries no reference target versions; decoding reads the current ones.
@@ -151,7 +152,6 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // resolved against the file as it is now, and validated as before.
         var committedVersions = await ReadCommittedTargetVersionsAsync(
             idempotencyKey, document.Rows.Count, cancellationToken);
-        var options = new NendoCsvOptions(nendoProfile, emptyIsNull);
         var decoded = await application.DecodeCsvRowsAsync(
             document,
             entityId,

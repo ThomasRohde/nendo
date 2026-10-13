@@ -2403,7 +2403,6 @@ if (nendo === undefined) {
   import('./kit/nendo-view-kit.js').then(kit => kit.installFocusRing(document)).catch(() => undefined);
   wire();
   nendo.ready.then(context => {
-    document.documentElement.lang = context.locale || 'en';
     state.readOnly = context.readOnly === true;
     startPlace = context.place ?? null;
     if (nendo.has('ui.setPlace')) nendo.on('place', restorePlace);

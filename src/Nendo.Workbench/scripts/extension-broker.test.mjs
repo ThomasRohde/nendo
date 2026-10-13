@@ -795,6 +795,20 @@ test('a view hears the file move at most four times a second, and the latest seq
   assert.deepEqual(await view.next((message) => message.n === 'theme'), { t: 'evt', n: 'theme', d: { mode: 'dark', tokens: { ink: '#edf3ff' } } });
 });
 
+test('W-217 R2LAT-01: when the civil day turns every running view hears its context again, though nothing in it changed', async (t) => {
+  const h = harness();
+  const view = connect(h);
+  t.after(() => close(h));
+  const before = view.inbox.filter((message) => message.n === 'context').length;
+  h.broker.refreshContext(h.mount);
+  await settle();
+  assert.equal(view.inbox.filter((message) => message.n === 'context').length, before, 'an unchanged context is not sent again on a refresh');
+  h.broker.dayTurned();
+  const heard = await view.next((message) => message.n === 'context');
+  assert.deepEqual(heard, { t: 'evt', n: 'context', d: context }, 'a view that groups by today, as Garden’s agenda does, reads again on context');
+  h.running = false;
+});
+
 test('a view that stops answering its ping is reported within ten seconds, and a pong clears it', async (t) => {
   const h = harness();
   const view = connect(h);

@@ -145,6 +145,25 @@ test('G30: keys are one spelling: a key event and a declaration meet, a symbol i
   assert.equal(markup.keyAria('Ctrl+Plus'), 'Control+Plus');
 });
 
+test('W-217 R2LAT-03: a view hands Nendo’s keys back under a non-Latin or AZERTY layout, read by the physical key', () => {
+  const chord = (keyName, code, modifiers = {}) => protocol.chordOf({ key: keyName, code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...modifiers });
+  assert.equal(chord('л', 'KeyK', { ctrlKey: true }), 'Ctrl+K', 'Russian layout');
+  assert.equal(chord('า', 'KeyK', { ctrlKey: true }), 'Ctrl+K', 'Thai layout');
+  assert.equal(chord('é', 'Digit2', { ctrlKey: true }), 'Ctrl+2', 'AZERTY unshifted digit row');
+  assert.equal(chord('2', 'Digit2', { ctrlKey: true, shiftKey: true }), 'Ctrl+2', 'AZERTY digit with its own Shift');
+  assert.equal(chord('л', 'KeyK', { ctrlKey: true, shiftKey: true }), 'Ctrl+Shift+K');
+  assert.equal(chord('!', 'Digit1', { ctrlKey: true, shiftKey: true }), 'Ctrl+!', 'US Ctrl Shift 1 is unchanged');
+  assert.equal(chord('/', 'Digit7', { ctrlKey: true, shiftKey: true }), 'Ctrl+/', 'Danish Ctrl Shift 7 is still Ctrl /');
+  assert.equal(chord('л', 'KeyK'), 'л', 'without Ctrl or Alt the layout’s letter is the key');
+  for (const keys of ['Ctrl+K', 'Ctrl+2']) assert.ok(protocol.hostKeys.includes(keys), keys);
+  // AltGr is Ctrl and Alt on Windows: the character it types is typing, never a chord.
+  assert.equal(chord('\u0119', 'KeyE', { ctrlKey: true, altKey: true }), null, 'Polish AltGr+E types \u0119');
+  assert.equal(chord('\u20ac', 'KeyE', { ctrlKey: true, altKey: true }), null, 'German AltGr+E types \u20ac');
+  assert.equal(chord('@', 'KeyQ', { ctrlKey: true, altKey: true }), null, 'German AltGr+Q types @');
+  assert.equal(chord('{', 'Digit7', { ctrlKey: true, altKey: true }), null);
+  assert.equal(chord('k', 'KeyK', { ctrlKey: true, altKey: true }), 'Ctrl+Alt+K', 'a Latin letter with Ctrl and Alt is still a chord');
+});
+
 test('W-115: More holds what the row has no room for, each as Nendo would pick it from a menu, and the row ends with More only in the Use toolbar', () => {
   // Everything after the search: separator, Pan, the Zoom group, the text and Export.
   const more = markup.overflowMenu(toolbar.items, [6, 7, 8, 9, 10]);

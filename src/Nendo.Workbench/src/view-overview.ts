@@ -24,6 +24,7 @@ import { leaveRecordContext } from './app-state';
 import { fileViewValue, showFileView, showingOptionsMarkup } from './file-view-model';
 import { icon } from './icons';
 import { drawPlacePickers } from './place-pickers';
+import { windowIsCurrent } from './record-window';
 
 /**
  * The file's front page (ADR-0004, 2026-09-14 amendment, S4).
@@ -352,11 +353,11 @@ export function overviewPending(overview: OverviewPlan): boolean {
       overviewReadIsPending(summaryCounts.get(rangeEndKey(scoped.tile, scope, end)), sequence));
   });
   const recentPending = overviewRecentLists(overview).some((node) =>
-    recentWindows.get(recentWindowKey(node))?.page.changeSequence !== sequence &&
+    !windowIsCurrent(recentWindows.get(recentWindowKey(node)), sequence) &&
     surfaceErrors.get(node.semanticId) === undefined);
   const rankedPending = overviewRankedLists(overview).some((node) => {
     if (surfaceErrors.get(node.semanticId) !== undefined) return false;
-    if (rankedWindows.get(rankedWindowKey(node))?.page.changeSequence !== sequence) return true;
+    if (!windowIsCurrent(rankedWindows.get(rankedWindowKey(node)), sequence)) return true;
     return overviewReadIsPending(summaryCounts.get(rankedMaxKey(node)), sequence);
   });
   return overviewTiles(overview).some(tilePending) || overviewCharts(overview).some(chartPending) ||

@@ -53,6 +53,13 @@ public static class NendoCsvProfile
     public const int MaximumCellCharacters = 65_536;
     public const int BatchSize = 100;
 
+    /// <summary>
+    /// The encoding an export file is written in: UTF-8 with its byte-order mark, so a
+    /// spreadsheet opened on the file by a double-click reads æ, ø and å rather than the
+    /// ANSI code page's guess at them (R2LAT-11). <see cref="Parse"/> drops the mark again.
+    /// </summary>
+    public static Encoding FileEncoding { get; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
     public static NendoCsvDocument Parse(ReadOnlySpan<byte> bytes, CancellationToken cancellationToken = default)
     {
         if (bytes.Length > MaximumBytes) throw new NendoValidationException("CSV exceeds the 16 MiB input limit.");
@@ -62,6 +69,9 @@ public static class NendoCsvProfile
         if (text.StartsWith('\uFEFF')) text = text[1..];
         var rows = new List<IReadOnlyList<string>>(); var row = new List<string>(); var cell = new StringBuilder();
         var quoted = false; var closedQuote = false; var started = false;
+        // The record each row is in the file, blank lines counted, so a refusal names the row a
+        // person counts to although a blank line is not a row.
+        var record = 1; var numbers = new List<int>();
         void AddCell()
         {
             if (row.Count >= MaximumColumns) throw Error("more than 100 columns");
@@ -69,10 +79,10 @@ public static class NendoCsvProfile
         }
         void AddRow()
         {
-            AddCell(); rows.Add(row.ToArray()); row.Clear();
+            AddCell(); rows.Add(row.ToArray()); row.Clear(); numbers.Add(record);
             if (rows.Count > MaximumRows + 1) throw Error("more than 10,000 data rows");
         }
-        NendoValidationException Error(string message) => new($"CSV row {rows.Count + 1}, column {row.Count + 1}: {message}.");
+        NendoValidationException Error(string message) => new($"CSV row {record}, column {row.Count + 1}: {message}.");
         for (var index = 0; index < text.Length; index++)
         {
             if ((index & 1023) == 0) cancellationToken.ThrowIfCancellationRequested();
@@ -90,7 +100,10 @@ public static class NendoCsvProfile
             else if (character is '\r' or '\n')
             {
                 if (character == '\r' && index + 1 < text.Length && text[index + 1] == '\n') index++;
-                AddRow();
+                // A line on which nothing was read, not even a quote, is a blank line rather than
+                // a row of one empty cell (ESQ-13). A quoted empty cell, "", is still a row.
+                if (started || closedQuote || cell.Length != 0 || row.Count != 0) AddRow();
+                record++;
             }
             else if (character == '"' && !started && !closedQuote && cell.Length == 0) { quoted = true; started = true; }
             else
@@ -104,12 +117,32 @@ public static class NendoCsvProfile
         if (quoted) throw Error("unterminated quoted cell");
         if (started || closedQuote || cell.Length != 0 || row.Count != 0) AddRow();
         if (rows.Count == 0) throw new NendoValidationException("CSV needs a header row.");
+        // A spreadsheet that once formatted a column past the data writes it on every line: a
+        // trailing column with no header and nothing in it is dropped, not refused (ESQ-07).
+        var width = rows[0].Count;
+        while (width > 1 && string.IsNullOrWhiteSpace(rows[0][width - 1]) &&
+            rows.Skip(1).All(line => line.Count < width || line[width - 1].Length == 0))
+            width--;
+        if (width < rows[0].Count)
+            for (var index = 0; index < rows.Count; index++)
+                if (rows[index].Count > width) rows[index] = rows[index].Take(width).ToArray();
         var headers = rows[0];
-        if (headers.Any(string.IsNullOrWhiteSpace) || headers.Distinct(StringComparer.Ordinal).Count() != headers.Count)
-            throw new NendoValidationException("CSV headers must be nonblank and unique.");
+        for (var column = 0; column < headers.Count; column++)
+        {
+            if (string.IsNullOrWhiteSpace(headers[column]))
+                throw new NendoValidationException($"CSV column {column + 1} has no header. Give it one, or remove the column.");
+            var first = headers.Take(column).ToList().IndexOf(headers[column]);
+            if (first >= 0)
+                throw new NendoValidationException(
+                    $"CSV columns {first + 1} and {column + 1} are both “{headers[column]}”. Give each column its own header.");
+        }
         for (var index = 1; index < rows.Count; index++)
-            if (rows[index].Count != headers.Count) throw new NendoValidationException($"CSV row {index + 1} has {rows[index].Count} cells; expected {headers.Count}.");
-        return new(headers, rows.Skip(1).ToArray());
+            if (rows[index].Count != headers.Count) throw new NendoValidationException($"CSV row {numbers[index]} has {rows[index].Count} cells; expected {headers.Count}.");
+        var data = numbers.Skip(1).ToArray();
+        return new(headers, rows.Skip(1).ToArray())
+        {
+            SourceRowNumbers = data.Select((number, index) => number == index + 2).All(same => same) ? null : data,
+        };
     }
 
     public static object? Decode(string cell, NendoFieldSnapshot field, NendoCsvOptions options)
@@ -148,8 +181,22 @@ public static class NendoCsvProfile
             case NendoStorageKind.Uuid:
                 if (Guid.TryParseExact(cell, "D", out _)) return cell; break;
         }
-        throw new NendoValidationException($"Invalid {field.StorageKind} value; use the documented exact scalar format.");
+        throw new NendoValidationException($"Invalid {field.StorageKind} value: {Expected(field.StorageKind)}, got “{Shown(cell)}”.");
     }
+
+    /// <summary>The exact form a kind takes in a cell (scalars.md), as a person can act on it (ESQ-12).</summary>
+    private static string Expected(NendoStorageKind kind) => kind switch
+    {
+        NendoStorageKind.Integer => "expects a whole number such as 42, without spaces or separators",
+        NendoStorageKind.Decimal => "expects a number such as 12.5, with a dot for decimals and without spaces or separators",
+        NendoStorageKind.Boolean => "expects true or false, in lower case",
+        NendoStorageKind.Date => "expects a date as yyyy-MM-dd, such as 2026-10-25",
+        NendoStorageKind.DateTime => "expects a date and time as yyyy-MM-ddTHH:mm:ss with Z or an offset, such as 2026-10-25T14:30:00+02:00",
+        NendoStorageKind.Uuid => "expects a UUID in its hyphenated form, such as 95e7a1b4-c54a-41bb-83cc-9eae7adf61bb",
+        _ => "expects its documented exact form",
+    };
+
+    private static string Shown(string cell) => cell.Length <= 40 ? cell : cell[..40] + "…";
 
     public static string Encode(JsonElement value)
     {

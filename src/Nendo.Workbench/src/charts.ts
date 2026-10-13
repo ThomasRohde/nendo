@@ -123,8 +123,11 @@ export interface BucketResult {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** A bucket's own dates, from its key. A month key is a month; a week key is its Monday. */
-export function bucketSpan(bucket: string, key: string): { start: string; end: string } {
+/** The two days a bucketed read resolved its range to, both inclusive, as the host returns them. */
+export interface BucketRange { start: string; end: string }
+
+/** A bucket's whole period, from its key. A month key is a month; a week key is its Monday. */
+function wholeSpan(bucket: string, key: string): { start: string; end: string } {
   if (bucket === 'month') {
     const [year, month] = key.split('-').map(Number);
     const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -138,10 +141,40 @@ export function bucketSpan(bucket: string, key: string): { start: string; end: s
   return { start: key, end: key };
 }
 
-/** What a bucket is called on the axis: short enough to repeat twelve times without wrapping. */
-export function bucketLabel(bucket: string, key: string | null): string {
+/**
+ * A bucket's own dates: its period, clipped to the range the read resolved (ESQ-08). The host
+ * counts only the days inside the range, so 'last 30 days' by month on 10 October counts
+ * September from the 11th, and the bucket is those days, in its drill as on its axis.
+ */
+export function bucketSpan(bucket: string, key: string, range?: BucketRange | null): { start: string; end: string } {
+  const whole = wholeSpan(bucket, key);
+  if (range === undefined || range === null) return whole;
+  return { start: whole.start < range.start ? range.start : whole.start, end: whole.end > range.end ? range.end : whole.end };
+}
+
+/**
+ * What a bucket is called on the axis: short enough to repeat twelve times without wrapping. A
+ * bucket the range cuts names the days it holds, 'Sep 11–30' or '1–2 Nov', so a partial first
+ * bar is not read as the whole month (ESQ-08). When the range covers two calendar years such a
+ * bar names its year too, 'Oct 13–31 2025', or October of which year is left to a guess.
+ */
+export function bucketLabel(bucket: string, key: string | null, range?: BucketRange | null): string {
   if (key === null) return 'Not set';
   const [year, month, day] = key.split('-').map(Number);
+  if (bucket === 'month' || bucket === 'week') {
+    const whole = wholeSpan(bucket, key);
+    const span = bucketSpan(bucket, key, range);
+    if (span.start !== whole.start || span.end !== whole.end) {
+      const [fromYear, fromMonth, fromDay] = span.start.split('-').map(Number);
+      const [toYear, toMonth, toDay] = span.end.split('-').map(Number);
+      const years = range !== undefined && range !== null && range.start.slice(0, 4) !== range.end.slice(0, 4);
+      const of = years ? ` ${fromYear}` : '';
+      if (fromYear !== toYear) return `${fromDay} ${MONTHS[fromMonth - 1]} ${fromYear}–${toDay} ${MONTHS[toMonth - 1]} ${toYear}`;
+      if (fromMonth !== toMonth) return `${fromDay} ${MONTHS[fromMonth - 1]}–${toDay} ${MONTHS[toMonth - 1]}${of}`;
+      if (bucket === 'month') return fromDay === toDay ? `${MONTHS[fromMonth - 1]} ${fromDay}${of}` : `${MONTHS[fromMonth - 1]} ${fromDay}–${toDay}${of}`;
+      return fromDay === toDay ? `${fromDay} ${MONTHS[fromMonth - 1]}${of}` : `${fromDay}–${toDay} ${MONTHS[fromMonth - 1]}${of}`;
+    }
+  }
   if (bucket === 'month') return `${MONTHS[month - 1]} ${year}`;
   if (bucket === 'week') return `${day} ${MONTHS[month - 1]}`;
   return `${day} ${MONTHS[month - 1]} ${year}`;
@@ -155,7 +188,7 @@ export function bucketLabel(bucket: string, key: string | null): string {
 export function bucketSegments(bucket: string, result: BucketResult): ChartSegment[] {
   return result.groups.map((group) => ({
     key: group.key,
-    label: bucketLabel(bucket, group.key),
+    label: bucketLabel(bucket, group.key, result),
     lexeme: group.valueLexeme,
     amount: signedAmountOf(group.valueLexeme),
     style: '',
@@ -182,11 +215,14 @@ export function busiestBucket(result: BucketResult): number {
   }, 0);
 }
 
-/** A bucket drills into its own two bounds, which is the one place a drill needs two clauses. */
-export function bucketDrillFilters(node: SurfaceNodePlan, bucket: string, key: string | null): QueryFilter[] {
+/**
+ * A bucket drills into its own two bounds, which is the one place a drill needs two clauses.
+ * The bounds are clipped to the read's range, so the list opens on the days the bar counted.
+ */
+export function bucketDrillFilters(node: SurfaceNodePlan, bucket: string, key: string | null, range?: BucketRange | null): QueryFilter[] {
   const dateFieldId = property(node, 'dateFieldId');
   if (dateFieldId === null || key === null) return [];
-  const span = bucketSpan(bucket, key);
+  const span = bucketSpan(bucket, key, range);
   return [
     // The record query spells these ge and le, and refused gte and lte (WDV-03).
     { fieldId: dateFieldId, operator: 'ge', value: span.start },
@@ -471,18 +507,25 @@ function mondayOf(day: string): string {
   return isoDay(new Date(date.getTime() - (((date.getUTCDay() + 6) % 7) * 86_400_000)));
 }
 
-/** The preview's own resolution of the same closed words the host resolves when it reads. */
+/**
+ * The preview's own resolution of the same closed words the host resolves when it reads
+ * (DateBuckets.Resolve). Today is the person's civil date, read with the local getters as the
+ * filters read it, not the UTC date, which is another day near midnight (W-217); the dates
+ * after that are civil arithmetic, done in UTC so no zone shifts them.
+ */
 function sampleBuckets(range: string, bucket: string, today: Date): { start: string; end: string; keys: string[] } {
-  const year = today.getUTCFullYear();
-  const month = today.getUTCMonth();
-  const date = today.getUTCDate();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const date = today.getDate();
+  // .NET's AddYears keeps the day unless that month is shorter: 29 February a year back is the 28th.
+  const yearBack = Math.min(date, new Date(Date.UTC(year - 1, month + 1, 0)).getUTCDate());
   const bounds = (): [Date, Date] => {
     switch (range) {
       case 'last6Months': return [new Date(Date.UTC(year, month - 5, 1)), new Date(Date.UTC(year, month + 1, 0))];
       case 'last90Days': return [new Date(Date.UTC(year, month, date - 89)), new Date(Date.UTC(year, month, date))];
       case 'last30Days': return [new Date(Date.UTC(year, month, date - 29)), new Date(Date.UTC(year, month, date))];
       case 'thisYear': return [new Date(Date.UTC(year, 0, 1)), new Date(Date.UTC(year, 11, 31))];
-      case 'lastTwelveMonths': return [new Date(Date.UTC(year - 1, month, date + 1)), new Date(Date.UTC(year, month, date))];
+      case 'lastTwelveMonths': return [new Date(Date.UTC(year - 1, month, yearBack + 1)), new Date(Date.UTC(year, month, date))];
       default: return [new Date(Date.UTC(year, month - 11, 1)), new Date(Date.UTC(year, month + 1, 0))];
     }
   };
@@ -511,12 +554,12 @@ export function drillFilter(node: SurfaceNodePlan, field: FieldPlan | undefined,
 }
 
 /** What the pill says while a drill narrows the list. */
-export function drillLabel(node: SurfaceNodePlan, field: FieldPlan | undefined, key: string | null, fieldName: (fieldId: string) => string): string {
+export function drillLabel(node: SurfaceNodePlan, field: FieldPlan | undefined, key: string | null, fieldName: (fieldId: string) => string, range?: BucketRange | null): string {
   if (node.kind === 'progressTile') return chartTitle(node, fieldName);
   if (isOverTimeKind(node.kind)) {
     const bucket = node.kind === 'activityGrid' ? 'day' : property(node, 'bucket') ?? 'month';
     const dateFieldId = property(node, 'dateFieldId') ?? '';
-    return `${fieldName(dateFieldId)}: ${bucketLabel(bucket, key)}`;
+    return `${fieldName(dateFieldId)}: ${bucketLabel(bucket, key, range)}`;
   }
   const groupByFieldId = property(node, 'groupByFieldId') ?? '';
   return `${fieldName(groupByFieldId)}: ${groupLabel(field, key)}`;

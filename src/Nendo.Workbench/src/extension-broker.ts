@@ -831,6 +831,12 @@ export interface ExtensionBroker {
   /** Hand a view its context again, when what it describes has changed. */
   refreshContext(mount: BrokerMount): void;
   /**
+   * The person's civil day turned (W-217): hand every connected view its context again, so a
+   * view that groups by today, as Garden's agenda does, reads again rather than keeping
+   * yesterday's Today until the file next moves. Every view already reads again on `context`.
+   */
+  dayTurned(): void;
+  /**
    * The person pressed one of the view's controls, in Nendo's toolbar, a menu, Ctrl K or by
    * its key (W-090). Answers whether a connected view was told.
    */
@@ -1055,6 +1061,16 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       if (json === connection.contextJson) return;
       connection.contextJson = json;
       post(connection, { t: 'evt', n: 'context', d: context });
+    },
+
+    dayTurned() {
+      closeStale();
+      for (const connection of connections.values()) {
+        if (connection.closed) continue;
+        const context = deps.context(connection.mount);
+        connection.contextJson = JSON.stringify(context);
+        post(connection, { t: 'evt', n: 'context', d: context });
+      }
     },
 
     command(mount, command) {

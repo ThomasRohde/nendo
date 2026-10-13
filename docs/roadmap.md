@@ -580,6 +580,42 @@ What remains open:
   agent, as any batch create is. Naming them as an import would need a description on the batch
   create, a design change the finding's verifier set aside.
 
+## Left open by the queries, CSV and locale pass (W-217, 2026-10-13)
+
+- **Search does not find a word inside Thai, Chinese or Japanese text.** The index splits words at
+  spaces and punctuation, and these scripts put no space between words; Thai is also cut at every
+  vowel sign. Turkish dotless `ı` is not folded to `i`. The owner chose to record it (R2LAT-02;
+  ADR-0028, 2026-10-13 note): a trigram or bigram index routed by script would change the protected
+  layout and needs its own ADR, and the product sets no localisation goal.
+- **Two clocks still decide today.** The Engine now reads the machine's time zone again within a
+  minute (R2LAT-06), so after a zone change it and the Workbench agree again within that minute
+  rather than at the next restart. They are still two clocks; one shared civil date would mean the
+  Workbench sending its date with command and chart requests, a protocol change.
+- **No lane drives a real midnight.** The day in every read's freshness, the midnight timer, the
+  catch-up on the first key or pointer press after a sleep and the views' `context` event are held
+  by Workbench unit tests and a source check of `main.ts` (R2LAT-01). A shell-lane step that moves the page's clock past midnight and measures the reads
+  sent again is written down but not added: the lane's script belongs to another pass.
+- **External CSV still refuses a spreadsheet's `TRUE` and `FALSE`.** The refusal now names the form
+  it wants (ESQ-12). Accepting other spellings is a change to the scalar and CSV contracts, which
+  fix `true` and `false`.
+- **A Danish Excel still opens an export in one column.** The export now starts with the UTF-8 BOM,
+  so æ, ø and å read correctly (R2LAT-11), but Excel with Danish regional settings separates columns
+  with `;`, and the profile's delimiter is a comma. Data > From Text/CSV reads it. The recovery
+  export is still written without the BOM; it belongs to another pass (W-221).
+- **A decimal like `1,234` is refused where the language writes decimals with a dot.** `12,5`,
+  `0,125` and `1234,567` are decimals everywhere (R2LAT-05), and in a comma-decimal language
+  `1,234` is 1.234; elsewhere it cannot be told from a thousands grouping and is refused with that
+  reason.
+- **Does not equal with a plain date on a date-and-time field is refused.** Equals reads the plain
+  date as the whole day on this device (R2LAT-12); leaving a whole day out would need an OR, which a
+  filter cannot say.
+- **A matrix keeps its unset row and column under a grouping-field `ne`.** A board no longer draws an
+  Ungrouped lane that can hold no record (ESQ-05); a matrix's own unset lanes were not part of the
+  finding and are unchanged.
+- **The views' page language is checked in their source only.** No browser lane loads a first-party
+  view with a Danish locale and reads `document.documentElement.lang` (R2LAT-10);
+  `view-language.test.mjs` holds the rule in each view's source and in the authoring guide.
+
 ## Left open by the 2026-09-12 vocabulary widening
 
 The amendment is delivered

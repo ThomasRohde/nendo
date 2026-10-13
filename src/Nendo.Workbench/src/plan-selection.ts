@@ -3,7 +3,7 @@ import { sectionIsOpen } from './fold-state';
 import { selectedEntity } from './studio';
 import { applicationRecipeFor, type ApplicationRecipe } from './application-recipes';
 import { accumulatesPages, activeTabSection, bindingFieldId, boardViewOf, descendants, nodeFieldIds, pageRoot, resolveSurface, useSurfaces, type BoardView } from './surface-model';
-import { declaredQuery, emptyWindowQuery, type QueryFilter, type WindowQuery } from './record-window';
+import { accumulatorIsCurrent, declaredQuery, emptyWindowQuery, readNow, sameReadDay, type QueryFilter, type WindowQuery, windowIsCurrent } from './record-window';
 import { quickFilterClause } from './quick-filter-model';
 import { calendarWindowKey, type CalendarMode, type CivilMonth } from './calendar-model';
 import { timelineWindowKey } from './timeline-model';
@@ -131,7 +131,7 @@ export function selectedBoard(plan: ApplicationPlan): BoardView | null {
  * and Today has to mean the owner's today.
  */
 export function todayCivil(): { month: CivilMonth; day: number } {
-  const now = new Date();
+  const now = readNow();
   return { month: { year: now.getFullYear(), month: now.getMonth() + 1 }, day: now.getDate() };
 }
 
@@ -194,7 +194,7 @@ function outlineRecords(node: SurfaceNodePlan): RecordPlan[] {
 /** The records a calendar or a timeline has actually loaded, as record plans. */
 export function accumulatedRecords(node: SurfaceNodePlan): RecordPlan[] {
   const accumulated = accumulatedWindows.get(accumulatedKeyFor(node));
-  if (accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence) return [];
+  if (!accumulatorIsCurrent(accumulated, state.session.manifest?.changeSequence)) return [];
   return accumulated.items.map(recordPlanOf);
 }
 
@@ -223,8 +223,8 @@ export function recordWindowFor(entityId: string, surfaceId: string | null): Rec
 }
 
 export function recordsForEntity(entityId: string, surfaceId: string | null): RecordPlan[] {
-  const page = recordWindowFor(entityId, surfaceId)?.page;
-  return (page !== undefined && page.changeSequence === state.session.manifest?.changeSequence ? page.items : []).map(recordPlanOf);
+  const window = recordWindowFor(entityId, surfaceId);
+  return (windowIsCurrent(window, state.session.manifest?.changeSequence) ? window.page.items : []).map(recordPlanOf);
 }
 
 export function snapshotFieldPlans(entity: EntitySnapshot): FieldPlan[] {
@@ -421,16 +421,18 @@ export function tilePending(scoped: ScopedTile): boolean {
  * The one rule every exact read on a surface follows, written once because it was
  * written three times and one of the three said something different.
  *
- * Nothing known means read it. An answer from an earlier revision means read it again.
- * A read in flight is not pending, so the renderer does not reissue it. And a refusal is
- * an answer: it waits for the person to press Retry, because asking again immediately is
- * a redraw loop rather than a recovery.
+ * Nothing known means read it. An answer from an earlier revision means read it again, and
+ * so does one from an earlier civil day: a clause that says `today` meant yesterday, and the
+ * file not moving overnight does not make it mean today (W-217). A read in flight is not
+ * pending, so the renderer does not reissue it. And a refusal is an answer: it waits for the
+ * person to press Retry, because asking again immediately is a redraw loop rather than a
+ * recovery.
  */
 export function readIsPending(
-  known: { state: string; changeSequence?: number } | undefined,
+  known: { state: string; changeSequence?: number; day?: string } | undefined,
   changeSequence: number | undefined,
 ): boolean {
-  return known === undefined || (known.state === 'ready' && known.changeSequence !== changeSequence);
+  return known === undefined || (known.state === 'ready' && (known.changeSequence !== changeSequence || !sameReadDay(known.day)));
 }
 
 /**

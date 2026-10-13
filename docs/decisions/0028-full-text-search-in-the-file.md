@@ -233,3 +233,23 @@ A history fold changes no record and needs nothing.
   records would roughly halve it.
 - A need to repair a damaged index from recovery instead of from a backup.
 - A request to search choices, numbers or dates.
+
+## 2026-10-13 note — scripts written without spaces are not segmented
+
+Recorded by the owner's choice of 2026-10-13 (R2LAT-02); the index is unchanged.
+
+`unicode61` splits text into words at spaces and punctuation. Thai, Lao, Khmer, Burmese,
+Chinese and Japanese are written without spaces between words, so a run of them is one token,
+and Thai is also cut at every vowel sign and tone mark, which `unicode61` reads as separators.
+A word inside such a sentence is therefore not found: `学生` does not find `北京大学的学生`,
+`住んで` does not find `東京都に住んでいます` (only `東京`, the run's beginning, does, as a
+prefix), and `ข้าวผัด` does not find a sentence that contains it. Turkish dotless `ı` is not
+folded to `i` while `I` is, so `ığdır` does not find `Iğdır`. The first decision driver, a word
+in any text field, holds for scripts that separate their words, which are the ones the product
+is used in today; the vision sets no localisation goal.
+
+Finding such words needs a second index (FTS5's `trigram` tokenizer, or character bigrams on
+both the text and the query) routed by script. That changes the protected layout, so it needs
+its own ADR; a person who searches such text is a revisit trigger. A term now counts as a word when it
+holds a letter or digit by code point, so a word of letters from outside the Basic
+Multilingual Plane is no longer dropped as punctuation.

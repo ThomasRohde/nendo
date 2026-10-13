@@ -25,7 +25,7 @@ test('R-018: every cell editor Studio names has its module registered', async ()
   assert.ok(registry, 'main.ts no longer registers its grid modules in one list.');
   const registered = new Set(registry[1].split(',').map(name => name.trim()).filter(Boolean));
   const used = new Set();
-  for (const name of ['view-data.ts', 'studio-columns.ts', 'grids.ts']) {
+  for (const name of ['view-data.ts', 'studio-columns.ts', 'grids.ts', 'grid-edit-model.ts']) {
     let text;
     try { text = await source(name); } catch { continue; }
     for (const match of text.matchAll(/'(ag[A-Za-z]+CellEditor)'/g)) used.add(match[1]);

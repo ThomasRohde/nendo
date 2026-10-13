@@ -2,7 +2,30 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {blockedConditionsNotice,undoAllowedWhileUnapproved,releasedByNextInteraction,originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {foldDate,blockedConditionsNotice,undoAllowedWhileUnapproved,releasedByNextInteraction,originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+
+test('W-217 R2LAT-08: a fold date on screen is the person\'s own day, in the dialog and in History alike',async()=>{
+ const previous=process.env.TZ;
+ try{
+  // Phoenix is UTC-7 all year: 03:00 UTC on the 12th is 20:00 on the 11th there.
+  process.env.TZ='America/Phoenix';
+  assert.equal(new Date('2026-10-12T03:00:00Z').getUTCDate(),12);
+  assert.equal(foldDate('2026-10-12T03:00:00Z'),'2026-10-11','the UTC day is tomorrow where the person is');
+  assert.equal(foldDate('2026-10-11T23:30:00-07:00'),'2026-10-11');
+  // Copenhagen in October is UTC+2: 23:30 UTC on the 11th is already the 12th there.
+  process.env.TZ='Europe/Copenhagen';
+  assert.equal(foldDate('2026-10-11T23:30:00Z'),'2026-10-12');
+ } finally {
+  if(previous===undefined) delete process.env.TZ; else process.env.TZ=previous;
+ }
+ assert.equal(foldDate('not a date'),'not a date');
+ const {readFile}=await import('node:fs/promises');
+ for(const file of ['src/actions.ts','src/view-history.ts']){
+  const text=await readFile(new URL(`../${file}`,import.meta.url),'utf8');
+  assert.doesNotMatch(text,/toLocaleDateString/,`${file} shows a fold date in the regional calendar`);
+  assert.match(text,/foldDate\(/,file);
+ }
+});
 
 const plan={entity:{fields:[{semanticId:'name',displayName:'Name'}],derivedFields:[{semanticId:'total',displayName:'Total'}]}};
 const revision=(revisionId,canRequestCompensation=true)=>({revisionId,canRequestCompensation,compensationOfRevisionId:null});

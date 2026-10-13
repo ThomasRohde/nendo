@@ -5,7 +5,7 @@ import { bundleOf } from './bundle-of.mjs';
 
 // The broad review of 2026-10-10 on UX copy, status and recovery (W-210).
 const { activityLabel, counted, operationLabel } = await bundleOf('src/format.ts');
-const { filterInput } = await bundleOf('src/filter-input.ts');
+const { filterInput, filterInputMode, filterPlaceholder, studioFilter } = await bundleOf('src/filter-input.ts');
 const { operationDetailsMarkup, operationSentence } = await bundleOf('src/history-markup.ts');
 
 /** Every operation type the Engine records, read from its own source rather than kept beside it. */
@@ -88,6 +88,36 @@ test('UX-08: the Data filter takes Yes, No and a choice by its label', () => {
   assert.equal(filterInput(status, 'other'), 'other');
   const renamed = { ...status, choices: [{ id: 'old', displayName: 'Done', retired: true }, { id: 'done', displayName: 'Done', retired: false }] };
   assert.equal(filterInput(renamed, 'Done'), 'done', 'a retired choice won over the available one of the same label');
+});
+
+test('W-217 R2LAT-12: the Data filter names the date form, and a plain date against a date and time is the start of that local day', () => {
+  const held = { fieldId: 'held', displayName: 'Held on', storageKind: 4, required: false, presentation: null, options: [] };
+  const at = { fieldId: 'at', displayName: 'At', storageKind: 5, required: false, presentation: null, options: [] };
+  assert.equal(filterPlaceholder(held), 'YYYY-MM-DD');
+  assert.equal(filterPlaceholder(at), 'YYYY-MM-DD');
+  assert.equal(filterPlaceholder({ ...held, storageKind: 'boolean' }), 'Yes or No');
+  assert.equal(filterPlaceholder({ ...held, storageKind: 0 }), '');
+  const one = (operator, typed) => studioFilter(at, operator, typed);
+  const start = one('ge', '2026-10-25').filters[0].value;
+  assert.match(start, /^2026-10-25T\d\d:\d\d:\d\d[+-]\d\d:\d\d$/, 'the host refuses an instant without its offset');
+  assert.equal(new Date(start).getTime(), new Date(2026, 9, 25).getTime(), 'the instant is where this device\'s day begins');
+  assert.equal(one('ge', '2026-10-25').phrase, 'is on or after 2026-10-25, this device\u2019s day');
+  assert.equal(one('le', '2026-10-25').phrase, 'is at or before the start of 2026-10-25 here');
+  // Equals is the whole local day, not the one instant at its midnight.
+  const day = one('eq', '2026-10-25');
+  assert.deepEqual(day.filters.map((filter) => filter.operator), ['ge', 'lt'], 'Equals with a date matched only local midnight');
+  assert.equal(new Date(day.filters[0].value).getTime(), new Date(2026, 9, 25).getTime());
+  assert.equal(new Date(day.filters[1].value).getTime(), new Date(2026, 9, 26).getTime());
+  assert.equal(day.phrase, 'is on 2026-10-25, this device\u2019s day');
+  assert.throws(() => one('ne', '2026-10-25'), /Less than or At least/, 'Does not equal a day needs an or, so it is refused with what works');
+  assert.deepEqual(studioFilter({ ...at, storageKind: 'dateTime' }, 'eq', '2026-10-25').filters, day.filters);
+  assert.deepEqual(one('eq', '2026-10-25T08:00:00+02:00'), { filters: [{ fieldId: 'at', operator: 'eq', value: '2026-10-25T08:00:00+02:00' }], phrase: null }, 'a full timestamp is left as typed');
+  assert.equal(one('ge', '2026-02-30').filters[0].value, '2026-02-30', 'a day the calendar lacks is left for the host to refuse');
+  assert.deepEqual(studioFilter(held, 'eq', ' 2026-10-25 ').filters, [{ fieldId: 'held', operator: 'eq', value: '2026-10-25' }], 'a Date keeps the date');
+  assert.deepEqual(studioFilter(at, 'isNull', '').filters, [{ fieldId: 'at', operator: 'isNull' }]);
+  assert.equal(filterInputMode({ ...held, storageKind: 1 }), 'numeric', 'R2LAT-05: a whole number gets no separator key');
+  assert.equal(filterInputMode({ ...held, storageKind: 2 }), 'decimal');
+  assert.equal(filterInputMode(held), '');
 });
 
 test('UX-13: Use rows, cards and the inspector show no concurrency counter, and a picker no stored ID', () => {

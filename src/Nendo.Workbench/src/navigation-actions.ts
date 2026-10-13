@@ -16,6 +16,7 @@ import { refreshChrome, rerender, setBusy, showError } from './shell';
 import { readsOwnRecords, surfaceById } from './surface-model';
 import { restoreViewPlaces, viewAnchor, viewPlacesAt } from './view-places';
 import { fileViewById, showsFileView } from './file-view-model';
+import { windowIsCurrent } from './record-window';
 
 /**
  * Going back, and coming forward again, from anywhere in the file.
@@ -317,7 +318,7 @@ async function settle(place: Place): Promise<void> {
       // a pill that said it was narrowed.
       const held = surfaceWindows.get(node.semanticId);
       const wanted = effectiveSurfaceQuery(entityId, node);
-      const fresh = held !== undefined && held.page.changeSequence === state.session.manifest?.changeSequence &&
+      const fresh = held !== undefined && windowIsCurrent(held, state.session.manifest?.changeSequence) &&
         JSON.stringify(held.query) === JSON.stringify(wanted);
       if (!fresh) {
         surfaceErrors.delete(node.semanticId);

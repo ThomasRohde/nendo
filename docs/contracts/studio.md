@@ -168,6 +168,19 @@ The Studio maps semantic storage and constraints to editors:
 | reference | relationship/foreign key | related-record label and picker |
 | UUID | `uuid` | normally read-only abbreviated value |
 
+The numeric editor takes a decimal with a dot or with one comma, as the numpad types it on a
+Danish, German or French keyboard: `12,5` is saved as `12.5`. Where this device's language writes
+its decimals with a dot, `1,234` (one to three digits without a leading zero, a comma, then three
+digits) could be a thousands grouping and is refused; `0,125` and `1234,567` are decimals
+everywhere. Where the language writes them with a comma, `1,234` is 1.234. Grouping, a second
+separator and an exponent are refused. A whole number takes digits only, and its input asks a
+touch keyboard for the numeric keypad.
+
+The Data filter takes a plain date (`YYYY-MM-DD`) against a date and time as this device's day:
+Equals is the whole day, from its start to the next day's start, and the comparisons are made
+against the start of the day, which the status line says. Does not equal with a plain date is
+refused, because a filter cannot say or.
+
 Multi-choice is not an MVP scalar type. It requires a relationship/join model and is deferred. Binary fields/assets and general JSON editing are also deferred.
 
 Unknown future types stay visible and read-only. They do not disappear.

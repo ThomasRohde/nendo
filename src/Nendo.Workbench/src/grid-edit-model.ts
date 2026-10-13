@@ -1,5 +1,35 @@
-import { sameValue } from './format';
+import { sameValue, storageLabel } from './format';
+import type { EntitySnapshot } from './host';
+import { ratingScaleOf } from './rating';
 import { exactNumberText } from './scalars';
+
+type GridField = EntitySnapshot['fields'][number];
+
+/**
+ * Whether a field is edited as a date: by its presentation or by what it stores, as the record
+ * form decides (record-markup.ts). A Date field may have no presentation at all, and the grid
+ * gave it free text that refused anything but yyyy-MM-dd (W-217).
+ */
+export function isDateField(field: GridField): boolean {
+  return field.presentation === 'date' || storageLabel(field.storageKind) === 'Date';
+}
+
+/** The AG Grid editor a Studio cell opens for a field. */
+export function gridCellEditor(field: GridField): string {
+  if (field.presentation === 'singleChoice' || storageLabel(field.storageKind) === 'Boolean' || ratingScaleOf(field) !== null) return 'agSelectCellEditor';
+  if (isDateField(field)) return 'agDateStringCellEditor';
+  return field.presentation === 'longText' || field.presentation === 'markdown' ? 'agLargeTextCellEditor' : 'agTextCellEditor';
+}
+
+/** Where a column starts before the person sizes it: wide enough for what its kind holds. */
+export function defaultColumnWidth(field: GridField): number {
+  if (field.presentation === 'longText' || field.presentation === 'markdown') return 300;
+  if (field.presentation === 'singleChoice') return 170;
+  if (isDateField(field)) return 140;
+  if (ratingScaleOf(field) !== null) return 150;
+  const kind = storageLabel(field.storageKind);
+  return kind === 'Boolean' ? 110 : kind === 'Integer' || kind === 'Decimal' ? 130 : kind === 'Date time' ? 180 : kind === 'Reference' ? 210 : 200;
+}
 
 /**
  * Studio's grid select editors, kept from rewriting what they did not change (WDV-02).

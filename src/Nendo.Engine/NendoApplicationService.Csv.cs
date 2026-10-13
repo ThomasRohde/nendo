@@ -38,13 +38,37 @@ public sealed partial class NendoApplicationService
                 NendoCanonical.DeterministicId("record", "csv.import", batchId, ordinal), rows[index].Values, rows[index].ExpectedTargetVersions));
         }
         var proposal = await PrepareProposalAsync(new NendoProposalRequest("proposal-" + batchId, $"Import {rows.Count} CSV records", "csv",
-            new([new("csv.import", batchId, "csv", $"Import CSV rows {offset + 2}–{offset + rows.Count + 1}", operations)])), cancellationToken);
+            new([new("csv.import", batchId, "csv", CsvBatchDescription(rows.Select(row => row.SourceRow).ToArray()), operations)])), cancellationToken);
         if (proposal.CapturedDefinitionRevision != definition.Manifest.DefinitionRevision)
         {
             await RejectProposalAsync(proposal.ProposalId, cancellationToken);
             throw new NendoPreconditionException("stale-csv-schema", "The record definition changed. Review CSV mapping again.");
         }
         return new(proposal, rows);
+    }
+
+    /// <summary>
+    /// What History calls a batch: the rows of the file it holds, which after parents-first
+    /// ordering need not be the batch's positions (ESQ-14). Runs of rows read as ranges, and a
+    /// long list ends in an ellipsis.
+    /// </summary>
+    internal static string CsvBatchDescription(IReadOnlyList<int> sourceRows)
+    {
+        var runs = new List<string>();
+        for (var index = 0; index < sourceRows.Count;)
+        {
+            var end = index;
+            while (end + 1 < sourceRows.Count && sourceRows[end + 1] == sourceRows[end] + 1) end++;
+            runs.Add(end == index ? $"{sourceRows[index]}" : $"{sourceRows[index]}–{sourceRows[end]}");
+            index = end + 1;
+        }
+        return runs.Count switch
+        {
+            1 when sourceRows.Count == 1 => $"Import CSV row {runs[0]}",
+            1 => $"Import CSV rows {runs[0]}",
+            <= 6 => $"Import {sourceRows.Count} CSV rows: {string.Join(", ", runs)}",
+            _ => $"Import {sourceRows.Count} CSV rows: {string.Join(", ", runs.Take(5))}, …",
+        };
     }
 
     /// <summary>
@@ -106,12 +130,12 @@ public sealed partial class NendoApplicationService
     /// before they cut batches, so a parent is always written before the rows under it.
     /// </summary>
     public async Task<NendoCsvDocument> OrderCsvParentsFirstAsync(NendoCsvDocument document, string entityId,
-        IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken = default)
+        IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken = default, NendoCsvOptions? options = null)
     {
         var definition = await GetDefinitionSnapshotAsync(cancellationToken);
         var entity = definition.Entities.SingleOrDefault(entity => entity.EntityId == entityId && !entity.Retired)
             ?? throw new NendoValidationException("Choose an active record type.");
-        return NendoCsvReferenceCodes.OrderParentsFirst(document, entity, mappings);
+        return NendoCsvReferenceCodes.OrderParentsFirst(document, entity, mappings, options);
     }
 
     /// <summary>
@@ -178,7 +202,7 @@ public sealed partial class NendoApplicationService
             var definition = await GetDefinitionSnapshotAsync(cancellationToken);
             foreach (var mapping in mappings.Where(mapping => mapping.MatchFieldId is not null))
                 resolvers[mapping.FieldId] = await CsvCodeResolver.CreateAsync(
-                    this, definition.Entities, entity, fields[mapping.FieldId], mapping, mappings, document, cancellationToken);
+                    this, definition.Entities, entity, fields[mapping.FieldId], mapping, mappings, document, options, cancellationToken);
         }
         // One lookup per distinct target rather than per row: a hundred rows pointing at
         // the same parent record used to be a hundred reads of it.
@@ -254,6 +278,20 @@ public sealed partial class NendoApplicationService
             page.NextCursor,
             page.ChangeSequence,
             fields.Select(field => field.FieldId).ToArray());
+    }
+
+    /// <summary>
+    /// The native export's file: the whole export written to <paramref name="destination"/> in
+    /// <see cref="NendoCsvProfile.FileEncoding"/>, so it starts with UTF-8's byte-order mark and a
+    /// spreadsheet opened on it reads æ, ø and å (R2LAT-11). The stream stays open.
+    /// </summary>
+    public async Task<int> ExportCsvFileAsync(string entityId, Stream destination, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        await using var writer = new StreamWriter(destination, NendoCsvProfile.FileEncoding, leaveOpen: true);
+        var count = await ExportCsvAsync(entityId, writer, cancellationToken);
+        await writer.FlushAsync(cancellationToken);
+        return count;
     }
 
     public async Task<int> ExportCsvAsync(string entityId, TextWriter writer, CancellationToken cancellationToken = default)

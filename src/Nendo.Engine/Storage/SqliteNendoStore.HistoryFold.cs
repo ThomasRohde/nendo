@@ -127,7 +127,8 @@ internal sealed partial class SqliteNendoStore
         }
         var fresh = all.Count(revision => revision.Lane is not (NendoRevisionLane.Genesis or NendoRevisionLane.Checkpoint));
         if (fresh <= keep)
-            return (null, $"This file has {fresh:N0} changes since its start or its last fold, and a fold keeps the most recent {keep:N0} of them.");
+            return (null, string.Create(CultureInfo.InvariantCulture,
+                $"This file has {fresh:N0} changes since its start or its last fold, and a fold keeps the most recent {keep:N0} of them."));
         // The last revision the fold takes: all but the kept ones, and never one that leaves part
         // of a proposal behind, since a proposal's receipt needs its revisions together.
         var cut = all.Count - 1 - keep;

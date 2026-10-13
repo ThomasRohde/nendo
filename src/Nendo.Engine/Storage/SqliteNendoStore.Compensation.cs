@@ -94,7 +94,10 @@ internal sealed partial class SqliteNendoStore
                     "revision-not-found",
                     fold is null
                         ? "The selected history revision does not exist."
-                        : $"The selected history revision is not in this file. Its older history was folded on {fold.FoldedAt:yyyy-MM-dd}; a folded change cannot be undone here. The full history is in the backup {fold.BackupLabel}.");
+                        // The checkpoint's own date, as its text gives it: UTC and the Gregorian
+                        // year whatever the regional format (R2LAT-08).
+                        : string.Create(CultureInfo.InvariantCulture,
+                            $"The selected history revision is not in this file. Its older history was folded on {fold.FoldedAt.ToUniversalTime():yyyy-MM-dd}; a folded change cannot be undone here. The full history is in the backup {fold.BackupLabel}."));
             }
             description = reader.GetString(0);
             lane = reader.GetString(1);

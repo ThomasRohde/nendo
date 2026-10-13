@@ -107,17 +107,21 @@ public sealed partial class NendoWriteCoordinator
                 // A safe-mode snapshot is already in memory and its values are
                 // the same exact lexemes, so the fold is the same fold.
                 if (!Capabilities.ReadData) throw new NendoPreconditionException("data-unavailable", "Data cannot be safely interpreted for this file.");
-                var accumulator = new ExactAggregate(query.Aggregate, integral: false);
+                if (!_readOnlySnapshot.Entities.Any(entity => entity.EntityId == query.EntityId))
+                    throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
+                var kind = SnapshotFieldKind(query.EntityId, query.FieldId);
+                var dateExtreme = Storage.SqliteNendoStore.RequireAggregatedField(kind, query.Aggregate);
+                var accumulator = new ExactAggregate(query.Aggregate, integral: kind == NendoStorageKind.Integer);
                 foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
                     if (!record.Values.TryGetValue(query.FieldId, out var value)) continue;
-                    if (value.ValueKind == System.Text.Json.JsonValueKind.Number) accumulator.Add(value.GetDecimal());
+                    if (!dateExtreme && value.ValueKind == System.Text.Json.JsonValueKind.Number) accumulator.Add(value.GetDecimal());
                     // A civil date is a string in the snapshot as it is TEXT in the
                     // column. Safe mode answers a date range too, because a tile that
                     // is exact in SQLite and Unavailable here would be two answers to
                     // one question; a string that is not a date is refused rather than
                     // ordered as text.
-                    else if (value.ValueKind == System.Text.Json.JsonValueKind.String) accumulator.AddDate(value.GetString() ?? string.Empty);
+                    else if (dateExtreme && value.ValueKind == System.Text.Json.JsonValueKind.String) accumulator.AddDate(value.GetString() ?? string.Empty);
                 }
                 return new(query.EntityId, query.Aggregate, query.FieldId,
                     accumulator.Value(), accumulator.ContributingRecords, _readOnlySnapshot.Manifest.ChangeSequence);
@@ -152,8 +156,11 @@ public sealed partial class NendoWriteCoordinator
                     ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
                 var grouping = entity.Fields.SingleOrDefault(field => field.FieldId == query.GroupByFieldId)
                     ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
+                var target = SnapshotFieldKind(query.EntityId, query.FieldId);
+                Storage.SqliteNendoStore.RequireGroupedTarget(query.FieldId, target);
                 var fold = new GroupedAggregateFold(
-                    GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options), query.Aggregate, integral: false);
+                    GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options), query.Aggregate,
+                    integral: target == NendoStorageKind.Integer);
                 // The same fold over the same exact lexemes, so the snapshot answers what the file would.
                 foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
@@ -190,7 +197,7 @@ public sealed partial class NendoWriteCoordinator
         ArgumentException.ThrowIfNullOrWhiteSpace(query.DateFieldId);
         ValidateAggregateQuery(query.Aggregate, query.FieldId);
         RecordQuerySemantics.Validate(new NendoRecordQuery(query.EntityId) { Filters = query.Filters });
-        var buckets = DateBuckets.Resolve(query.Range, query.Bucket, DateOnly.FromDateTime(DateTime.Now));
+        var buckets = DateBuckets.Resolve(query.Range, query.Bucket, NendoCivilClock.Today());
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -200,9 +207,12 @@ public sealed partial class NendoWriteCoordinator
                 if (!Capabilities.ReadData) throw new NendoPreconditionException("data-unavailable", "Data cannot be safely interpreted for this file.");
                 var entity = _readOnlySnapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == query.EntityId)
                     ?? throw new NendoPreconditionException("entity-not-found", "The requested record type does not exist.");
-                _ = entity.Fields.SingleOrDefault(field => field.FieldId == query.DateFieldId)
+                var dateField = entity.Fields.SingleOrDefault(field => field.FieldId == query.DateFieldId)
                     ?? throw new NendoPreconditionException("field-not-found", "The date field does not exist on this record type.");
-                var fold = new GroupedAggregateFold(buckets.Keys, query.Aggregate, integral: false);
+                Storage.SqliteNendoStore.RequireBucketDateField(dateField.StorageKind);
+                var target = SnapshotFieldKind(query.EntityId, query.FieldId);
+                Storage.SqliteNendoStore.RequireGroupedTarget(query.FieldId, target);
+                var fold = new GroupedAggregateFold(buckets.Keys, query.Aggregate, integral: target == NendoStorageKind.Integer);
                 foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
                     var stored = record.Values.TryGetValue(query.DateFieldId, out var raw) ? GroupedAggregateFold.KeyText(raw) : null;
@@ -263,10 +273,12 @@ public sealed partial class NendoWriteCoordinator
                     ?? throw new NendoPreconditionException("field-not-found", "The row field does not exist on this record type.");
                 var columnField = entity.Fields.SingleOrDefault(field => field.FieldId == query.ColumnByFieldId)
                     ?? throw new NendoPreconditionException("field-not-found", "The column field does not exist on this record type.");
+                var target = SnapshotFieldKind(query.EntityId, query.FieldId);
+                Storage.SqliteNendoStore.RequireGroupedTarget(query.FieldId, target);
                 var fold = new CellAggregateFold(
                     GroupedAggregateFold.KeysOf(rowField.StorageKind, rowField.Presentation, rowField.Options),
                     GroupedAggregateFold.KeysOf(columnField.StorageKind, columnField.Presentation, columnField.Options),
-                    query.Aggregate, integral: false);
+                    query.Aggregate, integral: target == NendoStorageKind.Integer);
                 // The same fold over the same exact lexemes, so the snapshot answers what the file would.
                 foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
@@ -284,6 +296,12 @@ public sealed partial class NendoWriteCoordinator
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }
     }
+
+    /// <summary>The stored kind of a field of the read-only snapshot, or null when the type has none of that ID.</summary>
+    private NendoStorageKind? SnapshotFieldKind(string entityId, string? fieldId) =>
+        fieldId is null ? null
+            : _readOnlySnapshot!.Entities.SingleOrDefault(entity => entity.EntityId == entityId)?
+                .Fields.SingleOrDefault(field => field.FieldId == fieldId)?.StorageKind;
 
     // Pages and every fold consume the same typed set in a read-only snapshot.
     private IEnumerable<NendoRecordSnapshot> FilteredSnapshotRecords(string entityId, IReadOnlyList<NendoRecordFilter> filters)
@@ -346,6 +364,21 @@ public sealed partial class NendoWriteCoordinator
                 var after = _queryCursors.Decode(query.Cursor, _readOnlySnapshot.Manifest, scope);
                 var rows = FilteredSnapshotRecords(query.EntityId, query.Filters)
                     .Where(record => query.RecordId is null || record.RecordId == query.RecordId);
+                // The store's sort, read from the snapshot: a reference by its target's label, a
+                // single choice in its options' order (ESQ-16).
+                var sorted = query.SortFieldId is null || derived.ContainsKey(query.SortFieldId) ? null
+                    : entity.Fields.Single(f => f.FieldId == query.SortFieldId);
+                var labelKind = sorted?.Reference is { } reference
+                    ? _readOnlySnapshot.Entities.SingleOrDefault(candidate => candidate.EntityId == reference.TargetEntityId)?
+                        .Fields.SingleOrDefault(candidate => candidate.FieldId == reference.LabelFieldId)?.StorageKind
+                    : null;
+                var sort = query.SortFieldId is null ? null
+                    : labelKind is { } kind ? RecordQuerySemantics.SortComparison(kind, null, [])
+                    : sorted is not null ? RecordQuerySemantics.SortComparison(sorted.StorageKind, sorted.Presentation, sorted.Options)
+                    : RecordQuerySemantics.SortComparison(KindOf(query.SortFieldId), null, []);
+                string? SortText(NendoRecordSnapshot record) => labelKind is not null
+                    ? record.ReferenceLabels.GetValueOrDefault(query.SortFieldId!)
+                    : ValueOf(record, query.SortFieldId!).Text;
                 var comparer = Comparer<NendoRecordSnapshot>.Create((left, right) => {
                     if (query.SortFieldId is not null)
                     {
@@ -354,7 +387,7 @@ public sealed partial class NendoWriteCoordinator
                         if (leftKnown != rightKnown) return leftKnown ? -1 : 1;
                     }
                     var primary = query.SortFieldId is null ? StringComparer.Ordinal.Compare(left.RecordId, right.RecordId)
-                        : RecordQuerySemantics.Compare(KindOf(query.SortFieldId), ValueOf(left, query.SortFieldId).Text, ValueOf(right, query.SortFieldId).Text);
+                        : sort!(SortText(left), SortText(right));
                     if (primary != 0) return query.Descending ? -Math.Sign(primary) : Math.Sign(primary);
                     return StringComparer.Ordinal.Compare(left.RecordId, right.RecordId);
                 });

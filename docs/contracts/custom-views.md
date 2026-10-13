@@ -1113,7 +1113,7 @@ name other than these five throws `unknown-event`.
 
 | Event | Data | When |
 | --- | --- | --- |
-| `context` | The context | On every connect, and when the view's context changes, for example after its definition changed |
+| `context` | The context | On every connect, and when the view's context changes, for example after its definition changed. Also once when the person's civil day turns, though the context is the same, so a view that groups by today reads again (W-217) |
 | `theme` | `{mode, tokens}` | When the person's theme changes between light and dark |
 | `changes` | The file's change sequence | When anything commits to the open file: at most one every 250 ms to one view, carrying the latest sequence |
 | `command` | `{id, value, source}` | The person pressed one of the controls the view declared: in Nendo's toolbar, one of its menus, Ctrl K, by its key, or Nendo's Add. `source` is `toolbar`, `menu`, `palette`, `key` or `add` (W-090) |

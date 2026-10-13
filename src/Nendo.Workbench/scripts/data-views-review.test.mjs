@@ -135,7 +135,7 @@ test('WMX-18 and WDV-19: the proposal preview names its bindings and draws a Boo
   assert.match(grid, />Yes</);
 });
 
-const { editorValues, gridEditUnchanged } = await bundleOf('src/grid-edit-model.ts');
+const { defaultColumnWidth, editorValues, gridCellEditor, gridEditUnchanged } = await bundleOf('src/grid-edit-model.ts');
 const { withLocalOffset } = await bundleOf('src/format.ts');
 const markup = await bundleOf('src/record-markup.ts');
 
@@ -150,6 +150,19 @@ test('WDV-02: a grid select editor always offers the cell\'s own value, and an u
   const view = source('src/view-data.ts');
   assert.equal((view.match(/editorValues\(/g) ?? []).length, 2, 'the choice and rating editors do not offer the cell\'s own value');
   assert.match(view, /if \(gridEditUnchanged\(value, event\.oldValue\)\) \{/, 'commitGridEdit writes an unchanged value');
+});
+
+test('W-217 R2LAT-12: a Date field is edited with the date editor and sized as a date, with or without the date presentation', () => {
+  const held = { fieldId: 'held', displayName: 'Held on', storageKind: 4, required: false, presentation: null, options: [] };
+  assert.equal(gridCellEditor(held), 'agDateStringCellEditor', 'a Date field without a presentation got free text');
+  assert.equal(gridCellEditor({ ...held, storageKind: 'date' }), 'agDateStringCellEditor');
+  assert.equal(gridCellEditor({ ...held, presentation: 'date' }), 'agDateStringCellEditor');
+  assert.equal(defaultColumnWidth(held), defaultColumnWidth({ ...held, presentation: 'date' }));
+  assert.equal(gridCellEditor({ ...held, storageKind: 0 }), 'agTextCellEditor');
+  assert.equal(gridCellEditor({ ...held, storageKind: 5 }), 'agTextCellEditor', 'a date and time is edited as text, as the contract says');
+  assert.equal(gridCellEditor({ ...held, storageKind: 3 }), 'agSelectCellEditor');
+  assert.equal(gridCellEditor({ ...held, storageKind: 0, presentation: 'longText' }), 'agLargeTextCellEditor');
+  assert.match(source('src/view-data.ts'), /cellEditor: gridCellEditor\(field\),/, 'the grid chooses its editor somewhere else');
 });
 
 test('WDV-09: Studio\'s outline asks for the moves of the hierarchy it shows', () => {

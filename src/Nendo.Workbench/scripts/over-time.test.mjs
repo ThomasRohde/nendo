@@ -168,6 +168,68 @@ test('a grid pads its first column to Monday, so a row is a weekday',()=>{
   .match(/class="chart-day is-blank"/g)??[]).length,6,'2026-01-04 is a Sunday, the last row of its week');
 });
 
+test('W-217 R2LAT-07: the preview resolves a range against the local civil date, with the Engine\'s leap-day arithmetic',()=>{
+ const previous=process.env.TZ;
+ const node=(range,bucket='month')=>({...trend,properties:{...trend.properties,range,bucket}});
+ const bounds=(range,today,bucket)=>{ const sample=sampleBucketed(node(range,bucket),[],today); return `${sample.start}..${sample.end}`; };
+ try{
+  // 00:30 on 1 November in Copenhagen is still 31 October in UTC.
+  process.env.TZ='Europe/Copenhagen';
+  assert.equal(bounds('last6Months',new Date(2026,10,1,0,30)),'2026-06-01..2026-11-30');
+  // Apia is UTC+13: at 08:00 on the 12th, UTC is still the 11th.
+  process.env.TZ='Pacific/Apia';
+  const apia=new Date(Date.UTC(2026,9,11,19));
+  assert.equal(apia.getDate(),12,'the zone took effect');
+  assert.equal(bounds('last30Days',apia,'day'),'2026-09-13..2026-10-12');
+  assert.equal(bounds('thisYear',new Date(2027,0,1,0,30)),'2027-01-01..2027-12-31');
+  // Pago Pago is UTC-11: late on the 31st there, UTC is already the next day.
+  process.env.TZ='Pacific/Pago_Pago';
+  assert.equal(bounds('last6Months',new Date(2026,9,31,23,30)),'2026-05-01..2026-10-31');
+  // DateBuckets.Resolve: today.AddYears(-1).AddDays(1), and 2028-02-29 a year back is 2027-02-28.
+  process.env.TZ='Europe/Copenhagen';
+  const leap=sampleBucketed(node('lastTwelveMonths','day'),[],new Date(2028,1,29,12));
+  assert.equal(`${leap.start}..${leap.end}`,'2027-03-01..2028-02-29');
+  assert.equal(leap.groups.length,366,'a year that holds 29 February is 366 days');
+  assert.equal(bounds('lastTwelveMonths',new Date(2026,9,12,12),'day'),'2025-10-13..2026-10-12');
+ } finally {
+  if(previous===undefined) delete process.env.TZ; else process.env.TZ=previous;
+ }
+});
+
+test('W-217 ESQ-08: an edge bucket is clipped to the range, labelled with the days it holds, and drills into those days',async()=>{
+ // last30Days by month on 2026-10-10 resolves to 2026-09-11..2026-10-10: September counts from the 11th.
+ const month=sampleBucketed({...trend,properties:{...trend.properties,range:'last30Days',bucket:'month'}},[],new Date(2026,9,10,12));
+ assert.equal(`${month.start}..${month.end}`,'2026-09-11..2026-10-10');
+ assert.deepEqual(month.groups.map(group=>group.key),['2026-09','2026-10']);
+ assert.deepEqual(bucketDrillFilters(trend,'month','2026-09',month),[
+  {fieldId:'due',operator:'ge',value:'2026-09-11'},
+  {fieldId:'due',operator:'le',value:'2026-09-30'},
+ ],'the first bar drills into the days it counted, not the whole of September');
+ assert.deepEqual(bucketDrillFilters(trend,'month','2026-10',month).map(filter=>filter.value),['2026-10-01','2026-10-10'],'nor the rest of October');
+ assert.deepEqual(bucketSegments('month',month).map(segment=>segment.label),['Sep 11–30','Oct 1–10']);
+ assert.equal(drillLabel(trend,undefined,'2026-09',fieldName,month),'Due: Sep 11–30');
+ // A week trend over last12Months: the first Monday is before the range and the last Sunday after it.
+ const weeks=sampleBucketed({...trend,properties:{...trend.properties,range:'last12Months',bucket:'week'}},[],new Date(2026,9,10,12));
+ assert.equal(`${weeks.start}..${weeks.end}`,'2025-11-01..2026-10-31');
+ const labels=bucketSegments('week',weeks).map(segment=>segment.label);
+ assert.equal(labels[0],'1–2 Nov 2025','a range over two years names the year of a cut bar');
+ assert.equal(labels[1],'3 Nov','a whole week keeps its Monday');
+ assert.equal(labels.at(-1),'26–31 Oct 2026');
+ // last90Days by month on 10 January covers October to January: the cut Octobers say which.
+ const winter=sampleBucketed({...trend,properties:{...trend.properties,range:'last90Days',bucket:'month'}},[],new Date(2026,0,10,12));
+ assert.equal(`${winter.start}..${winter.end}`,'2025-10-13..2026-01-10');
+ assert.deepEqual(bucketSegments('month',winter).map(segment=>segment.label),['Oct 13–31 2025','Nov 2025','Dec 2025','Jan 1–10 2026']);
+ assert.deepEqual(bucketDrillFilters(trend,'week','2025-10-27',weeks).map(filter=>filter.value),['2025-11-01','2025-11-02']);
+ // A range of whole months cuts nothing.
+ const whole={start:'2025-11-01',end:'2026-10-31'};
+ assert.equal(bucketLabel('month','2025-11',whole),'Nov 2025');
+ assert.deepEqual(bucketSpan('month','2026-02',whole),{start:'2026-02-01',end:'2026-02-28'});
+ // The drill takes the range the bars were read under.
+ const {readFile}=await import('node:fs/promises');
+ const panels=await readFile(new URL('../src/panels.ts',import.meta.url),'utf8');
+ assert.match(panels,/bucketDrillFilters\(scoped\.node, bucket, group\.key, range\)/,'the drill opens whole periods again');
+});
+
 test('the preview generates its buckets from the range, not from the sample',()=>{
  const today=new Date('2026-09-16T00:00:00Z');
  const records=[{values:{due:'2026-09-02'}},{values:{due:'2026-09-30'}},{values:{due:'2019-01-01'}},{values:{due:null}}];

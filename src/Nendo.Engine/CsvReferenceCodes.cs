@@ -19,11 +19,18 @@ public static class NendoCsvReferenceCodes
     /// import"). Rows keep their line numbers in the file, so every refusal still names the
     /// line a person sees. Returned unchanged when the parent column is not matched by a
     /// code this same import carries, since then no row can be another's parent.
+    /// <para>
+    /// A cell is read as the decode will read it under <paramref name="options"/>: a row whose
+    /// code is empty or null has no code, so no row names it as a parent, and a row whose parent
+    /// is empty or null is at the top level (ESQ-01). Without options, External CSV is assumed,
+    /// where an empty cell names nothing.
+    /// </para>
     /// </summary>
     public static NendoCsvDocument OrderParentsFirst(
         NendoCsvDocument document,
         NendoEntitySnapshot entity,
-        IReadOnlyList<NendoCsvMapping> mappings)
+        IReadOnlyList<NendoCsvMapping> mappings,
+        NendoCsvOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(document);
         ArgumentNullException.ThrowIfNull(entity);
@@ -33,9 +40,21 @@ public static class NendoCsvReferenceCodes
         var code = parent is null ? null : mappings.SingleOrDefault(mapping => mapping.FieldId == parent.MatchFieldId);
         if (parent is null || code is null) return document;
 
+        // A code in its exact case first, as the resolver matches it, then without regard to case.
+        var rowOfExactCode = new Dictionary<string, int>(StringComparer.Ordinal);
         var rowOfCode = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < document.Rows.Count; index++)
-            rowOfCode.TryAdd(document.Rows[index][code.Column], index);
+        {
+            if (CodeOf(document.Rows[index][code.Column], options) is not { } text) continue;
+            rowOfExactCode.TryAdd(text, index);
+            rowOfCode.TryAdd(text, index);
+        }
+        bool RowNamed(int row, out int above)
+        {
+            above = -1;
+            return CodeOf(document.Rows[row][parent.Column], options) is { } named &&
+                (rowOfExactCode.TryGetValue(named, out above) || rowOfCode.TryGetValue(named, out above));
+        }
 
         var order = new List<int>(document.Rows.Count);
         var state = new byte[document.Rows.Count]; // 0 unseen, 1 on the path, 2 placed
@@ -48,7 +67,7 @@ public static class NendoCsvReferenceCodes
             {
                 state[row] = 1;
                 path.Push(row);
-                if (!rowOfCode.TryGetValue(document.Rows[row][parent.Column], out var above) || above == row) break;
+                if (!RowNamed(row, out var above) || above == row) break;
                 if (state[above] == 1)
                     throw new NendoValidationException(
                         $"CSV row {document.SourceRowNumber(row)}: its parent line leads back to itself through CSV row {document.SourceRowNumber(above)}, so the rows cannot be put parents first.");
@@ -69,6 +88,22 @@ public static class NendoCsvReferenceCodes
         {
             SourceRowNumbers = order.Select(document.SourceRowNumber).ToArray(),
         };
+    }
+
+    /// <summary>
+    /// The code a cell holds as the decode reads it, or null for none: an empty cell, the Nendo
+    /// profile's null marker, or an empty cell External CSV reads as null. The Nendo profile's
+    /// doubled leading backslash is one literal backslash, so "\\A1" is the code "\A1".
+    /// </summary>
+    internal static string? CodeOf(string cell, NendoCsvOptions? options)
+    {
+        if (cell.Length == 0) return null;
+        if (options is { NendoProfile: true })
+        {
+            if (cell == "\\N") return null;
+            if (cell.StartsWith("\\\\", StringComparison.Ordinal)) return cell[1..];
+        }
+        return cell;
     }
 }
 
@@ -116,6 +151,7 @@ internal sealed class CsvCodeResolver
         NendoCsvMapping mapping,
         IReadOnlyList<NendoCsvMapping> mappings,
         NendoCsvDocument document,
+        NendoCsvOptions options,
         CancellationToken cancellationToken)
     {
         var target = field.Reference is { } reference
@@ -129,19 +165,16 @@ internal sealed class CsvCodeResolver
                 $"{field.DisplayName} can be matched only by a unique field of {target.DisplayName}; {mapping.MatchFieldId} is not one.");
 
         var existing = new Dictionary<string, List<(string, string, long)>>(StringComparer.OrdinalIgnoreCase);
-        string? cursor = null;
-        do
+        // Every record of the target from one change: a commit between pages starts the read again.
+        var records = await NendoWholeRead.AllAsync(cursor =>
+            service.QueryRecordsAsync(new NendoRecordQuery(target.EntityId, 100, cursor), cancellationToken));
+        foreach (var record in records)
         {
-            var page = await service.QueryRecordsAsync(new NendoRecordQuery(target.EntityId, 100, cursor), cancellationToken);
-            foreach (var record in page.Items)
-            {
-                if (!record.Values.TryGetValue(match.FieldId, out var value)) continue;
-                if (RecordQuerySemantics.Text(value) is not { Length: > 0 } text) continue;
-                if (!existing.TryGetValue(text, out var holders)) existing[text] = holders = [];
-                holders.Add((text, record.RecordId, record.RecordVersion));
-            }
-            cursor = page.NextCursor;
-        } while (cursor is not null);
+            if (!record.Values.TryGetValue(match.FieldId, out var value)) continue;
+            if (RecordQuerySemantics.Text(value) is not { Length: > 0 } text) continue;
+            if (!existing.TryGetValue(text, out var holders)) existing[text] = holders = [];
+            holders.Add((text, record.RecordId, record.RecordVersion));
+        }
 
         // The import's own rows can be targets only when they are records of the target type
         // and the import carries the matched field.
@@ -151,8 +184,8 @@ internal sealed class CsvCodeResolver
         {
             for (var index = 0; index < document.Rows.Count; index++)
             {
-                var text = document.Rows[index][own.Column];
-                if (text.Length == 0) continue;
+                // Keyed by the code the decode reads, which Resolve is given (ESQ-01).
+                if (NendoCsvReferenceCodes.CodeOf(document.Rows[index][own.Column], options) is not { } text) continue;
                 if (!rows.TryGetValue(text, out var at)) rows[text] = at = [];
                 at.Add((text, index));
             }

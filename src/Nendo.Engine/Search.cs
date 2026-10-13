@@ -117,7 +117,7 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
             while (index < text.Length && !char.IsWhiteSpace(text[index]) && text[index] != '"') index++;
             tokens.Add((text[start..index], false, excluded));
         }
-        var searchable = tokens.Where(token => token.Text.Any(char.IsLetterOrDigit)).ToArray();
+        var searchable = tokens.Where(token => HasLetterOrDigit(token.Text)).ToArray();
         if (searchable.Length > NendoSearchLimits.MaximumTerms)
             throw new NendoPreconditionException("search-too-many-terms",
                 $"A search takes at most {NendoSearchLimits.MaximumTerms} words or phrases.");
@@ -125,7 +125,7 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
         // required word followed by a left-out one, or by any white space, is finished. The last
         // required word was a prefix even in 'garden -weed', contrary to ADR-0028 (ESS-07).
         var lastOpen = tokens.Count > 0 && !tokens[^1].Excluded && !tokens[^1].Phrase &&
-            tokens[^1].Text.Any(char.IsLetterOrDigit) && !char.IsWhiteSpace(text[^1]);
+            HasLetterOrDigit(tokens[^1].Text) && !char.IsWhiteSpace(text[^1]);
         var required = new List<string>();
         var leftOut = new List<string>();
         for (var position = 0; position < searchable.Length; position++)
@@ -137,6 +137,13 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
         }
         return new(required, leftOut);
     }
+
+    /// <summary>
+    /// Whether a term holds anything to search for, counted by code point: a letter outside the
+    /// Basic Multilingual Plane is two UTF-16 halves, neither of them a letter on its own, so a
+    /// term made only of such letters was dropped (R2LAT-02).
+    /// </summary>
+    private static bool HasLetterOrDigit(string text) => text.EnumerateRunes().Any(Rune.IsLetterOrDigit);
 
     private static string Quote(string term)
     {

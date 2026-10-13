@@ -51,7 +51,30 @@ internal static class RecordQuerySemantics
             NendoStorageKind.Decimal => Decimal(left).CompareTo(Decimal(right)),
             NendoStorageKind.DateTime => DateTimeOffset.Parse(left, CultureInfo.InvariantCulture).CompareTo(
                 DateTimeOffset.Parse(right, CultureInfo.InvariantCulture)),
+            // A UUID is accepted in either case and kept as written; both cases name one value
+            // (ESQ-17). Its digits are ASCII, so an ordinal fold is exact.
+            NendoStorageKind.Uuid => StringComparer.OrdinalIgnoreCase.Compare(left, right),
             _ => StringComparer.Ordinal.Compare(left, right),
+        };
+    }
+
+    /// <summary>
+    /// The order a sort by a field reads in (ESQ-16). A single choice sorts in its options'
+    /// configured order, as a person set them out, with a value no option holds after them;
+    /// every other field by its stored value. A reference sorts by its target's label, which
+    /// the caller reads and compares with the label field's own kind.
+    /// </summary>
+    internal static Func<string?, string?, int> SortComparison(NendoStorageKind kind, string? presentation, IReadOnlyList<string> options)
+    {
+        if (presentation != "singleChoice" || options.Count == 0) return (left, right) => Compare(kind, left, right);
+        var rank = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var index = 0; index < options.Count; index++) rank.TryAdd(options[index], index);
+        return (left, right) =>
+        {
+            if (left is null || right is null) return Compare(kind, left, right);
+            var order = (rank.TryGetValue(left, out var first) ? first : int.MaxValue)
+                .CompareTo(rank.TryGetValue(right, out var second) ? second : int.MaxValue);
+            return order != 0 ? order : StringComparer.Ordinal.Compare(left, right);
         };
     }
 

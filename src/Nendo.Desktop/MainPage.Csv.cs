@@ -98,7 +98,7 @@ public sealed partial class MainPage
         var options = new NendoCsvOptions(profile.SelectedIndex == 1, empty.IsChecked == true);
         // A tree whose parent column holds codes is written parents first, so a parent is
         // always accepted before the rows under it; each row keeps its line in the file.
-        try { document = await _session.OrderCsvParentsFirstAsync(document, entity.EntityId, mappings); }
+        try { document = await _session.OrderCsvParentsFirstAsync(document, entity.EntityId, mappings, options: options); }
         catch (NendoException exception) { NativeNotice($"CSV import did not start. {exception.Message}", InfoBarSeverity.Error); return; }
         var committed = 0;
         try
@@ -157,8 +157,9 @@ public sealed partial class MainPage
         {
             var count = await CsvWorkAsync("Export faithful CSV", async cancellationToken =>
             {
-                await using var writer = new StreamWriter(new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None), new UTF8Encoding(false));
-                return await _session.ExportCsvAsync(entity.EntityId, writer, cancellationToken);
+                // The Engine writes the file's encoding, byte-order mark first (R2LAT-11).
+                await using var file = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                return await _session.ExportCsvFileAsync(entity.EntityId, file, cancellationToken);
             });
             await _session.ValidateFileRequestAsync(CancellationToken.None);
             File.Move(staging, destination, false);

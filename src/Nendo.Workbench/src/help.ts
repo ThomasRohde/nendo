@@ -4,6 +4,7 @@ import { conceptHelp } from './help-concepts';
 import { agentHelp } from './help-agents';
 export { agentSurface } from './help-agents';
 import type { ApplicationPlan, EntitySnapshot } from './host';
+import { foldText } from './search-text';
 
 export interface HelpTerm { term: string; meaning: string; code?: boolean }
 export interface HelpSection { heading: string; paragraphs?: string[]; steps?: string[]; terms?: HelpTerm[] }
@@ -30,11 +31,21 @@ export function groupHelpTopics(topics: readonly HelpTopic[]): Array<{ category:
   return [...groups].map(([category, items]) => ({ category, topics: items })).sort((a, b) => rank(a.category) - rank(b.category));
 }
 
-/** Everything a search may match: title, category, summary, headings, paragraphs, steps and terms. */
+/**
+ * Everything a search may match: title, category, summary, headings, paragraphs, steps and terms,
+ * folded as helpQuery folds what was typed. The fold is the locale-independent one record search
+ * uses (W-217): toLocaleLowerCase under a Turkish display language turns the I of 'Import' into a
+ * dotless 'ı' that no typed 'import' matches.
+ */
 export function helpSearchText(topic: HelpTopic): string {
-  return [topic.title, topic.category, topic.summary, topic.markdown ?? '', ...topic.sections.flatMap(section => [section.heading,
+  return foldText([topic.title, topic.category, topic.summary, topic.markdown ?? '', ...topic.sections.flatMap(section => [section.heading,
     ...(section.paragraphs ?? []), ...(section.steps ?? []), ...(section.terms ?? []).flatMap(term => [term.term, term.meaning])])]
-    .join(' ').toLocaleLowerCase();
+    .join(' '));
+}
+
+/** What a Help search box holds, folded to compare with helpSearchText. */
+export function helpQuery(typed: string): string {
+  return foldText(typed.trim());
 }
 
 function rootTitle(app: ApplicationPlan, kind: string): string | null {

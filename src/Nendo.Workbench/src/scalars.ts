@@ -5,6 +5,22 @@ export function exactNumberText(value: unknown): string | null {
     typeof value.$nendoNumber === 'string' ? value.$nendoNumber : null;
 }
 
+/** The person's locale, which says whether a comma is their decimal separator; a test sets its own. */
+let numberLocale: () => string = () => (typeof navigator === 'object' && typeof navigator.language === 'string' && navigator.language !== '' ? navigator.language : 'en');
+
+export function useNumberLocale(next: () => string): void {
+  numberLocale = next;
+}
+
+/** Whether the locale writes 1.5 as 1,5, as Danish, German and French do. */
+export function commaDecimalLocale(locale: string): boolean {
+  try {
+    return new Intl.NumberFormat(locale).formatToParts(1.5).find((part) => part.type === 'decimal')?.value === ',';
+  } catch {
+    return false;
+  }
+}
+
 export function parseScalar(kind: string, raw: string): unknown {
   if (kind === 'Text') return raw;
   const text = raw.trim();
@@ -21,9 +37,17 @@ export function parseScalar(kind: string, raw: string): unknown {
     return { $nendoNumber: value.toString() } satisfies ExactNumber;
   }
   if (kind === 'Decimal') {
-    if (!/^-?\d+(\.\d+)?$/.test(text)) throw new Error('Enter a decimal using a dot, without separators or an exponent.');
-    const negative = text.startsWith('-');
-    const [whole, fraction = ''] = text.replace(/^-/, '').split('.');
+    // A decimal comma is what the numpad types on Danish, German and French layouts (W-217), so
+    // one comma stands for the dot. Where the person's locale writes its decimals with a dot,
+    // '1,234' could be one thousand two hundred and thirty-four, so that one shape -- one to three
+    // digits without a leading zero, a comma, then three -- is refused rather than guessed at.
+    // '0,125' and '1234,567' cannot be a grouping and are read as decimals everywhere.
+    if (!commaDecimalLocale(numberLocale()) && /^-?[1-9]\d{0,2},\d{3}$/.test(text))
+      throw new Error('A comma before three digits reads as a thousands separator. Enter the number without separators, or with a dot for the decimal.');
+    const lexeme = /^-?\d+,\d+$/.test(text) ? text.replace(',', '.') : text;
+    if (!/^-?\d+(\.\d+)?$/.test(lexeme)) throw new Error('Enter a decimal with a dot or a comma, without thousands separators or an exponent.');
+    const negative = lexeme.startsWith('-');
+    const [whole, fraction = ''] = lexeme.replace(/^-/, '').split('.');
     const coefficient = BigInt(whole + fraction);
     if (fraction.length > 28 || coefficient > 79228162514264337593543950335n) throw new Error('The decimal exceeds the supported precision or 28 fractional places.');
     return { $nendoNumber: `${negative ? '-' : ''}${BigInt(whole)}${fraction ? `.${fraction}` : ''}` } satisfies ExactNumber;

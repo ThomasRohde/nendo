@@ -60,7 +60,7 @@ function taskRow(task, { resolve, today, openable }) {
   text.innerHTML = inline(task.text, resolve);
   label.append(box, text);
   item.append(label);
-  const due = task.done ? null : dueText(task.due, today, document.documentElement.lang || undefined);
+  const due = task.done ? null : dueText(task.due, today, globalThis.nendo?.context?.locale || undefined);
   if (due) {
     const pill = document.createElement('span');
     pill.className = `due${due.late ? ' late' : ''}`;

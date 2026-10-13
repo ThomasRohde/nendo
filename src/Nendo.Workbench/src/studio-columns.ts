@@ -95,7 +95,7 @@ export function withSort(query: StudioQuery | undefined, sort: { sortFieldId: st
 }
 
 /** The query with a new filter and the same sort. */
-export function withFilter(query: StudioQuery | undefined, filter: Pick<StudioQuery, 'fieldId' | 'operator' | 'text' | 'filters'>): StudioQuery | null {
+export function withFilter(query: StudioQuery | undefined, filter: Pick<StudioQuery, 'fieldId' | 'operator' | 'text' | 'filters' | 'phrase'>): StudioQuery | null {
   const sortFieldId = query?.sortFieldId ?? null;
   if (sortFieldId === null && filter.filters.length === 0) return null;
   return { ...filter, sortFieldId, descending: sortFieldId !== null && query?.descending === true };
@@ -111,12 +111,21 @@ export function queryStatusText(query: StudioQuery | undefined, nameOf: (fieldId
   if (query === undefined) return '';
   const parts: string[] = [];
   if (query.sortFieldId !== null) parts.push(`Sorted by ${nameOf(query.sortFieldId)}, ${query.descending ? 'descending' : 'ascending'}`);
+  let phrased = false;
   for (const filter of query.filters) {
+    // A typed day became one or two clauses on the instant; the status says what they mean, once.
+    if (query.phrase !== undefined && filter.fieldId === query.fieldId) {
+      if (!phrased) parts.push(`Only where ${nameOf(filter.fieldId)} ${query.phrase}`);
+      phrased = true;
+      continue;
+    }
     const words = operatorWords[filter.operator] ?? filter.operator;
     // The value as the person gave it -- a record's label, Yes, a choice's name -- rather than as
     // stored, which for a reference is an ID nothing on screen shows (UX-08).
     const said = filter.fieldId === query.fieldId && query.text ? query.text : 'value' in filter ? String(filter.value) : '';
     parts.push(`Only where ${nameOf(filter.fieldId)} ${words}${'value' in filter ? ` ${said}` : ''}`);
+    // Does not equal never matches an empty value, which reads as a surprise unless it is said (ESQ-05).
+    if (filter.operator === 'ne') parts.push(`Records with no ${nameOf(filter.fieldId)} are left out; Not set finds them`);
   }
   return parts.length === 0 ? '' : `${parts.join(' · ')} · across every record of this type`;
 }

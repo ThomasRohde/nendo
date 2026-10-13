@@ -9,6 +9,8 @@
  * the click does -- a page holding unsaved typing refuses to be left either way.
  */
 
+import { chordKey } from './extension-api/protocol';
+
 export type ShortcutId =
   | 'palette' | 'use' | 'data' | 'structure' | 'surfaces' | 'history' | 'health' | 'agent'
   | 'help' | 'back' | 'forward' | 'rail' | 'file' | 'hints' | 'newTab' | 'closeTab' | 'nextTab';
@@ -59,6 +61,8 @@ export function shortcutForKeys(keys: string): ShortcutId | null {
 
 export interface KeyLike {
   key: string;
+  /** The physical key (`KeyK`, `Digit2`), which names a chord the layout types another character on. */
+  code?: string;
   ctrlKey: boolean;
   altKey: boolean;
   shiftKey: boolean;
@@ -70,12 +74,16 @@ export interface KeyLike {
  *
  * Back and Forward are answered where they always were, in main.ts, so they are not
  * matched here; they are in the table so the palette and the hints can name them.
- * Modifiers must be exactly the ones named: Ctrl+Shift+K is somebody else's key.
+ * Modifiers must be exactly the ones named: Ctrl+Shift+K is somebody else's key. The key is
+ * read through chordKey, so Ctrl K is Ctrl K on a Russian or Thai layout and Ctrl 2 on AZERTY,
+ * whose digits need Shift: that Shift is the layout's own and does not count.
  */
 export function matchShortcut(event: KeyLike): ShortcutId | null {
   if (event.metaKey) return null;
-  const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-  if (event.ctrlKey && !event.altKey && !event.shiftKey) {
+  const chord = chordKey(event);
+  const key = chord.key.length === 1 ? chord.key.toLowerCase() : chord.key;
+  const shiftKey = event.shiftKey && !chord.layoutShift;
+  if (event.ctrlKey && !event.altKey && !shiftKey) {
     if (key === 'k') return 'palette';
     if (key === 'b') return 'rail';
     if (key === '/') return 'hints';
@@ -87,7 +95,7 @@ export function matchShortcut(event: KeyLike): ShortcutId | null {
     };
     return numbered[key] ?? null;
   }
-  if (event.altKey && !event.ctrlKey && !event.shiftKey && key === 'f') return 'file';
+  if (event.altKey && !event.ctrlKey && !shiftKey && key === 'f') return 'file';
   if (!event.ctrlKey && !event.altKey && !event.shiftKey && key === 'F1') return 'help';
   return null;
 }

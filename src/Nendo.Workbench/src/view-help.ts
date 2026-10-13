@@ -1,6 +1,6 @@
 import { state } from './app-state';
 import { escapeAttribute, escapeHtml } from './format';
-import { type HelpSection, groupHelpTopics, helpSearchText, helpTopics } from './help';
+import { type HelpSection, groupHelpTopics, helpQuery, helpSearchText, helpTopics } from './help';
 import { markdownMarkup } from './markdown';
 import { content, requiredElement } from './shell';
 /**
@@ -35,10 +35,11 @@ export function renderHelp(): void {
   // Search covers article bodies, so a refusal code or a screen label finds its topic; the query outlives a topic click.
   const applyFilter = (): void => {
     let matches = 0;
+    const query = helpQuery(state.helpQuery);
     for (const group of content.querySelectorAll<HTMLElement>('.help-group')) {
       let visible = 0;
       for (const button of group.querySelectorAll<HTMLButtonElement>('[data-help-topic]')) {
-        button.hidden = !searchText.get(button.dataset.helpTopic!)!.includes(state.helpQuery);
+        button.hidden = !searchText.get(button.dataset.helpTopic!)!.includes(query);
         if (!button.hidden) visible++;
       }
       group.hidden = visible === 0;
@@ -47,7 +48,7 @@ export function renderHelp(): void {
     requiredElement<HTMLElement>('#help-no-results').hidden = matches !== 0;
   };
   requiredElement<HTMLInputElement>('#help-search').addEventListener('input', (event)=>{
-    state.helpQuery = (event.target as HTMLInputElement).value.trim().toLocaleLowerCase();
+    state.helpQuery = (event.target as HTMLInputElement).value;
     applyFilter();
   });
   applyFilter();

@@ -100,7 +100,10 @@ internal static class IndependentRefusals
             for (var operation = 0; operation < operations.Count; operation++)
             {
                 if (!After(mutation, operation) || removed.Contains((mutation, operation))) continue;
-                if (IdentifiersOf(operations[operation]).Any(introduced.Contains)) Remove(mutation, operation);
+                // A reference's target ties a later write to a record a left-out one would have
+                // made; it never makes the target itself something the refused write introduced.
+                if (IdentifiersOf(operations[operation]).Concat(TargetsOf(operations[operation])).Any(introduced.Contains))
+                    Remove(mutation, operation);
             }
         }
 
@@ -129,7 +132,8 @@ internal static class IndependentRefusals
     /// <summary>
     /// The identifiers an operation names: every string under a property whose name ends
     /// in Id or Ids, anywhere in its canonical payload. Record IDs are among them, which
-    /// is what ties two writes to the same record together.
+    /// is what ties two writes to the same record together. A record write also names the
+    /// fields it sets, the keys of its values and target versions (ESQ-09).
     /// </summary>
     internal static IReadOnlySet<string> IdentifiersOf(NendoOperation operation)
     {
@@ -140,11 +144,36 @@ internal static class IndependentRefusals
         return found;
     }
 
+    /// <summary>
+    /// The records a write's references point at (ESQ-09): a create pointing at a record a
+    /// refused create would have made depends on it. A target is only ever matched against what
+    /// a left-out write introduced, never added to it: two rows under one existing parent are
+    /// independent, however many of them are refused.
+    /// </summary>
+    internal static IReadOnlySet<string> TargetsOf(NendoOperation operation)
+    {
+        var found = new HashSet<string>(StringComparer.Ordinal);
+        using var document = JsonDocument.Parse(operation.CanonicalJson());
+        void Visit(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                ReferenceTargets(element, found);
+                foreach (var property in element.EnumerateObject()) Visit(property.Value);
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+                foreach (var item in element.EnumerateArray()) Visit(item);
+        }
+        Visit(document.RootElement);
+        return found;
+    }
+
     private static void Walk(JsonElement element, string? name, HashSet<string> found)
     {
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
+                RecordWriteIdentifiers(element, found);
                 foreach (var property in element.EnumerateObject()) Walk(property.Value, property.Name, found);
                 break;
             case JsonValueKind.Array:
@@ -155,5 +184,29 @@ internal static class IndependentRefusals
                 found.Add(element.GetString()!);
                 break;
         }
+    }
+
+    /// <summary>The field IDs a record write keys its values and target versions by.</summary>
+    private static void RecordWriteIdentifiers(JsonElement payload, HashSet<string> found)
+    {
+        foreach (var name in new[] { "expectedTargetVersions", "values" })
+            if (payload.TryGetProperty(name, out var keyed) && keyed.ValueKind == JsonValueKind.Object)
+                foreach (var field in keyed.EnumerateObject()) found.Add(field.Name);
+    }
+
+    /// <summary>
+    /// The target of each reference a record write sets: a value whose field carries a target
+    /// version, or a single field's value when the write expects a target version for it.
+    /// </summary>
+    private static void ReferenceTargets(JsonElement payload, HashSet<string> found)
+    {
+        if (payload.TryGetProperty("values", out var values) && values.ValueKind == JsonValueKind.Object &&
+            payload.TryGetProperty("expectedTargetVersions", out var targets) && targets.ValueKind == JsonValueKind.Object)
+            foreach (var field in values.EnumerateObject())
+                if (field.Value.ValueKind == JsonValueKind.String && targets.TryGetProperty(field.Name, out _))
+                    found.Add(field.Value.GetString()!);
+        if (payload.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.String &&
+            payload.TryGetProperty("expectedTargetRecordVersion", out var target) && target.ValueKind == JsonValueKind.Number)
+            found.Add(value.GetString()!);
     }
 }

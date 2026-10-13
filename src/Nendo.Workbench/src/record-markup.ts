@@ -12,6 +12,7 @@ import { chartStates, chartTables, relatedWindows, state, summaryCounts } from '
 import { applicationPlans, drillTarget, recordPlanOf } from './plan-selection';
 import { icon } from './icons';
 import type { ApplicationPlan, DerivedFieldPlan, EntitySnapshot, FieldPlan, RecordPlan, RecordSnapshot, SurfaceNodePlan } from './host';
+import { windowIsCurrent } from './record-window';
 
 /**
  * The pieces a screen is built from: one field, one card, one tile, one chart,
@@ -258,7 +259,7 @@ export function relatedListMarkup(node: SurfaceNodePlan, record: RecordPlan): st
   // A page read against an older revision is not this relation's answer. It used to be
   // shown anyway, so adding a linked record left the list that should hold it looking
   // exactly as it had before; every other window here already compares the sequence.
-  const page = window !== undefined && window.page.changeSequence === state.session.manifest?.changeSequence
+  const page = window !== undefined && windowIsCurrent(window, state.session.manifest?.changeSequence)
     ? window.page
     : undefined;
   const targetEntityId = typeof node.properties.targetEntityId === 'string' ? node.properties.targetEntityId : null;
@@ -497,7 +498,9 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
   // them: saving the field otherwise wrote the value back without them (WMX-03).
   if (!numeric && storageLabel(field.storageKind) === 'Text' && /[\r\n]/.test(value))
     return textControl(`<label>${label}<textarea name="${name}" rows="3" ${required}>\n${escapeHtml(value)}</textarea></label>`);
-  const markup = `<label>${label}<input name="${name}" type="text" ${numeric ? 'inputmode="decimal"' : ''} value="${escapeAttribute(value)}" ${required} /></label>`;
+  // A whole number gets the keypad without a separator it would refuse (W-217).
+  const keypad = !numeric ? '' : storageLabel(field.storageKind) === 'Integer' ? 'inputmode="numeric"' : 'inputmode="decimal"';
+  const markup = `<label>${label}<input name="${name}" type="text" ${keypad} value="${escapeAttribute(value)}" ${required} /></label>`;
   return storageLabel(field.storageKind) === 'Text' ? textControl(markup) : markup;
 }
 

@@ -134,7 +134,40 @@ export function parseKeys(text: unknown): string | null {
   return [ctrl ? 'Ctrl' : '', alt ? 'Alt' : '', shift && !symbol ? 'Shift' : '', name].filter((part) => part !== '').join('+');
 }
 
-export interface KeyEventLike { key: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean }
+export interface KeyEventLike { key: string; code?: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean }
+
+/**
+ * Whether a key is AltGr typing a character: Windows reports AltGr as Ctrl and Alt, so Polish
+ * AltGr+E arrives as Ctrl, Alt and 'ę', and German AltGr+E as Ctrl, Alt and '€'. A Latin letter
+ * or a digit with Ctrl and Alt is still a chord (W-217).
+ */
+function altGraph(event: KeyEventLike): boolean {
+  return event.ctrlKey && event.altKey && event.key.length === 1 && !/^[A-Za-z0-9]$/.test(event.key);
+}
+
+/**
+ * The key a Ctrl or Alt chord was pressed on, whatever the layout types there (W-217). With a
+ * Russian, Greek, Arabic or Thai layout active, Ctrl and K reports the layout's letter ('л') as
+ * its key, and AZERTY's digit row types '&', 'é' and '"', giving the digit only with Shift. So a
+ * chord whose key is no Latin letter or digit is named by the physical key instead (`KeyK` is
+ * 'k', `Digit2` is '2'), as code editors read it. A letter falls back only from a non-ASCII key,
+ * so AZERTY's own A and M stay where its keycaps put them, and the digit row only unshifted, so
+ * Ctrl+Shift+1 on a US keyboard stays Ctrl+!. `layoutShift` says the Shift was the layout's: a
+ * digit its digit row types only with Shift. Ctrl and Alt together is AltGr on Windows, which
+ * types a character ('ę', '€', '@'), so such a key is never read by its physical key.
+ */
+export function chordKey(event: KeyEventLike): { key: string; layoutShift: boolean } {
+  const raw = event.key;
+  const code = typeof event.code === 'string' ? event.code : '';
+  if (!(event.ctrlKey || event.altKey) || raw.length !== 1 || altGraph(event)) return { key: raw, layoutShift: false };
+  if (/^[0-9]$/.test(raw)) return { key: raw, layoutShift: event.shiftKey && code === `Digit${raw}` };
+  if (/^[A-Za-z]$/.test(raw)) return { key: raw, layoutShift: false };
+  const letter = /^Key([A-Z])$/.exec(code);
+  if (letter !== null && raw.charCodeAt(0) > 0x7f) return { key: letter[1].toLowerCase(), layoutShift: false };
+  const digit = /^Digit([0-9])$/.exec(code);
+  if (digit !== null && !event.shiftKey) return { key: digit[1], layoutShift: false };
+  return { key: raw, layoutShift: false };
+}
 
 /**
  * The normalised key a key event is, for matching against a declaration: null for a bare
@@ -143,10 +176,12 @@ export interface KeyEventLike { key: string; ctrlKey: boolean; altKey: boolean; 
  */
 export function chordOf(event: KeyEventLike): string | null {
   if (event.metaKey) return null;
-  const raw = event.key;
-  if (raw === 'Control' || raw === 'Alt' || raw === 'Shift' || raw === 'Meta' || raw === 'AltGraph' || raw === 'Dead') return null;
+  if (event.key === 'Control' || event.key === 'Alt' || event.key === 'Shift' || event.key === 'Meta' || event.key === 'AltGraph' || event.key === 'Dead') return null;
+  // A character typed with AltGr is typing, not Ctrl+Alt and a key.
+  if (altGraph(event)) return null;
+  const { key: raw, layoutShift } = chordKey(event);
   let name: string;
-  let symbol = false;
+  let symbol = layoutShift;
   if (raw === ' ') name = 'Space';
   else if (raw === '+') { name = 'Plus'; symbol = true; }
   else if (/^[A-Za-z0-9]$/.test(raw)) name = raw.toUpperCase();

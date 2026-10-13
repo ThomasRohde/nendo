@@ -4,11 +4,11 @@ import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showKeptAlert, showOutcome, showRetainedNotice } from './shell';
-import { blockedConditionsNotice, escapeHtml, messageFor, mutationKey, valueDisplay } from './format';
+import { blockedConditionsNotice, escapeHtml, foldDate, messageFor, mutationKey, valueDisplay } from './format';
 import { decideWriteFailure, nameHolder, nameTarget, namingFieldId, referenceRefusalCodes, referenceTargetOf } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
-import { emptyWindowQuery, windowRequest, type WindowQuery } from './record-window';
+import { accumulatorIsCurrent, emptyWindowQuery, readDay, windowIsCurrent, windowRequest, type WindowQuery } from './record-window';
 import {
   accumulatedWindows, clearFileScoped, focusedRecords, recordWindows, relatedWindows, state, studioQueries, studioWindows,
   summaryCounts, surfaceErrors, surfaceWindows,
@@ -281,6 +281,7 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   // the shared refresh must not open an unbounded window for one.
   // The query the screen opened under, a drill or a Filter pick included: the declared one alone
   // put records back on a narrowed screen after every write (W-172).
+  const surfaceDay = readDay();
   const declared = surfaceNode === null || readsOwnRecords(surfaceNode.kind) || applicationEntity === undefined
     ? null
     : effectiveSurfaceQuery(applicationEntity, surfaceNode);
@@ -323,15 +324,15 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   // Every surface window this revision invalidated goes, including the ones not
   // in view; a stale page is never left behind for a later selection to show.
   for (const [surfaceId, window] of [...surfaceWindows])
-    if (window.page.changeSequence !== sequence) surfaceWindows.delete(surfaceId);
+    if (!windowIsCurrent(window, sequence)) surfaceWindows.delete(surfaceId);
   // A calendar's or a timeline's accumulated pages are one snapshot of a range.
   // Keeping them across a revision would either duplicate a record or mix two
   // snapshots.
   for (const [key, accumulated] of [...accumulatedWindows])
-    if (accumulated.changeSequence !== sequence) accumulatedWindows.delete(key);
+    if (!accumulatorIsCurrent(accumulated, sequence)) accumulatedWindows.delete(key);
   surfaceErrors.clear();
   if (surfacePage !== null && surfaceNode !== null && declared !== null)
-    surfaceWindows.set(surfaceNode.semanticId, { page: surfacePage, cursors: [null], index: 0, query: declared });
+    surfaceWindows.set(surfaceNode.semanticId, { page: surfacePage, cursors: [null], index: 0, query: declared, day: surfaceDay });
   studioWindows.clear();
   if (state.selectedEntityId && studioQueries.has(state.selectedEntityId)) await refreshStudioQuery(state.selectedEntityId);
   const records = applicationEntity
@@ -495,7 +496,7 @@ export async function buildSearchIndex(): Promise<boolean> {
 }
 
 function confirmFold(preview: HistoryFoldPreview): Promise<boolean> {
-  const day = (value: string | null) => value === null ? '' : new Date(value).toLocaleDateString();
+  const day = (value: string | null) => value === null ? '' : foldDate(value);
   return confirmDialog({
     headingId: 'fold-heading',
     title: 'Fold older history?',

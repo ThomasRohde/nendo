@@ -161,6 +161,11 @@ export function installViewFrames(): void {
   }).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 }
 
+/** The civil day turned: every running view hears its context again (W-217). */
+export function viewsDayTurned(): void {
+  broker?.dayTurned();
+}
+
 /** Pings go out once a second while any view is connected, and stop with the last one. */
 function keepTicking(): void {
   if (ticker !== null || broker === null) return;

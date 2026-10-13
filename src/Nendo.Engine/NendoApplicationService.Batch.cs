@@ -206,27 +206,57 @@ public sealed partial class NendoApplicationService
             new NendoCompensationCaller(request.Context.IdempotencyScope, request.Context.Origin, request.Redo, request.Label),
             cancellationToken);
 
-        // Each record once, where it first appears, at the version its last inverse leaves.
+        // Each record once, where it first appears, at the version its last inverse leaves. The
+        // undo has committed by now, so nothing below may refuse an inverse it does not know: an
+        // answer that fails after the commit tells the caller its undo failed when it did not, and
+        // a retry is then refused.
         var order = new List<(string EntityId, string RecordId)>();
         var versions = new Dictionary<(string EntityId, string RecordId), long?>();
+        var markedOnly = new HashSet<(string EntityId, string RecordId)>();
         foreach (var operation in mutation.Operations)
         {
-            ((string EntityId, string RecordId) Key, long? Version) planned = operation switch
+            ((string EntityId, string RecordId) Key, long? Version)? planned = operation switch
             {
                 SetFieldOperation edit => ((edit.EntityId, edit.RecordId), edit.ExpectedRecordVersion + 1),
                 BackfillRetiredFieldOperation backfill => ((backfill.Edit.EntityId, backfill.Edit.RecordId), backfill.Edit.ExpectedRecordVersion + 1),
                 RestoreDeletedRecordOperation restore => ((restore.EntityId, restore.RecordId), restore.DeletedVersion + 1),
                 DeleteRecordOperation delete => ((delete.EntityId, delete.RecordId), null),
-                _ => throw new InvalidOperationException($"A view's undo planned {operation.OperationType}."),
+                _ => null,
             };
-            if (!versions.ContainsKey(planned.Key)) order.Add(planned.Key);
-            versions[planned.Key] = planned.Version;
+            if (planned is { } step)
+            {
+                if (!versions.ContainsKey(step.Key)) order.Add(step.Key);
+                versions[step.Key] = step.Version;
+            }
+            else if (operation is SetRecordKeptInNewFilesOperation keep && !versions.ContainsKey((keep.EntityId, keep.RecordId)))
+            {
+                // A keep mark moves no version: the record is named at the version another inverse
+                // leaves it or, with none, at the version it holds.
+                order.Add((keep.EntityId, keep.RecordId));
+                versions[(keep.EntityId, keep.RecordId)] = null;
+                markedOnly.Add((keep.EntityId, keep.RecordId));
+            }
+            if (planned is { } moved) markedOnly.Remove(moved.Key);
         }
         if (applied.IsIdempotentReplay)
             return new NendoRecordWritesResult(applied, [.. order.Select(key => new NendoWrittenRecord(key.EntityId, key.RecordId, null))]);
         var committed = applied.GeneratedChanges
             .GroupBy(change => (change.EntityId, change.RecordId))
             .ToDictionary(group => group.Key, group => group.Last().RecordVersion);
+        foreach (var key in markedOnly.Where(key => !committed.ContainsKey(key)))
+        {
+            try
+            {
+                var held = await _coordinator.QueryRecordsAsync(new NendoRecordQuery(key.EntityId, 1) { RecordId = key.RecordId }, cancellationToken);
+                versions[key] = held.Items.FirstOrDefault()?.RecordVersion;
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                // The undo has committed. A version this read could not learn is answered as
+                // unknown, never as a failure of the undo.
+                versions[key] = null;
+            }
+        }
         return new NendoRecordWritesResult(applied, [.. order.Select(key => new NendoWrittenRecord(key.EntityId, key.RecordId,
             committed.TryGetValue(key, out var actual) ? actual : versions[key]))]);
     }

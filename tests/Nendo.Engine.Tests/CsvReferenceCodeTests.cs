@@ -144,8 +144,65 @@ public sealed class CsvReferenceCodeTests
         }
     }
 
+    /// <summary>
+    /// ESQ-01: a row without a code (a sequence fills it) names nothing, and an empty or null
+    /// parent is the top level, so a tree with an uncoded leaf is put parents first rather than
+    /// refused as a cycle, under both profiles.
+    /// </summary>
+    [TestMethod]
+    public async Task AnUncodedLeafUnderACodedRootIsPutParentsFirstNotRefusedAsACycle()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+        NendoCsvMapping[] mappings = [new(0, "code"), new(1, "name"), new(2, "parent") { MatchFieldId = "code" }];
+
+        foreach (var (csv, options) in new[]
+        {
+            ("Code,Name,Parent\n1,Root,\n,Leaf,1\n", new NendoCsvOptions(false, EmptyIsNull: true)),
+            ("Code,Name,Parent\n1,Root,\n,Leaf,1\n", new NendoCsvOptions(false)),
+            ("Code,Name,Parent\n1,Root,\\N\n\\N,Leaf,1\n", new NendoCsvOptions(true)),
+        })
+        {
+            var ordered = await service.OrderCsvParentsFirstAsync(NendoCsvProfile.Parse(Encoding.UTF8.GetBytes(csv)), Entity, mappings, options: options);
+            CollectionAssert.AreEqual(new[] { "Root", "Leaf" }, ordered.Rows.Select(row => row[1]).ToArray(),
+                $"The rows of {csv.Replace('\n', '/')} were not kept parents first.");
+        }
+    }
+
+    /// <summary>ESQ-14: History names the rows of the file a reordered batch holds, not its positions.</summary>
+    [TestMethod]
+    public async Task AReorderedBatchIsDescribedByTheRowsItHolds()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+
+        Assert.AreEqual(3, await ImportAsync(service, Csv(("1.1.1", "Three", "1.1"), ("1.1", "Two", "1"), ("1", "One", ""))));
+        var history = await service.QueryHistoryAsync(new(5));
+        Assert.AreEqual("Import 3 CSV rows: 4, 3, 2", history.Items[0].Description, "History names batch positions, not the rows of the file.");
+        Assert.AreEqual("Import CSV rows 2–4", NendoApplicationService.CsvBatchDescription([2, 3, 4]));
+    }
+
+    /// <summary>ESQ-01: a Nendo-profile code with an escaped leading backslash names its own row.</summary>
+    [TestMethod]
+    public async Task ACodeWithALeadingBackslashNamesItsOwnRowUnderTheNendoProfile()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator, service);
+
+        Assert.AreEqual(2, await ImportAsync(service, "Code,Name,Parent\n\\\\A1,Root,\\N\nB1,Leaf,\\\\A1\n", csvOptions: new NendoCsvOptions(true)));
+        var records = (await service.GetSnapshotAsync()).Records.Where(record => record.EntityId == Entity).ToDictionary(record => record.Values["name"].GetString()!);
+        Assert.AreEqual("\\A1", records["Root"].Values["code"].GetString());
+        Assert.AreEqual(records["Root"].RecordId, records["Leaf"].Values["parent"].GetString(), "The leaf does not point at the row its code names.");
+    }
+
     /// <summary>The person's importer: parents first, then each batch prepared and accepted.</summary>
-    private static async Task<int> ImportAsync(NendoApplicationService service, string csv, string matchFieldId = "code")
+    private static async Task<int> ImportAsync(NendoApplicationService service, string csv, string matchFieldId = "code", NendoCsvOptions? csvOptions = null)
     {
         var document = NendoCsvProfile.Parse(Encoding.UTF8.GetBytes(csv));
         NendoCsvMapping[] mappings =
@@ -154,8 +211,8 @@ public sealed class CsvReferenceCodeTests
             new(1, "name"),
             new(2, "parent") { MatchFieldId = matchFieldId },
         ];
-        var options = new NendoCsvOptions(false, EmptyIsNull: true);
-        document = await service.OrderCsvParentsFirstAsync(document, Entity, mappings);
+        var options = csvOptions ?? new NendoCsvOptions(false, EmptyIsNull: true);
+        document = await service.OrderCsvParentsFirstAsync(document, Entity, mappings, options: options);
         var committed = 0;
         while (committed < document.Rows.Count)
         {

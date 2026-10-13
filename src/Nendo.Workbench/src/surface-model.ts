@@ -156,6 +156,12 @@ export interface BoardView {
   cardFieldIds: string[];
   groups: string[];
   reference: { targetEntityId: string; labelFieldId: string } | null;
+  /**
+   * Whether a record with no value can be on this board at all. Every operator but isNull
+   * leaves out an unset value (queries.md), so a board with `status ne Done` can never hold a
+   * record without a status, and its Ungrouped lane would only ever read 0 (ESQ-05).
+   */
+  unsetReachable: boolean;
 }
 
 /**
@@ -189,6 +195,8 @@ export function boardViewOf(
     cardFieldIds: nodeFieldIds(node),
     groups: reachableGroups(node, groupByFieldId, reference === null ? field?.options ?? [] : referenceColumns ?? []),
     reference,
+    unsetReachable: !node.children.some((child) => child.kind === 'filterClause'
+      && child.properties.fieldId === groupByFieldId && child.properties.operator !== 'isNull'),
   };
 }
 

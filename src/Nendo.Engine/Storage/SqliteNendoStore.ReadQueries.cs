@@ -236,14 +236,26 @@ internal sealed partial class SqliteNendoStore
         {
             var field = entity.Fields.Single(f => f.FieldId == query.SortFieldId);
             var column = Quote(field.PhysicalColumnName);
-            _connection.CreateCollation("NENDO_QUERY", (left, right) => RecordQuerySemantics.Compare(field.StorageKind, left, right));
-            _connection.CreateFunction<string?, string?, int>("nendo_query_compare",
-                (left, right) => RecordQuerySemantics.Compare(field.StorageKind, left, right), isDeterministic: true);
-            order = $"CAST({column} AS TEXT) COLLATE NENDO_QUERY {direction}, {id} COLLATE BINARY ASC";
+            // A reference sorts by its target's label, the text its cell shows, compared as the
+            // label field's kind; a single choice in its options' order (ESQ-16).
+            (EntityMapping Target, FieldMapping Field)? label = null;
+            if (field.Reference is { } reference &&
+                mappings.SingleOrDefault(mapping => mapping.EntityId == reference.TargetEntityId) is { } target &&
+                target.Fields.SingleOrDefault(candidate => candidate.FieldId == reference.LabelFieldId) is { } labelField)
+                label = (target, labelField);
+            var sort = label is { } shown
+                ? RecordQuerySemantics.SortComparison(shown.Field.StorageKind, null, [])
+                : RecordQuerySemantics.SortComparison(field.StorageKind, field.Presentation, field.Options);
+            string SortValue(string row) => label is { } named
+                ? $"(SELECT CAST(sort_target.{Quote(named.Field.PhysicalColumnName)} AS TEXT) FROM {Quote(named.Target.PhysicalTableName)} sort_target WHERE sort_target.{id} = {row}.{column})"
+                : $"CAST({row}.{column} AS TEXT)";
+            _connection.CreateCollation("NENDO_QUERY", (left, right) => sort(left, right));
+            _connection.CreateFunction<string?, string?, int>("nendo_query_compare", (left, right) => sort(left, right), isDeterministic: true);
+            order = $"{SortValue("source_record")} COLLATE NENDO_QUERY {direction}, {id} COLLATE BINARY ASC";
             if (after is not null)
             {
-                var previous = $"(SELECT CAST({column} AS TEXT) FROM {Quote(entity.PhysicalTableName)} WHERE {id} = @after)";
-                var compare = $"nendo_query_compare(CAST({column} AS TEXT), {previous})";
+                var previous = $"(SELECT {SortValue("sort_previous")} FROM {Quote(entity.PhysicalTableName)} sort_previous WHERE sort_previous.{id} = @after)";
+                var compare = $"nendo_query_compare({SortValue("source_record")}, {previous})";
                 predicates.Add($"({compare} {comparison} 0 OR ({compare} = 0 AND {id} > @after COLLATE BINARY))");
             }
         }
@@ -312,14 +324,7 @@ internal sealed partial class SqliteNendoStore
 
         var target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
-        // A Date joins the numbers for min and max only (ADR-0004 2026-09-14
-        // amendment, S4): the range of a set of civil dates is a comparison, while
-        // a sum of them is not a question with an answer.
-        var dateExtreme = target.StorageKind == NendoStorageKind.Date && query.Aggregate is "min" or "max";
-        if (!dateExtreme && target.StorageKind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
-            throw new NendoValidationException(target.StorageKind == NendoStorageKind.Date
-                ? "A date field has a smallest and a largest value, not a sum."
-                : "Only an integer, decimal or date field can be aggregated.");
+        var dateExtreme = RequireAggregatedField(target.StorageKind, query.Aggregate);
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -406,8 +411,7 @@ internal sealed partial class SqliteNendoStore
 
         var dateField = entity.Fields.SingleOrDefault(f => f.FieldId == query.DateFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The date field does not exist on this record type.");
-        if (dateField.StorageKind != NendoStorageKind.Date)
-            throw new NendoValidationException("Only a Date field buckets a grouped read by civil date.");
+        RequireBucketDateField(dateField.StorageKind);
         var target = AggregatedTarget(entity, query.FieldId);
 
         var predicates = new List<string>();
@@ -550,11 +554,47 @@ internal sealed partial class SqliteNendoStore
     private static FieldMapping? AggregatedTarget(EntityMapping entity, string? fieldId)
     {
         if (fieldId is null) return null;
-        var target = entity.Fields.SingleOrDefault(f => f.FieldId == fieldId)
-            ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
-        if (target.StorageKind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
-            throw new NendoValidationException("Only an integer or decimal field can be aggregated.");
+        var target = entity.Fields.SingleOrDefault(f => f.FieldId == fieldId);
+        RequireGroupedTarget(fieldId, target?.StorageKind);
         return target;
+    }
+
+    // The field checks a read makes of what it folds, shared with the read-only snapshot's
+    // folds so a file opened read-only refuses what the file refuses (ESQ-10). A null kind is
+    // a field the record type does not have.
+
+    /// <summary>
+    /// The field one aggregate folds, and whether it folds a date's extremes: a Date joins the
+    /// numbers for min and max only (ADR-0004 2026-09-14 amendment, S4), since the range of a
+    /// set of civil dates is a comparison, while a sum of them is not a question with an answer.
+    /// </summary>
+    internal static bool RequireAggregatedField(NendoStorageKind? kind, string aggregate)
+    {
+        if (kind is not { } known)
+            throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
+        var dateExtreme = known == NendoStorageKind.Date && aggregate is "min" or "max";
+        if (!dateExtreme && known is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
+            throw new NendoValidationException(known == NendoStorageKind.Date
+                ? "A date field has a smallest and a largest value, not a sum."
+                : "Only an integer, decimal or date field can be aggregated.");
+        return dateExtreme;
+    }
+
+    /// <summary>The integer or decimal field a grouped, bucketed or crossed read folds, when it names one.</summary>
+    internal static void RequireGroupedTarget(string? fieldId, NendoStorageKind? kind)
+    {
+        if (fieldId is null) return;
+        if (kind is null)
+            throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
+        if (kind is not (NendoStorageKind.Integer or NendoStorageKind.Decimal))
+            throw new NendoValidationException("Only an integer or decimal field can be aggregated.");
+    }
+
+    /// <summary>The field a bucketed read buckets by: a civil Date.</summary>
+    internal static void RequireBucketDateField(NendoStorageKind kind)
+    {
+        if (kind != NendoStorageKind.Date)
+            throw new NendoValidationException("Only a Date field buckets a grouped read by civil date.");
     }
 
     internal static void ValidateRecordQuery(NendoRecordQuery query, IReadOnlyList<NendoFieldSnapshot> fields,

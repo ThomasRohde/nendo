@@ -208,7 +208,7 @@ public sealed record NendoPage<T>(IReadOnlyList<T> Items, string? NextCursor, lo
 /// <summary>
 /// A window of a declared hierarchy (ADR-0019), depth-first: the records under
 /// <see cref="RootRecordId"/>, or the whole tree from the top level when it is null, down to
-/// <see cref="Depth"/> levels below it (1 to 32), <see cref="Limit"/> at a time (1 to 100).
+/// <see cref="Depth"/> levels below it (1 to 32), <see cref="Limit"/> at a time (1 to 200).
 /// </summary>
 public sealed record NendoTreeQuery(string EntityId, string? RootRecordId = null, int Depth = 1, int Limit = 50, string? Cursor = null);
 

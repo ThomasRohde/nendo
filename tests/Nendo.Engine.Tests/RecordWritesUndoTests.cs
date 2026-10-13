@@ -167,6 +167,37 @@ public sealed class RecordWritesUndoTests
             service.CompensateRevisionAsync(compensation.RevisionId, "redo-rename"));
     }
 
+    /// <summary>
+    /// A revision that carries a keep mark (ADR-0022) is undone, redone and retried with an answer,
+    /// not an error after the commit (ESQ-03): the undo's mark inverse moves no version.
+    /// </summary>
+    [TestMethod]
+    public async Task ARevisionWithAKeepMarkIsUndoneAndRedoneWithAnAnswer()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (_, service) = await SeedAsync(workspace);
+        var before = await StateAsync(service);
+
+        var skeleton = await service.ApplyRecordWritesAsync(new NendoRecordWritesRequest(
+            [new(NendoRecordWriteKind.Create, "folders", "f7", Values("name", "Skeleton"), KeptInNewFiles: true)],
+            Context("skeleton"), "Build the skeleton"));
+        var built = await StateAsync(service);
+        var undo = await service.UndoRecordWritesAsync(new(skeleton.Applied.RevisionId, Context("unbuild"), Redo: false));
+        Assert.AreEqual(before, await StateAsync(service), "The undo of a kept create did not delete it.");
+        await AnswersAreCurrentAsync(service, undo);
+        var retried = await service.UndoRecordWritesAsync(new(skeleton.Applied.RevisionId, Context("unbuild"), Redo: false));
+        Assert.IsTrue(retried.Applied.IsIdempotentReplay, "An exact retry of the undo was not answered from its receipt.");
+        var redo = await service.UndoRecordWritesAsync(new(undo.Applied.RevisionId, Context("rebuild"), Redo: true));
+        Assert.AreEqual(built, await StateAsync(service), "The redo of a kept create did not bring it back.");
+        await AnswersAreCurrentAsync(service, redo);
+
+        var marked = await service.SetRecordsKeptInNewFilesAsync([("notes", "n0")], true, Context("mark"));
+        var unmarked = await service.UndoRecordWritesAsync(new(marked.RevisionId, Context("unmark"), Redo: false));
+        CollectionAssert.AreEqual(new[] { "n0" }, unmarked.Records.Select(record => record.RecordId).ToArray(),
+            "The undo of a keep mark does not name its record.");
+        await AnswersAreCurrentAsync(service, unmarked);
+    }
+
     private static async Task RefusedAsync(NendoApplicationService service, string revisionId, string code)
     {
         var sequence = (await service.GetSnapshotAsync()).Manifest.ChangeSequence;

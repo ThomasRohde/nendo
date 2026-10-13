@@ -411,7 +411,7 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public Task<NendoApplyResult> SetFieldsAsync(
+    public async Task<NendoApplyResult> SetFieldsAsync(
         NendoSetFieldsRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -435,8 +435,20 @@ public sealed partial class NendoApplicationService
                 request.EntityId, request.RecordId, pair.Key,
                 request.ExpectedRecordVersion + ordinal, pair.Value,
                 request.ExpectedTargetVersions is not null && request.ExpectedTargetVersions.TryGetValue(pair.Key, out var targetVersion) ? targetVersion : null)).ToArray();
-        return _coordinator.ApplyAsync(new NendoMutation(request.Context.IdempotencyScope,
-            request.Context.IdempotencyKey, request.Context.Origin, "Edit record fields", operations), cancellationToken);
+        // History names what a save changed, as the other writes do (ESQ-15): the record type,
+        // and the field when it is the only one. A type the definition lacks is the store's to
+        // refuse, so the description does not refuse it first.
+        var entity = (await _coordinator.GetDefinitionSnapshotAsync(cancellationToken)).Entities
+            .SingleOrDefault(value => value.EntityId == request.EntityId);
+        var only = request.Values.Count == 1 ? entity?.Fields.SingleOrDefault(field => field.FieldId == request.Values.Keys.Single()) : null;
+        var description = entity is null ? "Edit record fields"
+            : only is not null ? $"Edit {entity.DisplayName} {only.DisplayName}"
+            : $"Edit {entity.DisplayName}";
+        // The digest reads the words every form save had before (ESQ-15), so a retry stays exact
+        // after a rename and across the host that first named the type.
+        return await _coordinator.ApplyAsync(new NendoMutation(request.Context.IdempotencyScope,
+            request.Context.IdempotencyKey, request.Context.Origin, description, operations) { DigestDescription = "Edit record fields" },
+            cancellationToken);
     }
 
     public async Task<NendoApplyResult> ExecuteCommandAsync(
@@ -447,7 +459,9 @@ public sealed partial class NendoApplicationService
         RequireIdentity(request.CommandId, "command ID");
         RequireIdentity(request.RecordId, "record ID");
         RequireContext(request.Context);
-        var compilation = await CompileSemanticUiAsync(cancellationToken);
+        // The command and its steps are definition: a record button reads no records to find
+        // them (ESQ-04; AuthorityCacheTests).
+        var compilation = await CompileSemanticDefinitionAsync(cancellationToken);
 
         // Contract version 3 carries commands in the surface tree and a command
         // may set several fields. Every step lands in one mutation against one
@@ -535,7 +549,7 @@ public sealed partial class NendoApplicationService
     /// definition and its digest stay independent of the clock.
     /// </summary>
     private static object? ResolveStepValue(NendoSurfaceNodePlan step, NendoFieldPlan field) =>
-        ResolveStepValue(step, field, DateTimeOffset.UtcNow, TimeZoneInfo.Local);
+        ResolveStepValue(step, field, DateTimeOffset.UtcNow, NendoCivilClock.LocalZone());
 
     /// <summary>
     /// today is the person's civil date where this host runs, the same day a screen's

@@ -31,8 +31,10 @@
     const time = Date.parse(text + 'T00:00:00Z');
     return Number.isFinite(time) ? time : null;
   }
-  function month(time) { return new Date(time).toLocaleDateString(document.documentElement.lang || 'en', { month: 'short', year: '2-digit', timeZone: 'UTC' }); }
-  function dayOf(time) { return new Date(time).toLocaleDateString(document.documentElement.lang || 'en', { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+  // The view's own words are English, as its index.html says; the person's locale formats dates only (R2LAT-10).
+  let locale = 'en';
+  function month(time) { return new Date(time).toLocaleDateString(locale, { month: 'short', year: '2-digit', timeZone: 'UTC' }); }
+  function dayOf(time) { return new Date(time).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
   // The axis's ticks (GGV-11): the first of each month where the span holds at least two, else
   // each Monday where it holds two, else each day. At most twelve, so it stays readable at any
   // span, and a two-week sprint inside one month still has dates to read its bars against.
@@ -346,7 +348,7 @@
     return;
   }
   nendo.ready.then(context => {
-    document.documentElement.lang = context.locale || 'en';
+    locale = context.locale || 'en';
     single = context.recordId !== null;
     adoptNativeChrome();
     applyTheme(nendo.ui.theme);

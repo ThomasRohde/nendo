@@ -10,8 +10,11 @@ internal sealed partial class DesktopSessionController
             service.PrepareCsvBatchAsync(document, entityId, mappings, options, offset, batchId, cancellationToken, expectedDefinitionRevision), cancellationToken);
 
     internal Task<NendoCsvDocument> OrderCsvParentsFirstAsync(NendoCsvDocument document, string entityId,
-        IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken = default) => QueryAsync(service =>
-            service.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken), cancellationToken);
+        IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken = default, NendoCsvOptions? options = null) => QueryAsync(service =>
+            service.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken, options), cancellationToken);
+
+    internal Task<int> ExportCsvFileAsync(string entityId, Stream destination, CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.ExportCsvFileAsync(entityId, destination, cancellationToken), cancellationToken);
 
     internal Task<int> ExportCsvAsync(string entityId, TextWriter writer, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.ExportCsvAsync(entityId, writer, cancellationToken), cancellationToken);

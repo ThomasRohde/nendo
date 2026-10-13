@@ -27,6 +27,7 @@ import { viewAddCommand, wireViewFrames } from './view-frames';
 import { drawPlacePickers } from './place-pickers';
 import { fileViewById, fileViews, fileViewValue, showFileView, showingLabel, showingOptionsMarkup } from './file-view-model';
 import { renderFileView } from './file-views';
+import { accumulatorIsCurrent, windowIsCurrent } from './record-window';
 /**
  * The Use view: one selected surface for one record type, the record opened
  * beside it, and the gestures that move a card between board columns.
@@ -57,9 +58,9 @@ export async function selectSurface(surfaceId: string): Promise<void> {
   // A calendar or a timeline reads its own pages when it renders, keyed by the
   // range and mode in view.
   if (readsOwnRecords(node.kind)) { rerender(); return; }
-  // A window loaded earlier in this revision is still the answer, so returning
-  // to a surface does not re-read it.
-  if (surfaceWindows.get(surfaceId)?.page.changeSequence === state.session.manifest?.changeSequence) { rerender(); return; }
+  // A window loaded earlier in this revision, and on this civil day, is still the answer,
+  // so returning to a surface does not re-read it.
+  if (windowIsCurrent(surfaceWindows.get(surfaceId), state.session.manifest?.changeSequence)) { rerender(); return; }
   state.actionInFlight = true;
   setBusy(true);
   try {
@@ -446,7 +447,7 @@ function retryAfterSave(key: string, surfaceId: string, read: () => void): void 
     const shown = content.querySelector(`[data-surface-id="${CSS.escape(surfaceId)}"]`) !== null
       || activePlan() !== null && selectedSurfaceNode(activePlan()!)?.semanticId === surfaceId;
     const accumulated = accumulatedWindows.get(key);
-    const unread = accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence;
+    const unread = !accumulatorIsCurrent(accumulated, state.session.manifest?.changeSequence);
     if (shown && unread && !recordFormIsDirty()) read();
   };
   window.setTimeout(attempt, 150);
@@ -496,8 +497,7 @@ export function wireCalendar(plan: ApplicationPlan, node: SurfaceNodePlan): void
       .finally(() => { state.actionInFlight = false; setBusy(false); rerender(); });
   });
   // The first open of a month reads its first page.
-  const accumulated = accumulatedWindows.get(calendarKeyFor(node));
-  if (accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence) reload();
+  if (!accumulatorIsCurrent(accumulatedWindows.get(calendarKeyFor(node)), state.session.manifest?.changeSequence)) reload();
 }
 
 /**
@@ -539,6 +539,5 @@ export function wireTimeline(plan: ApplicationPlan, node: SurfaceNodePlan): void
   content.querySelector<HTMLButtonElement>('[data-timeline-retry]')?.addEventListener('click', reload);
   content.querySelector<HTMLButtonElement>('[data-timeline-more]')?.addEventListener('click', () => read(true));
   // The first open of a year reads its first page.
-  const accumulated = accumulatedWindows.get(timelineKeyFor(node));
-  if (accumulated === undefined || accumulated.changeSequence !== state.session.manifest?.changeSequence) reload();
+  if (!accumulatorIsCurrent(accumulatedWindows.get(timelineKeyFor(node)), state.session.manifest?.changeSequence)) reload();
 }

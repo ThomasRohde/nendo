@@ -145,6 +145,60 @@ public sealed class IndependentRefusalTests
             "A version conflict caused by leaving a mutation out was reported: " + JsonSerializer.Serialize(preview.Diagnostics));
     }
 
+    /// <summary>
+    /// ESQ-09: a create pointing at a record a refused create would have made, as a CSV batch
+    /// writes a child under a parent row, fails only because the parent was left out. It is a
+    /// consequence, so only the parent's refusal is reported.
+    /// </summary>
+    [TestMethod]
+    public async Task ACreatePointingAtARefusedCreatesRecordIsNotReported()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var revision = await FixtureAsync(coordinator);
+        await coordinator.ApplyAsync(new("test", "tree", "test", "A parent", [
+            new AddFieldOperation("t-parent", "tasks", "parent", "Parent", "parent_id", NendoStorageKind.Reference, false),
+            new ConfigureReferenceOperation("bind", "tasks", "parent", "tasks", "title", revision)]));
+
+        var preview = await coordinator.BeginProposalAsync(ProposalId(), "A batch", "test",
+            new NendoChangeSet([new NendoMutation("test", "batch", "test", "Import CSV rows 2-3", [
+                new CreateRecordOperation("row-2", "tasks", "r2", new Dictionary<string, object?> { ["title"] = "Parent", ["missing"] = "x" }),
+                new CreateRecordOperation("row-3", "tasks", "r3", new Dictionary<string, object?> { ["title"] = "Child", ["parent"] = "r2" },
+                    new Dictionary<string, long> { ["parent"] = 1 }),
+            ])]));
+
+        Assert.AreEqual(NendoProposalState.Invalid, preview.State);
+        CollectionAssert.AreEqual(new[] { "row-2" }, preview.Diagnostics.Select(diagnostic => diagnostic.OperationId).ToArray(),
+            "A child row that fails only because its parent row was left out was reported as a second problem: " + JsonSerializer.Serialize(preview.Diagnostics));
+    }
+
+    /// <summary>
+    /// ESQ-09 (review): rows under one parent the file already holds are independent. A refused
+    /// row does not make its parent something it introduced, so a later row under that parent with
+    /// its own mistake is still reported.
+    /// </summary>
+    [TestMethod]
+    public async Task RowsUnderAParentTheFileHoldsStayIndependent()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var revision = await FixtureAsync(coordinator);
+        await coordinator.ApplyAsync(new("test", "tree", "test", "A parent", [
+            new AddFieldOperation("t-parent", "tasks", "parent", "Parent", "parent_id", NendoStorageKind.Reference, false),
+            new ConfigureReferenceOperation("bind", "tasks", "parent", "tasks", "title", revision)]));
+        var under = new Dictionary<string, long> { ["parent"] = 1 };
+
+        var preview = await coordinator.BeginProposalAsync(ProposalId(), "A batch", "test",
+            new NendoChangeSet([new NendoMutation("test", "batch", "test", "Import CSV rows 2-4", [
+                new CreateRecordOperation("row-2", "tasks", "r2", new Dictionary<string, object?> { ["title"] = "One", ["parent"] = "t1", ["bogus"] = "x" }, under),
+                new CreateRecordOperation("row-3", "tasks", "r3", new Dictionary<string, object?> { ["title"] = "Two", ["parent"] = "t1" }, under),
+                new CreateRecordOperation("row-4", "tasks", "r4", new Dictionary<string, object?> { ["title"] = null, ["parent"] = "t1" }, under),
+            ])]));
+
+        CollectionAssert.AreEqual(new[] { "row-2", "row-4" }, preview.Diagnostics.Select(diagnostic => diagnostic.OperationId).ToArray(),
+            "A row under the same existing parent as a refused row was taken for its consequence: " + JsonSerializer.Serialize(preview.Diagnostics));
+    }
+
     private static string ProposalId() => "proposal-" + Guid.NewGuid().ToString("N");
 
     private static async Task<long> FixtureAsync(NendoWriteCoordinator coordinator)

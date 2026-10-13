@@ -567,6 +567,15 @@ public sealed record NendoMutation(
     string Description,
     IReadOnlyList<NendoOperation> Operations)
 {
+    /// <summary>
+    /// The words the replay digest reads in place of <see cref="Description"/>, when the
+    /// description is built from names a person can change. A form save is told apart from
+    /// another by its operations, and its description names the record type as it is called
+    /// now (ESQ-15); an exact retry after a rename, or across the host that first named it, must
+    /// still be the same write. Null digests the description itself.
+    /// </summary>
+    internal string? DigestDescription { get; init; }
+
     public NendoMutation Validate()
     {
         NendoOperation.Require(IdempotencyScope, nameof(IdempotencyScope));
@@ -674,7 +683,7 @@ internal static class NendoCanonical
         Digest(writer =>
         {
             writer.WriteStartObject();
-            writer.WriteString("description", mutation.Description);
+            writer.WriteString("description", mutation.DigestDescription ?? mutation.Description);
             writer.WriteString("idempotencyKey", mutation.IdempotencyKey);
             writer.WriteString("idempotencyScope", mutation.IdempotencyScope);
             writer.WritePropertyName("operations");

@@ -24,6 +24,7 @@ const entry = [
   `export { rangeEndKey, rankedMaxKey } from ${JSON.stringify(resolve(root, 'src/overview-model.ts'))};`,
   `export { chartKey } from ${JSON.stringify(resolve(root, 'src/charts.ts'))};`,
   `export { overviewReadIsPending } from ${JSON.stringify(resolve(root, 'src/plan-selection.ts'))};`,
+  `export { readDay } from ${JSON.stringify(resolve(root, 'src/record-window.ts'))};`,
 ].join('\n');
 const bundle = await build({
   root, configFile: false, logLevel: 'error',
@@ -65,9 +66,9 @@ test('a range and a ranking maximum are read again when the file moves, and stop
   await p.loadRanges([{ tile: range, scope }]);
   await p.loadRankedMaxima([ranking]);
   assert.equal(aggregates(), 6, 'The file moved and the range and ranking were not read again.');
-  assert.deepEqual(p.summaryCounts.get(minKey()), { state: 'ready', value: '2', changeSequence: 2 });
-  assert.deepEqual(p.summaryCounts.get(maxKey()), { state: 'ready', value: '20', changeSequence: 2 });
-  assert.deepEqual(p.summaryCounts.get(p.rankedMaxKey(ranking)), { state: 'ready', value: '20', changeSequence: 2 });
+  assert.deepEqual(p.summaryCounts.get(minKey()), { state: 'ready', value: '2', changeSequence: 2, day: p.readDay() });
+  assert.deepEqual(p.summaryCounts.get(maxKey()), { state: 'ready', value: '20', changeSequence: 2, day: p.readDay() });
+  assert.deepEqual(p.summaryCounts.get(p.rankedMaxKey(ranking)), { state: 'ready', value: '20', changeSequence: 2, day: p.readDay() });
   for (const key of [minKey(), maxKey(), p.rankedMaxKey(ranking)])
     assert.equal(p.overviewReadIsPending(p.summaryCounts.get(key), 2), false, `${key} is still pending, so the front page would chase it for ever.`);
 
@@ -84,7 +85,7 @@ test('a ring whose two counts straddle a write is never drawn from both; the old
   host.reply = () => replies.shift();
   await p.loadCharts([{ node: ring, scope }], 'tasks');
   const ready = p.chartStates.get(p.chartKey(ring, scope));
-  assert.deepEqual(ready, { state: 'ready', changeSequence: 3, numerator: '1', denominator: '1' },
+  assert.deepEqual(ready, { state: 'ready', changeSequence: 3, numerator: '1', denominator: '1', day: p.readDay() },
     'A count from revision 2 was divided by a total from revision 3.');
   assert.equal(host.calls.length, 3);
   assert.deepEqual(host.calls[2].payload, host.calls[0].payload, 'The count read again was not the older one.');
@@ -114,8 +115,8 @@ test('a range whose ends straddle a write is not drawn inverted; it is read agai
   const replies = [{ valueLexeme: '5', changeSequence: 2 }, { valueLexeme: '3', changeSequence: 3 }, { valueLexeme: '1', changeSequence: 3 }];
   host.reply = () => replies.shift();
   await p.loadRanges([{ tile: range, scope }]);
-  assert.deepEqual(p.summaryCounts.get(minKey()), { state: 'ready', value: '1', changeSequence: 3 });
-  assert.deepEqual(p.summaryCounts.get(maxKey()), { state: 'ready', value: '3', changeSequence: 3 });
+  assert.deepEqual(p.summaryCounts.get(minKey()), { state: 'ready', value: '1', changeSequence: 3, day: p.readDay() });
+  assert.deepEqual(p.summaryCounts.get(maxKey()), { state: 'ready', value: '3', changeSequence: 3, day: p.readDay() });
   assert.equal(host.calls[2].payload.aggregate, 'min', 'The end read again was not the older one.');
 
   openFile(1);

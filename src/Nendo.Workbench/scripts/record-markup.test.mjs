@@ -14,6 +14,13 @@ const stage=field('stage','singleChoice',{options:['open','won'],choices:[{id:'o
 const plan={entity:{semanticId:'deal',displayName:'Deal',fields:[field('name'),stage,field('note')],derivedFields:[]},records:[],surfaces:[]};
 const record={semanticId:'r1',automationTarget:'record-r1',version:3,values:{name:'Acme',stage:'won',note:'hi'},referenceLabels:null,calculations:null};
 
+test('W-217 R2LAT-05: an Integer field asks for the numeric keypad and a Decimal for the decimal one',()=>{
+ assert.match(fieldControlMarkup(field('count','singleLine',{storageKind:1}),null),/inputmode="numeric"/);
+ assert.doesNotMatch(fieldControlMarkup(field('count','singleLine',{storageKind:1}),null),/inputmode="decimal"/);
+ assert.match(fieldControlMarkup(field('price','singleLine',{storageKind:2}),null),/inputmode="decimal"/);
+ assert.doesNotMatch(fieldControlMarkup(field('name'),null),/inputmode=/);
+});
+
 test('a card is addressable by record id and names the record in its accessible label',()=>{
  const markup=recordCardMarkup(plan,record,['name','stage','note']);
  assert.match(markup,/data-record-id="r1"/);

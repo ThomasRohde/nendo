@@ -1,5 +1,5 @@
 import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
-import { filterInput } from './filter-input';
+import { filterInputMode, filterPlaceholder, studioFilter } from './filter-input';
 import { referenceControl, wireReferenceControls } from './reference-controls';
 import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
 import { type CellFocusedEvent, type CellKeyDownEvent, type CellValueChangedEvent, type ColDef, type ColumnResizedEvent, type FullWidthCellKeyDownEvent, type GridApi, type GridOptions, createGrid, themeQuartz } from 'ag-grid-community';
@@ -8,7 +8,7 @@ import { calculatedDisplay } from './calculated-fields';
 import { client } from './client';
 import { deviceStorage } from './device-storage';
 import { choiceDisplay, escapeAttribute, escapeHtml, formatDateTime, isDateTimeKind, messageFor, mutationKey, storageLabel, valueDisplay } from './format';
-import { editorValues, gridEditUnchanged } from './grid-edit-model';
+import { defaultColumnWidth, editorValues, gridCellEditor, gridEditUnchanged } from './grid-edit-model';
 import { type CalculationResult, type EntitySnapshot, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { icon } from './icons';
 import { type MoveDirection, type OutlineNode, type OutlineRow, movePayload, moveTarget, visibleRows } from './outline-model';
@@ -164,16 +164,6 @@ function keepColumnWidths(entityId: string, event: ColumnResizedEvent<GridRow>):
   columnWidths.set(entityId, applicationId && storage !== null
     ? rememberWidths(storage, applicationId, entityId, changed)
     : { ...widthsFor(entityId), ...changed });
-}
-
-/** Where a column starts before the person sizes it: wide enough for what its kind holds. */
-function defaultWidth(field: EntitySnapshot['fields'][number]): number {
-  if (field.presentation === 'longText' || field.presentation === 'markdown') return 300;
-  if (field.presentation === 'singleChoice') return 170;
-  if (field.presentation === 'date') return 140;
-  if (ratingScaleOf(field) !== null) return 150;
-  const kind = storageLabel(field.storageKind);
-  return kind === 'Boolean' ? 110 : kind === 'Integer' || kind === 'Decimal' || kind === 'Date' ? 130 : kind === 'Date time' ? 180 : kind === 'Reference' ? 210 : 200;
 }
 
 /** A remembered width replaces the column's own sizing, flex included. */
@@ -503,7 +493,7 @@ export function studioQueryMarkup(entity: EntitySnapshot): string {
   return `<form id="studio-query" class="studio-query" aria-label="Search and filter records">
     ${studioSearchFieldMarkup(entity)}
     <label>Filter field<select name="field"><option value="">All records</option>${options(query?.fieldId)}</select></label>
-    <label>Match<select name="operator">${[['contains','Contains text'],['eq','Equals'],['ne','Does not equal'],['lt','Less than'],['le','At most'],['gt','Greater than'],['ge','At least'],['isNull','Not set'],['isNotNull','Has a value']].map(([op,label])=>`<option value="${op}" ${query?.operator === op ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+    <label>Match<select name="operator">${[['contains','Contains text'],['eq','Equals'],['ne','Does not equal'],['lt','Less than'],['le','At most'],['gt','Greater than'],['ge','At least'],['isNull','Not set'],['isNotNull','Has a value']].map(([op,label])=>`<option value="${op}" ${op === 'ne' ? 'title="Records with no value are left out. Choose Not set to find them."' : ''} ${query?.operator === op ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
     <label>Value<input name="value" type="text" value="${escapeAttribute(query?.text ?? '')}" /></label>
     <div class="query-reference" data-query-reference hidden></div>
     <button class="secondary-button" data-action type="submit">Apply</button><button id="clear-query" class="text-button" data-action type="button" ${query ? '' : 'hidden'}>Clear</button>
@@ -546,7 +536,8 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
     if (contains.disabled && operator.value === 'contains') operator.value = 'eq';
     value.disabled = !field || ['isNull','isNotNull'].includes(operator.value);
     operator.disabled = !field;
-    value.placeholder = field && storageLabel(field.storageKind) === 'Boolean' ? 'Yes or No' : '';
+    value.placeholder = field ? filterPlaceholder(field) : '';
+    value.inputMode = field ? filterInputMode(field) : '';
     showPicker(field, ['isNull','isNotNull'].includes(operator.value));
   };
   fieldControl.addEventListener('change', update); operator.addEventListener('change', update); update();
@@ -564,10 +555,11 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
           { fieldId: field.fieldId, operator: operator.value, text: shown, filters: [{ fieldId: field.fieldId, operator: operator.value, value: chosen }] }));
         return;
       }
-      const filters: StudioQuery['filters'] = field ? [{ fieldId: field.fieldId, operator: operator.value,
-        ...(presence ? {} : { value: parseScalar(storageLabel(field.storageKind), filterInput(field, value.value)) }) }] : [];
+      const chosen = field ? studioFilter(field, operator.value, value.value) : null;
+      const filters: StudioQuery['filters'] = chosen?.filters ?? [];
       if (filters.some(filter => 'value' in filter && filter.value === null)) throw new Error('Choose Not set to find missing values.');
-      void applyStudioQuery(entity.entityId, withFilter(studioQueries.get(entity.entityId), { fieldId: fieldControl.value, operator: operator.value, text: value.value, filters }));
+      void applyStudioQuery(entity.entityId, withFilter(studioQueries.get(entity.entityId),
+        { fieldId: fieldControl.value, operator: operator.value, text: value.value, filters, ...(chosen?.phrase ? { phrase: chosen.phrase } : {}) }));
     } catch (error) { showError(messageFor(error)); }
   });
   requiredElement<HTMLButtonElement>('#clear-query').addEventListener('click', () => void applyStudioQuery(entity.entityId, null));
@@ -657,7 +649,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     }),
     editable: (parameters) => parameters.data?.outline?.kind !== 'more' &&
       state.session.capabilities.mutate && !entity.retired && !field.retired && storageLabel(field.storageKind) !== 'Reference',
-    ...(field.fieldId === primaryFieldId ? { minWidth: 220, flex: 1 } : { minWidth: 90, width: defaultWidth(field) }),
+    ...(field.fieldId === primaryFieldId ? { minWidth: 220, flex: 1 } : { minWidth: 90, width: defaultColumnWidth(field) }),
     valueGetter: (parameters) => {
       const value = parameters.data?.values[field.fieldId] ?? null;
       return exactNumberText(value) ?? value;
@@ -696,11 +688,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
       parameters.data.values[field.fieldId] = parameters.newValue;
       return true;
     },
-    cellEditor: field.presentation === 'singleChoice' || storageLabel(field.storageKind) === 'Boolean' || ratingScaleOf(field) !== null
-      ? 'agSelectCellEditor'
-      : field.presentation === 'date'
-        ? 'agDateStringCellEditor'
-        : field.presentation === 'longText' || field.presentation === 'markdown' ? 'agLargeTextCellEditor' : 'agTextCellEditor',
+    cellEditor: gridCellEditor(field),
     cellEditorPopup: field.presentation === 'longText' || field.presentation === 'markdown',
     cellEditorParams: field.presentation === 'singleChoice'
       ? (parameters: { value?: unknown }) => ({ values: editorValues([...(field.required ? [] : ['']), ...field.options.filter(id => !field.choices?.some(choice => choice.id === id && choice.retired))], parameters.value) })

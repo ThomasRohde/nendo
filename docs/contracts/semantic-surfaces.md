@@ -162,8 +162,9 @@ a property changes on a tile or an ordering the file already has, that property
 keeps its own line, because that is a change to something the person has.
 
 **A number may be as of a moment ago.** Every total, chart, ring and range is its
-own exact read at a stated revision. A surface asks again when the file moves on:
-at most once a second, one pass at a time, and never while somebody has hold of
+own exact read at a stated revision. A surface asks again when the file moves on,
+and when the person's civil day turns, because an answer read under `today` or a
+range word was about the day it was read on (W-217): at most once a second, one pass at a time, and never while somebody has hold of
 the page. A person has hold of the page while a menu or a dialog is open, while a
 text field or a picker has focus, for a short time after an interaction, and while a
 record page has unsaved changes. If an answer arrives after the file has moved, the surface keeps it,
@@ -185,7 +186,17 @@ For example, a board filtered to `status ne Done` that still draws a Done column
 reads 0 under that heading. That 0 states that nothing is done. It does not state
 the true fact, which is that this board does not show done records. Clauses on
 other fields change which records go into a column, but never which columns
-exist. The ungrouped column is unaffected.
+exist.
+
+The ungrouped column follows the same rule. Every operator except `isNull` leaves
+out a record whose value is not set (`queries.md`), so a board with `status ne
+Done` can hold no record without a status. Its Ungrouped column would read 0
+under every circumstance, which is the same false 0, so the board does not draw it
+for its total when any of its own clauses on the grouping field is an operator
+other than `isNull` (owner, 2026-10-13: `ne` keeps never matching an unset value,
+and Studio and Help say so beside the operator). A loaded record whose value is
+outside the columns still appears there, with its data issue stated. A board
+without such a clause keeps the column whenever it carries a total.
 
 A tile's optional `scope` is closed to `surface` (the default) and `group`.
 `group` narrows the number to one board column. It is accepted **only on a direct
@@ -858,6 +869,18 @@ zero as its own step. Both put every number in the table behind the same single
 toggle that the other charts use. Both drill: a bucket opens the record type's
 first list narrowed to the two bounds of that bucket. This is the one drill in the
 product that spends two clauses.
+
+**An edge bucket is clipped to the range** (owner, 2026-10-13). `last30Days` and
+`last90Days` start mid-month, and a week bucket starts on the Monday on or before
+the range's first day and can end after its last. The host counts only the days
+inside the resolved bounds, and the result carries those bounds beside the
+buckets. The renderer clips each bucket's two bounds to them: a clipped bucket is
+labelled with the days it holds, as `Sep 11–30` for a month or `1–2 Nov` for a
+week, and its drill opens exactly those days. So `last30Days` by month on 10
+October is two bars, `Sep 11–30` and `Oct 1–10`, and the first drills into
+11 to 30 September. A bucket the range does not cut keeps its whole-period label.
+When the resolved range covers two calendar years, a clipped bucket names its year
+too, as `Oct 13–31 2025`.
 
 Safe mode folds the same buckets over the snapshot and does not decline. A chart
 that is exact against the file and *Unavailable* against a read-only copy of it

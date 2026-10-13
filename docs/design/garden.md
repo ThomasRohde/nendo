@@ -1,7 +1,7 @@
 # Garden
 
 Status: **built**. `workspace/Garden.nendo` carries the app and `extensions/garden/` is its
-view, at package 0.22.0 on 2026-10-13. Where this design and the code disagree, the code is
+view, at package 0.23.0 on 2026-10-13. Where this design and the code disagree, the code is
 current.
 
 W-174 builds a garden of notes as a Nendo app: what Obsidian does (Markdown notes,

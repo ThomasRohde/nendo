@@ -12,7 +12,7 @@ import {
   overviewCharts, overviewRanges, overviewRankedLists, overviewRecentLists, overviewTiles, rangeEndKey,
   rangeReads, rankedMaxKey, rankedMaxRead,
 } from './overview-model';
-import { mapBounded } from './record-window';
+import { mapBounded, readDay } from './record-window';
 import { surfaceById } from './surface-model';
 import {
   chartStates, drills, leaveRecordContext, matrixCells, selectedSurfaces, state, summaryCounts, surfaceErrors,
@@ -44,6 +44,7 @@ export async function loadSummaryCounts(scoped: ScopedTile[], surfaceEntityId: s
   if (pending.length === 0) return;
   const keys = pending.map((item) => tileKey(item.tile, item.scope));
   for (const key of keys) summaryCounts.set(key, { state: 'loading' });
+  const day = readDay();
 
   // Deliberately not "the file has not moved since this read started". A read that
   // began at one revision and answered at a later one has answered about the later
@@ -67,13 +68,13 @@ export async function loadSummaryCounts(scoped: ScopedTile[], surfaceEntityId: s
       if (read.aggregate === 'count' || read.fieldId === null) {
         const result = await client.request<{ count: number; changeSequence: number }>(
           'data.countRecords', { entityId: read.entityId, filters: read.filters });
-        if (current()) summaryCounts.set(key, { state: 'ready', value: String(result.count), changeSequence: result.changeSequence });
+        if (current()) summaryCounts.set(key, { state: 'ready', value: String(result.count), changeSequence: result.changeSequence, day });
         return;
       }
       const result = await client.request<{ valueLexeme: string | null; changeSequence: number }>(
         'data.aggregateRecords',
         { entityId: read.entityId, aggregate: read.aggregate, fieldId: read.fieldId, filters: read.filters });
-      if (current()) summaryCounts.set(key, { state: 'ready', value: result.valueLexeme, changeSequence: result.changeSequence });
+      if (current()) summaryCounts.set(key, { state: 'ready', value: result.valueLexeme, changeSequence: result.changeSequence, day });
     } catch (error) {
       if (current()) summaryCounts.set(key, { state: 'failed', code: error instanceof WorkbenchHostError ? error.code : 'host-error', message: messageFor(error) });
     }
@@ -125,6 +126,7 @@ export async function loadRankedMaxima(nodes: SurfaceNodePlan[]): Promise<void> 
   }).filter((item) => overviewReadIsPending(summaryCounts.get(item.key), state.session.manifest?.changeSequence));
   if (reads.length === 0) return;
   for (const item of reads) summaryCounts.set(item.key, { state: 'loading' });
+  const day = readDay();
 
   const current = (): boolean =>
     state.summaryGeneration === generation && state.session.fileSessionId === fileSessionId;
@@ -134,7 +136,7 @@ export async function loadRankedMaxima(nodes: SurfaceNodePlan[]): Promise<void> 
         const result = await client.request<{ valueLexeme: string | null; changeSequence: number }>(
           'data.aggregateRecords',
           { entityId: item.read.entityId, aggregate: 'max', fieldId: item.read.fieldId, filters: item.read.filters });
-        if (current()) summaryCounts.set(item.key, { state: 'ready', value: result.valueLexeme, changeSequence: result.changeSequence });
+        if (current()) summaryCounts.set(item.key, { state: 'ready', value: result.valueLexeme, changeSequence: result.changeSequence, day });
       } catch (error) {
         if (current()) summaryCounts.set(item.key, { state: 'failed', code: error instanceof WorkbenchHostError ? error.code : 'host-error', message: messageFor(error) });
       }
@@ -164,6 +166,7 @@ export async function loadMatrix(surface: SurfaceNodePlan, entityId: string): Pr
     return;
   }
   matrixCells.set(key, { state: 'loading' });
+  const day = readDay();
   const current = (): boolean =>
     state.chartGeneration === generation && state.session.fileSessionId === fileSessionId;
   try {
@@ -175,7 +178,7 @@ export async function loadMatrix(surface: SurfaceNodePlan, entityId: string): Pr
       fieldId: read.fieldId,
       filters: [...read.filters, ...quickClauses(surface)],
     });
-    if (current()) matrixCells.set(key, { state: 'ready', changeSequence: cells.changeSequence, cells });
+    if (current()) matrixCells.set(key, { state: 'ready', changeSequence: cells.changeSequence, day, cells });
   } catch (error) {
     if (current())
       matrixCells.set(key, { state: 'failed', code: error instanceof WorkbenchHostError ? error.code : 'host-error', message: messageFor(error) });
@@ -215,6 +218,7 @@ export async function loadRanges(scoped: ScopedTile[]): Promise<void> {
   if (ranges.length === 0) return;
   const keys = ranges.flatMap((range) => [range.minKey, range.maxKey]);
   for (const key of keys) summaryCounts.set(key, { state: 'loading' });
+  const day = readDay();
 
   const current = (): boolean =>
     state.summaryGeneration === generation && state.session.fileSessionId === fileSessionId;
@@ -230,8 +234,8 @@ export async function loadRanges(scoped: ScopedTile[]): Promise<void> {
         if (!current()) return;
         if (pair === null) { summaryCounts.delete(range.minKey); summaryCounts.delete(range.maxKey); return; }
         const [low, high] = pair;
-        summaryCounts.set(range.minKey, { state: 'ready', value: low.valueLexeme, changeSequence: low.changeSequence });
-        summaryCounts.set(range.maxKey, { state: 'ready', value: high.valueLexeme, changeSequence: high.changeSequence });
+        summaryCounts.set(range.minKey, { state: 'ready', value: low.valueLexeme, changeSequence: low.changeSequence, day });
+        summaryCounts.set(range.maxKey, { state: 'ready', value: high.valueLexeme, changeSequence: high.changeSequence, day });
       } catch (error) {
         if (!current()) return;
         const failed = { state: 'failed' as const, code: error instanceof WorkbenchHostError ? error.code : 'host-error', message: messageFor(error) };
@@ -305,7 +309,9 @@ export async function loadCharts(scoped: ScopedChart[], surfaceEntityId: string 
   for (const key of keys) chartStates.set(key, { state: 'loading' });
   const current = (): boolean =>
     state.chartGeneration === generation && state.session.fileSessionId === fileSessionId;
-  const settle = (key: string, outcome: ChartOutcome): void => { if (current()) chartStates.set(key, outcome); };
+  // A range word and a today clause are resolved on this day, so the answer carries it.
+  const day = readDay();
+  const settle = (key: string, outcome: ChartOutcome): void => { if (current()) chartStates.set(key, outcome.state === 'ready' ? { ...outcome, day } : outcome); };
   try {
     await mapBounded(pending, summaryReadConcurrency, async (item) => {
       const key = chartKey(item.node, item.scope);
@@ -360,13 +366,16 @@ export async function drillInto(plan: ApplicationPlan, scoped: ScopedChart, grou
   const field = plan.entity.fields.find((candidate) => candidate.semanticId === groupByFieldId);
   const bucket = scoped.node.kind === 'activityGrid' ? 'day'
     : typeof scoped.node.properties.bucket === 'string' ? scoped.node.properties.bucket : 'month';
+  // The range the bars were read under, so an edge bucket drills into the days it counted (ESQ-08).
+  const known = chartStates.get(chartKey(scoped.node, scoped.scope));
+  const range = known?.state === 'ready' && known.bucketed !== undefined ? known.bucketed : null;
   const filters: DrillFilter[] = group === null
     ? ringDrillFilters(scoped.node)
     : isOverTimeKind(scoped.node.kind)
-      ? bucketDrillFilters(scoped.node, bucket, group.key)
+      ? bucketDrillFilters(scoped.node, bucket, group.key, range)
       : [drillFilter(scoped.node, field, group.key)].filter((filter): filter is DrillFilter => filter !== null);
   if (filters.length === 0) return;
-  drills.set(plan.entity.semanticId, { listId: list.semanticId, label: drillLabel(scoped.node, field, group?.key ?? null, names), filters });
+  drills.set(plan.entity.semanticId, { listId: list.semanticId, label: drillLabel(scoped.node, field, group?.key ?? null, names, range), filters });
   await reopenDrilledList(plan, list);
 }
 

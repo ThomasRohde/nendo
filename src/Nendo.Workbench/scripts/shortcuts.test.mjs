@@ -41,6 +41,34 @@ test('a key with a modifier the table does not name is somebody else’s', () =>
   assert.equal(matchShortcut(key('ArrowLeft', { altKey: true })), null);
 });
 
+test('W-217 R2LAT-03: a chord is read by its physical key when the layout types a non-Latin letter or AZERTY digit-row symbol there', () => {
+  const ctrl = (value, code, modifiers = {}) => matchShortcut(key(value, { code, ctrlKey: true, ...modifiers }));
+  assert.equal(ctrl('л', 'KeyK'), 'palette', 'Russian layout: Ctrl K reports key л');
+  assert.equal(ctrl('κ', 'KeyK'), 'palette', 'Greek layout');
+  assert.equal(ctrl('ن', 'KeyK'), 'palette', 'Arabic layout');
+  assert.equal(ctrl('า', 'KeyK'), 'palette', 'Thai layout');
+  assert.equal(ctrl('и', 'KeyB'), 'rail');
+  assert.equal(ctrl('е', 'KeyT'), 'newTab');
+  assert.equal(ctrl('ц', 'KeyW'), 'closeTab');
+  assert.equal(matchShortcut(key('а', { code: 'KeyF', altKey: true })), 'file', 'Russian layout: Alt F');
+  assert.equal(ctrl('&', 'Digit1'), 'use', 'AZERTY: unshifted digit row types &');
+  assert.equal(ctrl('é', 'Digit2'), 'data', 'AZERTY: unshifted 2 types é');
+  assert.equal(ctrl('2', 'Digit2', { shiftKey: true }), 'data', 'AZERTY: the digit itself needs Shift, which is the layout’s');
+  assert.equal(ctrl('"', 'Digit3'), 'structure');
+  // What stays somebody else's key.
+  assert.equal(ctrl('!', 'Digit1', { shiftKey: true }), null, 'US: Ctrl Shift 1 is not Ctrl 1');
+  assert.equal(ctrl('a', 'KeyQ'), null, 'AZERTY A is A, wherever its key sits');
+  assert.equal(ctrl(',', 'KeyM'), null, 'an ASCII symbol on a letter key is that symbol');
+  assert.equal(ctrl('л', 'KeyK', { shiftKey: true }), null, 'Shift still makes a letter chord somebody else’s');
+  assert.equal(matchShortcut(key('л', { code: 'KeyK' })), null, 'a bare letter types');
+  assert.equal(ctrl('k', 'KeyK'), 'palette');
+  // AltGr arrives as Ctrl and Alt: Polish AltGr+E, German AltGr+Q and AltGr+2 type characters.
+  assert.equal(ctrl('\u0119', 'KeyE', { altKey: true }), null);
+  assert.equal(ctrl('@', 'KeyQ', { altKey: true }), null);
+  assert.equal(ctrl('\u00b2', 'Digit2', { altKey: true }), null);
+  assert.equal(ctrl('\u043a', 'KeyK', { altKey: true }), null, 'AltGr on a letter is not Ctrl K');
+});
+
 const commands = [
   { id: 'use', label: 'Use', group: 'Go to' },
   { id: 'structure', label: 'Structure', group: 'Go to' },

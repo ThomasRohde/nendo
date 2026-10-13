@@ -9,6 +9,55 @@ import type { SurfaceNodePlan } from './host';
 
 export interface QueryFilter { fieldId: string; operator: string; value?: unknown }
 
+/**
+ * The clock every civil-day word reads, one for the whole Workbench: `today` in a clause, the
+ * day a read's answer is stamped with, and the midnight the screens are read again at. A test
+ * sets its own with useReadClock.
+ */
+let clock: () => Date = () => new Date();
+
+export function useReadClock(next: () => Date): void {
+  clock = next;
+}
+
+export function readNow(): Date {
+  return clock();
+}
+
+/**
+ * The person's civil day now, yyyy-MM-dd: what `today` resolves to. Every answer that can hold a
+ * civil-day word is stamped with it beside its change sequence, because the file not moving does
+ * not keep yesterday's 'Due today' true: a screen left open past midnight read again only on a
+ * write, so the next morning it still listed yesterday's tasks (W-217).
+ */
+export function readDay(): string {
+  return civilDate(clock());
+}
+
+/** Whether an answer stamped with `day` is still today's. An answer that carries no stamp holds no civil-day word. */
+export function sameReadDay(day: string | undefined): boolean {
+  return day === undefined || day === readDay();
+}
+
+/** Whether a window is the answer for this revision and this civil day. */
+export function windowIsCurrent<T extends { page: { changeSequence: number }; day?: string }>(window: T | undefined, changeSequence: number | undefined): window is T {
+  return window !== undefined && window.page.changeSequence === changeSequence && sameReadDay(window.day);
+}
+
+/** Whether a calendar's or a timeline's accumulated pages are the answer for this revision and this civil day. */
+export function accumulatorIsCurrent<T extends { changeSequence: number; day?: string }>(accumulated: T | undefined, changeSequence: number | undefined): accumulated is T {
+  return accumulated !== undefined && accumulated.changeSequence === changeSequence && sameReadDay(accumulated.day);
+}
+
+/**
+ * How long until the person's next civil day begins: the timer wakes at midnight itself, and one
+ * that fires a moment early finds the same day and is armed again for what is left.
+ */
+export function untilNextDay(at: Date = clock()): number {
+  const next = new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1);
+  return Math.max(50, next.getTime() - at.getTime());
+}
+
 /** The immutable query snapshot a window carries. An unfiltered window has an empty one. */
 export interface WindowQuery {
   filters: QueryFilter[];
@@ -32,6 +81,8 @@ export interface ReadWindow<TPage> {
   index: number;
   /** Frozen at page one and resent verbatim on every continuation. */
   query: WindowQuery;
+  /** The civil day the query was resolved on (readDay), for one that may say `today`. */
+  day?: string;
 }
 
 // The durable contract spells two comparisons differently from the record query.
@@ -66,7 +117,7 @@ export function queryOperatorFor(contractOperator: string): string {
  * authored filters when the view reads rather than when it started: a view left open past
  * midnight must not keep asking for yesterday.
  */
-export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date = new Date(), storageKind?: string): unknown {
+export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date = clock(), storageKind?: string): unknown {
   switch (valueKind) {
     case 'today':
       return storageKind === 'dateTime' ? startOfCivilDay(at) : civilDate(at);
@@ -80,12 +131,12 @@ export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date 
 const two = (value: number): string => String(value).padStart(2, '0');
 
 /** The person's own date at `at`, as yyyy-MM-dd. */
-function civilDate(at: Date): string {
+export function civilDate(at: Date): string {
   return `${String(at.getFullYear()).padStart(4, '0')}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
 }
 
 /** The instant the person's civil day of `at` begins, as an ISO timestamp with its local offset. */
-function startOfCivilDay(at: Date): string {
+export function startOfCivilDay(at: Date): string {
   const start = new Date(at.getFullYear(), at.getMonth(), at.getDate());
   const offset = -start.getTimezoneOffset();
   const sign = offset < 0 ? '-' : '+';
@@ -109,7 +160,7 @@ function clauseValue(fieldId: string, properties: Record<string, unknown>, at: D
 }
 
 /** The ANDed filter clauses declared directly on one node. */
-export function clauseFilters(node: SurfaceNodePlan, at: Date = new Date()): QueryFilter[] {
+export function clauseFilters(node: SurfaceNodePlan, at: Date = clock()): QueryFilter[] {
   return node.children
     .filter((child) => child.kind === 'filterClause')
     .map((child) => {

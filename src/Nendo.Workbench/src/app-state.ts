@@ -33,13 +33,13 @@ export type RelatedWindow = RecordWindow;
 // no contributing records is empty, and a refused read is neither.
 export type SummaryState =
   | { state: 'loading' }
-  | { state: 'ready'; value: string | null; changeSequence: number }
+  | { state: 'ready'; value: string | null; changeSequence: number; day?: string }
   | { state: 'failed'; code: string; message: string };
 // A chart is its own exact read, or two for a ring. Loading, ready and failed are
 // distinct, and an answer captured under an older generation is discarded.
 export type ChartOutcome =
   | { state: 'loading' }
-  | { state: 'ready'; changeSequence: number; grouped?: GroupedResult; bucketed?: BucketResult; cells?: CellResult; numerator?: string | null; denominator?: string | null }
+  | { state: 'ready'; changeSequence: number; day?: string; grouped?: GroupedResult; bucketed?: BucketResult; cells?: CellResult; numerator?: string | null; denominator?: string | null }
   | { state: 'failed'; code: string; message: string };
 /**
  * One column of a board grouped by a reference: the target record's ID, the label that
@@ -67,7 +67,9 @@ export type BoardColumnsState =
 // reaches the file, and it is cleared with the rest of the view on a file switch.
 export type DrillFilter = WindowQuery['filters'][number];
 export interface DrillState { listId: string; label: string; filters: DrillFilter[] }
-export type StudioQuery = { sortFieldId: string | null; descending: boolean; fieldId: string; operator: string; text: string; filters: Array<{ fieldId: string; operator: string; value?: unknown }> };
+export type StudioQuery = { sortFieldId: string | null; descending: boolean; fieldId: string; operator: string; text: string; filters: Array<{ fieldId: string; operator: string; value?: unknown }>;
+  /** What the status line says of the filtered field when the clauses are not the typed value itself, such as a whole day (W-217). */
+  phrase?: string };
 /**
  * A calendar or a timeline accumulates bounded pages until its cursor is
  * exhausted, because a month or a year is not a page: fifty records is one page
@@ -82,6 +84,8 @@ export interface PageAccumulator {
   query: WindowQuery;
   loading: boolean;
   failure: string | null;
+  /** The civil day the opening query was resolved on (readDay). */
+  day?: string;
 }
 export interface HistoryWindow { page: ReadPage<RevisionSummary>; cursors: Array<string | null>; index: number }
 /**

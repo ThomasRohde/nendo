@@ -70,6 +70,13 @@ test('the status says what the table shows, in the field names',()=>{
  const names={name:'Name',category:'Category'};
  const nameOf=(id)=>names[id]??id;
  assert.equal(queryStatusText(undefined,nameOf),'');
+ // W-217 R2LAT-12: a typed day became two clauses on the instant, and the status says the day, once.
+ assert.equal(queryStatusText({...filtered,operator:'eq',text:'2026-10-25',phrase:'is on 2026-10-25, this device\u2019s day',
+  filters:[{fieldId:'category',operator:'ge',value:'2026-10-25T00:00:00+02:00'},{fieldId:'category',operator:'lt',value:'2026-10-26T00:00:00+01:00'}]},nameOf),
+  'Only where Category is on 2026-10-25, this device\u2019s day · across every record of this type');
+ // ESQ-05: does not equal leaves out the empty values, and says so.
+ assert.equal(queryStatusText({...filtered,operator:'ne',filters:[{fieldId:'category',operator:'ne',value:'Element'}]},nameOf),
+  'Only where Category is not Element · Records with no Category are left out; Not set finds them · across every record of this type');
  assert.equal(queryStatusText(withSort(undefined,{sortFieldId:'name',descending:false}),nameOf),'Sorted by Name, ascending · across every record of this type');
  assert.equal(queryStatusText(withSort(filtered,{sortFieldId:'name',descending:true}),nameOf),
   'Sorted by Name, descending · Only where Category is Element · across every record of this type');

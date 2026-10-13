@@ -151,7 +151,9 @@ button {
     summary.textContent = error.message;   // not-framed: the page was opened on its own
     return;
   }
-  document.documentElement.lang = context.locale;
+  // The page's own words are English, so <html lang="en"> stays: a screen reader reads them in
+  // an English voice. context.locale is the person's language, for formatting dates and numbers
+  // (toLocaleDateString(context.locale, …)), never the language of the view's text.
 
   // A record's label as text: a reference's target label, a number's exact digits,
   // or the value itself.

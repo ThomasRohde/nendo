@@ -9,6 +9,7 @@ import {
 } from './preview-fixtures';
 import { WorkbenchHostError, emptySession, isObject } from './host-types';
 import { previewSearch } from './search-text';
+import { storageLabel } from './format';
 import { PreviewAgentSession } from './preview-agent-session';
 
 /**
@@ -23,16 +24,53 @@ import { PreviewAgentSession } from './preview-agent-session';
 /** The filter operators the preview answers itself; the rest need the native host. */
 const previewOperators: ReadonlySet<string> = new Set(['contains', 'eq', 'ne', 'isNull', 'isNotNull']);
 
-/** One stored value against one clause, as plain values compare; a missing value matches only isNull. */
-export function previewMatches(stored: unknown, operator: string, value: unknown): boolean {
+/**
+ * One stored value against one clause, as plain values compare; a missing value matches only
+ * isNull. A UUID is one value in either case, as the native host compares it (ESQ-17).
+ */
+export function previewMatches(stored: unknown, operator: string, value: unknown, kind?: string | number): boolean {
   const empty = stored === null || stored === undefined || stored === '';
+  const fold = (text: unknown): string => kind !== undefined && storageLabel(kind) === 'UUID' ? String(text).toLowerCase() : String(text);
   switch (operator) {
     case 'isNull': return empty;
     case 'isNotNull': return !empty;
-    case 'eq': return !empty && String(stored) === String(value);
-    case 'ne': return !empty && String(stored) !== String(value);
+    case 'eq': return !empty && fold(stored) === fold(value);
+    case 'ne': return !empty && fold(stored) !== fold(value);
     default: return String(stored ?? '').toLowerCase().includes(String(value).toLowerCase());
   }
+}
+
+type PreviewSortField = Pick<EntitySnapshot['fields'][number], 'storageKind' | 'presentation' | 'options'> & {
+  reference?: { targetEntityId: string; labelFieldId: string } | null;
+};
+
+/**
+ * How the preview orders two stored values of one field, both present, as the native host does
+ * (RecordQuerySemantics.SortComparison): a single choice in its options' configured order with a
+ * value no option holds after them (ESQ-16), a reference by its target's label, a UUID without
+ * regard to case (ESQ-17), and anything else as plain values compare.
+ */
+export function previewOrder(field: PreviewSortField | undefined, labelOf: (recordId: string) => string | null): (a: unknown, b: unknown) => number {
+  const ordinal = (x: string, y: string): number => x < y ? -1 : x > y ? 1 : 0;
+  if (field?.presentation === 'singleChoice' && field.options.length > 0) {
+    const rank = new Map<string, number>();
+    field.options.forEach((option, index) => { if (!rank.has(option)) rank.set(option, index); });
+    return (a, b) => {
+      const left = rank.get(String(a)) ?? field.options.length;
+      const right = rank.get(String(b)) ?? field.options.length;
+      return left - right || ordinal(String(a), String(b));
+    };
+  }
+  if (field?.reference != null) {
+    return (a, b) => {
+      const left = labelOf(String(a));
+      const right = labelOf(String(b));
+      if (left === null || right === null) return left === right ? ordinal(String(a), String(b)) : left === null ? 1 : -1;
+      return ordinal(left, right) || ordinal(String(a), String(b));
+    };
+  }
+  if (field !== undefined && storageLabel(field.storageKind) === 'UUID') return (a, b) => ordinal(String(a).toLowerCase(), String(b).toLowerCase());
+  return (a, b) => typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b));
 }
 
 export class PreviewWorkbenchClient implements WorkbenchClient {
@@ -147,18 +185,27 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         const filters = Array.isArray(payload.filters) ? payload.filters as Array<{ fieldId: string; operator: string; value: unknown }> : [];
         if (filters.some(filter => !previewOperators.has(filter.operator)))
           throw new WorkbenchHostError('native-query-required', 'Open the native Nendo app to use typed filtering.');
+        const entity = this.session.entities.find(candidate => candidate.entityId === payload.entityId);
+        const fieldOf = (fieldId: string) => entity?.fields.find(candidate => candidate.fieldId === fieldId);
         const matches = (row: RecordSnapshot): boolean => (typeof payload.recordId !== 'string' || row.recordId === payload.recordId) &&
-          filters.every(filter => previewMatches(row.values[filter.fieldId], filter.operator, filter.value));
+          filters.every(filter => previewMatches(row.values[filter.fieldId], filter.operator, filter.value, fieldOf(filter.fieldId)?.storageKind));
         const byId = (left: RecordSnapshot, right: RecordSnapshot): number => left.recordId < right.recordId ? -1 : left.recordId > right.recordId ? 1 : 0;
         const sortFieldId = typeof payload.sortFieldId === 'string' ? payload.sortFieldId : null;
+        const sortField = sortFieldId === null ? undefined : fieldOf(sortFieldId);
+        const order = previewOrder(sortField, (recordId) => {
+          const target = sortField?.reference;
+          if (target == null) return null;
+          const label = this.session.records.find(row => row.entityId === target.targetEntityId && row.recordId === recordId)?.values[target.labelFieldId];
+          return label === null || label === undefined ? null : String(label);
+        });
         const byField = (left: RecordSnapshot, right: RecordSnapshot): number => {
           if (sortFieldId === null) return 0;
           const a = left.values[sortFieldId] ?? null;
           const b = right.values[sortFieldId] ?? null;
           // Missing values sort last here; the native host has its own typed order.
           if (a === null || b === null) return a === b ? 0 : a === null ? 1 : -1;
-          const order = typeof a === 'number' && typeof b === 'number' ? a - b : String(a).localeCompare(String(b));
-          return payload.descending ? -order : order;
+          const compared = order(a, b);
+          return payload.descending ? -compared : compared;
         };
         result = this.previewPage(this.session.records.filter(row => row.entityId === payload.entityId && matches(row))
           .sort((left, right) => byField(left, right) || byId(left, right)), payload,
@@ -455,7 +502,9 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         }
         for (const [fieldId, value] of values) record.values[fieldId] = value;
         record.recordVersion += values.length;
-        return this.advance('data', 'Edit record fields', 'data.setField');
+        // History names the type, and the field when it is the only one, as the native host does (ESQ-15).
+        const only = values.length === 1 ? entity.fields.find(candidate => candidate.fieldId === values[0][0]) : undefined;
+        return this.advance('data', only ? `Edit ${entity.displayName} ${only.displayName}` : `Edit ${entity.displayName}`, 'data.setField');
       });
   }
 

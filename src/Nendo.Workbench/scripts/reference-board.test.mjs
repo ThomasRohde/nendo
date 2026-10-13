@@ -137,6 +137,26 @@ test('a board that still has columns keeps the instruction it can carry out', ()
   assert.ok(!drawn.includes('excludes every'), drawn);
 });
 
+test('W-217 ESQ-05: a board whose own clause on the grouping field leaves out unset values draws no Ungrouped lane', () => {
+  const tile = node('total', 'summaryTile', { aggregate: 'count', scope: 'group', title: 'Count' });
+  const notDone = node('b', 'boardSurface', { groupByFieldId: 'stage' }, [node('bind', 'fieldBinding', { fieldId: 'title' }), clause('c1', 'stage', 'ne', 'done'), tile]);
+  assert.equal(boardViewOf(notDone, [title, stage]).unsetReachable, false, 'ne Done never matches a record with no stage');
+  const drawn = boardMarkup(planOf(notDone, [card('r1', { title: 'Acme', stage: 'open' })]), notDone);
+  assert.ok(drawn.includes('data-group="open"'), drawn);
+  assert.ok(!drawn.includes('data-group-ungrouped'), 'the Ungrouped lane can never hold a record under ne Done, so its 0 is false');
+  assert.ok(drawn.includes('--group-count: 1'), drawn);
+  // Without that clause the lane carries its total, which can be more than 0.
+  const all = node('b', 'boardSurface', { groupByFieldId: 'stage' }, [node('bind', 'fieldBinding', { fieldId: 'title' }), tile]);
+  assert.equal(boardViewOf(all, [title, stage]).unsetReachable, true);
+  assert.ok(boardMarkup(planOf(all, [card('r1', { title: 'Acme', stage: 'open' })]), all).includes('data-group-ungrouped'));
+  // An isNull clause keeps unset records, and a clause on another field says nothing about this one.
+  assert.equal(boardViewOf(node('b', 'boardSurface', { groupByFieldId: 'stage' }, [clause('c1', 'stage', 'isNull')]), [title, stage]).unsetReachable, true);
+  assert.equal(boardViewOf(node('b', 'boardSurface', { groupByFieldId: 'stage' }, [clause('c1', 'title', 'ne', 'x')]), [title, stage]).unsetReachable, true);
+  // A loaded card the columns do not hold still shows, with its data issue.
+  const odd = boardMarkup(planOf(notDone, [card('r2', { title: 'Odd', stage: 'gone' })]), notDone);
+  assert.ok(odd.includes('data-group-ungrouped') && odd.includes('data-record-id="r2"'), odd);
+});
+
 test('at zero the board says the same kind of thing it says above the ceiling', () => {
   const said = referenceColumnsEmpty('Author', true);
 

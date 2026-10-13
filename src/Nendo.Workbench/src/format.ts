@@ -205,6 +205,19 @@ export function withLocalOffset(local: string): string {
   return `${seconds}${sign}${pad(minutes / 60)}:${pad(minutes % 60)}`;
 }
 
+/**
+ * The day a fold date names on screen: the person's own date, written yyyy-MM-dd as the
+ * checkpoint text writes its dates (W-217). The UTC day can be tomorrow or yesterday where the
+ * person is, so it stays in the stored checkpoint text and is never shown as their date; the
+ * regional format gave the dialog '12.10.2026' beside a checkpoint's '2026-10-11'.
+ */
+export function foldDate(value: string): string {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return value;
+  const two = (part: number): string => String(part).padStart(2, '0');
+  return `${String(at.getFullYear()).padStart(4, '0')}-${two(at.getMonth() + 1)}-${two(at.getDate())}`;
+}
+
 /** Whether a storage kind holds a date and time, however the host spells it. */
 export function isDateTimeKind(kind: string | number): boolean {
   return kind === 5 || (typeof kind === 'string' && kind.toLowerCase() === 'datetime');

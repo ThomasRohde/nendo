@@ -6,7 +6,7 @@ import { messageFor } from './format';
 import { handlePageFailure } from './actions';
 import { calendarQuery } from './calendar-model';
 import { timelineQuery } from './timeline-model';
-import { pageTarget, windowRequest, type WindowQuery } from './record-window';
+import { pageTarget, readDay, sameReadDay, windowIsCurrent, windowRequest, type WindowQuery } from './record-window';
 import { accumulatedWindows, boardColumns, focusedRecords, rankedWindows, recentWindows, relatedWindows, state, surfaceErrors, surfaceWindows } from './app-state';
 import { rankedRead, rankedWindowKey, recentRead, recentWindowKey } from './overview-model';
 import {
@@ -46,7 +46,7 @@ export async function loadRecordWindow(entityId: string, direction: number, surf
     if (page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
     const cursors = [...window.cursors];
     cursors[target.index] = target.cursor;
-    windows.set(key, { page, cursors, index: target.index, query: window.query });
+    windows.set(key, { page, cursors, index: target.index, query: window.query, day: window.day });
     state.selectedRecordId = null;
     state.creatingRecord = false;
     rerender();
@@ -57,11 +57,12 @@ export async function loadRecordWindow(entityId: string, direction: number, surf
 export async function loadSurfaceWindow(entityId: string, node: SurfaceNodePlan): Promise<void> {
   if (isCustomViewKind(node.kind)) return; // A custom view reads its own records, through the extension API.
   if (node.kind === 'outlineSurface') return; // An outline reads its tree a level at a time (outline-surface.ts).
+  const day = readDay();
   const query = effectiveSurfaceQuery(entityId, node);
   const page = await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', windowRequest(entityId, query));
   if (page.changeSequence !== state.session.manifest?.changeSequence)
     throw new WorkbenchHostError('stale-cursor', 'The file changed.');
-  surfaceWindows.set(node.semanticId, { page, cursors: [null], index: 0, query });
+  surfaceWindows.set(node.semanticId, { page, cursors: [null], index: 0, query, day });
   surfaceErrors.delete(node.semanticId);
 }
 
@@ -77,11 +78,12 @@ export async function loadRecentWindows(nodes: SurfaceNodePlan[]): Promise<void>
     const read = recentRead(node);
     if (read === null) continue;
     const key = recentWindowKey(node);
-    if (recentWindows.get(key)?.page.changeSequence === state.session.manifest?.changeSequence) continue;
+    if (windowIsCurrent(recentWindows.get(key), state.session.manifest?.changeSequence)) continue;
+    const day = readDay();
     try {
       const page = await client.request<ReadPage<RecordSnapshot>>(
         'data.queryRecords', windowRequest(read.entityId, read.query, null, read.limit));
-      recentWindows.set(key, { page, cursors: [null], index: 0, query: read.query });
+      recentWindows.set(key, { page, cursors: [null], index: 0, query: read.query, day });
       surfaceErrors.delete(node.semanticId);
     } catch (error) {
       recentWindows.delete(key);
@@ -103,11 +105,12 @@ export async function loadRankedWindows(nodes: SurfaceNodePlan[]): Promise<void>
     const read = rankedRead(node);
     if (read === null) continue;
     const key = rankedWindowKey(node);
-    if (rankedWindows.get(key)?.page.changeSequence === state.session.manifest?.changeSequence) continue;
+    if (windowIsCurrent(rankedWindows.get(key), state.session.manifest?.changeSequence)) continue;
+    const day = readDay();
     try {
       const page = await client.request<ReadPage<RecordSnapshot>>(
         'data.queryRecords', windowRequest(read.entityId, read.query, null, read.limit));
-      rankedWindows.set(key, { page, cursors: [null], index: 0, query: read.query });
+      rankedWindows.set(key, { page, cursors: [null], index: 0, query: read.query, day });
       surfaceErrors.delete(node.semanticId);
     } catch (error) {
       rankedWindows.delete(key);
@@ -180,11 +183,12 @@ export async function loadRelatedWindows(plan: ApplicationPlan, recordId: string
     const viaFieldId = node.properties.viaFieldId;
     if (typeof targetEntityId !== 'string' || typeof viaFieldId !== 'string') continue;
     const key = relatedKey(node, recordId);
-    if (relatedWindows.get(key)?.page.changeSequence === state.session.manifest?.changeSequence) continue;
+    if (windowIsCurrent(relatedWindows.get(key), state.session.manifest?.changeSequence)) continue;
+    const day = readDay();
     const query = relationQuery(node, viaFieldId, recordId);
     const page = await client.request<ReadPage<RecordSnapshot>>(
       'data.queryRecords', windowRequest(targetEntityId, query));
-    relatedWindows.set(key, { page, cursors: [null], index: 0, query });
+    relatedWindows.set(key, { page, cursors: [null], index: 0, query, day });
   }
 }
 
@@ -218,7 +222,7 @@ export async function loadFocusedRecord(entityId: string, recordId: string): Pro
  */
 export function relatedWindowsPending(plan: ApplicationPlan, recordId: string): boolean {
   return visibleNodes(plan, 'relatedList').some((node) =>
-    relatedWindows.get(relatedKey(node, recordId))?.page.changeSequence !== state.session.manifest?.changeSequence);
+    !windowIsCurrent(relatedWindows.get(relatedKey(node, recordId)), state.session.manifest?.changeSequence));
 }
 
 /**
@@ -281,9 +285,12 @@ export async function loadAccumulatedPage(entityId: string, key: string, opening
   const sequence = state.session.manifest?.changeSequence ?? -1;
   const fileSessionId = state.session.fileSessionId;
   const existing = accumulatedWindows.get(key);
-  const fresh = !append || existing === undefined || existing.changeSequence !== sequence;
+  // Pages opened on an earlier civil day are another answer too: the opening query said
+  // `today` about that day, so the next page starts the range again (W-217).
+  const fresh = !append || existing === undefined || existing.changeSequence !== sequence || !sameReadDay(existing.day);
   const query = fresh ? opening : existing!.query;
   const cursor = fresh ? null : existing!.cursor;
+  const day = fresh ? readDay() : existing!.day;
   if (!fresh && cursor === null) return;
   accumulatedWindows.set(key, {
     items: fresh ? [] : existing!.items,
@@ -292,6 +299,7 @@ export async function loadAccumulatedPage(entityId: string, key: string, opening
     query,
     loading: true,
     failure: null,
+    day,
   });
   try {
     const page = await client.request<ReadPage<RecordSnapshot>>(
@@ -310,6 +318,7 @@ export async function loadAccumulatedPage(entityId: string, key: string, opening
       query,
       loading: false,
       failure: null,
+      day,
     });
   } catch (error) {
     accumulatedWindows.set(key, {

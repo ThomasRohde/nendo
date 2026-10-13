@@ -23,7 +23,7 @@ import { announce, applyRail, applyTheme, content, historyBack, historyForward, 
 import { holdingThePage, refuseWhileDirty } from './draft-guard';
 import { backTarget, forwardTarget, goBack, goForward, placeName, recordPlace } from './navigation-actions';
 import { state } from './app-state';
-import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey } from './view-frames';
+import { installViewFrames, onHostKey, parkViewFrames, releaseViewFrames, runViewKey, viewsDayTurned } from './view-frames';
 import { beginPlacePickers, endPlacePickers, placePickersDrawn } from './place-pickers';
 import { fileViewById, viewIcon } from './file-view-model';
 import { viewTitle } from './view-frame-markup';
@@ -47,6 +47,7 @@ import {
 import type { DesktopSessionView } from './host';
 import { surfaceLabel, useSurfaces } from './surface-model';
 import { useFieldKinds } from './record-window';
+import { createDayWatch } from './day-watch';
 import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
@@ -756,6 +757,27 @@ function followTheFile(): void {
     holdingThePage,
   );
 }
+
+/**
+ * The civil day turning is the file moving on for every answer that said `today` (W-217).
+ * Nendo stays open overnight in the tray, and a screen read only when the file moved kept
+ * yesterday's 'Due today', 'Overdue' and 'last 30 days' all the next day while the calendar
+ * beside them had moved its ring. Each answer carries the day it was read on, so a new day
+ * makes it pending (readIsPending); this wakes the page at the next midnight to notice, and
+ * again when the window comes back from being hidden or the computer from sleep, when a timer
+ * may have slept through midnight. The page then catches up the way a file change does,
+ * through the same bounded chase and the same hold, and running views hear their context.
+ */
+const dayWatch = createDayWatch(() => {
+  if (state.session.hasFile) followTheFile();
+  viewsDayTurned();
+}, { set: (callback, milliseconds) => window.setTimeout(callback, milliseconds), clear: (handle) => window.clearTimeout(handle) });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') dayWatch.wake(); });
+window.addEventListener('focus', dayWatch.wake);
+// After sleep the first thing is often a press: it sees the new day before its own click is handled.
+window.addEventListener('pointerdown', dayWatch.check, true);
+window.addEventListener('keydown', dayWatch.check, true);
+dayWatch.wake();
 
 // The launched agent's conversation moved (ADR-0030). It is read whether or not its tab is on
 // screen, so switching to the tab shows it as it is.

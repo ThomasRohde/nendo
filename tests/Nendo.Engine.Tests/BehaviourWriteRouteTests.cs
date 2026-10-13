@@ -133,6 +133,41 @@ public sealed class BehaviourWriteRouteTests
         Assert.HasCount(before + 1, await service.GetHistoryAsync());
     }
 
+    /// <summary>
+    /// ESQ-04: a record command is found in the definition, so pressing it reads no records
+    /// beyond the one it writes. ESQ-15: a form save tells History the record type it edited,
+    /// and the field when it is the only one.
+    /// </summary>
+    [TestMethod]
+    public async Task ACommandReadsNoWholeFileAndAFormSaveNamesWhatItEdited()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SeedAsync(coordinator, service);
+
+        var current = await VersionsAsync(service, "tasks");
+        var reads = coordinator.ReadDiagnostics.FullRecordReads;
+        await service.ExecuteCommandAsync(new("finishTask", "t1", current["t1"], Context("finish")));
+        Assert.AreEqual(reads, coordinator.ReadDiagnostics.FullRecordReads, "A record command read every record in the file to find itself.");
+
+        current = await VersionsAsync(service, "tasks");
+        await service.SetFieldsAsync(new("tasks", "t2", current["t2"],
+            new Dictionary<string, object?> { ["done"] = true, ["title"] = "Renamed" }, Context("form-two")));
+        Assert.AreEqual("Edit Tasks", (await service.QueryHistoryAsync(new(1))).Items[0].Description, "A form save is described as any record's.");
+        await service.SetFieldsAsync(new("tasks", "t3", current["t3"],
+            new Dictionary<string, object?> { ["title"] = "Retitled" }, Context("form-one")));
+        Assert.AreEqual("Edit Tasks Title", (await service.QueryHistoryAsync(new(1))).Items[0].Description);
+
+        // The description names the type as it is called now, and an exact retry after a rename
+        // is still the same write.
+        var revision = (await service.GetDefinitionSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "rename", "test", "Rename tasks", [new RenameEntityOperation("rename-tasks", "tasks", "Jobs", revision)]));
+        var retried = await service.SetFieldsAsync(new("tasks", "t3", current["t3"],
+            new Dictionary<string, object?> { ["title"] = "Retitled" }, Context("form-one")));
+        Assert.IsTrue(retried.IsIdempotentReplay, "An exact retry of a form save after a rename was not the same write.");
+    }
+
     private static async Task<long[]> TotalsAsync(NendoApplicationService service) =>
         (await service.GetSnapshotAsync()).Records
             .Where(record => record.EntityId == "projects")
