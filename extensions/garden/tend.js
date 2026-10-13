@@ -40,7 +40,28 @@ export async function startTend(nendo, context, kit) {
       element('div', { className: 'tend-actions' }, ...actions.map(action => element('button', { type: 'button', 'data-action': action, 'data-id': item.id, text: ACTIONS[action].label }))));
   }
 
+  // A redraw replaces the rows: the keyboard stays on the control it was on, in the same note's row,
+  // or, when that note has left the list, on the row that took its place, else on the summary (GDN-11).
+  function focusedControl() {
+    const active = document.activeElement, item = active?.closest?.('#tend li.tend-note[data-id]');
+    if (!item) return null;
+    const rows = [...document.querySelectorAll('#tend li.tend-note[data-id]')];
+    const control = active.matches('button[data-action]') ? `button[data-action="${active.dataset.action}"]` : 'button.note-link';
+    return { id: item.dataset.id, control, at: rows.indexOf(item), list: item.parentElement?.id ?? null };
+  }
+  function restoreFocus(was) {
+    if (was === null || (document.activeElement && document.activeElement !== document.body && document.activeElement.isConnected)) return;
+    const rows = [...document.querySelectorAll('#tend li.tend-note[data-id]')];
+    const same = rows.find(row => row.dataset.id === was.id);
+    const near = [...document.querySelectorAll(`#${was.list} li.tend-note[data-id]`)];
+    const item = same ?? near[Math.min(was.at, near.length - 1)] ?? rows[Math.min(was.at, rows.length - 1)] ?? null;
+    const target = (same ? item.querySelector(was.control) : null) ?? item?.querySelector('button[data-action]') ?? item?.querySelector('button.note-link') ?? $('tend-summary');
+    if (target === $('tend-summary')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+  }
+
   function draw() {
+    const was = focusedControl();
     const { quiet, empty } = state.view;
     const spanLabel = SPANS.find(s => s.days === state.span)?.label ?? `${state.span} days`;
     $('tend-summary').textContent = quiet.length + empty.length === 0 ? `Every note was tended in the last ${spanLabel}.`
@@ -54,6 +75,7 @@ export async function startTend(nendo, context, kit) {
     $('tend-empty-count').textContent = String(empty.length);
     $('tend-empty').replaceChildren(...empty.map(item => row(item, [])));
     state.shown = { quiet: quiet.map(item => ({ id: item.id, title: item.title, stage: item.stage, days: item.days })), empty: empty.map(item => ({ id: item.id, title: item.title })) };
+    restoreFocus(was);
     expose();
   }
 

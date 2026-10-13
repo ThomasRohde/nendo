@@ -31,7 +31,8 @@ export const DRAFT_LIMITS = { count: 50, characters: 2 * 1024 * 1024 };
 
 /**
  * The kept drafts, by note, or by 'new:…' for a note not saved yet, as { title, body, version, hash,
- * values, at }: version and hash say which version of the note the draft was written over. Bad or
+ * values, at }: version and hash say which version of the note the draft was written over. A new
+ * note's draft that was written over a note since gone adds { from, fromVersion, fromHash }. Bad or
  * missing storage keeps none.
  */
 export function readDrafts(storage, key) {
@@ -44,7 +45,9 @@ export function readDrafts(storage, key) {
     if (typeof entry.title !== 'string' || typeof entry.body !== 'string') continue;
     drafts.set(entry.id, { title: entry.title, body: entry.body, version: Number.isInteger(entry.version) ? entry.version : null,
       hash: typeof entry.hash === 'string' ? entry.hash : null,
-      values: typeof entry.values === 'object' && entry.values !== null ? entry.values : {}, at: Number(entry.at) || 0 });
+      values: typeof entry.values === 'object' && entry.values !== null ? entry.values : {}, at: Number(entry.at) || 0,
+      // A new note's draft written over a note that went: the note, and the version and key it was written over.
+      ...(typeof entry.from === 'string' ? { from: entry.from, fromVersion: Number.isInteger(entry.fromVersion) ? entry.fromVersion : null, fromHash: typeof entry.fromHash === 'string' ? entry.fromHash : null } : {}) });
   }
   return drafts;
 }
@@ -57,7 +60,8 @@ export function readDrafts(storage, key) {
  */
 export function writeDrafts(storage, key, drafts) {
   const entries = [...drafts].map(([id, draft]) => ({ id, title: draft.title, body: draft.body, version: draft.version ?? null, hash: draft.hash ?? null,
-    values: draft.values ?? {}, at: draft.at ?? 0 })).sort((a, b) => b.at - a.at);
+    values: draft.values ?? {}, at: draft.at ?? 0,
+    ...(typeof draft.from === 'string' ? { from: draft.from, fromVersion: draft.fromVersion ?? null, fromHash: draft.fromHash ?? null } : {}) })).sort((a, b) => b.at - a.at);
   if (!storage) return { kept: 0, dropped: entries.map(entry => entry.id), refused: true };
   const kept = [], dropped = [];
   let characters = 2;

@@ -1,7 +1,7 @@
 # Garden
 
 Status: **built**. `workspace/Garden.nendo` carries the app and `extensions/garden/` is its
-view, at package 0.21.1 on 2026-10-10. Where this design and the code disagree, the code is
+view, at package 0.22.0 on 2026-10-13. Where this design and the code disagree, the code is
 current.
 
 W-174 builds a garden of notes as a Nendo app: what Obsidian does (Markdown notes,
@@ -98,7 +98,9 @@ the graph to be dynamic and interactive, drawn with a common library as Obsidian
   and copied with its licences by `tools/garden/bundle.mjs` (ISC; the notices of every module
   it was built from are in `vendor/THIRD-PARTY-NOTICES.txt`). A force simulation lays the
   notes out (links, many-body repulsion, a pull to the centre, and collision that leaves room
-  for a label). The wheel and a drag on the background zoom and pan, a drag on a note moves it
+  for a label). On the Graph screen the wheel and a drag on the background zoom and pan; the
+  smaller drawings inside a note and on the Overview zoom only on Ctrl+wheel or a pinch, so
+  the wheel scrolls the page past them. A drag on a note moves it
   and the rest follow, hovering a note lights it and its neighbours and dims the rest, labels
   fade in as you zoom, and a click opens the note. Nodes grow with the square root of their
   links and take their stage's tone, their kind's, or their branch's: the note just under a

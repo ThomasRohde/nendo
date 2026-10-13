@@ -14,6 +14,8 @@ The **Graph** screen draws the whole garden as it really is: each dot a note, ea
 | Right-click a note | Show only its neighbourhood |
 | `Ctrl` `0` | Fit the whole garden in view |
 
+The Overview's graph and the graph under a note sit in a page that scrolls, so there the wheel scrolls the page; `Ctrl` with the wheel, or a pinch, zooms the drawing.
+
 ## What it can show
 
 The row above the graph has:

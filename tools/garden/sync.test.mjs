@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parse } from '../../extensions/garden/parse.mjs';
-import { plan, F, BODY_BYTES } from '../../extensions/garden/sync.mjs';
+import { plan, F, BODY_BYTES, resolveTarget, linkTarget } from '../../extensions/garden/sync.mjs';
 
 const today = '2026-10-06';
 let n = 0;
@@ -173,4 +173,58 @@ test('a body past the MCP value bound, or a save past 200 writes, is refused who
   assert.deepEqual(many.writes, []);
   assert.match(many.problems[0], /at most 200/);
   assert.match(save('x', {}, { title: '  ' }).problems[0], /needs a title/);
+});
+
+test('GDN-03: [[Note]] is the note titled Note, even where a note in another script took the slug note', () => {
+  const garden = [...index,
+    { recordId: 'gd.note.cyrillic', version: 1, slug: 'note', title: 'Заметки о саде' },
+    { recordId: 'gd.note.plain', version: 4, slug: 'note-3', title: 'Note' }];
+  const { writes, problems } = save('See [[Note]].', {}, { index: garden });
+  assert.deepEqual(problems, []);
+  const link = ofType(writes, 'gd.link', 'create')[0];
+  assert.equal(link?.values[F.link.to], 'gd.note.plain', `[[Note]] must link to the note titled Note, not to the note whose slug is 'note': ${link?.values[F.link.to]}`);
+  const fresh = plan({ note: null, title: 'Заметки о саде', body: '', parsed: parse(''), index, existing: {}, tags, today, newId });
+  assert.equal(fresh.writes[0].values[F.note.slug], 'заметки-о-саде', 'a new note in another script gets a readable slug');
+});
+
+test('GDN-04: two spellings of one missing note plant one Seed, and the next save deletes nothing', () => {
+  const body = 'Coffee at [[Café]], or the [[Cafe]] round the corner, and [[Garden Ideas]] or [[garden-ideas]].';
+  const first = save(body);
+  assert.deepEqual(first.problems, []);
+  const planted = ofType(first.writes, 'gd.note', 'create');
+  assert.deepEqual(planted.map(w => w.values[F.note.slug]), ['cafe', 'garden-ideas'],
+    `two spellings of one missing note must plant one Seed, not one each: ${JSON.stringify(planted.map(w => w.values[F.note.title]))}`);
+  const links = ofType(first.writes, 'gd.link', 'create');
+  assert.equal(links.length, 2, 'one link per Seed');
+  // The next save, over the file as the first left it.
+  const after = [...index, ...first.stubs.map(stub => ({ recordId: stub.recordId, version: 1, slug: stub.slug, title: stub.title }))];
+  const existing = { links: links.map(write => row('gd.link', write.recordId, write.values)) };
+  const saved = { ...note, values: { ...note.values, [F.note.body]: body } };
+  const second = plan({ note: saved, title: 'Start here', body, parsed: parse(body), index: after, existing, tags, today, newId });
+  assert.deepEqual(ofType(second.writes, 'gd.link', 'delete'), [], 'the next save must delete no link');
+  assert.deepEqual(ofType(second.writes, 'gd.note', 'create'), [], 'and plant nothing more');
+});
+
+test('GDN-03 (review): a link a save made keeps its target, and a pick from [[ comes back to the note picked', () => {
+  // [[compost]] was saved when slugs came first: it links to the note whose slug is compost.
+  const garden = [...index,
+    { recordId: 'gd.note.soil', version: 1, slug: 'compost', title: 'Soil' },
+    { recordId: 'gd.note.heap', version: 1, slug: 'compost-heap', title: 'compost' }];
+  const body = 'Feed the [[compost]].';
+  const linked = { links: [row('gd.link', 'gd.link.saved', { [F.link.from]: 'gd.note.start-here', [F.link.to]: 'gd.note.soil', [F.link.source]: 'Body', [F.link.context]: body })] };
+  const again = save(body, linked, { index: garden });
+  assert.deepEqual(ofType(again.writes, 'gd.link').map(w => [w.op, w.values?.[F.link.to] ?? w.recordId]), [],
+    `a saved [[compost]] must keep linking to the note it linked to, not move to the note titled compost: ${JSON.stringify(ofType(again.writes, 'gd.link'))}`);
+  const fresh = ofType(save(body, {}, { index: garden }).writes, 'gd.link', 'create')[0];
+  assert.equal(fresh.values[F.link.to], 'gd.note.heap', 'a new [[compost]] names the note titled compost');
+  // Two notes titled Note: [[note]] is the one whose slug is note.
+  const twins = [{ recordId: 'a', slug: 'note-2', title: 'Note' }, { recordId: 'b', slug: 'note', title: 'Note' }];
+  assert.equal(resolveTarget('note', twins).recordId, 'b', 'of two notes with one title, the one whose slug the link also is');
+  // What [[ inserts names the note picked: its slug, unless another note has that title.
+  assert.equal(linkTarget(garden.find(n => n.recordId === 'gd.note.how-links-work'), garden), 'how-links-work');
+  const soil = garden.find(n => n.recordId === 'gd.note.soil');
+  assert.equal(resolveTarget(linkTarget(soil, garden), garden).recordId, 'gd.note.soil', `a pick must insert words that link back to it: [[${linkTarget(soil, garden)}]]`);
+  // A link to itself, by a title another note has as its slug, is a link to itself.
+  const self = save('I am [[Start here]] and [[start-here]].', {}, { index: [...index, { recordId: 'gd.note.other', version: 1, slug: 'start here', title: 'Elsewhere' }] });
+  assert.deepEqual(ofType(self.writes, 'gd.link', 'create'), [], 'the note\'s own title names the note itself');
 });

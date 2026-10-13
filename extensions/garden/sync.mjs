@@ -25,13 +25,30 @@ export const F = {
 export const BODY_BYTES = 32 * 1024;
 export const BATCH_WRITES = 200;
 
-/** The note a wikilink names: by slug, then by title, then by the slug its text would make. */
-export function resolveTarget(target, index) {
+/**
+ * The note a wikilink names: by title, then by slug, then by the slug its text would make. The
+ * title comes first, so [[Note]] is the note titled Note even where another note's slug is 'note'
+ * (GDN-03); of two notes with that title, the one whose slug it also is. Case is never minded.
+ * `prefer` holds the notes the body already links to: a link that could name one of them still
+ * does, so no link a save made before changes its target under it.
+ */
+export function resolveTarget(target, index, { prefer = null } = {}) {
   const key = String(target).trim().toLowerCase(), slug = slugify(target);
-  return index.find(note => (note.slug ?? '').toLowerCase() === key)
-    ?? index.find(note => (note.title ?? '').toLowerCase() === key)
-    ?? index.find(note => note.slug === slug)
-    ?? null;
+  const slugIs = note => (note.slug ?? '').toLowerCase() === key || note.slug === slug;
+  const byTitle = index.filter(note => (note.title ?? '').toLowerCase() === key);
+  const bySlug = index.filter(note => (note.slug ?? '').toLowerCase() === key);
+  const byMadeSlug = index.filter(note => note.slug === slug);
+  if (prefer !== null && prefer.size) {
+    const kept = [...byTitle, ...bySlug, ...byMadeSlug].find(note => prefer.has(note.recordId));
+    if (kept !== undefined) return kept;
+  }
+  return byTitle.find(slugIs) ?? byTitle[0] ?? bySlug[0] ?? byMadeSlug[0] ?? null;
+}
+
+/** The words that name a note in a link and come back to it: its slug, else its title, else the slug with the title shown. */
+export function linkTarget(note, index) {
+  for (const words of [note.slug, note.title]) if (words && resolveTarget(words, index)?.recordId === note.recordId) return words;
+  return note.slug || note.title;
 }
 
 export function plan({ note = null, title, body, parsed, index = [], existing = {}, tags = [], today, newId, values = {} }) {
@@ -78,25 +95,28 @@ export function plan({ note = null, title, body, parsed, index = [], existing = 
   }
   const others = index.filter(n => n.recordId !== noteId);
 
+  // The notes this body links to now: a link that could name one of them keeps it (resolveTarget).
+  const bodyLinks = (existing.links ?? []).filter(row => row.values[F.link.source] === 'Body');
+  const prefer = new Set(bodyLinks.map(row => row.values[F.link.to]));
+
   // 2. Stubs: a wikilink to a note that is not there yet plants a Seed, so the link has somewhere to point.
+  // Two spellings of one missing note ([[Café]] and [[Cafe]]) name the Seed the first one planted, as
+  // the next save would read them, so one Seed is planted and none is left behind (GDN-04).
   const resolved = new Map();
   const stubs = [];
-  const stubBySlug = new Map();
   for (const link of parsed.links) {
-    const found = resolveTarget(link.target, others) ?? (resolveTarget(link.target, [noteRecord]) ? noteRecord : null);
+    // The note itself is one of the notes a link can name, in the same order as the rest.
+    const named = resolveTarget(link.target, [...others, noteRecord], { prefer });
+    const found = named ?? resolveTarget(link.target, stubs);
     if (found !== null) { resolved.set(link.target, found); continue; }
     const slug = freeSlug(slugify(link.target), [...index, ...stubs]);
-    let stub = stubBySlug.get(slug);
-    if (stub === undefined) {
-      const title = link.label && link.label.length <= 120 && slugify(link.label) === slug ? link.label : link.target;
-      stub = { recordId: newId('gd.note', slug), version: 1, slug, title };
-      stubBySlug.set(slug, stub);
-      stubs.push(stub);
-      writes.push({ op: 'create', entityId: 'gd.note', recordId: stub.recordId, values: {
-        [F.note.title]: title, [F.note.slug]: slug, [F.note.kind]: 'Note', [F.note.stage]: 'Seed', [F.note.pinned]: false, [F.note.touched]: today,
-      } });
-      written.add(stub.recordId);
-    }
+    const title = link.label && link.label.length <= 120 && slugify(link.label) === slug ? link.label : link.target;
+    const stub = { recordId: newId('gd.note', slug), version: 1, slug, title };
+    stubs.push(stub);
+    writes.push({ op: 'create', entityId: 'gd.note', recordId: stub.recordId, values: {
+      [F.note.title]: title, [F.note.slug]: slug, [F.note.kind]: 'Note', [F.note.stage]: 'Seed', [F.note.pinned]: false, [F.note.touched]: today,
+    } });
+    written.add(stub.recordId);
     resolved.set(link.target, stub);
   }
 
@@ -122,7 +142,6 @@ export function plan({ note = null, title, body, parsed, index = [], existing = 
     if (target.recordId === noteId || wanted.has(target.recordId)) continue;
     wanted.set(target.recordId, { target, excerpt: link.excerpt });
   }
-  const bodyLinks = (existing.links ?? []).filter(row => row.values[F.link.source] === 'Body');
   for (const [targetId, { target, excerpt }] of wanted) {
     const row = bodyLinks.find(row => row.values[F.link.to] === targetId);
     if (row === undefined) {

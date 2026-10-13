@@ -95,3 +95,13 @@ test('a save Nendo never answered is kept as it was sent, and let go with null (
   storage.setItem('u', '{"writes":"nonsense"}');
   assert.equal(readUnanswered(storage, 'u'), null);
 });
+
+test('GDN-01 (review): a draft moved off a note that went keeps the note and the version it was written over', () => {
+  const storage = memory();
+  const moved = { title: 'Brand new idea', body: 'A paragraph.', version: null, hash: null, values: {}, at: 5, from: 'gd.note.seed', fromVersion: 1, fromHash: 'abcd1234' };
+  writeDrafts(storage, 'k', new Map([['new:x', moved], ['gd.note.a', { title: 'A', body: 'b', version: 2, hash: null, values: {}, at: 4 }]]));
+  const back = readDrafts(storage, 'k');
+  assert.deepEqual({ from: back.get('new:x').from, fromVersion: back.get('new:x').fromVersion, fromHash: back.get('new:x').fromHash }, { from: 'gd.note.seed', fromVersion: 1, fromHash: 'abcd1234' },
+    `a moved draft must remember its note across a restart, so it can go back to it: ${JSON.stringify(back.get('new:x'))}`);
+  assert.equal('from' in back.get('gd.note.a'), false, 'a draft over its own note carries no from');
+});

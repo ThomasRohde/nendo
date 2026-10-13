@@ -58,3 +58,39 @@ test('a body is text, never markup', () => {
   assert.ok(html.includes('data-target="&lt;b&gt;x&lt;/b&gt;"'));
   assert.equal(escape('&<>"\''), '&amp;&lt;&gt;&quot;&#39;');
 });
+
+test('GDN-07: a heading ending in # keeps it, and a link whose words are code shows the code', () => {
+  assert.ok(render('# Learning C#').includes('<h1>Learning C#</h1>'), `'# Learning C#' must keep its #: ${render('# Learning C#')}`);
+  assert.ok(render('## Title ##').includes('<h2>Title</h2>'), 'a closing run after a space is still cut');
+  const html = render('Run [`npm ci`](https://docs.npmjs.com/cli/ci) first.');
+  assert.ok(html.includes('<a href="https://docs.npmjs.com/cli/ci" rel="noopener" target="_blank"><code>npm ci</code></a>'),
+    `a link whose words are code must show the code, not a placeholder: ${JSON.stringify(html)}`);
+  assert.ok(!html.includes('\u0000'), 'no placeholder is left in the HTML');
+});
+
+test('GDN-05: a box in a numbered list is text, not a box that ticks and saves nothing', () => {
+  const html = render('1. [ ] Call Sam\n2. [x] Done', { interactive: true });
+  assert.ok(!html.includes('<input'), `a numbered '[ ]' must not be drawn as a checkbox, since parse() makes no task of it: ${html}`);
+  assert.ok(html.includes('<ol><li>[ ] Call Sam</li>'), html);
+  assert.ok(render('- [ ] Call Sam', { interactive: true }).includes('data-line="0"'), 'a bullet task still ticks');
+  assert.ok(!render('- [ ] ', { interactive: true }).includes('<input'), 'a box with no words is no task, as parse() reads it');
+});
+
+test('GDN-07 (review): a body carrying U+0000 or self-referring code spans stays escaped text, and its HTML stays small', () => {
+  const NUL = '\u0000';
+  // A body that writes the placeholder form itself: inside a wikilink's target, a link's address, and a task's words.
+  const forged = [
+    `- [ ] \`<b>\` ${NUL}0${NUL} [[${NUL}0${NUL}]] [x](https://e.org/${NUL}0${NUL})`,
+    `See [[\`"><img src=x onerror=alert(1)>\`]] and [\`<i>\`](https://e.org/\`a"b\`).`,
+  ].join('\n');
+  const html = render(forged, { resolve, interactive: true });
+  assert.ok(!html.includes(NUL), `no U+0000 may be left in the HTML: ${JSON.stringify(html)}`);
+  const attributes = [...html.matchAll(/\s[\w-]+="([^"]*)"/g)].map(m => m[1]);
+  const marked = attributes.filter(value => /[<>]/.test(value));
+  assert.deepEqual(marked, [], `an attribute value must never hold markup from the body: ${JSON.stringify(marked)} in ${html}`);
+  assert.ok(!/<(b|i|img)[\s>]/.test(html), `the body's own tags must stay escaped text: ${html}`);
+  // Code spans whose text is the placeholder form of the span before: once grew without bound.
+  const chain = Array.from({ length: 40 }, (_, i) => `\`${NUL}${i}${NUL}${NUL}${i}${NUL}\``).join(' ');
+  const grown = render(chain);
+  assert.ok(!grown.includes(NUL) && grown.length < chain.length * 20, `self-referring code spans must render in bounded length: ${grown.length} characters from ${chain.length}`);
+});

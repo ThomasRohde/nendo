@@ -8,7 +8,7 @@ The file carries its own instructions for agents, the skill `dev.nendo.garden`. 
 
 Three things make the garden easy for an agent:
 
-1. **Every note has a slug**, unique in the garden, so `[[for-agents]]` always means one note.
+1. **Every note has a slug**, unique in the garden, so an agent can always find one note by it; a link names a note by its title or its slug, the title first.
 2. **Every note can have a summary**, a paragraph the agent reads instead of the whole body. The hover preview shows it to you too.
 3. **Links, tags and tasks are records**, so the agent asks the garden who links where rather than reading every note.
 

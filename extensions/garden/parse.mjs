@@ -2,7 +2,8 @@
 // Pure functions over text, shared by the view, the seed and the tests. Nothing here reads the file.
 //
 //   parse(body)        -> { links: [{target, label, excerpt, line}], tags: [name], tasks: [{text, done, key, line}] }
-//   slugify(text)      -> a stable lower-case address, letters, digits and hyphens, at most 64 characters
+//   slugify(text)      -> a stable lower-case address, letters of any script, digits and hyphens, at most 64 characters
+//   idPart(text)       -> the a-z, 0-9 and hyphens of a hint, for the record IDs the view makes
 //   fnv1a(text)        -> eight hex digits, the key a checkbox task keeps across edits of its note
 //   excerptAround(line, index, width) -> the line around a match, cut to width
 
@@ -58,11 +59,25 @@ export function parse(body) {
   return { links, tags, tasks };
 }
 
-/** A stable address made from a title: lower-case letters, digits and single hyphens. */
+/**
+ * A stable address made from a title: lower-case letters of any script, decimal digits and single hyphens.
+ * Accents a Latin, Greek or Cyrillic letter carries are dropped (Café is cafe), and every other
+ * letter is kept as it is written, so 'Заметки о саде' is заметки-о-саде and '庭のメモ' 庭のメモ
+ * rather than one more 'note' (GDN-03). At most 64 characters; 'note' when nothing is left.
+ */
 export function slugify(text) {
-  const slug = String(text ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  // A Greek final sigma is a sigma, so 'ΣΗΜΕΙΩΣΕΙΣ' and 'Σημειώσεις' make one slug.
+  const slug = String(text ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').normalize('NFKC').toLowerCase().replace(/ς/g, 'σ')
+    .replace(/[^\p{L}\p{M}\p{Nd}]+/gu, '-').replace(/^-+|-+$/g, '');
+  const cut = Array.from(slug).slice(0, SLUG_WIDTH).join('').replace(/-+$/, '');
+  return cut.length === 0 ? 'note' : cut;
+}
+
+/** The part of a record ID made from a hint: a-z, 0-9 and hyphens only, as record IDs take; 'note' when nothing is left. */
+export function idPart(text) {
+  const part = String(text ?? '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, SLUG_WIDTH).replace(/-+$/, '');
-  return slug.length === 0 ? 'note' : slug;
+  return part.length === 0 ? 'note' : part;
 }
 
 /** FNV-1a over the UTF-8 bytes, as eight hex digits: short, stable, and the same in any runtime. */

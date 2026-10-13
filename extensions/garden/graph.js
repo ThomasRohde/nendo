@@ -9,7 +9,10 @@
 // layout over the room it has, so a wide box is used across its width and the dots and names
 // stay the size of the page's text.
 //
-//   createGraph(host, { kit, colour, onOpen, onContext, compact, label }) -> {
+// A drawing that sits in a page that scrolls (inline: the local graph and the Overview's) leaves the
+// wheel and a one-finger swipe to the page; Ctrl and the wheel, or a pinch, zoom it (GDN-02).
+//
+//   createGraph(host, { kit, colour, onOpen, onContext, compact, inline, label }) -> {
 //     update(data, { focus }), setOptions({ arrows, spread, query }), fit(), highlight(id), select(ids), state(), stop() }
 
 import { radius } from './graph-data.mjs';
@@ -21,7 +24,7 @@ export const LABEL_PX = 12;
 const DRAWN_PX = 11;
 const shortTitle = d => d.title.length > 42 ? `${d.title.slice(0, 40)}…` : d.title;
 
-export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)', onOpen = () => undefined, onContext = null, compact = false, label = 'Notes and their links' } = {}) {
+export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)', onOpen = () => undefined, onContext = null, compact = false, inline = compact, label = 'Notes and their links' } = {}) {
   const d3 = window.d3;
   if (!d3?.forceSimulation) throw Error('d3 did not load.');
   const svg = d3.select(host).append('svg').attr('class', 'graph-svg').attr('role', 'group').attr('aria-label', label);
@@ -61,7 +64,10 @@ export function createGraph(host, { kit, colour = () => 'var(--nendo-tone-grey)'
   // close to where it settles and only the last of the motion plays.
   const SHOWN_FROM = 0.15;
 
-  const zoom = d3.zoom().scaleExtent([0.1, 8]).on('zoom', event => {
+  // d3's own filter, and inline the wheel only with Ctrl (a pinch sends that too) and a touch only with two fingers.
+  const allowed = event => (!event.ctrlKey || event.type === 'wheel') && !event.button
+    && (!inline || (event.type === 'wheel' ? event.ctrlKey : !event.type.startsWith('touch') || event.touches.length > 1));
+  const zoom = d3.zoom().scaleExtent([0.1, 8]).filter(allowed).on('zoom', event => {
     if (event.sourceEvent) arranged = true;
     transform = event.transform;
     viewport.attr('transform', transform);

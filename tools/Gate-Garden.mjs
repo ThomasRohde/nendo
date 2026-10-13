@@ -228,7 +228,7 @@ async page => {
   // pointer and opens nothing; Right and Left unfold, step in, step up and fold; the fold is kept;
   // and following a link to a note in a folded branch unfolds it.
   const rowCount = () => frame.locator('#tree .row').count();
-  const expanded = id => frame.evaluate(id => document.querySelector(`#tree .row[data-id="${id}"]`)?.parentElement.getAttribute('aria-expanded') ?? null, id);
+  const expanded = id => frame.evaluate(id => document.querySelector(`#tree .row[data-id="${id}"]`)?.getAttribute('aria-expanded') ?? null, id);
   const placesBeforeFold = (await page.evaluate(() => window.broker.places)).length;
   assert(await expanded('gd.note.start-here') === 'true' && await rowCount() === seedNotes, 'A branch starts unfolded.');
   const twisty = await frame.locator('#tree .row[data-id="gd.note.start-here"] .twisty').boundingBox();
@@ -607,7 +607,14 @@ async page => {
   assert(k1 > k0 * 1.2, `The wheel must zoom in: ${k0} to ${k1}.`);
   // A click opens the note, exactly once. Fit first: zooming at the edge can carry it out of sight.
   await command('fit');
-  await page.waitForTimeout(1200);
+  // Fit runs a transition: wait until it has moved the drawing and the drawing has come to rest (GDN-20).
+  await frame.waitForFunction(k => {
+    const s = window.gardenGraph.state();
+    const key = [s.k, s.x, s.y, ...Object.values(s.positions).flat()].map(v => v.toFixed(1)).join();
+    const same = window.gateFitKey === key;
+    window.gateFitKey = key;
+    return s.k !== k && same;
+  }, k1, { polling: 250, timeout: 10000 }).catch(async () => { throw Error(`Fit must frame the drawing and come to rest: ${JSON.stringify(await frame.evaluate(() => window.gardenGraph.state().k))}.`); });
   const start = await centre('gd.note.start-here');
   const viewport = page.viewportSize();
   assert(start.x > 0 && start.y > 0 && start.x < viewport.width && start.y < viewport.height, `Fit must bring every note into sight: ${JSON.stringify(start)}.`);
@@ -1082,7 +1089,14 @@ async page => {
   frame = await mounted();
   await frame.waitForFunction(() => window.gardenHome?.ready === true, { timeout: 15000 })
     .catch(async () => { throw Error(`The Overview must start on gd.home: ${JSON.stringify(await frame.evaluate(() => ({ home: !!window.gardenHome, garden: !!window.garden, shown: !document.getElementById('home')?.hidden })))}.`); });
-  await page.waitForTimeout(1600);
+  // The layout settles and then frames itself: measure once neither the layout nor the frame moves (GDN-20).
+  await frame.waitForFunction(() => {
+    const s = window.gardenHome.graphState();
+    const key = [s.k, s.x, s.y, ...Object.values(s.positions).flat()].map(v => v.toFixed(1)).join();
+    const same = window.gateHeroKey === key;
+    window.gateHeroKey = key;
+    return s.alpha < 0.02 && same;
+  }, null, { polling: 300, timeout: 10000 }).catch(async () => { throw Error(`The Overview's graph must come to rest: ${JSON.stringify(await frame.evaluate(() => window.gardenHome.graphState().alpha))}.`); });
   const homePairs = new Set(fixture.records['gd.link'].filter(l => l.values[F.from] !== l.values[F.to]).map(l => `${l.values[F.from]}>${l.values[F.to]}`));
   const hero = await frame.evaluate(() => {
     const box = id => { const r = document.getElementById(id).getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, area: r.width * r.height }; };
@@ -1726,6 +1740,281 @@ async page => {
   settle.names = measuredNames;
   await page.evaluate(() => window.broker.pushTheme('light'));
   checks.push('G-015 names on a dense graph read at 12 px and never overprint');
+
+  // 24. The broad review of 2026-10-13 (W-226, GDN-01 to GDN-20): each finding measured where the
+  // person meets it. A failure names the finding.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // A drawing at rest: its frame and every note where they were a poll ago.
+  const steadyDrawing = selector => frame.waitForFunction(selector => {
+    const key = [document.querySelector(`${selector} g.viewport`)?.getAttribute('transform') ?? '', ...[...document.querySelectorAll(`${selector} .node`)].map(n => n.getAttribute('transform'))].join('|');
+    const seen = (window.gateSteady ??= {});
+    const same = seen[selector] === key;
+    seen[selector] = key;
+    return same;
+  }, selector, { polling: 300, timeout: 10000 });
+  // Where a drawing's frame is, and how far the page around it is scrolled.
+  const drawingAt = selector => frame.evaluate(selector => {
+    const host = document.querySelector(selector);
+    let scroller = host.parentElement;
+    while (scroller && scroller !== document.body && !(scroller.scrollHeight > scroller.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(scroller).overflowY))) scroller = scroller.parentElement;
+    if (!scroller || scroller === document.body) scroller = document.scrollingElement;
+    document.querySelectorAll('[data-gate-scroller]').forEach(e => delete e.dataset.gateScroller);
+    scroller.dataset.gateScroller = '1';
+    return { transform: host.querySelector('g.viewport').getAttribute('transform'), top: Math.round(scroller.scrollTop), room: scroller.scrollHeight - scroller.clientHeight, scroller: scroller.id || scroller.tagName };
+  }, selector);
+  const wheelOver = async (selector, deltaY, { ctrl = false } = {}) => {
+    const box = await frame.locator(selector).boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    if (ctrl) await page.keyboard.down('Control');
+    await page.mouse.wheel(0, deltaY);
+    if (ctrl) await page.keyboard.up('Control');
+  };
+  const scrolledFrom = top => frame.waitForFunction(top => Math.round(document.querySelector('[data-gate-scroller]').scrollTop) !== top, top, { timeout: 2000 }).catch(() => undefined);
+
+  // GDN-02: the wheel over a note's local graph scrolls the page and leaves the drawing as it was;
+  // Ctrl and the wheel still zoom it. The same over the Overview's graph.
+  await workspaceAgain();
+  await frame.locator('#connections > summary').click();
+  await frame.waitForFunction(() => document.querySelectorAll('#local-graph .node').length > 1, null, { timeout: 5000 });
+  await frame.locator('#local-graph').evaluate(host => host.scrollIntoView({ block: 'center' }));
+  await steadyDrawing('#local-graph');
+  const localBefore = await drawingAt('#local-graph');
+  await wheelOver('#local-graph', localBefore.top > 0 ? -240 : 240);
+  await scrolledFrom(localBefore.top);
+  const localAfter = await drawingAt('#local-graph');
+  assert(localAfter.top !== localBefore.top && localAfter.transform === localBefore.transform,
+    `GDN-02: the wheel over a note's local graph must scroll the page and leave the drawing as it was: ${JSON.stringify({ before: localBefore, after: localAfter })}.`);
+  await wheelOver('#local-graph', -240, { ctrl: true });
+  await frame.waitForFunction(was => document.querySelector('#local-graph g.viewport').getAttribute('transform') !== was, localAfter.transform, { timeout: 2000 }).catch(() => undefined);
+  assert((await drawingAt('#local-graph')).transform !== localAfter.transform, 'GDN-02: Ctrl and the wheel must still zoom the local graph.');
+  await page.setViewportSize({ width: 1440, height: 700 });
+  await page.evaluate(({ fixture, homeContext }) => { window.broker.offerScreens(true); window.broker.setFixture({ ...fixture, context: homeContext }); window.broker.remount(); }, { fixture, homeContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenHome?.ready === true, null, { timeout: 15000 });
+  await steadyDrawing('#home-graph');
+  const heroBefore = await drawingAt('#home-graph');
+  assert(heroBefore.room > 100, `The Overview must be taller than the window for this check: ${JSON.stringify(heroBefore)}.`);
+  await wheelOver('#home-graph', 240);
+  await scrolledFrom(heroBefore.top);
+  const heroAfter = await drawingAt('#home-graph');
+  assert(heroAfter.top > heroBefore.top && heroAfter.transform === heroBefore.transform,
+    `GDN-02: the wheel over the Overview's graph must scroll the page down and leave the drawing as it was: ${JSON.stringify({ before: heroBefore, after: heroAfter })}.`);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  // GDN-12: the row the keyboard is on is the treeitem, with its level and whether it is unfolded.
+  await workspaceAgain();
+  const focusedItem = () => frame.evaluate(() => {
+    const e = document.activeElement, owned = e?.getAttribute('aria-owns');
+    return { role: e?.getAttribute('role') ?? e?.tagName, level: e?.getAttribute('aria-level'), expanded: e?.getAttribute('aria-expanded'), id: e?.dataset?.id ?? null,
+      owns: owned ? document.getElementById(owned)?.getAttribute('role') ?? 'missing' : null };
+  });
+  await frame.locator('#tree .row[data-id="gd.note.start-here"]').focus();
+  const unfoldedItem = await focusedItem();
+  assert(unfoldedItem.role === 'treeitem' && unfoldedItem.level === '1' && unfoldedItem.expanded === 'true' && unfoldedItem.owns === 'group' && unfoldedItem.id === 'gd.note.start-here',
+    `GDN-12: the tree row the keyboard is on must be the treeitem, with its level, its unfolded state and the group it owns: ${JSON.stringify(unfoldedItem)}.`);
+  await page.keyboard.press('ArrowLeft');
+  await frame.waitForFunction(() => document.activeElement?.getAttribute('aria-expanded') === 'false', null, { timeout: 2000 }).catch(() => undefined);
+  const foldedItem = await focusedItem();
+  const byRole = await frame.getByRole('treeitem', { expanded: false, level: 1 }).and(frame.locator('[data-id="gd.note.start-here"]')).evaluateAll(found => found.map(e => e === document.activeElement));
+  assert(foldedItem.role === 'treeitem' && foldedItem.expanded === 'false' && JSON.stringify(byRole) === '[true]',
+    `GDN-12: folded, the treeitem the keyboard is on must say it is collapsed: ${JSON.stringify({ foldedItem, byRole })}.`);
+  await page.keyboard.press('ArrowRight');
+
+  // GDN-09: Ctrl E is declared in Nendo's row, so the Workbench runs it wherever the focus is.
+  await page.waitForFunction(() => { const walk = items => items.flatMap(i => [i, ...walk(i.items ?? [])]); return walk(window.broker.toolbars.at(-1).items).some(i => i.keys === 'Ctrl+E'); }, null, { timeout: 2000 }).catch(() => undefined);
+  const keyed = await page.evaluate(() => { const walk = items => items.flatMap(i => [i, ...walk(i.items ?? [])]); return walk(window.broker.toolbars.at(-1).items).find(i => i.keys === 'Ctrl+E') ?? null; });
+  assert(keyed && !keyed.disabled, `GDN-09: Nendo's row must declare Ctrl+E, so the key switches View and Edit when the focus is outside the frame: ${JSON.stringify(keyed)}.`);
+  assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'GDN-09: Nendo must accept the row that declares Ctrl+E.');
+  for (const wanted of ['edit', 'read']) {
+    const now = await page.evaluate(() => { const walk = items => items.flatMap(i => [i, ...walk(i.items ?? [])]); return walk(window.broker.toolbars.at(-1).items).find(i => i.keys === 'Ctrl+E'); });
+    await command(now.id, now.kind === 'toggle' ? !now.pressed : null);
+    await frame.waitForFunction(wanted => window.garden.mode === wanted, wanted, { timeout: 2000 })
+      .catch(async () => { throw Error(`GDN-09: the declared Ctrl+E must switch to ${wanted}: ${await frame.evaluate(() => window.garden.mode)}.`); });
+  }
+
+  // GDN-13: the [[ suggestions point a screen reader at the one Enter inserts; a wikilink the
+  // keyboard reaches previews its note, and Esc puts the preview away.
+  await command('mode', 'edit');
+  await frame.waitForFunction(() => window.garden.mode === 'edit');
+  await frame.locator('#editor').focus();
+  await frame.evaluate(() => { const e = document.getElementById('editor'); e.setSelectionRange(e.value.length, e.value.length); });
+  await page.keyboard.type('\n[[');
+  await frame.waitForFunction(() => !document.getElementById('autocomplete').hidden, null, { timeout: 2000 });
+  const pointedAt = () => frame.evaluate(() => { const e = document.getElementById('editor'); return { at: e.getAttribute('aria-activedescendant'),
+    selected: document.querySelector('#autocomplete li[aria-selected=true]')?.id || null, controls: e.getAttribute('aria-controls'), autocomplete: e.getAttribute('aria-autocomplete') }; });
+  const firstPick = await pointedAt();
+  await page.keyboard.press('ArrowDown');
+  const secondPick = await pointedAt();
+  assert(firstPick.at && firstPick.at === firstPick.selected && secondPick.at === secondPick.selected && secondPick.at !== firstPick.at && firstPick.controls === 'autocomplete' && firstPick.autocomplete === 'list',
+    `GDN-13: the editor must point a screen reader at the suggestion Enter inserts, and follow ArrowDown: ${JSON.stringify({ firstPick, secondPick })}.`);
+  await page.keyboard.press('Escape');
+  assert(!(await frame.evaluate(() => document.getElementById('editor').hasAttribute('aria-activedescendant'))), 'GDN-13: a closed list leaves the editor pointing at nothing.');
+  await command('mode', 'view');
+  await frame.waitForFunction(() => window.garden.mode === 'read');
+  await frame.locator('#reading-title').focus();
+  let tabbed = null;
+  for (let i = 0; i < 40 && !tabbed; i++) {
+    await page.keyboard.press('Tab');
+    tabbed = await frame.evaluate(() => document.activeElement?.matches?.('#reading-body a.wikilink[data-id]') ? document.activeElement.dataset.id : null);
+  }
+  assert(tabbed, 'GDN-13: Tab must reach a wikilink in the page.');
+  await frame.waitForFunction(() => !document.getElementById('hover-card').hidden, null, { timeout: 2000 }).catch(() => undefined);
+  const keyCard = await frame.evaluate(() => ({ shown: !document.getElementById('hover-card').hidden, title: document.getElementById('hover-title').textContent }));
+  const tabbedTitle = fixture.records['gd.note'].find(n => n.recordId === tabbed)?.values['gd.note.title'];
+  assert(keyCard.shown && keyCard.title === tabbedTitle, `GDN-13: a wikilink reached with the keyboard must preview its note, as the pointer does: ${JSON.stringify({ tabbed, keyCard })}.`);
+  await page.keyboard.press('Escape');
+  assert(await frame.locator('#hover-card').isHidden(), 'GDN-13: Esc must put the preview away.');
+
+  // GDN-14: a save that links to a note changed elsewhere since the garden was read is kept at once.
+  await workspaceAgain();
+  const linkedFromStart = new Set(fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here').map(l => l.values[F.to]));
+  const staleTarget = fixture.records['gd.note'].find(n => n.recordId !== 'gd.note.start-here' && !linkedFromStart.has(n.recordId));
+  await command('mode', 'edit');
+  await frame.waitForFunction(() => window.garden.mode === 'edit');
+  await type(`${await editorText()}\nSee [[${staleTarget.values[F.slug]}]].`);
+  await page.evaluate(id => window.broker.touch('gd.note', id), staleTarget.recordId);
+  const staleBatches = await requests('records.batch');
+  await command('save');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, staleBatches, { timeout: 5000 });
+  await frame.waitForFunction(() => window.garden.saving === false, null, { timeout: 5000 });
+  const staleSave = { ...(await state()), batches: (await requests('records.batch')) - staleBatches,
+    linked: (await records('gd.link')).some(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.to] === staleTarget.recordId) };
+  assert(staleSave.problem === null && !staleSave.dirty && staleSave.linked && staleSave.batches === 1,
+    `GDN-14: a save linking to a note changed elsewhere since the garden was read must be kept at once, not refused over the target's old version: ${JSON.stringify(staleSave)}.`);
+
+  // GDN-06: two ticks while reading, the second while the first is on its way: both are saved.
+  await workspaceAgain();
+  await openRow('gd.note.tags-and-tasks');
+  const readingBoxes = frame.locator('#reading-body input[type=checkbox][data-line]');
+  const twoTickBatches = await requests('records.batch');
+  await page.evaluate(() => window.broker.hold('records.batch', 700));
+  await readingBoxes.nth(0).click();
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, twoTickBatches, { timeout: 3000 });
+  await readingBoxes.nth(1).click();
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length >= n + 2, twoTickBatches, { timeout: 5000 }).catch(() => undefined);
+  await frame.waitForFunction(() => window.garden.saving === false && window.garden.dirty === false, null, { timeout: 3000 }).catch(() => undefined);
+  const savedTicks = (await storedBody('gd.note.tags-and-tasks')).split('\n').filter(line => /^- \[[ x]\] /.test(line));
+  const twoTicks = { saved: savedTicks, batches: (await requests('records.batch')) - twoTickBatches, dirty: (await state()).dirty, status: await frame.locator('#status').textContent() };
+  assert(JSON.stringify(savedTicks) === JSON.stringify(['- [x] Give one task a due date on its record page', '- [ ] Read this note']) && twoTicks.batches === 2 && !twoTicks.dirty,
+    `GDN-06: a second tick while the first is being saved must be saved too, as ticks are: ${JSON.stringify(twoTicks)}.`);
+
+  // GDN-10: a save Nendo never answered, and the view started again on a clean note: Save is
+  // offered, and sends the same save again.
+  await workspaceAgain();
+  await command('new');
+  await setTitle('Unanswered over a clean note');
+  await type('Sent again from Save.');
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }, 1));
+  await command('save');
+  await frame.waitForFunction(() => window.garden.saving === false && /did not answer/.test(window.garden.problem ?? ''), null, { timeout: 5000 });
+  const lostKey = await page.evaluate(() => window.broker.requests.filter(r => r.m === 'records.batch').at(-1).p.writeKey);
+  await page.waitForTimeout(300);
+  await restart();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty && window.garden.unanswered !== null, null, { timeout: 5000 });
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'save')?.disabled === false, null, { timeout: 2000 }).catch(() => undefined);
+  const offeredSave = await page.evaluate(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'save'));
+  assert(offeredSave && offeredSave.disabled === false, `GDN-10: with a save Nendo never answered, Save must be offered though the note open is clean: ${JSON.stringify(offeredSave)}.`);
+  const resendAt = await requests('records.batch');
+  await command('save');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, resendAt, { timeout: 5000 });
+  await frame.waitForFunction(() => window.garden.saving === false && window.garden.unanswered === null, null, { timeout: 5000 });
+  const resent = { key: await page.evaluate(() => window.broker.requests.filter(r => r.m === 'records.batch').at(-1).p.writeKey), lostKey,
+    notes: (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered over a clean note').length };
+  assert(resent.key === lostKey && resent.notes === 1, `GDN-10: Save must send the unanswered save again, under its key, and plant it once: ${JSON.stringify(resent)}.`);
+
+  // GDN-17: Today, when its template cannot be read, says so with Retry; Retry starts it.
+  await workspaceAgain();
+  await page.evaluate(() => window.broker.fail('records.get', { code: 'host-timeout', message: 'Review: the template is unavailable.' }, 1));
+  await command('daily');
+  await frame.waitForFunction(() => /template could not be read/.test(window.garden.problem ?? ''), null, { timeout: 3000 })
+    .catch(async () => { throw Error(`GDN-17: Today must say when its template could not be read, with Retry, not stay silent: ${JSON.stringify(await frame.evaluate(() => ({ problem: window.garden.problem, note: window.garden.note?.recordId ?? null, newKey: window.garden.newKey })))}.`); });
+  await frame.locator('#problem button[data-retry]').click();
+  await frame.waitForFunction(today => window.garden.note === null && window.garden.draft?.title === today && window.garden.problem === null, localToday(), { timeout: 3000 })
+    .catch(async () => { throw Error(`GDN-17: Retry must start today's note: ${JSON.stringify(await frame.evaluate(() => ({ problem: window.garden.problem, title: window.garden.draft?.title ?? null })))}.`); });
+
+  // GDN-17: a save answered while typing went on, whose read-back fails, leaves the newer text a
+  // draft over the saved note: the next Save writes that note, never a second one.
+  await workspaceAgain();
+  await command('new');
+  await setTitle('Read back lost');
+  await type('First words.');
+  await page.evaluate(() => window.broker.hold('records.batch', 900));
+  const readBackAt = await requests('records.batch');
+  await command('save');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, readBackAt, { timeout: 3000 });
+  await type('First words. And more.');
+  await page.evaluate(() => window.broker.fail('records.get', { code: 'host-timeout', message: 'Review: the read-back is unavailable.' }, 1));
+  await frame.waitForFunction(() => window.garden.saving === false, null, { timeout: 5000 });
+  await page.waitForTimeout(100);
+  const lostRead = await frame.evaluate(() => ({ note: window.garden.note?.recordId ?? null, newKey: window.garden.newKey, dirty: window.garden.dirty, problem: window.garden.problem }));
+  await command('save');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n + 1, readBackAt, { timeout: 5000 }).catch(() => undefined);
+  await frame.waitForFunction(() => window.garden.saving === false, null, { timeout: 5000 });
+  const readBackNotes = (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Read back lost');
+  assert(lostRead.note !== null && lostRead.newKey === null && lostRead.dirty && readBackNotes.length === 1 && readBackNotes[0].values[F.body] === 'First words. And more.',
+    `GDN-17: when the read-back after a save fails, the newer text must stay a draft over the saved note, and Save write that note once: ${JSON.stringify({ lostRead, notes: readBackNotes.map(n => [n.recordId, n.values[F.body]]) })}.`);
+
+  // GDN-01: a draft whose note goes waits as a new note, marked in the tree, with its text: after
+  // Undo of the save that planted it, and after the view starts again on a file without it.
+  await workspaceAgain();
+  await command('mode', 'edit');
+  await frame.waitForFunction(() => window.garden.mode === 'edit');
+  await type(`${await editorText()}\nAn idea: [[Brand new idea]].`);
+  const plantAt = await requests('records.batch');
+  await command('save');
+  await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, plantAt, { timeout: 5000 });
+  await savedNow();
+  const plantedSeed = (await records('gd.note')).find(n => n.values['gd.note.title'] === 'Brand new idea');
+  assert(plantedSeed, 'GDN-01: the save must plant the seed.');
+  await openRow(plantedSeed.recordId);
+  await type('A paragraph written in the seed, not saved.');
+  await openRow('gd.note.start-here');
+  await command('undo');
+  await frame.waitForFunction(id => !window.garden.byId.has(id) && window.garden.saving === false, plantedSeed.recordId, { timeout: 5000 });
+  const strandedDrafts = () => frame.evaluate(() => ({ rows: [...document.querySelectorAll('#tree .row.unsaved')].map(r => r.querySelector('.name').textContent),
+    kept: JSON.parse(localStorage.getItem('garden.drafts.v1.gd.garden') ?? '[]').map(d => ({ id: d.id, title: d.title, body: d.body })) }));
+  await frame.waitForFunction(() => document.querySelectorAll('#tree .row.unsaved').length > 0, null, { timeout: 3000 }).catch(() => undefined);
+  const afterUndo = await strandedDrafts();
+  assert(afterUndo.rows.includes('Brand new idea') && afterUndo.kept.some(d => d.id.startsWith('new:') && d.body === 'A paragraph written in the seed, not saved.'),
+    `GDN-01: a draft whose note Undo took away must wait as a new note, marked in the tree, with its text: ${JSON.stringify(afterUndo)}.`);
+  // Redo brings the seed back, and the draft is the seed's again: marked on its row, opened over it,
+  // and saved into it, never planted as a second note.
+  await command('redo');
+  await frame.waitForFunction(id => window.garden.byId.has(id) && window.garden.saving === false, plantedSeed.recordId, { timeout: 5000 });
+  await frame.waitForFunction(id => !!document.querySelector(`#tree .row.draft[data-id="${id}"]`), plantedSeed.recordId, { timeout: 3000 }).catch(() => undefined);
+  const afterRedo = { ...(await strandedDrafts()), marked: await frame.locator(`#tree .row.draft[data-id="${plantedSeed.recordId}"]`).count() };
+  assert(!afterRedo.rows.includes('Brand new idea') && afterRedo.marked === 1 && afterRedo.kept.some(d => d.id === plantedSeed.recordId && d.body === 'A paragraph written in the seed, not saved.'),
+    `GDN-01: after Redo the draft must be the seed's again, not a second unsaved note: ${JSON.stringify(afterRedo)}.`);
+  await openRow(plantedSeed.recordId);
+  const overSeed = await draftNow();
+  assert(overSeed.editor === 'A paragraph written in the seed, not saved.' && overSeed.dirty && !overSeed.external, `GDN-01: the seed opens with its draft over it: ${JSON.stringify(overSeed)}.`);
+  await command('save');
+  await savedNow();
+  const seedsNow = (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Brand new idea');
+  assert(seedsNow.length === 1 && seedsNow[0].values[F.body] === 'A paragraph written in the seed, not saved.', `GDN-01: saving the draft after Redo writes the seed, and plants nothing: ${JSON.stringify(seedsNow.map(n => n.recordId))}.`);
+  await openRow('gd.note.start-here');
+  await openRow('gd.note.daily-notes');
+  await type('Typed over Daily notes, which goes elsewhere.');
+  await openRow('gd.note.start-here');
+  await page.evaluate(fixture => { const fx = structuredClone(fixture); fx.records['gd.note'] = fx.records['gd.note'].filter(n => n.recordId !== 'gd.note.daily-notes'); window.broker.setFixture(fx); }, fixture);
+  await restart();
+  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here', null, { timeout: 5000 });
+  const goneAtStart = { ...(await strandedDrafts()), status: await frame.locator('#status').textContent() };
+  assert(goneAtStart.rows.includes('Daily notes') && goneAtStart.kept.some(d => d.id.startsWith('new:') && d.body === 'Typed over Daily notes, which goes elsewhere.') && /the tree marks/.test(goneAtStart.status),
+    `GDN-01: a draft whose note is gone when the view starts again must be the unsaved row the status line promises: ${JSON.stringify(goneAtStart)}.`);
+
+  // GDN-11: Tended today, pressed from the keyboard, keeps the keyboard in Tend.
+  await page.evaluate(({ tendFixture, tendContext }) => { window.broker.setFixture({ ...tendFixture, context: tendContext }); window.broker.remount(); }, { tendFixture, tendContext });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.waitForFunction(() => window.gardenTend?.ready === true && !!document.querySelector('.tend-note[data-id="gd.note.daily-notes"]'), null, { timeout: 15000 });
+  await frame.locator('.tend-note[data-id="gd.note.daily-notes"] [data-action="tend"]').focus();
+  await page.keyboard.press('Enter');
+  await frame.waitForFunction(() => !document.querySelector('.tend-note[data-id="gd.note.daily-notes"]'), null, { timeout: 3000 });
+  const tendFocus = await frame.evaluate(() => { const e = document.activeElement; return { tag: e?.tagName, inTend: !!e && e !== document.body && !!e.closest?.('#tend'), row: e?.closest?.('.tend-note')?.dataset.id ?? null, text: (e?.textContent ?? '').slice(0, 60) }; });
+  assert(tendFocus.inTend, `GDN-11: after Tended today the keyboard must stay in Tend, on the row that took its place or the summary, not fall to the page: ${JSON.stringify(tendFocus)}.`);
+  checks.push('W-226 GDN-01 GDN-02 GDN-06 GDN-09 GDN-10 GDN-11 GDN-12 GDN-13 GDN-14 GDN-17 measured where the person meets them');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, diagramColours, narrow, settle, checks, errors };

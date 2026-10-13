@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parse, slugify, fnv1a, excerptAround } from '../../extensions/garden/parse.mjs';
+import { parse, slugify, idPart, fnv1a, excerptAround } from '../../extensions/garden/parse.mjs';
 
 test('wikilinks: plain, aliased, once each, trimmed, with the line around them as context', () => {
   const { links } = parse('See [[How links work]] and [[how-links-work|the same note]] and [[ Daily notes ]].');
@@ -56,4 +56,18 @@ test('an excerpt keeps the match inside a window of the width asked for', () => 
   assert.match(words, /^…alphas /, `an excerpt starts at a word: ${words.slice(0, 20)}`);
   assert.match(words, / omegas…$/, `an excerpt ends at a word: ${words.slice(-20)}`);
   assert.equal(excerptAround('  short  ', 2, 200), 'short');
+});
+
+test('GDN-03: a title in any script keeps a readable slug of its own, and a record ID stays a-z', () => {
+  const titles = ['Заметки о саде', '庭のメモ', 'Σημειώσεις', 'ملاحظات', 'Smørrebrød'];
+  const slugs = titles.map(slugify);
+  assert.deepEqual(slugs, ['заметки-о-саде', '庭のメモ', 'σημειωσεισ', 'ملاحظات', 'smørrebrød'],
+    `a non-Latin title must keep its letters in its slug rather than become 'note': ${JSON.stringify(slugs)}`);
+  assert.equal(new Set(slugs).size, titles.length, 'titles in different scripts must not share a slug');
+  assert.equal(slugify('Café — Notes'), 'cafe-notes', 'a Latin accent is still dropped, so existing slugs keep meaning the same');
+  assert.equal(slugify('ガーデン'), 'ガーデン', 'a voiced kana keeps its mark');
+  assert.equal(slugify('ΣΗΜΕΙΩΣΕΙΣ'), slugify('Σημειώσεις'), 'a Greek final sigma is a sigma, so one title in either case makes one slug');
+  assert.equal(Array.from(slugify('ж'.repeat(100))).length, 64, 'at most 64 characters, counted as characters');
+  assert.equal(idPart('Заметки о саде'), 'note', 'a record ID part keeps only a-z, 0-9 and hyphens');
+  assert.equal(idPart('Café — Notes'), 'cafe-notes');
 });

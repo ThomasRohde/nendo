@@ -45,12 +45,13 @@ a note.
 
 - Write Markdown in `gd.note.body`. Name another note as `[[its-slug]]` (or `[[Its title]]`,
   or `[[its-slug|other words]]`), a tag as `#word`, and a task as a line `- [ ] what to do`
-  (`- [x]` when done).
+  (`- [x]` when done). A link is read by title first: where another note is titled as a note's
+  slug, name that note by its title.
 - Draw a diagram as a fence whose language is `mermaid` (flowchart, sequenceDiagram,
   classDiagram, stateDiagram-v2, erDiagram, timeline and the rest of Mermaid). The Garden view
   draws it in the theme's colours; leave colours and `%%{init}%%` themes out of it.
-- Give every new note a `gd.note.title`, a `gd.note.slug` (lower-case letters, digits and
-  hyphens, unique in the file), `gd.note.pinned` false, a `gd.note.stage` (Seed for a stub,
+- Give every new note a `gd.note.title`, a `gd.note.slug` (`slugify` of the title below:
+  lower-case letters of any script, decimal digits and hyphens, unique in the file), `gd.note.pinned` false, a `gd.note.stage` (Seed for a stub,
   Growing for work in progress, Evergreen when it says what it means) and `gd.note.touched`
   today. `gd.note.kind` is Note unless it is a Daily note (set `gd.note.date`), a Map, a Source
   or a Template. Put a note under another with `gd.note.parent`, or move it with
@@ -69,13 +70,18 @@ batch, or the next save there rewrites them. The reference is the view's own cod
 - **Links:** `[[target]]` or `[[target|words]]`, target trimmed. One `gd.link` per note named,
   the first time (case-insensitive): kind Mentions, source Body, and `gd.link.context` the
   whole line the link is on, trimmed. Only a line over 200 characters is cut, to a window around
-  the link cut between words, with `…` at each cut end. The target is the note whose slug, else
-  whose title, equals it (case-insensitive), else whose slug is `slugify(target)`. A link to the
-  note itself makes no row. A target that is no note plants one in the same batch: slug
+  the link cut between words, with `…` at each cut end. The target is the note whose title, else
+  whose slug, equals it (case-insensitive), else whose slug is `slugify(target)`; of two notes
+  with that title, the one whose slug it also is. A link the note's Body rows already make to one
+  of those notes keeps that target. A link to the note itself makes no row. A target that is no note plants one in the same batch: slug
   `slugify(target)` (`-2`, `-3` if taken), title the target (or the words, when they make the
-  same slug), kind Note, stage Seed, pinned false, touched today.
-- **slugify:** NFKD, accents dropped, lower-case, each run of anything but `a-z` and `0-9` one
-  hyphen, hyphens trimmed from the ends, at most 64 characters, `note` when nothing is left.
+  same slug), kind Note, stage Seed, pinned false, touched today. A later link in the same body
+  that names that new note (`[[Café]]` after `[[Cafe]]`) points at it too: one note is planted.
+- **slugify:** NFKD, the combining accents U+0300 to U+036F dropped, NFKC, lower-case, a Greek
+  final `ς` made `σ`, each run of anything but a letter, a mark or a decimal digit (any script)
+  one hyphen, hyphens trimmed from the ends, at most 64 characters, `note` when nothing is left.
+  So `Café` is `cafe`, `Заметки о саде` is `заметки-о-саде` and `ΣΗΜΕΙΩΣΕΙΣ` is `σημειωσεισ`.
+  A note keeps the slug it has: never rewrite an existing slug.
 - **Tags:** `#name` at the start of a line or after whitespace, `(`, `,` or `;`. The name runs
   over letters, digits, `_`, `-` and `/`; trailing `-` and `/` are dropped, it is lower-cased,
   and it must hold a letter. Once per note: a `gd.tag` if the file has no tag of that name, and

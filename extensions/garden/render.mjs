@@ -16,8 +16,12 @@ export function escape(text) {
   return String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 }
 
+// U+0000 marks a held piece of markup while a line is read, so a body's own is read as U+FFFD
+// and can never stand for one (GDN-07).
+const plainText = text => String(text ?? '').replace(/\u0000/g, '\uFFFD');
+
 export function render(body, { resolve = () => null, interactive = false } = {}) {
-  const lines = String(body ?? '').split(/\r?\n/);
+  const lines = plainText(body).split(/\r?\n/);
   const out = [];
   let paragraph = [], list = null, quote = [], fence = null, language = '', code = [];
   const flushParagraph = () => { if (paragraph.length) { out.push(`<p>${inline(paragraph.join(' '), resolve)}</p>`); paragraph = []; } };
@@ -36,7 +40,8 @@ export function render(body, { resolve = () => null, interactive = false } = {})
     }
     if (opening !== null) { flushAll(); fence = opening[1]; language = opening[2].toLowerCase(); continue; }
     if (line.trim() === '') { flushAll(); continue; }
-    const heading = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    // A closing run of # is cut only after a space, so '# Learning C#' keeps its # (GDN-07).
+    const heading = /^(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/.exec(line);
     if (heading !== null) { flushAll(); out.push(`<h${heading[1].length}>${inline(heading[2], resolve)}</h${heading[1].length}>`); continue; }
     if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); out.push('<hr>'); continue; }
     const quoted = /^\s*>\s?(.*)$/.exec(line);
@@ -46,7 +51,9 @@ export function render(body, { resolve = () => null, interactive = false } = {})
       flushParagraph(); flushQuote();
       const tag = item[1] ? 'ul' : 'ol';
       if (list === null || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
-      const task = /^\[( |x|X)\]\s+(.*)$/.exec(item[3]);
+      // A task is a bullet item, as parse() and a tick read one: a numbered '1. [ ] x' stays text,
+      // never a box that ticks and saves nothing (GDN-05).
+      const task = item[1] ? /^\[( |x|X)\]\s+(.+?)\s*$/.exec(item[3]) : null;
       list.items.push(task === null
         ? `<li>${inline(item[3], resolve)}</li>`
         : `<li class="task${task[1] === ' ' ? '' : ' done'}"><input type="checkbox"${interactive ? ` data-line="${number}" aria-label="${escape(task[2])}"` : ' disabled'}${task[1] === ' ' ? '' : ' checked'}> ${inline(task[2], resolve)}</li>`);
@@ -64,30 +71,38 @@ export function render(body, { resolve = () => null, interactive = false } = {})
  * span is held in place rather than cut out, so emphasis around it, as in **`name`**, still pairs. */
 export function inline(text, resolve) {
   // Structural tokens are replaced by placeholders before escaping, so their markup survives it.
-  const holds = [];
-  const hold = html => { holds.push(html); return `\u0000${holds.length - 1}\u0000`; };
-  const work = String(text).replace(/`([^`\n]*)`/g, (_, code) => hold(`<code>${escape(code)}</code>`));
-  return spans(work, resolve, holds, hold);
+  // A piece held later can hold an earlier one (a link whose words are code): its placeholders are
+  // expanded as it is held, so the line is expanded once at the end, and its text never grows.
+  // Where a piece's words go into an attribute, an earlier piece stands there as the text it was
+  // written as, escaped like the rest, never as its markup (GDN-07).
+  const holds = [], sources = [];
+  const PLACE = /\u0000(\d+)\u0000/g;
+  const expand = html => html.replace(PLACE, (_, index) => holds[Number(index)] ?? '');
+  const source = text => text.replace(PLACE, (_, index) => sources[Number(index)] ?? '');
+  const hold = (html, written) => { holds.push(expand(html)); sources.push(source(written)); return `\u0000${holds.length - 1}\u0000`; };
+  const work = plainText(text).replace(/`([^`\n]*)`/g, (written, code) => hold(`<code>${escape(code)}</code>`, written));
+  return spans(work, resolve, hold, expand, source);
 }
 
-function spans(text, resolve, holds, hold) {
-  let work = text.replace(WIKILINK, (_, target, alias) => {
-    const name = target.trim(), label = alias?.trim() || null;
+function spans(text, resolve, hold, expand, source) {
+  let work = text.replace(WIKILINK, (written, target, alias) => {
+    const name = source(target.trim()), label = alias?.trim() || null;
     const found = resolve(name);
     const classes = found ? 'wikilink' : 'wikilink missing';
     const id = found ? ` data-id="${escape(found.recordId)}"` : '';
-    return hold(`<a class="${classes}" href="#" data-target="${escape(name)}"${id}>${escape(label ?? found?.title ?? name)}</a>`);
+    const words = label !== null ? escape(label) : found ? escape(found.title) : escape(target.trim());
+    return hold(`<a class="${classes}" href="#" data-target="${escape(name)}"${id}>${words}</a>`, written);
   });
-  work = work.replace(LINK, (_, label, href) => hold(`<a href="${escape(href)}" rel="noopener" target="_blank">${escape(label)}</a>`));
+  work = work.replace(LINK, (written, label, href) => hold(`<a href="${escape(source(href))}" rel="noopener" target="_blank">${escape(label)}</a>`, written));
   work = work.replace(TAG, (_, before, name) => {
     const tag = name.replace(/[/-]+$/, '');
     if (!/\p{L}/u.test(tag)) return `${before}#${name}`;
-    return `${before}${hold(`<a class="tag" href="#" data-tag="${escape(tag.toLowerCase())}">#${escape(tag)}</a>`)}`;
+    return `${before}${hold(`<a class="tag" href="#" data-tag="${escape(tag.toLowerCase())}">#${escape(tag)}</a>`, `#${name}`)}`;
   });
   work = escape(work)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>')
     .replace(/(^|[\s(])_([^_\s][^_]*?)_(?=[\s).,;:!?]|$)/g, '$1<em>$2</em>')
     .replace(/~~([^~]+)~~/g, '<del>$1</del>');
-  return work.replace(/\u0000(\d+)\u0000/g, (_, index) => holds[Number(index)]);
+  return expand(work);
 }

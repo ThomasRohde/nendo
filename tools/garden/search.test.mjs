@@ -64,3 +64,24 @@ test('marks fall on whole words in the original text, accents folded', () => {
   assert.deepEqual(words(textRanges(text, searchTerms('cafe soil'))), ['soil', 'café']);
   assert.deepEqual(textRanges(text, []), []);
 });
+
+test('GDN-08: Find pages past 500 hits, and a search cut short leaves local matching standing', async () => {
+  const many = count => ({
+    has: name => name === 'records.search',
+    records: {
+      async search(text, { cursor }) {
+        const start = cursor === null ? 0 : Number(cursor);
+        const items = Array.from({ length: Math.min(100, count - start) }, (_, i) => ({ recordId: `gd.note.n${start + i}` }));
+        return { items, nextCursor: start + 100 < count ? String(start + 100) : null };
+      },
+    },
+  });
+  const results = [];
+  const onResult = (hits, text, source) => results.push({ size: hits?.size ?? null, source });
+  createFinder(many(600), { entityId: 'gd.note', pauseMs: 1, onResult }).find('garden');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.deepEqual(results.at(-1), { size: 600, source: 'index' }, `every one of 600 matching notes must stay found, not the first 500: ${JSON.stringify(results.at(-1))}`);
+  createFinder(many(600), { entityId: 'gd.note', pauseMs: 1, max: 300, onResult }).find('garden');
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.deepEqual(results.at(-1), { size: null, source: 'cut' }, 'a search with more hits than it reads must hand back to local matching, never a cut list');
+});

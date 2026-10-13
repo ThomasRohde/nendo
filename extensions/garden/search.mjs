@@ -17,8 +17,12 @@ export function localMatch(note, text, bodyFieldId) {
 /**
  * A search that waits for a pause in typing and answers only the latest text. `onResult` gets a
  * Map of record ID to hit, or null when the index could not answer and local matching stands.
+ * It pages to the end, up to `max` hits, the most notes the view reads at once (10,000); a search
+ * that finds more than that answers null with the source 'cut', so local matching stands rather
+ * than a cut list hiding notes that plainly match (GDN-08).
  */
-export function createFinder(nendo, { entityId, onResult, pauseMs = 150, max = 500 }) {
+export const MAX_HITS = 10000;
+export function createFinder(nendo, { entityId, onResult, pauseMs = 150, max = MAX_HITS }) {
   const can = typeof nendo.has === 'function' && nendo.has('records.search');
   let timer;
   let sequence = 0;
@@ -31,8 +35,8 @@ export function createFinder(nendo, { entityId, onResult, pauseMs = 150, max = 5
       if (trimmed === '' || !can) { onResult(null, trimmed, can ? 'empty' : 'unavailable'); return; }
       timer = setTimeout(async () => {
         const hits = new Map();
+        let cursor = null;
         try {
-          let cursor = null;
           do {
             const page = await nendo.records.search(trimmed, { entityIds: [entityId], limit: 100, cursor });
             for (const hit of page.items) hits.set(hit.recordId, hit);
@@ -42,7 +46,8 @@ export function createFinder(nendo, { entityId, onResult, pauseMs = 150, max = 5
           if (mine === sequence) onResult(null, trimmed, error?.code ?? 'failed');
           return;
         }
-        if (mine === sequence) onResult(hits, trimmed, 'index');
+        if (mine !== sequence) return;
+        if (cursor !== null) onResult(null, trimmed, 'cut'); else onResult(hits, trimmed, 'index');
       }, pauseMs);
     },
   };

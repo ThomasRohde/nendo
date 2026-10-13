@@ -6,7 +6,7 @@ A note is Markdown. Most of it is ordinary writing; three small marks make it pa
 
 | Write | When you save it becomes |
 | --- | --- |
-| `[[start-here]]` or `[[Start here]]` | A **Link** to the note with that slug or title, carrying the line it sits in. That note now lists this one among its backlinks. |
+| `[[start-here]]` or `[[Start here]]` | A **Link** to the note with that title or slug, carrying the line it sits in. That note now lists this one among its backlinks. |
 | `[[A new idea]]` | A link, and a new **Seed** note called A new idea, planted in the same step. |
 | `#reading` | A **Tag**, made once for the whole garden, and this note filed under it. |
 | `- [ ] Call Sam` | A **Task** that knows its note. Tick it and save, and the same task is marked done. |
@@ -18,7 +18,7 @@ To show other words for a link, put them after a bar: `[[start-here|the welcome 
 
 ## Linking without looking things up
 
-Type `[[` in the editor and a list of notes opens. Keep typing to narrow it, move with `↑` and `↓`, and press `Enter` or `Tab` to put the note's slug in. A slug is a note's short name, unique in the garden, so a link always means one note.
+Type `[[` in the editor and a list of notes opens. Keep typing to narrow it, move with `↑` and `↓`, and press `Enter` or `Tab` to put the link in. It names the note by its slug, a short name unique in the garden, or by its title where another note is titled as that slug, so the link means the note you picked. A link is read by title first, and a link you have saved keeps pointing where it did.
 
 ## View and Edit
 

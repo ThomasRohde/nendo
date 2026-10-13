@@ -495,7 +495,7 @@ export function seedNotes() {
       '',
       'Three things make this garden easy for an agent:',
       '',
-      '1. Every note has a **slug**, unique in the file, so `[[for-agents]]` always means this note.',
+      '1. Every note has a **slug**, unique in the file, so an agent can always find one note by it; a link such as `[[for-agents]]` names a note by its title or its slug, the title first.',
       '2. Every note has a **summary** field, a paragraph an agent can read instead of the body.',
       '3. Links, tags and tasks are **records**, so an agent asks the file who links where, rather than parsing text.',
       '',

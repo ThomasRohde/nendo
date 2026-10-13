@@ -80,7 +80,7 @@ export async function startHome(nendo, context, kit) {
 
   // ---- The graph: the whole garden, coloured by stage, as the buttons beside it that pick a stage out.
   const colour = node => tone(node.stage);
-  const graph = createGraph($('home-graph'), { kit, colour, onOpen: node => openNote(node.id), label: 'The garden: notes and their links' });
+  const graph = createGraph($('home-graph'), { kit, colour, inline: true, onOpen: node => openNote(node.id), label: 'The garden: notes and their links' });
   state.graphState = () => graph.state();
 
   // What is picked out on the graph: the pressed stages, the unlinked notes, a tag, and what Find found.

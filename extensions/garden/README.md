@@ -11,7 +11,7 @@ A custom view for a garden of notes, in four places:
   package's storage (`handover.mjs`) and opens that screen. It replaced a native front page of
   tiles and lists (0.16.0).
 - **The Garden view** (`gd.garden`, an `extensionView`): the notes as a tree on the left and one note in the middle, in View or Edit.
-  View is the page; Edit (Ctrl E toggles) is its Markdown with the preview beside it, filling
+  View is the page; Edit (Ctrl E toggles, declared in Nendo's row so it works wherever the focus is) is its Markdown with the preview beside it, filling
   the view. Drag the divider between them, or move it with the arrow keys; at the right edge it
   folds the preview away. Narrow, Medium or Full sets the page's width. A note with notes under
   it has an arrow that folds its branch away (Left and Right do the same), and the line between
@@ -69,10 +69,13 @@ The body is the source. When you save, the view derives records from it and writ
 with the note as one `records.batch`, which Undo takes back as one step:
 
 - `[[slug]]`, `[[Title]]` or `[[slug|other words]]` becomes a **Link** (`gd.link`, kind
-  Mentions, source Body, the line it is on as its context). A target that is not a note yet is
-  planted as a Seed note in the same batch. Removing the link deletes the row; the seed stays.
+  Mentions, source Body, the line it is on as its context). A target is the note of that title,
+  else of that slug, case not minded. A target that is not a note yet is planted as a Seed note
+  in the same batch, once however it is spelled. Removing the link deletes the row; the seed stays.
+- A new note's slug is its title in lower case, letters of any script kept and a Latin accent
+  dropped (`Заметки о саде` is `заметки-о-саде`, `Café` is `cafe`); a note keeps the slug it has.
 - `#tag` becomes a **Tag** (`gd.tag`, made once for the file) and a **Note tag**.
-- `- [ ] text` becomes a **Task** (`gd.task`, source Checkbox) keyed by its text, so ticking
+- `- [ ] text` (a bullet; a numbered `1. [ ]` stays text) becomes a **Task** (`gd.task`, source Checkbox) keyed by its text, so ticking
   the box updates the same row. A second line with the same text is a second task (its key ends
   `-2`). A line whose words change keeps its row and due date, matched by its place in the body
   or by its words; a task a save deletes is named in the status line.
@@ -106,7 +109,8 @@ right-click offers its neighbourhood. A note's size follows the square root of i
 its colour is its stage's tone, its kind's, or its branch's (the section of the garden it grows
 in: the note just under a top-level note on its way up). Manual links are dashed, tag links dotted.
 The local graph under a note is coloured by branch, with a legend of the branches it shows, and
-is stretched to its box rather than zoomed, so its dots and names keep the page's size.
+is stretched to its box rather than zoomed, so its dots and names keep the page's size. There,
+and on the Overview, the wheel scrolls the page; Ctrl and the wheel, or a pinch, zoom the drawing.
 The keyboard moves between notes with the arrows and opens one with Enter, and a screen reader
 reads every note with its neighbours as a list.
 
@@ -135,11 +139,20 @@ where `nendo.has` says it exists. Colours are the theme's tokens.
 
 ## Files
 
-`index.html`, `garden.js` (picks the place), `workspace.js`, `graphscreen.js`, `panel.js`,
-`graph.js` (the d3 drawing), `graph-data.mjs` (records to nodes and edges), `related.mjs` (the
-rows under a note), `tasks.mjs` (the strip of a note's tasks), `parse.mjs` (links, tags, tasks, slugs, keys), `render.mjs` (Markdown to
-escaped HTML), `diagrams.js` (Mermaid fences to SVG), `sync.mjs` (a save's writes), `garden.css`,
-`kit/nendo-view-kit.js` (a copy of `tools/view-kit/`), and `vendor/`: d3 7.9.0 (`d3.min.js`, ISC,
+`nendo-package.json`, `index.html`, `garden.js` (picks the place), `garden.css`, and:
+
+- the screens: `workspace.js` (the Garden view), `home.js` and `home-data.mjs` (the Overview),
+  `graphscreen.js` (the Graph screen), `agenda.js` and `agenda.mjs` (the Agenda), `tend.js` and
+  `tend.mjs` (Tend), `panel.js` (the Backlinks panel), and `screen.js` (what the list screens share:
+  writes with Undo, note links, stage tones);
+- the drawing: `graph.js` (the d3 drawing) and `graph-data.mjs` (records to nodes and edges);
+- the note: `parse.mjs` (links, tags, tasks, slugs, keys), `render.mjs` (Markdown to escaped
+  HTML), `diagrams.js` (Mermaid fences to SVG), `sync.mjs` (a save's writes), `related.mjs` (the
+  rows under a note), `tasks.mjs` (the strip of a note's tasks), `drafts.mjs` (drafts and an
+  unanswered save kept in this browser), `search.mjs` (Find), `findmarks.mjs` (the words Find
+  marks), and `handover.mjs` (what the Overview asks the Garden view to open);
+- `help/` (the pages of Nendo's Help for the package), `LICENSE.txt`,
+  `kit/nendo-view-kit.js` (a copy of `tools/view-kit/`), and `vendor/`: d3 7.9.0 (`d3.min.js`, ISC,
 `d3.LICENSE.txt`) and Mermaid 11.17.2 (`mermaid.min.js`, MIT, `mermaid.LICENSE.txt`), with the
 notices of the modules they are built from. Mermaid is most of a change set's 4 MiB of new
 package content, so a new garden takes it in a build stage of its own (`diagrams`). Refresh
@@ -155,7 +168,8 @@ dragging in the tree (the Tree screen reorders).
 
 ## What measures it
 
-`node --test tools/garden/*.test.mjs` for the pure modules and the file's definition, and
+`node --test tools/garden/*.test.mjs` (or `npm.cmd test --prefix tools/garden`, which runs the
+same files) for the pure modules and the file's definition, and
 `pwsh ./tools/Review-Garden.ps1`, which serves this folder on one origin and the fixture
 broker on another with the real `api.js` between them, and drives the graph with a real
 pointer, inside `Test-Production.ps1`. The design is in `docs/design/garden.md`.

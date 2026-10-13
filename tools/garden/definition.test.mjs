@@ -222,3 +222,15 @@ test('the package manifest, the kit copy and the skill are what the file will ca
   assert.ok(front[2].length >= 1 && front[2].length <= 1024);
   assert.ok(text.includes('__APPLICATION_ID__'), 'the builder substitutes the application ID');
 });
+
+test('GDN-18: the README names every module and folder of the package, and npm test runs every test file', async () => {
+  const { readdirSync } = await import('node:fs');
+  const readme = readFileSync(path.join(PACKAGE_FOLDER, 'README.md'), 'utf8');
+  const files = readdirSync(PACKAGE_FOLDER, { withFileTypes: true }).filter(entry => entry.isDirectory() || /\.(m?js|html|css|json)$/.test(entry.name)).map(entry => entry.isDirectory() ? `${entry.name}/` : entry.name);
+  const unnamed = files.filter(name => !readme.includes(`\`${name}`));
+  assert.deepEqual(unnamed, [], `the README's Files must name every module and folder of the package; it leaves out: ${unnamed.join(', ')}`);
+  const script = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).scripts.test;
+  const tests = readdirSync(new URL('.', import.meta.url)).filter(name => name.endsWith('.test.mjs'));
+  const left = script.includes('*.test.mjs') ? [] : tests.filter(name => !script.includes(name));
+  assert.deepEqual(left, [], `npm test in tools/garden must run every test file; it leaves out: ${left.join(', ')}`);
+});

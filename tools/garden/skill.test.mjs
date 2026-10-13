@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { parse, EXCERPT_WIDTH } from '../../extensions/garden/parse.mjs';
+import { parse, slugify, EXCERPT_WIDTH } from '../../extensions/garden/parse.mjs';
+import { resolveTarget } from '../../extensions/garden/sync.mjs';
 import { SKILL_FOLDER } from './definition.mjs';
 
 // The skill tells an agent how to write a note's Body rows over MCP. If it says them differently from
@@ -36,4 +37,15 @@ test('the skill says a link\'s context is its line, and names the view\'s code a
   assert.ok(skill.includes(`over ${EXCERPT_WIDTH} characters`), `the skill names the ${EXCERPT_WIDTH}-character cut`);
   for (const file of ['parse.mjs', 'sync.mjs']) assert.ok(skill.includes(file), `the skill names ${file}`);
   assert.ok(/apply_writes`[^.]*`label`/.test(skill), 'the skill tells an agent to label its batch for History');
+});
+
+test('GDN-03: the skill says slugs and link targets as the view makes and reads them', () => {
+  const section = skill.slice(skill.indexOf('- **slugify:**'), skill.indexOf('- **Tags:**'));
+  const examples = [...section.replace(/\s+/g, ' ').matchAll(/`([^`]+)` is `([^`]+)`/g)].map(m => [m[1], m[2]]);
+  assert.ok(examples.length >= 2, 'the slugify paragraph gives worked examples');
+  for (const [title, slug] of examples) assert.equal(slugify(title), slug, `the skill says ${title} makes the slug ${slug}, the view makes ${slugify(title)}`);
+  assert.ok(/any script/.test(section), 'the skill says a slug keeps letters of any script');
+  const index = [{ recordId: 'a', slug: 'note', title: 'Заметки' }, { recordId: 'b', slug: 'note-2', title: 'Note' }];
+  const titleFirst = resolveTarget('Note', index).recordId === 'b';
+  assert.ok(titleFirst && /The target is the note whose title, else\s+whose slug, equals it/.test(skill), 'the skill must say a link target is matched by title before slug, as the view does');
 });
