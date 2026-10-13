@@ -50,7 +50,9 @@ internal static class RecoveryCsvWriter
         CancellationToken cancellationToken, int maximumBytes = MaximumBytes, int maximumRows = MaximumRows,
         string? afterRecordId = null)
     {
-        var fields = entity.Fields.Where(field => field.StorageKind is >= NendoStorageKind.Text and <= NendoStorageKind.Uuid)
+        // A reference is a record ID, so it goes out as one: a relationship is the one thing a
+        // person in safe mode could not otherwise get out of the file (R2SMA-04).
+        var fields = entity.Fields.Where(field => field.StorageKind is >= NendoStorageKind.Text and <= NendoStorageKind.Reference)
             .OrderBy(field => field.FieldId, StringComparer.Ordinal).Take(MaximumFields).ToArray();
         var selectedIds = fields.Select(field => field.FieldId).ToHashSet(StringComparer.Ordinal);
         var omitted = entity.Fields.Where(field => !selectedIds.Contains(field.FieldId)).Select(field => field.FieldId)
@@ -105,7 +107,7 @@ internal static class RecoveryCsvWriter
         }
         var findings = new List<NendoOpenFinding>
         {
-            new("csv-not-backup", "This CSV contains one table's readable scalar values and record identifiers/versions, not application definitions or history. The field/ column prefix identifies stable field IDs. It is not a backup or a round-trip format. Nulls are empty cells."),
+            new("csv-not-backup", "This CSV contains one table's readable scalar values, the record each reference points at by its ID, and record identifiers/versions, not application definitions or history. The field/ column prefix identifies stable field IDs. It is not a backup or a round-trip format. Nulls are empty cells."),
         };
         if (omitted.Length != 0) findings.Add(new("csv-omitted-fields", $"{omitted.Length} unsupported or over-limit field(s) were excluded. Their stable field identifiers are listed in the export review."));
         if (unsupported != 0) findings.Add(new("csv-unsupported-rows", $"{unsupported} record(s) with unsupported values or invalid record metadata were omitted; values were not silently truncated."));
@@ -130,7 +132,8 @@ internal static class RecoveryCsvWriter
         { cell = number.ToString(CultureInfo.InvariantCulture); return true; }
         if (kind == NendoStorageKind.Boolean && value.ValueKind is JsonValueKind.True or JsonValueKind.False)
         { cell = value.GetBoolean() ? "true" : "false"; return true; }
-        if (kind is not (NendoStorageKind.Text or NendoStorageKind.Date or NendoStorageKind.DateTime or NendoStorageKind.Uuid) || value.ValueKind != JsonValueKind.String) return false;
+        if (kind is not (NendoStorageKind.Text or NendoStorageKind.Date or NendoStorageKind.DateTime or NendoStorageKind.Uuid or NendoStorageKind.Reference) ||
+            value.ValueKind != JsonValueKind.String) return false;
         cell = value.GetString()!;
         isText = true;
         if (cell.Length > MaximumCellCharacters || cell.IndexOf('\0') >= 0) return false;

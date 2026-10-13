@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Nendo.Engine.Storage;
 
 namespace Nendo.Engine;
@@ -28,6 +29,9 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
     internal Action? BeforeProposalCommit { get; set; }
     internal Action? BeforeCommitAuthorityRead { get; set; }
     internal Action? AfterCommit { get; set; }
+
+    /// <summary>Test seam: right after the store committed a write, before anything derivative runs.</summary>
+    internal Action? AfterStoreCommit { get; set; }
 
     internal string ProposalRoot => _proposalRoot;
 
@@ -86,19 +90,49 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
     private void RaiseCommitted(long changeSequence, IReadOnlyList<NendoApplyResult> results, IEnumerable<NendoMutation> mutations)
     {
         AfterCommit?.Invoke();
-        Committed?.Invoke(changeSequence);
-        if (CommittedChanges is not { } changes) return;
+        NotifyCommitted(changeSequence);
+        if (CommittedChanges is null) return;
         var operations = mutations.SelectMany(mutation => mutation.Operations).ToArray();
         var fresh = results.Where(result => !result.IsIdempotentReplay).ToArray();
         var records = operations.Select(ChangedRecord).OfType<NendoChangedRecord>()
             .Concat(fresh.SelectMany(result => result.GeneratedChanges.Select(change => new NendoChangedRecord(change.EntityId, change.RecordId))))
             .Distinct()
             .ToArray();
-        changes(new NendoCommitSummary(
+        var summary = new NendoCommitSummary(
             changeSequence,
             [.. fresh.Select(result => result.RevisionId)],
             records,
-            operations.Any(operation => operation.Lane == NendoRevisionLane.Definition)));
+            operations.Any(operation => operation.Lane == NendoRevisionLane.Definition));
+        foreach (var handler in CommittedChanges?.GetInvocationList() ?? [])
+        {
+            // Told after the commit: a faulty observer can neither report the write as failed nor
+            // keep the others from hearing of it (ECO-06), as with WriteAuthorityLost.
+            try { ((Action<NendoCommitSummary>)handler)(summary); }
+            catch (Exception exception) { ReportObserverFailure(exception); }
+        }
+    }
+
+    /// <summary>
+    /// Told the type of an exception an observer of this coordinator threw and the coordinator
+    /// swallowed, so a host that keeps a failure record can keep it. Never the message, which may
+    /// carry data. Called under the gate: it must only queue.
+    /// </summary>
+    public Action<Type>? ObserverFailed { get; set; }
+
+    private void ReportObserverFailure(Exception exception)
+    {
+        try { ObserverFailed?.Invoke(exception.GetType()); }
+        catch (Exception) { }
+    }
+
+    /// <summary>Raises <see cref="Committed"/>, each handler on its own, after a commit that already stands.</summary>
+    private void NotifyCommitted(long changeSequence)
+    {
+        foreach (var handler in Committed?.GetInvocationList() ?? [])
+        {
+            try { ((Action<long>)handler)(changeSequence); }
+            catch (Exception exception) { ReportObserverFailure(exception); }
+        }
     }
 
     /// <summary>The record an operation changes, its metadata included, or null when it changes no single record.</summary>
@@ -279,11 +313,14 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
                         "The committed result did not match the coordinator authority snapshot.");
                 }
                 _authority = trusted;
+                AfterStoreCommit?.Invoke();
                 // A definition change is precisely when previously given consent stops
                 // applying, so what the file requires is read again rather than carried
-                // over from before the change.
+                // over from before the change. The write has committed, so the caller's
+                // token no longer decides anything: a cancel here reported a committed
+                // write as failed and skipped the commit events (ECO-06).
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
-                    await RefreshBehaviourRequirementAsync(cancellationToken);
+                    await RefreshBehaviourRequirementAsync(CancellationToken.None);
                 if (!result.IsIdempotentReplay) RaiseCommitted(result.ChangeSequence, [result], [mutation]);
                 return result;
             }
@@ -460,7 +497,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
             // A faulty observer cannot prevent another adapter from closing its
             // admission or replace the original typed recovery failure.
             try { ((Action)handler)(); }
-            catch (Exception) { }
+            catch (Exception exception) { ReportObserverFailure(exception); }
         }
     }
 
@@ -541,6 +578,11 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
                     .Concat(operation.ReviewedRecords!.Where(row => row.TargetRecordId is not null)
                         .Select(row => (EntityId: operation.TargetEntityId, RecordId: row.TargetRecordId!)))))
             .Where(reference => !created.Contains(reference))
+            // A record the proposal deletes, and one a reference it writes points at, carry the
+            // version the review saw too. Edited after the review, they made the replay refuse
+            // and the proposal read Failed, with a form's words, where Stale was the truth (ECO-08).
+            // Only records the file holds: one that is missing is the clone's refusal to name.
+            .Concat(GuardedTargets(changeSet, snapshot).Where(target => !created.Contains(target) && activeRecords.Contains(target)))
             .Distinct()
             .OrderBy(value => value.EntityId, StringComparer.Ordinal)
             .ThenBy(value => value.RecordId, StringComparer.Ordinal);
@@ -558,6 +600,35 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
                 record.RecordVersion));
         }
         return touched.AsReadOnly();
+    }
+
+    /// <summary>The records a change set deletes, and those its reference writes point at.</summary>
+    private static IEnumerable<(string EntityId, string RecordId)> GuardedTargets(NendoChangeSet changeSet, NendoSessionSnapshot snapshot)
+    {
+        IEnumerable<(string EntityId, string RecordId)> Target(string entityId, string fieldId, JsonElement value)
+        {
+            var reference = snapshot.Entities.SingleOrDefault(entity => entity.EntityId == entityId)?
+                .Fields.SingleOrDefault(field => field.FieldId == fieldId)?.Reference;
+            if (reference is not null && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } recordId)
+                yield return (reference.TargetEntityId, recordId);
+        }
+        foreach (var operation in changeSet.Mutations.SelectMany(mutation => mutation.Operations))
+        {
+            switch (operation)
+            {
+                case DeleteRecordOperation delete:
+                    yield return (delete.EntityId, delete.RecordId);
+                    break;
+                case SetFieldOperation { ExpectedTargetRecordVersion: not null } set:
+                    foreach (var target in Target(set.EntityId, set.FieldId, set.Value)) yield return target;
+                    break;
+                case CreateRecordOperation create:
+                    foreach (var fieldId in create.ExpectedTargetVersions.Keys)
+                        if (create.Values.TryGetValue(fieldId, out var value))
+                            foreach (var target in Target(create.EntityId, fieldId, value)) yield return target;
+                    break;
+            }
+        }
     }
 
     private static bool TouchedRecordChanged(

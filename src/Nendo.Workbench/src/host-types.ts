@@ -873,8 +873,11 @@ export interface WorkbenchClient {
    */
   onAgentSessionChanged?(listener: (revision: number) => void): () => void;
   pendingMutation?(): PendingMutation | null;
-  retryPendingMutation?(): Promise<DesktopOperationView | null>;
+  /** `intoThisFile`: the person said the open file is the one the save was made in, renamed (WCS-03). */
+  retryPendingMutation?(intoThisFile?: boolean): Promise<DesktopOperationView | null>;
   checkPendingMutation?(): Promise<DesktopOperationView | null>;
+  /** Drops a save the host stopped and whose receipt was not found; null when dropped (WCS-22). */
+  discardPendingMutation?(): Promise<DesktopOperationView | null>;
   /** Stop whatever is still running, and resolve only once it has actually stopped. */
   cancelInFlight?(): Promise<CancelledRequests>;
   /** Whether a file dropped on the window can be handed to the host at all. */

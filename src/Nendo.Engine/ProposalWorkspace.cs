@@ -221,9 +221,10 @@ internal static class ProposalWorkspace
     /// <summary>
     /// Reads back a proposal's reviewed plan from its workspace.
     /// <para>
-    /// A proposal outlives the session that made it, and the plan is the part that
-    /// must survive: an in-memory copy would mean that closing the application quietly
-    /// turned "promote exactly what you reviewed" into "work it out again now".
+    /// Promotion replays the plan as it was written when the proposal was reviewed, parsed
+    /// and checked again, never an in-memory copy that could drift from what the reviewer
+    /// saw. A proposal lives only as long as its file session: every workspace is removed
+    /// when the file opens and when it closes (ADR-0007; ECO-13).
     /// </para>
     /// </summary>
     internal static async Task<PreparedBehaviourPlan> ReadPlanAsync(

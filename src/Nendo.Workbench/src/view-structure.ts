@@ -14,6 +14,7 @@ import { CHOICE_TONES, toneLabel, toneOf } from './tones';
 import { icon } from './icons';
 import { linkRuleNote } from './link-rule-markup';
 import { renderData } from './view-data';
+import { recordTypePicker } from './read-controls';
 import { calculatedFieldsMarkup, calculationsHoldingType, calculationsReading, fieldCountLabel, readByMarkup, token, typeHeldByMarkup } from './structure-markup';
 /**
  * Studio structure: the fields of one record type and every change that can be
@@ -34,7 +35,7 @@ export function renderStructure(): void {
   // The same for the record type: its own calculations and any that read it hold it.
   const typeHeld = !entity.retired && calculationsHoldingType(entity.entityId, state.session.entities).length > 0;
   content.innerHTML = `<div class="studio-page structure-page">
-    <div class="page-toolbar"><label class="select-field">Record type<select id="structure-entity">${state.session.entities.map(candidate => `<option value="${escapeAttribute(candidate.entityId)}" ${candidate.entityId === entity.entityId ? 'selected' : ''}>${escapeHtml(candidate.displayName)}</option>`).join('')}</select></label>${activated ? '<span class="health-chip healthy">Active</span>' : ''}<span class="toolbar-spacer"></span>${activated || recipe === null ? '' : `<button id="prepare-application" class="primary-button" data-action type="button">${escapeHtml(recipe.actionLabel)}</button>`}<button id="rename-entity" class="secondary-button" data-action type="button">Rename record type</button><button id="add-field" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add field</button></div>
+    <div class="page-toolbar">${recordTypePicker('structure-entity', state.session.entities.map(candidate => ({ value: candidate.entityId, label: candidate.displayName, selected: candidate.entityId === entity.entityId })))}${activated ? '<span class="health-chip healthy">Active</span>' : ''}<span class="toolbar-spacer"></span>${activated || recipe === null ? '' : `<button id="prepare-application" class="primary-button" data-action type="button">${escapeHtml(recipe.actionLabel)}</button>`}<button id="rename-entity" class="secondary-button" data-action type="button">Rename record type</button><button id="add-field" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add field</button></div>
     <div class="message-slot" role="alert" hidden></div>
     <section class="definition-card">
       <div class="definition-title"><div><span class="entity-icon" aria-hidden="true">${escapeHtml((Array.from(entity.displayName)[0] ?? '?').toUpperCase())}</span><div><h2>${escapeHtml(entity.displayName)}</h2><code>${escapeHtml(entity.entityId)}</code></div></div><div class="definition-title-actions"><strong>${escapeHtml(fieldCountLabel(entity))}</strong><button id="retire-entity" class="secondary-button" data-action type="button"${typeHeld ? ' disabled aria-describedby="type-held-by"' : ''}>${entity.retired ? 'Reactivate' : 'Retire'} record type</button></div></div>${typeHeld ? typeHeldByMarkup(entity.entityId, state.session.entities) : ''}

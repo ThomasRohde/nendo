@@ -64,7 +64,12 @@ public sealed class FileInspectionTests
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.PromoteProposalAsync("not-owned"));
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.CreateIdeaSchemaAsync("denied-schema"));
             Assert.IsFalse(File.Exists(workspace.FilePath + ".write-owner"));
-            Assert.ThrowsExactly<IOException>(() => File.Move(workspace.FilePath, workspace.FilePath + ".moved"));
+            // A read-only session no longer holds the name against a move, so it cannot stop the
+            // file's writer from restoring it (ECO-01). It reads nothing it has not inspected: a
+            // backup of a file moved away under it is refused, not taken from whatever is there.
+            File.Move(workspace.FilePath, workspace.FilePath + ".moved");
+            await Assert.ThrowsAsync<NendoException>(() => read.PrepareBackupAsync(workspace.FilePath + ".backup.nendo", "after-move"));
+            File.Move(workspace.FilePath + ".moved", workspace.FilePath);
         }
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
         Assert.HasCount(1, Directory.GetFiles(Path.GetDirectoryName(workspace.FilePath)!));

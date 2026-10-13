@@ -43,6 +43,8 @@ interface PaletteRecord {
 
 let ranked: RankedCommand[] = [];
 let records: PaletteRecord[] = [];
+/** The text the records listed answer. Hits for any other text are not shown, nor run by Enter. */
+let recordsFor = '';
 let active = 0;
 let returnFocus: HTMLElement | null = null;
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -212,6 +214,9 @@ function scheduleSearch(): void {
   clearTimeout(searchTimer);
   const text = input.value.trim();
   const sequence = ++searchSequence;
+  // Hits for the earlier text went on being listed until the new search answered, and Enter
+  // opened one of them: 'inv' found Invoice 12, and 'invoice 99' typed fast opened it (WCS-15).
+  if (text !== recordsFor) { records = []; recordsFor = ''; }
   if (text.length < searchMinimum || state.session.fileSessionId === null || !state.session.capabilities.readData) {
     if (records.length > 0) { records = []; }
     return;
@@ -249,6 +254,7 @@ async function searchRecords(text: string, sequence: number): Promise<void> {
   // Keep the highlight where it was when it sits on a command; the records arrive below them.
   const onCommand = active < ranked.length;
   records = found;
+  recordsFor = text;
   if (!onCommand) active = ranked.length > 0 || records.length === 0 ? 0 : ranked.length;
   draw();
 }
@@ -272,6 +278,7 @@ export function openPalette(initial = ''): void {
   returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   input.value = initial;
   records = [];
+  recordsFor = '';
   dialog.showModal();
   filter();
   input.focus();

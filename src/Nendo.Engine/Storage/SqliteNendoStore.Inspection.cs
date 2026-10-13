@@ -184,6 +184,86 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
+    /// What a read-only session last verified against the content it inspected: the file's
+    /// identity, size and last write. A read while all three are unchanged skips the digest scan.
+    /// </summary>
+    internal sealed class InspectedContentStamp
+    {
+        internal (string Identity, long Length, DateTime LastWrite)? Verified { get; set; }
+
+        /// <summary>The full digest scans the reads needed; a test reads it.</summary>
+        internal int DigestScans { get; set; }
+    }
+
+    /// <summary>
+    /// A read for a read-only session, from one read-only snapshot of its file, and only while that
+    /// snapshot holds exactly the content the session inspected (ECO-07). A read-only session has no
+    /// store of its own, so its package files and view state were refused as "open for inspection
+    /// only", and Help lost the file's own pages. Anything else, a file moved away or replaced by
+    /// one SQLite cannot read included, is refused as a file that changed.
+    /// <para>
+    /// Help reads one call per page, so each read scanning the whole file was a full scan per page
+    /// (W-221 review). The scan is done once and its result kept against the file's identity, size
+    /// and last write, read while this snapshot holds SQLite's shared lock, so no writer can change
+    /// the file between those facts and the read.
+    /// </para>
+    /// </summary>
+    internal static async Task<T> ReadInspectedContentAsync<T>(string path, string expectedContentDigest, InspectedContentStamp stamp,
+        Func<SqliteNendoStore, CancellationToken, Task<T>> read, CancellationToken cancellationToken)
+    {
+        if (!File.Exists(path) || new[] { "-journal", "-wal", "-shm" }.Any(suffix => File.Exists(path + suffix))) throw InspectedContentChanged();
+        try
+        {
+            await using var connection = await OpenConnectionAsync(path, SqliteOpenMode.ReadOnly, cancellationToken);
+            var store = new SqliteNendoStore(path, connection);
+            await store.NonQueryAsync("PRAGMA query_only = ON;", null, cancellationToken);
+            await store.NonQueryAsync($"PRAGMA busy_timeout = {BusyTimeoutMilliseconds};", null, cancellationToken);
+            await store.NonQueryAsync("BEGIN DEFERRED;", null, cancellationToken);
+            _ = await store.ScalarAsync("SELECT COUNT(*) FROM sqlite_schema;", null, cancellationToken);
+            (string Identity, long Length, DateTime LastWrite) facts;
+            using (var pin = new FileStream(path, FileMode.Open, FileAccess.Read, NendoWriteCoordinator.ReadOnlyPinShare))
+                facts = (LocalFileIdentity.Read(pin).Key, pin.Length, File.GetLastWriteTimeUtc(pin.SafeFileHandle));
+            if (stamp.Verified != facts)
+            {
+                stamp.DigestScans++;
+                if (await store.ReadContentDigestAsync(cancellationToken) != expectedContentDigest) throw InspectedContentChanged();
+                stamp.Verified = facts;
+            }
+            return await read(store, cancellationToken);
+        }
+        catch (SqliteException exception) when (exception.SqliteErrorCode is 5 or 6)
+        {
+            throw new NendoPreconditionException("file-busy", "The file is busy. Close its writer or try again after the current operation finishes.");
+        }
+        catch (SqliteException exception) when (exception.SqliteErrorCode is 14 or 26)
+        {
+            // Cannot open, or not a database: whatever is at the name now is not what was inspected.
+            throw InspectedContentChanged();
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            throw InspectedContentChanged();
+        }
+    }
+
+    internal static NendoPreconditionException InspectedContentChanged() =>
+        new("read-only-file-changed", NendoWriteCoordinator.ReadOnlyFileChangedText);
+
+    // The versions a file records are file-format versions, which say nothing about the product's own
+    // version in the status bar ('Nendo 0.19.0'). Worded as Nendo versions, 'These surfaces need Nendo
+    // 1.11.0' told a person to update a Nendo that already reads the format (R2SMA-11).
+    internal static string UnsupportedFormatText(string recorded) =>
+        Version.TryParse(recorded, out _)
+            ? $"This file needs file format {recorded}, and this Nendo reads formats up to {NendoFormat.CurrentHostVersion}. A newer Nendo may open it."
+            : "This file records a file format version this Nendo does not recognise. A newer Nendo may open it.";
+
+    internal static string SurfaceFormatMismatchText(string required, IReadOnlyCollection<string> features, string recorded) =>
+        $"These surfaces need file format {required}" +
+        (features.Count == 0 ? "" : $" for {string.Join(", ", features)}") +
+        $", and the file records format {recorded}. This Nendo reads formats up to {NendoFormat.CurrentHostVersion}, " +
+        "but a file that records less than its surfaces need is not adopted as it is, so editing is disabled. Open a backup from before the change, or keep reading and exporting this one.";
+
+    /// <summary>
     /// The application and instance a file declares: the guards an inspection starts with,
     /// then the manifest, and nothing else. Null for a file that does not read as a Nendo
     /// file of this format. Never a substitute for <see cref="InspectAsync"/> where the
@@ -305,7 +385,7 @@ internal sealed partial class SqliteNendoStore
             if (!Version.TryParse(manifest.MinimumHostVersion, out var minimumHost) ||
                 minimumHost > Version.Parse(NendoFormat.CurrentHostVersion))
             {
-                return Unreadable("unsupported-host-version", "This file requires a newer or unrecognised Nendo host version.", observedAt);
+                return Unreadable("unsupported-host-version", UnsupportedFormatText(manifest.MinimumHostVersion), observedAt);
             }
             if (layout == "production-p1-v1" && manifest.MinimumHostVersion != NendoFormat.MinimumHostVersion)
             {
@@ -511,10 +591,7 @@ internal sealed partial class SqliteNendoStore
                     .Where(feature => Version.Parse(feature.MinimumHostVersion) > minimumHost)
                     .Select(feature => feature.Name)
                     .ToArray();
-                findings.Add(new("surface-version-mismatch",
-                    $"These surfaces need Nendo {requiredForSurfaces} or newer" +
-                    (features.Length == 0 ? "" : $" for {string.Join(", ", features)}") +
-                    $", and the file records {manifest.MinimumHostVersion}. Editing is disabled."));
+                findings.Add(new("surface-version-mismatch", SurfaceFormatMismatchText(requiredForSurfaces, features, manifest.MinimumHostVersion)));
             }
             if (!surfaceReadable || (nodes.Count > 0 && !new NendoSemanticCompiler().Compile(snapshot).IsValid))
             {

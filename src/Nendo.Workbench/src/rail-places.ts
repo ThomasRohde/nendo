@@ -1,6 +1,7 @@
 import { refreshDerived } from './actions';
 import { leaveRecordContext, state } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
+import { deferWhileBusy } from './busy-queue';
 import { fileViews, showsFileView, viewIcon } from './file-view-model';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon } from './icons';
@@ -56,7 +57,9 @@ export function drawRailPlaces(): void {
 }
 
 async function openPlace(value: string): Promise<void> {
-  if (state.actionInFlight || refuseWhileDirty('showing another screen')) return;
+  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  if (deferWhileBusy(() => { void openPlace(value); })) return;
+  if (refuseWhileDirty('showing another screen')) return;
   state.view = 'use';
   state.creatingRecord = false;
   leaveRecordContext();

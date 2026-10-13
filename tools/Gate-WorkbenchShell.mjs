@@ -1394,6 +1394,248 @@ async page => {
     assert(seen.retireDisabled === true && seen.readBy?.includes('Effort per day reads this field'), `UIT-19: the field the calculation reads still offers Retire, or does not say why not: ${JSON.stringify(seen)}.`);
   }, 900, 800);
 
+  // W-224. The broad review's Workbench state findings that a person meets on screen.
+  const pretendPending = (extra = {}) => page.evaluate(async (extra) => {
+    const { client } = await import('/src/client.ts');
+    window.__w224 = { discarded: 0 };
+    client.pendingMutation = () => ({ version: 1, fileIdentity: 'w224', fileSessionId: 'w224', method: 'data.setFields', payload: { idempotencyKey: 'w224' },
+      state: 'pending', fileName: 'Decisions.nendo', savedAt: new Date().toISOString(), ...extra });
+    client.discardPendingMutation = async () => { window.__w224.discarded += 1; client.pendingMutation = () => null; return null; };
+    (await import('/src/shell.ts')).rerender();
+  }, extra);
+
+  // WCS-14 and WCS-22: an unconfirmed save is said in the status bar, which is on every screen, and
+  // a save the person stopped that did not land can be discarded from its notice.
+  await check('WCS-14 WCS-22 unconfirmed save pill and discard', 'decision', async () => {
+    await pretendPending({ discardable: true });
+    const pill = await page.evaluate(() => { const element = document.querySelector('#session-health'); return { text: element.textContent.trim(), hidden: element.hidden, shown: element.getClientRects().length > 0 }; });
+    assert(pill.text.includes('Save unconfirmed') && !pill.hidden && pill.shown, `WCS-14: the status pill for an unconfirmed save is ${JSON.stringify(pill)}; it should say so where it is seen.`);
+    // A chrome refresh without a render, as a view declaring its place makes, keeps it.
+    const refreshed = await page.evaluate(async () => { (await import('/src/shell.ts')).refreshChrome(); const element = document.querySelector('#session-health'); return { text: element.textContent.trim(), shown: !element.hidden && element.getClientRects().length > 0 }; });
+    assert(refreshed.shown && refreshed.text.includes('Save unconfirmed'), `WCS-14: after a chrome refresh the status pill is ${JSON.stringify(refreshed)}.`);
+    const notice = await page.evaluate(() => ({ text: document.querySelector('#pending-save-notice')?.textContent ?? '', discard: document.querySelector('#discard-pending-save')?.disabled ?? null }));
+    assert(notice.discard === false, `WCS-22: a stopped save offers no enabled Discard this unsent change: ${JSON.stringify(notice)}.`);
+    assert(/Decisions\.nendo/.test(notice.text), `WCS-03: the notice does not name the file the save was made in: ${notice.text}`);
+    await page.click('#discard-pending-save');
+    await until(() => document.querySelector('#pending-save-notice') === null, null, 'the notice to go once discarded');
+    const after = await page.evaluate(() => ({ discarded: window.__w224.discarded, said: document.querySelector('.message-slot:not([hidden])')?.textContent ?? '' }));
+    assert(after.discarded === 1 && /discarded/i.test(after.said), `WCS-22: discarding left ${JSON.stringify(after)}.`);
+  });
+
+  // WCS-20: Revoke edit access stays pressable while a save is unconfirmed or in flight; it is how a
+  // person ends the agent write their save is queued behind.
+  await check('WCS-20 Revoke edit access while a save waits', 'idea', async () => {
+    await agentPage('activity');
+    await page.evaluate(async () => { const { state } = await import('/src/app-state.ts'); state.agentStatus = { ...state.agentStatus, editingOwner: 'Agent' }; });
+    await pretendPending();
+    const swept = await page.evaluate(() => document.querySelector('#revoke-agent')?.disabled ?? null);
+    assert(swept === false, `WCS-20: with a save unconfirmed, Revoke edit access is ${swept === null ? 'missing' : 'disabled'}.`);
+    // While a save is in flight it is pressable, and pressing it reaches the host.
+    const pressed = await page.evaluate(async () => {
+      const shell = await import('/src/shell.ts');
+      const { state } = await import('/src/app-state.ts');
+      const { client } = await import('/src/client.ts');
+      const sent = [];
+      const request = client.request.bind(client);
+      client.request = (method, payload) => { sent.push(method); return request(method, payload); };
+      state.actionInFlight = true;
+      shell.setBusy(true);
+      const disabled = document.querySelector('#revoke-agent').disabled;
+      document.querySelector('#revoke-agent').click();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      state.actionInFlight = false;
+      shell.setBusy(false);
+      client.request = request;
+      return { disabled, sent };
+    });
+    assert(pressed.disabled === false, 'WCS-20: while a save is in flight, Revoke edit access is disabled.');
+    assert(pressed.sent.includes('agent.revokeEditing'), `WCS-20: Revoke edit access pressed during a save sent nothing to the host: ${JSON.stringify(pressed.sent)}.`);
+  });
+
+  // WCS-15: the palette lists no record hits for text that has since changed, and Enter runs none.
+  await check('WCS-15 palette drops hits for earlier text', 'decision', async () => {
+    const word = await page.evaluate(() => (document.querySelector('.record-row > button')?.textContent ?? '').trim().split(/\s+/)[0].toLowerCase());
+    assert(word.length >= 3, `no record title to search for (${JSON.stringify(word)}); the check measures nothing`);
+    await page.keyboard.press('Control+k');
+    await until(() => document.querySelector('#command-palette')?.open === true, null, 'the palette');
+    await page.keyboard.type(word);
+    await until(() => document.querySelector('#command-palette-list .command-record') !== null, null, 'record hits', 6000);
+    await page.keyboard.type('qqxz');
+    const stale = await page.evaluate(() => document.querySelectorAll('#command-palette-list .command-record').length);
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(async () => ({ open: document.querySelector('#command-palette')?.open === true, record: (await import('/src/app-state.ts')).state.selectedRecordId }));
+    assert(stale === 0, `WCS-15: ${stale} record hit(s) for "${word}" stayed listed after the text changed.`);
+    assert(after.open && after.record === null, `WCS-15: Enter on the changed text ran a hit for the earlier text: ${JSON.stringify(after)}.`);
+    await page.keyboard.press('Escape');
+  });
+
+  // WCS-17: Ctrl+click on a route with unsaved typing makes no tab; the route says why it stays.
+  await check('WCS-17 Ctrl+click with unsaved typing', 'decision', async () => {
+    await openRecord();
+    const [typed] = await textInputs();
+    assert(typed, 'the record has no text field; the check measures nothing');
+    await page.fill(`#record-form input[name="${typed}"]`, 'Unsaved typing');
+    const before = await page.evaluate(() => document.querySelectorAll('#tab-strip .tab').length);
+    await page.click('#nav-history', { modifiers: ['Control'] });
+    await page.waitForTimeout(400);
+    const after = await page.evaluate(() => document.querySelectorAll('#tab-strip .tab').length);
+    assert(after === before, `WCS-17: a refused Ctrl+click left ${after} tabs where there were ${before}.`);
+    assert(/Save or discard/.test(await message()), `WCS-17: the refusal was not said: ${await message()}`);
+  }, 1440, 900);
+
+  // WCS-06: a window key pressed while a Data cell is being edited saves the cell before it moves.
+  await check('WCS-06 window key saves the open cell', 'idea', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
+    const target = await page.evaluate(() => [...document.querySelectorAll('.ag-row[row-index="0"] .ag-cell[col-id]')]
+      .find(cell => !cell.classList.contains('record-open-cell') && /title|name/i.test(cell.getAttribute('col-id')))?.getAttribute('col-id') ?? null);
+    assert(target !== null, 'no title cell in the grid; the check measures nothing');
+    const cell = `.ag-row[row-index="0"] .ag-cell[col-id="${target}"]`;
+    await page.locator(cell).click();
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('End');
+    await page.keyboard.type(' w224');
+    await page.keyboard.press('Control+1');
+    await until(() => document.querySelector('#nav-use')?.classList.contains('is-selected') === true, null, 'Use after Ctrl 1', 6000);
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid again', 8000);
+    const text = (await page.locator(cell).textContent()).trim();
+    assert(text.endsWith('w224'), `WCS-06: after Ctrl 1 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
+  }, 1440, 900);
+
+  // WCS-24: Restart query outlasts a redraw, and goes once a read at a later change replaced the results.
+  await check('WCS-24 Restart query survives a redraw', 'decision', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
+    const kept = await page.evaluate(async () => {
+      const actions = await import('/src/actions.ts');
+      const { WorkbenchHostError } = await import('/src/host-types.ts');
+      await actions.handlePageFailure(new WorkbenchHostError('stale-cursor', 'The file changed.'));
+      (await import('/src/shell.ts')).rerender();
+      return document.querySelector('.message-slot:not([hidden]) #outcome-action')?.textContent ?? null;
+    });
+    assert(kept === 'Restart query', `WCS-24: after a redraw the earlier-query notice offers ${JSON.stringify(kept)}, not Restart query.`);
+    const later = await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      state.session = { ...state.session, manifest: { ...state.session.manifest, changeSequence: state.session.manifest.changeSequence + 1 } };
+      (await import('/src/shell.ts')).rerender();
+      return document.querySelector('.message-slot:not([hidden])')?.textContent ?? '';
+    });
+    assert(!/earlier query/.test(later), `WCS-24: a redraw at a later change still says the results are from the earlier query: ${later}`);
+  });
+
+  // WST-01: a Help article keeps its place across a redraw, and reading it holds the automatic redraws.
+  await check('WST-01 Help article keeps its place', 'idea', async () => {
+    await page.click('#nav-help');
+    await until(() => document.querySelector('.help-article h2') !== null, null, 'Help', 6000);
+    const topic = await page.evaluate(() => {
+      for (const button of [...document.querySelectorAll('.help-topics button')]) {
+        document.querySelector(`.help-topics button[data-help-topic="${CSS.escape(button.dataset.helpTopic ?? '')}"]`)?.click();
+        const article = document.querySelector('.help-article');
+        if (article !== null && article.scrollHeight > article.clientHeight + 400) return button.textContent.trim();
+      }
+      return null;
+    });
+    await page.waitForTimeout(300);
+    assert(topic !== null, 'no Help article is long enough to scroll; the check measures nothing');
+    await quiet();
+    await page.evaluate(() => { document.querySelector('.help-article').scrollTop = 300; });
+    await page.waitForTimeout(100);
+    const held = await shell(() => import('/src/shell.ts').then(module => module.interactionInProgress()));
+    assert(held === true, 'WST-01: scrolling a Help article is not seen as reading, so an automatic redraw goes ahead under it.');
+    const top = await page.evaluate(async () => { (await import('/src/shell.ts')).rerender(); return document.querySelector('.help-article').scrollTop; });
+    assert(Math.abs(top - 300) <= 2, `WST-01: a redraw moved the Help article from 300 px to ${top} px.`);
+  }, 1200, 700);
+
+  // WCS-08: F5 and Ctrl R are Refresh view, not a reload; with unsaved typing they refuse and keep it.
+  await check('WCS-08 F5 is Refresh view', 'decision', async () => {
+    await page.evaluate(() => { window.__w224Marker = true; window.__w224Keys = []; window.addEventListener('keydown', event => { if (event.key === 'F5' || event.key === 'r') window.__w224Keys.push(event.defaultPrevented); }); });
+    await openRecord();
+    const [typed] = await textInputs();
+    assert(typed, 'the record has no text field; the check measures nothing');
+    await page.fill(`#record-form input[name="${typed}"]`, 'Kept through F5');
+    await page.keyboard.press('F5');
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Control+r');
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(name => ({ marker: window.__w224Marker === true, keys: window.__w224Keys, value: document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null }), typed);
+    assert(after.marker && after.keys.length === 2 && after.keys.every(Boolean), `WCS-08: F5 or Ctrl R was left to the browser, which reloads the window: ${JSON.stringify(after)}.`);
+    assert(after.value === 'Kept through F5', `WCS-08: the typing did not survive F5: ${JSON.stringify(after.value)}.`);
+    assert(/refreshing the view/.test(await message()), `WCS-08: F5 with unsaved typing said ${JSON.stringify(await message())}.`);
+  });
+
+  // WCS-08 with WCS-06: F5 while a Data cell is being edited saves the cell before the refresh redraws.
+  await check('WCS-08 F5 saves the open cell', 'idea', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
+    const target = await page.evaluate(() => [...document.querySelectorAll('.ag-row[row-index="0"] .ag-cell[col-id]')]
+      .find(cell => !cell.classList.contains('record-open-cell') && /title|name/i.test(cell.getAttribute('col-id')))?.getAttribute('col-id') ?? null);
+    assert(target !== null, 'no title cell in the grid; the check measures nothing');
+    const cell = `.ag-row[row-index="0"] .ag-cell[col-id="${target}"]`;
+    await page.locator(cell).click();
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(200);
+    await page.keyboard.press('End');
+    await page.keyboard.type(' f5');
+    await page.keyboard.press('F5');
+    await page.waitForTimeout(1500);
+    await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null && document.querySelector('.ag-cell input, .ag-cell textarea') === null, null, 'the grid after the refresh', 6000);
+    const text = (await page.locator(cell).textContent()).trim();
+    assert(text.endsWith('f5'), `WCS-08: after F5 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
+  }, 1440, 900);
+
+  // WCS-16: a navigation place, Help and Agent pressed while an action runs are made when it ends.
+  const pressDuringAction = (selector) => page.evaluate(async (selector) => {
+    const { state } = await import('/src/app-state.ts');
+    const shell = await import('/src/shell.ts');
+    state.actionInFlight = true;
+    document.querySelector(selector).click();
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const during = state.view;
+    state.actionInFlight = false;
+    shell.setBusy(false);
+    return during;
+  }, selector);
+  for (const [name, selector, view] of [['a navigation place', '.nav-place:not(.is-selected)', null], ['Help', '#nav-help', 'help'], ['Agent', '#nav-agent', 'agent']]) {
+    await check(`WCS-16 ${name} pressed during an action`, 'idea', async () => {
+      await page.click('#nav-data');
+      await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
+      assert(await page.evaluate(selector => document.querySelector(selector) !== null, selector), `no ${name} to press; the check measures nothing`);
+      const during = await pressDuringAction(selector);
+      assert(during === 'data', `WCS-16: ${name} moved while an action ran (${during}).`);
+      await page.waitForTimeout(800);
+      const after = await page.evaluate(async () => (await import('/src/app-state.ts')).state.view);
+      assert(view === null ? after === 'use' : after === view, `WCS-16: ${name} pressed during an action was dropped; the view is ${after}.`);
+    });
+  }
+
+  // WCS-03: a save made under another file name offers both ways out, and editing is not locked for good.
+  await check('WCS-03 save made in another file', 'decision', async () => {
+    await pretendPending({ fileName: 'Decisions (original).nendo', madeElsewhere: true });
+    const offered = await page.evaluate(() => ({ send: document.querySelector('#send-pending-here')?.disabled ?? null, discard: document.querySelector('#discard-pending-save')?.disabled ?? null,
+      retry: document.querySelector('#retry-pending-save') !== null, text: document.querySelector('#pending-save-notice')?.textContent ?? '' }));
+    assert(offered.send === false && offered.discard === false, `WCS-03: a save made in another file offers no way out: ${JSON.stringify(offered)}.`);
+    assert(!offered.retry, 'WCS-03: the notice still offers Check or retry, which refuses in a file of another name.');
+  });
+
+  // WST-10: a window in dark mode is dark before the bundle has run. Last, since it changes the colour scheme.
+  await check('WST-10 dark window paints dark first', 'decision', async () => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.evaluate(() => { try { localStorage.removeItem('nendo.appearance'); } catch { /* none kept */ } });
+    await page.addInitScript(() => {
+      document.addEventListener('readystatechange', () => {
+        if (document.readyState === 'interactive' && window.__w224FirstTheme === undefined)
+          window.__w224FirstTheme = { theme: document.documentElement.dataset.theme ?? null, ran: document.querySelector('#studio-content')?.getAttribute('aria-busy') ?? null };
+      });
+    });
+    await open('decision');
+    const first = await page.evaluate(() => window.__w224FirstTheme ?? null);
+    await page.emulateMedia({ colorScheme: null });
+    assert(first !== null && first.theme === 'dark', `WST-10: in dark mode the page's first frame is themed ${JSON.stringify(first)}, before the module had run.`);
+  });
+
   return { complete: failures.length === 0, checks, errors, failure: failures.join(' || ') };
   })(); } catch (error) {
     return { complete: false, checks, errors, failure: [...failures, String(error?.message ?? error)].join(' || ') };

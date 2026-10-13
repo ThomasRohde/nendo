@@ -1,5 +1,6 @@
 import { fileScopedClearable, state, type ViewName } from './app-state';
-import { refuseWhileDirty } from './draft-guard';
+import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
+import { deferWhileBusy } from './busy-queue';
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { applicationPlans } from './plan-selection';
@@ -183,7 +184,11 @@ export async function openTabOn(view: ViewName): Promise<void> {
 
 export async function activateTab(index: number): Promise<void> {
   if (index === set.active || index < 0 || index >= set.tabs.length) return;
-  if (state.actionInFlight || refuseWhileDirty('switching tabs')) return;
+  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  // The tab itself is held, not its place in the strip, which a tab opened or closed meanwhile moves.
+  const wanted = set.tabs[index];
+  if (deferWhileBusy(() => { const at = set.tabs.indexOf(wanted); if (at >= 0) void activateTab(at); })) return;
+  if (refuseWhileDirty('switching tabs')) return;
   // A refused place leaves the tab that was on screen selected, with its trail (tab-set.ts).
   if (!(await switchTab(set, index, navigationTrail, revisitCurrent))) refreshChrome();
   focusActiveTab();
@@ -191,7 +196,9 @@ export async function activateTab(index: number): Promise<void> {
 
 export async function closeTab(index: number): Promise<void> {
   if (set.tabs.length === 1 || index < 0 || index >= set.tabs.length) return;
-  if (index === set.active && (state.actionInFlight || refuseWhileDirty('switching tabs'))) return;
+  const closingTab = set.tabs[index];
+  if (index === set.active && deferWhileBusy(() => { const at = set.tabs.indexOf(closingTab); if (at >= 0) void closeTab(at); })) return;
+  if (index === set.active && refuseWhileDirty('switching tabs')) return;
   const closing = index === set.active ? navigationTrail.inspect() : set.tabs[index]!.saved;
   const closed = await closeTabAt(set, index, navigationTrail, revisitCurrent);
   refreshChrome();
@@ -262,20 +269,38 @@ document.addEventListener('keydown', (event) => {
 /**
  * Open something from the navigation in a new tab: a Ctrl+click, or a middle click, on any of its
  * routes. The tab is made first, so the route then moves the new tab rather than the old one.
+ *
+ * Only when the route will move. A page holding unsaved typing refuses to be left, and a tab made
+ * before that refusal stayed open and selected beside the sentence saying nothing had moved
+ * (WCS-17): the route alone answers then, in its own words. While an action runs, the new tab and
+ * the move both wait for it to end.
  */
 export function wireOpenInNewTab(rail: HTMLElement): void {
+  const openInNewTab = (route: HTMLButtonElement): boolean => {
+    if (recordFormIsDirty()) return false;
+    if (deferWhileBusy(() => { if (!route.disabled && route.isConnected) { newTab(false); route.click(); } })) return true;
+    newTab(false);
+    return false;
+  };
   rail.addEventListener('click', (event) => {
     if (!event.ctrlKey) return;
     const route = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.nav-item, .nav-place') : null;
     if (route === null || route.disabled) return;
-    newTab(false);
+    if (openInNewTab(route)) { event.preventDefault(); event.stopPropagation(); }
   }, true);
   rail.addEventListener('auxclick', (event) => {
     if (event.button !== 1) return;
     const route = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('.nav-item, .nav-place') : null;
     if (route === null || route.disabled) return;
     event.preventDefault();
+    if (recordFormIsDirty()) { route.click(); return; }
+    if (deferWhileBusy(() => { if (!route.disabled && route.isConnected) { newTab(false); route.click(); } })) return;
     newTab(false);
     route.click();
   });
+}
+
+/** How many tabs the window holds. */
+export function tabCount(): number {
+  return set.tabs.length;
 }

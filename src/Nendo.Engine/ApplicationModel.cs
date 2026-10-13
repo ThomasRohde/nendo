@@ -49,7 +49,14 @@ public sealed record NendoHistoryFoldResult(
     long OperationRowsBefore,
     long OperationRowsAfter,
     string BackupLabel,
-    DateTimeOffset FoldedAt);
+    DateTimeOffset FoldedAt)
+{
+    /// <summary>
+    /// Whether the file gave the folded pages back. False when the compaction after the fold could
+    /// not run, a full disk most often: the fold itself committed and stands (ECO-02).
+    /// </summary>
+    public bool SpaceReclaimed { get; init; } = true;
+}
 
 public enum NendoReversibilityClass
 {

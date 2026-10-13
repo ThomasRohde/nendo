@@ -546,5 +546,22 @@ if ($faults.Count -gt 0 -or $open.Count -gt 0) {
     throw (Get-AssetReport $faults $open)
 }
 
+# The Workbench's own pictures are drawn at most 92 CSS pixels wide, and every window fetches and
+# decodes each one. A 1391 by 1131 mark and a 1254 by 1254 favicon shipped there, about 6 MB of
+# pixels a window for a 16-pixel icon, and the mark shipped twice (WST-12). The masters stay in
+# docs/assets/brand, which does not ship. The width and height are the PNG header's, read above.
+$publicPngLimit = 512
+$oversized = @(
+    $binaries | Where-Object { $_ -like 'src/Nendo.Workbench/public/*.png' } | ForEach-Object {
+        $bytes = [IO.File]::ReadAllBytes((Join-Path $repoRoot $_))
+        $width = ([long]$bytes[16] -shl 24) -bor ([long]$bytes[17] -shl 16) -bor ([long]$bytes[18] -shl 8) -bor [long]$bytes[19]
+        $height = ([long]$bytes[20] -shl 24) -bor ([long]$bytes[21] -shl 16) -bor ([long]$bytes[22] -shl 8) -bor [long]$bytes[23]
+        if ($width -gt $publicPngLimit -or $height -gt $publicPngLimit) { "$_ is $width by $height pixels" }
+    }
+)
+if ($oversized.Count -gt 0) {
+    throw "Workbench picture(s) larger than $publicPngLimit pixels a side, which every window decodes to draw an icon; ship a right-sized copy and keep the master in docs/assets/brand:`n$($oversized -join "`n")"
+}
+
 $megabytes = [Math]::Round($totalBytes / 1MB, 1)
 Write-Host "OK       $($binaries.Count) tracked binary asset(s) read end to end ($megabytes MB), including $($shipping.Count) that ship or generate one."

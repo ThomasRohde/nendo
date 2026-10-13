@@ -8,6 +8,7 @@ import { calculatedDisplay } from './calculated-fields';
 import { client } from './client';
 import { deviceStorage } from './device-storage';
 import { choiceDisplay, escapeAttribute, escapeHtml, formatDateTime, isDateTimeKind, messageFor, mutationKey, storageLabel, valueDisplay } from './format';
+import { retiredDataToggle } from './read-controls';
 import { defaultColumnWidth, editorValues, gridCellEditor, gridEditUnchanged } from './grid-edit-model';
 import { type CalculationResult, type EntitySnapshot, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { icon } from './icons';
@@ -88,6 +89,17 @@ const largeTextCharacters = 1_000_000;
 export function destroyGrid(): void {
   gridApi?.destroy();
   gridApi = null;
+}
+
+/**
+ * Ends a cell edit that is open, which saves its value, before a window key moves anywhere: a
+ * key moves no focus, so the editor stayed open and the redraw destroyed it unsaved (WCS-06).
+ * True when one was open.
+ */
+export function stopGridEditing(): boolean {
+  if (gridApi === null || gridApi.getEditingCells().length === 0) return false;
+  gridApi.stopEditing(false);
+  return true;
 }
 
 // ------------------------------------------------------------------------------------------
@@ -412,7 +424,7 @@ export function renderData(): void {
   content.innerHTML = `<div class="data-workspace" data-testid="application-data-state">
     <aside class="entity-panel" aria-label="Record types">
       <div class="panel-heading"><span>Record types</span></div>
-      <label class="checkbox-field"><input id="show-retired-data" type="checkbox" ${state.showRetiredData ? 'checked' : ''} />Show retired data</label>
+      ${retiredDataToggle(state.showRetiredData)}
       ${state.session.entities.filter(candidate => state.showRetiredData || !candidate.retired).map(candidate => `<button class="entity-row ${candidate.entityId === entity.entityId ? 'is-active' : ''}" data-entity-id="${escapeAttribute(candidate.entityId)}" type="button" ${candidate.entityId === entity.entityId ? 'aria-current="page"' : ''}><span>${escapeHtml(candidate.displayName)}${candidate.retired ? ' (retired)' : ''}</span></button>`).join('')}
       <button id="new-entity" class="text-button" data-action type="button">Create record type</button>
     </aside>

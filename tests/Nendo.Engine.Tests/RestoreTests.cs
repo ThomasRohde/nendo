@@ -271,9 +271,12 @@ public sealed class RestoreTests
         var backup = await BackupAsync(source, workspace);
         var plan = await source.PrepareRestoreAsync(backup, "restore");
         byte[]? racingBytes = null;
+        // The one moment the session holds no handle on the file: its own are closed for the
+        // exclusive rename handle, which is taken before any recovery record exists (W-221 review).
+        // A change there is refused with nothing moved and no record to review.
         source.RestoreCheckpoint = value =>
         {
-            if (value != "before-retention") return;
+            if (value != "before-exclusive") return;
             if (replaceIdentity)
             {
                 File.Move(workspace.FilePath, workspace.FilePath + ".externally-moved");
@@ -282,14 +285,15 @@ public sealed class RestoreTests
             else File.WriteAllText(workspace.FilePath, "outside modification");
             racingBytes = File.ReadAllBytes(workspace.FilePath);
         };
-        var failure = await Assert.ThrowsExactlyAsync<NendoReplacementInterruptedException>(() => source.RestoreAsync(plan.PlanId, false));
-        Assert.IsInstanceOfType<NendoPreconditionException>(failure.Cause);
+        var failure = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => source.RestoreAsync(plan.PlanId, false));
+        Assert.AreEqual("replacement-target-changed", failure.Code, failure.Message);
         CollectionAssert.AreEqual(racingBytes!, await ReadBytesAsync(workspace.FilePath));
         Assert.IsFalse(File.Exists(Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, plan.RetainedFileName)));
+        Assert.IsFalse(File.Exists(FileReplacementReceipt.PendingPath(workspace.FilePath)), "A refused restore left a recovery marker.");
+        // Changed bytes cannot be trusted again; an identical copy at the name is the same content.
+        Assert.AreEqual(replaceIdentity ? NendoSessionHealth.Normal : NendoSessionHealth.RecoveryRequired, source.Health);
         await source.DisposeAsync();
-        var recovery = await NendoWriteCoordinator.InspectReplacementRecoveryAsync(workspace.FilePath);
-        Assert.IsTrue(recovery.HasPendingReplacement);
-        Assert.AreEqual("verifiedOriginal", recovery.PreChangeBackup!.State);
+        Assert.IsFalse((await NendoWriteCoordinator.InspectReplacementRecoveryAsync(workspace.FilePath)).HasPendingReplacement);
     }
 
     [TestMethod]

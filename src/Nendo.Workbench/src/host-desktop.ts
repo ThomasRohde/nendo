@@ -1,6 +1,6 @@
 import { type AgentWork, type DesktopFileActionView, type DesktopSessionView, type HostDownloadSaved, type WindowTitleBar } from './host-types';
 import { protocolVersion } from './host';
-import { PendingMutationJournal, isJournaledMutation, type PendingMutation } from './pending-mutations';
+import { PendingMutationJournal, isJournaledMutation, madeElsewhere, type PendingMutation } from './pending-mutations';
 import { readTitleBar } from './title-bar-model';
 import {
   WorkbenchHostError, isHostRoute,
@@ -90,7 +90,9 @@ declare global {
  */
 export function hostTimeoutMs(method: string): number | null {
   if (method === 'session.createFile' || method === 'session.openFile' || method.startsWith('file.') || method.startsWith('extension.')) return null;
-  if (method === 'history.fold' || method === 'data.buildSearchIndex') return null;
+  // The integrity check reads every page of the file, so it is as long as the file too (WCS-21).
+  // Each of these offers Stop on the busy bar while it runs, which is the person's way out.
+  if (method === 'history.fold' || method === 'data.buildSearchIndex' || method === 'health.verify') return null;
   return 15_000;
 }
 
@@ -101,6 +103,8 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
 
   currentFileSession(): string | null { return this.fileSessionId; }
   private fileIdentity: string | null = null;
+  /** The open file's name, which a kept save is sent back into only (WCS-03). */
+  private fileName: string | null = null;
   private readonly navigateListeners = new Set<(route: HostRoute) => void>();
   private readonly framesFailedListeners = new Set<(failed: HostFramesFailed) => void>();
   private readonly fileChangedListeners = new Set<(changeSequence: number) => void>();
@@ -151,7 +155,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     // unconfirmed write, and refuse a view's second write while its first is in flight. A view
     // whose answer is lost reads the record again; its writes are checked against versions.
     if (isJournaledMutation(method) && typeof payload.actor !== 'string' && this.fileIdentity !== null && this.fileSessionId !== null)
-      return this.journal.submit(this.fileSender(), this.fileIdentity, this.fileSessionId, method, payload) as Promise<T>;
+      return this.journal.submit(this.fileSender(), this.fileIdentity, this.fileSessionId, method, payload, this.fileName) as Promise<T>;
     return this.requestCore<T>(method, payload);
   }
 
@@ -178,11 +182,17 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   }
 
   pendingMutation(): PendingMutation | null {
-    return this.fileIdentity === null ? null : this.journal.read(this.fileIdentity);
+    const entry = this.fileIdentity === null ? null : this.journal.read(this.fileIdentity);
+    if (entry !== null && entry.state === 'pending' && madeElsewhere(entry, this.fileName)) entry.madeElsewhere = true;
+    return entry;
   }
 
-  retryPendingMutation(): Promise<DesktopOperationView | null> {
-    return this.fileIdentity === null ? Promise.resolve(null) : this.journal.retry(this.fileSender(), this.fileIdentity);
+  retryPendingMutation(intoThisFile = false): Promise<DesktopOperationView | null> {
+    return this.fileIdentity === null ? Promise.resolve(null) : this.journal.retry(this.fileSender(), this.fileIdentity, true, this.fileName, intoThisFile);
+  }
+
+  discardPendingMutation(): Promise<DesktopOperationView | null> {
+    return this.fileIdentity === null ? Promise.resolve(null) : this.journal.discard(this.fileSender(), this.fileIdentity, this.fileName);
   }
 
   checkPendingMutation(): Promise<DesktopOperationView | null> {
@@ -272,6 +282,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
         this.fileSessionId = snapshot.fileSessionId;
         this.fileIdentity = snapshot.manifest?.applicationId && snapshot.manifest.instanceId
           ? encodeURIComponent(snapshot.manifest.applicationId) + '.' + encodeURIComponent(snapshot.manifest.instanceId) : null;
+        this.fileName = typeof snapshot.fileName === 'string' ? snapshot.fileName : null;
       }
     }
     pending.resolve(candidate.result);

@@ -396,7 +396,7 @@ public sealed class DesktopBehaviourGrantTests
     }
 
     /// <summary>A file carrying one trigger, so opening it asks the store for approval.</summary>
-    private static async Task SeedWithTriggerAsync(string path)
+    internal static async Task SeedWithTriggerAsync(string path)
     {
         await using var coordinator = await NendoWriteCoordinator.CreateAsync(path, "seed");
         var service = new NendoApplicationService(coordinator);

@@ -5,8 +5,9 @@ import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showKeptAlert, showOutcome, showRetainedNotice } from './shell';
 import { blockedConditionsNotice, escapeHtml, foldDate, messageFor, mutationKey, valueDisplay } from './format';
-import { decideWriteFailure, nameHolder, nameTarget, namingFieldId, referenceRefusalCodes, referenceTargetOf } from './write-failure';
+import { decideWriteFailure, errorCode, nameHolder, nameTarget, namingFieldId, referenceRefusalCodes, referenceTargetOf } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
+import { deferWhileBusy } from './busy-queue';
 import { decideDraftState, draftRetentionMessage, type DraftReason } from './draft-state';
 import { accumulatorIsCurrent, emptyWindowQuery, readDay, windowIsCurrent, windowRequest, type WindowQuery } from './record-window';
 import {
@@ -17,7 +18,7 @@ import { effectiveSurfaceQuery, recordPlanOf, recordsForEntity, selectedSurfaceN
 import { openingFileView } from './file-view-model';
 import { readsOwnRecords } from './surface-model';
 import {
-  WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopPromotionView,
+  WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopOperationView, type DesktopPromotionView,
   type DesktopSessionView, type HelpPagesView, type HistoryFoldPreview, type HistoryFoldResult, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
 } from './host';
 
@@ -120,7 +121,8 @@ export async function runMutation(
       if (refreshAfterFailure) await recoverAfterWriteFailure();
       else rerender();
     }
-    showError(restate?.(error) ?? await holderNamed(error, payload) ?? await targetNamed(error, payload) ?? messageFor(error));
+    const said = restate?.(error) ?? await holderNamed(error, payload) ?? await targetNamed(error, payload);
+    if (said !== null) showError(said); else showFailure(error);
     return redrawn ? 'redrawn' : 'kept';
   } finally {
     state.actionInFlight = false;
@@ -138,10 +140,68 @@ export async function refreshAfterOutcome(result: DesktopMutationView | DesktopP
   }
 }
 
+/**
+ * Codes whose sentence asks the person to refresh the view: the file session ended, or the file
+ * kept moving while it was read. They said "Refresh the view" with nothing to press, and the
+ * refresh a person reaches for, F5, reloaded the whole window and lost drafts, tabs and the trail
+ * (WCS-08). They carry a Refresh view button now, and F5 is that refresh.
+ */
+const refreshableCodes = new Set(['stale-file-session', 'view-changed']);
+
+/** A failure said where it can be seen; one that asks for a refresh carries the Refresh view button. */
+export function showFailure(error: unknown, takeFocus = true): void {
+  if (!refreshableCodes.has(errorCode(error))) {
+    // A read nobody pressed for says it failed without moving anybody (WCS-07).
+    if (takeFocus) showError(messageFor(error)); else showKeptAlert(messageFor(error));
+    return;
+  }
+  showRetainedNotice(messageFor(error), async (button) => {
+    if (state.actionInFlight) return;
+    // Busy with the rest of the window, and released with it: the redraw inside held every
+    // control disabled and the bar on "Still working..." for good when only the flag was set.
+    state.actionInFlight = true;
+    setBusy(true);
+    button.disabled = true;
+    try {
+      await reloadReadWindows();
+      state.lastOutcome = null;
+      rerender();
+      announce('The view shows the file as it is now.');
+    } catch (refreshError) {
+      button.disabled = false;
+      announce(`${messageFor(refreshError)} Try Refresh view again.`);
+    } finally { state.actionInFlight = false; setBusy(false); }
+  }, takeFocus);
+}
+
+/**
+ * Read the open file again and redraw, as Refresh view does: F5 and Ctrl R (WCS-08). A page
+ * holding unsaved typing refuses, as every other redraw on the person's behalf does.
+ */
+export async function refreshView(): Promise<void> {
+  if (client.mode === 'unavailable' || !state.session.hasFile) return;
+  if (deferWhileBusy(() => { void refreshView(); })) return;
+  if (refuseWhileDirty('refreshing the view')) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    await reloadReadWindows();
+    rerender();
+    announce('The view shows the file as it is now.');
+  } catch (error) {
+    showFailure(error);
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
+}
+
 export function showOutcomeRefreshNotice(outcome: string, notice: string): void {
   showRetainedNotice(`${outcome} ${notice}`, async (refresh) => {
     if (state.actionInFlight) return;
     state.actionInFlight = true;
+    setBusy(true);
     refresh.disabled = true;
     try {
       state.session = await client.request<DesktopSessionView>('session.getSnapshot');
@@ -153,7 +213,7 @@ export function showOutcomeRefreshNotice(outcome: string, notice: string): void 
     } catch {
       refresh.disabled = false;
       announce(`${outcome} The view is still unavailable. Try Refresh view again.`);
-    } finally { state.actionInFlight = false; }
+    } finally { state.actionInFlight = false; setBusy(false); }
   });
 }
 
@@ -198,22 +258,21 @@ export async function reloadReadWindows(): Promise<void> {
 export async function handlePageFailure(error: unknown): Promise<void> {
   if (error instanceof WorkbenchHostError && error.code === 'stale-cursor') {
     if (state.view === 'data') {
-      showError('The file changed. These results are from the earlier query. Restart to see the current records.');
-      const slot = content.querySelector<HTMLElement>('.message-slot');
-      if (slot) {
-        const restart = document.createElement('button');
-        restart.id = 'restart-record-query'; restart.type = 'button'; restart.className = 'secondary-button';
-        restart.textContent = 'Restart query';
-        restart.addEventListener('click', () => void (async () => {
+      // Kept with its button across redraws, and only while the results are the earlier query's:
+      // the button was added to the slot by hand, so the next redraw put the sentence back without
+      // it, and the sentence stayed after a redraw had already read the current records (WCS-24).
+      showKeptAlert('The file changed. These results are from the earlier query. Restart to see the current records.', {
+        label: 'Restart query',
+        run: async () => {
           if (state.actionInFlight) return;
           state.actionInFlight = true; setBusy(true);
           clearError();
           try { await reloadReadWindows(); rerender(); announce('Showing the first page of current records.'); }
-          catch (refreshError) { showError(messageFor(refreshError)); }
+          catch (refreshError) { showFailure(refreshError); }
           finally { state.actionInFlight = false; setBusy(false); }
-        })());
-        slot.append(restart);
-      }
+        },
+      });
+      if (state.lastOutcome !== null) state.lastOutcome.changeSequence = state.session.manifest?.changeSequence ?? undefined;
       return;
     }
     try {
@@ -231,6 +290,18 @@ export async function handlePageFailure(error: unknown): Promise<void> {
  */
 let compiled: { key: string; definition: CompileResult | null } | null = null;
 
+/**
+ * The file session and change the derived state was last committed at (WCS-07). The session
+ * snapshot moves before the derived state is rebuilt, so a refresh that failed after adopting a
+ * newer snapshot left the screen on the old revision while every later nudge for that change was
+ * taken as already seen. Following the file compares against this instead.
+ */
+let derived: { fileSessionId: string | null; changeSequence: number } | null = null;
+
+export function derivedAt(): { fileSessionId: string | null; changeSequence: number } | null {
+  return derived;
+}
+
 export interface RefreshOptions {
   /** A move between screens: reuse the definition compiled at this revision, if there is one. */
   navigation?: boolean;
@@ -244,6 +315,7 @@ export interface RefreshOptions {
 export async function refreshDerived(attempt = 0, options: RefreshOptions = {}): Promise<void> {
   if (!state.session.hasFile) {
     compiled = null;
+    derived = null;
     state.compilation = null;
     state.history = [];
     state.historyWindow = null;
@@ -304,6 +376,7 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   }
   state.compilation = definition;
   compiled = { key: compileKey, definition };
+  derived = { fileSessionId: generation, changeSequence: sequence ?? 0 };
   // The file's definition is known now, so the screen Use opens on is settled:
   // a file with a front page opens on it, and one without opens on a record type
   // exactly as it did. Already answered for this file, it stays as the person
@@ -358,17 +431,21 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
 }
 
 export async function openWorkspaceView(target: 'use' | 'data' | 'structure' | 'surfaces' | 'history'): Promise<void> {
-  if (state.actionInFlight) return;
+  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  if (deferWhileBusy(() => { void openWorkspaceView(target); })) return;
   // Another view is a redraw, and a redraw is the open form's unsaved typing gone.
   if (refuseWhileDirty('leaving this screen')) return;
   state.actionInFlight = true;
   setBusy(true);
+  const leaving = state.view;
+  let fileChanged = false;
   try {
     // MCP writes use the same live host but do not pass through this renderer's
     // mutation receipts. Navigation is an explicit refresh boundary, so cached
     // empty record windows or old definitions cannot hide accepted agent work.
     const refreshed = await client.request<DesktopSessionView>('session.getSnapshot');
     const changed = refreshed.fileSessionId !== state.session.fileSessionId;
+    fileChanged = changed;
     state.session = refreshed;
     if (changed) resetFileView();
     state.view = target;
@@ -376,7 +453,11 @@ export async function openWorkspaceView(target: 'use' | 'data' | 'structure' | '
     await refreshDerived(0, { navigation: true });
     rerender();
   } catch (error) {
-    showError(messageFor(error));
+    // The screen still shows where the person was, so the state says so too: it named the new
+    // screen under the old one's page and rail, and the next automatic redraw swapped (WCS-18).
+    // Another file is another screen anyway, and is drawn.
+    if (fileChanged) rerender(); else state.view = leaving;
+    showFailure(error);
   } finally {
     state.actionInFlight = false;
     setBusy(false);
@@ -514,11 +595,60 @@ export async function compensateRevision(revisionId: string): Promise<void> {
 }
 
 export async function retryPendingSave(): Promise<void> {
-  if (state.actionInFlight || client.retryPendingMutation === undefined) return;
+  if (client.retryPendingMutation === undefined) return;
+  await settlePendingSave(() => client.retryPendingMutation!(), null);
+}
+
+/**
+ * Drop a save the person stopped, without sending it (WCS-22). Offered only once the host has
+ * answered the stop and a receipt check found nothing; the receipt is checked again first, and a
+ * save that landed after all is confirmed rather than dropped.
+ */
+export async function discardPendingSave(): Promise<void> {
+  if (client.discardPendingMutation === undefined) return;
+  await settlePendingSave(() => client.discardPendingMutation!(), 'The stopped change was discarded. Nothing of it was saved.');
+}
+
+/**
+ * Send a save made under another file name into the file open now, after the person has said this
+ * file is that one renamed (WCS-03). The receipt is looked up first, as Check or retry does.
+ */
+export async function sendPendingSaveHere(): Promise<void> {
+  if (client.retryPendingMutation === undefined) return;
+  const pending = client.pendingMutation?.() ?? null;
+  const confirmed = await confirmDialog({
+    headingId: 'send-pending-heading',
+    title: 'Send the save into this file?',
+    bodyHtml: `<p>The unconfirmed save was made in ${escapeHtml(pending?.fileName ?? 'another file')}, and the file open now is
+      ${escapeHtml(state.session.fileName ?? 'this file')}. Send it here only if this is that file under a new name.</p>
+      <p>If this is a copy or a backup of it, discard the save here instead and open the original to check it.</p>`,
+    confirmLabel: 'Send it into this file',
+  });
+  if (!confirmed) return;
+  await settlePendingSave(() => client.retryPendingMutation!(true), null);
+}
+
+/** Drop a save made in another file from this device, after the person has confirmed it (WCS-03). */
+export async function discardPendingSaveHere(): Promise<void> {
+  if (client.discardPendingMutation === undefined) return;
+  const pending = client.pendingMutation?.() ?? null;
+  const confirmed = await confirmDialog({
+    headingId: 'discard-pending-heading',
+    title: 'Discard the unconfirmed save?',
+    bodyHtml: `<p>The save was made in ${escapeHtml(pending?.fileName ?? 'another file')} and never confirmed. Nendo looks for it in this
+      file first; if it is not here, this device forgets it, and ${escapeHtml(pending?.fileName ?? 'that file')} can no longer be checked for it from here.</p>`,
+    confirmLabel: 'Discard it',
+  });
+  if (!confirmed) return;
+  await settlePendingSave(() => client.discardPendingMutation!(), 'The unconfirmed save was discarded on this device. Nothing was sent.');
+}
+
+async function settlePendingSave(settle: () => Promise<DesktopOperationView | null>, whenNothing: string | null): Promise<void> {
+  if (state.actionInFlight) return;
   state.actionInFlight = true;
   setBusy(true);
   try {
-    const result = await client.retryPendingMutation();
+    const result = await settle();
     if (result !== null) {
       if (result.session !== null) state.session = result.session;
       if ('promotion' in result && !result.promotion.applied) {
@@ -541,10 +671,13 @@ export async function retryPendingSave(): Promise<void> {
       rerender();
       if (notice !== null) showOutcomeRefreshNotice(confirmed, notice);
       else showOutcome(confirmed);
-    } else rerender();
+    } else {
+      rerender();
+      if (whenNothing !== null) showOutcome(whenNothing);
+    }
   } catch (error) {
     rerender();
-    showError(messageFor(error));
+    showFailure(error);
   } finally {
     state.actionInFlight = false;
     setBusy(false);
@@ -566,9 +699,14 @@ export async function refreshStudioQuery(entityId: string): Promise<void> {
 
 /** Help on a topic, or with none named on the open file's own first page, where it has one (ADR-0027). */
 export async function openHelp(topicId = ''): Promise<void> {
+  // A press while a save or a read runs is made when it ends (WCS-16).
+  if (deferWhileBusy(() => { void openHelp(topicId); })) return;
   if (refuseWhileDirty('opening Help')) return;
   state.helpTopicId = topicId; state.view = 'help'; state.creatingRecord = false;
   rerender();
+  const opening = ++helpOpenings;
+  // What the first draw settled on, so a topic picked while the file was read is left alone.
+  const settled = state.helpTopicId;
   if (client.mode === 'desktop' && !state.actionInFlight) {
     state.actionInFlight = true;
     setBusy(true);
@@ -576,11 +714,18 @@ export async function openHelp(topicId = ''): Promise<void> {
     catch { /* Built-in guidance remains available if the file cannot refresh. */ }
     finally { state.actionInFlight = false; setBusy(false); }
   }
-  state.helpPages = await readHelpPages();
-  // The first render, before the pages arrived, settled on Start: with no topic named, choose again now they are here.
-  if (topicId === '' && state.view === 'help') state.helpTopicId = '';
+  const pages = await readHelpPages();
+  // Opened again since, or left: the answer belongs to a page that is not on screen, and a redraw
+  // would land on whatever is, a record form included (WCS-11).
+  if (opening !== helpOpenings || state.view !== 'help') { if (opening === helpOpenings) state.helpPages = pages; return; }
+  state.helpPages = pages;
+  // The first render, before the pages arrived, settled on Start: with no topic named, choose again
+  // now they are here -- unless the person has picked one meanwhile.
+  if (topicId === '' && state.helpTopicId === settled) state.helpTopicId = '';
   rerender();
 }
+
+let helpOpenings = 0;
 
 /** The open file's help pages; none without a file, or from a host that has no such read. */
 async function readHelpPages(): Promise<FileHelpPage[]> {

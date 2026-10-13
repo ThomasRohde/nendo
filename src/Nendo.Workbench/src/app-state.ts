@@ -151,6 +151,11 @@ export interface OutcomeNotice {
    * clears it, rather than released by the person's next key or press.
    */
   kept?: boolean;
+  /**
+   * The file's change sequence the sentence is about, for one that stops being true once the view
+   * is read again: results from an earlier query (WCS-24). Dropped by a redraw at another change.
+   */
+  changeSequence?: number;
 }
 
 export { emptySession };

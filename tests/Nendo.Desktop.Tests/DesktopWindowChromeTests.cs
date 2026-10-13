@@ -204,6 +204,35 @@ public sealed class DesktopWindowChromeTests
             "A new display scale leaves the minimum at the old screen's scale.");
     }
 
+    /// <summary>
+    /// R2SMA-09: the native recovery panel's outcome InfoBar sat inside a 96-pixel scroll area under
+    /// the reason and the session lines, so a backup's or an export's result opened below its fold.
+    /// No lane drives the native panel with an action, so the markup is what there is to hold.
+    /// </summary>
+    [TestMethod]
+    public void TheRecoveryPanelsOutcomeIsNotInsideAClippingScrollArea()
+    {
+        var page = System.Xml.Linq.XDocument.Parse(Source("MainPage.xaml"));
+        System.Xml.Linq.XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var activity = page.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "RecoveryActivity");
+        Assert.AreEqual("InfoBar", activity.Name.LocalName);
+        var clipping = activity.Ancestors().FirstOrDefault(element => element.Name.LocalName == "ScrollViewer");
+        Assert.IsNull(clipping, $"RecoveryActivity is inside a ScrollViewer (MaxHeight {(string?)clipping?.Attribute("MaxHeight") ?? "none"}).");
+    }
+
+    /// <summary>
+    /// R2SMA-14: a native dialog took the page's theme once, as it was made, so a dialog open across
+    /// a Windows theme switch under System kept the old one. No lane flips the theme under an open
+    /// dialog, so the helper's source is what there is to hold.
+    /// </summary>
+    [TestMethod]
+    public void ANativeDialogFollowsThePagesThemeWhileItIsOpen()
+    {
+        var helper = Between(Source("MainPage.FileActions.cs"), "private ContentDialog NativeDialog(", "return dialog;");
+        StringAssert.Contains(helper, "ActualThemeChanged += FollowTheme;", "An open dialog does not follow the page's theme.");
+        StringAssert.Contains(helper, "ActualThemeChanged -= FollowTheme;", "A closed dialog keeps listening to the page's theme.");
+    }
+
     private static string Source(string name) =>
         File.ReadAllText(Path.Combine(TestRepository.Root(), "src", "Nendo.Desktop", name));
 

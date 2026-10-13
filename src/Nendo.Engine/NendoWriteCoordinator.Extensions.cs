@@ -4,10 +4,14 @@ namespace Nendo.Engine;
 
 public sealed partial class NendoWriteCoordinator
 {
+    /// <summary>What this read-only session last verified its file against, so a page read is not a full scan (W-221 review).</summary>
+    internal SqliteNendoStore.InspectedContentStamp ReadOnlyContentStamp { get; } = new();
+
     /// <summary>
     /// One file of a custom-view package with its bytes, or null when the file carries no such
     /// package or path. Definition, so it is readable whenever the definition is; what a file
-    /// in recovery may run is for the host to say, not this read.
+    /// in recovery may run is for the host to say, not this read. A read-only session reads
+    /// it from the file it inspected, while that file still holds what was inspected (ECO-07).
     /// </summary>
     public async Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default)
     {
@@ -18,6 +22,9 @@ public sealed partial class NendoWriteCoordinator
         try
         {
             ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
+            if (_readOnlySnapshot is not null && _readOnlyContentDigest is { } inspected)
+                return await SqliteNendoStore.ReadInspectedContentAsync(_path, inspected, ReadOnlyContentStamp,
+                    (store, token) => store.ReadExtensionFileAsync(packageId, path, null, token), cancellationToken);
             return await GetStore().ReadExtensionFileAsync(packageId, path, null, cancellationToken);
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
@@ -72,6 +79,9 @@ public sealed partial class NendoWriteCoordinator
         try
         {
             ObjectDisposedException.ThrowIf(_disposed || _replacementRetired, this);
+            if (_readOnlySnapshot is not null && _readOnlyContentDigest is { } inspected)
+                return await SqliteNendoStore.ReadInspectedContentAsync(_path, inspected, ReadOnlyContentStamp,
+                    (store, token) => store.ReadExtensionStateAsync(packageId, viewId, key, null, token), cancellationToken);
             return await GetStore().ReadExtensionStateAsync(packageId, viewId, key, null, cancellationToken);
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }

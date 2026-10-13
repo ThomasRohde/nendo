@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-theme-preference="system">
+<html lang="en" data-theme-preference="system">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -9,6 +9,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="/nendo.png" type="image/png" />
+    <!-- Sets data-theme before the first paint, so a dark window never paints light first. -->
+    <script src="/theme-boot.js"></script>
     <title>Nendo Studio</title>
   </head>
   <body>
@@ -22,7 +24,7 @@
           </span>
           <details id="file-menu" class="file-menu">
             <summary aria-label="File"><span id="file-icon" aria-hidden="true"></span>File<span class="file-chevron" aria-hidden="true"></span></summary>
-            <div id="file-actions" class="file-menu-panel" aria-label="File actions"></div>
+            <div id="file-actions" class="file-menu-panel" role="group" aria-label="File actions"></div>
           </details>
         </div>
 
@@ -124,7 +126,7 @@
           </section>
         </div>
 
-        <footer id="session-status" class="status-bar" aria-label="Session status" hidden>
+        <footer id="session-status" class="status-bar" role="region" aria-label="Session status" hidden>
           <span class="status-file">
             <span id="status-file-icon" aria-hidden="true"></span>
             <span id="session-file"></span>

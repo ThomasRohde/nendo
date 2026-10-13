@@ -10600,3 +10600,167 @@ Left open:
   kinds; a single `ui.removeNode` that History does not offer still reads as undoable.
 - UIT-19 shows calculations only. A trigger or an automatic action that reads a field or a record
   type blocks its retirement too, and Structure does not yet say so.
+
+### Twenty-second pass: write coordinator, safe mode and older files (W-221)
+
+2026-10-13: the 21 findings planned as W-221 (2 P2, 19 P3) are settled: 17 fixed, one refuted as
+already fixed with a guard added, one recorded as a limitation as the owner chose, and two fixed
+with source guards because no lane drives the native panel. The owner's choices of 2026-10-13 are
+applied: R2SMA-02 is a roadmap limitation, and a file marked read-only is not restored or upgraded
+(R2SMA-10). The guards are a new Engine class, `WriteCoordinatorReviewTests`, one
+`RecoveryExportTests` case, one Local MCP class, Desktop cases in classes that open no window, and
+one Workbench check. Every guard failed with its defect put back; the quoted texts are from those
+runs, and each restore was compared byte for byte before the rebuild.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [R2SMA-04](#r2sma-04) | The recovery export writes a reference field as the target record ID under `field/<fieldId>`, so only unsupported or over-limit fields are left out and the export is no longer partial for a relationship. The export already started with the BOM. | `Assert.IsEmpty failed. Expected collection of size 0. Actual: 1. 'collection' expression: 'plan.OmittedFieldIds'. Left out: project` |
+| [R2SMA-08](#r2sma-08) | Refuted as already fixed by 667e816 (DSH-01): a launch assesses the file first, and one that reads but cannot be written goes to the question that offers **Inspect read-only**, with the inspection's own reason. A Desktop case now holds it for a file marked read-only. | `Assert.IsTrue failed. 'condition' expression: 'DesktopStartupOpen.NeedsAQuestion(assessment)'. A launch tried to open for editing a file that opens only read-only.` |
+| [ECO-01](#eco-01) | Read-only sessions and observations pin the file shared for delete (`ReadOnlyPinShare`), so a writer's restore or upgrade renames the original past them. The pin follows the retained original and every later read compares the digest. After the independent review the original's exclusive handle is taken before any recovery record exists: the session's own handles are closed for it and reopened on any failure before retirement, a reader is waited out for about a second, and one held longer is refused as `replacement-target-in-use` with nothing changed. A read-only restore also checks that the file at the name is the one it reviewed. | `Nendo.Engine.NendoReplacementInterruptedException: The replacement did not finish. Editing is closed. Inspect the recovery record and retained original before choosing a file to open.`; with the handle taken after retirement again: `Expected exception type:<Nendo.Engine.NendoPreconditionException>. Actual exception type:<Nendo.Engine.NendoReplacementInterruptedException>. 'action' expression: '() => service.RestoreAsync(plan.PlanId, false)'.`; without the wait: `NendoPreconditionException: Another program or Nendo window is reading this file, so it could not be replaced. Nothing was changed.` |
+| [ECO-02](#eco-02) | A fold raises its commit events as soon as it has committed, compacts with no caller token and reports a failed compaction as `spaceReclaimed: false` on the result rather than as a failed fold; the open-like inspection keeps its recovery rule. | `Microsoft.Data.Sqlite.SqliteException: database or disk is full` |
+| [ECO-03](#eco-03) | Everything after a proposal is registered, the refusal diagnosis and the last write included, runs under one handler that removes the proposal and its workspace; the touched records and diff are read before the workspace exists. | `A proposal cancelled at the diagnosis stayed registered.` and `A proposal cancelled at the persist stayed registered.` |
+| [ECO-04](#eco-04) | The Applying write sits inside the handler that puts a proposal back to Previewable on a cancel or an IO error. | `Assert.AreEqual failed. Expected:<Previewable>. Actual:<Applying>.` |
+| [ECO-05](#eco-05) | Reject and restore remove proposal workspaces best effort (`TryDelete`), clear the list regardless and leave the rest to the abandoned-workspace sweep. | Reject: `System.IO.IOException: The process cannot access the file 'proposal.nendo' because it is being used by another process.`; restore: `NendoReplacementInterruptedException: The replacement did not finish.` |
+| [ECO-06](#eco-06) | After a commit the requirement refresh runs with no caller token, and each `Committed` and `CommittedChanges` observer is called on its own, as `WriteAuthorityLost` already was. A swallowed observer failure is told to `ObserverFailed` by type only, which the Desktop keeps in the agent failure record under **Record failures**. | Token: `System.OperationCanceledException: The operation was canceled.`; observers: `System.InvalidOperationException: A faulty observer.`; the sink: `CollectionAssert.AreEqual failed. A swallowed observer failure was not told to the host by its type.. Different number of elements.` |
+| [ECO-07](#eco-07) | A read-only session reads package files and view state from one read-only snapshot of its file, only while the content digest equals the one it inspected; otherwise `read-only-file-changed` says to use Inspect file again. After the review the digest is scanned once and kept against the file's identity, size and last write, read under the snapshot's shared lock, and a file moved away or replaced by a non-database also reads as changed. | `Nendo.Engine.NendoPreconditionException: This file is open for inspection only. Editing and application changes are disabled.`; the cache off: `Assert.AreEqual failed. Expected:<1>. Actual:<4>. ... Each read scanned the whole file again.`; a non-database at the name: `Expected exception type:<Nendo.Engine.NendoPreconditionException>. Actual exception type:<Microsoft.Data.Sqlite.SqliteException>.` |
+| [ECO-08](#eco-08) | The review captures the versions of records a proposal deletes and of records its reference writes point at, so an edit to one after review makes the proposal Stale (NPROP003). | `Expected:<Stale>. Actual:<Failed>. ... The record changed. Review its current values before deleting.` and `... Reference points at t in Target, which changed after it was selected. Select it again before saving.` |
+| [ECO-09](#eco-09) | A read-only restore or upgrade gives back the instance and write leases it took when it fails before retiring the session. | `Nendo.Engine.NendoWriteOwnershipException: This application instance is already open for editing in another Nendo session. Open it read-only or create a Duplicate or Fork.` |
+| [ECO-10](#eco-10) | An open confirming an observation refuses with `file-changed-before-open` when a replacement record or the read-only mark has appeared since. | `The observed open trusted the observation over the pending-marker and opened the file (Normal).`; the same for `read-only-mark` |
+| [ECO-13](#eco-13) | The MCP description of `retainUntilExplicitCleanup` says the proposal is discarded when the file closes or Nendo exits and to ask for acceptance first; the enum and three code comments say the same. The wire value is unchanged. | `String 'retainUntilExplicitCleanup: the proposal stays until it is accepted or rejected.' does not contain string 'until the file closes'.` |
+| [R2SMA-02](#r2sma-02) | Limitation, as the owner chose: recorded in the roadmap with why. Opening the rest of such a file needs per-type omission in the typed reader. | Not applicable: no code changed. |
+| [R2SMA-06](#r2sma-06) | Inspect file again is offered and accepted only for a file that is not healthy: Health and the native panel through `offersReinspection` and `CanReinspect`, and the session refuses a healthy file with `inspection-not-required`. | Session: `Assert.ThrowsExactlyAsync failed. ... but no exception was thrown. 'action' expression: '() => session.ReinspectCurrentAsync()'.`; panel: `The native panel offers Inspect file again on a healthy file.`; Workbench: `a healthy file waiting for approval is offered a reinspection that reopens it read-only` |
+| [R2SMA-07](#r2sma-07) | The read-only sweep skips inputs and selects marked `data-reads`: Use's filter selects, the record-type pickers on Structure and Screens (`read-controls.ts`) and Show retired data. A `data-action` control cannot opt out (independent review). The Agent page is left as it was, since Launch off while editing is off is intended. | Selector: `structure-entity is disabled in a read-only session`; markup without the mark: the same text; `data-action` exempt again: `a data-action control marked data-reads stays live in a read-only session` |
+| [R2SMA-09](#r2sma-09) | The native panel's outcome InfoBar sits outside the 96-pixel scroll area. Guarded on the markup, since no lane drives the panel through an action. | `RecoveryActivity is inside a ScrollViewer (MaxHeight 96).` |
+| [R2SMA-10](#r2sma-10) | Restore and Upgrade refuse a file marked read-only with `replacement-target-read-only` ("Clear Read-only in the file's Properties in File Explorer, then use Inspect file again"), at preparation and again before the replacement; Health, the File menu and the native panel do not offer them on a `file-read-only` finding. A file moved away under a read-only session reads as `read-only-file-changed` there, not as a raw FileNotFoundException (review). | Engine: `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. 'action' expression: '() => reader.PrepareRestoreAsync(backup!, "restore")'` (and for `PrepareUpgradeAsync`); panel: `Restore is offered on a file marked read-only.`; Workbench: `a file marked read-only is offered a replacement` |
+| [R2SMA-11](#r2sma-11) | `unsupported-host-version` and `surface-version-mismatch` are worded as file formats and name the newest format this Nendo reads. No re-declare action: ADR-0012 refuses silent adoption. | `String 'This file requires a newer or unrecognised Nendo host version.' does not contain string 'file format 999.0.0'.`; surfaces: `String 'These surfaces need Nendo 1.11.0 or newer ...' does not contain string 'file format 1.11.0'.` |
+| [R2SMA-12](#r2sma-12) | A read-only session whose file moved on says "This file has changed since it was opened read-only. Use Inspect file again to read its current state, then try again." for backup, copy, new file and restore; the digest check stays. | `String 'The source changed after inspection or confirmation. Review a new backup before continuing.' does not contain string 'Inspect file again'.` |
+| [R2SMA-14](#r2sma-14) | A native dialog follows the page's theme while it is open (subscribed on Opened, released on Closed). Guarded on the helper's source, since no lane flips the Windows theme under an open dialog. | `StringAssert.Contains failed. String 'private ContentDialog NativeDialog(string title, object content) ...` (no `ActualThemeChanged += FollowTheme;`) |
+
+New refusal codes: `read-only-file-changed` (in `refusal-codes.test.mjs` as not settling the
+journal, and in `NendoToolErrors.DiagnosablePreconditions`), and `replacement-target-read-only`
+and `replacement-target-in-use` (the `replacement-` family, and the same Local MCP list).
+
+The independent review found nothing that had to be fixed and agreed with ECO-01's delete
+sharing; its five should-fixes are taken. A read-only restore trusted its pin's identity while the
+stage and digest read the name, so another file with the same content at the name passed and the
+rename interrupted the replacement: the name's identity is now checked before any record, refused
+as the file having changed (`AReadOnlyRestoreRefusesAnotherFileWithTheSameContentAtTheName`; with
+the check gone and the handle taken late again, `Actual exception type:<Nendo.Engine.NendoReplacementInterruptedException>`).
+Nendo's own short-lived reads could still interrupt a restore: the exclusive handle is taken before
+the recovery record, with a wait of about a second and a clean `replacement-target-in-use`
+otherwise — the invasive route, not only a retry (`AReaderAtTheExclusiveHandleIsWaitedOutOrRefusedWithNothingChanged`).
+`RestoreTests.TargetChangesDuringPinHandoffDoNotMoveOrOverwriteTheUnexpectedFile` moved its outside
+change to the one gap left, before the exclusive handle, and now expects a clean
+`replacement-target-changed` with no marker instead of an interrupted replacement. A moved or
+replaced file under a read-only session reads as `read-only-file-changed`
+(`AFileMovedOrReplacedUnderAReadOnlySessionSaysItChanged`; without the mapping, `Actual exception
+type:<System.IO.FileNotFoundException>` and `<Microsoft.Data.Sqlite.SqliteException>`). Package
+reads scan once (`AReadOnlySessionScansItsFileOnceForManyPageReads`). The sweep's `data-action` part
+no longer takes `data-reads`. The nits are taken as well: a busy or unreadable inspection after a
+fold's compaction no longer turns the committed fold into a failure, the two summaries on one
+method in `SqliteNendoStore.Inspection.cs` are back on their own methods, a reject no longer
+rewrites the proposal's files before removing them, and swallowed observer failures reach the
+failure record by type only.
+
+Documents updated: `docs/roadmap.md` (a W-221 section: R2SMA-02, R2SMA-11, the ECO-07 and ECO-01
+remainders, the fold's unread flag and the two source guards; the stale note that the recovery
+export lacked the BOM), `docs/contracts/csv.md` (what the recovery export holds),
+`docs/contracts/mcp-interface.md` (the two codes), ADR-0012 History (R2SMA-10 and ECO-07), and the
+guide `files-and-data.md` (references in the recovery export, no restore over a file marked
+read-only, when Inspect file again is offered).
+
+Left open:
+
+- The Workbench does not yet read the fold result's `spaceReclaimed`; History's sentence is the
+  same whether the file was compacted.
+- A read-only session without a content digest (a file that cannot yield a backup) still cannot
+  read its package files.
+- A reader that holds the file for more than about a second makes a restore refuse with
+  `replacement-target-in-use`; nothing waits for it longer.
+- R2SMA-09 and R2SMA-14 are held in source; no native lane was run.
+- R2SMA-12's stale cue on the read-only status pill was not added; the refusal names the action.
+
+### Twenty-third pass: Workbench state, navigation and its tests (W-224)
+
+2026-10-13: the 28 findings planned as W-224 (2 P2, 26 P3) are settled: 26 fixed and 2 refuted
+as already fixed by earlier passes. WCS-22 follows the owner's choice of 2026-10-13 (Discard
+after the receipt check finds nothing), recorded in `docs/contracts/operation-outcomes.md`. The
+guards are Workbench node tests (a new `navigation-state.test.mjs` drives `openWorkspaceView`,
+`openHelp`, the tab switch, the busy queue and following the file in one bundle with a recording
+host; `host-behavior.test.mjs` drives the real host adapter), eleven new checks in the headless
+shell lane (`tools/Review-WorkbenchShell.ps1`), `Test-BinaryAssets.ps1` and
+`verify:dependencies`. Every guard failed with its defect put back, and the quoted texts are from
+those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [WST-02](#wst-02) | The Workbench build writes `dist/THIRD-PARTY-NOTICES.txt` (a Vite plugin over `scripts/third-party-notices.mjs`): Nendo's licence, the licence file of every production package in the lockfile (ag-charts-types, ag-grid-community, ag-stack) and Lucide's ISC licence. The Desktop project already copies `dist` into the payload. `verify:dependencies` builds the same text and refuses one that leaves a licence out. Both installer lanes refuse a payload without `Workbench\THIRD-PARTY-NOTICES.txt`: `Test-NendoInstaller.ps1`, and `Test-NendoSetupIsolated.ps1`, the one that runs where Nendo is installed. | `the Workbench build emits no dist/THIRD-PARTY-NOTICES.txt`; the isolated lane's check, run against a sample payload without the file: `The payload carries no Workbench\THIRD-PARTY-NOTICES.txt, so the installer would ship AG Grid and Lucide without their licence notices.` |
+| [WST-03](#wst-03) | Refuted: fixed by the WCS-01 pass. `pending-mutations.ts` lists `value-not-unique` and `kept-in-new-files-unchanged`, and `refusal-codes.test.mjs` derives every `NendoPreconditionException` code from the Engine and Desktop source and requires each one to be classified. | Not falsified again here; the WCS-01 pass recorded its own. |
+| [WCS-02](#wcs-02) | A save the journal refuses before sending (too large, local storage that would not keep it, a previous save still unconfirmed) is a `WorkbenchHostError` coded `not-sent`, which settles as a confirmed refusal, so the record form keeps the typing. Each refusal says its own cause; the size refusal names the size and the limit. The limit is the host's 262,144-character message limit less 4,096 for the envelope, not half of it. | Limit put back to 131,072: `a 140,000-character Markdown save the host accepts was refused here`; plain error put back: `a save local storage would not keep lost the typing` |
+| [WCS-03](#wcs-03) | A kept save records the name of the file it was made in and when. Names are compared without regard to letter case. Check or retry looks the receipt up as before, but does not resend into a file of another name (a raw copy or a Backup, which share the identity) on its own. Such a file is never left locked: its notice offers **Send it into this file** (the same file renamed) and **Discard it here** (a copy), each confirmed, each looking the receipt up first. The notice names the file and the time. A copy with the same name in another folder is not told apart (see below). | `Check or retry sent the original file’s save into its copy`; after review: `a change of letter case was taken for another file`, `the person said this is the file renamed, and the save was not sent into it`, `Error: Only a save that was stopped, and found not to have landed, can be discarded.` (a copy left locked), and in the shell lane `WCS-03: a save made in another file offers no way out: {"send":null,"discard":null,"retry":true,…}` |
+| [WCS-06](#wcs-06) | A window key pressed while a Data cell is being edited ends the edit first (`stopGridEditing`, which saves it), then acts once the save has begun; the move waits for the save (WCS-16). | Shell lane: `WCS-06: after Ctrl 1 from an open cell, the cell reads "A quieter weekly review"; the typing was not saved.` |
+| [WCS-07](#wcs-07) | Following the file moved to `createFileFollow` (file-follow.ts). Behind is measured against what the screen was drawn from (`derivedAt`, set only when `refreshDerived` commits), not the session snapshot a failed pass had already adopted. A failed pass asks again by itself after one second, then two, four and so on up to thirty; a new nudge asks at once. It is said once per streak without taking the focus, and a pass that succeeds takes that notice down. Only a pass that read something redraws. | `derivedAt` answering the session again: `a nudge for the change the failed pass had adopted was ignored, and the screen stayed on the old revision`; re-arm removed: `nothing re-armed the follow after a failed pass`; after review: `a follow that keeps failing asked again after one second, not two` and `the page was rebuilt for a wake-up that had read nothing` |
+| [WCS-08](#wcs-08) | A refusal coded `stale-file-session` or `view-changed` carries a **Refresh view** button (`showFailure`), on writes, moves, follows and retries; its handler is busy and idle with the rest of the window. F5 and Ctrl R are Refresh view (`refreshView`): an open Data cell is ended and saved first, and with unsaved typing they refuse and keep it. A shipped build already keeps the browser's reload off those keys (DSH-15); until now they then did nothing. | `a sentence that says Refresh the view offers nothing to press`; shell lane: `WCS-08: F5 or Ctrl R was left to the browser, which reloads the window: {"marker":true,"keys":[false,false],"value":"Kept through F5"}.`; after review: `Refresh view left the window busy, with every control disabled` (each handler) and `WCS-08: after F5 from an open cell, the cell reads "A quieter weekly review"; the typing was not saved.` |
+| [WCS-10](#wcs-10) | `revisitCurrent` captures the place on screen before the tab's place is settled; if settling fails it settles the old place again before the redraw, so the selected tab, the trail and the screen agree, and the failure is said on that screen. | `the old tab is selected over the new tab’s screen` |
+| [WCS-11](#wcs-11) | `openHelp` resets the topic only if it is still the one the first draw settled on, and a late answer redraws only when Help is still the page and no newer `openHelp` has started. A topic click redraws through the window (so the place names the topic). | `the file’s first page replaced the topic the person picked`; `Help’s late answer redrew the page the person had moved to` |
+| [WCS-12](#wcs-12) | `matchShortcut` treats Shift on a single-character symbol as the layout's, as `chordOf` does, so Ctrl / works where '/' is Shift 7. | `null !== 'hints'` |
+| [WCS-14](#wcs-14) | `updateChrome` draws the pending save into the status pill (**Save unconfirmed** or **Acceptance unconfirmed**), so a chrome refresh without a render keeps it; before, the render wrote it into a pill the chrome had hidden. `Review-OutcomeRuntime.mjs` asserts the pill is shown, not only its text. | Shell lane: `WCS-14: the status pill for an unconfirmed save is {"text":"Save unconfirmed","hidden":true,"shown":false}; it should say so where it is seen.`; with the condition taken out of `updateChrome` after review: `…{"text":"Recovery required","hidden":true,"shown":false}…` |
+| [WCS-15](#wcs-15) | The palette drops record hits as soon as the text differs from the text they answer, so they are not listed and Enter cannot run one, until the search for the current text answers. | Shell lane: `WCS-15: 1 record hit(s) for "keep" stayed listed after the text changed.` |
+| [WCS-16](#wcs-16) | A move pressed while an action runs (rail and its places, Help, Agent, Back and Forward, a tab, F5) is held in `busy-queue.ts` and made when the action ends (`setBusy(false)`); a newer press replaces it, and a refusal said since the press keeps the person where it is said. A held tab move holds the tab, not its index. | `a press made while a save ran was dropped without a word`; after review: `Help drew under a running action`, and in the shell lane `WCS-16: a navigation place pressed during an action was dropped; the view is data.`, `WCS-16: Help moved while an action ran (help).`, `WCS-16: Agent moved while an action ran (agent).` |
+| [WCS-17](#wcs-17) | Ctrl+click and middle-click on a route make no tab while the page holds unsaved typing (the route refuses in its own words); while an action runs the new tab and the move both wait for it. | Shell lane: `WCS-17: a refused Ctrl+click left 2 tabs where there were 1.` |
+| [WCS-18](#wcs-18) | `openWorkspaceView` puts `state.view` back when its read fails (and redraws when the file itself changed); `openAgentView` does the same. | `the state names the screen the move failed to reach, under the old page` |
+| [WCS-20](#wcs-20) | `#revoke-agent` is exempt from the read-only sweep and from `setBusy`, and Revoke edit access runs outside the one-action lock with a guard of its own: it changes no record, and it is how a person ends the agent write their save waits behind. | Shell lane: `WCS-20: with a save unconfirmed, Revoke edit access is disabled.`; `WCS-20: while a save is in flight, Revoke edit access is disabled.`; after review, with the lock put back: `WCS-20: Revoke edit access pressed during a save sent nothing to the host: [].` |
+| [WCS-21](#wcs-21) | `health.verify` waits for the host however long the file makes it, as `history.fold` and `data.buildSearchIndex` already did (DSH-04); each offers Stop on the busy bar. | `WCS-21: an integrity check on a large file is reported unanswered while it runs` |
+| [WCS-22](#wcs-22) | A save the host answers as `cancelled` whose receipt lookup then finds nothing is marked discardable, and its notice offers **Discard this unsent change**. Discarding looks the receipt up again: found, the save is confirmed; not found, the kept request is removed unsent. A save that timed out is never offered. Contract updated. | `a stopped save with no receipt offers no way but resending it`; shell lane: `WCS-22: a stopped save offers no enabled Discard this unsent change: {…,"discard":null}.` |
+| [WCS-24](#wcs-24) | **Restart query** is the notice's own action (`showKeptAlert`), so a redraw puts it back, and the notice carries the change sequence it is about, so a redraw at a later change drops it. | Shell lane: `WCS-24: after a redraw the earlier-query notice offers null, not Restart query.`; `WCS-24: a redraw at a later change still says the results are from the earlier query: …` |
+| [WST-01](#wst-01) | `scrollPositions` restores `.help-index`, `.help-topics`, `.help-article` and `.preview-content`; the scroll listener is captured, so reading inside any scroller holds the redraws; the place names the Help topic. `scroll-restore.test.mjs` reads all 22 stylesheets, with each exemption named and stale ones refused. | `these scroll on their own account and a redraw would send the reader back to the top: help-article, help-index, help-topics, preview-content`; shell lane: `WST-01: scrolling a Help article is not seen as reading, so an automatic redraw goes ahead under it.` and `WST-01: a redraw moved the Help article from 300 px to 0 px.` |
+| [WST-04](#wst-04) | The test uses a bridge that answers nothing on its own, delivers three host events while a read and a journaled save are really waiting, then answers them. | Planted `receive()` that resolves the oldest pending request on an event: `a host event resolved a request that was still waiting for its answer` |
+| [WST-05](#wst-05) | The pill's timing moved to `agent-pill.ts` with an injected clock. When the wait ends the pill appears for an agent still working or for a burst (two or more calls in the wait), not for one call already over. The regex tests are replaced by fake-clock tests: a 5 ms read, a 27-call burst, a long call. | `a 5 ms read put the pill up after it had ended` |
+| [WST-07](#wst-07) | Refuted: fixed as UX-15 in the W-210 pass. `format.ts` labels the four tools, and `ux-review.test.mjs` reads every tool the local MCP host registers. | Not falsified again here. |
+| [WST-08](#wst-08) | Studio's search texts are file-scoped (`fileScopedClearable`). A test finds every module-level `Map` or `Set` in `src/` and `src/extension-api/` that starts empty and requires it to be emptied with the file or named with its reason. | `a module-level cache keeps the previous file’s state when another file opens` (`studio-search.ts:searchTexts`; and a cache planted in `extension-api/protocol.ts`) |
+| [WST-10](#wst-10) | `public/theme-boot.js`, a classic same-origin script in the head, sets `data-theme` from the stored choice or Windows before the first paint; `index.html` no longer hard-codes light. The Desktop host's device preference still has the last word. | `the head has no script that themes the page before the first paint`; `Windows in dark mode paints light first`; shell lane: `WST-10: in dark mode the page's first frame is themed {"theme":null,"ran":"true"}, before the module had run.` |
+| [WST-12](#wst-12) | `public/nendo-mark.png` is 320 × 260 (79 KB, was 1391 × 1131, 1.3 MB) and `public/nendo.png` 48 × 48 (4 KB, was 1254 × 1254, 965 KB); the masters stay in `docs/assets/brand`. The Desktop's `Assets\NendoMark.png` (a 48 px recovery mark) is the same file. `Test-BinaryAssets.ps1` refuses a Workbench PNG over 512 px a side. | `Workbench picture(s) larger than 512 pixels a side, which every window decodes to draw an icon; ship a right-sized copy and keep the master in docs/assets/brand: src/Nendo.Workbench/public/nendo-mark.png is 1391 by 1131 pixels` |
+| [WST-13](#wst-13) | `#file-actions` is `role="group"` and the status footer `role="region"`; the Studio navigation was already a `nav` and the brand label already gone. A test requires every `aria-label` in `index.html` to sit on an element that takes a name. | `these names are never announced: the element they are on takes no name` |
+| [WST-14](#wst-14) | The README says what each lane enforces: `verify:dependencies` (the dependency list, no Enterprise or React, the licence notices), `csp.test.mjs` (CDNs at runtime) and the host's settings (host objects, untested). | Documentation only; nothing to falsify. |
+
+Lanes run: `npm test` (692 pass), `npx tsc --noEmit`, `node scripts/verify-dependencies.mjs`,
+`tools/Review-WorkbenchShell.ps1` twice after the review fixes (79 checks each, both passing, no
+page reloads), `tools/Test-BinaryAssets.ps1` and `tools/Test-Repository.ps1`. A `vite build` into
+a scratch folder emitted `THIRD-PARTY-NOTICES.txt` and `theme-boot.js`; `dist/` itself was not
+rebuilt.
+
+Changed but not run: `tools/Review-OutcomeRuntime.mjs` (window-driving; `node --check` only),
+`tools/Test-NendoInstaller.ps1` (installs over the per-user location; parsed, and its manifest
+test checked against a sample manifest) and `tools/Test-NendoSetupIsolated.ps1` (parsed, and its
+new notices block run against three sample payloads: with the file, without it, and on disk but
+not in the manifest). The installer was not rebuilt. No site guide changed, so `Test-Site.ps1`
+was not run.
+
+An independent review of the pass found two defects and five gaps, all fixed in it. Revoke edit
+access stayed pressable during a save but returned on the one-action lock, so pressing it did
+nothing; it now runs outside the lock. F5 rebuilt the grid under an open cell, which WCS-06 had
+fixed for the window keys only; it now ends the edit first. Both Refresh view handlers set the
+lock without the busy state, so the redraw inside them left every control disabled under "Still
+working". `updateChrome` still hid the status pill the render had shown, so a chrome refresh hid
+**Save unconfirmed** again. A navigation place, Help and Agent still dropped a press made during
+an action. An exact file-name match stranded a save after a rename or a change of letter case, and
+the notices check ran only in an installer lane that cannot run where Nendo is installed. The
+review's smaller points are taken too: the follow backs off and redraws only what it read, a
+held tab move holds the tab, and the cache scan reads `src/extension-api/`. Each new or changed
+guard failed with its defect put back; the texts are in the rows above. The held tab move has no
+guard of its own.
+
+Left open:
+
+- WCS-03: a copy with the same name in another folder is still not told apart. That needs a
+  location key in the session snapshot from the Desktop host (a digest of the normalised full
+  path), which the journal would record instead of the name.
+- WCS-08: a shipped build turns the browser's own keys off (DSH-15), so F5 reaches the page, and
+  inside a custom view's frame it reaches the view rather than the Workbench, which does not
+  hand it back (`hostKeys` does not name it). There it does nothing, and Refresh view is one
+  press away. A Debug build keeps the browser's keys, which reload before the page sees them.
+- WCS-21: requests queued behind an agent's write still time out at 15 seconds. A journaled save
+  is resolved by its receipt and a read is redone by the next move, so nothing is lost, but the
+  sentence is still "did not respond".
+- WCS-22: the discard offer lives in the renderer's memory; after a renderer restart a stopped
+  save is resolved by Check or retry only.

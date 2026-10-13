@@ -233,7 +233,8 @@ try {
     await reload();
     if (mode === 'before') {
       assert(await evaluate(`!!document.querySelector('#pending-save-notice') && document.querySelector('#new-record').disabled`), 'Unresolved save did not survive reload or prevent a new key');
-      assert(await evaluate(`document.querySelector('#session-health').textContent.includes('Save unconfirmed')`), 'Header falsely announces an unconfirmed save as saved');
+      // Seen, not only written: the words once went into a pill the chrome had hidden (WCS-14).
+      assert(await evaluate(`(() => { const pill = document.querySelector('#session-health'); return pill.textContent.includes('Save unconfirmed') && !pill.hidden && pill.getClientRects().length > 0; })()`), 'The status bar does not show the unconfirmed save');
       for (const theme of ['light', 'dark']) {
         await click('[data-theme-option="' + theme + '"]');
         await screenshot('unconfirmed-save-' + theme + '.png');
@@ -312,7 +313,7 @@ try {
     }
     await reload();
     if (mode === 'before') {
-      assert(await evaluate(`!!document.querySelector('#pending-save-notice') && document.querySelector('#session-health').textContent.includes('Acceptance unconfirmed')`), 'Acceptance was lost on renderer reload');
+      assert(await evaluate(`!!document.querySelector('#pending-save-notice') && document.querySelector('#session-health').textContent.includes('Acceptance unconfirmed') && !document.querySelector('#session-health').hidden && document.querySelector('#session-health').getClientRects().length > 0`), 'Acceptance was lost on renderer reload, or its pill is not shown');
       for (const theme of ['light', 'dark']) {
         await click('[data-theme-option="' + theme + '"]');
         await screenshot('unconfirmed-acceptance-' + theme + '.png');

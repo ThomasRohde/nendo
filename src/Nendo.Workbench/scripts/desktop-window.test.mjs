@@ -36,6 +36,7 @@ test('DSH-02: every drag and drop the page did not take is stopped, after the fi
 test('DSH-04: a fold of history and a search-index build wait for the host however long the file makes them', () => {
   assert.equal(hostTimeoutMs('history.fold'), null, 'a fold on a large file is reported unanswered while it runs');
   assert.equal(hostTimeoutMs('data.buildSearchIndex'), null, 'an index build on a large file is reported unanswered while it runs');
+  assert.equal(hostTimeoutMs('health.verify'), null, 'WCS-21: an integrity check on a large file is reported unanswered while it runs');
   // A picker is the person's wait, as before.
   for (const method of ['session.openFile', 'session.createFile', 'file.backup', 'extension.import']) assert.equal(hostTimeoutMs(method), null, method);
   // Everything else is still told when the host has stopped answering.

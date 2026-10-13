@@ -139,7 +139,10 @@ file.
 Normal export reads through typed bounded services into an output that native
 selection chooses. It keeps the declared value profile. Nendo does not present a
 partial/cancelled output as a successful export. Recovery export stays a separate
-command with its existing narrower guarantee.
+command with its existing narrower guarantee: one table's scalar values, each
+reference as the target record ID under `field/<fieldId>` (W-221, R2SMA-04), and
+record IDs and versions, in a UTF-8 file that starts with the BOM. Only an
+unsupported or over-limit field is left out, and the export is then partial.
 
 Qualification must include:
 

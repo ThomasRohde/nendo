@@ -29,6 +29,14 @@ test('each shortcut in the table is one key, and the matcher answers every one i
   });
 });
 
+test('WCS-12: Ctrl / is Ctrl / on a keyboard where / needs Shift', () => {
+  // Danish, German and Nordic layouts type '/' with Shift 7, so the event is key '/' with Shift.
+  assert.equal(matchShortcut(key('/', { code: 'Digit7', ctrlKey: true, shiftKey: true })), 'hints');
+  assert.equal(matchShortcut(key('/', { code: 'Slash', ctrlKey: true })), 'hints', 'US: Ctrl /');
+  // A letter's Shift is still the person's.
+  assert.equal(matchShortcut(key('K', { code: 'KeyK', ctrlKey: true, shiftKey: true })), null);
+});
+
 test('a key with a modifier the table does not name is somebody else’s', () => {
   assert.equal(matchShortcut(key('k')), null, 'a bare letter types');
   assert.equal(matchShortcut(key('k', { ctrlKey: true, shiftKey: true })), null);

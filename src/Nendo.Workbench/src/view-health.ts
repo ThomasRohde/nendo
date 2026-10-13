@@ -8,6 +8,7 @@ import { type DesktopSessionView, WorkbenchHostError } from './host';
 import { type IconName, icon } from './icons';
 import { clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { offReasonSentence } from './view-frame-markup';
+import { offersReinspection, offersReplacement } from './recovery-actions';
 /**
  * File health and the consents this device has given: what the host can still
  * do with the open file, and the approval that automatic actions wait on.
@@ -80,9 +81,9 @@ export function renderHealth(): void {
       </button>
       ${fileActionButton('file.export', 'Export readable data…', local && capabilities.export && state.session.entities.length !== 0, 'Write the stored values to a readable file.', 'export')}
       ${fileActionButton('file.backup', 'Create backup…', local && capabilities.backup, 'Save a recovery copy of this file.', 'backup')}
-      ${fileActionButton('file.restore', 'Restore backup…', local && capabilities.backup, 'Replace from a backup and retain this version.', 'history')}
-      ${fileActionButton('file.inspect', 'Inspect file again', local && state.session.fileName !== null && !capabilities.mutate, 'Re-run the checks required for editing.', 'search')}
-      ${state.session.findings.some(finding => finding.code === 'upgrade-required') ? fileActionButton('file.upgrade', 'Upgrade file…', local && capabilities.backup, 'Move this file to the current format.', 'health') : ''}
+      ${fileActionButton('file.restore', 'Restore backup…', local && offersReplacement(state.session), 'Replace from a backup and retain this version.', 'history')}
+      ${fileActionButton('file.inspect', 'Inspect file again', local && offersReinspection(state.session), 'Re-run the checks required for editing.', 'search')}
+      ${state.session.findings.some(finding => finding.code === 'upgrade-required') ? fileActionButton('file.upgrade', 'Upgrade file…', local && offersReplacement(state.session), 'Move this file to the current format.', 'health') : ''}
       ${fileActionButton('file.diagnostics', 'Save diagnostics…', local, 'Write a report you can share for support.', 'info')}
       ${fileActionButton('file.resolveRecovery', 'Review recovery…', local, 'Resolve an interrupted replacement.', 'health')}
       ${fileActionButton('session.openFile', 'Open file or backup…', client.mode !== 'unavailable', 'Choose another Nendo file to inspect.', 'open')}

@@ -2,7 +2,7 @@ import { state } from './app-state';
 import { escapeAttribute, escapeHtml } from './format';
 import { type HelpSection, groupHelpTopics, helpQuery, helpSearchText, helpTopics } from './help';
 import { markdownMarkup } from './markdown';
-import { content, requiredElement } from './shell';
+import { content, requiredElement, rerender } from './shell';
 /**
  * Help: how the system works, the guides, and the reference this build ties to
  * its own MCP surface. It owns two scroll regions, so the index stays put while
@@ -54,7 +54,9 @@ export function renderHelp(): void {
   applyFilter();
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-help-topic]')) button.addEventListener('click', ()=>{
     const fromIndex = button.closest('.help-index') !== null;
-    state.helpTopicId = button.dataset.helpTopic!; renderHelp();
+    // Through the window's redraw, which names the topic as the page, so a redraw after the person
+    // has scrolled this article puts them back where they were rather than at its top (WST-01).
+    state.helpTopicId = button.dataset.helpTopic!; rerender();
     const article = content.querySelector<HTMLElement>('.help-article');
     if (article) article.scrollTop = 0;
     // The click destroyed the button, so hand focus on: to the new index entry, or to the article for a See-also link.

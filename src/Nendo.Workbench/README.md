@@ -37,9 +37,25 @@ npm run dev                   # local dev server on 127.0.0.1
 
 The package intentionally contains `ag-grid-community` only. React, AG Grid
 Enterprise, licence keys, CDNs and arbitrary host-object bridges are out of
-scope, and `verify:dependencies` fails the build if one appears. AG Grid
-calculates theme styles at runtime, so the page CSP allows inline styles while
-keeping scripts and network access restricted to the bundled origin.
+scope. What enforces which:
+
+- `verify:dependencies` requires the production dependencies to be exactly
+  `ag-grid-community`, refuses a lockfile that holds AG Grid Enterprise, React
+  or React DOM, and builds the notices the Workbench build writes to
+  `dist/THIRD-PARTY-NOTICES.txt` (from the same `scripts/third-party-notices.mjs`)
+  and requires them to carry the licence of every production package in the
+  lockfile, Lucide's and Nendo's own. It reads no built `dist/`; the installer
+  lanes check the notices in the payload. It does not look for licence keys,
+  CDN URLs or host-object bridges.
+- `scripts/csp.test.mjs` pins the page's content-security policy, so a script,
+  stylesheet or fetch from a CDN is refused at runtime. It does not scan the
+  source for URLs.
+- Host objects are switched off by the Desktop host's WebView2 settings; no
+  test here covers that.
+
+AG Grid calculates theme styles at runtime, so the page CSP allows inline
+styles while keeping scripts and network access restricted to the bundled
+origin.
 
 ## Browser preview
 

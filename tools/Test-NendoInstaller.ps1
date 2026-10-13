@@ -8,6 +8,11 @@ $manifest = Get-Content -LiteralPath (Join-Path $pilot 'manifest.json') -Raw | C
 if ((Get-FileHash -LiteralPath $installer.installer).Hash -ne $installer.sha256 -or
     (Get-FileHash -LiteralPath (Join-Path $pilot 'manifest.json')).Hash -ne $installer.manifestSha256) { throw 'Installer or manifest changed.' }
 if ($installer.buildId -notmatch '^[0-9a-f]{16}$') { throw 'Invalid build identity.' }
+# The Workbench bundle carries AG Grid Community (MIT) and Lucide's icon paths (ISC); both licences
+# require their notice in every copy, and the Workbench build writes it beside the bundle (WST-02).
+if (@($manifest.files | Where-Object { $_.path -replace '/', '\' -eq 'Workbench\THIRD-PARTY-NOTICES.txt' }).Count -ne 1) {
+    throw 'The payload carries no Workbench\THIRD-PARTY-NOTICES.txt, so the installer would ship AG Grid and Lucide without their licence notices.'
+}
 $installRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/Nendo'
 $registration = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Nendo'
 $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) 'Nendo.lnk'

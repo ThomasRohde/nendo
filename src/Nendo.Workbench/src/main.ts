@@ -2,7 +2,7 @@
 import './frame-guard';
 import { agentDigest, refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
 import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-chat';
-import { destroyGrid, renderData } from './view-data';
+import { destroyGrid, renderData, stopGridEditing } from './view-data';
 import { openHealth, renderHealth } from './view-health';
 import { renderHelp } from './view-help';
 import { renderHistory } from './view-history';
@@ -10,9 +10,11 @@ import { renderProposal } from './view-proposal';
 import { renderStructure } from './view-structure';
 import { renderSurfaces } from './view-surfaces';
 import { renderUse } from './view-use';
-import { openHelp, openWorkspaceView, refreshDerived, resetFileView, retryPendingSave } from './actions';
+import { derivedAt, discardPendingSave, discardPendingSaveHere, sendPendingSaveHere, openHelp, openWorkspaceView, refreshDerived, refreshView, resetFileView, retryPendingSave, showFailure } from './actions';
 import { createReadChase } from './read-chase';
-import { followTarget, stillBehind, type FollowTarget } from './file-follow';
+import { createFileFollow } from './file-follow';
+import type { OutcomeNotice } from './app-state';
+import { deferWhileBusy } from './busy-queue';
 import { openDroppedFile, refreshRecentFiles, renderFileMenu, renderNoFile, renderUnavailable } from './file-actions';
 import { describeDrag, judgeDrop, takesDefaultDrop } from './file-drop';
 import { activePlan, overviewPlan, selectedSurfaceNode, sessionEntity } from './plan-selection';
@@ -31,7 +33,7 @@ import { startTitleBar } from './title-bar';
 import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
 import { refreshExtensionSettings } from './extension-settings';
-import { capitalise, messageFor, undoAllowedWhileUnapproved } from './format';
+import { capitalise, formatDateTime, messageFor, undoAllowedWhileUnapproved } from './format';
 import {
   CellStyleModule,
   ClientSideRowModelModule,
@@ -106,6 +108,8 @@ function render(): void {
   // another is a new screen and starts at the top.
   markPlace([
     state.view,
+    // Another Help topic is another page, which starts at the top (WST-01).
+    state.view === 'help' ? state.helpTopicId : '',
     state.session.fileSessionId ?? '',
     state.selectedApplicationEntity ?? '',
     state.proposal?.proposalId ?? '',
@@ -183,16 +187,29 @@ function render(): void {
  * Opening a file, creating one, and approving or withdrawing this device's consent
  * are not edits to the open file — they are how a person gets out of the state that
  * switched editing off in the first place. Disabling the approval button exactly
- * when editing is unavailable leaves the only route forward greyed out.
+ * when editing is unavailable leaves the only route forward greyed out. Revoking an
+ * agent's edit access is no edit either: it is how a person ends the agent write their
+ * own save timed out behind, which the busy bar and the agent pill send them to (WCS-20).
+ * A control marked data-reads only reads or moves between pages — Use's filters, the record-type
+ * pickers on Structure and Screens, Show retired data — and was dead in every read-only or
+ * recovery session (R2SMA-07); read-only-sweep.test.mjs reads this selector.
  */
 const alwaysAvailable =
-  '[data-action]:not([data-file-action]):not(#create-file):not(#open-file):not(#approve-behaviour):not(#revoke-behaviour), input, select, textarea';
+  '[data-action]:not([data-file-action]):not(#create-file):not(#open-file):not(#approve-behaviour):not(#revoke-behaviour):not(#revoke-agent), input:not([data-reads]), select:not([data-reads]), textarea:not([data-reads])';
 
 /** The health pill's words, in their own element: a narrow window shows the dot and keeps them. */
 function setHealthWords(words: string): void {
   const text = sessionHealth.querySelector<HTMLElement>('.status-pill-text');
   if (text !== null) text.textContent = words;
   sessionHealth.title = words;
+}
+
+/** What the status pill says about a save this device has not had confirmed, or null for none. */
+function pendingSaveWords(): string | null {
+  let pending;
+  try { pending = client.pendingMutation?.(); } catch { return 'Save unconfirmed'; }
+  if (pending?.state !== 'pending') return null;
+  return pending.method === 'proposal.promote' ? 'Acceptance unconfirmed' : 'Save unconfirmed';
 }
 
 function renderPendingMutation(): boolean {
@@ -202,10 +219,8 @@ function renderPendingMutation(): boolean {
   catch (error) { failure = messageFor(error); }
   if (!pending && failure === null) return false;
   const accepting = pending?.method === 'proposal.promote';
-  if (state.session.health === 'normal' && (failure !== null || pending?.state === 'pending')) {
-    sessionHealth.dataset.state = 'warning';
-    setHealthWords(accepting ? 'Acceptance unconfirmed' : 'Save unconfirmed');
-  }
+  // The status pill says it too; updateChrome draws it (pendingSaveWords), so a chrome refresh
+  // without a render keeps it (WCS-14).
   const notice = document.createElement('aside');
   notice.className = 'context-note callout is-tinted';
   notice.innerHTML = `<span class="callout-icon">${icon('alert')}</span>`;
@@ -216,8 +231,43 @@ function renderPendingMutation(): boolean {
     ? 'The proposal was not applied. Its local retry record still needs cleanup.' : pending?.state === 'committed'
     ? 'Your change is saved. Its local retry record still needs cleanup.'
     : accepting ? 'A proposal acceptance has not been confirmed. Check or retry that acceptance before making another change.'
+    : pending?.madeElsewhere === true ? `A save made in another file has not been confirmed, and ${state.session.fileName ?? 'this file'} is open now. If this is that file renamed, send the save into it; if it is a copy or a backup, discard it here and open the original to check it.`
+    : pending?.discardable === true ? 'You stopped a save, and it did not reach the file. Discard it, or check or retry it, before making another change.'
     : 'A previous save has not been confirmed. Check or retry that saved request before making another change.');
+  // Which file and when, since a copy of the file finds the same request (WCS-03).
+  if (pending?.fileName !== undefined && pending.savedAt !== undefined)
+    message.textContent += ` It was made in ${pending.fileName} on ${formatDateTime(pending.savedAt)}.`;
   notice.append(message);
+  if (failure === null && pending?.madeElsewhere === true) {
+    // A copy, a backup or the same file renamed: only the person can say which, so each way out is
+    // theirs to choose and confirm, and neither leaves the file locked (WCS-03).
+    for (const [id, label, run] of [
+      ['send-pending-here', 'Send it into this file', sendPendingSaveHere],
+      ['discard-pending-save', 'Discard it here', discardPendingSaveHere],
+    ] as const) {
+      const button = document.createElement('button');
+      button.id = id;
+      button.type = 'button';
+      button.className = 'secondary-button';
+      button.textContent = label;
+      button.disabled = !state.session.capabilities.mutate;
+      button.addEventListener('click', () => void run());
+      notice.append(button);
+    }
+    content.prepend(notice);
+    return true;
+  }
+  if (failure === null && pending?.discardable === true) {
+    // Offered only for a save the host stopped and whose receipt was not found (WCS-22).
+    const discard = document.createElement('button');
+    discard.id = 'discard-pending-save';
+    discard.type = 'button';
+    discard.className = 'secondary-button';
+    discard.textContent = 'Discard this unsent change';
+    discard.disabled = !state.session.capabilities.mutate;
+    discard.addEventListener('click', () => void discardPendingSave());
+    notice.append(discard);
+  }
   if (failure === null) {
     const retry = document.createElement('button');
     retry.id = 'retry-pending-save';
@@ -343,9 +393,12 @@ function updateChrome(): void {
   // and nothing else on the frame said why.
   const approvalNeeded = state.session.health === 'normal' && !state.session.capabilities.mutate &&
     state.session.behaviourTrust?.requiresApproval === true && !state.session.behaviourTrust.isApproved;
-  sessionHealth.hidden = state.session.fileName === null || (state.session.health === 'normal' && !approvalNeeded);
+  // An unconfirmed save on a healthy file is said here too: written only by the render, it was
+  // hidden again by the next chrome refresh, and before that never shown at all (WCS-14).
+  const unconfirmed = state.session.health === 'normal' ? pendingSaveWords() : null;
+  sessionHealth.hidden = state.session.fileName === null || (state.session.health === 'normal' && !approvalNeeded && unconfirmed === null);
   sessionHealth.dataset.state = 'warning';
-  setHealthWords(approvalNeeded ? 'Approval needed' : state.session.health === 'readOnly' ? 'Read-only' : 'Recovery required');
+  setHealthWords(unconfirmed ?? (approvalNeeded ? 'Approval needed' : state.session.health === 'readOnly' ? 'Read-only' : 'Recovery required'));
 
   navigation.use.disabled = !validUse;
   navigation.agent.disabled = !state.session.capabilities.agentAccess;
@@ -491,6 +544,10 @@ document.addEventListener('keydown', event => {
 
 /** One of the window's shortcuts, pressed here or inside a custom view. */
 function runShortcut(id: ShortcutId): void {
+  // A key moves no focus, so a Data cell being edited stayed open and the move's redraw destroyed
+  // it unsaved (WCS-06). The edit is ended first, which saves it, and the key acts a moment later,
+  // once that save has begun: a move pressed during a save is made when the save ends.
+  if (id !== 'palette' && id !== 'hints' && id !== 'rail' && stopGridEditing()) { window.setTimeout(() => runShortcut(id), 0); return; }
   if (id === 'palette') { openPalette(); return; }
   if (id === 'hints') { shortcutsToggle.click(); return; }
   // The tabs belong to the window, not to a control on it (G).
@@ -547,6 +604,21 @@ document.addEventListener('keydown', event => {
       focused instanceof HTMLTextAreaElement) return;
   event.preventDefault();
   if (event.key === 'ArrowLeft') void goBack(); else void goForward();
+});
+// F5 and Ctrl R are a person asking for the view to be read again. A shipped build keeps the
+// browser's reload off them (DSH-15), so they reached the page and did nothing, while the
+// sentences asked for a refresh (WCS-08). Here they are Refresh view, which a page holding
+// unsaved typing refuses. A Debug build keeps the browser's keys, which reload first.
+document.addEventListener('keydown', event => {
+  if (event.defaultPrevented || event.altKey || event.metaKey) return;
+  const reload = (event.key === 'F5' && !event.ctrlKey) || (event.ctrlKey && (event.key === 'r' || event.key === 'R' || event.code === 'KeyR'));
+  if (!reload) return;
+  event.preventDefault();
+  if (event.repeat || document.querySelector('dialog[open]') !== null) return;
+  // An open Data cell is ended first, which saves it; the refresh then waits for that save, as a
+  // window key's move does (WCS-06). Without it the refresh's redraw destroyed the edit unsaved.
+  if (stopGridEditing()) { window.setTimeout(() => { void refreshView(); }, 0); return; }
+  void refreshView();
 });
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape' || event.defaultPrevented) return;
@@ -692,10 +764,17 @@ requiredElement<HTMLButtonElement>('#stop-request').addEventListener('click', ()
 navigation.agent.addEventListener('click', () => { openAgentView(); });
 
 function openAgentView(): void {
+  // A press while a save or a read runs is made when it ends (WCS-16).
+  if (deferWhileBusy(openAgentView)) return;
   if (refuseWhileDirty('opening the Agent page')) return;
+  const leaving = state.view;
   state.view = 'agent';
   state.creatingRecord = false;
-  void refreshAgentStatus().then(render).catch((error: unknown) => showError(messageFor(error)));
+  // A failed read leaves the page where it was, and the state with it (WCS-18).
+  void refreshAgentStatus().then(render).catch((error: unknown) => {
+    if (state.view === 'agent') state.view = leaving;
+    showError(messageFor(error));
+  });
 }
 
 /**
@@ -729,7 +808,8 @@ client.onNavigate?.((route) => {
  * session, which a write does not change, so they survive.
  */
 const fileChangedChase = createReadChase();
-let follow: FollowTarget | null = null;
+/** The notice a failed follow put up, so a pass that succeeds takes exactly that one down. */
+let followFailure: OutcomeNotice | null = null;
 
 /**
  * Catch the view up, and keep asking until it has.
@@ -741,23 +821,27 @@ let follow: FollowTarget | null = null;
  * redrew and nothing ever re-armed the read, which the authoring gate caught by writing
  * to an open board and watching it not follow.
  */
+// Behind is what the screen was drawn from, and a failed pass asks again (file-follow.ts, WCS-07).
+const fileFollow = createFileFollow({
+  chase: fileChangedChase,
+  drawnAt: derivedAt,
+  pass: async () => {
+    state.session = await client.request<DesktopSessionView>('session.getSnapshot');
+    await refreshDerived();
+  },
+  redraw: rerender,
+  // Said once per streak, where it can be seen, without taking the focus from somebody reading.
+  failed: (error, first) => { if (first) { showFailure(error, false); followFailure = state.lastOutcome; } },
+  recovered: () => { if (followFailure !== null && state.lastOutcome === followFailure) state.lastOutcome = null; followFailure = null; },
+  // The person's hold on the page, and their unsaved typing: a write from elsewhere
+  // used to redraw a record page out from under a draft the moment its field lost
+  // focus, and the draft went with nothing said (W-049). The chase asks again each
+  // interval, so the view catches up the moment the draft is saved or closed.
+  holding: holdingThePage,
+});
+
 function followTheFile(): void {
-  fileChangedChase.run(
-    async () => {
-      state.session = await client.request<DesktopSessionView>('session.getSnapshot');
-      await refreshDerived();
-    },
-    () => {
-      rerender();
-      if (stillBehind(follow, state.session.fileSessionId, state.session.manifest?.changeSequence ?? 0)) followTheFile();
-    },
-    (error) => showError(messageFor(error)),
-    // The person's hold on the page, and their unsaved typing: a write from elsewhere
-    // used to redraw a record page out from under a draft the moment its field lost
-    // focus, and the draft went with nothing said (W-049). The chase asks again each
-    // interval, so the view catches up the moment the draft is saved or closed.
-    holdingThePage,
-  );
+  fileFollow.follow();
 }
 
 /**
@@ -804,10 +888,8 @@ startTitleBar(client);
 
 client.onFileChanged?.((changeSequence) => {
   if (!state.session.hasFile) return;
-  // Our own writes already refreshed; only a sequence ahead of ours is news.
-  if ((state.session.manifest?.changeSequence ?? 0) >= changeSequence) return;
-  follow = followTarget(follow, state.session.fileSessionId, changeSequence);
-  followTheFile();
+  // Only a change ahead of what the screen was drawn from is news (file-follow.ts).
+  fileFollow.nudge(state.session.fileSessionId, changeSequence);
 });
 
 client.onExtensionSettingsChanged?.(() => {

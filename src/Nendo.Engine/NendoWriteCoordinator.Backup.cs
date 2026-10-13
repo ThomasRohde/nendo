@@ -190,8 +190,16 @@ public sealed partial class NendoWriteCoordinator
         return inspected;
     }
 
-    private static NendoPreconditionException SourceChanged() =>
-        new("backup-source-changed", "The source changed after inspection or confirmation. Review a new backup before continuing.");
+    // A read-only session compares every source with the content it inspected at open, so after a
+    // writer commits, preparing again fails the same way: only a fresh inspection moves it on, and
+    // the advice to review a new backup could never work there (R2SMA-12).
+    private NendoPreconditionException SourceChanged() => _readOnlySnapshot is not null
+        ? new("backup-source-changed", ReadOnlyFileChangedText)
+        : new("backup-source-changed", "The source changed after inspection or confirmation. Review a new backup before continuing.");
+
+    /// <summary>What a read-only session says when its file moved on after it was opened.</summary>
+    internal const string ReadOnlyFileChangedText =
+        "This file has changed since it was opened read-only. Use Inspect file again to read its current state, then try again.";
 
     private static void RequireUnoccupiedBackupDestination(string destination)
     {

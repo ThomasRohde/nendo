@@ -43,20 +43,44 @@ generation.
 Before the Desktop Workbench dispatches a data create, deletion, hierarchy move,
 field or keep-in-new-files edit, command, compensation or proposal acceptance, it keeps the exact method, key and payload
 in device-local storage. This storage is keyed by application and instance
-identity. There is at most one pending request per file, and the envelope limit
-is 131,072 characters. If the Workbench cannot keep the request, it does not
-dispatch it. This scratch can contain the submitted field values. The Workbench
-removes it on acknowledgement, and it is not part of the portable file.
+identity, and the request also records the name of the file it was made in and
+when. There is at most one pending request per file, and the kept request may
+hold 258,048 characters: the host's 262,144-character message limit less room
+for the envelope. If the Workbench cannot keep the request, or it is larger than
+that, it does not dispatch it; the refusal is coded `not-sent`, says its own
+cause, and leaves the person's typing on screen. This scratch can contain the
+submitted field values. The Workbench removes it on acknowledgement, and it is
+not part of the portable file.
 
 At renderer startup, the Workbench checks a retained identity against the
 canonical receipt. It does not replay a missing receipt automatically. An
-unresolved save shows **Save unconfirmed**, keeps its exact input and blocks new
+unresolved save shows **Save unconfirmed** in the status bar and a notice naming
+the file and the time it was made, keeps its exact input and blocks new
 mutation keys. **Check or retry save** first queries the outcome. Only on that
 explicit action can it then submit the original input/key to the current file
-session. A file switch prevents a late response from querying or mutating the
-new file. A cleanup failure cannot hide a receipt that was already returned, and
-it cannot erase a newer pending request. Native Studio, file controls and
-recovery stay available.
+session, and only when the open file has the name the request was made in,
+compared without regard to letter case as Windows compares file names. A raw
+copy or a Backup carries the same application and instance identity, so the
+retry does not send the original's change into a file of another name on its
+own. A renamed file has another name too, and only the person can tell a rename
+from a copy, so such a file is never left locked: its notice offers **Send it
+into this file** (for the same file renamed) and **Discard it here** (for a copy
+or a Backup), each confirmed first, and each looks the receipt up before it
+sends or drops anything. A file with the same name in another folder is not told
+apart; that needs a location key from the host. A file switch prevents a late response from querying
+or mutating the new file. A cleanup failure cannot hide a receipt that was
+already returned, and it cannot erase a newer pending request. Native Studio,
+file controls and recovery stay available.
+
+A save the person stopped is the one exception to "resolved only by Check or
+retry". When the host answers the save with `cancelled` -- it answers a stop only
+once the work has stopped -- and the receipt lookup that follows finds nothing,
+the notice also offers **Discard this unsent change**. Discarding looks the
+receipt up once more: a receipt found then acknowledges the save as committed,
+and none found removes the retained request without sending it. A save that
+timed out or lost its answer is never offered for discard, since the host may
+still be running it. The offer lives in the renderer's memory only, so after a
+renderer restart a stopped save is resolved by Check or retry like any other.
 
 `data.setFields` is a typed bridge convenience request for 1–64 fields on
 one record. The service sorts the semantic field IDs and expands the request

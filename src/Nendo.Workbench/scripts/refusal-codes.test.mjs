@@ -59,6 +59,8 @@ const notSettled = new Set([
   'open-assessment-unavailable', 'partial-export-confirmation', 'proposal-exists', 'proposal-file-missing', 'proposal-not-previewable',
   'proposal-waiting', 'reopen-to-verify', 'required-field-needs-migration', 'stale-cursor', 'state-too-large', 'state-version-conflict',
   'reference-label-in-use', 'title-unchanged', 'ui-node-not-found', 'ui-property-absent', 'unknown-method',
+  // A read-only session's reads of package files and view state (W-221); a read-only session journals no write.
+  'read-only-file-changed',
 ]);
 
 test('every refusal the Engine or the host raises is classified for the save journal', () => {

@@ -558,20 +558,34 @@ async function copyAgentCommand(agentId: string): Promise<void> {
   announce(ok ? `Copied. Run it in a terminal, then open this page again: ${lines}` : `Copy failed. Run this in a terminal, then open this page again: ${lines}`);
 }
 
+/** A revoke on its way to the host; it runs outside the one-action lock, so it guards itself. */
+let revoking = false;
+
+/**
+ * Ends the editing agent's access. Outside the window's one-action lock: it is how a person ends
+ * the agent write their own save is queued behind, and the button the busy bar and the agent pill
+ * send them to stayed pressable during that save but did nothing (WCS-20). It changes no record,
+ * so it cannot race the save it unblocks.
+ */
 export async function revokeAgentEditing(): Promise<void> {
-  if (state.actionInFlight) return;
-  state.actionInFlight = true;
-  setBusy(true);
-  clearError();
+  if (revoking) return;
+  revoking = true;
+  const button = content.querySelector<HTMLButtonElement>('#revoke-agent');
+  if (button !== null) button.disabled = true;
+  const duringAction = state.actionInFlight;
+  if (!duringAction) clearError();
   try {
     state.agentStatus = await client.request<AgentStatus>('agent.revokeEditing');
-    rerender();
-    showOutcome('Edit access revoked. No agent can edit until one asks again.');
+    // The action still running redraws when it ends; a redraw now would replace the page under it.
+    if (!state.actionInFlight && state.view === 'agent') rerender();
+    if (state.view === 'agent') showOutcome('Edit access revoked. No agent can edit until one asks again.');
+    else announce('Edit access revoked. No agent can edit until one asks again.');
   } catch (error) {
     showError(messageFor(error));
   } finally {
-    state.actionInFlight = false;
-    setBusy(false);
+    revoking = false;
+    const current = content.querySelector<HTMLButtonElement>('#revoke-agent');
+    if (current !== null && current === button) current.disabled = state.agentStatus?.editingOwner == null;
   }
 }
 

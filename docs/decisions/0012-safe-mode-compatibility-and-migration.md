@@ -268,3 +268,8 @@ Complete rejection is rejected when bounded read-only access can be proven safe.
   ([ADR-0013](0013-custom-views-with-code-in-the-file.md)).
 - 2026-10-13 — a write a crash left unfinished is rolled back by SQLite when the person
   opens the file outside a synced folder, keeping the file as it was (the amendment above).
+- 2026-10-13 — owner: a file marked read-only in File Explorer is not replaced by Restore
+  or Upgrade; Nendo refuses with `replacement-target-read-only` and asks the person to
+  clear the mark first, keeping the table's normal read-only row to inspection, history,
+  export and backup (R2SMA-10, W-221). A read-only session reads its package files from
+  the file while the file still holds what it inspected (ECO-07).

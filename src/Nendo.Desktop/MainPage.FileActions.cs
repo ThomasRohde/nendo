@@ -81,9 +81,9 @@ public sealed partial class MainPage
             if (_unloaded) return;
             RecoverySession.Text = DesktopRecoveryPresentation.Describe(view);
             RecoveryBackup.IsEnabled = view.Capabilities.Backup;
-            RecoveryRestore.IsEnabled = view.Capabilities.Backup;
-            RecoveryUpgrade.IsEnabled = view.Capabilities.Backup && view.Findings.Any(finding => finding.Code == "upgrade-required");
-            RecoveryInspect.IsEnabled = view.FileName is not null && !view.Capabilities.Mutate;
+            RecoveryRestore.IsEnabled = DesktopRecoveryPresentation.CanReplace(view);
+            RecoveryUpgrade.IsEnabled = DesktopRecoveryPresentation.CanReplace(view) && view.Findings.Any(finding => finding.Code == "upgrade-required");
+            RecoveryInspect.IsEnabled = DesktopRecoveryPresentation.CanReinspect(view);
             RecoveryClose.IsEnabled = view.FileName is not null;
             RecoveryExport.IsEnabled = view.Capabilities.Export && view.Entities.Count != 0;
         }
@@ -469,6 +469,11 @@ public sealed partial class MainPage
             DefaultButton = ContentDialogButton.Close,
         };
         AutomationProperties.SetAutomationId(dialog, "file.confirmation");
+        // The dialog lives in a popup and takes the page's theme as it opens. It follows the page
+        // while open, so a Windows theme switch under System does not leave it in the old one (R2SMA-14).
+        void FollowTheme(FrameworkElement page, object _) => dialog.RequestedTheme = page.ActualTheme;
+        dialog.Opened += (_, _) => { dialog.RequestedTheme = ActualTheme; ActualThemeChanged += FollowTheme; };
+        dialog.Closed += (_, _) => ActualThemeChanged -= FollowTheme;
         if (DesktopRuntimeConfiguration.NativeCaptureRoot is not null)
             dialog.Opened += (_, _) => { _ = CaptureNativeDialogForTestAsync(dialog); };
         return dialog;

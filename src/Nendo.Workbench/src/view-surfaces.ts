@@ -1,6 +1,6 @@
 import { prepareApplication } from './actions';
 import { state } from './app-state';
-import { counted, escapeAttribute, escapeHtml, messageFor } from './format';
+import { counted, escapeHtml, messageFor } from './format';
 import { type ApplicationPlan, type CompileResult } from './host';
 import { activePlan, applicationPlans, currentRecipe } from './plan-selection';
 import { content, rerender, showError } from './shell';
@@ -10,6 +10,7 @@ export { cardKindFor, relationDescription, surfaceCard, treeSurfaceCard };
 import { customViewsPanel, wireCustomViewsPanel } from './view-packages';
 import { fileViews } from './file-view-model';
 import { viewTitle } from './view-frame-markup';
+import { recordTypePicker } from './read-controls';
 /**
  * The Studio catalogue of compiled surfaces: what the current definition builds,
  * what each root is bound to, and what the compiler refused.
@@ -22,7 +23,7 @@ export function renderSurfaces(): void {
   content.innerHTML = `<div class="studio-page">
     ${!valid && recipe !== null ? `<header class="page-heading"><button id="prepare-application" class="primary-button" data-action type="button">${escapeHtml(recipe.actionLabel)}</button></header>` : ''}
     <div class="message-slot" role="alert" hidden></div>
-    ${valid ? `<div class="page-toolbar"><label class="select-field">Record type<select id="surface-entity">${applicationPlans().map(app => `<option value="${escapeAttribute(app.entity.semanticId)}" ${app.entity.semanticId === plan.entity.semanticId ? 'selected' : ''}>${escapeHtml(app.entity.displayName)}</option>`).join('')}</select></label><span class="toolbar-spacer"></span><span class="record-total">${counted(surfaceCount(plan), 'screen')}</span></div><div class="surface-list">
+    ${valid ? `<div class="page-toolbar">${recordTypePicker('surface-entity', applicationPlans().map(app => ({ value: app.entity.semanticId, label: app.entity.displayName, selected: app.entity.semanticId === plan.entity.semanticId })))}<span class="toolbar-spacer"></span><span class="record-total">${counted(surfaceCount(plan), 'screen')}</span></div><div class="surface-list">
       ${plan.surfaces.map((root) => treeSurfaceCard(plan, root, cardContext())).join('')}
     </div>`
       : fileViews().length > 0 ? '' : diagnosticsMarkup(state.compilation)}

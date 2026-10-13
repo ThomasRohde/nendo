@@ -50,10 +50,14 @@ public sealed partial class NendoWriteCoordinator
             var committed = await ReadProposalReceiptCoreAsync(GetStore(), proposalId, cancellationToken);
             if (committed is not null) return await FinishCommittedProposalAsync(proposalId, committed);
             var context = GetProposal(proposalId);
+            // Nothing reads a rejected proposal's files back, so they are not written again first: a
+            // failed write there left a Rejected proposal listed (W-221 review).
             context.State = NendoProposalState.Rejected;
-            await ProposalWorkspace.PersistAsync(context, cancellationToken);
-            ProposalWorkspace.Delete(context);
+            // Removing the workspace is cleanup. A scanner or indexer holding one of its files made
+            // the reject fail and left the proposal listed (ECO-05); what it leaves is swept with the
+            // other abandoned workspaces when the file closes.
             _proposals.Remove(proposalId);
+            if (!ProposalWorkspace.TryDelete(context)) _proposalCleanupPending = true;
             return new NendoPromotionOutcome(
                 proposalId,
                 NendoProposalState.Rejected,
@@ -66,6 +70,9 @@ public sealed partial class NendoWriteCoordinator
             _gate.Release();
         }
     }
+
+    /// <summary>Test seam: just before a proposal is written as Applying.</summary>
+    internal Action? BeforeApplyingPersist { get; set; }
 
     internal async Task<NendoPromotionOutcome> PromoteProposalAsync(
         string proposalId,
@@ -161,9 +168,9 @@ public sealed partial class NendoWriteCoordinator
             }
 
             // The reviewed plan is loaded from the workspace rather than trusted from
-            // memory, so a proposal reviewed in one session promotes the same way in
-            // the next one, and a workspace somebody edited refuses instead of
-            // promoting something nobody approved.
+            // memory, so a workspace somebody edited refuses instead of promoting
+            // something nobody approved. A proposal does not outlive its file session:
+            // every workspace is removed when the file opens and when it closes (ECO-13).
             var reviewedPlan = await ProposalWorkspace.ReadPlanAsync(context.WorkspacePath, cancellationToken);
             if (reviewedPlan.Digest() != context.BehaviourPlan.Digest())
             {
@@ -195,11 +202,15 @@ public sealed partial class NendoWriteCoordinator
                 return await NotApprovedAsync();
             }
 
-            context.State = NendoProposalState.Applying;
-            await ProposalWorkspace.PersistAsync(context, cancellationToken);
             NendoChangeSetApplyResult committedResult;
             try
             {
+                // Inside the handler that puts the proposal back: a cancel or an IO error writing
+                // proposal.json here left it Applying with nothing committed, and every later accept
+                // was refused as not previewable (ECO-04).
+                context.State = NendoProposalState.Applying;
+                BeforeApplyingPersist?.Invoke();
+                await ProposalWorkspace.PersistAsync(context, cancellationToken);
                 // Exactly what was reviewed, with expansion off. Running the triggers
                 // again here would stack fresh effects on top of the reviewed ones. The
                 // reviewed plan travels with it so the commit boundary can re-check
@@ -221,6 +232,7 @@ public sealed partial class NendoWriteCoordinator
                         "The promoted result did not match the coordinator authority snapshot.");
                 }
                 _authority = trusted;
+                AfterStoreCommit?.Invoke();
                 committedResult = result;
             }
             catch (NendoRecoveryRequiredException)
@@ -279,7 +291,7 @@ public sealed partial class NendoWriteCoordinator
             // refuse every edit while the shell reported nothing to approve, and the
             // only way out would be closing and reopening the file.
             if (context.ChangeSet.Mutations.Any(mutation => mutation.Operations[0].Lane == NendoRevisionLane.Definition))
-                await RefreshBehaviourRequirementAsync(cancellationToken);
+                await RefreshBehaviourRequirementAsync(CancellationToken.None);
             if (!committedResult.Revisions.All(revision => revision.IsIdempotentReplay))
                 RaiseCommitted(committedResult.ChangeSequence, committedResult.Revisions, context.ChangeSet.Mutations);
             return await FinishCommittedProposalAsync(proposalId, committedResult);
@@ -355,11 +367,13 @@ public sealed partial class NendoWriteCoordinator
                         "The compensation result did not match the coordinator authority snapshot.");
                 }
                 _authority = trusted;
+                AfterStoreCommit?.Invoke();
                 // Reversing a definition changes what this file's actions do, so the
                 // consent given for the old ones no longer describes it. What the file
-                // requires is read again rather than carried over.
+                // requires is read again rather than carried over, whatever the caller's
+                // token says now that the compensation stands (ECO-06).
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
-                    await RefreshBehaviourRequirementAsync(cancellationToken);
+                    await RefreshBehaviourRequirementAsync(CancellationToken.None);
                 if (!result.IsIdempotentReplay) RaiseCommitted(result.ChangeSequence, [result], [mutation]);
                 return (result, mutation);
             }

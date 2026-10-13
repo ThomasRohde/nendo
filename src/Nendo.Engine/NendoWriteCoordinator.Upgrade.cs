@@ -53,13 +53,10 @@ public sealed partial class NendoWriteCoordinator
             var current = await InspectUpgradeSourceAsync(cancellationToken);
             if (current.ContentDigest != context.Replacement.CurrentDigest)
                 throw new NendoPreconditionException("upgrade-source-changed", "The older file changed after confirmation. Inspect it again.");
-            if (_instanceOwnership is null)
-            {
-                _instanceOwnership = InstanceOwnershipLease.Acquire(context.Plan.Current.InstanceId);
-                try { _ownership = WriteOwnershipLease.Acquire(_path, $"upgrade-{Environment.ProcessId}"); }
-                catch { _instanceOwnership.Dispose(); _instanceOwnership = null; throw; }
-            }
-            var result = await ExecuteReplacementCoreAsync(context.Replacement, upgrade: true, cancellationToken);
+            var acquired = AcquireReplacementLeases(context.Plan.Current.InstanceId, "upgrade");
+            NendoRestoreResult result;
+            try { result = await ExecuteReplacementCoreAsync(context.Replacement, upgrade: true, cancellationToken); }
+            finally { ReleaseUnusedReplacementLeases(acquired); }
             return new(result.PlanId, context.Plan.UpgradeId, result.FileName, result.RetainedFileName, result.ReceiptFileName, result.Manifest)
             {
                 OpenObservation = result.OpenObservation,
@@ -72,6 +69,7 @@ public sealed partial class NendoWriteCoordinator
     {
         if (_readOnlySnapshot is null || _pathPin is null || _proposals.Count != 0)
             throw new NendoPreconditionException("upgrade-unavailable", "Open a recognised older file for recovery inspection before upgrading it.");
+        RequireReplaceableTarget();
         var inspected = await SqliteNendoStore.InspectAsync(_path, cancellationToken);
         if (!SqliteNendoStore.CanUpgradeLegacy(inspected))
             throw new NendoPreconditionException("upgrade-source-unsupported", "This file does not match a registered production upgrade path. No migration or repair was attempted.");

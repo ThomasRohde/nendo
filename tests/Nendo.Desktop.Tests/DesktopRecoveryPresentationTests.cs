@@ -64,5 +64,57 @@ public sealed class DesktopRecoveryPresentationTests
         Assert.AreEqual(original.Manifest, repeated.Manifest);
         Assert.IsFalse(repeated.Capabilities.AgentAccess);
         Assert.Contains("Open read-only", DesktopRecoveryPresentation.Describe(repeated));
+        Assert.IsTrue(DesktopRecoveryPresentation.CanReinspect(repeated), "A read-only file did not offer Inspect file again.");
+    }
+
+    /// <summary>
+    /// R2SMA-06: Inspect file again was offered and accepted whenever editing was off, so a healthy
+    /// file that only waited for its automatic actions to be approved was closed, lost its agent
+    /// access and came back read-only, where the approval could no longer be given.
+    /// </summary>
+    [TestMethod]
+    public async Task AHealthyFileWaitingForApprovalIsNotReinspected()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopBehaviourGrantTests.SeedWithTriggerAsync(workspace.FilePath);
+        await using var session = new DesktopSessionController(null, workspace.FileHistoryRoot, deviceStateRoot: workspace.FileHistoryRoot);
+        var opened = await session.OpenAsync(workspace.FilePath);
+        var view = await session.GetViewAsync();
+        Assert.IsTrue(view.BehaviourTrust!.RequiresApproval);
+        Assert.IsFalse(view.Capabilities.Mutate, "The fixture does not wait for approval.");
+        Assert.AreEqual("normal", view.Health);
+
+        Assert.IsFalse(DesktopRecoveryPresentation.CanReinspect(view), "The native panel offers Inspect file again on a healthy file.");
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.ReinspectCurrentAsync());
+        Assert.AreEqual("inspection-not-required", refused.Code);
+        var after = await session.GetViewAsync();
+        Assert.AreEqual(opened.FileSessionId, after.FileSessionId, "The file was closed and reopened.");
+        Assert.AreEqual("normal", after.Health);
+    }
+
+    /// <summary>
+    /// R2SMA-10: the native panel offered Restore and Upgrade on a file marked read-only in File
+    /// Explorer. Such a file is inspected, exported and backed up, never replaced.
+    /// </summary>
+    [TestMethod]
+    public async Task AFileMarkedReadOnlyOffersNoRestoreOrUpgrade()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using (var seed = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot))
+            await seed.CreateAsync(workspace.FilePath);
+        File.SetAttributes(workspace.FilePath, File.GetAttributes(workspace.FilePath) | FileAttributes.ReadOnly);
+        try
+        {
+            await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
+            var view = await session.OpenReadOnlyAsync(workspace.FilePath);
+            Assert.IsTrue(view.Capabilities.Backup, "A file marked read-only lost its backup.");
+            Assert.IsTrue(view.Findings.Any(finding => finding.Code == "file-read-only"));
+            Assert.IsFalse(DesktopRecoveryPresentation.CanReplace(view), "Restore is offered on a file marked read-only.");
+            Assert.IsTrue(DesktopRecoveryPresentation.CanReinspect(view));
+        }
+        finally
+        {
+            File.SetAttributes(workspace.FilePath, File.GetAttributes(workspace.FilePath) & ~FileAttributes.ReadOnly);
+        }
     }
 }

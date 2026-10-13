@@ -1,5 +1,5 @@
 import { buildSearchIndex } from './actions';
-import { state } from './app-state';
+import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { openRecordFromView } from './extension-ui';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
@@ -14,7 +14,9 @@ import { showError } from './shell';
  * list is redrawn in place, so typing never loses the caret to a page redraw.
  */
 
-const searchTexts = new Map<string, string>();
+// What was searched for, by record type, in the open file. Entity IDs repeat across files of one
+// application lineage, so another file's Tasks opened with this file's search typed and run (WST-08).
+const searchTexts = fileScopedClearable(new Map<string, string>());
 const pauseMs = 200;
 const limit = 20;
 

@@ -98,7 +98,7 @@ export function quickFilterMenuMarkup(
       const options = field.options
         .filter(id => optionValue(id) === chosen || !field.choices?.some(choice => choice.id === id && choice.retired))
         .map(id => option(optionValue(id), choiceDisplay(field, id))).join('');
-      return `<label>${escapeHtml(field.displayName)}<select data-quick-filter="${name}">${option('', 'Any')}${options}${notSet}</select></label>`;
+      return `<label>${escapeHtml(field.displayName)}<select data-quick-filter="${name}" data-reads>${option('', 'Any')}${options}${notSet}</select></label>`;
     }
     const read = targets(field);
     const body = read?.state === 'ready'
@@ -106,7 +106,7 @@ export function quickFilterMenuMarkup(
       : read?.state === 'overflowing'
         ? `<option disabled>More than ${read.ceiling} to list</option>`
         : read?.state === 'failed' ? '<option disabled>Could not be read</option>' : '<option disabled>Reading…</option>';
-    return `<label>${escapeHtml(field.displayName)}<select data-quick-filter="${name}"${read?.state === 'ready' ? '' : ' disabled'}>${option('', 'Any')}${body}</select></label>`;
+    return `<label>${escapeHtml(field.displayName)}<select data-quick-filter="${name}" data-reads${read?.state === 'ready' ? '' : ' disabled'}>${option('', 'Any')}${body}</select></label>`;
   }).join('');
   return `<details class="quick-filter" data-testid="quick-filter"${open ? ' open' : ''}><summary class="secondary-button"><span class="button-glyph" aria-hidden="true">${filterIcon}</span>Filter${current === undefined ? '' : ' (1)'}</summary>`
     + `<div class="quick-filter-panel" role="group" aria-label="Show only records with">${selects}</div></details>`;

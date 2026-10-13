@@ -46,9 +46,10 @@
                     FontSize="13"
                     Text="No Nendo file is open."
                     TextWrapping="Wrap" />
-                <InfoBar x:Name="RecoveryActivity" IsOpen="False" IsClosable="True" />
                 </StackPanel>
                 </ScrollViewer>
+                <!-- Outside the 96-pixel scroll area above: inside it, an action's outcome opened below its fold (R2SMA-09). -->
+                <InfoBar x:Name="RecoveryActivity" IsOpen="False" IsClosable="True" />
                 <ContentControl x:Name="RecoveryActions" HorizontalContentAlignment="Stretch" IsTabStop="False">
                 <Grid ColumnSpacing="12" RowSpacing="12">
                     <Grid.ColumnDefinitions>

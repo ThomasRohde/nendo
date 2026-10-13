@@ -11,6 +11,7 @@ import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookSentence
 import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { decideDraftState } from './draft-state';
 import { newFileMenuLabel } from './new-file';
+import { offersReplacement } from './recovery-actions';
 
 /**
  * The file actions that put another file, or another state of this one, in place of the
@@ -217,7 +218,7 @@ export function renderFileMenu(): void {
     ${item('file.exportCsv', 'Export CSV…', 'Faithful UTF-8 values from one record type', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${item('customViews', 'Custom views…', 'The packages in this file, and whether views run here', 'surfaces', state.session.hasFile && client.mode !== 'unavailable')}
     <div class="file-menu-divider"></div><p class="file-menu-label">Recovery</p>
-    ${item('file.restore', 'Restore backup…', 'Replace from a backup; retain this version', 'history', local && state.session.capabilities.backup)}
+    ${item('file.restore', 'Restore backup…', 'Replace from a backup; retain this version', 'history', local && offersReplacement(state.session))}
     ${item('file.resolveRecovery', 'Review recovery record…', 'Resolve an interrupted replacement', 'health', local)}
     <div class="file-menu-divider"></div>
     ${item('file.close', 'Close file', 'Return to the start screen', 'close', state.session.fileName !== null && client.mode !== 'unavailable')}`;

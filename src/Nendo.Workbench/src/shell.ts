@@ -3,6 +3,8 @@ import { state, type OutcomeNotice } from './app-state';
 import { capitalise, releasedByNextInteraction } from './format';
 import { icon } from './icons';
 import type { AgentWork, EffectiveTheme, ThemePreference } from './host';
+import { createAgentPill } from './agent-pill';
+import { hasDeferredMove, runDeferredMove } from './busy-queue';
 
 /**
  * The frame index.html already provides, and the four things every view needs
@@ -71,7 +73,9 @@ function scrollPositions(): HTMLElement[] {
   // which is how a screen refreshing behind a failed tile was reported as scrolling on
   // its own.
   // A Filter menu stays open across the redraw that lists a reference's records (W-172).
-  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel')];
+  // Help scrolls its index and its article rather than the pane, and a file-change redraw sent
+  // an article being read back to its top once a second while an agent wrote (WST-01).
+  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel, .help-index, .help-topics, .help-article, .preview-content')];
 }
 
 export function rerender(): void {
@@ -116,6 +120,9 @@ export function restoreOutcome(): void {
   // It belongs to the page it happened on. A message that followed somebody to the next
   // screen would be reporting an action they had already left behind.
   if (state.lastOutcome.view !== state.view) { state.lastOutcome = null; return; }
+  // It was about the file at one change, and a redraw at another has already read it again.
+  const sequence = state.lastOutcome.changeSequence;
+  if (sequence !== undefined && sequence !== (state.session.manifest?.changeSequence ?? null)) { state.lastOutcome = null; return; }
   const slot = content.querySelector<HTMLElement>('.message-slot');
   if (slot === null || !slot.hidden) return;
   drawOutcome(slot, state.lastOutcome);
@@ -277,81 +284,25 @@ const busyBarDelayMs = 700;
 let busyBarTimer: number | null = null;
 
 /**
- * What an agent is doing, as last pushed by the host.
+ * What an agent is doing, as last pushed by the host, and when the pill says so.
  *
  * Module state rather than app state because two unrelated things read it: the status
  * bar, which draws it, and the busy bar, which names it as the reason a request is
- * taking a while. Neither owns it.
- */
-let agentWork: AgentWork = { busy: false, client: '', activity: '' };
-let agentPillTimer: number | null = null;
-let agentPillHideTimer: number | null = null;
-let agentPillShown = false;
-let lastAgentWorkAt = 0;
-
-/**
- * How long the agent has to be quiet before the indicator comes down.
- *
- * An agent at work is a burst of short calls with gaps between them, not one long one.
- * Hiding on the first gap made the indicator flicker; worse, restarting the appear timer
- * on every call meant it never reached its delay at all, and the whole of an unattended
- * build ran with nothing on screen. Measured against a real build: 27 signals, every one
- * of them under the 700 ms the pill waits for.
+ * taking a while. Neither owns it. The pill comes down once the agent has been quiet
+ * for agentIdleMs.
  */
 const agentIdleMs = 1_200;
+const agentPill = createAgentPill(
+  { set: (run, ms) => window.setTimeout(run, ms), clear: (handle) => window.clearTimeout(handle) },
+  () => drawAgentPill(), busyBarDelayMs, agentIdleMs);
 
 /**
- * Records what the host pushed and draws it after the same delay the busy bar uses.
- *
- * A read takes a few milliseconds and there are a lot of them, so reporting every one
- * would leave the corner of the window flickering for the whole of a build. The delay is
- * what makes the indicator mean "this is taking long enough that you noticed", which is
- * the only version of it worth having. Going idle is immediate: a stale "still writing"
- * is the one wrong thing this can say.
+ * Records what the host pushed; agent-pill.ts decides when the pill is drawn. The pill waits as
+ * long as the busy bar, and comes down once the agent has been quiet for agentIdleMs: a gap
+ * between two calls must not blink it, and an agent that has stopped must not leave it up.
  */
 export function setAgentWork(work: AgentWork): void {
-  // An idle signal carries no client and no activity -- there is nothing running to name
-  // -- so taking it whole blanked the pill to "An agent is working" the moment the run
-  // ended, having never shown who it was. What is drawn keeps the last thing that was
-  // actually happening; only `busy` comes from every signal.
-  agentWork = {
-    busy: work.busy,
-    client: work.client.length > 0 ? work.client : agentWork.client,
-    activity: work.activity.length > 0 ? work.activity : agentWork.activity,
-  };
-  if (work.busy) {
-    lastAgentWorkAt = Date.now();
-    if (agentPillHideTimer !== null) { window.clearTimeout(agentPillHideTimer); agentPillHideTimer = null; }
-  }
-  if (agentPillShown) {
-    drawAgentPill();
-    if (!work.busy) hideTheAgentPillSoon();
-    return;
-  }
-  // One countdown, from the first sign of work. It is neither restarted by the next call
-  // nor cancelled by the gap before it: both of those were tried, and both meant a burst
-  // of short calls never reached the delay, so a whole unattended build ran behind an
-  // empty status bar.
-  if (!work.busy || agentPillTimer !== null) return;
-  agentPillTimer = window.setTimeout(() => {
-    agentPillTimer = null;
-    // The agent may have finished inside the wait. Nothing appears for work that is
-    // already over.
-    if (!agentWork.busy && Date.now() - lastAgentWorkAt >= agentIdleMs) return;
-    agentPillShown = true;
-    drawAgentPill();
-    if (!agentWork.busy) hideTheAgentPillSoon();
-  }, busyBarDelayMs);
-}
-
-/** Takes the indicator down once the agent has been quiet for its own bounded wait. */
-function hideTheAgentPillSoon(): void {
-  if (agentPillHideTimer !== null) return;
-  agentPillHideTimer = window.setTimeout(() => {
-    agentPillHideTimer = null;
-    agentPillShown = false;
-    drawAgentPill();
-  }, agentIdleMs);
+  agentPill.signal(work);
 }
 
 /**
@@ -364,7 +315,8 @@ function hideTheAgentPillSoon(): void {
 function drawAgentPill(): void {
   const pill = document.querySelector<HTMLElement>('#agent-working');
   if (pill === null) return;
-  if (!agentPillShown) { pill.hidden = true; return; }
+  if (!agentPill.shown) { pill.hidden = true; return; }
+  const agentWork = agentPill.work;
   const who = agentWork.client.length > 0 ? agentWork.client : 'An agent';
   const label = pill.querySelector<HTMLElement>('#agent-working-text');
   if (label !== null) label.textContent = `${who} is working`;
@@ -447,11 +399,13 @@ for (const kind of ['pointerdown', 'keydown', 'focusin'] as const)
       lastInteractionAt = Date.now();
     }, true);
 // Reading is using the page. A wheel never reaches the three above, so somebody moving
-// down a long screen looked idle to the hold and could be redrawn out from under.
+// down a long screen looked idle to the hold and could be redrawn out from under. Captured,
+// because a scroll does not bubble: reading down a Help article, the record inspector or a
+// column of cards scrolls that element, never the pane, and was not seen (WST-01).
 content.addEventListener('scroll', () => {
   if (restoringFocus) return;
   lastInteractionAt = Date.now();
-}, { passive: true });
+}, { passive: true, capture: true });
 
 export function setBusy(busy: boolean): void {
   content.setAttribute('aria-busy', String(busy));
@@ -462,6 +416,9 @@ export function setBusy(busy: boolean): void {
     // A custom view's own controls are not the Workbench's work to hold (W-090); a person
     // typing in its search box keeps the box while a save runs.
     if (control.closest('[data-view-toolbar]') !== null) continue;
+    // Revoking an agent's edit access is how a person ends the write their own request is queued
+    // behind, which the busy bar and the agent pill both send them to (WCS-20).
+    if (control.id === 'revoke-agent') continue;
     if (busy) {
       control.dataset.busyWasDisabled ??= String(control.disabled);
       control.disabled = true;
@@ -470,6 +427,8 @@ export function setBusy(busy: boolean): void {
       delete control.dataset.busyWasDisabled;
     }
   }
+  // A move pressed while the action ran is made now it has ended (busy-queue.ts, WCS-16).
+  if (!busy && hasDeferredMove()) window.setTimeout(runDeferredMove, 0);
 }
 
 /**
@@ -491,6 +450,7 @@ export function setBusyBar(busy: boolean): void {
     // request is not slow -- it is queued behind somebody else's. Stop keeps its meaning:
     // it stops waiting for this view, and the sentence does not pretend otherwise, because
     // the thing that stops the agent is Revoke edit access on the Agent page.
+    const agentWork = agentPill.work;
     requiredElement<HTMLElement>('#busy-message').textContent = agentWork.busy
       ? `${agentWork.client.length > 0 ? agentWork.client : 'An agent'} is writing to this file…`
       : 'Still working…';
@@ -611,12 +571,13 @@ export function showKeptAlert(message: string, action?: OutcomeNotice['action'])
   announce(message);
 }
 
-export function showRetainedNotice(message: string, refresh: (button: HTMLButtonElement) => Promise<void>): void {
+export function showRetainedNotice(message: string, refresh: (button: HTMLButtonElement) => Promise<void>, takeFocus = true): void {
   state.lastOutcome = { view: state.view, message, tone: 'alert', refresh };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.tabIndex = -1;
-  focusWithoutInteraction(slot);
+  // A background read that failed says so where it can be seen, without moving anybody (WCS-07).
+  if (takeFocus) focusWithoutInteraction(slot);
   slot.scrollIntoView({ block: 'nearest' });
   announce(message);
 }

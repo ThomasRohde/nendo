@@ -35,6 +35,7 @@ public sealed partial class NendoWriteCoordinator
                 throw new NendoPreconditionException("restore-session-limit", "Close and reopen the file before preparing another restore.");
             if (!Capabilities.Backup || _pathPin is null)
                 throw new NendoPreconditionException("restore-unavailable", "This file cannot yield a verified pre-restore backup. Preserve it and open a verified backup separately.");
+            RequireReplaceableTarget();
             if (File.Exists(FileReplacementReceipt.PendingPath(_path)))
                 throw new NendoPreconditionException("replacement-pending", "Inspect the previous recovery record before preparing another replacement.");
             var current = await InspectBackupSourceAsync(cancellationToken);
@@ -80,6 +81,7 @@ public sealed partial class NendoWriteCoordinator
                 throw new NendoPreconditionException("restore-proposals-changed", "The pending proposals changed after this confirmation. Review a new restore.");
             if (!Capabilities.Backup || _pathPin is null || _authority != context.Authority)
                 throw new NendoPreconditionException("restore-current-changed", "The current session changed. Review a new restore before continuing.");
+            RequireReplaceableTarget();
             if (File.Exists(FileReplacementReceipt.PendingPath(_path)))
                 throw new NendoPreconditionException("replacement-pending", "An earlier recovery record must be reviewed first.");
             var current = await InspectBackupSourceAsync(cancellationToken);
@@ -96,13 +98,9 @@ public sealed partial class NendoWriteCoordinator
                 throw new NendoPreconditionException("restore-backup-changed", "The selected backup changed after confirmation. Inspect it again.");
             // A read-only/recovery session may restore only after acquiring the
             // same live-instance/path exclusion as a writable session.
-            if (_instanceOwnership is null)
-            {
-                _instanceOwnership = InstanceOwnershipLease.Acquire(context.Plan.Current.InstanceId);
-                try { _ownership = WriteOwnershipLease.Acquire(_path, $"restore-{Environment.ProcessId}"); }
-                catch { _instanceOwnership.Dispose(); _instanceOwnership = null; throw; }
-            }
-            return await ExecuteReplacementCoreAsync(context, upgrade: false, cancellationToken);
+            var acquired = AcquireReplacementLeases(context.Plan.Current.InstanceId, "restore");
+            try { return await ExecuteReplacementCoreAsync(context, upgrade: false, cancellationToken); }
+            finally { ReleaseUnusedReplacementLeases(acquired); }
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }
@@ -121,6 +119,8 @@ public sealed partial class NendoWriteCoordinator
         var pending = FileReplacementReceipt.PendingPath(_path);
         LocalFileIdentity? stageIdentity = null, currentCopyIdentity = null, markerIdentity = null, receiptIdentity = null;
         FileStream? stagePin = null, currentPin = null;
+        VerifiedFileMove? originalMove = null;
+        var detached = false;
         var retainedOriginal = false;
         string? currentBytes = null;
         try
@@ -164,6 +164,21 @@ public sealed partial class NendoWriteCoordinator
                 }, RestoreMaximumPageCountForTest, cancellationToken);
             Checkpoint(upgrade ? "upgrade-stage-verified" : "restore-stage-verified");
             cancellationToken.ThrowIfCancellationRequested();
+            // The file at the name must be the one this session reviewed. A read-only session's pin
+            // follows the file it opened, and the stage and digest checks read the name, so another
+            // file with the same content there passed them and the rename below then interrupted
+            // the replacement (W-221 review).
+            using (var named = new FileStream(_path, FileMode.Open, FileAccess.Read, ReadOnlyPinShare))
+                if (LocalFileIdentity.Read(named) != context.CurrentIdentity) throw SourceChanged();
+            // The original's exclusive handle is taken before any recovery record exists. Nendo's
+            // own handles are closed for it and come back if anything below fails before the
+            // session retires; a handle another reader holds is waited out briefly and otherwise
+            // refused, with nothing changed (ECO-01, W-221 review).
+            detached = true;
+            if (_store is not null) { await _store.DisposeAsync(); _store = null; }
+            _pathPin?.Dispose(); _pathPin = null;
+            Checkpoint("before-exclusive");
+            originalMove = await AcquireOriginalAsync(context.CurrentIdentity, currentBytes!, cancellationToken);
             var receipt = new FileReplacementReceipt(1, context.Plan.PlanId, kind, FileName,
                 context.Plan.RetainedFileName, Path.GetFileName(stage), Path.GetFileName(currentCopy),
                 context.Plan.Current, context.Plan.Restored, context.CurrentDigest, resultDigest!,
@@ -179,21 +194,23 @@ public sealed partial class NendoWriteCoordinator
             // active. Finish safely or leave explicit retained recovery evidence.
             _replacementRetired = true;
             NotifyAuthorityLost();
-            foreach (var proposal in _proposals.Values) ProposalWorkspace.Delete(proposal);
+            // Best effort: a locked file in a proposal's workspace turned a restore that had moved
+            // nothing into an interrupted replacement (ECO-05). What is left is swept when this
+            // retired session is disposed, under the instance lease it still holds.
+            foreach (var proposal in _proposals.Values)
+                if (!ProposalWorkspace.TryDelete(proposal)) _proposalCleanupPending = true;
             _proposals.Clear();
-            if (_store is not null) { await _store.DisposeAsync(); _store = null; }
-            _pathPin?.Dispose(); _pathPin = null;
             currentPin.Dispose(); currentPin = null;
             stagePin.Dispose(); stagePin = null;
             Checkpoint("before-retention");
-            using (var originalMove = VerifiedFileMove.Acquire(_path, context.CurrentIdentity, currentBytes!))
+            RequireUnoccupiedBackupDestination(retained);
+            originalMove.MoveTo(retained);
+            retainedOriginal = true;
+            originalMove.Dispose(); originalMove = null;
+            Checkpoint("original-retained");
+            RequireReplacementTargetVacant(_path);
+            using (var stageMove = VerifiedFileMove.Acquire(stage, stageIdentity, stageBytes!))
             {
-                RequireUnoccupiedBackupDestination(retained);
-                originalMove.MoveTo(retained);
-                retainedOriginal = true;
-                Checkpoint("original-retained");
-                RequireReplacementTargetVacant(_path);
-                using var stageMove = VerifiedFileMove.Acquire(stage, stageIdentity, stageBytes!);
                 stageMove.MoveTo(_path);
                 Checkpoint("replacement-activated");
             }
@@ -224,6 +241,9 @@ public sealed partial class NendoWriteCoordinator
         {
             currentPin?.Dispose();
             stagePin?.Dispose();
+            originalMove?.Dispose();
+            // A failure before retirement gives the session its own handles back.
+            if (detached && !_replacementRetired) await ReattachAfterUnfinishedReplacementAsync(context.CurrentDigest);
             // After retirement, retain an unactivated stage for explicit recovery;
             // never automatically undo a namespace change or delete the original.
             if (!_replacementRetired)
@@ -246,6 +266,119 @@ public sealed partial class NendoWriteCoordinator
             // Activated stages now have the active name and are never cleaned.
         }
     }
+
+    /// <summary>How many times, 50 ms apart, the original's exclusive handle is tried before a reader's handle is refused.</summary>
+    internal int ReplacementAcquireAttempts { get; set; } = 20;
+
+    /// <summary>
+    /// The original's exclusive rename handle. A sharing violation is a reader, often Nendo's own
+    /// short-lived one (another window refreshing its Jump List, a digest check), so it is tried
+    /// again for about a second, then refused as <c>replacement-target-in-use</c>.
+    /// </summary>
+    private async Task<VerifiedFileMove> AcquireOriginalAsync(LocalFileIdentity identity, string byteDigest, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { return VerifiedFileMove.Acquire(_path, identity, byteDigest); }
+            catch (IOException exception) when (exception.InnerException is System.ComponentModel.Win32Exception { NativeErrorCode: 32 or 33 })
+            {
+                if (attempt >= ReplacementAcquireAttempts)
+                    throw new NendoPreconditionException("replacement-target-in-use", ReplacementTargetInUseText);
+                await Task.Delay(50, cancellationToken);
+            }
+        }
+    }
+
+    internal const string ReplacementTargetInUseText =
+        "Another program or Nendo window is reading this file, so it could not be replaced. Nothing was changed. Close it, or wait a moment, and try again.";
+
+    /// <summary>
+    /// Opens the session's own handles again after a replacement stopped before it retired the
+    /// session. A writable session gets a fresh store, trusted only while the file still holds the
+    /// content it reviewed; otherwise it enters recovery rather than editing a file it did not see.
+    /// </summary>
+    private async Task ReattachAfterUnfinishedReplacementAsync(string reviewedDigest)
+    {
+        try
+        {
+            _pathPin = _readOnlySnapshot is null
+                ? OpenPathPin(_path, FileMode.Open, FileAccess.Read)
+                : new FileStream(_path, FileMode.Open, FileAccess.Read, ReadOnlyPinShare);
+            if (_readOnlySnapshot is not null) return;
+            var store = await SqliteNendoStore.OpenAsync(_path, CancellationToken.None);
+            try
+            {
+                var authority = await store.GetAuthoritySnapshotAsync(CancellationToken.None);
+                if (authority.ApplicationId != _authority!.ApplicationId || authority.InstanceId != _authority.InstanceId ||
+                    authority.ChangeSequence != _authority.ChangeSequence ||
+                    await store.GetContentDigestAsync(CancellationToken.None) != reviewedDigest)
+                    throw new NendoRecoveryRequiredException("The file changed while a replacement was being prepared. Reopen it for recovery inspection.");
+                store.BehaviourAuthority = _behaviourAuthority;
+                _store = store;
+                _authority = authority;
+            }
+            catch
+            {
+                await store.DisposeAsync();
+                throw;
+            }
+        }
+        catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            // In a finally over the real failure: say it by entering recovery, never by replacing it.
+            EnterRecovery();
+        }
+    }
+
+    /// <summary>
+    /// The instance and write leases a read-only or recovery session takes to replace its file.
+    /// True when this call took them, so a replacement that fails before it retires the session
+    /// gives them back (ECO-09).
+    /// </summary>
+    private bool AcquireReplacementLeases(string instanceId, string kind)
+    {
+        if (_instanceOwnership is not null) return false;
+        _instanceOwnership = InstanceOwnershipLease.Acquire(instanceId);
+        try { _ownership = WriteOwnershipLease.Acquire(_path, $"{kind}-{Environment.ProcessId}"); }
+        catch { _instanceOwnership.Dispose(); _instanceOwnership = null; throw; }
+        return true;
+    }
+
+    /// <summary>
+    /// Gives back leases a failed replacement took. Kept when the session was retired: an
+    /// interrupted replacement holds the file until it is closed, as a writable session does. A
+    /// read-only session kept them after a failed staging, and another window could not open the
+    /// file for editing while nothing was editing it.
+    /// </summary>
+    private void ReleaseUnusedReplacementLeases(bool acquired)
+    {
+        if (!acquired || _replacementRetired) return;
+        _ownership?.Dispose();
+        _ownership = null;
+        _instanceOwnership?.Dispose();
+        _instanceOwnership = null;
+    }
+
+    /// <summary>
+    /// A file marked read-only in File Explorer is kept from replacement (R2SMA-10, owner
+    /// 2026-10-13). ADR-0012 gives such a file inspection, export and backup; a restore or an
+    /// upgrade put a fresh file without the mark in its place and moved the mark to the retained
+    /// copy without a word.
+    /// </summary>
+    private void RequireReplaceableTarget()
+    {
+        FileAttributes attributes;
+        // Only a read-only session's file can move away under it; that is the file changing, said so,
+        // not a raw FileNotFoundException (W-221 review).
+        try { attributes = File.GetAttributes(_path); }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        { throw SqliteNendoStore.InspectedContentChanged(); }
+        if ((attributes & FileAttributes.ReadOnly) != 0)
+            throw new NendoPreconditionException("replacement-target-read-only", ReplacementTargetReadOnlyText);
+    }
+
+    internal const string ReplacementTargetReadOnlyText =
+        "This file is marked read-only, so Nendo will not replace it. Clear Read-only in the file's Properties in File Explorer, then use Inspect file again.";
 
     private static void RequireReplacementTargetVacant(string target)
     {

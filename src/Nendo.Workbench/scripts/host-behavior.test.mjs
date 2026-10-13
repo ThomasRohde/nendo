@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
+import { bundleOf } from './bundle-of.mjs';
 
 // Compile the shipped TypeScript adapter with the pinned production toolchain;
 // use Node's test runner and a deterministic bridge, without a second UI stack.
@@ -8,7 +9,7 @@ const bundle = await build({ configFile: false, logLevel: 'error', ssr: { noExte
   build: { ssr: 'src/host.ts', write: false, minify: false, rollupOptions: { output: { codeSplitting: false } } } });
 const module = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
 
-function fixture() {
+function fixture({ hold = false } = {}) {
   const values = new Map();
   const listeners = [];
   const requests = [];
@@ -20,6 +21,7 @@ function fixture() {
       capabilities: module.fileCapabilities(true), entities: [], records: [], uiNodes: [], storage: null } };
   const bridge = { addEventListener: (_, listener) => listeners.push(listener), postMessage: request => {
     requests.push(request);
+    if (hold) return;
     if (request.method === 'session.getSnapshot') respond(request, state.snapshot);
     else if (request.method === 'data.getReceipt' || request.method === 'history.getCompensationReceipt' || request.method === 'proposal.getReceipt') respond(request, state.receipt);
     else if (request.method.startsWith('data.') || request.method === 'proposal.promote') state.mutations.push(request);
@@ -155,7 +157,7 @@ test('the retained request is isolated from later caller edits and rejects overs
   const f = fixture();
   const client = f.client();
   await client.request('session.getSnapshot');
-  await assert.rejects(client.request('data.createRecord', { ...payload('large'), values: { text: 'x'.repeat(140_000) } }), /retained/i);
+  await assert.rejects(client.request('data.createRecord', { ...payload('large'), values: { text: 'x'.repeat(300_000) } }), /too large/i);
   assert.equal(f.state.mutations.length, 0);
   const mutable = payload('fixed');
   const original = client.request('data.createRecord', mutable);
@@ -252,6 +254,173 @@ test('a receipt for different proposal content cannot acknowledge the retained a
 // A message the host sends on its own account, so a Windows notification can put
 // somebody back on the view that needed them.
 
+// WCS-02. A save the journal refused before sending it -- too large for it, or local storage
+// that would not take it -- was a plain error, so the record form was redrawn from stored values
+// and the typing was gone, under a sentence that blamed local storage for a size limit. The cap
+// was half what the host accepts. Measured through the real host adapter and the real
+// write-failure rule the record form uses.
+const { decideWriteFailure } = await bundleOf('src/write-failure.ts');
+
+test('WCS-02: a save the host would take is sent, and one refused before sending keeps the typing and says why', { timeout: 2000 }, async () => {
+  const f = fixture();
+  const client = f.client();
+  await client.request('session.getSnapshot');
+  const long = client.request('data.setFields', { ...payload('long'), values: { 'field.body': 'x'.repeat(140_000) } });
+  assert.equal(f.state.mutations.length, 1, 'a 140,000-character Markdown save the host accepts was refused here');
+  f.respond(f.state.mutations[0], { mutation: receipt('long'), session: f.state.snapshot });
+  await long;
+
+  const tooLarge = await client.request('data.setFields', { ...payload('huge'), values: { 'field.body': 'x'.repeat(300_000) } }).catch(error => error);
+  assert.equal(f.state.mutations.length, 1, 'an oversized save was sent');
+  assert.equal(decideWriteFailure(tooLarge), 'retain-draft', 'a save refused before sending redrew the form and lost the typing');
+  assert.match(tooLarge.message, /too large[\s\S]*300\D?\d{3} characters[\s\S]*Nothing was sent/);
+  assert.doesNotMatch(tooLarge.message, /storage/i, 'a size refusal blamed local storage');
+
+  f.state.failStore = true;
+  const unkept = await client.request('data.setFields', payload('unkept')).catch(error => error);
+  f.state.failStore = false;
+  assert.equal(f.state.mutations.length, 1);
+  assert.equal(decideWriteFailure(unkept), 'retain-draft', 'a save local storage would not keep lost the typing');
+  assert.match(unkept.message, /nothing was sent/i);
+});
+
+// WCS-22. Stop on a slow save left it pending, and the only control that unlocked editing sent
+// the save the person had stopped. Now a save the host answers as cancelled, whose receipt is then
+// not found, can be discarded unsent; the receipt is looked up again first.
+test('WCS-22: a stopped save that did not land can be discarded without sending it', { timeout: 2000 }, async () => {
+  const f = fixture();
+  const client = f.client();
+  await client.request('session.getSnapshot');
+  const stopped = client.request('data.setFields', payload('stopped')).catch(error => error);
+  f.respond(f.state.mutations[0], null, { code: 'cancelled', message: 'The request was stopped.' });
+  assert.equal((await stopped).code, 'cancelled');
+  assert.equal(client.pendingMutation().state, 'pending', 'a stop is not a confirmed refusal: the save stays retained');
+  assert.equal(client.pendingMutation().discardable, true, 'a stopped save with no receipt offers no way but resending it');
+  const lookups = () => f.requests.filter(request => request.method === 'data.getReceipt').length;
+  const before = lookups();
+  assert.equal(await client.discardPendingMutation(), null);
+  assert.equal(lookups(), before + 1, 'the discard did not check the receipt once more');
+  assert.equal(f.values.size, 0, 'the discarded request is still retained');
+  assert.equal(f.state.mutations.length, 1, 'discarding sent the stopped save');
+  // Editing is open again: the next save goes.
+  const next = client.request('data.setFields', payload('next'));
+  assert.equal(f.state.mutations.length, 2);
+  f.respond(f.state.mutations[1], { mutation: receipt('next'), session: f.state.snapshot });
+  await next;
+});
+
+test('WCS-22: a stopped save that landed after all is acknowledged, and a timed-out one cannot be discarded', { timeout: 2000 }, async () => {
+  const f = fixture();
+  const client = f.client();
+  await client.request('session.getSnapshot');
+  const stopped = client.request('data.setFields', payload('late')).catch(error => error);
+  f.respond(f.state.mutations[0], null, { code: 'cancelled', message: 'The request was stopped.' });
+  await stopped;
+  f.state.receipt = receipt('late');
+  const landed = await client.discardPendingMutation();
+  assert.equal(landed.mutation.revisionId, 'revision-late', 'a save that committed was discarded as unsent');
+  assert.equal(f.values.size, 0);
+
+  // A request the host never answered may still be running there: nothing confirms it stopped.
+  f.state.receipt = null;
+  const lost = client.request('data.setFields', payload('lost')).catch(error => error);
+  f.timeout();
+  assert.equal((await lost).code, 'host-timeout');
+  assert.notEqual(client.pendingMutation().discardable, true, 'a save the host may still be running was offered as discardable');
+  await assert.rejects(client.discardPendingMutation(), /only a save that was stopped/i);
+  assert.equal(f.values.size, 1);
+});
+
+// WCS-03. A raw copy or a backup keeps the file's application and instance IDs, so it found the
+// original's unconfirmed save under the same key, and Check or retry wrote it into the copy. The
+// request now carries the file it was made in, and is sent only there.
+test('WCS-03: an unconfirmed save is not replayed into a copy of its file, and is in the file it was made in', { timeout: 2000 }, async () => {
+  const f = fixture();
+  const original = f.client();
+  await original.request('session.getSnapshot');
+  const lost = original.request('data.setFields', payload('original')).catch(error => error);
+  f.timeout();
+  assert.equal((await lost).code, 'host-timeout');
+  assert.equal(f.state.mutations.length, 1);
+  const made = original.pendingMutation();
+  assert.equal(made.fileName, 'fixture.nendo');
+  assert.ok(!Number.isNaN(Date.parse(made.savedAt)), 'the kept save does not say when it was made');
+
+  const originalSnapshot = f.state.snapshot;
+  f.state.snapshot = { ...originalSnapshot, fileSessionId: 'file-session-copy', fileName: 'fixture (backup).nendo' };
+  const copy = f.client();
+  await copy.request('session.getSnapshot');
+  assert.equal(copy.pendingMutation().payload.idempotencyKey, 'original', 'the copy shares the identity, so it sees the kept save');
+  const intoCopy = copy.retryPendingMutation().catch(error => error);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.state.mutations.length, 1, 'Check or retry sent the original file’s save into its copy');
+  assert.match((await intoCopy).message, /made in fixture\.nendo, not in fixture \(backup\)\.nendo/);
+
+  f.state.snapshot = { ...originalSnapshot, fileSessionId: 'file-session-reopened' };
+  const reopened = f.client();
+  await reopened.request('session.getSnapshot');
+  const retried = reopened.retryPendingMutation();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.state.mutations.length, 2, 'the save is not retried in the file it was made in');
+  f.respond(f.state.mutations[1], { mutation: receipt('original'), session: f.state.snapshot });
+  await retried;
+  assert.equal(f.values.size, 0);
+});
+
+// WCS-03, after review: an exact name match stranded a save after a rename or a change of letter
+// case. Windows names a file without regard to case, and a renamed file is the person's to name.
+test('WCS-03: a name that differs only in case is the same file, and a renamed one is the person’s choice, never a dead end', { timeout: 2000 }, async () => {
+  const f = fixture();
+  const original = f.client();
+  await original.request('session.getSnapshot');
+  const lost = original.request('data.setFields', payload('cased')).catch(error => error);
+  f.timeout();
+  await lost;
+  const originalSnapshot = f.state.snapshot;
+
+  f.state.snapshot = { ...originalSnapshot, fileSessionId: 'file-session-cased', fileName: 'FIXTURE.NENDO' };
+  const cased = f.client();
+  await cased.request('session.getSnapshot');
+  assert.notEqual(cased.pendingMutation().madeElsewhere, true, 'a change of letter case was taken for another file');
+  const retried = cased.retryPendingMutation().catch(error => error);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.state.mutations.length, 2, 'a save was stranded by a change of letter case in its file’s name');
+  f.respond(f.state.mutations[1], { mutation: receipt('cased'), session: f.state.snapshot });
+  await retried;
+
+  // A rename: neither sent nor dropped on its own, and both ways out are there.
+  f.state.snapshot = originalSnapshot;
+  const before = f.client();
+  await before.request('session.getSnapshot');
+  const second = before.request('data.setFields', payload('renamed')).catch(error => error);
+  f.timeout();
+  await second;
+  f.state.snapshot = { ...originalSnapshot, fileSessionId: 'file-session-renamed', fileName: 'Renamed.nendo' };
+  const renamed = f.client();
+  await renamed.request('session.getSnapshot');
+  assert.equal(renamed.pendingMutation().madeElsewhere, true);
+  const sent = renamed.retryPendingMutation(true).catch(error => error);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.state.mutations.length, 4, 'the person said this is the file renamed, and the save was not sent into it');
+  f.respond(f.state.mutations[3], { mutation: receipt('renamed'), session: f.state.snapshot });
+  await sent;
+  assert.equal(f.values.size, 0);
+
+  // A copy: the person discards it here; the receipt is looked up first, and nothing is sent.
+  f.state.snapshot = originalSnapshot;
+  const third = f.client();
+  await third.request('session.getSnapshot');
+  const kept = third.request('data.setFields', payload('copied')).catch(error => error);
+  f.timeout();
+  await kept;
+  f.state.snapshot = { ...originalSnapshot, fileSessionId: 'file-session-copy-2', fileName: 'Copy of fixture.nendo' };
+  const copy = f.client();
+  await copy.request('session.getSnapshot');
+  assert.equal(await copy.discardPendingMutation(), null, 'a save made in another file could not be discarded, so the copy stayed locked');
+  assert.equal(f.values.size, 0);
+  assert.equal(f.state.mutations.length, 5, 'discarding sent the save');
+});
+
 test('a host navigate event reaches its listener', { timeout: 2000 }, async () => {
   const f = fixture(); const client = f.client();
   const seen = [];
@@ -314,12 +483,27 @@ test('a host event from another protocol version is ignored', { timeout: 2000 },
 });
 
 test('a host event never resolves a pending request', { timeout: 2000 }, async () => {
-  const f = fixture(); const client = f.client();
-  const pending = client.request('session.getSnapshot');
-  f.deliver({ protocolVersion: module.protocolVersion, event: 'navigate', payload: 'agent' });
-  // The snapshot reply is what resolves it; the event in between changed nothing.
+  // WST-04. The fixture once answered the snapshot as it was sent, so the event arrived after the
+  // request had settled and this could not fail. The bridge here answers nothing on its own: the
+  // event is delivered while the read and a journaled save are really waiting.
+  const f = fixture({ hold: true }); const client = f.client();
+  const first = client.request('session.getSnapshot');
   f.respond(f.requests[0], f.state.snapshot);
+  await first;
+  const settled = [];
+  const pending = client.request('session.getSnapshot').then(value => { settled.push('read'); return value; });
+  const save = client.request('data.setFields', payload('waiting')).then(value => { settled.push('save'); return value; });
+  assert.equal(f.requests.length, 3);
+  for (const event of [{ event: 'navigate', payload: 'agent' }, { event: 'fileChanged', payload: 4 }, { event: 'agentActivity', payload: { busy: true, client: 'agent', activity: 'x' } }])
+    f.deliver({ protocolVersion: module.protocolVersion, ...event });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(settled, [], 'a host event resolved a request that was still waiting for its answer');
+  assert.equal(client.pendingMutation().state, 'pending');
+  // The replies are what resolve them.
+  f.respond(f.requests[1], f.state.snapshot);
+  f.respond(f.requests[2], { mutation: receipt('waiting'), session: f.state.snapshot });
   assert.equal((await pending).fileName, 'fixture.nendo');
+  assert.equal((await save).mutation.revisionId, 'revision-waiting');
 });
 
 test('removing a listener stops it hearing events, and one that throws does not silence the rest',

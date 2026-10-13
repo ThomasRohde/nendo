@@ -111,7 +111,7 @@ public sealed partial class NendoWriteCoordinator
         var fullPath = ValidatePath(path);
         try
         {
-            using var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, ReadOnlyPinShare);
             var identity = LocalFileIdentity.Read(pin);
             var inspected = await InspectToOpenAsync(fullPath, interruptedWrite, cancellationToken);
             return new(inspected.Inspection, identity.Key, inspected.ContentDigest);
@@ -137,7 +137,7 @@ public sealed partial class NendoWriteCoordinator
         var fullPath = ValidatePath(path);
         try
         {
-            using var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, ReadOnlyPinShare);
             var key = LocalFileIdentity.Read(pin).Key;
             return await SqliteNendoStore.ReadDeclaredIdentityAsync(fullPath, cancellationToken) is { } declared
                 ? new(key, declared.ApplicationId, declared.InstanceId)
@@ -165,11 +165,19 @@ public sealed partial class NendoWriteCoordinator
         return OpenReadOnlyCoreAsync(path, observation, cancellationToken);
     }
 
+    /// <summary>How a read-only or observing pin shares the file: never in the way of its writer (ECO-01).</summary>
+    internal const FileShare ReadOnlyPinShare = FileShare.ReadWrite | FileShare.Delete;
+
     private static async Task<NendoWriteCoordinator> OpenReadOnlyCoreAsync(
         string path, NendoFileObservation? observation, CancellationToken cancellationToken)
     {
         var fullPath = ValidatePath(path);
-        var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        // Shared for delete too: a read-only session must not stop the session that writes the file
+        // from restoring or upgrading it. Without it the writer's rename of the original failed
+        // after its recovery record was written, and the file opened in recovery for a replacement
+        // that never moved a byte (ECO-01). The pin follows the renamed original; every later read
+        // here inspects the path again and compares the digest, so nothing is adopted silently.
+        var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, ReadOnlyPinShare);
         try
         {
             var observed = await InspectToOpenAsync(fullPath, NendoInterruptedWrite.Refuse, cancellationToken);
@@ -310,6 +318,12 @@ public sealed partial class NendoWriteCoordinator
                 // observed one, and the first authority read runs SQLite's integrity
                 // check, so a file that changed in between is refused rather than trusted.
                 SqliteNendoStore.RequireUnchangedPhysicalFile(fullPath, pathPin);
+                // Two refusals of a fresh inspection that the physical facts do not show: a pending
+                // replacement record written since the observation, and the read-only mark set
+                // since. Trusting the observation over them gave a writable session on a file
+                // whose recovery review could then offer no way out (ECO-10).
+                if (File.Exists(FileReplacementReceipt.PendingPath(fullPath)) || (File.GetAttributes(fullPath) & FileAttributes.ReadOnly) != 0)
+                    throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
                 inspection = observation!.Inspection;
                 expectedDigest = observation.ContentDigest!;
             }

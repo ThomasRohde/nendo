@@ -191,8 +191,9 @@ public sealed partial class NendoWriteCoordinator
     private static NendoIdempotencyConflictException CopyConflict() =>
         new("The destination does not match this exact copy request and its committed state. It was not changed or recreated.");
 
-    private static NendoPreconditionException CopySourceChanged() =>
-        new("identity-source-changed", "The source changed after inspection or confirmation. Review a new Duplicate or Fork request.");
+    private NendoPreconditionException CopySourceChanged() => _readOnlySnapshot is not null
+        ? new("identity-source-changed", ReadOnlyFileChangedText)
+        : new("identity-source-changed", "The source changed after inspection or confirmation. Review a new Duplicate or Fork request.");
 
     private sealed class IdentityCopyContext(
         NendoIdentityCopyPlan plan, string destination, IdentityCopyIntent intent, IdentityTransitionOperation operation,

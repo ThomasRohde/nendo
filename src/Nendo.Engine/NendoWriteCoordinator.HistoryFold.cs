@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Nendo.Engine.Storage;
 
 namespace Nendo.Engine;
@@ -7,6 +8,7 @@ public sealed partial class NendoWriteCoordinator
     /// <summary>What a fold keeps; a test seam, like the backup page bound, not a host or agent knob.</summary>
     internal SqliteNendoStore.HistoryFoldPolicy HistoryFoldPolicy { get; set; } = SqliteNendoStore.HistoryFoldPolicy.Default;
     internal Action? BeforeHistoryFoldCommit { get; set; }
+    internal Action? BeforeHistoryFoldVacuum { get; set; }
 
     /// <summary>What folding the file's older history would do now (ADR-0021), for the person to read first.</summary>
     public async Task<NendoHistoryFoldPreview> PreviewHistoryFoldAsync(CancellationToken cancellationToken = default)
@@ -63,18 +65,34 @@ public sealed partial class NendoWriteCoordinator
                     throw new NendoRecoveryRequiredException("The folded file's counters did not match the ones it had before the fold.");
                 }
                 _authority = trusted;
-                await store.VacuumAsync(cancellationToken);
+                // The history is gone from here on, so the commit is told first. Raised after the
+                // compaction and the inspection, a full disk during either reported a fold that had
+                // removed the history as failed, and nothing on screen heard of it (ECO-02).
+                AfterCommit?.Invoke();
+                NotifyCommitted(trusted.ChangeSequence);
+                // Compaction gives the folded pages back and needs room for a copy of the file. It is
+                // derivative: a file it could not shrink is the same file, so a failure is reported
+                // on the result rather than as the fold failing, and a cancel cannot stop it halfway.
+                var reclaimed = true;
+                try
+                {
+                    BeforeHistoryFoldVacuum?.Invoke();
+                    await store.VacuumAsync(CancellationToken.None);
+                }
+                catch (Exception exception) when (exception is SqliteException or IOException) { reclaimed = false; }
                 // Inspected as if opened: a fold that left anything this host would not open is recovery, not a success.
-                var inspected = await SqliteNendoStore.InspectAsync(_path, cancellationToken);
+                var inspected = await SqliteNendoStore.InspectAsync(_path, CancellationToken.None);
+                // A file another program kept busy or unreadable for a moment is not one the fold
+                // broke: the fold stands and the next open inspects it again (W-221 review).
+                if (inspected.Inspection.Findings.Any(finding => finding.Code is "file-busy" or "file-unavailable"))
+                    return result with { SpaceReclaimed = reclaimed };
                 if (inspected.Inspection.Classification is not (NendoOpenClassification.NormalWritable or NendoOpenClassification.NormalReadOnly))
                 {
                     EnterRecovery();
                     throw new NendoRecoveryRequiredException(
                         $"After folding, the file did not open normally ({string.Join(", ", inspected.Inspection.Findings.Select(finding => finding.Code))}). Restore it from the backup {backup.Plan.DestinationFileName}.");
                 }
-                AfterCommit?.Invoke();
-                Committed?.Invoke(trusted.ChangeSequence);
-                return result;
+                return result with { SpaceReclaimed = reclaimed };
             }
             catch (NendoRecoveryRequiredException)
             {

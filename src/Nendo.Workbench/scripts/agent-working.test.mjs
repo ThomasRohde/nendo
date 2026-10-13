@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { bundleOf } from './bundle-of.mjs';
 
 // The indicator lives in index.html, shell.ts and one stylesheet, and the event that
 // drives it crosses three more files. None of it goes through a markup function, so this
@@ -25,43 +26,77 @@ test('the indicator is in the status bar, which is on every screen', () => {
   assert.match(pill.slice(0, pill.indexOf('>')), /hidden/);
 });
 
-test('it appears only after the same wait the busy bar uses', () => {
-  const setter = script.slice(script.indexOf('export function setAgentWork'));
-  const body = setter.slice(0, setter.indexOf('\n}'));
+test('it appears only after the same wait the busy bar uses, and comes down after the same quiet', () => {
   // A read takes a few milliseconds and a build makes hundreds of them. Reporting every
   // one would leave the corner of the window flickering for the whole of a session.
-  assert.match(body, /busyBarDelayMs/, 'the pill is drawn without the delay the busy bar uses');
-});
-
-test('the countdown is neither restarted by a call nor cancelled by the gap before it', () => {
-  // Both were tried and both had the same result: a burst of calls each shorter than
-  // 700ms never reached the delay, and a real unattended build -- 27 signals, an accepted
-  // proposal and an import -- ran from start to finish behind an empty status bar.
-  const setter = script.slice(script.indexOf('export function setAgentWork'));
-  const body = setter.slice(0, setter.indexOf('\n}'));
-  assert.doesNotMatch(body, /clearTimeout\(agentPillTimer\)/,
-    'something cancels the timer that counts how long the agent has been working');
-  assert.match(body, /if \(!work\.busy \|\| agentPillTimer !== null\) return;/,
-    'a second call restarts the countdown instead of leaving the first one running');
-});
-
-test('nothing appears for work that finished inside the wait', () => {
-  const setter = script.slice(script.indexOf('export function setAgentWork'));
-  const body = setter.slice(0, setter.indexOf('\n}'));
-  assert.match(body, /if \(!agentWork\.busy && Date\.now\(\) - lastAgentWorkAt >= agentIdleMs\) return;/,
-    'the pill can appear after the agent has already stopped');
-});
-
-test('it comes down after the agent goes quiet, and no later', () => {
-  // A gap between two calls must not blink the status bar; an agent that has stopped
-  // must not leave it up. Both, which means a bounded wait rather than either extreme.
+  assert.match(script, /createAgentPill\([\s\S]*?busyBarDelayMs, agentIdleMs\)/, 'the pill is drawn without the delay the busy bar uses');
   assert.match(script, /const agentIdleMs = 1_200;/);
-  const hide = script.slice(script.indexOf('function hideTheAgentPillSoon'));
-  assert.match(hide.slice(0, hide.indexOf('\n}')), /agentPillShown = false;[\s\S]*?\}, agentIdleMs\);/);
-  const setter = script.slice(script.indexOf('export function setAgentWork'));
-  const body = setter.slice(0, setter.indexOf('\n}'));
-  assert.match(body, /if \(work\.busy\) \{[\s\S]*?window\.clearTimeout\(agentPillHideTimer\)/,
-    'a new call does not cancel the pending hide, so the pill blinks between two calls');
+  assert.match(script, /export function setAgentWork\(work: AgentWork\): void \{\s*agentPill\.signal\(work\);/);
+});
+
+// WST-05. The timing, run on a clock the test turns. The pill once came up 700 ms after one
+// 5 ms read had already ended and stayed until 1.9 s, because the check meant to stop it could
+// never be true, and the test that held it only matched the line's text.
+const { createAgentPill } = await bundleOf('src/agent-pill.ts');
+function clock() {
+  let now = 0; let next = 0; const timers = new Map();
+  return {
+    set: (run, ms) => { timers.set(++next, { at: now + ms, run }); return next; },
+    clear: (handle) => { timers.delete(handle); },
+    to(at) {
+      for (;;) {
+        const due = [...timers.entries()].filter(([, timer]) => timer.at <= at).sort((a, b) => a[1].at - b[1].at)[0];
+        if (due === undefined) break;
+        timers.delete(due[0]); now = due[1].at; due[1].run();
+      }
+      now = at;
+    },
+  };
+}
+const busy = { busy: true, client: 'Agent', activity: 'nendo.read.resource' };
+const idle = { busy: false, client: '', activity: '' };
+function pill() {
+  const time = clock(); const shown = [];
+  const agent = createAgentPill(time, () => shown.push(agent.shown), 700, 1200);
+  return { time, agent, shown };
+}
+
+test('WST-05: nothing appears for one call that finished inside the wait', () => {
+  const { time, agent, shown } = pill();
+  agent.signal(busy); time.to(5); agent.signal(idle);
+  time.to(5000);
+  assert.deepEqual(shown, [], 'a 5 ms read put the pill up after it had ended');
+  assert.equal(agent.shown, false);
+});
+
+test('WST-05: a burst of short calls shows, though each ends inside the wait', () => {
+  // 27 signals, each shorter than the wait, as a real unattended build sends them.
+  const { time, agent } = pill();
+  let at = 0;
+  for (let call = 0; call < 27; call += 1) { time.to(at); agent.signal(busy); time.to(at + 20); agent.signal(idle); at += 90; }
+  time.to(720);
+  assert.equal(agent.shown, true, 'a whole build ran behind an empty status bar');
+  // A gap between two calls does not blink it.
+  time.to(at - 90 + 20 + 1199);
+  assert.equal(agent.shown, true, 'the pill came down inside the quiet window');
+  time.to(at + 1300);
+  assert.equal(agent.shown, false, 'the pill stayed up after the agent stopped');
+});
+
+test('WST-05: one call still running at the end of the wait shows, and goes once it ends', () => {
+  const { time, agent } = pill();
+  agent.signal(busy);
+  time.to(700);
+  assert.equal(agent.shown, true);
+  time.to(3000); agent.signal(idle);
+  time.to(4199);
+  assert.equal(agent.shown, true);
+  time.to(4201);
+  assert.equal(agent.shown, false);
+  // The countdown starts again from the next sign of work.
+  agent.signal(busy); time.to(4202); agent.signal(idle);
+  time.to(9000);
+  assert.equal(agent.shown, false);
 });
 
 test('the wait names its cause instead of saying the host is slow', () => {

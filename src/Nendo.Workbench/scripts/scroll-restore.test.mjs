@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 /**
  * A redraw rebuilds the page, so every element that scrolls on its own account has to be
@@ -14,16 +14,29 @@ import { readFileSync } from 'node:fs';
  * scrolled up by itself once a second, and the once-a-second part was a different defect
  * behind it.
  *
- * This reads both files and requires them to agree. The exemptions are named, because an
+ * This reads shell.ts and every stylesheet and requires them to agree. It read two of the
+ * stylesheets once, so Help's article, which scrolls on its own, went back to its top on every
+ * file-change redraw with this test green (WST-01). The exemptions are named, because an
  * exemption nobody can read is the same hole in a different place.
  */
 const shell = readFileSync(new URL('../src/shell.ts', import.meta.url), 'utf8');
-const stylesheets = ['08-panels.css', '09-surfaces.css'].map((name) =>
-  readFileSync(new URL(`../src/styles/${name}`, import.meta.url), 'utf8'));
+const styles = new URL('../src/styles/', import.meta.url);
+const stylesheets = readdirSync(styles).filter((name) => name.endsWith('.css')).map((name) => readFileSync(new URL(name, styles), 'utf8'));
 
 /** A scroller a redraw must not move, and why it is left out. */
 const EXEMPT = new Map([
   ['surface-picker-options', 'a dropdown: the redraw that would restore it has already closed it'],
+  ['studio-content', 'the content pane itself, which scrollPositions puts back first'],
+  ['file-menu-panel', 'the File menu, outside the content pane, which is all a redraw rebuilds'],
+  ['primary-nav', 'the navigation rail, outside the content pane'],
+  ['command-palette-list', 'the palette, a dialog, which holds every automatic redraw while it is open'],
+  ['view-menu', "a custom view's menu, drawn on the body and holding every redraw while open"],
+  ['package-file-text', 'a package file shown in a dialog, which holds every redraw'],
+  ['studio-search-results', 'refilled by its own search after a redraw, so at redraw time there is nothing to put back'],
+  ['reference-results', "a reference picker's results, listed only while its search box has the focus, which holds every redraw"],
+  ['chat-scroll', 'the conversation keeps its own place: it follows the newest message (view-agent-chat.ts)'],
+  ['chat-plain', 'inside the conversation, which draws its messages in place rather than through a page redraw'],
+  ['chat-mention', 'the @ menu, which holds the conversation while it is open'],
 ]);
 
 /** Every class this stylesheet gives its own scrollbar. */
@@ -48,6 +61,10 @@ test('every scroller a redraw rebuilds is one a redraw puts back', () => {
   // The guard must not be able to pass by finding nothing: the record page on the right
   // is the case it was written for, and it scrolls.
   assert.ok(scrolling.has('record-inspector'), 'the record inspector no longer scrolls; this guard needs rewriting');
+  assert.ok(scrolling.has('help-article'), "Help's article no longer scrolls on its own; this guard needs rewriting");
+  // An exemption for a class that no longer scrolls is a name nobody can check.
+  const stale = [...EXEMPT.keys()].filter((name) => !scrolling.has(name));
+  assert.deepEqual(stale, [], 'these exemptions name classes no stylesheet scrolls any more');
 
   const missing = [...scrolling].filter((name) => !restored.has(name) && !EXEMPT.has(name)).sort();
   assert.deepEqual(missing, [],

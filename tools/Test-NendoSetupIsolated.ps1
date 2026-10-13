@@ -24,6 +24,19 @@ $setup = Join-Path $PSScriptRoot 'Invoke-NendoSetup.ps1'
 if (-not (Test-Path -LiteralPath $payload)) { throw "No published payload at $payload. Run Publish-NendoPayload.ps1 first." }
 $inventorySource = Join-Path $pilot 'nendo-install.json'
 if (-not (Test-Path -LiteralPath $inventorySource)) { throw "No payload inventory at $inventorySource. Run Build-NendoInstaller.ps1 first." }
+# The Workbench bundle carries AG Grid Community (MIT) and Lucide's icon paths (ISC); both licences
+# require their notice in every copy, and the Workbench build writes it beside the bundle (WST-02).
+# Checked here as well as in Test-NendoInstaller.ps1, because this is the lane that runs on a
+# machine with an owner installation.
+$notices = Join-Path $payload 'Workbench/THIRD-PARTY-NOTICES.txt'
+if (-not (Test-Path -LiteralPath $notices -PathType Leaf) -or
+    @($manifest.files | Where-Object { ($_.path -replace '/', '\') -eq 'Workbench\THIRD-PARTY-NOTICES.txt' }).Count -ne 1) {
+    throw 'The payload carries no Workbench\THIRD-PARTY-NOTICES.txt, so the installer would ship AG Grid and Lucide without their licence notices.'
+}
+$noticeText = [IO.File]::ReadAllText($notices)
+foreach ($required in @('ag-grid-community', 'ISC License')) {
+    if (-not $noticeText.Contains($required)) { throw "The payload's Workbench\THIRD-PARTY-NOTICES.txt does not carry $required." }
+}
 
 $ownerRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Programs/Nendo'
 # The space is deliberate: every run then passes setup paths that must survive being

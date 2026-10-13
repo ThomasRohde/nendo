@@ -82,7 +82,10 @@ export function matchShortcut(event: KeyLike): ShortcutId | null {
   if (event.metaKey) return null;
   const chord = chordKey(event);
   const key = chord.key.length === 1 ? chord.key.toLowerCase() : chord.key;
-  const shiftKey = event.shiftKey && !chord.layoutShift;
+  // A symbol's Shift is the layout's too, as chordOf reads it for a custom view: '/' is Shift 7 on
+  // a Danish, German or Nordic keyboard, and Ctrl / did nothing there (WCS-12).
+  const symbol = key.length === 1 && !/^[a-z0-9]$/.test(key);
+  const shiftKey = event.shiftKey && !chord.layoutShift && !symbol;
   if (event.ctrlKey && !event.altKey && !shiftKey) {
     if (key === 'k') return 'palette';
     if (key === 'b') return 'rail';

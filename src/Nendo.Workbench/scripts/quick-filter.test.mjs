@@ -88,8 +88,8 @@ test('R-012: a stored value spelled like Any or Not set is still that value', ()
 test('the menu lists choices at once and a reference once its targets are read', () => {
   const pick = { fieldId: 'status', value: 'done', label: 'Status: Done' };
   const reading = model.quickFilterMenuMarkup(fields, pick, () => ({ state: 'loading' }), false, '');
-  assert.match(reading, /<select data-quick-filter="status"><option value="">Any<\/option><option value="v:open">Open<\/option><option value="v:done" selected>Done<\/option>/);
-  assert.match(reading, /<select data-quick-filter="debate" disabled><option value="" selected>Any<\/option><option disabled>Reading…<\/option><\/select>/);
+  assert.match(reading, /<select data-quick-filter="status" data-reads><option value="">Any<\/option><option value="v:open">Open<\/option><option value="v:done" selected>Done<\/option>/);
+  assert.match(reading, /<select data-quick-filter="debate" data-reads disabled><option value="" selected>Any<\/option><option disabled>Reading…<\/option><\/select>/);
   assert.match(reading, /<option value="none">Not set<\/option>/);
   assert.match(reading, /Filter \(1\)/);
   const ready = model.quickFilterMenuMarkup(fields, undefined, () => ({ state: 'ready', items: [{ recordId: 'd1', label: '<b>Ship</b>' }] }), true, '');

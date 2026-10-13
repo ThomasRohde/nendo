@@ -149,6 +149,9 @@ internal static class NendoToolErrors
             "calculated-query-too-wide", "search-too-long", "search-too-many-terms", "search-index-missing",
             "stale-cursor", "invalid-limit", "data-unavailable", "history-unavailable", "reopen-to-verify",
             "read-only", "proposal-not-found", "receipt-file-mismatch",
+            // W-221: a read-only session's file moved on (ECO-07, R2SMA-12), and a file marked
+            // read-only that Nendo will not replace (R2SMA-10). Constant sentences, naming nothing.
+            "read-only-file-changed", "replacement-target-read-only", "replacement-target-in-use",
         ], StringComparer.Ordinal);
 
     /// <summary>

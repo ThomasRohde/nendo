@@ -50,6 +50,35 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
+    /// R2SMA-08: a launch of a file Nendo opens only read-only — marked read-only here; needing
+    /// recovery or an upgrade alike — ended on the recovery panel with no file open. Since DSH-01 the
+    /// launch assesses first, and a file that can be read but not written goes to the question
+    /// offering Inspect read-only, with the inspection's own reason.
+    /// </summary>
+    [TestMethod]
+    public async Task ALaunchOfAFileThatOpensOnlyReadOnlyOffersToInspectIt()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await SeedAsync(workspace);
+        File.SetAttributes(workspace.FilePath, File.GetAttributes(workspace.FilePath) | FileAttributes.ReadOnly);
+        try
+        {
+            await using var session = Session(workspace, []);
+            var assessment = await session.AssessOpenAsync(workspace.FilePath);
+            Assert.IsTrue(assessment.Inspection.Capabilities.ReadData, "The file cannot be inspected at all.");
+            Assert.IsFalse(assessment.Inspection.CanAcquireWriteAuthority);
+            Assert.IsTrue(DesktopStartupOpen.NeedsAQuestion(assessment), "A launch tried to open for editing a file that opens only read-only.");
+            Assert.AreEqual("file-read-only", assessment.Inspection.Findings.Single().Code);
+            var view = await session.OpenReadOnlyAsync(workspace.FilePath);
+            Assert.AreEqual("readOnly", view.Health);
+        }
+        finally
+        {
+            File.SetAttributes(workspace.FilePath, File.GetAttributes(workspace.FilePath) & ~FileAttributes.ReadOnly);
+        }
+    }
+
+    /// <summary>
     /// DSH-06: opening another file closed this one before the new one was assessed, so a Cancel
     /// or a refusal left nothing open and the proposals discarded; and the open file chosen again
     /// was closed and reopened.

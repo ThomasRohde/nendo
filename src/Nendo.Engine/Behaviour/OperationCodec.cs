@@ -12,9 +12,9 @@ namespace Nendo.Engine;
 /// </para>
 /// <para>
 /// Round-tripping through canonical JSON rather than keeping the objects in memory
-/// is what lets a plan outlive the session that reviewed it, and it means a
-/// workspace somebody edited is parsed and re-validated like anything else rather
-/// than trusted because it came off disk.
+/// means a workspace somebody edited is parsed and re-validated like anything else
+/// rather than trusted because it came off disk. A plan does not outlive its file
+/// session: the workspace is removed when the file closes (ECO-13).
 /// </para>
 /// </summary>
 internal static class NendoOperationCodec

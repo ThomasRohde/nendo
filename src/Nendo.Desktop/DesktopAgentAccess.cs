@@ -369,6 +369,11 @@ internal sealed partial class DesktopSessionController
         RotateFileSession();
         _agentCleanupNotice = null;
         var coordinator = _coordinator!;
+        // An observer the coordinator swallowed (ECO-06) is kept by its type alone, under the same
+        // "Record failures" switch, and off the Engine gate.
+        coordinator.ObserverFailed = type => _ = Task.Run(() => RecordAgentFailure(new NendoAgentFailure(
+            DateTimeOffset.UtcNow, Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(4)).ToLowerInvariant(),
+            "engine", "coordinator.observer", type.FullName ?? type.Name, string.Empty)));
         _authorityLostHandler = () =>
         {
             // Said before the drain, not after: the drain waits on the Desktop gate, and

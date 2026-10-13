@@ -145,9 +145,9 @@ Nendo never guesses a repair. Rolling back an unfinished save is SQLite's own ex
 Health's **Recovery actions** are:
 
 - **Inspect Data** opens the Studio table.
-- **Export readable data…** writes the stored values of one record type to a CSV file. One file holds at most 4 MiB and 10,000 rows. A larger record type is written in parts: after each part Nendo offers **Export next part**, which starts after the last record the part before it wrote, so the parts together hold every record once.
-- **Create backup…** and **Restore backup…**.
-- **Inspect file again** re-runs the checks, for example after you close the program that had the file busy.
+- **Export readable data…** writes the stored values of one record type to a CSV file, with each reference as the record ID it points at. One file holds at most 4 MiB and 10,000 rows. A larger record type is written in parts: after each part Nendo offers **Export next part**, which starts after the last record the part before it wrote, so the parts together hold every record once.
+- **Create backup…** and **Restore backup…**. Nendo does not restore or upgrade over a file marked read-only in File Explorer: clear **Read-only** in the file's Properties first, then choose **Inspect file again**.
+- **Inspect file again** re-runs the checks, for example after you close the program that had the file busy. It is offered only for a file that is read-only or needs recovery. A file open read-only keeps what it read when it opened; if another window changes the file, a backup or copy from the read-only window says so, and **Inspect file again** reads the current state.
 - **Save diagnostics…** writes a report you can share.
 - **Review recovery…** resolves an interrupted replacement.
 - **Open file or backup…** opens another file.

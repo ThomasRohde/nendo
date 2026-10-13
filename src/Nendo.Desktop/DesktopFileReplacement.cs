@@ -108,8 +108,13 @@ internal sealed partial class DesktopSessionController
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (_service?.Capabilities.Mutate is true)
-                throw new NendoPreconditionException("inspection-not-required", "This file is already open for editing. Restarting the view does not require reopening it.");
+            // Healthy is the test, not editable: a healthy file waiting for its automatic actions to
+            // be approved has editing off as well, and reinspecting it closed it, ended agent access,
+            // discarded waiting proposals and reopened it read-only, where approval could not be
+            // given (R2SMA-06).
+            if (_coordinator?.Health == NendoSessionHealth.Normal)
+                throw new NendoPreconditionException("inspection-not-required",
+                    "This file passed the checks required for editing, so it does not need inspecting again. Reopening it would only make it read-only.");
             var path = _currentPath ?? _recoveryPath ?? throw new NendoPreconditionException(
                 "recovery-file-unavailable", "Choose a file to inspect first.");
             await CloseFileCoreAsync();

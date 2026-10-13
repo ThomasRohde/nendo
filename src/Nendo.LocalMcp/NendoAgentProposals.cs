@@ -137,7 +137,7 @@ public sealed record NendoAgentProposalPreview(
     string Title,
     [property: Description("previewable when it validated and waits for the person; invalid when diagnostics stop it (the draft stays open to amend); stale, failed, active or rejected afterwards.")]
     NendoProposalState State,
-    [property: Description("retainUntilExplicitCleanup: the proposal stays until it is accepted or rejected.")]
+    [property: Description("retainUntilExplicitCleanup: the proposal waits until it is accepted or rejected, or until the file closes or Nendo exits, which discards it. Ask the person to accept before they close the file.")]
     NendoProposalRetention Retention,
     [property: Description("The definition revision the proposal was built against.")]
     long CapturedDefinitionRevision,

@@ -601,7 +601,7 @@ What remains open:
 - **A Danish Excel still opens an export in one column.** The export now starts with the UTF-8 BOM,
   so æ, ø and å read correctly (R2LAT-11), but Excel with Danish regional settings separates columns
   with `;`, and the profile's delimiter is a comma. Data > From Text/CSV reads it. The recovery
-  export is still written without the BOM; it belongs to another pass (W-221).
+  export already started with the BOM (checked in W-221).
 - **A decimal like `1,234` is refused where the language writes decimals with a dot.** `12,5`,
   `0,125` and `1234,567` are decimals everywhere (R2LAT-05), and in a comma-decimal language
   `1,234` is 1.234; elsewhere it cannot be told from a thousands grouping and is refused with that
@@ -615,6 +615,36 @@ What remains open:
 - **The views' page language is checked in their source only.** No browser lane loads a first-party
   view with a Danish locale and reads `document.documentElement.lang` (R2LAT-10);
   `view-language.test.mjs` holds the rule in each view's source and in the authoring guide.
+
+## Left open by the write coordinator and safe mode pass (W-221, 2026-10-13)
+
+- **One unreadable cell or one renamed table rejects the whole file.** A blob in any cell, a
+  mapped column that is missing, or a record type's table that is renamed or replaced by a view
+  makes the inspection refuse the file outright, with no data readable, while an unrelated extra
+  table only puts it in recovery (R2SMA-02). The owner chose to record it (2026-10-13): the typed
+  reader reads every mapped column of a record type in one query, so opening the rest of such a
+  file in recovery needs per-record-type and per-field omission in the reader first, which is
+  feature work. Only an edit made outside Nendo produces such a file, and a SQLite tool repairs it.
+- **A file that records less than its screens need stays read-only.** The finding now says it in
+  file-format terms (R2SMA-11), but nothing in Nendo raises the recorded format: ADR-0012 refuses
+  to adopt changed bytes silently, and this host never writes such a file. Open a backup from
+  before the outside change.
+- **A read-only session without a verifiable digest cannot read package files.** Package files and
+  view state are read from the file only while it still holds the content the session inspected
+  (ECO-07). A session whose file could not yield a backup at open has no digest to compare, so
+  those reads are still refused there, and Help shows only the built-in pages.
+- **A reader that holds the file through a restore is refused, not waited for.** The original's
+  exclusive handle is now taken before any recovery record is written (ECO-01, W-221 review). A
+  reader that lets go within about a second — Nendo's own short-lived reads, such as another
+  window refreshing its Jump List or a read-only session checking its digest, or an indexer — is
+  waited out; one that holds on longer gets `replacement-target-in-use` with nothing changed, and
+  the person tries again. Nothing waits for a program that keeps the file open.
+- **A fold that could not compact the file does not say so on screen.** The result carries
+  `spaceReclaimed: false` (ECO-02) and the fold stands, but History's outcome sentence does not
+  read it yet.
+- **The native recovery panel's InfoBar and the native dialogs' theme are held in source only.**
+  No lane drives the native panel through an action or flips the Windows theme under an open
+  dialog (R2SMA-09, R2SMA-14); `DesktopWindowChromeTests` holds the markup and the helper.
 
 ## Left open by the 2026-09-12 vocabulary widening
 

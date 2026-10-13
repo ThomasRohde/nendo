@@ -4,6 +4,7 @@ import {
   quickFilters, state, studioQueries, surfaceErrors, surfaceWindows, timelineModes, timelineYears,
 } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
+import { deferWhileBusy } from './busy-queue';
 import { messageFor } from './format';
 import { navigationTrail, tabsOf, type Place } from './navigation-trail';
 import {
@@ -153,7 +154,9 @@ function whyPlaceIsGone(place: Place): string | null {
 async function travel(direction: 'back' | 'forward'): Promise<void> {
   const way = direction === 'back' ? 'the way back' : 'the way forward';
   const target = direction === 'back' ? navigationTrail.peekBack() : navigationTrail.peekForward();
-  if (state.actionInFlight || target === null) return;
+  if (target === null) return;
+  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  if (deferWhileBusy(() => { void travel(direction); })) return;
   // Both directions redraw, and a redraw discards a form's drafts, so both decline while
   // there is unsaved typing — in the words the related row's own back already uses.
   if (refuseWhileDirty(direction === 'back' ? 'going back' : 'going forward')) return;
@@ -192,8 +195,11 @@ export async function revisitCurrent(): Promise<boolean> {
   if (target === null) { rerender(); return true; }
   const gone = whyPlaceIsGone(target);
   if (gone !== null) { showError(gone); return false; }
+  // Where the screen is now, captured before anything moves: a tab that cannot be shown puts its
+  // tab and trail back, and the screen has to come back with them (WCS-10).
+  const leaving = placeNow({ eyebrow: '', title: '' });
   if (!(await readPlaceRecord(target))) return false;
-  return settleRestoring(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target);
+  return settleRestoring(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target, undefined, leaving);
 }
 
 /**
@@ -222,7 +228,7 @@ async function readPlaceRecord(target: Place): Promise<boolean> {
  * Show a place with the trail held still, after `step` moves it, and end the busy state
  * the read began. False when the place could not be shown.
  */
-async function settleRestoring(target: Place, step: () => void = () => undefined): Promise<boolean> {
+async function settleRestoring(target: Place, step: () => void = () => undefined, undo?: Place): Promise<boolean> {
   navigationTrail.setRestoring(true);
   step();
   // Held rather than shown, and said after the redraw: a refusal about a move belongs
@@ -232,6 +238,13 @@ async function settleRestoring(target: Place, step: () => void = () => undefined
     await settle(target);
   } catch (error) {
     failure = messageFor(error);
+    // settle() puts the new place's view, record type, filters and record into the state before
+    // it reads, so a read that failed left the old tab selected over the new tab's screen, and the
+    // next draw recorded that screen into the old tab's trail (WCS-10). The place that was on
+    // screen goes back first; its own read failing still leaves its state, which the draw follows.
+    if (undo !== undefined) {
+      try { await settle(undo); } catch { /* The state is the old place's; the redraw below draws it. */ }
+    }
   } finally {
     state.actionInFlight = false;
     setBusy(false);

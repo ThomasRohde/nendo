@@ -85,6 +85,40 @@ public sealed class RecoveryExportTests
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
     }
 
+    /// <summary>
+    /// R2SMA-04: every reference field was left out as "unsupported or over-limit", so the one CSV a
+    /// read-only or recovery session can make lost which project each task belongs to.
+    /// </summary>
+    [TestMethod]
+    public async Task AReferenceIsExportedAsTheRecordItPointsAt()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var original = await workspace.CreateAsync();
+        await original.ApplyAsync(new("test", "schema", "test", "Tasks and projects", [
+            new CreateEntityOperation("projects", "projects", "Projects", "projects"),
+            new AddFieldOperation("p-title", "projects", "title", "Title", "title", NendoStorageKind.Text, true),
+            new CreateEntityOperation("tasks", "tasks", "Tasks", "tasks"),
+            new AddFieldOperation("t-name", "tasks", "name", "Name", "task_name", NendoStorageKind.Text, true),
+            new AddFieldOperation("t-project", "tasks", "project", "Project", "project_id", NendoStorageKind.Reference, false),
+            new ConfigureReferenceOperation("bind", "tasks", "project", "projects", "title", 0),
+        ]));
+        await original.ApplyAsync(new("test", "project", "test", "Project", [
+            new CreateRecordOperation("p1", "projects", "p1", new Dictionary<string, object?> { ["title"] = "Launch" })]));
+        await original.ApplyAsync(new("test", "task", "test", "Task", [
+            new CreateRecordOperation("t1", "tasks", "t1", new Dictionary<string, object?> { ["name"] = "Write the plan", ["project"] = "p1" },
+                new Dictionary<string, long> { ["project"] = 1 })]));
+        await original.DisposeAsync();
+        workspace.Forget(original);
+        await using var recovery = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
+        var plan = await recovery.PrepareRecoveryExportAsync("tasks", CsvPath(workspace), "export");
+        Assert.IsEmpty(plan.OmittedFieldIds, $"Left out: {string.Join(", ", plan.OmittedFieldIds)}");
+        Assert.IsFalse(plan.IsPartial, "A reference made the export partial.");
+        await recovery.CreateRecoveryExportAsync(plan.PlanId, false);
+        var text = Encoding.UTF8.GetString((await File.ReadAllBytesAsync(CsvPath(workspace)))[3..]);
+        Assert.StartsWith("\"__nendo_record_id\",\"__nendo_record_version\",\"field/name\",\"field/project\"\r\n", text);
+        Assert.Contains("\"t1\",\"1\",\"Write the plan\",\"p1\"", text);
+    }
+
     [TestMethod]
     [DataRow("empty")]
     [DataRow("occupied")]

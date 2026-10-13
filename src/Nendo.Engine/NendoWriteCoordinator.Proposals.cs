@@ -41,6 +41,9 @@ public sealed partial class NendoWriteCoordinator
                 throw new NendoIdempotencyConflictException("The proposal identity already names a committed application change.");
 
             var active = await store.GetSessionSnapshotAsync(FileName, Health, cancellationToken);
+            // Read before the workspace exists, so a refusal here leaves no directory behind.
+            var touched = CaptureTouchedRecords(changeSet, active);
+            var diff = SemanticDiff.From(changeSet, active, await store.GetBehaviourNamesAsync(cancellationToken));
             var workspacePath = ProposalWorkspace.Create(_proposalRoot, proposalId);
             var context = new ProposalContext(
                 proposalId,
@@ -51,9 +54,47 @@ public sealed partial class NendoWriteCoordinator
                 active.Manifest.ApplicationId,
                 active.Manifest.InstanceId,
                 active.Manifest.DefinitionRevision,
-                CaptureTouchedRecords(changeSet, active),
-                SemanticDiff.From(changeSet, active, await store.GetBehaviourNamesAsync(cancellationToken)));
+                touched,
+                diff);
             _proposals.Add(proposalId, context);
+            try
+            {
+                return await PrepareRegisteredProposalAsync(store, context, active, cancellationToken);
+            }
+            catch
+            {
+                // Whatever escapes here, the caller never received the proposal's ID: a clone IO
+                // error, a full volume, a cancelled preview, and also a cancel during the refusal
+                // diagnosis or during the last write of the proposal's files, which a handler
+                // beside the validation's own never saw (ECO-03). Left in place the proposal would
+                // block its own ID with "proposal-exists", refuse promotion as never-previewable,
+                // count against a restore and hold a full copy of the file until it closes. A
+                // workspace that cannot be removed right now — the failure may be the very lock
+                // that holds it — is left for the abandoned-workspace sweep, so the reason
+                // validation failed is what reaches the caller.
+                _proposals.Remove(proposalId);
+                if (!ProposalWorkspace.TryDelete(context)) _proposalCleanupPending = true;
+                throw;
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>Test seams: just before a refused change set is diagnosed, and before the proposal's last write.</summary>
+    internal Action? BeforeRefusalDiagnosis { get; set; }
+    internal Action? BeforeProposalPersist { get; set; }
+
+    /// <summary>Validates a registered proposal on its clone and writes its files; the caller removes it on any throw.</summary>
+    private async Task<NendoProposalPreview> PrepareRegisteredProposalAsync(
+        SqliteNendoStore store, ProposalContext context, NendoSessionSnapshot active, CancellationToken cancellationToken)
+    {
+        var proposalId = context.ProposalId;
+        var changeSet = context.ChangeSet;
+        var workspacePath = context.WorkspacePath;
+        {
             var failure = new ChangeSetFailureLocation();
             try
             {
@@ -145,6 +186,7 @@ public sealed partial class NendoWriteCoordinator
             }
             catch (NendoException exception)
             {
+                BeforeRefusalDiagnosis?.Invoke();
                 context.Diagnostics = await DiagnoseRefusalAsync(
                     store, proposalId, changeSet, exception, failure, active, workspacePath, cancellationToken);
                 context.PreviewApplications = [];
@@ -152,26 +194,9 @@ public sealed partial class NendoWriteCoordinator
                 context.PreviewViews = [];
                 context.State = NendoProposalState.Invalid;
             }
-            catch (Exception exception) when (exception is not NendoException)
-            {
-                // A failure that is not a Nendo validation error — a clone IO error, a
-                // full volume, a cancelled preview — leaves nothing a reviewer could look
-                // at, so the half-registered proposal must not linger. Left in place it
-                // would block its own ID with "proposal-exists", refuse promotion as
-                // never-previewable, count against a restore and never be cleaned up.
-                // A workspace that cannot be removed right now — the failure may be the
-                // very lock that holds it — is left for the abandoned-workspace sweep,
-                // so the reason validation failed is what reaches the caller.
-                _proposals.Remove(proposalId);
-                ProposalWorkspace.TryDelete(context);
-                throw;
-            }
+            BeforeProposalPersist?.Invoke();
             await ProposalWorkspace.PersistAsync(context, cancellationToken);
             return PreviewOf(context);
-        }
-        finally
-        {
-            _gate.Release();
         }
     }
 

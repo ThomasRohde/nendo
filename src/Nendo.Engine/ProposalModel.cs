@@ -15,6 +15,10 @@ public enum NendoProposalState
 
 public enum NendoProposalRetention
 {
+    /// <summary>
+    /// Kept until it is accepted or rejected, or until its file closes or Nendo exits, which
+    /// discards it (ADR-0007). The wire name is older than that rule and is kept for clients (ECO-13).
+    /// </summary>
     RetainUntilExplicitCleanup,
 }
 
