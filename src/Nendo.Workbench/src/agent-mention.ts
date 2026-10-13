@@ -46,6 +46,26 @@ export function clearPointedAt(page: ParentNode): void {
   attached = [];
   written = null;
   drawAttachments(page);
+  composerNote(page, null, 'mention');
+}
+
+/**
+ * A line in the composer, under what the message points at, that says why something did not
+ * happen: a thing that could not be pointed at, or a message that waits for the agent. Said aloud
+ * too. It was said only to screen readers, so a sighted person saw nothing (WAU-03, WAU-10). Null
+ * takes the line away when it is of `kind`.
+ */
+export function composerNote(page: ParentNode, text: string | null, kind: 'waiting' | 'mention' = 'waiting'): void {
+  const note = page.querySelector<HTMLElement>('#chat-composer-note');
+  if (note === null) return;
+  if (text === null) {
+    if (note.dataset.kind === kind && !note.hidden) { note.hidden = true; note.textContent = ''; }
+    return;
+  }
+  note.dataset.kind = kind;
+  note.textContent = text;
+  note.hidden = false;
+  announce(text);
 }
 
 /**
@@ -229,6 +249,12 @@ async function choose(page: ParentNode, prompt: HTMLTextAreaElement, index: numb
   const at = menu;
   if (chosen === undefined || at === null) return;
   close(page);
+  // A thing that cannot be pointed at is refused before its @name is written: the name stood in
+  // the sentence with nothing behind it, and the agent got the words but not the thing (WAU-03).
+  if (!isAttached(attached, chosen) && attached.length >= maximumAttachments) {
+    composerNote(page, `A message points at ${maximumAttachments} things at most. Take one back to point at ${chosen.label}.`, 'mention');
+    return;
+  }
   // The @name takes the place of what was typed, so the sentence reads as the person meant it.
   const caret = prompt.selectionStart;
   const before = prompt.value.slice(0, at.start);
@@ -239,7 +265,6 @@ async function choose(page: ParentNode, prompt: HTMLTextAreaElement, index: numb
   written = { start: before.length, name };
   prompt.dispatchEvent(new Event('input', { bubbles: true }));
   if (isAttached(attached, chosen)) return;
-  if (attached.length >= maximumAttachments) { announce(`A message points at ${maximumAttachments} things at most.`); return; }
   const generation = composerGeneration;
   let text: string;
   try {
@@ -251,10 +276,25 @@ async function choose(page: ParentNode, prompt: HTMLTextAreaElement, index: numb
   if (generation !== composerGeneration || isAttached(attached, chosen)) return;
   // What the host takes together is bounded, so the description is cut to the room left (ACP-10).
   const added = withAttachment(attached, { key: chosen.key, kind: chosen.kind, label: chosen.label, uri: chosen.uri, text });
-  if (added.refused !== null) { announce(added.refused); return; }
+  if (added.refused !== null) {
+    // No room left: the @name just written comes out again, and the line says which chip to take back.
+    unwrite(prompt, before.length, name);
+    composerNote(page, added.refused, 'mention');
+    return;
+  }
   attached = added.attached;
   drawAttachments(page);
+  composerNote(page, null, 'mention');
   announce(`${chosen.label} goes with this message.`);
+}
+
+/** Take an @name back out of the box, where it still stands as it was written. */
+function unwrite(prompt: HTMLTextAreaElement, start: number, name: string): void {
+  if (!prompt.value.startsWith(name, start)) return;
+  prompt.value = prompt.value.slice(0, start) + prompt.value.slice(start + name.length);
+  prompt.selectionStart = prompt.selectionEnd = start;
+  if (written?.start === start) written = null;
+  prompt.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /** The keys the menu takes while it is open. True when the key was the menu's, so the box does not also act on it. */
@@ -311,6 +351,7 @@ export function wireMentions(page: HTMLElement): void {
     const gone = attached.find((item) => item.key === remove.dataset.removeAttachment);
     attached = attached.filter((item) => item.key !== remove.dataset.removeAttachment);
     drawAttachments(page);
+    composerNote(page, null, 'mention');
     prompt.focus();
     if (gone !== undefined) announce(`${gone.label} no longer goes with this message.`);
   });

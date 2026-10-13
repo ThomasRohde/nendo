@@ -4,7 +4,13 @@ import { WorkbenchHostError, type AgentOption, type AgentStatus, type AgentTrans
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
  * the Desktop host, answered by a short script, so the Agent page's Launch and the conversation
  * tab can be seen and measured without an agent program. Every prompt gets a plan, a read, a
- * permission request and, once it is answered, a reply in chunks.
+ * permission request and, once it is answered, a reply in chunks. The prompt "parallel" gets two
+ * steps at once, the first of which says what came back only once the request is answered.
+ *
+ * A step it scheduled belongs to the launch and the turn that scheduled it: Stop, End or another
+ * launch drops it, and a launch is refused while an agent runs, as the Desktop host does. Old
+ * timers wrote into the next conversation and ran after Stop, so the agent-chat lane could read
+ * states production never reaches (WAU-16).
  */
 export class PreviewAgentSession {
   private readonly listeners = new Set<(revision: number) => void>();
@@ -17,6 +23,10 @@ export class PreviewAgentSession {
   private agent: { id: string; name: string; commandLine: string } | null = null;
   private conversationId: string | null = null;
   private launches = 0;
+  /** Moves on with every turn that ends early (Stop) and with every launch and End. */
+  private turn = 0;
+  /** A "parallel" turn's first step, which completes once its request is answered. */
+  private pendingStep: AgentTranscriptEntry | null = null;
   private customCommandLine: string | null = null;
   private hidden: string[] = [];
   // The options Copilot CLI 1.0.93 offered when probed on 2026-10-08, trimmed.
@@ -111,6 +121,8 @@ export class PreviewAgentSession {
   private launch(agentId: string): LaunchedAgentView {
     const offer = this.list();
     if (!offer.canLaunch) throw new WorkbenchHostError('agent-launch-unavailable', offer.reason ?? 'An agent cannot be launched now.');
+    if (offer.running !== null)
+      throw new WorkbenchHostError('agent-already-running', `${offer.running.name} is already running for this file. End it before launching another.`);
     const agent = offer.agents.find((candidate) => candidate.id === agentId && candidate.found);
     if (agent === undefined) throw new WorkbenchHostError('agent-not-found', 'That agent is not installed on this computer.');
     this.agent = agent;
@@ -122,8 +134,10 @@ export class PreviewAgentSession {
     this.state = 'starting';
     this.working = false;
     this.notice = null;
+    this.turn += 1;
+    this.pendingStep = null;
     // Ended while starting stays ended, as a real agent's process does.
-    window.setTimeout(() => { if (this.state === 'starting') { this.state = 'ready'; this.touch(); } }, 400);
+    this.later(400, () => { if (this.state === 'starting') { this.state = 'ready'; this.touch(); } });
     return this.read(0);
   }
 
@@ -132,6 +146,7 @@ export class PreviewAgentSession {
     if (text.trim() === '') throw new WorkbenchHostError('validation', 'Type something for the agent first.');
     this.working = true;
     this.add({ kind: 'you', text: text.trim(), title: pointedAt.length === 0 ? null : pointedAt.join(' · ') });
+    if (text.trim() === 'parallel') return this.parallel(after);
     const plan = this.add({ kind: 'plan', text: '', plan: [
       { text: 'Read the record types', status: 'in_progress' },
       { text: 'Add a record type for the request', status: 'pending' },
@@ -146,11 +161,28 @@ export class PreviewAgentSession {
     return this.read(after);
   }
 
+  /**
+   * Two steps that run at once, as an agent that calls tools in parallel sends them: the first
+   * says what came back only once the request is answered, so a step earlier in the run gains a
+   * disclosure while the person has a later one open (WAU-09).
+   */
+  private parallel(after: number): LaunchedAgentView {
+    this.pendingStep = this.add({ kind: 'tool', text: '', title: 'Count the records', toolKind: 'read', status: 'in_progress', origin: 'nendo' });
+    this.add({ kind: 'tool', text: 'Crew, Mission', title: 'List the record types', toolKind: 'read', status: 'completed', input: '{"uri":"nendo://application/manifest"}', origin: 'nendo' });
+    this.add({ kind: 'permission', text: '', title: 'Add operations to a change set', toolKind: 'edit', origin: 'nendo', input: '{"operations":[]}',
+      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] });
+    return this.read(after);
+  }
+
   private answer(entryId: string, optionId: string | null, after: number): LaunchedAgentView {
     const entry = this.entries.find((candidate) => candidate.id === entryId && candidate.kind === 'permission' && candidate.answer === null);
     if (entry === undefined) throw new WorkbenchHostError('agent-question-gone', 'The agent is no longer waiting for that answer.');
     const option = entry.options?.find((candidate) => candidate.optionId === optionId) ?? null;
     this.change(entry, { answer: option?.name ?? 'Cancelled' });
+    if (this.pendingStep !== null) {
+      this.change(this.pendingStep, { text: '42 records', status: 'completed' });
+      this.pendingStep = null;
+    }
     const words = option?.optionId === 'allow'
       ? ['I proposed a **Task** record type ', 'with a title and a due date. ', 'Review it on the Agent page.']
       : ['Understood, I left the file as it was.'];
@@ -165,6 +197,9 @@ export class PreviewAgentSession {
 
   private cancel(after: number): LaunchedAgentView {
     if (this.working) {
+      // The stopped turn's steps still to come are dropped with it.
+      this.turn += 1;
+      this.pendingStep = null;
       this.working = false;
       for (const entry of this.entries.filter((candidate) => candidate.kind === 'permission' && candidate.answer === null))
         this.change(entry, { answer: 'Cancelled' });
@@ -176,6 +211,8 @@ export class PreviewAgentSession {
   private end(notice: string, after: number): LaunchedAgentView {
     if (this.agent === null) throw new WorkbenchHostError('agent-not-launched', 'No agent is running for this file. Launch one from the Agent page.');
     if (this.state !== 'ended') {
+      this.turn += 1;
+      this.pendingStep = null;
       this.state = 'ended';
       this.working = false;
       this.notice = notice;
@@ -204,6 +241,7 @@ export class PreviewAgentSession {
       signInMethods: [],
       options: this.agent === null || this.state === 'starting' ? [] : structuredClone(this.options),
       firstOrder: this.entries[0]?.order ?? this.order + 1,
+      signingIn: false,
     };
   }
 
@@ -229,8 +267,13 @@ export class PreviewAgentSession {
     queueMicrotask(() => { for (const listener of this.listeners) listener(revision); });
   }
 
+  /** A step of this launch's current turn, dropped if the turn or the launch has moved on by then. */
   private later(delay: number, step: () => void): void {
-    window.setTimeout(() => { if (this.state !== 'ended') step(); }, delay);
+    const conversation = this.conversationId;
+    const turn = this.turn;
+    window.setTimeout(() => {
+      if (this.state !== 'ended' && this.conversationId === conversation && this.turn === turn) step();
+    }, delay);
   }
 }
 

@@ -198,7 +198,9 @@ internal sealed partial class SqliteNendoStore
             await using (var manifest = Command("UPDATE __nendo_manifest SET minimum_host_version = $version;", transaction))
             {
                 var before = await ReadManifestAsync(transaction, ct);
-                manifest.Parameters.AddWithValue("$version", NendoFormat.RequireAtLeast(before.MinimumHostVersion, NendoFormat.HistoryFoldMinimumHostVersion));
+                manifest.Parameters.AddWithValue("$version", NendoFormat.RequireAtLeast(
+                    NendoFormat.RequireAtLeast(before.MinimumHostVersion, NendoFormat.HistoryFoldMinimumHostVersion),
+                    NendoFormat.RevisionIndexesMinimumHostVersion));
                 await manifest.ExecuteNonQueryAsync(ct);
             }
             var committedAuthority = await PrepareCommittedAuthorityAsync(transaction, ct);
@@ -258,6 +260,9 @@ internal sealed partial class SqliteNendoStore
         }
 
         await EnsureHistoryFoldLayoutAsync(transaction, ct);
+        // Each deleted revision cascades into its idempotency row, a scan of that whole table
+        // per revision without the index (PERF-01), so the indexes come first.
+        await EnsureRevisionIndexesAsync(transaction, ct);
         await using (var delete = Command("DELETE FROM __nendo_revision WHERE change_sequence > 0 AND change_sequence <= $last;", transaction))
         {
             delete.Parameters.AddWithValue("$last", plan.Last.ChangeSequence);

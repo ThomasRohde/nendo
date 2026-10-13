@@ -247,6 +247,12 @@ internal sealed partial class DesktopSessionController
         return !ExtensionsEnabled(serving) ? 403 : serving.Hosts.ContainsKey(host) ? 200 : 404;
     }
 
+    private ExtensionOriginCarry? _originCarry;
+
+    /// <summary>Read, or on the device's first start of a host with the new key written, before the open file is recorded.</summary>
+    private ExtensionOriginCarry OriginCarry() =>
+        _originCarry ??= new ExtensionOriginCarry(_deviceStateRoot, _fileHistory.LatestInstanceByApplication);
+
     private DesktopExtensionRuntimeView DescribeExtensions(NendoSessionSnapshot snapshot, string health)
     {
         var settings = ExtensionSettings;
@@ -260,6 +266,9 @@ internal sealed partial class DesktopSessionController
         ReconcileDevelopment(applicationId, snapshot.ExtensionPackages.Where(package => !package.IsSkill)
             .Select(package => package.PackageId).ToHashSet(StringComparer.Ordinal));
         var hosts = new Dictionary<string, NendoExtensionPackageSnapshot>(StringComparer.OrdinalIgnoreCase);
+        // The instance this device opened last before the key gained the instance ID keeps its
+        // views' origin, and their storage with it (ADR-0013, 2026-10-13).
+        var carriedOver = OriginCarry().Holds(applicationId, snapshot.Manifest.InstanceId);
         var packages = new List<DesktopExtensionPackageView>(snapshot.ExtensionPackages.Count);
         foreach (var package in snapshot.ExtensionPackages)
         {
@@ -271,7 +280,7 @@ internal sealed partial class DesktopSessionController
                     null, package.Files.Count, package.TotalBytes, ContentDigest(package), package.Kind));
                 continue;
             }
-            var host = ExtensionOrigins.Host(applicationId, package.PackageId);
+            var host = ExtensionOrigins.Host(applicationId, snapshot.Manifest.InstanceId, package.PackageId, carriedOver);
             hosts[host] = package;
             packages.Add(new(package.PackageId, package.Title, package.Version, package.EntryPoint, package.Description,
                 "https://" + host, package.Files.Count, package.TotalBytes, ContentDigest(package), package.Kind)

@@ -6,6 +6,9 @@ namespace Nendo.Engine.Storage;
 
 internal sealed partial class SqliteNendoStore
 {
+    /// <summary>How many rows a filter's function was asked about; a test reads it.</summary>
+    internal long FilterCallbacks { get; private set; }
+
     /// <summary>
     /// The predicates every filtered read shares: the page, the count and each aggregate. A
     /// comparison becomes a deterministic function over the column; <c>descendantOf</c>
@@ -31,8 +34,25 @@ internal sealed partial class SqliteNendoStore
             }
             var function = $"{functionPrefix}_{index}";
             _connection.CreateFunction<string?, string?, bool>(function,
-                (actual, expected) => RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected), isDeterministic: true);
-            predicates.Add($"{function}(CAST({Quote(field.PhysicalColumnName)} AS TEXT), @filter{index})");
+                (actual, expected) =>
+                {
+                    FilterCallbacks++;
+                    return RecordQuerySemantics.Matches(filter.Operator, field.StorageKind, actual, expected);
+                }, isDeterministic: true);
+            var column = Quote(field.PhysicalColumnName);
+            // The function stays the authority; beside it, where SQLite's own comparison gives the
+            // same answer, a plain one an index can seek (PERF-02). Equality on text, a reference or
+            // a date is ordinal, which is SQLite's; a UUID compares in either case (ESQ-17), so it
+            // has none. Without it no index served a filter, the related list's reference index included.
+            var seek = filter.Operator switch
+            {
+                "eq" when field.StorageKind is NendoStorageKind.Text or NendoStorageKind.Reference or NendoStorageKind.Date
+                    => $"{column} = @filter{index} AND ",
+                "isNull" => $"{column} IS NULL AND ",
+                "isNotNull" => $"{column} IS NOT NULL AND ",
+                _ => "",
+            };
+            predicates.Add($"({seek}{function}(CAST({column} AS TEXT), @filter{index}))");
             parameters[$"@filter{index}"] = filter.Operator is "isNull" or "isNotNull" ? DBNull.Value
                 : ConvertValue(field with { Required = false, Presentation = null, Options = [] }, filter.Value);
         }

@@ -219,6 +219,32 @@ internal sealed class DesktopFileHistory(string root)
         }
     }
 
+    /// <summary>
+    /// For each application ID in the list, the instance opened most recently: the file whose
+    /// views keep their storage when the view origin's key changed (ADR-0013, 2026-10-13). Empty
+    /// for an absent, empty or unusable list; null when the list exists but cannot be read now, so
+    /// nothing is settled on a passing failure.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string>? LatestInstanceByApplication()
+    {
+        HistoryDocument? document;
+        try
+        {
+            if (!File.Exists(StatePath)) return new Dictionary<string, string>(StringComparer.Ordinal);
+            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (stream.Length > MaximumBytes) return new Dictionary<string, string>(StringComparer.Ordinal);
+            document = JsonSerializer.Deserialize<HistoryDocument>(stream);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
+        catch (Exception exception) when (exception is JsonException or ArgumentException) { document = null; }
+        if (document is null || document.Version != 1 || document.Entries is null || document.Entries.Count > MaximumEntries ||
+            document.Entries.Any(entry => entry is null || !IsValid(entry)))
+            return new Dictionary<string, string>(StringComparer.Ordinal);
+        return document.Entries
+            .GroupBy(entry => entry.ApplicationId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(entry => entry.LastOpened).First().InstanceId, StringComparer.Ordinal);
+    }
+
     private async Task<LoadedHistory> LoadAsync(CancellationToken cancellationToken)
     {
         try

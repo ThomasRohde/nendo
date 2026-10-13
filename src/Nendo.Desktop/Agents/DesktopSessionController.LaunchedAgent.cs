@@ -38,7 +38,7 @@ internal sealed record DesktopLaunchableAgents(
 /// <summary>
 /// The conversation tab's read: which launch it is, who the agent is, the level it works at, the
 /// MCP address it was given, its state, the entries that changed after the revision the tab asked
-/// from, and the order of the oldest entry still kept.
+/// from, the order of the oldest entry still kept, and whether a sign-in runs (DAE-10).
 /// </summary>
 internal sealed record DesktopLaunchedAgentView(
     bool Exists,
@@ -57,7 +57,8 @@ internal sealed record DesktopLaunchedAgentView(
     bool More,
     IReadOnlyList<AgentSignInMethodView> SignInMethods,
     IReadOnlyList<AgentOptionView> Options,
-    long FirstOrder)
+    long FirstOrder,
+    bool SigningIn = false)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
         new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0);
@@ -67,6 +68,36 @@ internal sealed partial class DesktopSessionController
 {
     private volatile DesktopLaunchedAgent? _launched;
     private DesktopAgentLaunchStore? _agentLaunch;
+    private readonly object _catalogSync = new();
+    private readonly SemaphoreSlim _catalogWalk = new(1, 1);
+    private Task<AgentCatalog>? _catalog;
+    private string? _catalogFor;
+    private long _catalogStarted;
+
+    /// <summary>A catalogue this recent is reused, so a list and a launch close together walk PATH once.</summary>
+    private const long CatalogReuseMilliseconds = 2000;
+
+    /// <summary>The agents found, and the environment they were found in and will start with.</summary>
+    private sealed record AgentCatalog(IReadOnlyList<DesktopAgentCommand> Agents, IReadOnlyDictionary<string, string> Environment);
+
+    /// <summary>
+    /// The person's environment as Windows holds it now (DAE-12). The tests put another in its
+    /// place; it is read off the request gate, with the catalogue.
+    /// </summary>
+    internal Func<IReadOnlyDictionary<string, string>> AgentEnvironmentReader
+    {
+        get => _agentEnvironmentReader;
+        set
+        {
+            // Another environment is another catalogue.
+            lock (_catalogSync)
+            {
+                _agentEnvironmentReader = value;
+                _catalog = null;
+            }
+        }
+    }
+    private Func<IReadOnlyDictionary<string, string>> _agentEnvironmentReader = AgentEnvironment.Read;
 
     /// <summary>
     /// The launched agent's conversation changed, carrying its revision. Raised on the agent's
@@ -84,12 +115,16 @@ internal sealed partial class DesktopSessionController
 
     internal async Task<DesktopLaunchableAgents> ListLaunchableAgentsAsync(string fileSessionId, CancellationToken cancellationToken = default)
     {
+        // Finding the agents walks every PATH folder, and an unreachable share there took about
+        // 20 seconds; under the request gate the Agent page's poll held every save and every
+        // switch behind it. It reads no file state, so it runs before the gate (DAE-07).
+        var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
         await EnterRequestGateAsync(cancellationToken);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             RequireFileSession(fileSessionId);
-            return DescribeLaunchableCore();
+            return DescribeLaunchableCore(catalog);
         }
         finally
         {
@@ -100,6 +135,8 @@ internal sealed partial class DesktopSessionController
     /// <summary>Keep the person's own command line on this device, or forget it with an empty one.</summary>
     internal async Task<DesktopLaunchableAgents> SetAgentCommandAsync(string fileSessionId, string? commandLine, CancellationToken cancellationToken = default)
     {
+        var line = commandLine?.Trim();
+        var catalog = await CatalogAsync(string.IsNullOrEmpty(line) ? null : line, cancellationToken);
         await EnterRequestGateAsync(cancellationToken);
         try
         {
@@ -110,7 +147,7 @@ internal sealed partial class DesktopSessionController
             {
                 throw new NendoPreconditionException("agent-command-not-saved", "Your command could not be kept on this computer.");
             }
-            return DescribeLaunchableCore();
+            return DescribeLaunchableCore(catalog);
         }
         finally
         {
@@ -121,6 +158,7 @@ internal sealed partial class DesktopSessionController
     /// <summary>Hide an agent from Launch on this device, or show it again (W-199).</summary>
     internal async Task<DesktopLaunchableAgents> SetAgentHiddenAsync(string fileSessionId, string agentId, bool hidden, CancellationToken cancellationToken = default)
     {
+        var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
         await EnterRequestGateAsync(cancellationToken);
         try
         {
@@ -131,7 +169,7 @@ internal sealed partial class DesktopSessionController
             {
                 throw new NendoPreconditionException("agent-choice-not-saved", "That choice could not be kept on this computer.");
             }
-            return DescribeLaunchableCore();
+            return DescribeLaunchableCore(catalog);
         }
         finally
         {
@@ -145,24 +183,30 @@ internal sealed partial class DesktopSessionController
     /// </summary>
     internal async Task<DesktopLaunchedAgentView> LaunchAgentAsync(string fileSessionId, string agentId, CancellationToken cancellationToken = default)
     {
+        var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
         await EnterRequestGateAsync(cancellationToken);
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             RequireFileSession(fileSessionId);
-            var launchable = DescribeLaunchableCore();
+            var launchable = DescribeLaunchableCore(catalog);
             if (!launchable.CanLaunch)
                 throw new NendoPreconditionException("agent-launch-unavailable", launchable.Reason ?? "An agent cannot be launched now.");
             if (_launched is { HasEnded: false } running)
                 throw new NendoPreconditionException("agent-already-running",
                     $"{running.Command.Name} is already running for this file. End it before launching another.");
-            var command = DesktopAgentCatalog.List(AgentLaunch().CommandLine).FirstOrDefault(candidate => candidate.Id == agentId)
+            var command = catalog.Agents.FirstOrDefault(candidate => candidate.Id == agentId)
                 ?? throw new NendoValidationException("Choose one of the agents the Agent page offers.");
             var endpoint = _agentHost!.Endpoint;
             var previous = _launched;
             _launched = null;
-            if (previous is not null) await previous.DisposeAsync();
-            var agent = DesktopLaunchedAgent.Launch(command, endpoint, AgentSessionsRoot, NendoProduct.Version);
+            // An old conversation that fails to close does not stop the new launch (DAE-04).
+            if (previous is not null)
+            {
+                try { await previous.DisposeAsync(); }
+                catch (Exception) { /* The program is in a job that ends with the host. */ }
+            }
+            var agent = DesktopLaunchedAgent.Launch(command, endpoint, AgentSessionsRoot, NendoProduct.Version, catalog.Environment);
             agent.Changed += revision =>
             {
                 // A conversation that has since been replaced, or whose file has closed, is not news.
@@ -245,7 +289,11 @@ internal sealed partial class DesktopSessionController
         if (forget) _launched = null;
         try { await agent.EndAsync(notice); }
         catch (Exception) { /* The program is in a job that ends with the host. */ }
-        if (forget) await agent.DisposeAsync();
+        if (!forget) return;
+        // Closing the file goes on to stop agent access and close its proposals however the
+        // conversation's own close went: a throw here once left the file's listener running (DAE-04).
+        try { await agent.DisposeAsync(); }
+        catch (Exception) { /* The program is in a job that ends with the host. */ }
     }
 
     /// <summary>A restarted listener with a new address strands the agent on the old one: end it.</summary>
@@ -258,10 +306,51 @@ internal sealed partial class DesktopSessionController
             forget: false);
     }
 
-    private DesktopLaunchableAgents DescribeLaunchableCore()
+    /// <summary>
+    /// The agents this computer has, with <paramref name="customCommandLine"/> as the person's own,
+    /// found in the environment as it is now. One walk of PATH at a time, whatever the command line:
+    /// a request for the same one that comes while it runs, or within two seconds of its start,
+    /// shares it, and one for another waits for it to end.
+    /// </summary>
+    private Task<AgentCatalog> CatalogAsync(string? customCommandLine, CancellationToken cancellationToken)
+    {
+        Task<AgentCatalog> catalog;
+        lock (_catalogSync)
+        {
+            var now = Environment.TickCount64;
+            if (_catalog is { } held && string.Equals(_catalogFor, customCommandLine, StringComparison.Ordinal) &&
+                (!held.IsCompleted || held.IsCompletedSuccessfully && now - _catalogStarted < CatalogReuseMilliseconds))
+            {
+                catalog = held;
+            }
+            else
+            {
+                var read = _agentEnvironmentReader;
+                _catalogFor = customCommandLine;
+                _catalogStarted = now;
+                _catalog = catalog = Task.Run(async () =>
+                {
+                    // One walk of PATH at a time, whatever command line it is for.
+                    await _catalogWalk.WaitAsync();
+                    try
+                    {
+                        var environment = read();
+                        return new AgentCatalog(DesktopAgentCatalog.List(customCommandLine, AgentEnvironment.PathOf(environment)), environment);
+                    }
+                    finally
+                    {
+                        _catalogWalk.Release();
+                    }
+                });
+            }
+        }
+        return catalog.WaitAsync(cancellationToken);
+    }
+
+    private DesktopLaunchableAgents DescribeLaunchableCore(AgentCatalog catalog)
     {
         var custom = AgentLaunch().CommandLine;
-        var agents = DesktopAgentCatalog.List(custom)
+        var agents = catalog.Agents
             .Select(agent => new DesktopLaunchableAgentView(agent.Id, agent.Name, agent.CommandLine, agent.ResolvedPath is not null,
                 agent.Package, agent.InstallCommand, agent.RenamedFrom, agent.UpdateCommand))
             .ToArray();
@@ -290,7 +379,7 @@ internal sealed partial class DesktopSessionController
         var snapshot = agent.Conversation.Read(after);
         return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
-            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder);
+            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

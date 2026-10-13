@@ -252,7 +252,9 @@ data.executeCommand
 `data.searchRecords` backs the *Search text* box in the per-type table's filter bar
 ([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)). It finds that type's records by
 any word in their text, best match first, and lists them under the bar with an excerpt. The table
-and its filter stay as they are, and a result opens the record. While the file has no index, the
+and its filter stay as they are, and a result opens the record. It searches once two letters are
+typed, as Ctrl K and the @ menu do, and says so below that: one letter is a prefix of most of the
+index and about twenty times the work (PERF-09, 2026-10-13). While the file has no index, the
 box offers *Build the search index*: `data.buildSearchIndex`, one host-owned Definition revision
 that changes no record. The same search lists records under the commands in Ctrl K.
 

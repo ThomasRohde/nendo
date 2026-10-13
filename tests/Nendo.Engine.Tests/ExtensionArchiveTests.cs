@@ -142,6 +142,177 @@ public sealed class ExtensionArchiveTests
             Assert.ThrowsExactly<NendoPreconditionException>(() => NendoExtensionArchives.ChangeSet(archive, package)).Code);
     }
 
+    /// <summary>
+    /// EXT-03: a zip is bounded by the files it keeps. Entries an import leaves out, such as a
+    /// node_modules folder or the shadow tree Finder adds, counted towards the 512 files, so a small
+    /// package was refused as too many files. The entries a zip lists have a bound of their own.
+    /// </summary>
+    [TestMethod]
+    public void AZipIsBoundedByTheFilesItKeepsAndNotByTheEntriesItLeavesOut()
+    {
+        var modules = Enumerable.Range(0, 600).Select(index => ($"map/node_modules/lib/{index}.js", "x"));
+        var withModules = Zip([("map/nendo-package.json", Manifest), ("map/index.html", "<p></p>"), ("map/app.js", "go();"), .. modules]);
+        CollectionAssert.AreEqual(new[] { "app.js", "index.html" },
+            NendoExtensionArchives.ReadZip(new MemoryStream(withModules)).Files.Select(file => file.Path).ToArray());
+
+        var files = Enumerable.Range(0, 300).Select(index => $"tiles/{index}.txt").Append("index.html").ToArray();
+        var finder = Zip([("map/nendo-package.json", Manifest), ("__MACOSX/map/._nendo-package.json", "x"),
+            .. files.Select(file => ("map/" + file, "t")), .. files.Select(file => ("__MACOSX/map/._" + file.Replace("/", "/._"), "x"))]);
+        Assert.HasCount(301, NendoExtensionArchives.ReadZip(new MemoryStream(finder)).Files);
+
+        var flood = Zip([("nendo-package.json", Manifest), ("index.html", "<p></p>"),
+            .. Enumerable.Range(0, NendoExtensionArchives.ZipEntries).Select(index => ($".cache/{index}", ""))]);
+        StringAssert.Contains(Assert.ThrowsExactly<NendoValidationException>(() => NendoExtensionArchives.ReadZip(new MemoryStream(flood))).Message,
+            "entries");
+    }
+
+    /// <summary>EXT-04: a directory entry written with backslashes, as Windows PowerShell 5.1 writes an empty folder, is a folder.</summary>
+    [TestMethod]
+    public void AZipWhoseFoldersAreWrittenWithBackslashesReadsLikeAnyOther()
+    {
+        var zip = Zip(("pkg\\nendo-package.json", Manifest), ("pkg\\index.html", "<p></p>"), ("pkg\\assets\\", ""));
+        CollectionAssert.AreEqual(new[] { "index.html" }, NendoExtensionArchives.ReadZip(new MemoryStream(zip)).Files.Select(file => file.Path).ToArray());
+    }
+
+    /// <summary>
+    /// EXT-05: an entry the zip cannot give is refused by its name: a compression method .NET does
+    /// not read, or a damaged stream. They escaped as raw exceptions and reached the person as a host fault.
+    /// </summary>
+    [TestMethod]
+    public void AnEntryTheZipCannotGiveIsRefusedByItsName()
+    {
+        var bzip2 = Stored(("nendo-package.json", Manifest), ("index.html", "<p>map</p>"));
+        foreach (var header in new[] { (Signature: new byte[] { 0x50, 0x4B, 0x03, 0x04 }, Method: 8), (Signature: new byte[] { 0x50, 0x4B, 0x01, 0x02 }, Method: 10) })
+        {
+            // The second entry's headers: index.html. Method 12 is BZip2.
+            var at = -1;
+            for (var found = 0; found < 2; found++) at = bzip2.AsSpan(at + 1).IndexOf(header.Signature) + at + 1;
+            bzip2[at + header.Method] = 12;
+        }
+        var unsupported = Assert.ThrowsExactly<NendoValidationException>(() => NendoExtensionArchives.ReadZip(new MemoryStream(bzip2)));
+        StringAssert.Contains(unsupported.Message, "index.html");
+
+        var text = string.Concat(Enumerable.Range(0, 2_000).Select(index => $"line {index} of the page\n"));
+        var damaged = Zip(("nendo-package.json", Manifest), ("index.html", text));
+        var local = damaged.AsSpan().LastIndexOf(new byte[] { 0x50, 0x4B, 0x03, 0x04 });
+        var data = local + 30 + "index.html".Length;
+        for (var index = data + 20; index < data + 60; index++) damaged[index] ^= 0x5A;
+        var corrupt = Assert.ThrowsExactly<NendoValidationException>(() => NendoExtensionArchives.ReadZip(new MemoryStream(damaged)));
+        StringAssert.Contains(corrupt.Message, "index.html");
+    }
+
+    /// <summary>
+    /// EXT-06: a package cannot hold a file and a folder of one name, in any case. Export writes files
+    /// in path order, so 'lib' and then 'lib/a.js' failed half-written and could never be exported.
+    /// </summary>
+    [TestMethod]
+    public async Task APackageCannotHoldAFileAndAFolderOfOneName()
+    {
+        foreach (var name in new[] { "lib", "Lib" })
+        {
+            var zip = Zip(("nendo-package.json", Manifest), ("index.html", "<p></p>"), (name, "x"), ("lib/a.js", "a"));
+            StringAssert.Contains(Assert.ThrowsExactly<NendoValidationException>(() => NendoExtensionArchives.ReadZip(new MemoryStream(zip))).Message,
+                "a file and a folder");
+        }
+
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        await coordinator.ApplyAsync(new NendoMutation("test", "add", "test", "Add", [
+            new SetExtensionPackageOperation("p", "org.example.map", "Map", "index.html"),
+            PutExtensionFileOperation.FromContent("f", "org.example.map", "index.html", null, "<p>map</p>"u8.ToArray()),
+            PutExtensionFileOperation.FromContent("lib", "org.example.map", "lib", null, "x"u8.ToArray()),
+            PutExtensionFileOperation.FromContent("tiles", "org.example.map", "tiles/a.png", null, "x"u8.ToArray()),
+        ]));
+        foreach (var (key, path) in new[] { ("under-a-file", "LIB/a.js"), ("over-a-folder", "Tiles") })
+        {
+            var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(new NendoMutation("test", key, "test", "Put",
+                [PutExtensionFileOperation.FromContent(key, "org.example.map", path, null, "y"u8.ToArray())])));
+            Assert.AreEqual("extension-path-conflict", refused.Code, $"{path}: {refused.Message}");
+        }
+    }
+
+    /// <summary>
+    /// EXT-06, review: a package stored before the rule may already hold a file and a folder of one
+    /// name. A path it holds is put again as before; only a new path is judged.
+    /// </summary>
+    [TestMethod]
+    public async Task APathAStoredPackageAlreadyHoldsIsPutAgainWhateverElseItHolds()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        await coordinator.ApplyAsync(new NendoMutation("test", "add", "test", "Add", [
+            new SetExtensionPackageOperation("p", "org.example.map", "Map", "index.html"),
+            PutExtensionFileOperation.FromContent("f", "org.example.map", "index.html", null, "<p>map</p>"u8.ToArray()),
+            PutExtensionFileOperation.FromContent("lib", "org.example.map", "lib", null, "x"u8.ToArray()),
+        ]));
+        await coordinator.DisposeAsync();
+        workspace.Forget(coordinator);
+        await using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={workspace.FilePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO __nendo_extension_file(package_id, path, media_type, sha256)
+                SELECT package_id, 'lib/a.js', 'text/javascript', sha256 FROM __nendo_extension_file WHERE path = 'lib';
+                """;
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync());
+        }
+        coordinator = await workspace.OpenAsync();
+        var service = new NendoApplicationService(coordinator);
+        var held = (await service.ReadExtensionFileAsync("org.example.map", "lib"))!.Sha256;
+        await coordinator.ApplyAsync(new NendoMutation("test", "again", "test", "Put again",
+            [PutExtensionFileOperation.FromContent("again", "org.example.map", "lib", null, "y"u8.ToArray(), held)]));
+        Assert.AreEqual("y", Encoding.UTF8.GetString((await service.ReadExtensionFileAsync("org.example.map", "lib"))!.Content),
+            "A path the stored package already held could not be put again.");
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(new NendoMutation("test", "new", "test", "Put",
+            [PutExtensionFileOperation.FromContent("new", "org.example.map", "lib/b.js", null, "z"u8.ToArray())])));
+        Assert.AreEqual("extension-path-conflict", refused.Code);
+    }
+
+    /// <summary>
+    /// EXT-07: what an import leaves out cannot be put, and a manifest spelled in another case is the
+    /// manifest, so a package exported and imported again is the same package.
+    /// </summary>
+    [TestMethod]
+    public async Task WhatAnImportLeavesOutCannotBePutAndTheManifestIsTheManifestInAnyCase()
+    {
+        using var folder = new TemporaryFolder();
+        folder.Write("Nendo-Package.json", Manifest);
+        folder.Write("index.html", "<p></p>");
+        CollectionAssert.AreEqual(new[] { "index.html" }, NendoExtensionArchives.Read(folder.Path).Files.Select(file => file.Path).ToArray(),
+            "A manifest spelled in another case was carried as a package file.");
+
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        await coordinator.ApplyAsync(new NendoMutation("test", "add", "test", "Add", [
+            new SetExtensionPackageOperation("p", "org.example.map", "Map", "index.html"),
+            PutExtensionFileOperation.FromContent("f", "org.example.map", "index.html", null, "<p>map</p>"u8.ToArray()),
+        ]));
+        var paths = new[] { "node_modules/lit/index.js", ".well-known/app.json", "NENDO-PACKAGE.json" };
+        for (var index = 0; index < paths.Length; index++)
+        {
+            var path = paths[index];
+            var refused = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => coordinator.ApplyAsync(new NendoMutation("test", $"put-{index}", "test", "Put",
+                [PutExtensionFileOperation.FromContent($"put-{index}", "org.example.map", path, null, "x"u8.ToArray())])));
+            StringAssert.Contains(refused.Message, "export and import", path);
+        }
+        Assert.HasCount(1, (await new NendoApplicationService(coordinator).GetDefinitionSnapshotAsync()).ExtensionPackages.Single().Files);
+    }
+
+    private static byte[] Stored(params (string Name, string Text)[] entries)
+    {
+        using var buffer = new MemoryStream();
+        using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var (name, text) in entries)
+            {
+                using var stream = zip.CreateEntry(name, CompressionLevel.NoCompression).Open();
+                stream.Write(Encoding.UTF8.GetBytes(text));
+            }
+        }
+        return buffer.ToArray();
+    }
+
     private static byte[] Zip(params (string Name, string Text)[] entries)
     {
         using var buffer = new MemoryStream();

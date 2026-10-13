@@ -129,7 +129,7 @@ truncates it.
 | One package | 512 files and 16 MiB |
 | One `.nendo` file | 64 packages, and 64 MiB of current package bytes |
 | New content in one change set | 4 MiB. Validation refuses more and says: "Split the files across several change sets." Content the file already holds does not count |
-| Path | At most 240 characters: letters, digits, `_ - . ~`, and `/` between segments. No empty, `.` or `..` segment, no segment that ends in a dot, no Windows device name, and nothing under `_nendo/`. Unique within its package, ignoring case |
+| Path | At most 240 characters: letters, digits, `_ - . ~`, and `/` between segments. No empty, `.` or `..` segment, no segment that ends in a dot, no Windows device name, and nothing under `_nendo/`. Unique within its package, ignoring case, and never both a file and a folder of the package (`lib` and `lib/a.js`, in any case), which no folder can hold and export could not write (EXT-06). A put does not add a path an import leaves out ([Import](#import-export-and-remove)): `nendo-package.json` at the root in any case, or a segment that starts with `.` or is `node_modules`, so a package exported and imported again is the same package; one already stored stays (EXT-07) |
 | Package ID | 3–80 characters, lowercase, at least two dotted segments, each starting with a letter and holding only letters, digits and `-` |
 | Media type | A bare lowercase `type/subtype`, without parameters |
 
@@ -141,7 +141,7 @@ operation runs:
 | --- | --- |
 | `extension-package-not-found` | A file is put into a package the file does not carry, or a missing package is removed |
 | `extension-package-not-empty` | A package that still holds files is removed |
-| `extension-path-conflict` | A path differs only in case from a path the package holds |
+| `extension-path-conflict` | A path differs only in case from a path the package holds, or one of them is a folder the other sits in |
 | `extension-content-missing` | A put names, by its hash, content the file does not hold |
 | `extension-file-changed` | The path does not hold what `expectedSha256` states. A compensation of a file changed since then fails in the same way |
 | `extension-file-not-found` | A removal names a path the package does not hold |
@@ -360,21 +360,37 @@ The Workbench frames an origin only when it is `https`, one label, under
 `.example`. A package whose origin is not one is never framed, and its placeholder
 says the view cannot be shown.
 
-### One origin per package per file
+### One origin per package per file instance
 
-Each package in each file has its own origin, `https://{slug}-{key}.example`
+Each package in each file instance has its own origin, `https://{slug}-{key}.example`
 (`src/Nendo.Desktop/Extensions/ExtensionOrigins.cs`):
 
 - `slug` is the package ID in lower case. Each character that is not a letter or a
   digit becomes `-`, a run of `-` is kept as one, and a leading `-` is dropped. The
   result is cut to 40 characters and trimmed of `-` at both ends.
 - `key` is the first 10 hex characters, lower case, of the SHA-256 of the UTF-8
-  text `applicationId + "\n" + packageId`.
+  text `applicationId + "\n" + instanceId + "\n" + packageId` (since 2026-10-13,
+  DAE-06; ADR-0013).
 
 For example, `org.nendo.gantt` in some file runs at
 `https://org-nendo-gantt-‹10 hex›.example`. The origin is stable for a package in a
-file, so its browser storage survives a restart. Two files that carry one package
-have different origins and separate storage. A frame left over from a closed file
+file instance, so its browser storage survives a restart. Two files that carry one
+package have different origins and separate storage, and so does a Duplicate, which
+keeps its original's application ID but has an instance of its own: its views start
+with empty storage rather than the original's drafts and unanswered writes. A copy
+made outside Nendo byte for byte keeps the instance ID, and the storage with it.
+
+One instance per application keeps the origin it had before the instance ID was in
+the key, `applicationId + "\n" + packageId`, so a person's views keep their storage at
+the upgrade (`ExtensionOriginCarry.cs`). On a device's first start of a host with the
+new key, before the file being opened is recorded, the host writes
+`view-origin-carry.json` to device state under its lock: for each application ID in
+the recent-file list, the instance opened most recently. It is written once and never
+again; an empty or absent list writes an empty map, after which every file takes the
+new key, and a list that cannot be read just then writes nothing until a later start.
+A Duplicate made afterwards has a new instance ID, so it is never the one named.
+
+A frame left over from a closed file
 reaches nothing. The client takes the next file's session before the old file's frames are
 released. Until they are, the broker refuses an old frame's requests and its hello with
 `stale-file-session`, closes its connection, and pushes nothing more to it.
@@ -852,13 +868,20 @@ file through `nendo.state`.
   History as "Keep ‹key› for the view ‹title›" ("for the views of ‹package›" for shared
   state; "Forget" for a deletion). Compensation puts back the value it replaced, and
   refuses when the key has been written again since.
-- **Versions.** Each key has a version, 1 on its first write. `expectedVersion` makes a
-  write conditional: the key's version, or 0 for a key that must not exist yet. A
-  stale one is refused with `state-version-conflict` and changes nothing. Without it,
-  the last write wins.
-- **Bounds.** A key is 1 to 128 characters; a value is JSON of at most 64 KiB, stored
-  without whitespace, so an object's keys may come back in another order; 256 keys per
-  view; 1 MiB per package. Past a bound the write is refused with `state-too-large`.
+- **Versions.** Each key has a version that rises with every write and never returns to
+  a number the key had, even after the key is forgotten and set again or put back by
+  History: it is at least the change sequence of the write that set it (EXT-09, since
+  2026-10-13; it used to start again at 1). Read it rather than counting it.
+  `expectedVersion` makes a write conditional: the key's version, or 0 for a key that
+  must not exist yet. A stale one is refused with `state-version-conflict` and changes
+  nothing. Without it, the last write wins.
+- **Bounds.** A key is 1 to 128 characters; a value is JSON of at most 64 KiB as sent
+  and as kept. It is kept without whitespace, so an object's keys may come back in
+  another order, and its text as written: a letter outside ASCII stays one letter, and
+  only a character outside the basic plane, such as an emoji, is kept as two escapes,
+  which can take a value within the bound as sent past it as kept (EXT-01). 256 keys per
+  view; 1 MiB per package, counting the views the file has and the package's shared
+  state. Past a bound the write is refused with `state-too-large`.
 - **Two a second.** The broker sends at most two state writes a second from one view
   and answers the next with `busy`. `api.js` sends a view's writes 550 ms apart and
   coalesces writes to one key made meanwhile: every caller hears the one answer, and
@@ -871,7 +894,9 @@ file through `nendo.state`.
   write while views are off (`views-off`).
 - **The file's.** State is in the file (`__nendo_extension_state`, since host 1.33.0),
   so a copy carries it and no rung is needed. Export does not carry it. Removing a
-  package keeps its state, so compensating the removal brings it back. MCP neither
+  package keeps its state, so compensating the removal brings it back. So does removing
+  a view, but what a removed view kept no longer counts against the package's 1 MiB,
+  which nothing could free (EXT-10). MCP neither
   reads nor writes it. A state write changes no record, so it triggers no action.
 
 ### Nendo's toolbar, menus and keys
@@ -1363,12 +1388,18 @@ and `.nendoview` files, with the button **Add to file**. Picking a folder's
 host reads the whole package, off the UI thread, and bounds it before it proposes
 anything (`src/Nendo.Engine/Extensions/ExtensionArchive.cs`):
 
-- **A folder** brings every file under it except `nendo-package.json` itself,
+- **A folder** brings every file under it except `nendo-package.json` itself (in any
+  case, since Windows finds it in any case),
   hidden and system files, links (never followed), and any path with a segment that
   starts with `.` or is `node_modules`.
 - **A zip** has its `nendo-package.json` at its root or inside its single top-level
   folder, the way zipping a folder leaves it. Entries outside that folder are
-  ignored.
+  ignored, and so are the paths a folder leaves out. A folder entry is one whose name
+  ends in `/` or `\`, as Windows PowerShell 5.1 writes an empty folder (EXT-04). The
+  512-file bound counts the files kept; the zip itself may list at most 8,192 entries,
+  counting folders and the entries left out (EXT-03). An entry the zip cannot give, for
+  a compression method .NET does not read, a password or a damaged stream, is refused
+  by its name (EXT-05).
 - **A `.nendoview`** from the contained slice has a `manifest.json` instead. Its
   package ID, version and entry point come from that manifest, and its title is its
   package ID. Its files are taken as they are, not converted.
@@ -1389,7 +1420,8 @@ The manifest is never stored as a file: the package row holds what it says.
 
 A package that cannot be carried is refused by name before anything is proposed:
 more than 512 files, more than 16 MiB, a file over 4 MiB, a path the rules refuse,
-two paths equal apart from case, no files, an entry point that is not one of the
+two paths equal apart from case, a file and a folder of one name, an entry the zip
+cannot give, a zip of more than 8,192 entries, no files, an entry point that is not one of the
 files, a manifest that is missing or not a JSON object, or an invalid package ID.
 
 The proposal holds `extension.setPackage`, then a removal of each file the package

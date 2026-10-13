@@ -131,6 +131,10 @@ A history fold changes no record and needs nothing.
 - **Syntax:** words are all required, and are matched per record, not per field: one word may be in
   the title and another in the body. Text in double quotes is a phrase, `-word` leaves out every record
   containing it, and the last word also matches as a prefix unless followed by a space.
+  *Note, 2026-10-13 (PERF-09, W-228):* a last word of one letter is searched as that word, not as
+  a prefix. One letter starts most of the index, about twenty times the work of two, and the index
+  keeps prefixes of two and three letters only. A single letter of a script written without
+  spaces is found as a whole word, as before; from two letters the last word is a prefix again.
 - **Nothing else is syntax.** Every term is quoted before FTS5 sees it, so `title:x`, `NEAR(…)`, `AND`,
   `*` and an unclosed quote are searched for as text, or ignored when they hold no letter or digit.
 - **Bounds:** at most 256 characters, 16 terms and 100 records a page.

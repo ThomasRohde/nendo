@@ -587,17 +587,17 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
             .OrderBy(value => value.EntityId, StringComparer.Ordinal)
             .ThenBy(value => value.RecordId, StringComparer.Ordinal);
         var touched = new List<NendoTouchedRecordVersion>();
+        var versions = RecordVersions(snapshot);
         foreach (var reference in references)
         {
-            var record = snapshot.Records.SingleOrDefault(value =>
-                value.EntityId == reference.EntityId && value.RecordId == reference.RecordId)
-                ?? throw new NendoPreconditionException(
+            if (!versions.TryGetValue(reference, out var version))
+                throw new NendoPreconditionException(
                     "record-not-found",
                     $"Touched record {reference.RecordId} does not exist.");
             touched.Add(new NendoTouchedRecordVersion(
                 reference.EntityId,
                 reference.RecordId,
-                record.RecordVersion));
+                version));
         }
         return touched.AsReadOnly();
     }
@@ -635,16 +635,26 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
         IReadOnlyList<NendoTouchedRecordVersion> captured,
         NendoSessionSnapshot current)
     {
+        var versions = RecordVersions(current);
         foreach (var touched in captured)
         {
-            var record = current.Records.SingleOrDefault(value =>
-                value.EntityId == touched.EntityId && value.RecordId == touched.RecordId);
-            if (record is null || record.RecordVersion != touched.Version)
+            if (!versions.TryGetValue((touched.EntityId, touched.RecordId), out var version) || version != touched.Version)
             {
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// Each record's version by its type and ID, read once. Each touched record searched the whole
+    /// snapshot, so a proposal of thousands of edits made millions of comparisons (PERF-07).
+    /// </summary>
+    private static Dictionary<(string EntityId, string RecordId), long> RecordVersions(NendoSessionSnapshot snapshot)
+    {
+        var versions = new Dictionary<(string EntityId, string RecordId), long>(snapshot.Records.Count);
+        foreach (var record in snapshot.Records) versions[(record.EntityId, record.RecordId)] = record.RecordVersion;
+        return versions;
     }
 
     private static string ValidatePath(string path)

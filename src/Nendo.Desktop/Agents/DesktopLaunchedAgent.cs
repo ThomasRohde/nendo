@@ -18,6 +18,9 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private int _ended;
 
+    /// <summary>The folders of the agents this process runs now, which a sweep never takes.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> LiveFolders = new(StringComparer.OrdinalIgnoreCase);
+
     private DesktopLaunchedAgent(DesktopAgentCommand command, Uri endpoint, string workingDirectory, AgentProcess process)
     {
         Command = command;
@@ -58,16 +61,21 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     /// and begin the handshake, which runs on. Throws a refusal the Agent page can show when
     /// the program is not installed or Windows cannot start it.
     /// </summary>
-    internal static DesktopLaunchedAgent Launch(DesktopAgentCommand command, Uri endpoint, string sessionsRoot, string clientVersion)
+    internal static DesktopLaunchedAgent Launch(DesktopAgentCommand command, Uri endpoint, string sessionsRoot, string clientVersion,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         if (command.ResolvedPath is null)
             throw new NendoPreconditionException("agent-not-found", $"{command.Name} is not installed on this computer: {command.Program} was not found.");
-        var folder = Path.Combine(sessionsRoot, Guid.NewGuid().ToString("N"));
+        // Every folder left by a launch that did not end through EndAsync -- a host that was
+        // killed, upgraded over or logged off, or a delete that gave up -- goes first (DAE-11).
+        SweepFolders(sessionsRoot);
+        var folder = Path.Combine(sessionsRoot, FolderName(Environment.ProcessId));
         Directory.CreateDirectory(folder);
+        LiveFolders[Path.GetFullPath(folder)] = 0;
         AgentProcess process;
         try
         {
-            process = AgentProcess.Start(command, folder);
+            process = AgentProcess.Start(command, folder, environment);
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException)
         {
@@ -98,7 +106,11 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         try { await _process.Exited.WaitAsync(TimeSpan.FromSeconds(2)); } catch (TimeoutException) { }
         var tail = _process.StandardErrorTail;
         var said = tail.Length == 0 ? string.Empty : $" It said: {Last(tail, 600)}";
-        var how = _process.ExitCode is { } code ? $"{Command.Name} stopped (exit code {code})." : $"{Command.Name} stopped answering.";
+        // A connection that ended while the program still runs says why it ended: Nendo may have
+        // ended it, over a message too large, and "stopped answering" blamed the agent (DAE-14).
+        var how = _process.ExitCode is { } code ? $"{Command.Name} stopped (exit code {code})."
+            : _conversation.Closed.IsCompleted ? $"{Command.Name} was disconnected. {_conversation.Closed.Result}"
+            : $"{Command.Name} stopped answering.";
         _conversation.End(how + said);
         await EndAsync(how);
     }
@@ -113,8 +125,87 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         RemoveFolder(WorkingDirectory);
     }
 
+    /// <summary>
+    /// A launch's folder name: the host process that made it, then a new GUID. The process ID is
+    /// how a sweep tells a folder another running Nendo window still uses from one left behind.
+    /// </summary>
+    internal static string FolderName(int processId) => $"{processId}-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// Remove every launch folder under <paramref name="sessionsRoot"/> that no running agent can
+    /// still be using. This process runs one agent at a time and sweeps before it launches the
+    /// next, so a folder of its own is left over; a folder of another process is left over once
+    /// that process has ended. A folder named before process IDs were part of the name is left
+    /// over unless Windows refuses its removal because a program still works in it. A folder that
+    /// will not go now goes at a later launch.
+    /// </summary>
+    internal static void SweepFolders(string sessionsRoot)
+    {
+        string[] folders;
+        try
+        {
+            if (!Directory.Exists(sessionsRoot)) return;
+            folders = Directory.GetDirectories(sessionsRoot);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return; }
+        foreach (var folder in folders)
+        {
+            var name = Path.GetFileName(folder);
+            var dash = name.IndexOf('-', StringComparison.Ordinal);
+            if (LiveFolders.ContainsKey(Path.GetFullPath(folder))) continue;
+            if (dash > 0 && int.TryParse(name.AsSpan(0, dash), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var owner))
+            {
+                if (owner != Environment.ProcessId && IsRunning(owner)) continue;
+            }
+            else if (!Guid.TryParseExact(name, "N", out _)) continue;
+            TryRemoveFolder(folder);
+        }
+    }
+
+    private static bool IsRunning(int processId)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(processId);
+            return !process.HasExited;
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or Win32Exception)
+        {
+            // Not running, or not ours to ask about: a process Windows will not open is still running.
+            return exception is Win32Exception;
+        }
+    }
+
+    private static void TryRemoveFolder(string folder)
+    {
+        // A folder a program still has a file open in is not left over, whatever its name says:
+        // an older Nendo's folder is not emptied around the agent working in it.
+        if (InUse(folder)) return;
+        try { Directory.Delete(folder, recursive: true); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+    }
+
+    /// <summary>Whether any file under <paramref name="folder"/> cannot be opened for this process alone.</summary>
+    private static bool InUse(string folder)
+    {
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories))
+            {
+                try { using var probe = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.None); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return true; }
+            }
+            return false;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+
     private static void RemoveFolder(string folder)
     {
+        LiveFolders.TryRemove(Path.GetFullPath(folder), out _);
         // The program has just been ended, and Windows may still hold a handle it had open.
         for (var attempt = 0; attempt < 5; attempt++)
         {

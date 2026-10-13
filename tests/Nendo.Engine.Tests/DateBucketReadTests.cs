@@ -35,7 +35,9 @@ public sealed class DateBucketReadTests
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
         var service = await SeedAsync(coordinator);
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        // The Engine's day, read just after local midnight, when it and the UTC day differ.
+        using var clock = NendoCivilClock.StandInFor(CivilTime.JustAfterLocalMidnight);
+        var today = NendoCivilClock.Today();
 
         // Two records this month and one the month before last; the month between them has
         // nothing, and is the whole point of the assertion.
@@ -72,7 +74,9 @@ public sealed class DateBucketReadTests
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
         var service = await SeedAsync(coordinator);
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        // The Engine's day, read just after local midnight, when it and the UTC day differ.
+        using var clock = NendoCivilClock.StandInFor(CivilTime.JustAfterLocalMidnight);
+        var today = NendoCivilClock.Today();
 
         await AddAsync(service, "a", today, 1);
         await AddAsync(service, "b", today, 1);
@@ -115,7 +119,9 @@ public sealed class DateBucketReadTests
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
         var service = await SeedAsync(coordinator);
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        // The Engine's day, read just after local midnight, when it and the UTC day differ.
+        using var clock = NendoCivilClock.StandInFor(CivilTime.JustAfterLocalMidnight);
+        var today = NendoCivilClock.Today();
 
         await AddAsync(service, "inside", today, 3);
         await AddAsync(service, "long-ago", today.AddYears(-4), 100);

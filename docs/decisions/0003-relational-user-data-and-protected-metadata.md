@@ -56,6 +56,16 @@ This note authorises that index and nothing else. It adds no index for any other
 field kind and introduces no user-defined indexes. It changes no storage engine,
 journal or copy-discipline decision.
 
+*Correction, 2026-10-13 (PERF-02, W-228):* the covering search measured above was the plan
+of a plain `=`. The read the Engine shipped wrapped every filtered column in a host function,
+`nendo_query_filter_N(CAST(column AS TEXT), @value)`, which no index can serve, so the related
+list scanned the child type and called the function once per row, and the index was never used.
+A filter now carries, beside the function, the comparison SQLite answers the same way: `column =
+@value` for equality on text, a reference or a date, whose comparison is ordinal, and `column IS
+NULL` or `IS NOT NULL` for the null checks. The function stays the authority on the answer. A
+UUID compares in either case (ESQ-17), so its equality has no such comparison and still scans;
+so does every other operator. With the comparison, the related list seeks this index.
+
 Nendo must support ordinary relational data. It must also keep stable semantic
 identity, mutable human labels, application definitions, history and format
 compatibility. A storage model that is optimized only for renderer convenience
@@ -190,6 +200,8 @@ operation-level change tracking.
 - 2026-09-02 — accepted.
 - 2026-09-09 — a covering index on each configured reference column (the accepted
   note under *Context*).
+- 2026-10-13 — correction to that note: filtered reads carry an indexable comparison beside
+  their host function, so the related list uses the index (PERF-02, W-228).
 - 2026-09-25 — protected metadata holds custom-view packages, an executable
   payload, by decision of [ADR-0013](0013-custom-views-with-code-in-the-file.md);
   host 1.33.0.

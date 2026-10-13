@@ -126,7 +126,14 @@ step, no consent and no digest pin. A view that is shown runs.
   - `slug` is the package ID lowercased, with every character other than a letter
     or digit changed to `-`, runs of `-` collapsed, cut to 40 characters and
     trimmed of `-` at both ends;
-  - `key` is 10 hex characters of SHA-256(`applicationId\npackageId`).
+  - `key` is 10 hex characters of SHA-256(`applicationId\ninstanceId\npackageId`).
+    The instance ID is in the key since 2026-10-13 (DAE-06): a Duplicate keeps its
+    original's application ID (ADR-0010), and an origin keyed by application ID alone
+    let the Duplicate's views read the original's drafts and unanswered writes. One
+    instance per application keeps the old key, SHA-256(`applicationId\npackageId`): the
+    instance this device opened most recently when it first started a host with the new
+    key, recorded once in `view-origin-carry.json`, so the person's views keep their
+    storage at the upgrade.
 - `.example` is a reserved top-level domain (RFC 2606). No real site shares a
   view's origin, and the host answers every request to it.
 - Each package in each file is therefore its own site. Chromium gives it its own
@@ -417,8 +424,8 @@ and it would add no protection. No rung: nothing reaches the file.
   the screen, and on reload, Stop, revocation and the kill switches. It does not ask
   first and does not keep offscreen renderers running: a prompt could not cover Stop, a
   crash or a kill switch anyway, and those must stay prompt. A view that holds unsaved
-  typing keeps it recoverable in its origin's storage, which is per file and package on
-  this device, never as records and never saved for the person, and restores it over
+  typing keeps it recoverable in its origin's storage, which is per file instance and
+  package on this device (2026-10-13), never as records and never saved for the person, and restores it over
   the version it was made from when it starts again. A host leave prompt was considered
   and not taken; recovery is the one mechanism that covers every way a frame ends.
 - **An unanswered write is finished, not repeated.** `records.batch` takes an optional
@@ -879,3 +886,17 @@ falsified once, and has the failure text quoted in its planner Check.
   WebView2's own prompt, whose answer is kept for the Workbench's origin and so would have
   covered every view of every file (DAE-02 in a broad review). No rung. On the owner's
   standing pre-acceptance.
+- 2026-10-13 — a view's storage is per file instance (DAE-06 in a broad review, the owner's
+  choice of 2026-10-13): the origin's key hashes the instance ID with the application and
+  package IDs. A Duplicate, or any file stating another file's application ID, no longer
+  shares that file's view storage, drafts or unanswered writes. The cost, accepted: a
+  Duplicate's views start with empty storage. A byte-for-byte copy made outside Nendo keeps
+  the instance ID and still shares. Settings and development links stay keyed by
+  application ID. Rider, so the upgrade does not move the person's own views off their
+  storage: on the device's first start of a host with this key, before the file being opened
+  is recorded, the host writes `view-origin-carry.json` to device state under its lock,
+  naming for each application in the recent-file list the instance opened most recently.
+  That instance keeps the old key; every other instance, and every Duplicate made afterwards
+  (a new instance ID), takes the new one. The document is written once and never again; an
+  empty or absent list writes an empty map, and a list that cannot be read just then writes
+  nothing until a later start. No rung. On the owner's standing pre-acceptance.

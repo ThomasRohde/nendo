@@ -2,7 +2,10 @@ async page => {
   // The conversation tab of a launched agent (ADR-0030), driven in the built Workbench against the
   // browser preview host, which plays the agent from a script. Each check measures one defect of
   // the ACP review of 2026-10-10 (ACP.md): the level shown, keyboard focus, where More opens, what
-  // New session keeps, and which tab owns the conversation. A failure names the last check passed.
+  // New session keeps, and which tab owns the conversation; and of the broad review of 2026-10-13
+  // (W-220): a double press on Launch and on Enter, a message that waits, the conversation's tab
+  // after Back, Open conversation, open disclosures, and a thing that cannot be pointed at. A
+  // failure names the last check passed.
   const checks = [];
   try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
@@ -176,6 +179,148 @@ async page => {
     throw Error('ACP-06: the conversation\'s own tab went on to Data and was closed, and the agent ran on with no tab.');
   }
   checks.push('ACP-06 the conversation\'s tab owns it');
+
+  const saidCount = async (words) => (await said()).filter(line => line.includes(words)).length;
+  const launchFromAgentPage = async (twice) => {
+    if (await page.locator('[data-agent-tab="launch"]').count() === 0) await page.click('#nav-agent');
+    await until(() => document.querySelector('[data-agent-tab="launch"]') !== null, null, 'the Agent page');
+    await page.click('[data-agent-tab="launch"]');
+    await until(() => document.querySelector('[data-launch-agent="copilot"]:not(:disabled)') !== null, null, 'Launch to be offered');
+    // Two presses in one turn of the page, before the first launch's answer can arrive.
+    await page.evaluate(twice => { const button = document.querySelector('[data-launch-agent="copilot"]'); button.click(); if (twice) button.click(); }, twice);
+    await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready', null, 'the launched agent to be ready');
+  };
+
+  // WAU-10: a double press on Launch launches once, and says nothing of an agent already running.
+  await launchFromAgentPage(true);
+  await page.waitForTimeout(300);
+  assert(await saidCount('already running') === 0, `WAU-10: a double press on Launch launched twice: ${JSON.stringify((await said()).slice(-3))}.`);
+  assert((await tabs()).filter(tab => tab.label === agent).length === 1, `WAU-10: a double press on Launch made two conversation tabs: ${JSON.stringify(await tabs())}.`);
+  checks.push('WAU-10 a double press on Launch launches once');
+
+  // WAU-01: the conversation's tab, gone Back to the Agent page and then on to Data, no longer
+  // holds the conversation in its trail; it still owns it, and closing it ends the agent.
+  const endedBefore = await saidCount('ended with its tab');
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('Alt+ArrowLeft');
+  await until(() => document.querySelector('[data-agent-chat]') === null && document.querySelector('[data-agent-tab]') !== null, null, 'the Agent page by Back');
+  await page.click('#nav-data');
+  await until(() => document.querySelector('[data-agent-chat]') === null && document.querySelector('[data-agent-tab]') === null, null, 'Data');
+  now = await tabs();
+  await page.click(`#tab-strip [data-close-tab="${now.find(tab => tab.active).index}"]`);
+  try {
+    await until(before => window.__said.filter(line => line.includes('ended with its tab')).length > before, endedBefore, 'the agent to end', 3000);
+  } catch {
+    throw Error('WAU-01: the conversation\'s own tab went Back to the Agent page and on to Data and was closed, and the agent ran on with no tab.');
+  }
+  checks.push('WAU-01 the conversation\'s tab owns it after Back');
+
+  // WAU-15: Open conversation goes to the conversation's own tab, wherever it has gone, rather
+  // than opening a second tab on the conversation.
+  await launchFromAgentPage(false);
+  const before = await tabs();
+  const owner = before.find(tab => tab.active).index;
+  await page.click('#nav-agent');
+  await until(() => document.querySelector('[data-agent-tab="launch"]') !== null, null, 'the Agent page in the conversation\'s tab');
+  await page.click('[data-agent-tab="launch"]');
+  await until(() => document.querySelector('.agent-panel:not([hidden]) [data-open-agent-chat]') !== null, null, 'Open conversation');
+  await page.click('.agent-panel:not([hidden]) [data-open-agent-chat]');
+  await until(() => document.querySelector('[data-agent-chat]') !== null, null, 'the conversation');
+  const after = await tabs();
+  assert(after.length === before.length && after.find(tab => tab.active)?.index === owner,
+    `WAU-15: Open conversation from the conversation's own tab opened another: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}.`);
+  checks.push('WAU-15 Open conversation reuses its tab');
+
+  // WAU-10: two Enters before the first message's answer send it once, and say no refusal.
+  await page.locator('#agent-prompt').fill('Add a record type for requests');
+  await page.evaluate(() => {
+    const box = document.querySelector('#agent-prompt');
+    for (let press = 0; press < 2; press += 1) box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  });
+  await until(() => document.querySelector('[data-toggle-input]') !== null, null, 'the permission request');
+  assert(await page.locator('.chat-you').count() === 1, `WAU-10: two Enters sent ${await page.locator('.chat-you').count()} messages.`);
+  assert(await saidCount('not ready for a message') === 0, `WAU-10: the second Enter was refused aloud as an error: ${JSON.stringify((await said()).slice(-3))}.`);
+  // Enter while the agent works keeps the message and says so on screen, not only aloud.
+  await page.locator('#agent-prompt').fill('And a due date');
+  await page.locator('#agent-prompt').press('Enter');
+  try {
+    await until(() => { const note = document.querySelector('#chat-composer-note'); return note !== null && !note.hidden && note.textContent.includes('is working'); }, null, 'the note', 2000);
+  } catch {
+    throw Error('WAU-10: Enter while the agent works showed nothing on screen.');
+  }
+  assert(await page.locator('#agent-prompt').inputValue() === 'And a due date', 'WAU-10: the message typed while the agent worked was lost.');
+  await page.locator('#agent-prompt').fill('');
+  await page.click('[data-answer-entry][data-option-id="allow"]');
+  await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-agent') !== null, null, 'the reply');
+  checks.push('WAU-10 Enter sends once, and a message that waits says so');
+
+  // WAU-09: two steps at once; the person opens the second's "What it sent", then the first
+  // gains "What came back". The one the person opened stays open, and the new one stays closed.
+  await page.locator('#agent-prompt').fill('parallel');
+  await page.locator('#agent-prompt').press('Enter');
+  await until(() => document.querySelectorAll('.chat-permission [data-answer-entry]').length > 0, null, 'the parallel request');
+  const run = await page.evaluate(() => [...document.querySelectorAll('[data-toggle-steps]')].at(-1).dataset.toggleSteps);
+  await page.click(`[data-toggle-steps="${run}"]`);
+  await until(run => document.querySelector(`[data-item="${run}"] details[data-part$=":sent"]`) !== null, run, 'the second step\'s disclosure');
+  const sent = await page.evaluate(run => document.querySelector(`[data-item="${run}"] details[data-part$=":sent"]`).dataset.part, run);
+  await page.click(`[data-item="${run}"] details[data-part="${sent}"] > summary`);
+  await until(part => document.querySelector(`details[data-part="${part}"]`)?.open === true, sent, 'the disclosure to open');
+  await page.click('.chat-permission [data-answer-entry][data-option-id="allow"]');
+  await until(run => document.querySelectorAll(`[data-item="${run}"] details[data-part$=":back"]`).length === 2, run, 'the first step\'s output');
+  const disclosures = await page.evaluate(run => [...document.querySelectorAll(`[data-item="${run}"] details`)].map(details => ({ part: details.dataset.part ?? null, open: details.open })), run);
+  const opened = disclosures.filter(item => item.open).map(item => item.part);
+  assert(opened.length === 1 && opened[0] === sent, `WAU-09: the person opened ${sent}; after an earlier step gained output, open are ${JSON.stringify(disclosures)}.`);
+  await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready', null, 'the reply');
+  checks.push('WAU-09 an open disclosure stays with its step');
+
+  // WAU-03: past eight things, the next is refused on screen, and its @name is not written into
+  // the message with nothing behind it.
+  const box = page.locator('#agent-prompt');
+  await box.fill('');
+  const chipLabels = () => page.evaluate(() => [...document.querySelectorAll('#chat-attachments .chat-attachment')].map(chip => chip.textContent.trim()));
+  // The menu offers a few things for a bare @, and a field or a record by a typed word; each
+  // query is tried until one offers something not yet pointed at.
+  const queries = ['', 'i', 'e', 'a', 't', 'o', 's', 'n', 'r', 'd', 'l', 'u', 'c', 'm', 'p', 'ti', 'st', 'de', 'no', 'in', 'an', 're', 'er', 'on'];
+  const pointedTo = new Set();
+  const offerFresh = async () => {
+    for (const query of queries) {
+      const base = await box.inputValue();
+      await box.fill(`${base}${base === '' ? '' : ' '}@${query}`);
+      let choices = [];
+      try {
+        await until(() => document.querySelector('#chat-mention:not([hidden]) [data-choice]') !== null, null, 'the @ menu', 700);
+        // A record found by name arrives once the typing pauses.
+        if (query.length >= 2) await page.waitForTimeout(400);
+        choices = await page.evaluate(() => [...document.querySelectorAll('#chat-mention [data-choice]')].map(choice => ({ index: Number(choice.dataset.choice), text: choice.textContent.trim() })));
+      } catch { /* nothing offered for this query */ }
+      const fresh = choices.find(choice => !pointedTo.has(choice.text));
+      if (fresh !== undefined) return fresh;
+      await box.fill(base);
+      await page.keyboard.press('Escape');
+    }
+    return null;
+  };
+  let refusedAt = null;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const fresh = await offerFresh();
+    if (fresh === null) break;
+    if ((await chipLabels()).length === 8) { refusedAt = fresh; break; }
+    pointedTo.add(fresh.text);
+    await page.click(`#chat-mention [data-choice="${fresh.index}"]`);
+    await page.waitForTimeout(250);
+  }
+  assert(refusedAt !== null, `WAU-03: the preview offers too few things to point at to reach eight; chips ${JSON.stringify(await chipLabels())}.`);
+  const typed = await box.inputValue();
+  await page.click(`#chat-mention [data-choice="${refusedAt.index}"]`);
+  try {
+    await until(() => { const note = document.querySelector('#chat-composer-note'); return note !== null && !note.hidden && note.textContent.includes('8 things at most'); }, null, 'the refusal on screen', 2000);
+  } catch {
+    throw Error(`WAU-03: a ninth thing was refused only aloud: ${JSON.stringify((await said()).slice(-2))}.`);
+  }
+  const written = await box.inputValue();
+  assert(written === typed, `WAU-03: the refused thing's @name was written into the message: "${written.slice(typed.length)}".`);
+  assert((await chipLabels()).length === 8, 'WAU-03: the refused thing was pointed at after all.');
+  checks.push('WAU-03 a thing that cannot be pointed at is refused on screen');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };

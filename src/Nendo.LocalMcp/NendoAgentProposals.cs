@@ -603,7 +603,8 @@ public sealed class NendoAgentProposalStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(application);
-        var snapshot = await application.GetSnapshotAsync(cancellationToken);
+        // Only the file's identity is compared; every record was read for it on each promote and reject (PERF-07).
+        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
         lock (_gate)
         {
             if (_applicationId != snapshot.Manifest.ApplicationId ||

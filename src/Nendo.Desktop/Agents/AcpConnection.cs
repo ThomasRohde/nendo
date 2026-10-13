@@ -38,6 +38,9 @@ internal sealed class AcpConnection : IAsyncDisposable
 {
     internal const int MaximumLineBytes = 8 * 1024 * 1024;
 
+    /// <summary>Why the connection ended when Nendo ended it over a message's size: Nendo did, not the agent (DAE-14).</summary>
+    internal const string OversizeReason = "Nendo ended the connection because the agent sent one message larger than the 8 MiB Nendo accepts.";
+
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -131,14 +134,19 @@ internal sealed class AcpConnection : IAsyncDisposable
                 {
                     if (line.Length > MaximumLineBytes)
                     {
-                        reason = "The agent sent a message larger than Nendo accepts.";
+                        reason = OversizeReason;
                         return;
                     }
-                    if (line.Length > 0) Dispatch(line);
+                    if (line.Length == 0) continue;
+                    // One message that cannot be read is dropped, never the connection: an
+                    // exception here faulted the loop, and the faulted loop made disposal throw,
+                    // which skipped the rest of closing the file (DAE-04).
+                    try { Dispatch(line); }
+                    catch (Exception exception) when (exception is not OperationCanceledException) { }
                 }
                 if (buffer.Length > MaximumLineBytes)
                 {
-                    reason = "The agent sent a message larger than Nendo accepts.";
+                    reason = OversizeReason;
                     return;
                 }
                 _input.AdvanceTo(buffer.Start, buffer.End);
@@ -211,15 +219,24 @@ internal sealed class AcpConnection : IAsyncDisposable
             else if (hasId && id.ValueKind == JsonValueKind.Number && id.TryGetInt64(out var number) &&
                 _pending.TryGetValue(number, out var pending))
             {
-                if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
+                try
                 {
-                    var code = error.TryGetProperty("code", out var c) && c.TryGetInt32(out var parsed) ? parsed : -32603;
-                    // The reason reaches the page, so a handle the agent echoes back is hidden there too.
-                    pending.TrySetException(new AcpRemoteException(code, Bounded(AgentConversation.Redact(Describe(error)))));
+                    if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
+                    {
+                        // A code that is not a number (text, null) is an internal error, not a fault (DAE-04).
+                        var code = error.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var parsed) ? parsed : -32603;
+                        // The reason reaches the page, so a handle the agent echoes back is hidden there too.
+                        pending.TrySetException(new AcpRemoteException(code, Bounded(AgentConversation.Redact(Describe(error)))));
+                    }
+                    else
+                    {
+                        pending.TrySetResult(root.TryGetProperty("result", out var result) ? result.Clone() : default);
+                    }
                 }
-                else
+                catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    pending.TrySetResult(root.TryGetProperty("result", out var result) ? result.Clone() : default);
+                    // The request still gets an answer, so nothing waits on one that never comes.
+                    pending.TrySetException(new AcpRemoteException(-32603, "The agent's answer could not be read."));
                 }
             }
         }
@@ -278,8 +295,10 @@ internal sealed class AcpConnection : IAsyncDisposable
         await _closing.CancelAsync();
         if (_reader is not null)
         {
+            // However the read loop ended, closing goes on: a fault here once left the file's MCP
+            // listener running after the file closed (DAE-04).
             try { await _reader.WaitAsync(TimeSpan.FromSeconds(5)); }
-            catch (TimeoutException) { }
+            catch (Exception) { }
         }
         _closed.TrySetResult("The connection to the agent was closed.");
         await _input.CompleteAsync();

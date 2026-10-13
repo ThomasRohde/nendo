@@ -549,7 +549,7 @@ public sealed partial class NendoApplicationService
     /// definition and its digest stay independent of the clock.
     /// </summary>
     private static object? ResolveStepValue(NendoSurfaceNodePlan step, NendoFieldPlan field) =>
-        ResolveStepValue(step, field, DateTimeOffset.UtcNow, NendoCivilClock.LocalZone());
+        ResolveStepValue(step, field, NendoCivilClock.Now(), NendoCivilClock.LocalZone());
 
     /// <summary>
     /// today is the person's civil date where this host runs, the same day a screen's

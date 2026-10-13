@@ -274,6 +274,10 @@ public sealed class RelatedSurfaceTests
         var command = (await service.CompileSemanticUiAsync()).Applications.Single()
             .Surfaces.Single().Children.Single(node => node.Kind == "recordCommand");
 
+        // A command's today is the person's civil date where the host runs (R-003, R2LAT-06), so it
+        // runs just after local midnight, when that date and the UTC date differ east of Greenwich,
+        // on a day that is not today, so a step that read the real clock is caught too.
+        using var clock = NendoCivilClock.StandInFor(() => CivilTime.JustAfterLocalMidnight(new DateOnly(2026, 1, 15)));
         var result = await service.ExecuteCommandAsync(new NendoExecuteCommandRequest(
             command.SemanticId, "axiom-1", before.RecordVersion, new("test", "accept-1", "test")));
         Assert.IsFalse(result.IsIdempotentReplay);
@@ -281,9 +285,9 @@ public sealed class RelatedSurfaceTests
         var after = (await service.GetSnapshotAsync()).Records.Single();
         Assert.AreEqual("accepted", after.Values["axiom-status"].GetString(), "The literal step did not apply.");
         Assert.AreEqual(
-            DateTimeOffset.UtcNow.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            "2026-01-15",
             after.Values["axiom-accepted"].GetString(),
-            "today did not resolve at execution.");
+            "today did not resolve at execution as the person's civil date.");
         Assert.AreEqual(before.RecordVersion + 2, after.RecordVersion,
             "Two steps advance the record once each, inside one mutation.");
 

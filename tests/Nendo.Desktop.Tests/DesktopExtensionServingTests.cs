@@ -19,13 +19,17 @@ public sealed class DesktopExtensionServingTests
     [TestMethod]
     public void EveryPackageIsASiteOfItsOwnBoundToItsFile()
     {
-        var host = ExtensionOrigins.Host("app-one", PackageId);
+        var host = ExtensionOrigins.Host("app-one", "instance-one", PackageId);
         StringAssert.Matches(host, new Regex(@"^org-example-map-[0-9a-f]{10}\.example$"));
-        Assert.AreEqual(host, ExtensionOrigins.Host("app-one", PackageId), "An origin that moved would lose the view's storage.");
-        Assert.AreNotEqual(host, ExtensionOrigins.Host("app-two", PackageId), "Two files carrying one package must not share storage.");
-        Assert.AreNotEqual(host, ExtensionOrigins.Host("app-one", "org.example.chart"));
+        Assert.AreEqual(host, ExtensionOrigins.Host("app-one", "instance-one", PackageId), "An origin that moved would lose the view's storage.");
+        Assert.AreNotEqual(host, ExtensionOrigins.Host("app-two", "instance-one", PackageId), "Two files carrying one package must not share storage.");
+        Assert.AreNotEqual(host, ExtensionOrigins.Host("app-one", "instance-one", "org.example.chart"));
+        // DAE-06 (2026-10-13): a Duplicate keeps its original's application ID and gets a new
+        // instance ID; sharing the original's origin gave it the original's drafts and unanswered saves.
+        Assert.AreNotEqual(host, ExtensionOrigins.Host("app-one", "instance-two", PackageId),
+            "A Duplicate (one application ID, another instance) shares its original's view storage.");
 
-        var awkward = ExtensionOrigins.Host("app-one", "org.a--b-.c" + new string('d', 60));
+        var awkward = ExtensionOrigins.Host("app-one", "instance-one", "org.a--b-.c" + new string('d', 60));
         var label = awkward[..^ExtensionOrigins.Suffix.Length];
         Assert.IsFalse(label.Contains("--", StringComparison.Ordinal), awkward);
         Assert.IsLessThanOrEqualTo(63, label.Length, awkward);
@@ -35,6 +39,71 @@ public sealed class DesktopExtensionServingTests
         Assert.IsFalse(ExtensionOrigins.IsViewHost("a.b.example"), "Only a single label under the suffix is a view.");
         Assert.IsFalse(ExtensionOrigins.IsViewHost(".example"));
         Assert.IsFalse(ExtensionOrigins.IsViewHost(DesktopShellContract.WorkbenchHostName));
+    }
+
+    /// <summary>
+    /// The instance ID entered the origin's key on 2026-10-13 (DAE-06), which moved every view to a
+    /// new origin and would have lost the owner's drafts at the upgrade. For each application, the
+    /// instance this device opened last keeps the origin it had; another instance of it, a
+    /// Duplicate made since among them, gets the new one. The choice is written once.
+    /// </summary>
+    [TestMethod]
+    public void TheInstanceOpenedLastKeepsItsViewsOriginAcrossTheUpgradeAndTheChoiceIsKeptOnce()
+    {
+        var root = Directory.CreateTempSubdirectory("nendo-origin-carry-");
+        try
+        {
+            var carry = new ExtensionOriginCarry(root.FullName, () => new Dictionary<string, string> { ["app-one"] = "instance-a" });
+            Assert.IsTrue(carry.Holds("app-one", "instance-a"), "The file opened last before the upgrade does not keep its origin.");
+            Assert.IsFalse(carry.Holds("app-one", "instance-b"), "Another instance of the application (a Duplicate) was given the old origin.");
+            Assert.IsFalse(carry.Holds("app-two", "instance-a"));
+            var old = ExtensionOrigins.Host("app-one", "instance-a", PackageId, carriedOver: true);
+            Assert.AreEqual(old, ExtensionOrigins.Host("app-one", "instance-b", PackageId, carriedOver: true), "The carried origin is not the application's old one.");
+            Assert.AreNotEqual(old, ExtensionOrigins.Host("app-one", "instance-a", PackageId));
+
+            var path = Path.Combine(root.FullName, ExtensionOriginCarry.FileName);
+            var written = File.ReadAllBytes(path);
+            var later = new ExtensionOriginCarry(root.FullName, () => new Dictionary<string, string> { ["app-one"] = "instance-b" });
+            Assert.IsTrue(later.Holds("app-one", "instance-a"), "A second start chose again.");
+            Assert.IsFalse(later.Holds("app-one", "instance-b"), "A second start chose again.");
+            CollectionAssert.AreEqual(written, File.ReadAllBytes(path), "The choice was written again.");
+
+            var empty = Directory.CreateDirectory(Path.Combine(root.FullName, "empty")).FullName;
+            Assert.IsEmpty(new ExtensionOriginCarry(empty, () => new Dictionary<string, string>()).Holders());
+            Assert.IsTrue(File.Exists(Path.Combine(empty, ExtensionOriginCarry.FileName)), "An empty recent list did not settle the choice.");
+            Assert.IsFalse(new ExtensionOriginCarry(empty, () => new Dictionary<string, string> { ["app-one"] = "instance-a" }).Holds("app-one", "instance-a"),
+                "A device with no recent files gave a file the old origin later.");
+
+            var unreadable = Directory.CreateDirectory(Path.Combine(root.FullName, "unreadable")).FullName;
+            Assert.IsFalse(new ExtensionOriginCarry(unreadable, () => null).Holds("app-one", "instance-a"));
+            Assert.IsFalse(File.Exists(Path.Combine(unreadable, ExtensionOriginCarry.FileName)), "A list that could not be read just now settled the choice.");
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task AHostWithTheNewKeyServesTheFileOpenedLastAtTheOriginItsViewsHad()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await SeedAsync(workspace.FilePath);
+        var history = Path.Combine(workspace.FileHistoryRoot, "history");
+        string applicationId, instanceId;
+        // An earlier start recorded the file in the recent list.
+        await using (var earlier = new DesktopSessionController(fileHistoryRoot: history, deviceStateRoot: Path.Combine(workspace.FileHistoryRoot, "before")))
+        {
+            var opened = await earlier.OpenAsync(workspace.FilePath);
+            applicationId = opened.Manifest!.ApplicationId;
+            instanceId = opened.Manifest.InstanceId;
+        }
+        await using var upgraded = new DesktopSessionController(fileHistoryRoot: history, deviceStateRoot: Path.Combine(workspace.FileHistoryRoot, "after"));
+        await upgraded.OpenAsync(workspace.FilePath);
+        var package = (await upgraded.GetViewAsync()).Extensions!.Packages.Single();
+        var carried = ExtensionOrigins.Host(applicationId, instanceId, PackageId, carriedOver: true);
+        Assert.AreEqual("https://" + carried, package.Origin, "The file opened last before the upgrade lost its views' origin, and their storage with it.");
+        Assert.AreEqual(200, (await upgraded.ReadExtensionAssetAsync(carried, "")).Status);
     }
 
     [TestMethod]
@@ -51,7 +120,7 @@ public sealed class DesktopExtensionServingTests
         Assert.IsNull(runtime.OffReason);
         var package = runtime.Packages.Single();
         Assert.AreEqual(PackageId, package.PackageId);
-        Assert.AreEqual("https://" + ExtensionOrigins.Host(view.Manifest!.ApplicationId, PackageId), package.Origin);
+        Assert.AreEqual("https://" + ExtensionOrigins.Host(view.Manifest!.ApplicationId, view.Manifest.InstanceId, PackageId), package.Origin);
         var host = new Uri(package.Origin!).Host;
 
         var entry = await session.ReadExtensionAssetAsync(host, "");
@@ -144,7 +213,7 @@ public sealed class DesktopExtensionServingTests
         Assert.AreEqual(NendoProposalState.Previewable, import.State, string.Join("; ", import.Diagnostics.Select(d => d.Message)));
         var view = await session.GetViewAsync();
         Assert.IsFalse(view.Extensions!.Packages.Any(), "A prepared import changes nothing until it is accepted.");
-        var host = ExtensionOrigins.Host(view.Manifest!.ApplicationId, PackageId);
+        var host = ExtensionOrigins.Host(view.Manifest!.ApplicationId, view.Manifest.InstanceId, PackageId);
         Assert.AreEqual(404, (await session.ReadExtensionAssetAsync(host, "")).Status, "Code waiting for acceptance must not be served.");
         Assert.IsTrue((await session.PromoteProposalAsync(import.ProposalId, expectedOperationDigest: import.OperationDigest)).Promotion.Applied);
         Assert.AreEqual(PackageId, (await session.GetViewAsync()).Extensions!.Packages.Single().PackageId);
@@ -217,7 +286,7 @@ public sealed class DesktopExtensionServingTests
         Assert.AreEqual((NendoExtensionPackageKind.Skill, (string?)null, (string?)null), (skill.Kind, skill.Origin, skill.EntryPoint),
             "A skill package was given somewhere to run.");
         Assert.AreEqual(NendoExtensionPackageKind.View, view.Extensions.Packages.Single(package => package.PackageId == PackageId).Kind);
-        var host = ExtensionOrigins.Host(view.Manifest!.ApplicationId, skillId);
+        var host = ExtensionOrigins.Host(view.Manifest!.ApplicationId, view.Manifest.InstanceId, skillId);
         Assert.AreEqual(404, session.ExtensionOriginStatus(host));
         Assert.AreEqual(404, (await session.ReadExtensionAssetAsync(host, "SKILL.md")).Status);
         var refusal = Assert.ThrowsExactly<NendoPreconditionException>(() => session.RequireExtensionWriter(skillId));

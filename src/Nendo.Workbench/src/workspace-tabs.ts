@@ -8,7 +8,7 @@ import { fileViewById, viewIcon } from './file-view-model';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
-import { closeTabAt, switchTab, trailForNewTab, trailHolds, type Tab, type TabSet } from './tab-set';
+import { closeTabAt, ownerIndex, switchTab, trailForNewTab, type Tab, type TabSet } from './tab-set';
 import { announce, refreshChrome, requiredElement, rerender } from './shell';
 
 /**
@@ -24,11 +24,19 @@ import { announce, refreshChrome, requiredElement, rerender } from './shell';
 
 const set: TabSet = { tabs: [{ id: 1, saved: null }], active: 0 };
 let nextId = 2;
+/**
+ * The tab that owns the page there is one of (a launched agent's conversation), by its ID: the
+ * tab that last showed it. Ownership was read from the trails, which drop a place when the person
+ * goes somewhere new from part-way back or after 50 more moves, so the conversation's own tab
+ * then closed without ending the agent (WAU-01).
+ */
+let ownerTab: number | null = null;
 
 fileScopedClearable({
   clear(): void {
     set.tabs = [{ id: nextId++, saved: null }];
     set.active = 0;
+    ownerTab = null;
   },
 });
 
@@ -77,23 +85,36 @@ function tabIcon(place: Place | null): IconName {
  */
 export interface TabStatus { kind: string; label: string }
 let statusOf: (place: Place) => TabStatus | null = () => null;
-const closedListeners: Array<(places: Place[]) => void> = [];
+const closedListeners: Array<(places: Place[], ownedOneOfAKind: boolean) => void> = [];
 
 /** A page there is one of in the window: a new tab beside it starts elsewhere (ACP-06). */
-const oneOfAKind = (place: Place): boolean => place.view === 'agentChat';
+const oneOfAKindView = (view: ViewName): boolean => view === 'agentChat';
+const oneOfAKind = (place: Place): boolean => oneOfAKindView(place.view);
+
+/**
+ * A new launch is a new conversation: no tab owns it until one shows it, so a tab that showed the
+ * last one and has gone elsewhere is not taken over, and the launch opens in a tab of its own.
+ */
+export function releaseOwnedPage(): void {
+  ownerTab = null;
+}
+
+/** The tab on screen shows the page there is one of: it owns it from now on. */
+function noteOwner(): void {
+  const here = navigationTrail.current();
+  if (here !== null && oneOfAKind(here)) ownerTab = set.tabs[set.active]!.id;
+}
 
 export function setTabStatus(provider: (place: Place) => TabStatus | null): void {
   statusOf = provider;
 }
 
-/** Called with every place in the closed tab's trail, not only the one it showed (ACP-06). */
-export function onTabClosed(listener: (places: Place[]) => void): void {
+/**
+ * Called with every place in the closed tab's trail, and whether that tab owned the page there is
+ * one of, wherever it has gone since (WAU-01).
+ */
+export function onTabClosed(listener: (places: Place[], ownedOneOfAKind: boolean) => void): void {
   closedListeners.push(listener);
-}
-
-/** How many tabs hold a place showing `view` anywhere in their trail. */
-export function tabsHolding(view: ViewName): number {
-  return set.tabs.filter((tab, index) => trailHolds(index === set.active ? navigationTrail.inspect() : tab.saved, (place) => place.view === view)).length;
 }
 
 /** What the window's other tabs show, for pointing a launched agent at it (W-200). */
@@ -106,6 +127,8 @@ export function placesInOtherTabs(): Place[] {
 
 /** Draw the strip. Called with the rest of the chrome, so a tab's name follows every move. */
 export function drawTabs(): void {
+  // Drawn after every move, so the tab that shows the one-of-a-kind page is known to own it.
+  noteOwner();
   const open = state.session.fileName !== null;
   strip.hidden = !open;
   if (!open) { strip.innerHTML = ''; return; }
@@ -170,16 +193,28 @@ export function newTab(show = true): void {
 }
 
 /**
- * Show `view` in a tab of its own: the tab already on it, or a new one beside this tab. For a page
- * that is one of a kind in the window, such as a launched agent's conversation (ADR-0030).
+ * Show `view` in a tab of its own: the tab already on it, or a new one beside this tab. A page that
+ * is one of a kind in the window, such as a launched agent's conversation (ADR-0030), goes to the
+ * tab that owns it, wherever that tab has gone since: Open conversation opened a second tab on it
+ * when its own had moved on, though one conversation never has two tabs (WAU-15).
  */
 export async function openTabOn(view: ViewName): Promise<void> {
-  const index = set.tabs.findIndex((tab, at) => placeOf(tab, at)?.view === view);
-  if (index === set.active) { state.view = view; rerender(); return; }
-  if (index >= 0) { await activateTab(index); return; }
+  const owner = oneOfAKindView(view) ? ownerIndex(set, ownerTab) : -1;
+  const index = owner >= 0 ? owner : set.tabs.findIndex((tab, at) => placeOf(tab, at)?.view === view);
+  if (index === set.active) { state.view = view; rerender(); noteOwner(); return; }
+  if (index >= 0) {
+    const wanted = set.tabs[index]!;
+    await activateTab(index);
+    // Refused, or made later when the running action ends: the tab on screen stays as it is.
+    if (set.tabs[set.active] !== wanted) return;
+    if (navigationTrail.current()?.view !== view) { state.view = view; rerender(); }
+    noteOwner();
+    return;
+  }
   newTab(false);
   state.view = view;
   rerender();
+  noteOwner();
 }
 
 export async function activateTab(index: number): Promise<void> {
@@ -200,10 +235,12 @@ export async function closeTab(index: number): Promise<void> {
   if (index === set.active && deferWhileBusy(() => { const at = set.tabs.indexOf(closingTab); if (at >= 0) void closeTab(at); })) return;
   if (index === set.active && refuseWhileDirty('switching tabs')) return;
   const closing = index === set.active ? navigationTrail.inspect() : set.tabs[index]!.saved;
+  const owned = closingTab.id === ownerTab;
   const closed = await closeTabAt(set, index, navigationTrail, revisitCurrent);
+  if (closed && owned) ownerTab = null;
   refreshChrome();
   focusActiveTab();
-  if (closed && closing !== null) for (const listener of closedListeners) listener(closing.places);
+  if (closed) for (const listener of closedListeners) listener(closing?.places ?? [], owned);
 }
 
 function focusActiveTab(): void {

@@ -30,6 +30,14 @@ public static class NendoExtensionArchives
     private const string LegacyManifestName = "manifest.json";
     private const int ManifestBytes = 64 * 1024;
 
+    /// <summary>
+    /// The most entries a zip may list, counting the ones an import leaves out: a bound on the work
+    /// of reading its directory, not on the package. The package's own bound is on the files it
+    /// keeps, so a zip of a folder that still holds node_modules or a Finder shadow tree is read for
+    /// the files it carries (EXT-03).
+    /// </summary>
+    internal const int ZipEntries = 16 * NendoExtensionLimits.PackageFiles;
+
     /// <summary>Reads a folder, a zip or a legacy archive, whichever the path names.</summary>
     public static NendoExtensionArchive Read(string path)
     {
@@ -80,9 +88,12 @@ public static class NendoExtensionArchives
         catch (InvalidDataException) { throw new NendoValidationException("The file is not a folder, a zip or a .nendoview archive."); }
         using (archive)
         {
-            var entries = archive.Entries.Where(entry => !entry.FullName.EndsWith('/')).ToArray();
-            if (entries.Length > NendoExtensionLimits.PackageFiles + 1)
-                throw new NendoValidationException($"A package holds at most {NendoExtensionLimits.PackageFiles} files.");
+            if (archive.Entries.Count > ZipEntries)
+                throw new NendoValidationException(
+                    $"The zip lists {archive.Entries.Count} entries, and Nendo reads at most {ZipEntries} from one package zip, counting folders and the files an import leaves out. Zip the package's folder without node_modules or other folders it does not need.");
+            // Separators first: a directory entry written with backslashes ends in one, and read
+            // as a file it was refused as a path rule the person never broke (EXT-04).
+            var entries = archive.Entries.Where(entry => !entry.FullName.Replace('\\', '/').EndsWith('/')).ToArray();
             var names = entries.Select(entry => entry.FullName.Replace('\\', '/')).ToArray();
             var prefix = ManifestPrefix(names, ManifestName);
             var legacy = prefix is null && ManifestPrefix(names, LegacyManifestName) is not null;
@@ -98,12 +109,12 @@ public static class NendoExtensionArchives
                 var entry = entries[index];
                 if (relative == (legacy ? LegacyManifestName : ManifestName))
                 {
-                    manifest = ReadBounded(entry.Open(), ManifestBytes, relative);
+                    manifest = ReadEntry(entry, ManifestBytes, relative);
                     continue;
                 }
                 if (Skipped(relative)) continue;
                 if (entry.Length > NendoExtensionLimits.FileBytes) throw TooLarge(relative);
-                Add(files, relative, ReadBounded(entry.Open(), NendoExtensionLimits.FileBytes, relative), ref total);
+                Add(files, relative, ReadEntry(entry, NendoExtensionLimits.FileBytes, relative), ref total);
             }
             return legacy ? DescribeLegacy(manifest!, files) : Describe(manifest!, files);
         }
@@ -231,6 +242,9 @@ public static class NendoExtensionArchives
             throw new NendoValidationException($"The package path {path} is not allowed. Paths use letters, digits and - _ . ~ /, and never start with _nendo/.");
         if (files.Any(file => string.Equals(file.Path, path, StringComparison.OrdinalIgnoreCase)))
             throw new NendoValidationException($"The package has two files named {path} apart from case.");
+        // A folder cannot hold a file and a folder of one name, so export could not write it (EXT-06).
+        if (files.FirstOrDefault(file => NendoExtensionContent.FileAndFolderClash(file.Path, path)) is { } clash)
+            throw new NendoValidationException($"The package has a file and a folder both named {FolderName(clash.Path, path)}, apart from case. A folder cannot hold both; rename one.");
         if (files.Count >= NendoExtensionLimits.PackageFiles)
             throw new NendoValidationException($"A package holds at most {NendoExtensionLimits.PackageFiles} files.");
         total += content.Length;
@@ -239,14 +253,32 @@ public static class NendoExtensionArchives
         files.Add(new(path, content));
     }
 
-    private static bool Skipped(string path) =>
-        path == ManifestName || path.Split('/').Any(segment => segment.StartsWith('.') || segment == "node_modules");
+    private static bool Skipped(string path) => NendoExtensionContent.LeftOutOnImport(path);
+
+    private static string FolderName(string one, string other) => one.Length < other.Length ? one : other;
 
     private static string? ManifestPrefix(IReadOnlyList<string> names, string manifest)
     {
         if (names.Contains(manifest, StringComparer.Ordinal)) return "";
         var nested = names.Where(name => name.EndsWith("/" + manifest, StringComparison.Ordinal) && name.Count(c => c == '/') == 1).ToArray();
         return nested.Length == 1 ? nested[0][..^manifest.Length] : null;
+    }
+
+    /// <summary>
+    /// One entry's bytes, refused by its name when the zip cannot give them: a compression method
+    /// .NET does not read, encryption, or a damaged stream. They reached the Workbench as a host
+    /// fault with nothing named (EXT-05).
+    /// </summary>
+    private static byte[] ReadEntry(ZipArchiveEntry entry, int limit, string name)
+    {
+        try
+        {
+            return ReadBounded(entry.Open(), limit, name);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or NotSupportedException)
+        {
+            throw new NendoValidationException($"{name} in the zip cannot be read: {exception.Message} Zip the package again with ordinary compression and no password.");
+        }
     }
 
     /// <summary>Reads at most <paramref name="limit"/> bytes whatever a header claimed, and refuses one more.</summary>

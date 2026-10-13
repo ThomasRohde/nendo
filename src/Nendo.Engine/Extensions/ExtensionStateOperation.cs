@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace Nendo.Engine;
@@ -33,9 +34,12 @@ public sealed record SetExtensionStateOperation : NendoOperation
             try
             {
                 using var document = JsonDocument.Parse(valueJson);
-                // Stored as the writer spells it, without whitespace: one spelling for one value.
+                // Stored as the writer spells it, without whitespace: one spelling for one value. Text
+                // stays as written rather than escaped, so a value within the bound stays within it
+                // stored (EXT-01): the default encoder turned each non-ASCII letter into six characters.
                 using var stream = new MemoryStream();
-                using (var compact = new Utf8JsonWriter(stream)) document.RootElement.WriteTo(compact);
+                using (var compact = new Utf8JsonWriter(stream, new JsonWriterOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
+                    document.RootElement.WriteTo(compact);
                 valueJson = document.RootElement.ValueKind == JsonValueKind.Null ? null : System.Text.Encoding.UTF8.GetString(stream.ToArray());
             }
             catch (JsonException)

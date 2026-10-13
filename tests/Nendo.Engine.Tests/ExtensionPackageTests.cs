@@ -335,14 +335,20 @@ public sealed class ExtensionPackageTests
         var expected = Encoding.UTF8.GetBytes(proposed);
         var read = new List<byte>();
         NendoProposalFileWindow window;
+        var opensBefore = coordinator.ProposalCloneOpens;
+        var windows = 0;
         do
         {
+            windows++;
             window = await service.ReadProposalPackageFileAsync(proposal.ProposalId, proposal.OperationDigest, PackageId, "map.js", read.Count, NendoExtensionLimits.ProposalFileWindowBytes);
             Assert.AreEqual(expected.LongLength, window.TotalBytes);
             Assert.AreEqual((long)read.Count, window.Offset);
             read.AddRange(window.Content);
         } while (window.Content.Length > 0 && read.Count < window.TotalBytes);
         CollectionAssert.AreEqual(expected, read.ToArray(), "The windows put together are not the proposed file.");
+        // EXT-12: each window opened and checked the whole clone again, holding the write gate.
+        Assert.IsGreaterThan(2, windows, "The fixture must take several windows to read.");
+        Assert.AreEqual(1, coordinator.ProposalCloneOpens - opensBefore, $"Reading one file in {windows} windows opened the proposal's copy more than once.");
         Assert.AreEqual(Convert.ToHexString(SHA256.HashData(expected)).ToLowerInvariant(), window.Sha256.ToLowerInvariant());
 
         await Assert.ThrowsExactlyAsync<NendoIdempotencyConflictException>(() =>
@@ -357,6 +363,34 @@ public sealed class ExtensionPackageTests
         var gone = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() =>
             service.ReadProposalPackageFileAsync(proposal.ProposalId, proposal.OperationDigest, PackageId, "map.js", 0, 10));
         Assert.AreEqual("proposal-not-found", gone.Code);
+    }
+
+    /// <summary>
+    /// EXT-08: a file past the review's line budget shows no hunk of unchanged lines alone, and a
+    /// change of only the final newline is a changed last line, not a replaced file with no lines.
+    /// </summary>
+    [TestMethod]
+    public void ADiffShowsNoHunkOfContextAloneAndAFinalNewlineIsAChangedLine()
+    {
+        var (spent, spentShown, spentTruncated) = ExtensionPackageDiff.Hunks(["one\n", "two\n", "three\n"], ["one\n", "two\n", "four\n"], 0);
+        Assert.IsEmpty(spent, "A file reviewed after the budget was spent showed unchanged lines as its change.");
+        Assert.AreEqual((0, true), (spentShown, spentTruncated));
+
+        var before = Enumerable.Range(1, 40).Select(index => $"line {index}\n").ToArray();
+        var after = before.ToArray();
+        after[4] = "line 5 changed\n";
+        after[29] = "line 30 changed\n";
+        var (partly, partlyShown, partlyTruncated) = ExtensionPackageDiff.Hunks(before, after, 2);
+        Assert.HasCount(1, partly, "The allowance ran out at a hunk's first change and the hunk was shown as context alone.");
+        Assert.AreEqual((2, true), (partlyShown, partlyTruncated));
+
+        Assert.IsTrue(ExtensionPackageDiff.TryLines("a\nb"u8.ToArray(), out var without));
+        Assert.IsTrue(ExtensionPackageDiff.TryLines("a\nb\n"u8.ToArray(), out var with));
+        var (newline, newlineShown, newlineTruncated) = ExtensionPackageDiff.Hunks(without, with, 100);
+        Assert.HasCount(1, newline, "A change of only the final newline showed no changed line.");
+        CollectionAssert.AreEqual(new[] { "context", "removed", "added" }, newline[0].Lines.Select(line => line.Kind).ToArray());
+        CollectionAssert.AreEqual(new[] { "a", "b", "b" }, newline[0].Lines.Select(line => line.Text).ToArray());
+        Assert.AreEqual((2, false), (newlineShown, newlineTruncated));
     }
 
     [TestMethod]

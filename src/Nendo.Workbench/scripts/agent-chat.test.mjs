@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
-const { chatActivity, chatTabStatus, composerState, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, stateLabel, stepsSummary, threadItems, waitingForYou } =
+const { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, signInMarkup, stateLabel, stepsSummary, threadItems, waitingForYou } =
   await bundleOf('src/agent-chat-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
@@ -213,4 +213,75 @@ retries = 5`, options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }
   assert.match(open, /retries = 5/);
   assert.match(open, /Changes C:\/work\/config\.json/);
   assert.doesNotMatch(open, /<img src=x/, 'What the agent sent was drawn as markup.');
+});
+
+// WAU-12 (broad review, 2026-10-13): a request that Stop, End, the program or the file closing
+// cancelled read "you chose Cancelled", which the person never did; and the card gave no cue of
+// the tool's kind before Allow once, though the steps list names it.
+test('WAU-12: a cancelled request is not the person\'s choice, and the card names the tool\'s kind', () => {
+  const options = [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }];
+  const cancelled = itemMarkup({ key: 'e5', type: 'permission', entry: entry({ id: 'e5', kind: 'permission', title: 'Update records', answer: 'Cancelled', options }) }, 'Copilot', new Set());
+  assert.doesNotMatch(cancelled, /you chose/, 'A request nobody answered reads as the person\'s choice.');
+  assert.match(cancelled, /cancelled when the turn stopped/);
+  const chosen = itemMarkup({ key: 'e6', type: 'permission', entry: entry({ id: 'e6', kind: 'permission', title: 'Update records', answer: 'Allow', options }) }, 'Copilot', new Set());
+  assert.match(chosen, /you chose Allow/);
+  const asking = itemMarkup({ key: 'e7', type: 'permission', entry: entry({ id: 'e7', kind: 'permission', title: 'Update records', toolKind: 'delete', options }) }, 'Copilot', new Set());
+  assert.match(asking, /chat-permission-head[\s\S]*>Delete</, 'The card does not say the tool deletes.');
+});
+
+// WAU-05: every read built every item's markup again, an agent's Markdown with it, so one long
+// line made each later read cost close to a second. Only an item that changed is built again.
+test('WAU-05: one streamed chunk into a long conversation builds one item again', () => {
+  const chat = emptyChat();
+  const entries = [];
+  for (let order = 1; order <= 1000; order += 1)
+    entries.push(entry({ id: `e${order}`, order, revision: 1, kind: order % 2 === 0 ? 'agent' : 'you', text: order % 2 === 0 ? `**Answer** ${order}` : `Question ${order}` }));
+  mergeChat(chat, view({ revision: 1, entries }), 'k');
+  const cache = createMarkupCache();
+  const draw = () => threadItems(chat).map((item) => cache.markup(item, chat.name, new Set(), false));
+  const first = draw();
+  assert.equal(cache.built, 1000);
+  mergeChat(chat, view({ revision: 2, entries: [entry({ id: 'e1000', order: 1000, revision: 2, kind: 'agent', text: '**Answer** 1000 and more' })] }), 'k');
+  const second = draw();
+  assert.equal(cache.built - 1000, 1, `One chunk built ${cache.built - 1000} items again.`);
+  assert.equal(second[999].includes('and more'), true, 'The changed item was not built again.');
+  assert.equal(second[0], first[0]);
+  assert.equal(draw().length, 1000);
+  assert.equal(cache.built, 1001, 'A read with nothing new built an item again.');
+});
+
+// WAU-09: open disclosures were kept by their place in the item, so they moved to another step
+// when a step earlier in the run gained one. Each names the entry and the part it shows.
+test('WAU-09: every disclosure in a run of steps is named by its entry and its part', () => {
+  const run = [
+    entry({ id: 'e2', order: 2, kind: 'tool', title: 'Count', status: 'completed', text: '42', input: '{}' }),
+    entry({ id: 'e3', order: 3, kind: 'thought', text: 'Hmm' }),
+    entry({ id: 'e4', order: 4, kind: 'tool', title: 'List', status: 'completed', text: 'Crew', input: '{"a":1}' }),
+  ];
+  const html = itemMarkup({ key: 'g-e2', type: 'steps', entries: run }, 'Copilot', new Set(['g-e2']));
+  const parts = [...html.matchAll(/<details data-part="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(parts, ['e2:sent', 'e2:back', 'e3:thought', 'e4:sent', 'e4:back'], 'A disclosure has no identity of its own.');
+  assert.equal((html.match(/<details/g) ?? []).length, parts.length, 'A disclosure is drawn without its identity.');
+});
+
+// DAE-10: the sign-in buttons stayed live while a sign-in ran, and a second press started another.
+test('DAE-10: the ways to sign in are held while a sign-in runs', () => {
+  const chat = emptyChat();
+  mergeChat(chat, view({ state: 'signIn', signInMethods: [{ id: 'browser', name: 'Sign in with a browser', description: null }], notice: 'Waiting…', signingIn: true }), 'k');
+  assert.equal(chat.signingIn, true);
+  assert.match(signInMarkup(chat), /data-sign-in="browser"[^>]*disabled/, 'A way to sign in is live while a sign-in runs.');
+  mergeChat(chat, view({ state: 'signIn', revision: 2, signInMethods: [{ id: 'browser', name: 'Sign in with a browser', description: null }], signingIn: false }), 'k');
+  assert.doesNotMatch(signInMarkup(chat), /disabled/);
+  assert.equal(signInMarkup(emptyChat()), '');
+});
+
+// Review of the W-220 fix: entry IDs and revisions start again with every launch, so a cache keyed
+// by them alone could draw the old launch's e1 for the new launch's e1.
+test('WAU-05: a new launch never draws the old launch\'s markup for an entry of the same ID and revision', () => {
+  const cache = createMarkupCache();
+  const item = (text) => ({ key: 'e1', type: 'you', entry: entry({ id: 'e1', revision: 1, kind: 'you', text }) });
+  assert.match(cache.markup(item('old conversation'), 'Copilot', new Set(), false, 'file|1'), /old conversation/);
+  const fresh = cache.markup(item('new conversation'), 'Copilot', new Set(), false, 'file|2');
+  assert.match(fresh, /new conversation/, 'The new launch drew the old launch\'s entry.');
+  assert.equal(cache.built, 2);
 });

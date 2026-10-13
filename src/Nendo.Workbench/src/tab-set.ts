@@ -70,9 +70,10 @@ export function trailForNewTab(saved: SavedTrail, oneOfAKind: (place: Place) => 
 }
 
 /**
- * Whether a tab's trail holds a place anywhere in it, not only on screen: a conversation's tab
- * that went on to Data still owns the conversation, which Back returns to (ACP-06).
+ * Where the tab with ID `owner` stands now, or -1 when it has closed. A conversation's tab owns
+ * the conversation by its ID, not by what its trail still holds: a trail drops a place when the
+ * person goes somewhere new from part-way back, and after 50 more moves (WAU-01).
  */
-export function trailHolds(saved: SavedTrail | null, held: (place: Place) => boolean): boolean {
-  return saved !== null && saved.places.some(held);
+export function ownerIndex(set: TabSet, owner: number | null): number {
+  return owner === null ? -1 : set.tabs.findIndex((tab) => tab.id === owner);
 }

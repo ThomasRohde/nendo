@@ -124,6 +124,9 @@ internal sealed partial class SqliteNendoStore
         }
     }
 
+    /// <summary>How many tables the commit checks counted; a test reads it.</summary>
+    internal long CommitTableCounts { get; private set; }
+
     /// <summary>Measure the actual expanded transaction before commit, including automatic actions.</summary>
     private async Task RequireInspectableCommitAsync(SqliteTransaction transaction, CancellationToken cancellationToken)
     {
@@ -146,16 +149,17 @@ internal sealed partial class SqliteNendoStore
                 if (rows.GetString(0) == "table" && !IsSearchStorage(rows.GetString(1))) tables.Add(rows.GetString(1));
             }
         }
+        // Each table is counted once: the record tables are among them, and their sum is the
+        // bound on records. They were counted a second time on every commit (PERF-08).
+        var entityTables = (await ReadEntityMappingsAsync(transaction, cancellationToken))
+            .Select(entity => entity.PhysicalTableName).ToHashSet(StringComparer.Ordinal);
+        long records = 0;
         foreach (var table in tables)
         {
+            CommitTableCounts++;
             var count = Convert.ToInt64(await ScalarAsync($"SELECT COUNT(*) FROM {Quote(table)};", transaction, cancellationToken), CultureInfo.InvariantCulture);
             if (count > MaximumInspectionRows) throw RowsExceeded();
-        }
-        long records = 0;
-        foreach (var entity in await ReadEntityMappingsAsync(transaction, cancellationToken))
-        {
-            records += Convert.ToInt64(await ScalarAsync($"SELECT COUNT(*) FROM {Quote(entity.PhysicalTableName)};", transaction, cancellationToken), CultureInfo.InvariantCulture);
-            if (records > MaximumInspectionRows) throw RowsExceeded();
+            if (entityTables.Contains(table) && (records += count) > MaximumInspectionRows) throw RowsExceeded();
         }
         static NendoPreconditionException RowsExceeded() => new("write-ceiling-rows",
             $"This write would exceed the {MaximumInspectionRows} row open limit. Nothing was changed, so the file still opens. Fold its history or start a new file.");
@@ -368,6 +372,13 @@ internal sealed partial class SqliteNendoStore
                 return Unreadable("integrity-failed", "The file did not pass its integrity check. Preserve it and open a verified backup separately.", observedAt);
             }
 
+            // A file a newer host wrote can carry a layout this host has never seen. Its stated host
+            // is the truer reason, so it is read first: a newer Nendo may open it.
+            if (await store.StatedMinimumHostVersionAsync(cancellationToken) is { } stated &&
+                Version.TryParse(stated, out var statedHost) && statedHost > Version.Parse(NendoFormat.CurrentHostVersion))
+            {
+                return Unreadable("unsupported-host-version", UnsupportedFormatText(stated), observedAt);
+            }
             var layoutSignature = await store.ProtectedSchemaSignatureAsync(cancellationToken);
             var layouts = await KnownLayouts.Value.WaitAsync(cancellationToken);
             var layout = layouts.FirstOrDefault(pair => pair.Value == layoutSignature).Key;
@@ -393,6 +404,8 @@ internal sealed partial class SqliteNendoStore
             }
 
             var findings = new List<NendoOpenFinding>();
+            if (minimumHost < Version.Parse(NendoFormat.RevisionIndexesMinimumHostVersion) && await store.RevisionIndexesExistAsync(null, cancellationToken))
+                return Unreadable("layout-version-mismatch", "The history indexes a fold adds require the declared index-capable host version.", observedAt);
             if (layout.Contains("-search-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.SearchMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A search index requires the declared search-capable host version.", observedAt);
             if (layout.Contains("-linkrule-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.LinkRuleMinimumHostVersion))
@@ -850,6 +863,23 @@ internal sealed partial class SqliteNendoStore
         new NendoFileInspection(recovery ? NendoOpenClassification.RecoveryRequired : NendoOpenClassification.Rejected,
             NendoFileCapabilities.None, [new(code, message)], null, null, false, observedAt), null, []);
 
+    /// <summary>
+    /// The host version the manifest states, read on its own before the layout is known, or null
+    /// when there is no manifest to read it from. Nothing else of the file is trusted by it.
+    /// </summary>
+    private async Task<string?> StatedMinimumHostVersionAsync(CancellationToken cancellationToken)
+    {
+        if (!await TableExistsAsync("__nendo_manifest", null, cancellationToken)) return null;
+        try
+        {
+            return await ScalarAsync("SELECT minimum_host_version FROM __nendo_manifest WHERE singleton_id = 1;", null, cancellationToken) as string;
+        }
+        catch (SqliteException)
+        {
+            return null;
+        }
+    }
+
     private async Task<string> ProtectedSchemaSignatureAsync(CancellationToken cancellationToken, SqliteTransaction? transaction = null)
     {
         await using var command = Command("""
@@ -858,17 +888,27 @@ internal sealed partial class SqliteNendoStore
             ORDER BY type, name;
             """, transaction);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        var parts = new List<string>();
+        var rows = new List<(string Type, string Name, string Table, string? Sql)>();
         while (await reader.ReadAsync(cancellationToken))
         {
             // FTS5 writes its own tables' DDL; the layout is the index's own statement (ADR-0028).
             if (SearchShadowTables.Contains(reader.GetString(1))) continue;
-            if (parts.Count >= 128)
+            if (rows.Count >= 128 + RevisionIndexes.Count)
             {
                 throw new NendoValidationException("Too many protected schema objects.");
             }
-            parts.Add(string.Join('|', reader.GetString(0), reader.GetString(1), reader.GetString(2),
-                reader.IsDBNull(3) ? "" : Regex.Replace(reader.GetString(3), @"\s+", "", RegexOptions.CultureInvariant)));
+            rows.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3)));
+        }
+        // The history indexes are an overlay on whichever layout the file has (ADR-0021, 2026-10-13),
+        // left out only when all of them are there exactly as this host writes them.
+        var overlay = rows.Count(row => IsRevisionIndex(row.Type, row.Name, row.Sql)) == RevisionIndexes.Count;
+        var parts = rows
+            .Where(row => !overlay || !IsRevisionIndex(row.Type, row.Name, row.Sql))
+            .Select(row => string.Join('|', row.Type, row.Name, row.Table, row.Sql is null ? "" : NormalizeSchemaSql(row.Sql)))
+            .ToList();
+        if (parts.Count > 128)
+        {
+            throw new NendoValidationException("Too many protected schema objects.");
         }
         return string.Join('\n', parts);
     }

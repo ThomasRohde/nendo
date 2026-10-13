@@ -127,7 +127,8 @@ internal sealed partial class NendoAgentAuthoringService(
                             "Validate one, reject one with nendo.change_set.reject, or release the lease, which discards " +
                             "every draft never validated.");
                     }
-                    var snapshot = await application.GetSnapshotAsync(cancellationToken);
+                    // The manifest is all the identity check reads; the full snapshot read every record (PERF-07).
+                    var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
                     var changeSetId = $"change-set-{NendoText.RandomHex(16)}";
                     // Two proposals can capture the same revision, and accepting
@@ -355,7 +356,7 @@ internal sealed partial class NendoAgentAuthoringService(
     private async Task<NendoAgentProposalPreview> ValidateDraftAsync(
         Draft draft, string changeSetId, string applicationHandle, CancellationToken cancellationToken)
     {
-        var snapshot = await application.GetSnapshotAsync(cancellationToken);
+        var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
         var recapturedFrom = RequireCapturedAuthority(draft, snapshot);
         // A previous cleanup IO refusal keeps its private preview owned by
         // the draft. Finish that cleanup before creating another clone.
@@ -506,7 +507,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     // Everything that may refuse or be cancelled happens before the old proposal is
                     // rejected, and nothing after the reject waits on the caller: a cancellation in
                     // between used to leave neither the proposal nor its operations (MAA-07).
-                    var snapshot = await application.GetSnapshotAsync(cancellationToken);
+                    var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
                     await proposals.RejectAsync(application, owned.ProposalId, CancellationToken.None);
                     _validated.Remove(changeSetId);

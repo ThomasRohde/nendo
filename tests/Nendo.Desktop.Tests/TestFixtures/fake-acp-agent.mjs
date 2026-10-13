@@ -12,13 +12,18 @@
 //   shell       runs shell commands whose input or title mentions nendo://, and one MCP read named only in _meta
 //   diff        reports a diff-only tool call, then asks permission with only a diff and a location
 //   flood       reports 1,005 tool calls, more than a transcript keeps
+//   line-null   asks permission for a call whose location has a null line, as ACP allows
+//   huge        sends one message larger than Nendo accepts, and keeps running
 //   anything else is echoed back in two chunks
 // Flags: --no-http (cannot reach HTTP MCP), --version N (speaks ACP version N), --auth (asks to
 // sign in first), --banner (prints a line that is not a message before speaking), --config (offers
 // session config options, as Copilot CLI does), --legacy (offers the older modes and models, as
 // OpenCode does), --refuse-session (refuses session/new as the Claude adapter does, with the bare
 // "Internal error" and the reason in data.details), --no-embedded (does not read context embedded
-// in a prompt). The prompt 'switch' makes the agent change its own mode.
+// in a prompt), --version-text (answers initialize with a version as text, as an MCP server
+// would), --slow-auth (takes a second and a half to sign in), --text-code (refuses
+// session/set_config_option with an error whose code is text). The prompt 'switch' makes the
+// agent change its own mode. The started line logs NENDO_AGENT_PROBE from its environment.
 import { appendFileSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -49,7 +54,7 @@ const configOptions = [
 const legacy = { modes: { currentModeId: 'build', availableModes: [{ id: 'build', name: 'Build' }, { id: 'plan', name: 'Plan' }] },
   models: { currentModelId: 'big', availableModels: [{ modelId: 'big', name: 'Big' }, { modelId: 'small', name: 'Small' }] } };
 let cancelTurn = null;
-log({ started: true, cwd: process.cwd(), cwdEntries: readdirSync(process.cwd()) });
+log({ started: true, cwd: process.cwd(), cwdEntries: readdirSync(process.cwd()), probe: process.env.NENDO_AGENT_PROBE ?? null });
 if (args.includes('--banner')) process.stdout.write('fake agent starting up\n');
 
 async function prompt(id, params) {
@@ -156,6 +161,20 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
+  if (text === 'line-null') {
+    const answer = await ask('session/request_permission', {
+      sessionId,
+      toolCall: { toolCallId: 'call-12', title: 'Edit notes', kind: 'edit', locations: [{ path: 'C:/work/notes.md', line: null }] },
+      options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }],
+    });
+    log({ permission: answer });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'huge') {
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'x'.repeat(8 * 1024 * 1024 + 1024) } });
+    return;
+  }
   if (text === 'flood') {
     for (let index = 0; index < 1005; index++)
       update(sessionId, { sessionUpdate: 'tool_call', toolCallId: `flood-${index}`, title: `Step ${index}`, kind: 'other', status: 'completed' });
@@ -185,7 +204,7 @@ lines.on('line', (line) => {
   switch (message.method) {
     case 'initialize':
       send({ id: message.id, result: {
-        protocolVersion: Number(option('--version') ?? 1),
+        protocolVersion: args.includes('--version-text') ? '2025-06-18' : Number(option('--version') ?? 1),
         agentCapabilities: { loadSession: false, mcpCapabilities: { http: !args.includes('--no-http'), sse: false },
           promptCapabilities: { embeddedContext: !args.includes('--no-embedded') } },
         authMethods: args.includes('--auth') ? [{ id: 'browser', name: 'Sign in with a browser' }] : [],
@@ -194,7 +213,8 @@ lines.on('line', (line) => {
       break;
     case 'authenticate':
       signedIn = true;
-      send({ id: message.id, result: {} });
+      if (args.includes('--slow-auth')) setTimeout(() => send({ id: message.id, result: {} }), 1500);
+      else send({ id: message.id, result: {} });
       break;
     case 'session/new':
       if (!signedIn) send({ id: message.id, error: { code: -32000, message: 'Authentication required' } });
@@ -205,6 +225,7 @@ lines.on('line', (line) => {
       break;
     case 'session/set_config_option': {
       const option = configOptions.find((candidate) => candidate.id === message.params.configId);
+      if (args.includes('--text-code')) { send({ id: message.id, error: { code: 'internal', message: 'boom' } }); break; }
       if (option === undefined || message.params.value === 'refuse') { send({ id: message.id, error: { code: -32602, message: 'No such value' } }); break; }
       option.currentValue = message.params.value;
       send({ id: message.id, result: { configOptions } });

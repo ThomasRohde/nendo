@@ -5,6 +5,36 @@ namespace Nendo.Engine.Storage;
 
 internal sealed partial class SqliteNendoStore
 {
+    /// <summary>
+    /// A compensation that would leave a skill package it touched without a SKILL.md that names it
+    /// is refused (EXT-14). A proposal is checked for this as a whole, but each of its mutations is
+    /// a revision of its own, and undoing the one that put SKILL.md left every later proposal
+    /// invalid until someone repaired the package.
+    /// </summary>
+    private async Task RequireCompensatedSkillPackagesAsync(IReadOnlyList<OperationEvidence> evidence,
+        Microsoft.Data.Sqlite.SqliteTransaction transaction, CancellationToken cancellationToken)
+    {
+        var packages = evidence.Select(item => item.Operation switch
+            {
+                PutExtensionFileOperation put => put.PackageId,
+                RemoveExtensionFileOperation remove => remove.PackageId,
+                SetExtensionPackageOperation set => set.PackageId,
+                _ => null,
+            })
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal);
+        foreach (var packageId in packages)
+        {
+            // A package the compensation removed is no skill package any more.
+            if (!await IsSkillPackageAsync(packageId, transaction, cancellationToken)) continue;
+            var skill = await ReadExtensionFileAsync(packageId, NendoAgentSkill.FileName, transaction, cancellationToken);
+            if (!NendoAgentSkill.TryRead(packageId, skill?.Content, out _, out var problem))
+                throw new NendoCompensationNotSupportedException(
+                    $"Undoing this change would leave the skill package {packageId} without a usable {NendoAgentSkill.FileName} ({problem}), " +
+                    "and every later proposal would be refused until it was repaired. Change the package in a new proposal instead.");
+        }
+    }
+
     private async Task<IReadOnlyList<NendoOperation>> CreateExtensionRemovalInverseAsync(string revisionId,
         string evidenceJson, string key, bool exactReplay, CancellationToken cancellationToken)
     {

@@ -61,7 +61,12 @@ internal static class ExtensionPackageDiff
         return changes;
     }
 
-    private static bool TryLines(byte[]? content, out string[] lines)
+    /// <summary>
+    /// The text's lines, each with the line feed that ends it, so a last line with and without one
+    /// compare as different lines (EXT-08): a change of only the final newline listed the file as
+    /// replaced with no line changed. The feed is compared and never shown.
+    /// </summary>
+    internal static bool TryLines(byte[]? content, out string[] lines)
     {
         lines = [];
         if (content is null) return true;
@@ -69,6 +74,7 @@ internal static class ExtensionPackageDiff
         {
             var text = StrictUtf8.GetString(content);
             lines = text.Split('\n');
+            for (var index = 0; index < lines.Length - 1; index++) lines[index] += "\n";
             if (lines.Length > 0 && lines[^1].Length == 0) lines = lines[..^1];
             return true;
         }
@@ -88,6 +94,8 @@ internal static class ExtensionPackageDiff
     {
         var script = Script(oldLines, newLines);
         var changes = Enumerable.Range(0, script.Count).Where(index => script[index].Kind != '=').ToArray();
+        // Nothing left to show: no hunk of unchanged lines alone, only the note that the change goes on (EXT-08).
+        if (allowance <= 0 && changes.Length > 0) return ([], 0, true);
         var hunks = new List<NendoExtensionDiffHunk>();
         var shown = 0;
         var truncated = false;
@@ -111,6 +119,8 @@ internal static class ExtensionPackageDiff
                 }
                 lines.Add(Line(script[index], oldLines, newLines));
             }
+            // A hunk the allowance ran out in before its first change would be context alone.
+            if (lines.All(line => line.Kind == "context")) break;
             hunks.Add(new(script[start].Old + 1, lines.Count(line => line.Kind != "added"),
                 script[start].New + 1, lines.Count(line => line.Kind != "removed"), lines));
         }
@@ -124,8 +134,12 @@ internal static class ExtensionPackageDiff
         _ => new("added", Display(newLines[step.New])),
     };
 
-    // A carriage return is compared, so a change of line endings is a change, but not shown.
-    private static string Display(string line) => line.EndsWith('\r') ? line[..^1] : line;
+    // The line feed and a carriage return are compared, so a change of line endings is a change, but not shown.
+    private static string Display(string line)
+    {
+        if (line.EndsWith('\n')) line = line[..^1];
+        return line.EndsWith('\r') ? line[..^1] : line;
+    }
 
     /// <summary>
     /// The edit script from the old lines to the new: <c>=</c> kept, <c>-</c> removed, <c>+</c>

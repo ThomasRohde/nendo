@@ -10764,3 +10764,167 @@ Left open:
   sentence is still "did not respond".
 - WCS-22: the discard offer lives in the renderer's memory; after a renderer restart a stopped
   save is resolved by Check or retry only.
+
+### Twenty-fourth pass: launched agents and the Agent page (W-220)
+
+2026-10-13 (independent review, 2026-10-14): the seventeen findings planned as W-220 (2 P2, 15 P3) are settled. Sixteen are fixed,
+DAE-06 as the owner decided on 2026-10-13 under a dated amendment to ADR-0013, and one, DAE-08, was
+already fixed in W-204. The guards are new cases in `DesktopLaunchedAgentTests` (against the
+stand-in agent, which gained the flags and prompts they need), one assertion in
+`DesktopExtensionServingTests`, Workbench node tests (`agent-chat.test.mjs`,
+`navigation-trail.test.mjs` and a new `preview-agent-session.test.mjs`) and six new journeys in the
+agent-chat lane (`tools/Gate-AgentChat.mjs`, run by `Review-AgentChat.ps1`). Every guard failed with
+its defect put back, and the quoted texts are from those runs.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [DAE-04](#dae-04) | An error answer's code is read only when it is a number (else -32603); one message that cannot be read is dropped, never the connection, and a request whose answer threw still gets one; `AcpConnection.DisposeAsync` goes on however the read loop ended; the controller disposes an old or closing conversation inside a catch, so closing the file always stops agent access and closes its proposals. | `StringAssert.Contains failed. String 'The agent closed its output.' does not contain string 'boom'. The agent's refusal was not told as its own.` (the test then closes the file and requires the listener's port to be free) |
+| [WAU-01](#wau-01) | The conversation is owned by a tab, by its ID: the tab that last showed it (`workspace-tabs.ts`, `ownerIndex` in `tab-set.ts`). Closing that tab ends the agent wherever it has gone; no trail is read, so Back and the 50-place bound no longer drop the owner. | Lane: `WAU-01: the conversation's own tab went Back to the Agent page and on to Data and was closed, and the agent ran on with no tab.` |
+| [DAE-03](#dae-03) | Numbers from the agent are read through `WholeNumber`, which takes another kind as absent. A version sent as text is named as not ACP; anything unexpected in the handshake ends the conversation with a sentence. A permission request is read whole before its entry is added. | The version: `Assert.Fail failed. The conversation never got there. It is starting: ;`. The null line: `Assert.IsNotNull failed. 'value' expression: 'question'. No permission request was shown: you: line-null` |
+| [DAE-06](#dae-06) | A view's origin key hashes `applicationId\ninstanceId\npackageId` (ADR-0013, 2026-10-13), so a Duplicate's views start with storage of their own. For each application, the instance this device opened most recently when it first started a host with the new key keeps the old key, recorded once in `view-origin-carry.json` (`ExtensionOriginCarry.cs`), so the owner's views keep their storage at the upgrade. Settings and development links stay keyed by application ID. | `Assert.AreNotEqual failed. Expected any value except:<org-example-map-1e4e2747ec.example>. Actual:<org-example-map-1e4e2747ec.example>. ... A Duplicate (one application ID, another instance) shares its original's view storage.`; the carry-over: `Assert.AreEqual failed. ... 'expected' expression: '"https://" + carried', 'actual' expression: 'package.Origin'. The file opened last before the upgrade lost its views' origin, and their storage with it.`, `... The carried origin is not the application's old one.` and `Assert.IsTrue failed. 'condition' expression: 'later.Holds("app-one", "instance-a")'. A second start chose again.` |
+| [DAE-07](#dae-07) | `list`, `setCommand`, `setHidden` and `launch` find the agents before they take the request gate: one search of PATH at a time whatever the command line, shared by requests for the same one within two seconds of its start. | `Assert.AreSame failed. 'expected' expression: 'status', 'actual' expression: 'first'. A request on the gate waited for the agents to be found.` |
+| [DAE-08](#dae-08) | Already fixed in W-204 (cdc4edd): `Origin` decides by the tool's own name when the metadata gives one (`AgentConversation.Options.cs:68`); `AgentToolOriginTests.TheToolsOwnNameDecidesOverItsTitle` passed in this pass. No change. | Not repeated here; falsified in W-204. |
+| [DAE-10](#dae-10) | One sign-in at a time (`agent-signing-in`), and the read carries `signingIn`, which holds the tab's sign-in buttons; an update for another session than the open one is not drawn. | `Assert.ThrowsExactly failed. Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. ... A second sign-in was started while the first ran.`; the buttons: `A way to sign in is live while a sign-in runs.` |
+| [DAE-11](#dae-11) | Launch folders are named `<process ID>-<GUID>`. Each launch first removes every folder no running agent can be using: this process's own that no live agent of it uses, another process's once it has ended, and a GUID-named one from before; a folder with any file that cannot be opened for this process alone is left whole. | `Assert.IsFalse failed. 'condition' expression: 'Directory.Exists(legacy)'. A folder from before folders were named by their process was left.`; the open file: `Assert.IsTrue failed. 'condition' expression: 'File.Exists(spare)'. A folder a program still has a file open in was emptied.` |
+| [DAE-12](#dae-12) | `AgentEnvironment` reads the machine's and the person's variables from the registry each time, as written, over the process's own; puts back the process's identity and per-sign-in variables (`USERNAME` and eight more); and expands the expandable values against the result (PATH: machine, person, then process-only folders). The catalogue searches that PATH and the agent starts with that environment. | `Assert.IsTrue failed. 'condition' expression: 'offered.Agents.Single(agent => agent.Id == DesktopAgentCatalog.CustomId).Found'. A program in a PATH folder added since Nendo started is still not found.`; identity: `Assert.AreEqual failed. Expected string length 7 but was 6. 'expected' expression: '"someone"', 'actual' expression: 'merged["USERNAME"]'. The agent was given the machine key's user name.`; expansion: `Assert.AreEqual failed. ... 'expected' expression: '"C:/x\\bin;C:/old"', 'actual' expression: 'AgentEnvironment.PathOf(merged)'. A PATH folder naming a variable set since was not expanded with it.` |
+| [DAE-14](#dae-14) | A connection that ends while the program runs says why: "was disconnected" and the connection's reason, which for the size bound now reads `Nendo ended the connection because the agent sent one message larger than the 8 MiB Nendo accepts.` | `StringAssert.Contains failed. String 'Your command stopped answering.' does not contain string 'larger than the 8 MiB Nendo accepts'.` |
+| [WAU-03](#wau-03) | A ninth thing is refused before its @name is written; a thing that does not fit has its written @name taken out again. Both refusals show in a line under the chips (`#chat-composer-note`) and are said aloud. | Lane: `WAU-03: a ninth thing was refused only aloud: ["1 choice; up and down to choose, Enter to point at one.","A message points at 8 things at most."].` |
+| [WAU-05](#wau-05) | `createMarkupCache` builds an item's markup again only when its signature (the launch, entries and revisions, open, live, agent name) changed, and a launch clears it; the page finds drawn items through a map rather than a search per item. The quadratic emphasis was fixed earlier (WMX-09, W-207). | `AssertionError [ERR_ASSERTION]: One chunk built 1000 items again.`; the launch: `AssertionError [ERR_ASSERTION]: The new launch drew the old launch's entry.` |
+| [WAU-09](#wau-09) | Every disclosure carries `data-part` (entry and part: sent, back, thought); open state and focus on a summary are restored by it, not by position. The preview's `parallel` prompt makes an earlier step gain output while a later one is open. | Lane: `WAU-09: the person opened e9:sent; after an earlier step gained output, open are [{"part":"e8:back","open":true},{"part":"e9:sent","open":false},{"part":"e9:back","open":false}].`; markup: `A disclosure has no identity of its own.` |
+| [WAU-10](#wau-10) | Launch holds a launching flag and disables the Launch buttons until it settles; Send holds a sending flag and disables Send; Enter during a turn keeps the text and says why in the composer line, not only aloud. | Launch: `WAU-10: a double press on Launch launched twice: [..."GitHub Copilot CLI is already running for this file. End it before launching another."...]`. Send: `WAU-10: the second Enter was refused aloud as an error: [..."The agent is not ready for a message yet."]`. The note: `WAU-10: Enter while the agent works showed nothing on screen.` |
+| [WAU-12](#wau-12) | A request answered by no option reads "cancelled when the turn stopped", never "you chose Cancelled"; the card shows the tool's kind (Read, Edit, Delete, Run) beside the title. | `AssertionError [ERR_ASSERTION]: A request nobody answered reads as the person's choice.` |
+| [WAU-15](#wau-15) | `openTabOn` sends the one-of-a-kind conversation to the tab that owns it, switches there and moves it back to the conversation, so code meets the contract and ADR-0030. A new launch releases the owner, so it opens in a tab of its own rather than taking over a tab that has gone elsewhere. | Lane: `WAU-15: Open conversation from the conversation's own tab opened another: before [{"index":0,"label":"Agent access","active":false},{"index":1,"label":"GitHub Copilot CLI","active":true}], after [... three tabs ...].` |
+| [WAU-16](#wau-16) | The preview's steps carry their launch and turn and are dropped when either has moved on (Stop, End, another launch); a launch while an agent runs is refused as `agent-already-running`. | `The new conversation holds the old turn's steps: tool, tool, permission.`; `Something came after Stopped.: you, plan, notice, tool, tool, permission.`; `Missing expected exception: A second agent was launched while one ran.` |
+
+The contract (`docs/contracts/launched-agents.md`) and `docs/architecture.md` say what changed:
+`signingIn`, `agent-signing-in`, the catalogue off the gate and read from today's environment, the
+folder sweep, the owning tab and Open conversation, the cancelled wording and the composer line. The
+site's `files-and-data.md` says a Duplicate's views start without the original's browser storage.
+
+An independent review of the fixes found one defect and three smaller items, all fixed, and a
+way to keep the owner's view storage across the key change, which was taken. The merged
+environment took the machine key's `USERNAME=SYSTEM` for every agent; the process's identity and
+per-sign-in variables now stay its own (`... The agent was given the machine key's user name.` with
+that step put back). Expandable values were expanded against the process's old variables; they
+are now read as written and expanded against the merged environment (`... A PATH folder naming a
+variable set since was not expanded with it.`). The markup cache keyed by entry ID and revision
+could draw an old launch's entry for a new one; the launch is in the signature and a launch clears
+the cache (`The new launch drew the old launch's entry.`). The custom-views contract states the new
+key and the carry-over. The review's smaller points were taken too: a new launch releases the
+owning tab, the sweep leaves a folder with a file open in it (`... A folder a program still has a
+file open in was emptied.`), and the catalogue walks PATH once at a time whatever the command line.
+DAE-04's guard probed the shared default port, where another test's listener answered once
+(`The closed file's agent listener still answers at http://127.0.0.1:41763/mcp.`); it now keeps a
+port of its own.
+
+Guards written but not run: none; every guard above ran in this pass, red with its defect and green
+after.
+
+Left open or not separately measured:
+
+- The carry-over keeps one instance per application on its old origin: a second pre-upgrade file
+  of the same application (an older Duplicate) moves to the new key and does not keep what its
+  views stored. A byte-for-byte copy made outside Nendo keeps the instance ID and still shares.
+- Releasing the owning tab on a new launch is not measured by a guard of its own; the lane's
+  relaunches pass with it.
+- DAE-04's controller catches and the `DisposeAsync` swallow are defence behind the read-loop fix and
+  are not reachable through the stand-in once that fix is in; the guard covers the chain end to end.
+- WAU-03's no-room path (32,000 characters) takes the @name back out, but the preview's descriptions
+  are too small to reach it, so the lane measures only the ninth-thing path.
+- WAU-09's focus restore by part is not measured; the lane measures open state.
+- DAE-10's held buttons are measured in markup (`signInMarkup`); the preview has no sign-in, so the
+  page's click wiring is not driven.
+
+### Twenty-fifth pass: extension packages in the Engine and performance at scale (W-228)
+
+2026-10-13: the seventeen findings planned as W-228 (1 P2, 16 P3) are fixed, two of them under
+dated notes to ADR-0021 and ADR-0003 written first on the owner's standing pre-acceptance. Each
+guard measures what was wrong: a fold's time and the query plans of the history reads, counts of
+rows a filter function is asked about, tables a commit counts, clone opens and full record reads,
+and the requests Studio's search box sends. Every guard failed with its defect put back, and the
+quoted texts are from those runs. No finding was refuted: each was still present at `4f33242`.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [PERF-01](#perf-01) | A fold creates `__nendo_idempotency(revision_id)` inside its transaction before it deletes, so the cascade from each folded revision seeks instead of scanning; a new file's fold does the same on its stage. With PERF-04's two indexes it is one overlay on whichever layout the file has, left out of the layout signature only when all three are there exactly as the host writes them, and a file that has them states host 1.50.0 (ADR-0021, 2026-10-13 note). Guard: `HistoryFoldTests.AFoldOfAFileGrownBySingleEditsIsBoundedAndLeavesItsHistoryIndexed` folds 20,003 single-operation revisions, each with its idempotency row, within 30 s (1,391 ms and 1,110 ms measured). After the review, `AFoldedFileBelowTheIndexHostOrWithoutOneOfItsIndexesIsRefused` holds the version check and the refusal of a partial set, and inspection reads the stated host before the layout (`AFileANewerNendoWroteSaysSoBeforeItsLayoutIsJudged`). | `Actual value <88308> is not less than expected value <30000>. ... Folding 20.003 single-operation revisions took 88.308 ms, as a delete that scans the idempotency rows for each revision does.`; the version check: `below: the file opened as NormalReadOnly with 0 findings, where layout-version-mismatch was owed.`; a partial set: `partial: the file opened as NormalReadOnly with 0 findings, where unknown-protected-schema was owed.`; the order: `Expected:<unsupported-host-version> ... The protected file structure is not a recognised production layout.` |
+| [EXT-01](#ext-01) | A view-state value is compacted with the relaxed JSON encoder, so its text stays as written, and the store refuses a value over 64 KiB as kept with `state-too-large` before the insert; only a character outside the basic plane is still two escapes. Guard: `ExtensionStateTests.AValueWithinTheBoundIsKeptAsWrittenAndOnePastItAsKeptIsRefusedByName` keeps 20,000 x U+00E6 and markup as written and refuses 15,000 emoji by name. | The encoder: `NendoPreconditionException: A state value is at most 64 KiB of JSON as it is kept, and note would be larger.`; the store check: `Expected exception type:<Nendo.Engine.NendoPreconditionException>. Actual exception type:<Microsoft.Data.Sqlite.SqliteException>.` |
+| [EXT-03](#ext-03) | A zip is bounded by the files it keeps (Add already held the 512), and its directory by a separate cap of 8,192 entries with its own message, counting folders and what an import leaves out. Guard: `ExtensionArchiveTests.AZipIsBoundedByTheFilesItKeepsAndNotByTheEntriesItLeavesOut` (600 node_modules entries, a 301-file Finder zip, and a zip past the cap). | `Nendo.Engine.NendoValidationException: A package holds at most 512 files.` |
+| [EXT-04](#ext-04) | Separators are normalised before directory entries are dropped. Guard: `AZipWhoseFoldersAreWrittenWithBackslashesReadsLikeAnyOther`. | `The package path assets/ is not allowed. Paths use letters, digits and - _ . ~ /, and never start with _nendo/.` |
+| [EXT-05](#ext-05) | Every entry read goes through `ReadEntry`, which turns `InvalidDataException` and `NotSupportedException` into a refusal naming the entry. Guard: `AnEntryTheZipCannotGiveIsRefusedByItsName` (a method-12 entry and a damaged deflate stream). | `Expected exception type:<Nendo.Engine.NendoValidationException>. Actual exception type:<System.IO.InvalidDataException>.` |
+| [EXT-06](#ext-06) | Import refuses a file and a folder of one name in any case, and the put's clash query refuses a path that is a folder of a stored one or sits in one, as `extension-path-conflict`; the contract's path row and code say so. Stored packages are not re-judged: after the review only a new path is checked, so a path a stored package already holds is put again. Guards: `APackageCannotHoldAFileAndAFolderOfOneName` (zip `lib`/`Lib` with `lib/a.js`; puts `LIB/a.js` under a file and `Tiles` over a folder) and `APathAStoredPackageAlreadyHoldsIsPutAgainWhateverElseItHolds`. | Import: `Expected exception type:<Nendo.Engine.NendoValidationException> but no exception was thrown.`; put: `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown.`; the re-put: `NendoPreconditionException: Package org.example.map already holds lib/a.js, so lib would make one name both a file and a folder, ...` |
+| [EXT-07](#ext-07) | One rule, `NendoExtensionContent.LeftOutOnImport`: the import skips the manifest in any case, and a put refuses to add a new path the import would leave out (a root `nendo-package.json` in any case, a dot-leading segment, `node_modules`). `ValidPath` is unchanged, a stored path keeps working and a compensation puts back what was there. Guard: `WhatAnImportLeavesOutCannotBePutAndTheManifestIsTheManifestInAnyCase`. | The manifest: `A manifest spelled in another case was carried as a package file.. Different number of elements.`; the put: `Expected exception type:<Nendo.Engine.NendoValidationException> but no exception was thrown.` |
+| [EXT-08](#ext-08) | `Hunks` returns no hunk and `truncated` when nothing is left of the budget, and drops a hunk the allowance ran out in before its first change; lines keep their line feed for comparison, so a change of only the final newline is a changed last line (the feed is never shown). Guard: `ExtensionPackageTests.ADiffShowsNoHunkOfContextAloneAndAFinalNewlineIsAChangedLine`. | The budget: `Expected collection of size 0. Actual: 1. ... A file reviewed after the budget was spent showed unchanged lines as its change.`; the newline: `Expected collection of size 1. Actual: 0. ... A change of only the final newline showed no changed line.` |
+| [EXT-09](#ext-09) | A state version is at least the change sequence the write commits at, so it never returns to a number the key had, after a forget, a re-set or History's restore; the evidence names the version left, which the inverse expects (older evidence falls back to one past the replaced). The contract no longer promises 1 on the first write. Guard: `AForgottenKeyNeverReturnsToAVersionItHadBefore`. | `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. 'action' expression: '() => Set(service, "layout", "\"C\"", key: "v4", expected: read)'.` |
+| [EXT-10](#ext-10) | The package's 1 MiB counts shared state and the views the file has; a removed view's rows stay for compensation but no longer count. Guard: `StateARemovedViewKeptNoLongerCountsAgainstThePackage` (16 x 60 KiB in a view, the view removed, 16 x 60 KiB in another). The bounds test now writes to views that exist. | `Nendo.Engine.NendoPreconditionException: A package keeps at most 1 MiB of state across its views.` |
+| [EXT-12](#ext-12) | The proposal keeps the last package file a review read, under its reviewed digest, so the later windows of one file are served without opening and checking the clone again; one file is kept, never the package. Guard: `AReviewWhoseDiffStopsEarlyCanReadTheProposedFileToItsLastByte` counts clone opens across the windows. | `Expected:<1>. Actual:<4>. ... Reading one file in 4 windows opened the proposal's copy more than once.` |
+| [EXT-14](#ext-14) | A compensation that would leave a skill package it touched without a usable `SKILL.md` is refused, naming the package (`NendoCompensationNotSupportedException`), inside its transaction. Guard: `SkillPackageTests.UndoingTheChangeThatPutASkillFileIsRefusedRatherThanLeavingTheSkillWithoutIt`. | `Expected exception type:<Nendo.Engine.NendoCompensationNotSupportedException> but no exception was thrown.` |
+| [PERF-02](#perf-02) | Beside the host function, a filter carries the comparison SQLite answers the same way: `column = @value` for equality on text, a reference or a date, `IS NULL`/`IS NOT NULL` for the null checks; a UUID's equality has none (ESQ-17). The function stays the authority. ADR-0003's note is corrected. Guard: `TypedRecordQueryTests.ARelatedListSeeksTheReferenceIndexRatherThanAskingAboutEveryRow` counts the rows the filter function is asked about. | `Actual value <600> is not less than or equal to expected value <20>. ... The related list asked its filter about 600 rows of 600 to find 3: it scanned the child type instead of seeking the reference index.` |
+| [PERF-04](#perf-04) | Partial indexes `__nendo_revision(proposal_id, change_sequence)` and `(compensation_of_revision_id)` in PERF-01's overlay. Guard: the same fold test asserts `EXPLAIN QUERY PLAN` uses each. | `String 'SCAN __nendo_revision USING INDEX sqlite_autoindex___nendo_revision_2' does not contain string 'INDEX __nendo_revision_proposal'. The receipt read by proposal scans the revisions..` |
+| [PERF-07](#perf-07) | change_set.begin, validate, revalidate, promote and reject, and agent host start, check the file through `GetDefinitionSnapshotAsync`; the touched-record lookups at prepare and promote use a dictionary by (type, record). The prepare-time compile keeps its records, whose diagnostics the reviewer sees. Guard: `LocalMcp AuthoringReadCostTests.AuthoringChecksTheFilesIdentityWithoutReadingItsRecords` counts the Engine's full record reads across begin, validate, revalidate, promote and reject (revalidate and promote added after the review). | Begin: `Expected:<0>. Actual:<1>. ... change_set.begin read every record to check the file's identity.`; validate: `Expected:<1>. Actual:<2>. ... change_set.validate read every record once more than preparing the proposal does.`; revalidate: `Expected:<1>. Actual:<2>. ... change_set.revalidate read every record once more ...`; promote: `Expected:<1>. Actual:<2>. ... Promoting a proposal read every record once more than the promotion itself does.`; reject: `Expected:<0>. Actual:<1>. ... Rejecting a proposal read every record to check the file's identity.` |
+| [PERF-08](#perf-08) | The commit check counts each table once and sums the record tables from that pass. Guard: `TypedRecordQueryTests.ACommitCountsEachTableOnce`. | `Expected:<12>. Actual:<16>. ... A one-field edit counted 16 tables in a file of 12: the record tables were counted twice.` |
+| [PERF-09](#perf-09) | Studio's search box waits for two letters, as Ctrl K and the @ menu do, and says so below that. After the review the Engine keeps a one-letter last word as that whole word rather than a prefix, so "big a" no longer walks the index either; a single letter of a script written without spaces is still found as a word (ADR-0028, 2026-10-13 note). Guards: `scripts/studio-search.test.mjs` runs the real module against a stand-in box; `SearchIndexTests.ALastWordOfOneLetterIsAWholeWordAndNotAPrefix`. | `AssertionError [ERR_ASSERTION]: one letter sent 2 searches: [{"method":"data.searchRecords","payload":{"text":"a",...}}, ...]`; the Engine: `CollectionAssert.AreEqual failed. A one-letter last word was searched as a prefix of most of the index.. Different number of elements.` |
+
+Documents: ADR-0021 (note under 7 and History), ADR-0003 (correction to the 2026-09-09 note and
+History), `docs/decisions/README.md` (ADR-0021 row, ADR-0003 amendment entry),
+`docs/contracts/custom-views.md` (path row, `extension-path-conflict`, state versions, bounds and
+removed views, the import rules), `docs/contracts/studio.md` (the two-letter search),
+`docs/architecture.md` (host 1.50.0) and `docs/roadmap.md` (a new section for what is left).
+
+Left open, each in the roadmap's *Left open by the extension packages and scale pass*:
+
+- A file never folded has no history indexes, so its receipt and compensation reads still scan
+  (PERF-04); adding them at another moment would raise the host version on an ordinary write.
+- Prepare and promote still read the active file, and prepare the clone, in full (PERF-07).
+- A commit still counts every table, `__nendo_operation` twice (PERF-08).
+- A UUID's equality, ranges and `contains` still scan with the host function (PERF-02).
+- A review's first read of a package file still opens the clone under the gates (EXT-12).
+- Three writes to one state key in one mutation could repeat a version; nothing in Nendo sends
+  such a mutation (EXT-09).
+- The dictionary lookups of PERF-07 have no guard of their own: they change the cost, not an
+  answer, and the existing proposal tests hold the answers.
+- Undoing the half of a split skill package that put `SKILL.md` is refused (EXT-14); removing or
+  changing the package takes a new proposal.
+
+An independent review of the pass found nothing that had to be fixed, three things that should
+be, a few smaller points and one test that failed at night, all taken. The version check on the
+history indexes, and the refusal of a file holding only some of them, had no test: with the
+condition made false every test passed. Two cases of a new test hold them now, quoted in the
+PERF-01 row. `docs/contracts/semantic-surfaces.md` still ended its list of rungs at 1.49; it now
+names 1.50.0 and says that a fold and a file started with New state it. Studio's two-letter
+minimum covered only the whole text, and the Engine still made a one-letter last word a prefix,
+so "big a" walked the index; that word is now searched whole (PERF-09 row; ADR-0028 note,
+`docs/contracts/queries.md`, `docs/contracts/mcp-interface.md`). Of the smaller points: an
+inspection reads the stated host version before it judges the layout, so a file from a newer
+Nendo says a newer Nendo may open it rather than that its layout is unrecognised; a path a stored
+package already holds is put again whatever else the package holds; the read-count guard covers
+revalidate and promote; and the roadmap says that half a split skill package cannot be undone.
+`RelatedSurfaceTests.MultiStepCommandAppliesEveryFieldAsOneVersionedMutation` compared a
+command's today with the UTC date, so it failed every night between local and UTC midnight; the
+code is right, since a command's today is the person's civil date (R2LAT-06). `NendoCivilClock`
+gained `Now()` and `StandInFor`, a stand-in held per async flow so parallel tests never see it,
+and a command step reads its instant there. The test runs at half past midnight local time on
+2026-01-15 and expects that date; `DateBucketReadTests`' three tests run at half past midnight
+today and take today from the same clock. No other Engine or LocalMcp test compared with a UTC
+date (searched for `UtcNow`, `UtcNow.Date`, `DateTime.Now` and `yyyy-MM-dd`; the remaining ones
+are local dates, timestamps or a fold's UTC year). With the old UTC expectation put back the test
+failed (`String lengths are both 10 but differ at index 9 ... today did not resolve at execution
+as the person's civil date.`), and with the step reading the real clock it failed too (`differ at
+index 5 ... 'expected' expression: '"2026-01-15"'`), which shows the stand-in reaches the step.
+
+`NewFileTests.ANewFileKeepsTheDefinitionAndOnlyWhatItShipsWith` asserted host 1.41.0 for a new
+file; its stage is folded, so it now states 1.50.0, and the test says why.
+
+Run: `dotnet test tests/Nendo.Engine.Tests` (1,323 passed, 2 skipped, 2 failed: the
+`NewFileTests` assertion above, since updated, and the known
+`AReopenWaitsOutAHandleThatLetsGoAndNamesItsHolder` flake; both then passed run alone, with the
+rest of `NewFileTests`, 11 of 11). `dotnet test tests/Nendo.LocalMcp.Tests` (296 passed, 5
+skipped, 1 failed: `TheSkillAndTheInstancesReadPointAtTheGuideThatNamesTheDiscoveryFolder` lost
+its MCP handshake under load, "The server does not support the requested protocol version", and
+passed run alone). `npm test` in the Workbench (701 of 701) and `npx tsc --noEmit` (clean).
+`tools/Test-Repository.ps1` passed. Not run: Desktop tests, UIA and journey lanes and
+`Test-Production`, which launch the host; no installer was built.
+
+After the review fixes: `dotnet test tests/Nendo.Engine.Tests` (1,329 passed, 2 skipped, none
+failed), `dotnet test tests/Nendo.LocalMcp.Tests` (297 passed, 5 skipped, none failed) and
+`tools/Test-Repository.ps1` passed. The Workbench was not touched again, so `npm test` stands at
+701 of 701.

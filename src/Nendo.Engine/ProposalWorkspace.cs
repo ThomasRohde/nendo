@@ -70,6 +70,13 @@ internal sealed class ProposalContext(
     internal NendoApplicationLook? LookAfter { get; set; }
     internal IReadOnlyList<NendoExtensionFileChange> PackageChanges { get; set; } = [];
 
+    /// <summary>
+    /// The package file a review last read from the clone, under the digest it was read for. A
+    /// review reads one file window by window, and each window opened and checked the whole clone
+    /// again (EXT-12); one file is kept, so a proposal never holds a whole package in memory.
+    /// </summary>
+    internal (string Digest, string PackageId, string Path, NendoExtensionFileContent File)? LastPackageFileRead { get; set; }
+
     internal NendoProposalPreview ToPreview() => new(
         ProposalId,
         Title,

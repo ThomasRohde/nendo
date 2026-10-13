@@ -49,7 +49,8 @@ internal sealed record AgentConversationSnapshot(
     bool More,
     IReadOnlyList<AgentSignInMethodView> SignInMethods,
     IReadOnlyList<AgentOptionView> Options,
-    long FirstOrder);
+    long FirstOrder,
+    bool SigningIn = false);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -89,6 +90,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     private IReadOnlyList<AgentSignInMethodView> _signIn = [];
     private MutableEntry? _openMessage;
     private bool _embeddedContext;
+    private bool _signingIn;
     private readonly TaskCompletionSource _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <param name="fromAgent">What the agent writes.</param>
@@ -142,10 +144,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 clientCapabilities = new { fs = new { readTextFile = false, writeTextFile = false }, terminal = false },
                 clientInfo = new { name = "nendo", title = "Nendo", version = clientVersion },
             }, timeout.Token);
-            var version = initialized.ValueKind == JsonValueKind.Object && initialized.TryGetProperty("protocolVersion", out var v) && v.TryGetInt32(out var parsed) ? parsed : 0;
-            if (version != ProtocolVersion)
+            var stated = initialized.ValueKind == JsonValueKind.Object && initialized.TryGetProperty("protocolVersion", out var v) ? v : default;
+            if (WholeNumber(stated) != ProtocolVersion)
             {
-                End($"{_agentName} speaks ACP version {version}; Nendo speaks version {ProtocolVersion}.");
+                // A version as text is a program that speaks something else: MCP's versions are dates (DAE-03).
+                End(stated.ValueKind == JsonValueKind.String
+                    ? $"{_agentName} answered with protocol version \"{AcpConnection.Bounded(stated.GetString()!, 40)}\", which is not ACP; Nendo speaks ACP version {ProtocolVersion}. A program that speaks MCP rather than ACP cannot be launched here."
+                    : $"{_agentName} speaks ACP version {WholeNumber(stated) ?? 0}; Nendo speaks version {ProtocolVersion}.");
                 return;
             }
             if (!SupportsHttpMcp(initialized))
@@ -174,7 +179,17 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         {
             End($"{_agentName} refused to start: {exception.Message}");
         }
+        catch (Exception exception)
+        {
+            // Anything else ends the conversation with a sentence, rather than leaving it at
+            // Starting with nothing said and the next launch refused (DAE-03).
+            End($"{_agentName} could not be started: {exception.Message}");
+        }
     }
+
+    /// <summary>A whole number the agent sent, or null when it sent another kind (text, null) or none (DAE-03).</summary>
+    internal static int? WholeNumber(JsonElement value) =>
+        value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number) ? number : null;
 
     private async Task OpenSessionAsync(CancellationToken cancellationToken)
     {
@@ -229,8 +244,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         lock (_sync)
         {
             if (_state != "signIn") throw new Nendo.Engine.NendoPreconditionException("agent-not-signing-in", "The agent is not waiting to sign in.");
+            // A second press while the first sign-in runs sent a second authenticate and opened a
+            // second session over the first (DAE-10).
+            if (_signingIn)
+                throw new Nendo.Engine.NendoPreconditionException("agent-signing-in", $"{_agentName} is already signing in. Finish it in the window it opened, or wait.");
             if (!_signIn.Any(method => method.Id == methodId))
                 throw new Nendo.Engine.NendoValidationException("Choose one of the ways the agent offered to sign in.");
+            _signingIn = true;
             _notice = $"Waiting for {_agentName} to sign in…";
             revision = Touch();
         }
@@ -260,6 +280,16 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         catch (AcpConnectionClosedException exception)
         {
             End(exception.Message);
+        }
+        finally
+        {
+            long revision;
+            lock (_sync)
+            {
+                _signingIn = false;
+                revision = Touch();
+            }
+            Raise(revision);
         }
     }
 
@@ -401,7 +431,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
             var firstOrder = _entries.Count == 0 ? _order + 1 : _entries[0].Order;
-            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder);
+            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn);
         }
     }
 
@@ -430,22 +460,36 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         var callId = call.ValueKind == JsonValueKind.Object ? Text(call, "toolCallId", 200) : null;
         var permission = new PendingPermission(new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously));
         long revision;
+        // What the agent sent is read whole before anything enters the transcript: a value of an
+        // unexpected kind once threw after the entry was added, leaving a question with no
+        // answers that kept the tab at Waiting for you (DAE-03).
+        var isCall = call.ValueKind == JsonValueKind.Object;
+        var title = isCall ? Text(call, "title", 500) : null;
+        var toolKind = isCall ? Text(call, "kind", 40) : null;
+        var input = isCall ? RawInput(call) : null;
+        // What the operation would do, as the agent supplied it: a diff, its output so far,
+        // the places it touches. The person decides with it in front of them (ACP-11).
+        var details = isCall ? CallDetails(call) : string.Empty;
+        var toolName = isCall ? MetaToolName(call) : null;
         lock (_sync)
         {
             if (_state == "ended" || options.Length == 0) return Cancelled();
             var known = callId is not null && _toolEntries.TryGetValue(callId, out var tool) ? tool : null;
-            permission.Entry = Add("permission", string.Empty);
-            permission.Entry.Title = (call.ValueKind == JsonValueKind.Object ? Text(call, "title", 500) : null) ?? known?.Title ?? "A tool call";
-            permission.Entry.ToolKind = (call.ValueKind == JsonValueKind.Object ? Text(call, "kind", 40) : null) ?? known?.ToolKind;
-            permission.Entry.Input = (call.ValueKind == JsonValueKind.Object ? RawInput(call) : null) ?? known?.Input;
-            // What the operation would do, as the agent supplied it: a diff, its output so far,
-            // the places it touches. The person decides with it in front of them (ACP-11).
-            var details = call.ValueKind == JsonValueKind.Object ? CallDetails(call) : string.Empty;
-            permission.Entry.Text.Append(details.Length > 0 ? details : known?.Text.ToString() ?? string.Empty);
-            permission.Entry.Options = options;
-            permission.Entry.ToolName = (call.ValueKind == JsonValueKind.Object ? MetaToolName(call) : null) ?? known?.ToolName;
-            permission.Entry.Origin = Origin(known?.Title ?? permission.Entry.Title, permission.Entry.ToolKind, permission.Entry.ToolName);
-            _permissions[permission.Entry.Id] = permission;
+            var entryTitle = title ?? known?.Title ?? "A tool call";
+            var entryKind = toolKind ?? known?.ToolKind;
+            var entryToolName = toolName ?? known?.ToolName;
+            var origin = Origin(known?.Title ?? entryTitle, entryKind, entryToolName);
+            var text = details.Length > 0 ? details : known?.Text.ToString() ?? string.Empty;
+            var entry = Add("permission", string.Empty);
+            entry.Title = entryTitle;
+            entry.ToolKind = entryKind;
+            entry.Input = input ?? known?.Input;
+            entry.Text.Append(text);
+            entry.Options = options;
+            entry.ToolName = entryToolName;
+            entry.Origin = origin;
+            permission.Entry = entry;
+            _permissions[entry.Id] = permission;
             revision = Touch();
         }
         Raise(revision);
@@ -481,10 +525,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         if (method != "session/update" || parameters.ValueKind != JsonValueKind.Object) return;
         if (!parameters.TryGetProperty("update", out var update) || update.ValueKind != JsonValueKind.Object) return;
         var kind = Text(update, "sessionUpdate", 60);
+        var session = Text(parameters, "sessionId", 200);
         long revision;
         lock (_sync)
         {
             if (_state == "ended") return;
+            // An update for another session than the one open (an earlier one) is not drawn here (DAE-10).
+            if (session is not null && _sessionId is not null && !string.Equals(session, _sessionId, StringComparison.Ordinal)) return;
             switch (kind)
             {
                 case "agent_message_chunk":
@@ -683,7 +730,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var places = locations.EnumerateArray()
                 .Where(location => location.ValueKind == JsonValueKind.Object && Text(location, "path", 500) is not null)
                 .Take(20)
-                .Select(location => location.TryGetProperty("line", out var line) && line.TryGetInt32(out var number)
+                .Select(location => location.TryGetProperty("line", out var line) && WholeNumber(line) is { } number
                     ? $"{Text(location, "path", 500)}:{number}" : Text(location, "path", 500)!)
                 .ToArray();
             if (places.Length > 0)

@@ -90,7 +90,8 @@ choice, on every active record type. A file has an index once
   another in the body.
 - **Phrases:** text in double quotes is a phrase.
 - **Leaving out:** `-word` leaves out every record that contains it.
-- **Prefix:** the last word also matches as a prefix, unless a space follows it.
+- **Prefix:** the last word also matches as a prefix, unless a space follows it or it is a single
+  letter, which is searched as that word (PERF-09).
 - **Folding:** case and accents are folded.
 - **Nothing else:** every term reaches FTS5 quoted, so `title:x`, `NEAR(…)`, `AND`, `*` and an
   unclosed quote are text, or ignored when they hold no letter or digit. A search of more than

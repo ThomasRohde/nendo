@@ -198,7 +198,8 @@ public sealed class NewFileTests
         Assert.AreEqual(JsonSerializer.Serialize(sourceDefinition.ExtensionPackages), JsonSerializer.Serialize(definition.ExtensionPackages), "The packages differ.");
         Assert.AreEqual("Test model", snapshot.Manifest.NewFileLabel);
         Assert.AreEqual(source.Manifest.DefinitionRevision + 1, snapshot.Manifest.DefinitionRevision, "Only the identity transition is new.");
-        Assert.AreEqual(NendoFormat.NewFileMinimumHostVersion, snapshot.Manifest.MinimumHostVersion);
+        // The stage's history was folded, which adds the history indexes and their host (ADR-0021, 2026-10-13).
+        Assert.AreEqual(NendoFormat.RevisionIndexesMinimumHostVersion, snapshot.Manifest.MinimumHostVersion);
 
         var history = await fresh.GetHistoryAsync();
         CollectionAssert.AreEqual(new[] { NendoRevisionLane.Genesis, NendoRevisionLane.Checkpoint, NendoRevisionLane.Definition },

@@ -38,7 +38,29 @@ internal static class NendoCivilClock
         return TimeZoneInfo.Local;
     }
 
+    private static readonly AsyncLocal<Func<DateTimeOffset>?> StandIn = new();
+
+    /// <summary>The instant the Engine reads its day from: now, or what a test stands in for it.</summary>
+    internal static DateTimeOffset Now() => StandIn.Value?.Invoke() ?? DateTimeOffset.UtcNow;
+
+    /// <summary>
+    /// Stands in for now in this call and the work it awaits, never in another test's, until the
+    /// result is disposed: a test of the person's day runs at the hour it names, such as just
+    /// after local midnight, when the civil date and the UTC date differ.
+    /// </summary>
+    internal static IDisposable StandInFor(Func<DateTimeOffset> now)
+    {
+        var before = StandIn.Value;
+        StandIn.Value = now;
+        return new Restore(() => StandIn.Value = before);
+    }
+
+    private sealed class Restore(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
+    }
+
     /// <summary>Today's civil date where the machine is.</summary>
     internal static DateOnly Today() =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, LocalZone()).DateTime);
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(Now(), LocalZone()).DateTime);
 }

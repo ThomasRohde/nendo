@@ -17,8 +17,9 @@ namespace Nendo.Desktop;
 /// </para>
 /// <para>
 /// Its working directory is an empty folder made for it. Its environment is the person's own,
-/// because that is where the program finds its sign-in. Its error output is kept as a short
-/// tail, so a program that stops at once can say why.
+/// because that is where the program finds its sign-in, read again at each launch so a variable
+/// set since Nendo started reaches it (<see cref="AgentEnvironment"/>). Its error output is kept
+/// as a short tail, so a program that stops at once can say why.
 /// </para>
 /// </summary>
 internal sealed class AgentProcess : IAsyncDisposable
@@ -64,11 +65,20 @@ internal sealed class AgentProcess : IAsyncDisposable
     /// Start <paramref name="command"/> in <paramref name="workingDirectory"/>. Throws
     /// <see cref="Win32Exception"/> when Windows cannot start it.
     /// </summary>
-    internal static AgentProcess Start(DesktopAgentCommand command, string workingDirectory)
+    /// <param name="environment">
+    /// The environment the program gets, as the person's account has it now (DAE-12); null keeps
+    /// this process's own.
+    /// </param>
+    internal static AgentProcess Start(DesktopAgentCommand command, string workingDirectory, IReadOnlyDictionary<string, string>? environment = null)
     {
         var job = SafeJobHandle.CreateKillOnClose();
         var start = command.StartInfo();
         start.WorkingDirectory = workingDirectory;
+        if (environment is not null)
+        {
+            start.Environment.Clear();
+            foreach (var (name, value) in environment) start.Environment[name] = value;
+        }
         start.UseShellExecute = false;
         start.CreateNoWindow = true;
         start.RedirectStandardInput = true;

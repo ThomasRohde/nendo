@@ -419,7 +419,23 @@ public sealed class SearchIndexTests
         CollectionAssert.AreEqual(new[] { "\"title:garden\"", "\"two words\"", "\"gard\"*" }, terms.Required.ToArray());
         CollectionAssert.AreEqual(new[] { "\"NEAR\"" }, terms.Excluded.ToArray());
         Assert.IsEmpty(SearchTerms.Parse("* ( ) - :").Required);
-        Assert.AreEqual("\"a\" OR \"b\"*", SearchTerms.Parse("a b").Any);
+        Assert.AreEqual("\"a\" OR \"bc\"*", SearchTerms.Parse("a bc").Any);
+    }
+
+    /// <summary>
+    /// PERF-09: a last word of one letter is searched as that word, not as a prefix. Studio's box and
+    /// Ctrl K wait for two letters of text, but "big a" still made 'a' a prefix, which walks most of
+    /// the index; the FTS5 table keeps prefixes of two and three only. A single letter of a script
+    /// written without spaces is a whole word too, and two letters are a prefix again.
+    /// </summary>
+    [TestMethod]
+    public void ALastWordOfOneLetterIsAWholeWordAndNotAPrefix()
+    {
+        CollectionAssert.AreEqual(new[] { "\"big\"", "\"a\"" }, SearchTerms.Parse("big a").Required.ToArray(),
+            "A one-letter last word was searched as a prefix of most of the index.");
+        CollectionAssert.AreEqual(new[] { "\"big\"", "\"ab\"*" }, SearchTerms.Parse("big ab").Required.ToArray());
+        CollectionAssert.AreEqual(new[] { "\"\u6771\"" }, SearchTerms.Parse("\u6771").Required.ToArray());
+        CollectionAssert.AreEqual(new[] { "\"a.\"" }, SearchTerms.Parse("a.").Required.ToArray());
     }
 
     // ---------------------------------------------------------------- helpers

@@ -340,7 +340,16 @@ public static class NendoFormat
     /// </summary>
     public const string ToTextMinimumHostVersion = "1.49.0";
 
-    public const string CurrentHostVersion = ToTextMinimumHostVersion;
+    /// <summary>
+    /// Three indexes on the history tables (ADR-0021, 2026-10-13 note; PERF-01, PERF-04), added by
+    /// a fold: one on the idempotency rows by revision, which a fold's delete cascades into, and two
+    /// partial ones on revisions by proposal and by the revision a compensation reverses. Not a
+    /// table and not a rung of the linear layout ladder, but a host that does not know them refuses
+    /// the layout, so a folded file states this version. A file never folded keeps the rung it had.
+    /// </summary>
+    public const string RevisionIndexesMinimumHostVersion = "1.50.0";
+
+    public const string CurrentHostVersion = RevisionIndexesMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

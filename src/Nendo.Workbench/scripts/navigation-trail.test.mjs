@@ -319,9 +319,9 @@ test('R-002: a tab that is shown swaps the trails, and closing the old one keeps
 // ACP-06 (review of 2026-10-10): + on a launched agent's conversation made a second tab of the
 // same conversation, and closing either ended the agent the other still showed; a conversation
 // tab that went on to Data no longer counted as its owner, so closing it left the agent running.
-const { trailForNewTab, trailHolds } = await bundleOf('src/tab-set.ts');
+const { ownerIndex, trailForNewTab } = await bundleOf('src/tab-set.ts');
 
-test('ACP-06: a new tab beside a conversation starts from the place before it, and a trail owns what it holds', () => {
+test('ACP-06: a new tab beside a conversation starts from the place before it', () => {
   const chat = place({ view: 'agentChat', eyebrow: 'Local collaboration', title: 'Copilot', surfaceId: null });
   const board = place();
   const data = place({ view: 'data', eyebrow: 'Studio', title: 'Data', surfaceId: null });
@@ -331,9 +331,31 @@ test('ACP-06: a new tab beside a conversation starts from the place before it, a
   assert.equal(copied.places[0].view, 'use', 'A new tab copied the conversation, so two tabs showed it.');
   assert.deepEqual(trailForNewTab({ places: [chat], cursor: 0 }, oneOfAKind), { places: [], cursor: -1 });
   assert.equal(trailForNewTab({ places: [board, data], cursor: 1 }, oneOfAKind).places[0].view, 'data', 'An ordinary place was not copied as it is.');
+});
 
-  const holdsChat = (candidate) => candidate.view === 'agentChat';
-  assert.equal(trailHolds({ places: [chat, data], cursor: 1 }, holdsChat), true, 'A conversation tab that went on to Data lost the conversation.');
-  assert.equal(trailHolds({ places: [board], cursor: 0 }, holdsChat), false);
-  assert.equal(trailHolds(null, holdsChat), false);
+// WAU-01 (broad review, 2026-10-13): ownership was read from what a tab's trail held, and a trail
+// does not keep the conversation. Back to the Agent page and then Data, or 50 more moves, dropped
+// it, so closing the conversation's own tab left the agent running. The owner is the tab, by ID.
+test('WAU-01: a trail drops the conversation, so the tab that owns it is known by its ID', () => {
+  const agent = place({ view: 'agent', eyebrow: 'Local collaboration', title: 'Agent', surfaceId: null });
+  const chat = place({ view: 'agentChat', eyebrow: 'Local collaboration', title: 'Copilot', surfaceId: null });
+  const data = place({ view: 'data', eyebrow: 'Studio', title: 'Data', surfaceId: null });
+  const holdsChat = (trail) => trail.inspect().places.some((candidate) => candidate.view === 'agentChat');
+  const back = createTrail();
+  back.record(agent);
+  back.record(chat);
+  back.stepBack();
+  back.record(data);
+  assert.equal(holdsChat(back), false, 'The trail was expected to drop the conversation; ownership cannot be read from it.');
+  const long = createTrail();
+  long.record(chat);
+  for (let index = 0; index < trailCeiling; index += 1) long.record(place({ recordId: `r${index}` }));
+  assert.equal(holdsChat(long), false, 'The trail was expected to drop the conversation after 50 more places.');
+
+  const set = { tabs: [{ id: 1, saved: null }, { id: 7, saved: back.inspect() }, { id: 9, saved: null }], active: 2 };
+  assert.equal(ownerIndex(set, 7), 1, 'The tab that owns the conversation is not found by its ID once its trail has dropped it.');
+  set.tabs.splice(0, 1);
+  assert.equal(ownerIndex(set, 7), 0, 'Closing another tab lost the owner.');
+  assert.equal(ownerIndex(set, 1), -1, 'A closed tab still owns the conversation.');
+  assert.equal(ownerIndex(set, null), -1);
 });

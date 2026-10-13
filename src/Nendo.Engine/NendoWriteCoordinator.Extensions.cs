@@ -7,6 +7,9 @@ public sealed partial class NendoWriteCoordinator
     /// <summary>What this read-only session last verified its file against, so a page read is not a full scan (W-221 review).</summary>
     internal SqliteNendoStore.InspectedContentStamp ReadOnlyContentStamp { get; } = new();
 
+    /// <summary>How many times a review's read opened a proposal's clone; a test reads it.</summary>
+    internal int ProposalCloneOpens { get; private set; }
+
     /// <summary>
     /// One file of a custom-view package with its bytes, or null when the file carries no such
     /// package or path. Definition, so it is readable whenever the definition is; what a file
@@ -57,10 +60,20 @@ public sealed partial class NendoWriteCoordinator
                 throw new NendoIdempotencyConflictException("The proposal is no longer the one reviewed. Review the current proposal before reading it.");
             if (!context.PackageChanges.Any(change => change.PackageId == packageId && change.Path == path && change.Change != "removed"))
                 throw new NendoValidationException($"The proposal does not add or change {path} in {packageId}.");
-            var clonePath = Path.Combine(context.WorkspacePath, "proposal.nendo");
-            await using var clone = await SqliteNendoStore.OpenAsync(clonePath, cancellationToken);
-            var file = await clone.ReadExtensionFileAsync(packageId, path, null, cancellationToken)
-                ?? throw new NendoPreconditionException("proposal-file-missing", $"The proposal's copy no longer holds {path}. Review the proposal again.");
+            NendoExtensionFileContent file;
+            if (context.LastPackageFileRead is { } last && last.Digest == context.ReviewedDigest && last.PackageId == packageId && last.Path == path)
+            {
+                file = last.File;
+            }
+            else
+            {
+                var clonePath = Path.Combine(context.WorkspacePath, "proposal.nendo");
+                ProposalCloneOpens++;
+                await using var clone = await SqliteNendoStore.OpenAsync(clonePath, cancellationToken);
+                file = await clone.ReadExtensionFileAsync(packageId, path, null, cancellationToken)
+                    ?? throw new NendoPreconditionException("proposal-file-missing", $"The proposal's copy no longer holds {path}. Review the proposal again.");
+                context.LastPackageFileRead = (context.ReviewedDigest, packageId, path, file);
+            }
             var start = (int)Math.Min(offset, file.Content.LongLength);
             var count = Math.Min(length, file.Content.Length - start);
             return new NendoProposalFileWindow(proposalId, context.ReviewedDigest, packageId, path, file.MediaType, file.Sha256,

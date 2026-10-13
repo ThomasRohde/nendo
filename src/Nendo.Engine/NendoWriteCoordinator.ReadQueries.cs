@@ -7,6 +7,12 @@ public sealed partial class NendoWriteCoordinator
     internal NendoReadDiagnostics ReadDiagnostics => new(_store?.FullAuthorityScanCount ?? 0,
         _store?.FullRecordReadCount ?? 0, _store?.FullHistoryReadCount ?? 0, _store?.IntegrityCheckCount ?? 0);
 
+    /// <summary>How many rows filtered reads asked a filter function about (PERF-02); a test reads it.</summary>
+    internal long FilterCallbacks => _store?.FilterCallbacks ?? 0;
+
+    /// <summary>How many tables the commit checks counted (PERF-08); a test reads it.</summary>
+    internal long CommitTableCounts => _store?.CommitTableCounts ?? 0;
+
     public async Task<NendoSessionSnapshot> GetDefinitionSnapshotAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);

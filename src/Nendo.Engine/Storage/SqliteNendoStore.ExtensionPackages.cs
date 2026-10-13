@@ -281,18 +281,33 @@ internal sealed partial class SqliteNendoStore
         if (await ReadStoredPackageAsync(operation.PackageId, transaction, ct) is null)
             throw new NendoPreconditionException("extension-package-not-found",
                 $"The file carries no package {operation.PackageId}. Create it with extension.setPackage before putting files in it.");
-        await using (var clash = Command("""
-            SELECT path FROM __nendo_extension_file
-            WHERE package_id = @package AND lower(path) = lower(@path) AND path != @path LIMIT 1;
-            """, transaction))
-        {
-            clash.Parameters.AddWithValue("@package", operation.PackageId);
-            clash.Parameters.AddWithValue("@path", operation.Path);
-            if (await clash.ExecuteScalarAsync(ct) is string existing)
-                throw new NendoPreconditionException("extension-path-conflict",
-                    $"Package {operation.PackageId} already holds {existing}, which differs from {operation.Path} only in case. A browser on Windows would not tell them apart.");
-        }
         var previous = await ReadStoredFileAsync(operation.PackageId, operation.Path, transaction, ct);
+        // Paths are ASCII by rule, so SQLite's lower() is the whole comparison. Only a new path is
+        // judged: a path the package already holds is put again whatever else it holds, since a
+        // stored package is not judged again by a rule that came after it.
+        if (previous is null)
+        {
+            await using (var clash = Command("""
+                SELECT path FROM __nendo_extension_file
+                WHERE package_id = @package AND path != @path AND (lower(path) = lower(@path)
+                    OR substr(lower(path), 1, length(@path) + 1) = lower(@path) || '/'
+                    OR substr(lower(@path), 1, length(path) + 1) = lower(path) || '/')
+                ORDER BY path LIMIT 1;
+                """, transaction))
+            {
+                clash.Parameters.AddWithValue("@package", operation.PackageId);
+                clash.Parameters.AddWithValue("@path", operation.Path);
+                if (await clash.ExecuteScalarAsync(ct) is string existing)
+                    throw new NendoPreconditionException("extension-path-conflict", existing.Length == operation.Path.Length
+                        ? $"Package {operation.PackageId} already holds {existing}, which differs from {operation.Path} only in case. A browser on Windows would not tell them apart."
+                        : $"Package {operation.PackageId} already holds {existing}, so {operation.Path} would make one name both a file and a folder, which no folder can hold and export could not write.");
+            }
+        }
+        // A new path an import would leave out is refused, so export and import give the same
+        // package (EXT-07). One already stored keeps working, and a compensation puts back what was there.
+        if (previous is null && !_replayingRecordedOperations && NendoExtensionContent.LeftOutOnImport(operation.Path))
+            throw new NendoValidationException(
+                $"{operation.Path} would not survive export and import: an import leaves out {NendoExtensionArchives.ManifestName} at the root and any path with a segment that starts with a dot or is node_modules. Put the file somewhere else in the package.");
         RequireExpectedContent(operation.PackageId, operation.Path, operation.ExpectedSha256, previous);
 
         if (operation.ContentArray is { } content)
@@ -480,6 +495,7 @@ internal sealed partial class SqliteNendoStore
             throw new NendoPreconditionException("extension-package-not-found",
                 $"{operation.PackageId} is a skill package. It has no views, so nothing can be kept for it.");
         var previous = await ReadStateRowAsync(operation.PackageId, operation.ViewId, operation.Key, transaction, ct);
+        long? written = null;
         if (operation.ExpectedVersion is { } expected && (previous?.Version ?? SetExtensionStateOperation.ExpectAbsent) != expected)
             throw new NendoPreconditionException("state-version-conflict",
                 $"{operation.Key} is at version {previous?.Version ?? 0}, not {expected}. Something changed it since; read it again.");
@@ -496,6 +512,11 @@ internal sealed partial class SqliteNendoStore
         }
         else
         {
+            // The stored form is bounded too: a character outside the basic plane is still written
+            // as two escapes, so a value within the bound as sent can pass it as stored (EXT-01).
+            if (System.Text.Encoding.UTF8.GetByteCount(operation.ValueJson) > NendoExtensionLimits.StateValueBytes)
+                throw new NendoPreconditionException("state-too-large",
+                    $"A state value is at most {NendoExtensionLimits.StateValueBytes / 1024} KiB of JSON as it is kept, and {operation.Key} would be larger.");
             await using (var upsert = Command("""
                 INSERT INTO __nendo_extension_state (package_id, view_id, state_key, value_json, version)
                 VALUES (@package, @view, @key, @value, @version)
@@ -504,12 +525,22 @@ internal sealed partial class SqliteNendoStore
             {
                 AddStateKey(upsert, operation);
                 upsert.Parameters.AddWithValue("@value", operation.ValueJson);
-                upsert.Parameters.AddWithValue("@version", (previous?.Version ?? 0) + 1);
+                // Never a number the key had before, even after it was forgotten (EXT-09): no lower
+                // than the change sequence this write commits at, which only rises. Counting up from
+                // the row alone restarted at 1 after a forget, so a stale expectedVersion matched.
+                var sequenceAfter = Convert.ToInt64(await ScalarAsync(
+                    "SELECT change_sequence FROM __nendo_manifest WHERE singleton_id = 1;", transaction, ct), CultureInfo.InvariantCulture) + 1;
+                written = Math.Max((previous?.Version ?? 0) + 1, sequenceAfter);
+                upsert.Parameters.AddWithValue("@version", written.Value);
                 await upsert.ExecuteNonQueryAsync(ct);
             }
             await RequireStateBoundsAsync(operation, transaction, ct);
         }
-        return new(operation, Evidence(new { previous = previous is null ? null : new { value = previous.ValueJson, version = previous.Version } }))
+        return new(operation, Evidence(new
+        {
+            previous = previous is null ? null : new { value = previous.ValueJson, version = previous.Version },
+            version = written,
+        }))
         {
             RequiredHostVersion = NendoFormat.ExtensionPackagesMinimumHostVersion,
         };
@@ -553,7 +584,12 @@ internal sealed partial class SqliteNendoStore
                 throw new NendoPreconditionException("state-too-large",
                     $"A view keeps at most {NendoExtensionLimits.StateKeysPerView} keys. Remove one before adding {operation.Key}.");
         }
-        await using var bytes = Command("SELECT coalesce(sum(length(CAST(value_json AS BLOB))), 0) FROM __nendo_extension_state WHERE package_id = @package;", transaction);
+        // What a removed view kept stays, so compensating the removal brings it back, but it no
+        // longer counts against the views that are there (EXT-10): nothing could free it.
+        await using var bytes = Command("""
+            SELECT coalesce(sum(length(CAST(value_json AS BLOB))), 0) FROM __nendo_extension_state
+            WHERE package_id = @package AND (view_id = '' OR view_id IN (SELECT node_id FROM __nendo_ui_node));
+            """, transaction);
         bytes.Parameters.AddWithValue("@package", operation.PackageId);
         if (Convert.ToInt64(await bytes.ExecuteScalarAsync(ct)) > NendoExtensionLimits.StatePackageBytes)
             throw new NendoPreconditionException("state-too-large",
@@ -644,7 +680,11 @@ internal sealed partial class SqliteNendoStore
                 var stateKey = payload.GetProperty("key").GetString()!;
                 var applied = payload.GetProperty("value");
                 var previousVersion = previous is { } before ? before.GetProperty("version").GetInt64() : 0;
-                var expected = applied.ValueKind == JsonValueKind.Null ? SetExtensionStateOperation.ExpectAbsent : previousVersion + 1;
+                // The version this write left. Evidence written before versions followed the change
+                // sequence (EXT-09) does not name it, and there it was one past the replaced one.
+                var leftAt = evidence.RootElement.TryGetProperty("version", out var left) && left.ValueKind == JsonValueKind.Number
+                    ? left.GetInt64() : previousVersion + 1;
+                var expected = applied.ValueKind == JsonValueKind.Null ? SetExtensionStateOperation.ExpectAbsent : leftAt;
                 return new SetExtensionStateOperation(operationId, packageId, viewId, stateKey,
                     previous is { } kept ? kept.GetProperty("value").GetString() : null, expected);
             }

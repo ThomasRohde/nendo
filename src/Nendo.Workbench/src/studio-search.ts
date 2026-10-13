@@ -19,6 +19,9 @@ import { showError } from './shell';
 const searchTexts = fileScopedClearable(new Map<string, string>());
 const pauseMs = 200;
 const limit = 20;
+// As the command palette and the @ menu: one letter is a prefix of most of the index, about twenty
+// times the work of two, and the host runs every search it is sent (PERF-09).
+const searchMinimum = 2;
 
 export function studioSearchFieldMarkup(entity: EntitySnapshot): string {
   return `<label class="studio-search-field">Search text<input id="studio-search" name="search" type="search" autocomplete="off" spellcheck="false"
@@ -76,6 +79,10 @@ export function wireStudioSearch(entity: EntitySnapshot): void {
     searchTexts.set(entity.entityId, input.value);
     const mine = ++sequence;
     if (text.length === 0) { show(''); return; }
+    if (text.length < searchMinimum) {
+      show('<p class="query-status" role="status">Type at least two letters to search.</p>');
+      return;
+    }
     if (now) void search(text, mine);
     else timer = setTimeout(() => void search(text, mine), pauseMs);
   };

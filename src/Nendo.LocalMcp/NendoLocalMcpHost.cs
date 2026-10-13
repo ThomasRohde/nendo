@@ -285,7 +285,8 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         options ??= NendoLocalMcpHostOptions.CreateDefault();
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DiscoveryRoot);
 
-        var snapshot = await applicationService.GetSnapshotAsync(cancellationToken);
+        // Health, identity and the file's name; never the records (PERF-07).
+        var snapshot = await applicationService.GetDefinitionSnapshotAsync(cancellationToken);
         if (snapshot.Health != NendoSessionHealth.Normal)
         {
             throw new NendoRecoveryRequiredException(

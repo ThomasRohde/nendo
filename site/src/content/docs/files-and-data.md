@@ -18,7 +18,7 @@ A Nendo application is one SQLite file with the extension `.nendo`. There is no 
 - **Revision counters.** A definition revision, a data revision, one change sequence across both, and a version on each record.
 - **A search index**, once you build one. It keeps its own copy of the records' text, so they can be found by any word, and grows the file by about the size of that text. Nendo keeps it current with every save.
 
-Some things are stored on the computer and never in the file: your approval of a file's automatic actions, and this computer's switches for custom views. A copy of the file on another computer, or a Duplicate or Fork on this one, asks for the approval again. A custom view's code is the other way round: it is in the file, so every copy carries it, and it runs when its view is shown. See [Custom views](/nendo/docs/custom-views).
+Some things are stored on the computer and never in the file: your approval of a file's automatic actions, and this computer's switches for custom views. A copy of the file on another computer, or a Duplicate or Fork on this one, asks for the approval again. A custom view's code is the other way round: it is in the file, so every copy carries it, and it runs when its view is shown. What a view keeps in its browser storage, such as a draft it has not saved, stays with the file it was kept for: a Duplicate's views start without it. See [Custom views](/nendo/docs/custom-views).
 
 ### Size limits
 

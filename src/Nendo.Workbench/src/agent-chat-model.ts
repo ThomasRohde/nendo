@@ -33,13 +33,15 @@ export interface AgentChat {
   revision: number;
   entries: Map<string, AgentTranscriptEntry>;
   signInMethods: LaunchedAgentView['signInMethods'];
+  /** A sign-in the person started still runs, so its buttons are held (DAE-10). */
+  signingIn: boolean;
   options: AgentOption[];
 }
 
 export function emptyChat(): AgentChat {
   return {
     key: '', conversationId: null, exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
-    state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], options: [],
+    state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], signingIn: false, options: [],
   };
 }
 
@@ -69,6 +71,7 @@ export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: s
   chat.notice = view.notice;
   chat.agentTitle = view.agentTitle;
   chat.signInMethods = view.signInMethods;
+  chat.signingIn = view.signingIn === true;
   chat.options = view.options ?? [];
   chat.revision = Math.max(chat.revision, view.revision);
   const changed: string[] = [];
@@ -132,6 +135,17 @@ export function chatTabStatus(activity: ChatActivity): { kind: ChatActivity; lab
     case 'waiting': return { kind: activity, label: 'Waiting for you' };
     default: return null;
   }
+}
+
+/**
+ * The ways the agent offers to sign in, under its sentence. While a sign-in the person started
+ * runs, every way is held: a second press started a second sign-in and a second session (DAE-10).
+ */
+export function signInMarkup(chat: AgentChat): string {
+  if (chat.state !== 'signIn') return '';
+  const held = chat.signingIn ? ' disabled' : '';
+  return `<p>${escapeHtml(chat.notice ?? `Sign in to ${chat.name}.`)}</p><div class="chat-sign-in-methods">${chat.signInMethods.map((method) =>
+    `<button type="button" class="secondary-button" data-sign-in="${escapeAttribute(method.id)}" title="${escapeAttribute(method.description ?? '')}"${held}>${escapeHtml(method.name)}</button>`).join('')}</div>`;
 }
 
 /** The tone of the state pill: settled, busy, or quiet. */
@@ -269,13 +283,47 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
   }
 }
 
+/**
+ * What an item's markup depends on: the launch it is of, its entries and their revisions, whether
+ * it is open, whether it is the live run, and the agent's name. Two equal signatures draw the
+ * same markup. Entry IDs and revisions start again with every launch, so the launch is in it.
+ */
+export function itemSignature(item: ThreadItem, agentName: string, expanded: ReadonlySet<string>, live: boolean, launch = ''): string {
+  const entries = item.type === 'steps' ? item.entries : [item.entry];
+  return `${launch}|${item.key}|${item.type}|${expanded.has(item.key) ? 1 : 0}|${live ? 1 : 0}|${agentName}|${entries.map((entry) => `${entry.id}:${entry.revision}`).join(',')}`;
+}
+
+/**
+ * Markup for the thread's items, built again only for an item that changed. Every read built every
+ * item again, an agent's Markdown with it, so one long line made each later read cost close to a
+ * second (WAU-05). `built` counts the items actually built, for the node lane.
+ */
+export function createMarkupCache(): { markup(item: ThreadItem, agentName: string, expanded: ReadonlySet<string>, live: boolean, launch?: string): string; forget(keep: ReadonlySet<string>): void; clear(): void; readonly built: number } {
+  const held = new Map<string, { signature: string; html: string }>();
+  let built = 0;
+  return {
+    markup(item, agentName, expanded, live, launch = '') {
+      const signature = itemSignature(item, agentName, expanded, live, launch);
+      const kept = held.get(item.key);
+      if (kept !== undefined && kept.signature === signature) return kept.html;
+      built += 1;
+      const html = itemMarkup(item, agentName, expanded, live);
+      held.set(item.key, { signature, html });
+      return html;
+    },
+    forget(keep) { for (const key of [...held.keys()]) if (!keep.has(key)) held.delete(key); },
+    clear() { held.clear(); },
+    get built() { return built; },
+  };
+}
+
 function stepMarkup(entry: AgentTranscriptEntry): string {
   if (entry.kind === 'plan') {
     return `<div class="chat-step is-plan"><span class="chat-step-icon" aria-hidden="true">${icon('list')}</span><div class="chat-step-body"><strong>Plan</strong><ol>${(entry.plan ?? []).map((item) =>
       `<li data-status="${escapeAttribute(item.status)}"><span class="chat-plan-mark" aria-hidden="true">${item.status === 'completed' ? icon('check') : ''}</span>${escapeHtml(item.text)}</li>`).join('')}</ol></div></div>`;
   }
   if (entry.kind === 'thought') {
-    return `<div class="chat-step is-thought"><span class="chat-step-icon" aria-hidden="true">${icon('lightbulb')}</span><div class="chat-step-body"><details><summary>Thinking</summary><div class="chat-plain">${escapeHtml(entry.text)}</div></details></div></div>`;
+    return `<div class="chat-step is-thought"><span class="chat-step-icon" aria-hidden="true">${icon('lightbulb')}</span><div class="chat-step-body"><details data-part="${escapeAttribute(`${entry.id}:thought`)}"><summary>Thinking</summary><div class="chat-plain">${escapeHtml(entry.text)}</div></details></div></div>`;
   }
   const status = entry.status ?? 'pending';
   return `<div class="chat-step is-tool" data-status="${escapeAttribute(status)}">
@@ -283,17 +331,32 @@ function stepMarkup(entry: AgentTranscriptEntry): string {
     <div class="chat-step-body">
       <div class="chat-step-head"><strong>${escapeHtml(entry.title ?? 'A tool call')}</strong>${originTag(entry.origin)}</div>
       <small>${escapeHtml(toolKinds[entry.toolKind ?? 'other'] ?? 'Tool')} · ${escapeHtml(statuses[status] ?? status)}</small>
-      ${entry.input === null ? '' : `<details><summary>What it sent</summary><pre class="chat-plain">${escapeHtml(entry.input)}</pre></details>`}
-      ${entry.text === '' ? '' : `<details><summary>What came back</summary><pre class="chat-plain">${escapeHtml(entry.text)}</pre></details>`}
+      ${entry.input === null ? '' : `<details data-part="${escapeAttribute(`${entry.id}:sent`)}"><summary>What it sent</summary><pre class="chat-plain">${escapeHtml(entry.input)}</pre></details>`}
+      ${entry.text === '' ? '' : `<details data-part="${escapeAttribute(`${entry.id}:back`)}"><summary>What came back</summary><pre class="chat-plain">${escapeHtml(entry.text)}</pre></details>`}
     </div>
   </div>`;
 }
 
 const optionOrder: Record<string, number> = { allow_once: 0, reject_once: 1, reject_always: 2, allow_always: 3 };
 
+/** What the host records for a request answered by no option: Stop, End, the program or the file ending it. */
+export const cancelledAnswer = 'Cancelled';
+
+/**
+ * What kind of thing a permission request would do, as the steps list names it: Delete before
+ * Allow once, rather than only the agent's own words for it (WAU-12).
+ */
+function kindTag(kind: string | null): string {
+  const name = kind === null ? undefined : toolKinds[kind];
+  return name === undefined || kind === 'other' ? '' : `<span class="chat-tag">${escapeHtml(name)}</span>`;
+}
+
 function permissionMarkup(entry: AgentTranscriptEntry, agentName: string, showInput: boolean, key: string): string {
   if (entry.answer !== null) {
-    return `<p class="chat-answered" data-item="${key}">${icon('check')}<span>${escapeHtml(entry.title ?? 'A tool call')} · you chose ${escapeHtml(entry.answer)}</span></p>`;
+    // Stop, End, the program ending or the file closing answer an open request as cancelled; the
+    // person chose nothing, and "you chose Cancelled" said they had (WAU-12).
+    const outcome = entry.answer === cancelledAnswer ? 'cancelled when the turn stopped' : `you chose ${escapeHtml(entry.answer)}`;
+    return `<p class="chat-answered" data-item="${key}">${icon('check')}<span>${escapeHtml(entry.title ?? 'A tool call')} · ${outcome}</span></p>`;
   }
   const options = [...(entry.options ?? [])].sort((left, right) => (optionOrder[left.kind] ?? 4) - (optionOrder[right.kind] ?? 4));
   const firstAllow = options.find((option) => option.kind === 'allow_once')?.optionId ?? null;
@@ -303,7 +366,7 @@ function permissionMarkup(entry: AgentTranscriptEntry, agentName: string, showIn
   const input = entry.input === null ? '' : `<pre class="chat-plain">${escapeHtml(entry.input)}</pre>`;
   const inspectable = details !== '' || input !== '';
   return `<section class="chat-permission" data-item="${key}" aria-label="${escapeAttribute(agentName)} asks permission">
-    <div class="chat-permission-head"><span class="chat-permission-icon" aria-hidden="true">${icon('alert')}</span><strong>${escapeHtml(agentName)} asks: ${escapeHtml(entry.title ?? 'a tool call')}</strong>${originTag(entry.origin)}</div>
+    <div class="chat-permission-head"><span class="chat-permission-icon" aria-hidden="true">${icon('alert')}</span><strong>${escapeHtml(agentName)} asks: ${escapeHtml(entry.title ?? 'a tool call')}</strong>${kindTag(entry.toolKind)}${originTag(entry.origin)}</div>
     ${showInput ? `${details}${input}` : ''}
     <div class="chat-permission-actions">${options.map((option) =>
       `<button type="button" class="${option.optionId === firstAllow ? 'primary-button' : option.kind === 'allow_always' ? 'text-button' : 'secondary-button'}" data-answer-entry="${escapeAttribute(entry.id)}" data-option-id="${escapeAttribute(option.optionId)}">${escapeHtml(option.name)}</button>`).join('')}

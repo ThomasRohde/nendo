@@ -348,6 +348,20 @@ public static class NendoExtensionContent
         return true;
     }
 
+    /// <summary>
+    /// A path a folder or zip import leaves out: the manifest at the root, in any case, and anything
+    /// with a segment that starts with a dot or is <c>node_modules</c>. A put refuses to add one, so
+    /// a package exported and imported again is the same package (EXT-07).
+    /// </summary>
+    public static bool LeftOutOnImport(string path) =>
+        string.Equals(path, NendoExtensionArchives.ManifestName, StringComparison.OrdinalIgnoreCase) ||
+        path.Split('/').Any(segment => segment.StartsWith('.') || segment == "node_modules");
+
+    /// <summary>Whether one path is a folder the other sits in, ignoring case: a file system holds only one of them (EXT-06).</summary>
+    public static bool FileAndFolderClash(string one, string other) =>
+        one.Length != other.Length &&
+        (one.Length < other.Length ? other.StartsWith(one + "/", StringComparison.OrdinalIgnoreCase) : one.StartsWith(other + "/", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>A bare <c>type/subtype</c>, lowercase, without parameters; the host adds a charset when it serves text.</summary>
     public static bool ValidMediaType(string? value)
     {

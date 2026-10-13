@@ -329,6 +329,8 @@ export interface LaunchedAgentView {
   options: AgentOption[];
   /** The order of the oldest entry the host still keeps: every entry before it is gone (ACP-03). */
   firstOrder: number;
+  /** A sign-in the person started still runs; another is refused until it ends (DAE-10). */
+  signingIn?: boolean;
 }
 
 /**

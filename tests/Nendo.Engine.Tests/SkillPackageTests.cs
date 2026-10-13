@@ -290,6 +290,26 @@ public sealed class SkillPackageTests
         CollectionAssert.DoesNotContain(kinds, "extensionCode", "A skill package's files are not code that runs.");
     }
 
+    /// <summary>
+    /// EXT-14: a change set may put SKILL.md in a later mutation than its package, and each mutation
+    /// is a revision. Undoing the one that put SKILL.md left a skill without it, and every later
+    /// proposal invalid (NPROP012) until someone repaired the package. That undo is refused.
+    /// </summary>
+    [TestMethod]
+    public async Task UndoingTheChangeThatPutASkillFileIsRefusedRatherThanLeavingTheSkillWithoutIt()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(Mutation("package", SkillPackage("package"), Put("references/statuses.md", "Open, Done.\n")));
+        var skillFile = await coordinator.ApplyAsync(Mutation("skill-file", Put("SKILL.md", Skill)));
+
+        var refused = await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() => service.CompensateRevisionAsync(skillFile.RevisionId, "undo-skill-file"));
+        StringAssert.Contains(refused.Message, PackageId);
+        Assert.AreEqual(Skill, Encoding.UTF8.GetString((await service.ReadExtensionFileAsync(PackageId, "SKILL.md"))!.Content),
+            "The refused undo removed SKILL.md.");
+    }
+
     private static SetExtensionPackageOperation SkillPackage(string id) =>
         new(id, PackageId, "Working the task list", null, "1.0.0", kind: NendoExtensionPackageKind.Skill);
 

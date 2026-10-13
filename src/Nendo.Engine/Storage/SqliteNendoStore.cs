@@ -178,6 +178,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             // view's undo and redo are compensations in the package's name and are checked too;
             // History's compensations write as the person and pass.
             await RequireExtensionActorPackageAsync(mutation.Origin, transaction, cancellationToken);
+            if (replayingInverses) await RequireCompensatedSkillPackagesAsync(evidence, transaction, cancellationToken);
             // Hook two: every initiating operation is staged, so the file now shows the
             // complete edit and no half-formed intermediate. Automatic actions run
             // against that, and their generated writes join `evidence` as ordinary

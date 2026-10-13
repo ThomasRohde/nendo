@@ -50,6 +50,82 @@ public sealed class TypedRecordQueryTests
         }) await Assert.ThrowsExactlyAsync<NendoValidationException>(() => service.QueryRecordsAsync(query));
     }
 
+    /// <summary>
+    /// PERF-02: a related list reads its child records by one equality on the reference, the read
+    /// ADR-0003's reference index exists for. Every filter was a host function over the column, which
+    /// no index can serve, so the read asked the function about every row of the child type. An
+    /// equality SQLite answers the same way now sits beside it, and the read seeks the index.
+    /// Counted as rows the function is asked about, not timed.
+    /// </summary>
+    [TestMethod]
+    public async Task ARelatedListSeeksTheReferenceIndexRatherThanAskingAboutEveryRow()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Folders and notes", [
+            new CreateEntityOperation("folders", "folders", "Folders", "folders"),
+            new AddFieldOperation("f-name", "folders", "name", "Name", "name", NendoStorageKind.Text, true),
+            new CreateEntityOperation("notes", "notes", "Notes", "notes"),
+            new AddFieldOperation("n-label", "notes", "label", "Label", "label", NendoStorageKind.Text, true),
+            new AddFieldOperation("n-folder", "notes", "folder", "Folder", "folder_id", NendoStorageKind.Reference, false),
+            new ConfigureReferenceOperation("bind", "notes", "folder", "folders", "name", 0),
+        ]));
+        await service.ApplyRecordWritesAsync(new NendoRecordWritesRequest(
+            [new(NendoRecordWriteKind.Create, "folders", "small", new Dictionary<string, object?> { ["name"] = "Small" }),
+             new(NendoRecordWriteKind.Create, "folders", "large", new Dictionary<string, object?> { ["name"] = "Large" })],
+            new("test", "folders", "test")));
+        for (var batch = 0; batch < 4; batch++)
+            await service.ApplyRecordWritesAsync(new NendoRecordWritesRequest(
+                Enumerable.Range(0, 150).Select(index => new NendoRecordWrite(NendoRecordWriteKind.Create, "notes", $"n-{batch}-{index}",
+                    new Dictionary<string, object?> { ["label"] = $"Note {batch}-{index}", ["folder"] = batch == 0 && index < 3 ? "small" : "large" },
+                    ExpectedTargetVersions: new Dictionary<string, long> { ["folder"] = 1 })).ToList(),
+                new("test", $"notes-{batch}", "test")));
+
+        var before = coordinator.FilterCallbacks;
+        var related = await service.QueryRecordsAsync(new("notes") { Filters = [Filter("folder", "eq", "small")] });
+        var asked = coordinator.FilterCallbacks - before;
+        CollectionAssert.AreEqual(new[] { "n-0-0", "n-0-1", "n-0-2" }, related.Items.Select(record => record.RecordId).Order(StringComparer.Ordinal).ToArray());
+        Assert.IsLessThanOrEqualTo(20L, asked, $"The related list asked its filter about {asked} rows of 600 to find 3: it scanned the child type instead of seeking the reference index.");
+
+        before = coordinator.FilterCallbacks;
+        var loose = await service.QueryRecordsAsync(new("notes") { Filters = [new NendoRecordFilter("folder", "isNull")] });
+        Assert.IsEmpty(loose.Items);
+        Assert.IsLessThanOrEqualTo(20L, coordinator.FilterCallbacks - before, "A filter for a missing reference scanned the child type.");
+    }
+
+    /// <summary>
+    /// PERF-08: the check before every commit counts each table once. The record tables are among
+    /// the tables it counts, and they were counted a second time for the bound on records, on every
+    /// one-field edit.
+    /// </summary>
+    [TestMethod]
+    public async Task ACommitCountsEachTableOnce()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Seed(coordinator);
+        await coordinator.ApplyAsync(new("test", "more", "test", "Two more types", [
+            new CreateEntityOperation("people", "people", "People", "people"),
+            new AddFieldOperation("p-name", "people", "people-name", "Name", "name", NendoStorageKind.Text, false),
+            new CreateEntityOperation("places", "places", "Places", "places"),
+            new AddFieldOperation("pl-name", "places", "places-name", "Name", "name", NendoStorageKind.Text, false),
+        ]));
+        var before = coordinator.CommitTableCounts;
+        await service.SetFieldAsync(new("items", "c", "title", 1, "changed", new("test", "edit-once", "test")));
+        var counted = coordinator.CommitTableCounts - before;
+        await coordinator.DisposeAsync();
+        workspace.Forget(coordinator);
+
+        await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={workspace.FilePath};Mode=ReadOnly;Pooling=False");
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM sqlite_schema WHERE type = 'table';";
+        var tables = Convert.ToInt64(await command.ExecuteScalarAsync());
+        Assert.AreEqual(tables, counted, $"A one-field edit counted {counted} tables in a file of {tables}: the record tables were counted twice.");
+    }
+
     private static NendoRecordFilter Filter<T>(string field, string op, T value) => new(field, op, JsonSerializer.SerializeToElement(value));
     private static async Task<string[]> ReadAll(NendoApplicationService service, NendoRecordQuery query)
     {

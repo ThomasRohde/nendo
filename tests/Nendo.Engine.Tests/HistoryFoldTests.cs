@@ -104,7 +104,7 @@ public sealed class HistoryFoldTests
         Assert.AreEqual(manifestBefore.ChangeSequence, manifest.ChangeSequence);
         Assert.AreEqual(manifestBefore.DefinitionRevision, manifest.DefinitionRevision);
         Assert.AreEqual(manifestBefore.DataRevision, manifest.DataRevision);
-        Assert.AreEqual(NendoFormat.HistoryFoldMinimumHostVersion, manifest.MinimumHostVersion);
+        Assert.AreEqual(NendoFormat.RevisionIndexesMinimumHostVersion, manifest.MinimumHostVersion);
         CollectionAssert.AreEqual(recordsBefore, await ReadNotesAsync(service), "A record or a version changed in the fold.");
 
         // The deleted record's ID stays reserved: its tombstone is not history.
@@ -229,6 +229,178 @@ public sealed class HistoryFoldTests
         }
         var inspected = await SqliteNendoStore.InspectAsync(workspace.FilePath, CancellationToken.None);
         Assert.AreEqual("layout-version-mismatch", inspected.Inspection.Findings.Single().Code);
+    }
+
+    /// <summary>
+    /// PERF-01 and PERF-04: a file grown by single edits holds an idempotency row per revision, and
+    /// every revision a fold deletes cascades into that table by its revision. Without an index that
+    /// is a scan of the whole table per folded revision, minutes at 20,000 revisions. The fold adds
+    /// the history indexes before it deletes, and the receipt and compensation reads search them.
+    /// </summary>
+    [TestMethod]
+    [Timeout(600_000, CooperativeCancellation = true)]
+    public async Task AFoldOfAFileGrownBySingleEditsIsBoundedAndLeavesItsHistoryIndexed()
+    {
+        const int revisions = 20_000;
+        await using var workspace = new EngineTestWorkspace();
+        var (coordinator, _) = await SeedAsync(workspace);
+        await coordinator.DisposeAsync();
+        // Twenty thousand single-operation revisions, each with its idempotency row, as Studio cell
+        // edits leave them. Written directly, since twenty thousand committed writes would take
+        // minutes of their own; the history they form passes inspection like any other.
+        await using (var connection = new SqliteConnection($"Data Source={workspace.FilePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync();
+            long sequence, definition, data;
+            await using (var manifest = connection.CreateCommand())
+            {
+                manifest.Transaction = transaction;
+                manifest.CommandText = "SELECT change_sequence, definition_revision, data_revision FROM __nendo_manifest;";
+                await using var reader = await manifest.ExecuteReaderAsync();
+                await reader.ReadAsync();
+                (sequence, definition, data) = (reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2));
+            }
+            await using var revision = connection.CreateCommand();
+            revision.Transaction = transaction;
+            revision.CommandText = """
+                INSERT INTO __nendo_revision(revision_id, created_at, origin, description, lane, definition_revision_before, definition_revision_after,
+                    data_revision_before, data_revision_after, change_sequence, operation_digest, idempotency_scope, idempotency_key)
+                VALUES ($id, $at, 'surface', 'Edit', 'Data', $definition, $definition, $before, $after, $sequence, $digest, 'fold-tests', $key);
+                INSERT INTO __nendo_operation(revision_id, ordinal, operation_id, operation_type, canonical_json, reversibility, inverse_evidence_json)
+                VALUES ($id, 0, $operation, 'data.setField', $canonical, 'Reversible', '{}');
+                INSERT INTO __nendo_idempotency(idempotency_scope, idempotency_key, payload_digest, revision_id)
+                VALUES ('fold-tests', $key, $digest, $id);
+                """;
+            var parameters = new[] { "$id", "$at", "$definition", "$before", "$after", "$sequence", "$digest", "$key", "$operation", "$canonical" }
+                .ToDictionary(name => name, name => revision.Parameters.Add(name, SqliteType.Text));
+            var at = DateTimeOffset.UtcNow.ToString("O", System.Globalization.CultureInfo.InvariantCulture);
+            for (var index = 0; index < revisions; index++)
+            {
+                var operation = $"bulk-op-{index}";
+                var canonical = $$"""{"operationId":"{{operation}}","operationType":"data.setField","lane":"Data","reversibility":"Reversible"}""";
+                parameters["$id"].Value = $"revision-bulk-{index}";
+                parameters["$at"].Value = at;
+                parameters["$definition"].Value = definition;
+                parameters["$before"].Value = data;
+                parameters["$after"].Value = ++data;
+                parameters["$sequence"].Value = ++sequence;
+                parameters["$digest"].Value = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("[" + canonical + "]"))).ToLowerInvariant();
+                parameters["$key"].Value = $"bulk-{index}";
+                parameters["$operation"].Value = operation;
+                parameters["$canonical"].Value = canonical;
+                await revision.ExecuteNonQueryAsync();
+            }
+            await using (var manifest = connection.CreateCommand())
+            {
+                manifest.Transaction = transaction;
+                manifest.CommandText = $"UPDATE __nendo_manifest SET change_sequence = {sequence}, data_revision = {data};";
+                await manifest.ExecuteNonQueryAsync();
+            }
+            await transaction.CommitAsync();
+        }
+        coordinator = await workspace.OpenAsync();
+        var service = new NendoApplicationService(coordinator);
+        for (var index = 0; index < 6; index++)
+            await service.CreateRecordAsync(new("notes", $"after-bulk-{index}", Values("label", $"After {index}"), Context($"after-bulk-{index}")));
+        coordinator.HistoryFoldPolicy = Small;
+
+        var destination = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "before-fold-bulk.nendo");
+        var backup = await coordinator.PrepareBackupAsync(destination, "fold-bulk");
+        await coordinator.CreateBackupAsync(backup.PlanId);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var folded = await service.FoldHistoryAsync(backup.PlanId);
+        clock.Stop();
+        Console.WriteLine($"history-fold of {folded.Revisions:N0} single-operation revisions: {clock.ElapsedMilliseconds:N0} ms");
+        Assert.IsGreaterThanOrEqualTo((long)revisions, folded.Revisions);
+        // Measured at about 1 s with the index; without it the delete alone takes a minute or more.
+        Assert.IsLessThan(30_000L, clock.ElapsedMilliseconds,
+            $"Folding {folded.Revisions:N0} single-operation revisions took {clock.ElapsedMilliseconds:N0} ms, as a delete that scans the idempotency rows for each revision does.");
+        Assert.AreEqual(NendoFormat.RevisionIndexesMinimumHostVersion, (await service.GetSnapshotAsync()).Manifest.MinimumHostVersion);
+        await coordinator.DisposeAsync();
+
+        await using (var connection = new SqliteConnection($"Data Source={workspace.FilePath};Mode=ReadOnly;Pooling=False"))
+        {
+            await connection.OpenAsync();
+            async Task<string> PlanAsync(string sql)
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = "EXPLAIN QUERY PLAN " + sql;
+                command.Parameters.AddWithValue("$value", "x");
+                await using var reader = await command.ExecuteReaderAsync();
+                var lines = new List<string>();
+                while (await reader.ReadAsync()) lines.Add(reader.GetString(3));
+                return string.Join(" / ", lines);
+            }
+            StringAssert.Contains(await PlanAsync("SELECT 1 FROM __nendo_idempotency WHERE revision_id = $value;"),
+                "INDEX __nendo_idempotency_revision", "The cascade a fold's delete makes into the idempotency rows is not served by an index.");
+            StringAssert.Contains(await PlanAsync("SELECT revision_id FROM __nendo_revision WHERE proposal_id = $value ORDER BY change_sequence;"),
+                "INDEX __nendo_revision_proposal", "The receipt read by proposal scans the revisions.");
+            StringAssert.Contains(await PlanAsync("SELECT revision_id FROM __nendo_revision WHERE compensation_of_revision_id = $value;"),
+                "INDEX __nendo_revision_compensation", "The compensation read by the revision it reverses scans the revisions.");
+        }
+        var inspected = await SqliteNendoStore.InspectAsync(workspace.FilePath, CancellationToken.None);
+        Assert.IsEmpty(inspected.Inspection.Findings,
+            string.Join("; ", inspected.Inspection.Findings.Select(finding => $"{finding.Code}: {finding.Message}")));
+    }
+
+    /// <summary>
+    /// The history indexes a fold adds state host 1.50.0 (ADR-0021, 2026-10-13 note): a folded file
+    /// that declares less is a layout mismatch, and a file holding only some of them is not a layout
+    /// this host knows, since the signature leaves them out only all together.
+    /// </summary>
+    [TestMethod]
+    public async Task AFoldedFileBelowTheIndexHostOrWithoutOneOfItsIndexesIsRefused()
+    {
+        foreach (var (name, change, code, words) in new[]
+        {
+            ("below", "UPDATE __nendo_manifest SET minimum_host_version = '1.49.0';", "layout-version-mismatch", "history indexes"),
+            ("partial", "DROP INDEX __nendo_revision_compensation;", "unknown-protected-schema", "recognised production layout"),
+        })
+        {
+            await using var workspace = new EngineTestWorkspace();
+            var (coordinator, service) = await SeedAsync(workspace);
+            coordinator.HistoryFoldPolicy = Small;
+            for (var index = 0; index < 10; index++)
+                await service.CreateRecordAsync(new("notes", $"note-{index}", Values("label", $"Note {index}"), Context($"create-{index}")));
+            await FoldAsync(workspace, coordinator, service, name);
+            await coordinator.DisposeAsync();
+            Assert.IsEmpty((await SqliteNendoStore.InspectAsync(workspace.FilePath, CancellationToken.None)).Inspection.Findings);
+            await using (var connection = new SqliteConnection($"Data Source={workspace.FilePath};Pooling=False"))
+            {
+                await connection.OpenAsync();
+                await using var command = connection.CreateCommand();
+                command.CommandText = change;
+                await command.ExecuteNonQueryAsync();
+            }
+            var inspection = (await SqliteNendoStore.InspectAsync(workspace.FilePath, CancellationToken.None)).Inspection;
+            Assert.HasCount(1, inspection.Findings, $"{name}: the file opened as {inspection.Classification} with {inspection.Findings.Count} findings, where {code} was owed.");
+            var finding = inspection.Findings.Single();
+            Assert.AreEqual(code, finding.Code, $"{name}: {finding.Message}");
+            StringAssert.Contains(finding.Message, words, name);
+        }
+    }
+
+    /// <summary>
+    /// A file a newer Nendo wrote says so, even when it carries a layout this host has never seen:
+    /// the stated host is read before the layout, so the person is not told the file is unrecognised.
+    /// </summary>
+    [TestMethod]
+    public async Task AFileANewerNendoWroteSaysSoBeforeItsLayoutIsJudged()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (coordinator, _) = await SeedAsync(workspace);
+        await coordinator.DisposeAsync();
+        await using (var connection = new SqliteConnection($"Data Source={workspace.FilePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TABLE __nendo_from_the_future (x TEXT); UPDATE __nendo_manifest SET minimum_host_version = '9.0.0';";
+            await command.ExecuteNonQueryAsync();
+        }
+        var finding = (await SqliteNendoStore.InspectAsync(workspace.FilePath, CancellationToken.None)).Inspection.Findings.Single();
+        Assert.AreEqual("unsupported-host-version", finding.Code, finding.Message);
+        StringAssert.Contains(finding.Message, "A newer Nendo may open it.");
     }
 
     // ---------------------------------------------------------------- helpers

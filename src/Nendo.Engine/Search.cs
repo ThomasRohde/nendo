@@ -131,8 +131,12 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
         for (var position = 0; position < searchable.Length; position++)
         {
             var token = searchable[position];
-            // A phrase was closed on purpose and a left-out word means exactly that word.
-            var prefix = lastOpen && position == searchable.Length - 1;
+            // A phrase was closed on purpose and a left-out word means exactly that word. A last word
+            // of one letter stays a whole word rather than a prefix: one letter starts most of the
+            // index, about twenty times the work of two, and the index keeps no one-letter prefixes
+            // (PERF-09). A single letter of a script written without spaces is still found as a word.
+            var prefix = lastOpen && position == searchable.Length - 1 &&
+                token.Text.EnumerateRunes().Count(Rune.IsLetterOrDigit) >= 2;
             (token.Excluded ? leftOut : required).Add(Quote(token.Text) + (prefix ? "*" : ""));
         }
         return new(required, leftOut);

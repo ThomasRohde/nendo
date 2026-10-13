@@ -646,6 +646,40 @@ What remains open:
   No lane drives the native panel through an action or flips the Windows theme under an open
   dialog (R2SMA-09, R2SMA-14); `DesktopWindowChromeTests` holds the markup and the helper.
 
+## Left open by the extension packages and scale pass (W-228, 2026-10-13)
+
+- **A file never folded has no history indexes.** A fold, and a new file's fold, add them
+  (ADR-0021, 2026-10-13 note), so the cascade a fold makes is fast, but the receipt read by
+  proposal and the compensation read still scan every revision in a file that was never folded:
+  about 25-30 ms each at 90,000 revisions (PERF-04). Adding them to a file at any other moment
+  would raise its host version on an ordinary write.
+- **Preparing and promoting a proposal still read every record.** The MCP identity checks read
+  the manifest now (PERF-07), but `PrepareProposalAsync` reads the active file and the clone in
+  full, and promotion reads the active file again, for the touched records' versions, the counts
+  and the 50-per-type preview the review shows. Reading those by key, by `COUNT(*)` and with a
+  limit is a reshaping of the prepare path, not a fix of the lookups, which are keyed now.
+- **A commit still counts every table.** The record tables are counted once now (PERF-08), but
+  each commit still counts every table, `__nendo_operation` before staging and again after, which
+  is tens of milliseconds near the row bound. Counting only what the mutation wrote, with cached
+  counts for the rest, would weaken a deliberate check, and is left for a measured need.
+- **Only some filters seek an index.** Equality on text, a reference or a date, and the null
+  checks, carry a comparison an index can serve (PERF-02). A UUID's equality, which compares in
+  either case, every range comparison and `contains` still scan with the host function, which the
+  queries contract already allows.
+- **A review's first read of a package file still opens the clone under the write gate.** Each
+  later window of the same file is served from the bytes read once (EXT-12); the first open and
+  `quick_check` of the clone still hold the coordinator's gate and the Desktop request gate.
+  Moving it outside them needs the proposal's workspace held against rejection during the read.
+- **Half a skill package cannot be undone from History.** A change set may put a skill
+  package's `SKILL.md` in a later mutation than the package, and each mutation is a revision.
+  Undoing the revision that put `SKILL.md` is refused, since it would leave the skill without one
+  and every later proposal invalid (EXT-14). Removing the package, or changing it, takes a new
+  proposal.
+- **Three writes to one view-state key in one mutation can repeat a version.** A version is at
+  least the change sequence that wrote it (EXT-09), so a second write in one mutation goes one
+  past it, and a third and a later forget could meet a number seen before. The broker sends one
+  write per mutation and MCP writes no state, so nothing in Nendo makes such a mutation.
+
 ## Left open by the 2026-09-12 vocabulary widening
 
 The amendment is delivered

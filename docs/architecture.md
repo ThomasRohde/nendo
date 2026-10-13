@@ -17,9 +17,12 @@ the Workbench. Phases 0 to 5 are delivered, except Phase 5's tile; Phase 2 (prod
   [The file](#the-file)). It arrives through a proposal, and a person reviews it as
   code.
 - A view is a cross-origin frame in the Workbench's own WebView2. Each package in
-  each file has an origin of its own under the reserved `.example` domain, so
+  each file instance has an origin of its own under the reserved `.example` domain, so
   Chromium gives each package a renderer process of its own, apart from the
-  Workbench's.
+  Workbench's, and a Duplicate's views storage of their own. The instance each
+  application last opened before the instance ID entered the key keeps its old
+  origin, recorded once in `view-origin-carry.json` (`ExtensionOriginCarry.cs`,
+  ADR-0013 2026-10-13).
 - The host answers every view origin from the open file, through the browser's
   resource-request event, and serves the view API, `/_nendo/api.js`, from the
   installed Workbench.
@@ -164,7 +167,9 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.49.0`, for a formula that calls `ToText` (ADR-0008, 2026-10-13). `1.48.0` is for a
+is `1.50.0`, for the three history indexes a fold adds (ADR-0021, 2026-10-13 note), which a
+file never folded does not have. `1.49.0` is for a formula that calls `ToText` (ADR-0008,
+2026-10-13). `1.48.0` is for a
 cleared screen property (`ui.removeProperty`, ADR-0004, 2026-10-13), `1.47.0` for a create
 step's links, `IsEmpty` or a total over a calculation (ADR-0008, 2026-10-10), and `1.46.0`
 for a full-text index (ADR-0028). `1.45.0` is for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
@@ -894,7 +899,9 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
 
 - **What it offers.** `DesktopAgentCatalog` knows five programs: Copilot CLI,
   Gemini CLI, the Claude Code and Codex ACP adapters, and OpenCode. It finds them on
-  `PATH` as a terminal would. A `.cmd` shim runs under the command interpreter. The
+  `PATH` as a terminal would, the `PATH` Windows holds now rather than the host's copy
+  from its start (`AgentEnvironment.cs`, read from the registry each time), and outside
+  the request gate, one search at a time (W-220). A `.cmd` shim runs under the command interpreter. The
   person may add one command line and hide any agent, their own command included;
   this device keeps both in `agent-launch.json`, never the file (W-199). Launch is
   offered at Inspect and above. Each known program carries its npm package:
@@ -909,8 +916,10 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   stays above the tabs. `view-agent.ts` keeps the tab and focus through the status
   poll's redraw; `agent-launch-model.ts` draws the tabs and tiles.
 - **How the program runs.** `AgentProcess` starts it in a new empty folder under
-  `agent-sessions/` in device state, with the person's own environment, inside a Job
-  Object. Closing the job's handle ends the program and everything it started.
+  `agent-sessions/` in device state, named by the host process, with the person's own
+  environment as Windows holds it at launch, inside a Job Object. Closing the job's handle
+  ends the program and everything it started. Each launch first sweeps the folders no
+  running agent can be using (W-220).
 - **What the agent is told.** `AgentConversation` speaks ACP version 1 on the
   program's stdio:
   - `initialize` declares no file-system or terminal capability;
@@ -940,8 +949,9 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   request.
 - **What ends it.** Turning access Off, closing, switching or replacing the file, and
   a listener that comes back at another address all end the agent, and so does a
-  refusal at the handshake. Closing the last tab whose trail holds the conversation
-  ends it too, and New session in the tab's heading ends it and starts the same agent
+  refusal at the handshake. Closing the tab that owns the conversation ends it too:
+  the tab that last showed it, known by its ID rather than by its trail, which Back
+  and the 50-place bound drop (W-220); Open conversation goes to that tab, and New session in the tab's heading ends it and starts the same agent
   again in the tab, with an empty composer (2026-10-09). A new level at the same
   address does not; the tab is told of it and shows it.
 
@@ -1041,7 +1051,7 @@ This table gives the current locations, so that you do not need to search.
 | Declared hierarchies | `Engine/HierarchyOperations.cs` (the declare and remove operations and the bounds), `Engine/Storage/SqliteNendoStore.Hierarchy.cs` (the table on the layout ladder's hierarchy rung, the scan on declaration and the placement rule every parent write passes), `Engine/NendoApplicationService.Hierarchy.cs` (a move, expanded into `data.setField` operations), `Engine/Storage/SqliteNendoStore.HierarchyReads.cs` (the depth-first tree read and the `descendantOf` predicate every filtered read shares), `Engine/NendoWriteCoordinator.Hierarchy.cs` (the same reads over a read-only snapshot) ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)) |
 | Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds, the path rules and the media types), `ExtensionPackageDiff.cs` (the review's line diff), `ExtensionArchive.cs` (reading a folder, a zip or a `.nendoview`, the import change set and the exported manifest). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's extension rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
 | Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs` (the four kinds and their properties), `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452` to `NUI454`), `SemanticCapability.cs` (which rung a view needs, 1.29.0 to 1.34.0, and 1.42.0 for `extensionView`), `SemanticDiff.cs` (the review sentences and the line that code runs) |
-| Custom views: the host | `Desktop/Extensions/ExtensionOrigins.cs` (an origin per package per file), `ExtensionAssetServer.cs` (answers every view origin from the open file), `DesktopSessionController.Extensions.cs` (what each origin serves, the switches, the content cache, import and removal proposals), `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `ExtensionWebViewPolicy.cs` (menus, DevTools, permissions, new windows, frame navigation), `WorkbenchProtocol.Extensions.cs` (the `extension.*` bridge methods), `ExtensionFrameDiagnostics.cs` (`diagnostics.frameProcesses`). `MainPage.xaml.cs` turns a view renderer's exit into `extensionFramesFailed` and holds Restart without custom views; `MainPage.Extensions.cs` holds the import and export pickers |
+| Custom views: the host | `Desktop/Extensions/ExtensionOrigins.cs` (an origin per package per file instance), `ExtensionOriginCarry.cs` (the instance that keeps its old origin), `ExtensionAssetServer.cs` (answers every view origin from the open file), `DesktopSessionController.Extensions.cs` (what each origin serves, the switches, the content cache, import and removal proposals), `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `ExtensionWebViewPolicy.cs` (menus, DevTools, permissions, new windows, frame navigation), `WorkbenchProtocol.Extensions.cs` (the `extension.*` bridge methods), `ExtensionFrameDiagnostics.cs` (`diagnostics.frameProcesses`). `MainPage.xaml.cs` turns a view renderer's exit into `extensionFramesFailed` and holds Restart without custom views; `MainPage.Extensions.cs` holds the import and export pickers |
 | Custom views: the Workbench | `Workbench/src/view-frames.ts` (mounts, lazy start, park and adopt, heartbeat, overlays, Stop and Reload), `view-frame-markup.ts` (placeholders, notices, overlays, the frame's attributes, the Studio panel's markup), `extension-broker.ts` (the closed method table and the caps), `extension-model.ts` (the context, records, schema and theme tokens a view is handed), `extension-ui.ts` (what a view may ask the Workbench to do), `view-packages.ts` (Studio → Screens → Custom views), `frame-guard.ts` (refuses to run framed). A view's controls in Nendo's chrome (W-090): `view-toolbar-model.ts` (the declaration rebuilt into closed kinds, its keys, Ctrl K's entries; `tools/Graph-FixtureServer.mjs` builds the same module for the view lanes' fixture broker, W-091), `view-toolbar-markup.ts` (the strip and the menu as markup), `view-toolbar.ts` (drawing and wiring the strip), `view-menu.ts` (Nendo's menu for a view), `styles/18-view-toolbar.css`. One row above a view (W-092): `place-pickers.ts` (the breadcrumb's record-type and view pickers, drawn by the Use page and the front page), `styles/19-one-row.css` |
 | The view API | `Workbench/src/extension-api/nendo-api.ts` (`window.nendo`) and `protocol.ts` (the messages, shapes and limits both ends share), built by `vite.api.config.ts` to `dist/_nendo/api.js` and served at `/_nendo/api.js` on every view origin |
 | What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row on the layout ladder's purpose rung, below the custom-view package tables, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |

@@ -126,6 +126,20 @@ open file, started by the person, never by an agent, a view or an automatic acti
 7. **The layout.** The fold table is a new last rung of the protected layout ladder, added by the
    first fold. A Nendo that predates it refuses the file as a newer layout rather than calling its
    history broken. A file never folded keeps its layout.
+   *Note, 2026-10-13 (PERF-01, PERF-04, W-228):* a fold also adds three indexes on the history
+   tables, inside its transaction and before it deletes anything: `__nendo_idempotency(revision_id)`,
+   and two partial ones, `__nendo_revision(proposal_id, change_sequence)` and
+   `__nendo_revision(compensation_of_revision_id)`. Each folded revision cascades into its
+   idempotency row by revision ID, and without the first index that is a scan of the whole table
+   per revision: a file grown by single edits took about 90 s to fold at 20,000 revisions, and
+   over a minute in the delete alone. With it the same fold takes about 1 s. The two partial
+   indexes serve the receipt read by proposal and the compensation read, which scanned every
+   revision on each prepare, promote and undo. The three are one overlay, not a rung: a rung
+   needs every rung below it, and a fold must not create the search index, which is derived
+   content. The layout signature leaves them out only when all three are there exactly as the
+   host writes them, so every known layout stays known with or without them. A file that has
+   them states host 1.50.0, and so does every folded file and every new file whose stage was
+   folded. A file never folded does not have them; it still scans those reads (see the roadmap).
 8. **Where it is offered.** In History, which says how much of the operation-row bound the file
    has used and warns from 80%: *Fold older history…* shows what would be folded and what would
    no longer be possible, and the host then makes the backup beside the file and folds. The
@@ -170,6 +184,9 @@ is an Engine test in that class; the History screen's part is the fold panel des
 
 ## History
 
+- 2026-10-13 — a fold adds three history indexes before it deletes, as an overlay on the layout
+  rather than a rung; a folded file states host 1.50.0 (note under 7; PERF-01, PERF-04, W-228).
+  Written ahead of the change on the owner's standing pre-acceptance.
 - 2026-10-01 — amended by [ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md):
   a new file of the application folds every revision after Genesis, with no kept window, on its
   staged copy. Its fold row names the source file in place of a backup, because the source

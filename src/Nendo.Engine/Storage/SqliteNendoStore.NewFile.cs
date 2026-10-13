@@ -402,7 +402,11 @@ internal sealed partial class SqliteNendoStore
             await using (var manifest = Command("UPDATE __nendo_manifest SET minimum_host_version = $version;", transaction))
             {
                 var before = await ReadManifestAsync(transaction, ct);
-                manifest.Parameters.AddWithValue("$version", NendoFormat.RequireAtLeast(before.MinimumHostVersion, NendoFormat.NewFileMinimumHostVersion));
+                var required = NendoFormat.RequireAtLeast(before.MinimumHostVersion, NendoFormat.NewFileMinimumHostVersion);
+                // A fold of the stage adds the history indexes, which state their own version.
+                if (await RevisionIndexesExistAsync(transaction, ct))
+                    required = NendoFormat.RequireAtLeast(required, NendoFormat.RevisionIndexesMinimumHostVersion);
+                manifest.Parameters.AddWithValue("$version", required);
                 await manifest.ExecuteNonQueryAsync(ct);
             }
             ct.ThrowIfCancellationRequested();

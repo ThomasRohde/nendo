@@ -571,6 +571,258 @@ public sealed class DesktopLaunchedAgentTests
         Assert.IsFalse((await fixture.WaitAsync(view => true)).Working, "A refused message started a turn.");
     }
 
+    /// <summary>
+    /// DAE-03 (broad review, 2026-10-13): a program that answered initialize with a version as
+    /// text (an MCP server named as the person's own command) threw out of the handshake and left
+    /// the tab at Starting, saying nothing, with the next launch refused.
+    /// </summary>
+    [TestMethod]
+    public async Task AnAgentAnsweringWithAVersionAsTextIsEndedWithASentenceNamingIt()
+    {
+        await using var fixture = await Fixture.StartAsync("inspect", "--version-text");
+        await fixture.LaunchAsync();
+        var ended = await fixture.WaitAsync(view => view.State == "ended");
+        StringAssert.Contains(ended.Notice, "\"2025-06-18\"", "The notice does not name the version the program sent.");
+        Assert.IsNull((await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId)).Running, "The refused agent still counts as running.");
+    }
+
+    /// <summary>
+    /// DAE-03: a permission request whose location had a null line, which ACP allows, threw after
+    /// its entry was added, so the agent was answered "Nendo could not answer." and the tab kept a
+    /// question with no answers at Waiting for you.
+    /// </summary>
+    [TestMethod]
+    public async Task APermissionWhoseLineIsNullIsStillAskedAndAnswerable()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "line-null", 0);
+        var asking = await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission") || !view.Working);
+        var question = asking.Entries.SingleOrDefault(entry => entry.Kind == "permission");
+        Assert.IsNotNull(question, "No permission request was shown: " + string.Join(" | ", asking.Entries.Select(entry => $"{entry.Kind}: {entry.Text}")));
+        Assert.IsNotNull(question.Options, "The request was shown with no answers to choose from.");
+        Assert.HasCount(2, question.Options, "The request does not offer the agent's two answers.");
+        StringAssert.Contains(question.Text, "Where: C:/work/notes.md");
+        fixture.Controller.AnswerLaunchedAgent(fixture.FileSessionId, question.Id, "allow", 0);
+        await fixture.WaitAsync(view => !view.Working);
+        var answer = fixture.Log().Single(entry => entry.TryGetProperty("permission", out _)).GetProperty("permission");
+        Assert.AreEqual("allow", answer.GetProperty("outcome").GetProperty("optionId").GetString(), answer.GetRawText());
+    }
+
+    /// <summary>
+    /// DAE-04: an error answer whose code was text faulted the read loop, the conversation ended
+    /// saying the agent closed its output, and the faulted loop then made closing the file throw
+    /// before agent access stopped, so the file's MCP listener kept its port.
+    /// </summary>
+    [TestMethod]
+    public async Task AnAnswerWhoseCodeIsTextIsARefusalAndClosingTheFileStillStopsTheListener()
+    {
+        await using var fixture = await Fixture.StartAsync("editData", "--config", "--text-code");
+        // A port of this test's own, so another test's listener on the shared default is not mistaken for this one.
+        await fixture.Controller.SetAgentSettingsAsync(false, 60, true, FreePort());
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() =>
+            fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "reasoning_effort", "high", 0));
+        StringAssert.Contains(refused.Message, "boom", "The agent's refusal was not told as its own.");
+        Assert.AreEqual("ready", fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0).State, "One answer with a text code ended the conversation.");
+
+        var endpoint = new Uri((await fixture.Controller.GetAgentStatusAsync()).Endpoint!);
+        await fixture.Controller.CloseAsync();
+        using var probe = new System.Net.Sockets.TcpClient();
+        var reached = false;
+        try { await probe.ConnectAsync(endpoint.Host, endpoint.Port); reached = true; }
+        catch (System.Net.Sockets.SocketException) { }
+        Assert.IsFalse(reached, $"The closed file's agent listener still answers at {endpoint}.");
+    }
+
+    /// <summary>
+    /// DAE-14: when Nendo ended the connection over a message too large, the tab said the agent
+    /// "stopped answering", and the person relaunched into the same failure.
+    /// </summary>
+    [TestMethod]
+    public async Task AMessageTooLargeIsToldAsNendosLimitNotTheAgentsSilence()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "huge", 0);
+        var ended = await fixture.WaitAsync(view => view.State == "ended");
+        StringAssert.Contains(ended.Notice, "larger than the 8 MiB Nendo accepts", "The notice does not say Nendo ended it over the size.");
+        Assert.IsFalse(ended.Notice!.Contains("stopped answering", StringComparison.Ordinal), ended.Notice);
+    }
+
+    /// <summary>
+    /// DAE-10: a second press while the first sign-in ran sent a second authenticate and opened a
+    /// second session over the first. The read says a sign-in runs, so the tab holds its buttons.
+    /// </summary>
+    [TestMethod]
+    public async Task SignInRunsOnceWhileItRuns()
+    {
+        await using var fixture = await Fixture.StartAsync("inspect", "--auth", "--slow-auth");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "signIn");
+        var first = fixture.Controller.AuthenticateLaunchedAgent(fixture.FileSessionId, "browser", 0);
+        Assert.IsTrue(first.SigningIn, "The read does not say a sign-in runs, so the tab would leave its buttons live.");
+        var again = Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.AuthenticateLaunchedAgent(fixture.FileSessionId, "browser", 0),
+            "A second sign-in was started while the first ran.");
+        Assert.AreEqual("agent-signing-in", again.Code);
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.IsFalse(ready.SigningIn);
+        Assert.AreEqual(1, fixture.Log().Count(entry => Method(entry) == "authenticate"), "The agent was asked to sign in more than once.");
+        Assert.AreEqual(2, fixture.Log().Count(entry => Method(entry) == "session/new"), "A second session was opened over the first: one before signing in, one after, is all.");
+    }
+
+    /// <summary>
+    /// DAE-11: a launch that did not end through EndAsync (a host killed, upgraded over or logged
+    /// off, a delete that gave up) left its folder under device state for good. The next launch
+    /// takes every folder no running agent can be using, and leaves another running window's.
+    /// </summary>
+    [TestMethod]
+    public async Task LeftOverAgentFoldersAreSweptAtTheNextLaunch()
+    {
+        await using var fixture = await Fixture.StartAsync("inspect");
+        var root = Path.Combine(fixture.DeviceRoot, "agent-sessions");
+        using var ended = Process.Start(new ProcessStartInfo("node", "-e \"0\"") { UseShellExecute = false, CreateNoWindow = true })!;
+        await ended.WaitForExitAsync();
+        using var running = Process.Start(new ProcessStartInfo("node", "-e \"setTimeout(() => {}, 60000)\"") { UseShellExecute = false, CreateNoWindow = true })!;
+        try
+        {
+            var legacy = Directory.CreateDirectory(Path.Combine(root, Guid.NewGuid().ToString("N"))).FullName;
+            File.WriteAllText(Path.Combine(legacy, "left.txt"), "what an agent wrote");
+            var ofEnded = Directory.CreateDirectory(Path.Combine(root, $"{ended.Id}-{Guid.NewGuid():N}")).FullName;
+            var ofThis = Directory.CreateDirectory(Path.Combine(root, $"{Environment.ProcessId}-{Guid.NewGuid():N}")).FullName;
+            var ofRunning = Directory.CreateDirectory(Path.Combine(root, $"{running.Id}-{Guid.NewGuid():N}")).FullName;
+            // An older Nendo's agent at work: one of its files is open, so nothing in it is taken.
+            var inUse = Directory.CreateDirectory(Path.Combine(root, Guid.NewGuid().ToString("N"))).FullName;
+            var spare = Path.Combine(inUse, "notes.txt");
+            File.WriteAllText(spare, "kept");
+            var heldPath = Path.Combine(inUse, "held.txt");
+            File.WriteAllText(heldPath, "open");
+            using var held = new FileStream(heldPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+            await fixture.LaunchAsync();
+            await fixture.WaitAsync(view => view.State == "ready");
+            Assert.IsFalse(Directory.Exists(legacy), "A folder from before folders were named by their process was left.");
+            Assert.IsFalse(Directory.Exists(ofEnded), "A folder of a process that has ended was left.");
+            Assert.IsFalse(Directory.Exists(ofThis), "A folder of this process that no agent runs in was left.");
+            Assert.IsTrue(Directory.Exists(ofRunning), "A folder of another running Nendo was taken.");
+            Assert.IsTrue(File.Exists(spare), "A folder a program still has a file open in was emptied.");
+            Assert.IsTrue(Directory.Exists(fixture.Controller.LaunchedAgent!.WorkingDirectory), "The new agent's own folder was taken.");
+        }
+        finally
+        {
+            try { running.Kill(); } catch (InvalidOperationException) { }
+        }
+    }
+
+    /// <summary>
+    /// DAE-12: PATH and the variables were the snapshot this process took when it started, so a
+    /// program installed since stayed "not installed" and an API key set since never reached the
+    /// agent. The catalogue and the launch read the environment as Windows holds it now.
+    /// </summary>
+    [TestMethod]
+    public async Task AProgramInstalledSinceStartIsFoundAndTheAgentGetsTodaysVariables()
+    {
+        await using var fixture = await Fixture.StartAsync("inspect");
+        var installed = Directory.CreateTempSubdirectory("nendo-agent-installed-");
+        try
+        {
+            File.WriteAllText(Path.Combine(installed.FullName, "fresh-acp-agent.cmd"), "@echo off\r\n");
+            fixture.Controller.AgentEnvironmentReader = () =>
+            {
+                var now = new Dictionary<string, string>(AgentEnvironment.Read(), StringComparer.OrdinalIgnoreCase);
+                now[AgentEnvironment.PathName] = AgentEnvironment.PathOf(now) + ";" + installed.FullName;
+                now["NENDO_AGENT_PROBE"] = "set after start";
+                return now;
+            };
+            var offered = await fixture.Controller.SetAgentCommandAsync(fixture.FileSessionId, "fresh-acp-agent --acp");
+            Assert.IsTrue(offered.Agents.Single(agent => agent.Id == DesktopAgentCatalog.CustomId).Found,
+                "A program in a PATH folder added since Nendo started is still not found.");
+
+            await fixture.Controller.SetAgentCommandAsync(fixture.FileSessionId, fixture.Command);
+            await fixture.LaunchAsync();
+            await fixture.WaitAsync(view => view.State == "ready");
+            var started = fixture.Log().Single(entry => entry.TryGetProperty("started", out _));
+            Assert.AreEqual("set after start", started.GetProperty("probe").GetString(), "A variable set since Nendo started did not reach the agent.");
+        }
+        finally
+        {
+            installed.Delete(recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void TheEnvironmentIsTheMachinesThenThePersonsOverThisProcesss()
+    {
+        var process = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Path"] = "C:/old;C:/only-here", ["ONLY_HERE"] = "kept", ["KEY"] = "old" };
+        var machine = new Dictionary<string, EnvironmentValue>(StringComparer.OrdinalIgnoreCase) { ["Path"] = new("C:/old;C:/Program Files/nodejs") };
+        var user = new Dictionary<string, EnvironmentValue>(StringComparer.OrdinalIgnoreCase) { ["PATH"] = new("C:/Users/someone/npm"), ["KEY"] = new("new") };
+        var merged = AgentEnvironment.Merge(process, machine, user);
+        Assert.AreEqual("C:/old;C:/Program Files/nodejs;C:/Users/someone/npm;C:/only-here", AgentEnvironment.PathOf(merged));
+        Assert.AreEqual("kept", merged["ONLY_HERE"], "A variable only this process had was lost.");
+        Assert.AreEqual("new", merged["KEY"], "The person's variable as set now did not win over this process's copy.");
+    }
+
+    /// <summary>
+    /// Review of the DAE-12 fix: the machine's key names USERNAME=SYSTEM, which every launched
+    /// agent was given. This process's identity and per-sign-in variables stay its own.
+    /// </summary>
+    [TestMethod]
+    public void TheAgentKeepsThisProcesssIdentityOverTheMachinesKey()
+    {
+        var process = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["USERNAME"] = "someone", ["USERPROFILE"] = "C:/Users/someone" };
+        var machine = new Dictionary<string, EnvironmentValue>(StringComparer.OrdinalIgnoreCase) { ["USERNAME"] = new("SYSTEM"), ["USERPROFILE"] = new("C:/Windows/system32/config/systemprofile") };
+        var merged = AgentEnvironment.Merge(process, machine, new Dictionary<string, EnvironmentValue>());
+        Assert.AreEqual("someone", merged["USERNAME"], "The agent was given the machine key's user name.");
+        Assert.AreEqual("C:/Users/someone", merged["USERPROFILE"]);
+    }
+
+    /// <summary>
+    /// Review of the DAE-12 fix: an expandable value was expanded against this process's old
+    /// variables, so a PATH folder that names a variable set since did not find it.
+    /// </summary>
+    [TestMethod]
+    public void AnExpandableValueIsExpandedAgainstTheEnvironmentBeingBuilt()
+    {
+        var process = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase) { ["Path"] = "C:/old" };
+        var user = new Dictionary<string, EnvironmentValue>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["NEWVAR"] = new("C:/x"),
+            ["Path"] = new("%NEWVAR%\\bin", Expandable: true),
+            ["TOOLS"] = new("%NEWVAR%\\tools;%UNSET%", Expandable: true),
+        };
+        var merged = AgentEnvironment.Merge(process, new Dictionary<string, EnvironmentValue>(), user);
+        Assert.AreEqual("C:/x\\bin;C:/old", AgentEnvironment.PathOf(merged), "A PATH folder naming a variable set since was not expanded with it.");
+        Assert.AreEqual("C:/x\\tools;%UNSET%", merged["TOOLS"], "An expandable value was not expanded against the new variables, or an unknown name was not left as it was.");
+    }
+
+    /// <summary>
+    /// DAE-07: finding the agents walks every PATH folder, about 20 seconds with an unreachable
+    /// share first; under the request gate the Agent page's 3-second poll held every save, open and
+    /// switch behind it. Nothing in the file is read to find them, so the gate is not held.
+    /// </summary>
+    [TestMethod]
+    public async Task FindingTheAgentsHoldsNoOtherRequest()
+    {
+        await using var fixture = await Fixture.StartAsync("inspect");
+        using var unreachable = new ManualResetEventSlim();
+        fixture.Controller.AgentEnvironmentReader = () =>
+        {
+            unreachable.Wait(Patience);
+            return AgentEnvironment.Read();
+        };
+        var listing = fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId);
+        await Task.Delay(200);
+        Assert.IsFalse(listing.IsCompleted, "The blocked PATH walk did not block the list.");
+        var status = fixture.Controller.GetAgentStatusAsync();
+        var first = await Task.WhenAny(status, Task.Delay(TimeSpan.FromSeconds(5)));
+        unreachable.Set();
+        Assert.AreSame(status, first, "A request on the gate waited for the agents to be found.");
+        Assert.IsNotEmpty((await listing).Agents);
+    }
+
     [TestMethod]
     public void ACommandLineKeepsQuotedWordsTogether()
     {
@@ -666,6 +918,8 @@ public sealed class DesktopLaunchedAgentTests
         internal DesktopSessionController Controller { get; }
         internal string FileSessionId { get; }
         internal string FilePath => _workspace.FilePath;
+        internal string DeviceRoot => _workspace.FileHistoryRoot;
+        internal string Command { get; private init; } = string.Empty;
 
         internal static async Task<Fixture> StartAsync(string mode, params string[] flags)
         {
@@ -683,7 +937,7 @@ public sealed class DesktopLaunchedAgentTests
                 "These tests run a stand-in agent with Node, which is not on PATH.");
             var command = $"node \"{agent}\" --log \"{log}\" {string.Join(' ', flags)}";
             await controller.SetAgentCommandAsync(view.FileSessionId!, command);
-            return new Fixture(workspace, controller, log, view.FileSessionId!);
+            return new Fixture(workspace, controller, log, view.FileSessionId!) { Command = command };
         }
 
         internal Task<DesktopLaunchedAgentView> LaunchAsync() =>
