@@ -11,9 +11,11 @@ project. No build step. No regeneration when you want a change.
 
 *Nendo* (粘土) is Japanese for clay.
 
-> **Experimental.** Nendo is a research prototype exploring whether malleable
-> software works, not a product. It runs as an unsigned per-user Windows x64
-> install. Read [State](#state) before you rely on anything here.
+> **1.0, for one person's use.** Nendo 1.0 promises that a file it opens keeps
+> opening, with its data intact, in every later 1.x. It is still a research
+> project built and used by one person: an unsigned per-user Windows x64 install
+> built from source, with no download, no updates and no support. Read
+> [State](#state) before you rely on anything here.
 
 **[thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/)** — the
 concept, how it works, how to use it, the honest status, and guides written for
@@ -24,7 +26,7 @@ people outside this repository. It does not render `docs/`.
 </p>
 
 <p align="center"><sub>A board an agent authored over MCP, in the running host.
-Captured from the 2026-09-12 review build (0.19.0 is current), with the rest of
+Captured from the 2026-09-12 review build (1.0.0 is current), with the rest of
 that review in <a href="docs/reviews/README.md">docs/reviews/</a>.</sub></p>
 
 The installed host always provides **Nendo Studio**, a high-quality database
@@ -71,6 +73,11 @@ x64 install. Four reference applications falsify the hypothesis from different
 shapes — Idea Garden, Decision Log, the Axiom Register and
 [Nendo Station](docs/nendo-station.md) — and the last two were built from an empty
 file through the MCP interface alone.
+
+Version 1.0.0 promises one thing beyond that: a file Nendo 1.0 opens normally
+opens normally in every later 1.x, with its records, fields, screens and packages
+intact ([ADR-0012](docs/decisions/0012-safe-mode-compatibility-and-migration.md),
+2026-10-14 amendment). It is not a public release.
 
 Public distribution, signing, ARM64, cloud sync and cross-platform support are
 **not** qualified, and the independent human evaluation has not been run. The

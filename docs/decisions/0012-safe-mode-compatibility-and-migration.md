@@ -225,6 +225,40 @@ stands. A `-wal` or `-shm` set is still refused unopened. The refusal now says n
 delete the files beside a `.nendo` file or to copy it without them. Physical power loss
 and torn sectors remain unqualified (ADR-0011).
 
+## 2026-10-14 amendment — a file Nendo 1.0 opens, every later 1.x opens
+
+The owner chose this on 2026-10-14 as the promise that makes Nendo 1.0.0 (I-010, W-235).
+Two numbers must not be confused. The product version (`Directory.Build.props`) is what
+the person installs and what becomes 1.0.0. The minimum host version a file states is the
+format's own capability ladder in `NendoFormat`, which stood at 1.51.0 when the product
+reached 1.0.0. The promise is made in product versions:
+
+1. **A file that Nendo 1.0.0 opens normally, every later 1.x opens normally.** That
+   includes the files 0.x hosts wrote. Where the file and its folder allow writes, it opens
+   *Normal writable*, never in safe mode or recovery. Every record type, field, record value,
+   screen node and package the file carried reads back unchanged.
+2. **A later 1.x may add rungs to the ladder, never take one away.** It keeps core format
+   version 1 and every rung up to 1.51.0. If a file ever needs a migration, the host runs it
+   automatically through the staged, backed-up path described above, and the person never
+   has to convert a file by hand.
+3. **Not promised.** An older 1.x still refuses a file that uses a newer 1.x's rung (the
+   `minimum_host_version` rule stands). How a screen looks or behaves may improve. A file is
+   still never downgraded in place.
+
+Breaking any part of this needs Nendo 2.0 and its own ADR.
+
+**How it is held.** `tests/Nendo.Engine.Tests/Fixtures/Format1/` keeps files as Nendo 1.0
+reads them: frozen copies of two tracked demo files, `Nendo Station.nendo` (host 1.33.0:
+custom-view packages and almost every kind of screen) and `Swarm.nendo` (host 1.42.0:
+hierarchy, look, folded history and new-file rules). Beside them is one file a builder
+generated at the top rung, 1.51.0, which carries the full-text index and a changed
+reference label. Each file has a JSON record of what it holds. `FormatPromiseTests` opens a
+copy of each one, requires *Normal writable* with no findings, and compares what it reads
+back with that record. It also writes to each copy, so the file is proven writable as well
+as readable. Within 1.x a fixture may be added for a new rung but never rebuilt or replaced.
+Its builder, `FormatPromiseTests.BuildFixtures`, runs only when
+`NENDO_WRITE_FORMAT_FIXTURES=1` is set.
+
 ## Consequences
 
 ### Positive
@@ -273,3 +307,5 @@ Complete rejection is rejected when bounded read-only access can be proven safe.
   clear the mark first, keeping the table's normal read-only row to inspection, history,
   export and backup (R2SMA-10, W-221). A read-only session reads its package files from
   the file while the file still holds what it inspected (ECO-07).
+- 2026-10-14 — owner: a file that Nendo 1.0.0 opens normally, every later 1.x opens
+  normally, held by the Format1 fixtures (the amendment above, I-010, W-235).

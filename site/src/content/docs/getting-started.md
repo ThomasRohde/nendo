@@ -5,7 +5,7 @@ group: Start
 order: 10
 ---
 
-This guide takes you from a clone of the repository to a file with your own records in it. The [Use page](/nendo/use) gives the short version. Nendo is a research prototype. Read [Status](/nendo/status) before you rely on it.
+This guide takes you from a clone of the repository to a file with your own records in it. The [Use page](/nendo/use) gives the short version. Nendo 1.0 is a research project, not a supported product. Read [Status](/nendo/status) before you rely on it.
 
 ## Requirements
 

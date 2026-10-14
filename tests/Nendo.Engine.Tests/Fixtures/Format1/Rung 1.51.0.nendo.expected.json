@@ -1,0 +1,32 @@
+{
+  "formatVersion": 1,
+  "minimumHostVersion": "1.51.0",
+  "applicationId": "application-f5215cfb99aa42ee8c184327912249df",
+  "entities": [
+    {
+      "entityId": "projects",
+      "retired": false,
+      "fields": [
+        "archived",
+        "budget",
+        "code",
+        "name",
+        "notes"
+      ],
+      "records": 2
+    },
+    {
+      "entityId": "tasks",
+      "retired": false,
+      "fields": [
+        "project",
+        "title"
+      ],
+      "records": 2
+    }
+  ],
+  "valuesSha256": "27a5038c83624e296499ae15f4f43827dd7b6ff07083f161b39ec6c5e497eda2",
+  "uiNodes": 0,
+  "uiNodesSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "packages": []
+}

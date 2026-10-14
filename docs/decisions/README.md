@@ -52,6 +52,12 @@ ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-
 ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
 ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
 
+- **ADR-0012, 2026-10-14 — a file Nendo 1.0 opens, every later 1.x opens**: a file that
+  product 1.0.0 opens normally, including the files 0.x hosts wrote, opens *Normal writable*
+  in every later 1.x with its definitions and data intact. A 1.x host may add rungs to the
+  format ladder (1.51.0 at 1.0.0) but never drops one, and any migration a file needs is
+  automatic. The Format1 fixtures and `FormatPromiseTests` hold it; breaking it needs 2.0
+  (I-010, W-235).
 - **ADR-0009, 2026-10-14 — each file of an application keeps its own port**: the agent
   port a file keeps is filed under its application and instance IDs together, so a new file
   or a Duplicate no longer shares, and moves, the original's port; an older list's one entry

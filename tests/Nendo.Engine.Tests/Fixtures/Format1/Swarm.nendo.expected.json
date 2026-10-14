@@ -1,0 +1,81 @@
+{
+  "formatVersion": 1,
+  "minimumHostVersion": "1.42.0",
+  "applicationId": "application-220387f8025f403b82a50a5d5ce80969",
+  "entities": [
+    {
+      "entityId": "sw.experiment",
+      "retired": false,
+      "fields": [
+        "sw.experiment.habitat",
+        "sw.experiment.name",
+        "sw.experiment.population",
+        "sw.experiment.seed",
+        "sw.experiment.snapshot",
+        "sw.experiment.species",
+        "sw.experiment.steps"
+      ],
+      "records": 1
+    },
+    {
+      "entityId": "sw.habitat",
+      "retired": false,
+      "fields": [
+        "sw.habitat.height",
+        "sw.habitat.name",
+        "sw.habitat.width"
+      ],
+      "records": 1
+    },
+    {
+      "entityId": "sw.link",
+      "retired": false,
+      "fields": [
+        "sw.link.branch",
+        "sw.link.name",
+        "sw.link.source",
+        "sw.link.species",
+        "sw.link.target",
+        "sw.link.waypoints"
+      ],
+      "records": 46
+    },
+    {
+      "entityId": "sw.node",
+      "retired": false,
+      "fields": [
+        "sw.node.action",
+        "sw.node.condition",
+        "sw.node.duration",
+        "sw.node.kind",
+        "sw.node.name",
+        "sw.node.species",
+        "sw.node.x",
+        "sw.node.y"
+      ],
+      "records": 34
+    },
+    {
+      "entityId": "sw.species",
+      "retired": false,
+      "fields": [
+        "sw.species.alignment",
+        "sw.species.cohesion",
+        "sw.species.description",
+        "sw.species.name",
+        "sw.species.perception",
+        "sw.species.population",
+        "sw.species.seed",
+        "sw.species.separation",
+        "sw.species.speed"
+      ],
+      "records": 4
+    }
+  ],
+  "valuesSha256": "49e1d3951fae85e2af473e5f1867490f45374530be2df89016f89a5ef1d2b9d3",
+  "uiNodes": 11,
+  "uiNodesSha256": "2d231e53408e4280d971a7ec825be7818983d76824d259035e21b90c942055f8",
+  "packages": [
+    "org.nendo.swarm@0.1.0: 9 files, b2b4c9200659a241bbc0c3d404bcee2816596a59d2b2326b10352b1314dc06ab"
+  ]
+}

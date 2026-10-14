@@ -1,0 +1,143 @@
+{
+  "formatVersion": 1,
+  "minimumHostVersion": "1.33.0",
+  "applicationId": "application-963ecf577cc8429ebf10937ba171585d",
+  "entities": [
+    {
+      "entityId": "component",
+      "retired": false,
+      "fields": [
+        "componentInstalled",
+        "componentKind",
+        "componentLastServiced",
+        "componentName",
+        "componentNextServiceDue",
+        "componentSchematicLabel",
+        "componentSerial",
+        "componentServiceInterval",
+        "componentState",
+        "componentSystem"
+      ],
+      "records": 41
+    },
+    {
+      "entityId": "crew",
+      "retired": false,
+      "fields": [
+        "crewCallsign",
+        "crewName",
+        "crewRole",
+        "crewRotationEnd",
+        "crewRotationStart"
+      ],
+      "records": 12
+    },
+    {
+      "entityId": "experiment",
+      "retired": false,
+      "fields": [
+        "experimentEnd",
+        "experimentLead",
+        "experimentModule",
+        "experimentPower",
+        "experimentPriority",
+        "experimentStart",
+        "experimentStatus",
+        "experimentSystem",
+        "experimentTitle"
+      ],
+      "records": 8
+    },
+    {
+      "entityId": "feed",
+      "retired": false,
+      "fields": [
+        "feedFrom",
+        "feedKind",
+        "feedNote",
+        "feedRedundant",
+        "feedTo"
+      ],
+      "records": 48
+    },
+    {
+      "entityId": "incident",
+      "retired": false,
+      "fields": [
+        "incidentComponent",
+        "incidentRaised",
+        "incidentResolved",
+        "incidentSeverity",
+        "incidentStatus",
+        "incidentSummary",
+        "incidentSystem",
+        "incidentTitle"
+      ],
+      "records": 15
+    },
+    {
+      "entityId": "maintenance",
+      "retired": false,
+      "fields": [
+        "taskCompleted",
+        "taskComponent",
+        "taskDue",
+        "taskHours",
+        "taskKind",
+        "taskOpened",
+        "taskStatus",
+        "taskTitle"
+      ],
+      "records": 20
+    },
+    {
+      "entityId": "module",
+      "retired": false,
+      "fields": [
+        "moduleCommissioned",
+        "moduleDesignation",
+        "moduleName",
+        "modulePressurised",
+        "moduleVolume"
+      ],
+      "records": 7
+    },
+    {
+      "entityId": "reading",
+      "retired": false,
+      "fields": [
+        "readingMetric",
+        "readingOutOfLimits",
+        "readingSystem",
+        "readingTaken",
+        "readingUnit",
+        "readingValue"
+      ],
+      "records": 345
+    },
+    {
+      "entityId": "system",
+      "retired": false,
+      "fields": [
+        "systemCapacity",
+        "systemCapacityUnit",
+        "systemCode",
+        "systemCommissioned",
+        "systemCondition",
+        "systemCriticality",
+        "systemLoad",
+        "systemModule",
+        "systemName",
+        "systemReviewFlag",
+        "systemReviewNote"
+      ],
+      "records": 9
+    }
+  ],
+  "valuesSha256": "307a0cd467f9edd1501e9cf82cf36ea57974f9ec579a27e29e7ac6a89b3901ad",
+  "uiNodes": 256,
+  "uiNodesSha256": "601a188e82e7dc2d3b1c1ec017f89b3c9bf15e90d31c8b8d9d0d09e14ad06950",
+  "packages": [
+    "org.nendo.systems-lens@1.2.0: 5 files, 0fd6ebfb61789c2338371baf3103ef551b573cb95f62982e5bd9857f9ee16e5c"
+  ]
+}

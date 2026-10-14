@@ -51,6 +51,7 @@ Each file records the minimum version of Nendo's file capabilities that it needs
 
 - **An older Nendo** refuses a file that needs a newer one. It does not open the file partially.
 - **A newer Nendo** opens an older file without upgrading or rewriting it. The minimum rises only when an accepted change needs it, and never goes down.
+- **Within 1.x**, a file that Nendo 1.0 opens, every later 1.x opens normally, with its records, fields, screens and packages as they were. Breaking that would take Nendo 2.0.
 - **A file from an early layout** opens for inspection only. Health offers **Upgrade file…**, which moves it to the current format as an explicit step.
 
 ## CSV import and export

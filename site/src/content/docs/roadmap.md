@@ -7,7 +7,9 @@ order: 10
 
 ## Where Nendo is now
 
-Nendo is a research prototype. It tests one idea: an application can live in one
+Nendo 1.0 is a research project for one person's use. A file Nendo 1.0 opens keeps
+opening, with its data intact, in every later 1.x; nothing else is promised. It tests
+one idea: an application can live in one
 local file that people and coding agents reshape in place, with no generated
 project and no build step.
 

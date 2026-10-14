@@ -193,6 +193,12 @@ The host only raises a recorded minimum, and never lowers it. An older host
 refuses a newer file explicitly, and does not open it partially. Opening an older
 file never upgrades or rewrites it.
 
+From product 1.0.0, a file that 1.0.0 opens normally opens normally in every later 1.x,
+with its definitions and data intact. The ladder stood at 1.51.0 then. A 1.x host adds
+rungs and never drops one ([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md),
+2026-10-14 amendment). `FormatPromiseTests` holds this against the frozen files in
+`tests/Nendo.Engine.Tests/Fixtures/Format1/`.
+
 Custom-view packages in the file are four protected tables on the layout ladder's
 extension rung, after the purpose's: the packages, a content store, the files and view state. The Engine
 creates them on the first extension write, never at file creation. A file that

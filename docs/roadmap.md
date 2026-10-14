@@ -29,7 +29,11 @@ the MCP interface alone. [Nendo Station](nendo-station.md) carries every kind of
 screen that this host compiles except the outline, added at 1.36.0, plus a custom
 view of its own.
 
-Delivery is a local, unsigned, per-user Windows x64 install.
+Delivery is a local, unsigned, per-user Windows x64 install. Product 1.0.0
+(2026-10-14, I-010) is a release for the owner's own use. It promises that a file 1.0
+opens normally keeps opening normally in every later 1.x
+([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md), 2026-10-14
+amendment). It is not a public release, and every row below still stands.
 
 ## Not qualified
 

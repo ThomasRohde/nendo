@@ -20,6 +20,21 @@ async page => {
   const until = async (fn, arg, what, timeout = 4000) => {
     try { await page.waitForFunction(fn, arg, { timeout }); } catch { throw Error(`Timed out waiting for ${what}.`); }
   };
+  // The lazy table is scrolled with the wheel, a little back and then on, until `done` holds.
+  // AG Grid can drop a scroll that lands while it is still syncing its own, and writing the same
+  // scrollTop again fires no event, so a check that only set scrollTop could wait forever on a
+  // grid that never asked for the next block (W-235).
+  const wheelGrid = async (deltaY, done, arg, what, timeout = 10000) => {
+    const box = await page.locator('#record-grid .ag-grid-viewport').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (const deadline = Date.now() + timeout; ;) {
+      if (await page.evaluate(done, arg)) return;
+      if (Date.now() > deadline) throw Error(`Timed out waiting for ${what}.`);
+      await page.mouse.wheel(0, -Math.sign(deltaY) * 60);
+      await page.mouse.wheel(0, deltaY);
+      await page.waitForTimeout(200);
+    }
+  };
   const focus = () => page.evaluate(() => {
     const element = document.activeElement;
     if (element === null || element === document.body) return 'body';
@@ -83,11 +98,7 @@ async page => {
     assert(await page.locator('[data-page-next]').count() === 0, 'W-233: the table still needs its pager.');
     const grid = await page.locator('#record-grid').elementHandle();
     for (let index = 1; index < 10; index++) {
-      await page.waitForFunction(index => {
-        const viewport = document.querySelector('#record-grid .ag-grid-viewport');
-        viewport.scrollTop = viewport.scrollHeight;
-        return window.__lazyCalls.some(call => call.start >= index * 100);
-      }, index, { polling: 200, timeout: 10000 });
+      await wheelGrid(100000, index => window.__lazyCalls.some(call => call.start >= index * 100), index, `a request for lazy block ${index}`);
       await until(index => [...document.querySelectorAll('#record-grid .ag-row[row-id]')].some(row =>
         Number(row.getAttribute('row-index')) >= index * 100), index, `loaded lazy block ${index}`, 10000);
     }
@@ -96,9 +107,8 @@ async page => {
     assert(counts.cachedRecords > 0 && counts.cachedRecords <= 500 && counts.blocks > 0 && counts.blocks <= 5 && counts.dom > 0 && counts.dom < 200,
       `W-233: cache grew with visited rows: ${JSON.stringify(counts)}.`);
     assert(await grid.evaluate(element => element.isConnected), 'W-233: loading replaced the grid.');
-    await page.evaluate(() => { document.querySelector('#record-grid .ag-grid-viewport').scrollTop = 0; });
-    await until(() => document.querySelector('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]')?.textContent?.length > 0,
-      null, 'evicted first block to reload', 10000);
+    await wheelGrid(-100000, () => document.querySelector('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]')?.textContent?.length > 0,
+      null, 'evicted first block to reload');
     assert(await page.evaluate(() => window.__lazyCalls.filter(call => call.start === 0).length >= 2), 'W-233: evicted block did not reload.');
     const copiedCell = page.locator('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]');
     const copiedText = await copiedCell.textContent();
@@ -145,21 +155,19 @@ async page => {
     });
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-id="lazy-00000"]') !== null, null, 'initial block');
-    for (let index = 1; index < 6; index++) {
-      await page.waitForFunction(index => {
-        const viewport = document.querySelector('#record-grid .ag-grid-viewport');
-        viewport.scrollTop = viewport.scrollHeight;
-        return [...document.querySelectorAll('#record-grid .ag-row[row-id]')].some(row => Number(row.getAttribute('row-index')) >= index * 100);
-      }, index, { polling: 200, timeout: 10000 });
-    }
-    await page.waitForTimeout(150);
-    const target = await page.evaluate(() => {
+    for (let index = 1; index < 6; index++)
+      await wheelGrid(100000, index => [...document.querySelectorAll('#record-grid .ag-row[row-id]')]
+        .some(row => Number(row.getAttribute('row-index')) >= index * 100), index, `loaded lazy block ${index}`);
+    const deepRow = () => {
       const viewport = document.querySelector('#record-grid .ag-grid-viewport').getBoundingClientRect();
       return [...document.querySelectorAll('.ag-row[row-id]')].find(row => {
         const box = row.getBoundingClientRect();
-        return /^lazy-00[5-9]/.test(row.getAttribute('row-id')) && box.top >= viewport.top && box.bottom <= viewport.bottom;
-      })?.getAttribute('row-id');
-    });
+        return /^lazy-00[5-9]/.test(row.getAttribute('row-id')) && box.top >= viewport.top && box.bottom <= viewport.bottom
+          && row.querySelector('.ag-cell[col-id="field.idea.title"]')?.textContent?.length > 0;
+      })?.getAttribute('row-id') ?? null;
+    };
+    await until(deepRow, null, 'a loaded record of the sixth block in view', 10000).catch(() => {});
+    const target = await page.evaluate(deepRow);
     assert(target, 'W-233: the deep edit never reached the sixth block.');
     const cell = `.ag-row[row-id="${target}"] .ag-cell[col-id="field.idea.title"]`;
     await page.locator(cell).dblclick();
@@ -210,8 +218,7 @@ async page => {
       assert(visible.length === 1 && visible[0] === 'field.idea.title',
         `W-233: the Tab fixture did not leave exactly one data column visible: ${JSON.stringify(visible)}.`);
     }
-    await page.evaluate(() => { const viewport = document.querySelector('#record-grid .ag-grid-viewport'); viewport.scrollTop = viewport.scrollHeight; });
-    await until(() => window.__lazyReleases.length > 0, null, 'a blocked second block');
+    await wheelGrid(100000, () => window.__lazyReleases.length > 0, null, 'a blocked second block');
     await page.locator('.ag-row[row-id="lazy-00099"] .ag-cell[col-id="field.idea.title"]').dblclick();
     await page.keyboard.press('Control+a');
     await page.keyboard.type('Boundary edit');
