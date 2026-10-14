@@ -1,4 +1,4 @@
-import { prepareApplication, recoverAfterWriteFailure, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
+import { prepareApplication, recoverAfterWriteFailure, refreshView, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
 import { filterInputMode, filterPlaceholder, studioFilter } from './filter-input';
 import { referenceControl, wireReferenceControls } from './reference-controls';
 import { keptChoice, keptChoices, keptDefaultProposal, keptDefaultSentence, keptFromChoice, keptText } from './new-file';
@@ -14,7 +14,8 @@ import { type CalculationResult, type EntitySnapshot, type ReadPage, type Record
 import { icon } from './icons';
 import { type MoveDirection, type OutlineNode, type OutlineRow, movePayload, moveTarget, visibleRows } from './outline-model';
 import { activePlan, currentRecipe, derivedFor, recordPlanOf, recordsForEntity, sessionEntity, snapshotFieldPlans } from './plan-selection';
-import { wireRecordPager } from './reads';
+import { cleanColumnLayout, columnLayoutKey, readColumnLayout, writeColumnLayout, type ColumnLayout } from './studio-column-layout';
+import { studioDatasource, studioBlockSize, studioCacheBlocks, type RecordBlock } from './studio-grid-datasource';
 import { wireRecordForm } from './record-form';
 import { recordSheetMarkup } from './record-markup';
 import { emptyWindowQuery, windowRequest } from './record-window';
@@ -22,11 +23,11 @@ import { ratingMarkup, ratingScaleOf, ratingSteps } from './rating';
 import { exactNumberText, parseScalar } from './scalars';
 import { announce, content, requiredElement, rerender, setBusy, showError } from './shell';
 import { recordTypeProposal, renameSchemaProposal } from './studio';
-import { type ColumnWidths, nextSort, queryStatusText, rememberWidths, rememberedWidths, sortOf, withFilter, withSort } from './studio-columns';
+import { type ColumnWidths, forgetWidths, nextSort, queryStatusText, rememberWidths, rememberedWidths, sortOf, withFilter, withSort } from './studio-columns';
 import { StudioHeader, type StudioHeaderOptions } from './studio-header';
 import { studioSearchFieldMarkup, studioSearchResultsMarkup, wireStudioSearch } from './studio-search';
 import { type StudioLayout, captureOutlineRead, outlineErrorIsCurrent, outlines, readOutlineLevel, refreshOutline, studioLayouts, studioOutlineErrors } from './studio-outline';
-import { recordPagerMarkup } from './surface-markup';
+
 import { choiceStyle } from './tones';
 /**
  * Studio data: the permanent route into a file. It shows the records of one
@@ -86,9 +87,50 @@ let gridApi: GridApi<GridRow> | null = null;
 /** The most a Studio cell's large-text editor holds: far past any note, short of a runaway paste. */
 const largeTextCharacters = 1_000_000;
 
+let gridKey = '';
+let gridRevision = -1;
+let gridStale = false;
+let gridGeneration = 0;
+let gridPlace: { key: string; recordId: string; index: number; colId: string; left: number; focus: boolean; pendingOffset?: number } | null = null;
+/** Bounded read diagnostics for the existing browser qualification lane. No record values. */
+export function dataGridReadDiagnostics(): { cachedRecords: number; blocks: number; focusedRecordId: string | null; focusedIndex: number | null; anchorIndex: number | null; pendingOffset: number | null; anchorLeft: number | null } {
+  let cachedRecords = 0;
+  gridApi?.forEachNode(node => { if (node.data) cachedRecords++; });
+  const focus = gridApi?.getFocusedCell();
+  return { cachedRecords, blocks: gridKey ? Object.keys(gridApi?.getCacheBlockState() ?? {}).length : 0,
+    focusedIndex: focus?.rowIndex ?? null, anchorIndex: gridPlace?.index ?? null, pendingOffset: gridPlace?.pendingOffset ?? null, anchorLeft: gridPlace?.left ?? null,
+    focusedRecordId: focus ? gridApi?.getDisplayedRowAtIndex(focus.rowIndex)?.data?.recordId ?? null : null };
+}
+const tableKey = (entityId: string): string => JSON.stringify([state.session.fileSessionId, entityId, studioQueries.get(entityId) ?? null]);
+fileScopedClearable({ clear() { gridPlace = null; gridGeneration++; } });
+
+export function markDataGridChanged(sequence: number): boolean {
+  if (gridApi === null || !gridKey || state.view !== 'data' || sequence <= gridRevision) return false;
+  gridStale = true;
+  const status = content.querySelector('[data-grid-load-status]');
+  if (status) status.textContent = 'The file changed. Refresh the table to continue.';
+  return !state.actionInFlight;
+}
+
 export function destroyGrid(): void {
+  if (gridApi !== null && gridKey) {
+    const focused = gridApi.getFocusedCell();
+    const inside = !!content.querySelector('#record-grid')?.contains(document.activeElement);
+    const index = inside ? focused?.rowIndex ?? gridApi.getFirstDisplayedRowIndex() : gridApi.getFirstDisplayedRowIndex();
+    const row = gridApi.getDisplayedRowAtIndex(index)?.data;
+    if (row && (cellFocusAfterDraw === null || inside)) gridPlace = { key: gridKey, recordId: row.recordId, index,
+      colId: focused?.column.getColId() ?? 'openRecord', left: cellFocusAfterDraw?.scrollLeft ?? gridViewport()?.scrollLeft ?? 0,
+      focus: inside };
+    else if (!row && inside && cellFocusAfterDraw !== null && gridPlace?.key === gridKey && focused) {
+      // Enter can reach an unloaded row before its save redraws. Locate the saved
+      // record first, then continue relative to it once the new block arrives.
+      gridPlace = { ...gridPlace, pendingOffset: focused.rowIndex - gridPlace.index, colId: focused.column.getColId() };
+    }
+  }
+  gridGeneration++;
   gridApi?.destroy();
   gridApi = null;
+  gridKey = '';
 }
 
 /**
@@ -109,7 +151,8 @@ export function stopGridEditing(): boolean {
 // The widths of this file session, by record type. Storage seeds them and keeps them for the
 // next session; when the device refuses storage they still hold until the file closes.
 const columnWidths = new Map<string, ColumnWidths>();
-fileScopedClearable({ clear() { columnWidths.clear(); headerFocusAfterDraw = null; } });
+const columnLayouts = new Map<string, ColumnLayout[]>();
+fileScopedClearable({ clear() { columnWidths.clear(); columnLayouts.clear(); headerFocusAfterDraw = null; } });
 // A sort made from the keyboard puts the focus back on its header once the table is redrawn.
 let headerFocusAfterDraw: string | null = null;
 // A cell save redraws the table. It came back with the focus on the page and its columns
@@ -121,16 +164,20 @@ function gridViewport(): HTMLElement | null {
   return content.querySelector<HTMLElement>('#record-grid .ag-grid-viewport');
 }
 
-function keepCellAcrossDraw(event: CellValueChangedEvent<GridRow>): void {
+function keepCellAcrossDraw(event: CellValueChangedEvent<GridRow>, scrollLeft?: number): void {
   const focused = event.api.getFocusedCell();
   const row = focused === null ? null : event.api.getDisplayedRowAtIndex(focused.rowIndex);
   const grid = content.querySelector('#record-grid');
   cellFocusAfterDraw = {
     recordId: row?.data?.recordId ?? event.data!.recordId,
     colId: focused?.column.getColId() ?? event.colDef.colId!,
-    scrollLeft: gridViewport()?.scrollLeft ?? 0,
+    scrollLeft: scrollLeft ?? gridViewport()?.scrollLeft ?? 0,
     focus: grid !== null && grid.contains(document.activeElement),
   };
+  if (gridKey) gridPlace = { key: gridKey, recordId: cellFocusAfterDraw.recordId,
+    index: row?.data ? focused!.rowIndex : event.rowIndex ?? 0,
+    pendingOffset: !row?.data && focused && event.rowIndex !== null ? focused.rowIndex - event.rowIndex : undefined,
+    colId: cellFocusAfterDraw.colId, left: cellFocusAfterDraw.scrollLeft, focus: cellFocusAfterDraw.focus };
 }
 
 function restoreCellAfterDraw(api: GridApi<GridRow>, rowData: GridRow[]): void {
@@ -372,7 +419,7 @@ export async function selectDataEntity(entityId: string): Promise<void> {
     state.creatingRecord = false;
     state.selectedRecordId = null;
     state.view = 'data';
-    if (recordWindows.get(entityId)?.page.changeSequence !== state.session.manifest?.changeSequence) {
+    if (layoutOf(sessionEntity()!) === 'outline' && recordWindows.get(entityId)?.page.changeSequence !== state.session.manifest?.changeSequence) {
       // Browsing declares nothing, so the window carries the explicit empty query
       // rather than leaving later pages to guess what it was opened with.
       const query = emptyWindowQuery();
@@ -432,15 +479,16 @@ export function renderData(): void {
     <section class="data-panel" aria-label="${escapeAttribute(entity.displayName)} data">
       <header class="data-toolbar">
         <div class="data-toolbar-lead"><p>${entity.retired ? 'Retired record type. Stored values remain available for inspection.' : state.session.capabilities.mutate ? 'Edit a cell to save a change.' : 'Read-only data. Editing is off.'}</p>${layoutControl}${keptDefaultMarkup(entity)}</div>
+        ${layout === 'table' ? '<details class="grid-columns"><summary>Columns</summary><div class="grid-column-menu"><div class="grid-column-options" data-grid-columns></div><button type="button" class="text-button" data-grid-reset>Reset columns</button></div></details><button type="button" class="text-button" data-grid-copy>Copy cell</button>' : ''}
         <button id="data-new-record" class="primary-button" data-action type="button" ${entity.retired ? 'disabled' : ''}>Add ${escapeHtml(entity.displayName)}</button>
       </header>
       ${layout === 'outline' ? outlineToolbarMarkup() : studioQueryMarkup(entity)}
       ${layout === 'outline' && outlineError !== undefined ? `<p class="query-status" role="alert">${escapeHtml(outlineError)} <button class="secondary-button" type="button" data-studio-outline-retry>Try reading again</button></p>` : ''}
       <div class="message-slot data-message" role="alert" hidden></div>
-      ${(layout === 'outline' ? outlineRows.length : records.length) > 0
+      ${layout === 'table' || outlineRows.length > 0
         ? `<div id="record-grid" class="record-grid${layout === 'outline' ? ' outline-grid' : ''}" data-testid="record-grid" aria-label="${escapeAttribute(entity.displayName)} ${layout === 'outline' ? 'outline' : 'records'}"></div>`
         : emptyGrid}
-      <footer class="data-footer">${layout === 'outline' ? '' : recordPagerMarkup(entity.entityId, null)}</footer>
+      <footer class="data-footer">${layout === 'outline' ? '' : '<span data-grid-load-status role="status">Loading records…</span><button type="button" class="text-button" data-grid-retry>Retry</button><button type="button" class="text-button" data-grid-refresh>Refresh</button>'}</footer>
     </section>
   </div>`;
   wireNewEntity();
@@ -477,8 +525,9 @@ export function renderData(): void {
     if (outlineRows.length > 0) mountRecordGrid(entity, records, outlineRows);
     syncMoveButtons(entity);
   } else {
-    if (records.length > 0) mountRecordGrid(entity, records);
-    wireRecordPager();
+    mountRecordGrid(entity, []);
+    content.querySelector('[data-grid-retry]')?.addEventListener('click', () => gridApi?.refreshInfiniteCache());
+    content.querySelector('[data-grid-refresh]')?.addEventListener('click', () => { void refreshView(); });
   }
 }
 
@@ -660,7 +709,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
       onSort: sorts && !field.retired && storageLabel(field.storageKind) !== 'Unsupported' ? byKeyboard => sortByColumn(entity, field.fieldId, byKeyboard) : null,
       onRename: state.session.capabilities.mutate && !entity.retired && !field.retired ? name => renameColumn(entity, field.fieldId, name) : null,
     }),
-    editable: (parameters) => parameters.data?.outline?.kind !== 'more' &&
+    editable: (parameters) => parameters.data !== undefined && parameters.data.outline?.kind !== 'more' && !gridStale && !state.actionInFlight &&
       state.session.capabilities.mutate && !entity.retired && !field.retired && storageLabel(field.storageKind) !== 'Reference',
     ...(field.fieldId === primaryFieldId ? { minWidth: 220, flex: 1 } : { minWidth: 90, width: defaultColumnWidth(field) }),
     valueGetter: (parameters) => {
@@ -732,25 +781,30 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     valueGetter: (parameters) => calculatedDisplay(parameters.data?.calculations?.[field.fieldId]).text,
   });
   const openRow = (recordId: string | undefined): void => {
-    const record = records.find(item => item.semanticId === recordId);
+    const row = recordId === undefined ? undefined : gridApi?.getRowNode(recordId)?.data;
+    const record = row ? { automationTarget: `record-${row.recordId}`, semanticId: row.recordId, version: row.recordVersion, values: row.values,
+      referenceLabels: row.referenceLabels, calculations: row.calculations, keptInNewFiles: row.keptInNewFiles } : records.find(item => item.semanticId === recordId);
     if (record && !state.actionInFlight) renderDataRecordDialog(entity, record);
   };
   const widths = widthsFor(entity.entityId);
+  let editingScrollLeft: number | undefined;
   const options: GridOptions<GridRow> = {
     theme: nendoGridTheme,
     // In the outline, Alt, Shift and an arrow key move the record; the grid must not move the focus first.
     // Alt alone with Left or Right stays the app's Back and Forward.
     defaultColDef: outlineRows === undefined ? { sortable: false }
       : { sortable: false, suppressKeyboardEvent: parameters => isMoveKey(parameters.event) },
-    rowData,
+    ...(outlineRows === undefined ? { rowModelType: 'infinite' as const, cacheBlockSize: studioBlockSize,
+      maxBlocksInCache: studioCacheBlocks, maxConcurrentDatasourceRequests: 2,
+      infiniteInitialRowCount: Math.max(studioBlockSize, (gridPlace?.key === tableKey(entity.entityId) ? gridPlace.index : 0) + studioBlockSize) } : { rowData }),
     tabToNextCell: (parameters) => parameters.editing ? (parameters.nextCellPosition ?? false) : false,
     columnDefs: [
       ...(outlineRows !== undefined ? [outlineColumn(entity)] : []),
       // Opening a record is a quiet icon at the row's start: faint until the row is pointed
       // at or focused, so a column of identical buttons no longer outweighs the data.
-      { colId: 'openRecord', headerName: '', width: 40, pinned: 'left', resizable: false, cellClass: 'record-open-cell', editable: false, sortable: false,
+      { colId: 'openRecord', headerName: '', width: 40, pinned: 'left', lockPosition: 'left', lockPinned: true, lockVisible: true, resizable: false, cellClass: 'record-open-cell', editable: false, sortable: false,
         cellRenderer: (parameters: { data?: GridRow }) => {
-          if (parameters.data?.outline?.kind === 'more') return '';
+          if (!parameters.data || parameters.data.outline?.kind === 'more') return '';
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'record-open-button';
@@ -769,7 +823,8 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
           valueFormatter: parameters => parameters.data?.outline?.kind === 'more' ? '' : String(parameters.value ?? '') } satisfies ColDef<GridRow>,
       ].map(column => withRememberedWidth(column, widths)),
     ],
-    onCellValueChanged: (event) => void commitGridEdit(event),
+    onCellEditingStarted: () => { editingScrollLeft = undefined; },
+    onCellValueChanged: (event) => { void commitGridEdit(event, editingScrollLeft); editingScrollLeft = undefined; },
     onColumnResized: (event) => keepColumnWidths(entity.entityId, event),
     // Enter or Space on the open cell opens the record, as a click on its icon does.
     onCellKeyDown: (event: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) => {
@@ -799,10 +854,75 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     getRowId: (parameters) => parameters.data.recordId,
     singleClickEdit: false,
     stopEditingWhenCellsLoseFocus: true,
-    suppressMovableColumns: true,
+    suppressMovableColumns: outlineRows !== undefined,
+    enterNavigatesVerticallyAfterEdit: true,
   };
   const gridElement = requiredElement<HTMLElement>('#record-grid');
+  gridKey = outlineRows === undefined ? tableKey(entity.entityId) : '';
+  gridRevision = state.session.manifest?.changeSequence ?? 0;
+  gridStale = false;
   gridApi = createGrid<GridRow>(gridElement, options);
+  if (outlineRows === undefined) {
+    const api = gridApi;
+    gridElement.addEventListener('keydown', event => {
+      // Value-change events can arrive after AG Grid's next-cell navigation
+      // scrolls horizontally. Keep the position before Enter/Tab consumes it.
+      if ((event.key === 'Enter' || event.key === 'Tab') && api.getEditingCells().length > 0)
+        editingScrollLeft = gridViewport()?.scrollLeft;
+      if (event.key !== 'Tab' || event.ctrlKey || event.altKey || event.metaKey || api.getEditingCells().length === 0) return;
+      const focused = api.getFocusedCell();
+      const row = focused ? api.getDisplayedRowAtIndex(focused.rowIndex) : undefined;
+      if (!focused || !row?.data) return;
+      const columns = api.getAllDisplayedColumns().filter(column => column.isCellEditable(row));
+      const edge = columns[event.shiftKey ? 0 : columns.length - 1];
+      const nextIndex = focused.rowIndex + (event.shiftKey ? -1 : 1);
+      if (edge !== focused.column || nextIndex < 0 || nextIndex >= api.getDisplayedRowCount() || api.getDisplayedRowAtIndex(nextIndex)?.data) return;
+      // AG Grid skips unloaded rows because their cells are not editable yet.
+      // Save once and focus the pending cell; the versioned refresh restores it
+      // by the saved record's identity plus this single-row continuation.
+      event.preventDefault(); event.stopPropagation();
+      api.stopEditing(false);
+      api.ensureIndexVisible(nextIndex);
+      api.setFocusedCell(nextIndex, columns[event.shiftKey ? columns.length - 1 : 0]);
+    }, true);
+    wireGridColumns(entity, api);
+    const generation = ++gridGeneration;
+    const key = gridKey;
+    const saved = gridPlace?.key === key ? gridPlace : null;
+    let restoreIndex: number | null = null;
+    let farthest = 0;
+    let total: number | null = null;
+    const restore = (): void => {
+      if (!saved || restoreIndex === null || api.isDestroyed()) return;
+      api.ensureIndexVisible(restoreIndex);
+      if (!api.getDisplayedRowAtIndex(restoreIndex)?.data) return;
+      if (saved.focus) api.setFocusedCell(restoreIndex, saved.colId);
+      // Focusing a cell may scroll its column into view. Restore the person's
+      // horizontal position after that focus movement, not before it.
+      const viewport = gridViewport();
+      if (viewport) viewport.scrollLeft = saved.left;
+      restoreIndex = null;
+    };
+    api.addEventListener('modelUpdated', restore);
+    api.setGridOption('datasource', studioDatasource<GridRow>({ entityId: entity.entityId,
+      query: { filters: query?.filters ?? [], sortFieldId: query?.sortFieldId ?? undefined, descending: query?.descending },
+      sequence: gridRevision,
+      request: payload => client.request<RecordBlock>('data.queryRecordWindow', payload),
+      current: () => generation === gridGeneration && !gridStale && key === tableKey(entity.entityId),
+      row: record => { const plan = recordPlanOf(record); return { recordId: record.recordId, recordVersion: record.recordVersion,
+        values: { ...record.values }, referenceLabels: plan.referenceLabels, calculations: plan.calculations,
+        keptInNewFiles: record.keptInNewFiles }; },
+      anchor: saved ?? undefined,
+      located: (index, found) => { if (saved) { restoreIndex = Math.max(0, index + (found ? saved.pendingOffset ?? 0 : 0)); if (!found) announce('The previous record is no longer in this result.'); window.setTimeout(restore, 0); } },
+      loaded: (end, exact) => {
+        farthest = Math.max(farthest, end); if (exact !== null) total = exact;
+        const status = content.querySelector('[data-grid-load-status]');
+        if (status) status.textContent = total === 0 ? (query ? 'No matching records.' : 'No records yet. Add the first record above.')
+          : total === null ? `Read through row ${farthest}. Scroll for more.` : `${total} records.`;
+      },
+      failed: error => { const status = content.querySelector('[data-grid-load-status]'); if (status) status.textContent = messageFor(error); },
+    }));
+  }
   // A move key is taken here, in the capture phase, before the grid or the app's own shortcuts see it.
   if (outlineRows !== undefined) gridElement.addEventListener('keydown', event => {
     if (!isMoveKey(event)) return;
@@ -814,7 +934,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     gridApi.setFocusedHeader(headerFocusAfterDraw);
     headerFocusAfterDraw = null;
   }
-  restoreCellAfterDraw(gridApi, rowData);
+  if (outlineRows !== undefined) restoreCellAfterDraw(gridApi, rowData);
   // The focused record keeps its place across a move, an open or a redraw.
   if (outlineRows !== undefined && outlineFocus !== null) {
     const index = rowData.findIndex(row => row.recordId === outlineFocus);
@@ -834,11 +954,11 @@ function keptColumn(entity: EntitySnapshot): ColDef<GridRow> {
     headerName: 'In new files',
     headerTooltip: keptDefaultSentence(entity.displayName, typeKeeps),
     width: 150,
-    editable: (parameters) => parameters.data?.outline?.kind !== 'more' && state.session.capabilities.mutate,
+    editable: (parameters) => parameters.data !== undefined && parameters.data.outline?.kind !== 'more' && !gridStale && !state.actionInFlight && state.session.capabilities.mutate,
     cellDataType: false,
     cellClass: 'kept-cell',
-    valueGetter: (parameters) => parameters.data?.outline?.kind === 'more' ? '' : keptChoice(parameters.data?.keptInNewFiles),
-    valueFormatter: (parameters) => parameters.data?.outline?.kind === 'more' ? '' : keptText(typeKeeps, parameters.data?.keptInNewFiles),
+    valueGetter: (parameters) => !parameters.data || parameters.data.outline?.kind === 'more' ? '' : keptChoice(parameters.data.keptInNewFiles),
+    valueFormatter: (parameters) => !parameters.data || parameters.data.outline?.kind === 'more' ? '' : keptText(typeKeeps, parameters.data.keptInNewFiles),
     valueSetter: (parameters) => {
       if (parameters.data === undefined) return false;
       parameters.data.keptInNewFiles = keptFromChoice(parameters.newValue);
@@ -849,12 +969,12 @@ function keptColumn(entity: EntitySnapshot): ColDef<GridRow> {
   };
 }
 
-export async function commitGridEdit(event: CellValueChangedEvent<GridRow>): Promise<void> {
+export async function commitGridEdit(event: CellValueChangedEvent<GridRow>, scrollLeft?: number): Promise<void> {
   if (event.data === undefined || event.newValue === event.oldValue || event.colDef.colId === undefined) return;
   // The cell's place is kept only across a redraw this edit makes, and dropped after it, so a
   // later redraw nobody tied to this edit never pulls the focus back here (UX-03).
   const redrawing = async <T>(redraw: () => Promise<T>): Promise<T> => {
-    keepCellAcrossDraw(event);
+    keepCellAcrossDraw(event, scrollLeft);
     try { return await redraw(); } finally { cellFocusAfterDraw = null; }
   };
   // A change the host refused, or one that never left because another was in flight, left its
@@ -907,3 +1027,62 @@ export async function commitGridEdit(event: CellValueChangedEvent<GridRow>): Pro
   if (outcome === 'kept' || outcome === 'busy') await putBack();
 }
 
+
+/** Community column APIs, with Nendo-owned controls and a narrow device preference shape. */
+function wireGridColumns(entity: EntitySnapshot, api: GridApi<GridRow>): void {
+  const allowed = api.getColumnState().map(column => column.colId).filter(id => id !== 'openRecord');
+  const key = columnLayoutKey(state.session.manifest!.applicationId, entity.entityId);
+  const saved = columnLayouts.has(key) ? cleanColumnLayout(columnLayouts.get(key), allowed) : readColumnLayout(deviceStorage(), key, allowed);
+  columnLayouts.set(key, saved);
+  if (saved.length) api.applyColumnState({ state: [{ colId: 'openRecord', pinned: 'left', hide: false },
+    ...saved.map(column => ({ colId: column.id, hide: column.hidden, pinned: column.pinned }))], applyOrder: true });
+  const save = (): void => {
+    if (api.isDestroyed()) return;
+    const layout: ColumnLayout[] = api.getColumnState().filter(column => allowed.includes(column.colId))
+      .map(column => ({ id: column.colId, hidden: column.hide === true, pinned: column.pinned === 'left' || column.pinned === 'right' ? column.pinned : null }));
+    columnLayouts.set(key, layout);
+    writeColumnLayout(deviceStorage(), key, layout);
+  };
+  const draw = (): void => {
+    // A details toggle can be queued while the whole table is being disposed.
+    if (api.isDestroyed()) return;
+    const menu = content.querySelector('[data-grid-columns]');
+    if (!menu) return;
+    menu.innerHTML = api.getColumnState().filter(column => allowed.includes(column.colId)).map(column => {
+      const name = api.getColumn(column.colId)?.getColDef().headerName ?? column.colId;
+      return `<label class="grid-column-option"><input type="checkbox" data-reads data-column-visible="${escapeAttribute(column.colId)}" ${column.hide ? '' : 'checked'} />${escapeHtml(name)}
+        <select data-reads aria-label="Pin ${escapeAttribute(name)}" data-column-pin="${escapeAttribute(column.colId)}">
+          <option value="">Not pinned</option><option value="left" ${column.pinned === 'left' ? 'selected' : ''}>Pin left</option><option value="right" ${column.pinned === 'right' ? 'selected' : ''}>Pin right</option>
+        </select></label>`;
+    }).join('');
+    menu.querySelectorAll<HTMLInputElement>('[data-column-visible]').forEach(input => input.addEventListener('change', () => {
+      api.setColumnsVisible([input.dataset.columnVisible!], input.checked); save();
+    }));
+    menu.querySelectorAll<HTMLSelectElement>('[data-column-pin]').forEach(select => select.addEventListener('change', () => {
+      api.setColumnsPinned([select.dataset.columnPin!], select.value === 'left' || select.value === 'right' ? select.value : null); save();
+    }));
+  };
+  api.addEventListener('columnMoved', event => { if (event.finished) save(); });
+  content.querySelector('details.grid-columns')?.addEventListener('toggle', draw);
+  content.querySelector('[data-grid-reset]')?.addEventListener('click', () => {
+    api.resetColumnState();
+    api.applyColumnState({ state: entity.fields.map(field => ({ colId: field.fieldId, width: defaultColumnWidth(field) })) });
+    columnWidths.delete(entity.entityId);
+    const storage = deviceStorage();
+    if (storage) forgetWidths(storage, state.session.manifest!.applicationId, entity.entityId);
+    save(); draw();
+  });
+  const copy = async (): Promise<void> => {
+    const focused = api.getFocusedCell();
+    const row = focused ? api.getDisplayedRowAtIndex(focused.rowIndex) : undefined;
+    if (!focused || !row?.data || focused.column.getColId() === 'openRecord') { announce('Choose a data cell to copy.'); return; }
+    const text = api.getCellValue({ rowNode: row, colKey: focused.column, useFormatter: true });
+    try { await navigator.clipboard.writeText(String(text ?? '')); announce('Cell copied.'); }
+    catch { showError('The clipboard refused the copy. Try again with this window focused.'); }
+  };
+  content.querySelector('[data-grid-copy]')?.addEventListener('click', () => { void copy(); });
+  content.querySelector('#record-grid')?.addEventListener('keydown', event => {
+    const key = event as KeyboardEvent;
+    if ((key.ctrlKey || key.metaKey) && key.key.toLowerCase() === 'c' && api.getEditingCells().length === 0) { key.preventDefault(); void copy(); }
+  });
+}

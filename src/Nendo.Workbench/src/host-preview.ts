@@ -177,7 +177,10 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
       case 'history.get':
         result = this.history;
         break;
+      case 'data.queryRecordWindow':
       case 'data.queryRecords': {
+        const windowRequest = method === 'data.queryRecordWindow' ? payload : null;
+        if (windowRequest !== null) payload = requiredObject(payload, 'query');
         // The preview answers the outline's find box -- `contains` on text, and one record by ID --
         // the exact comparisons a screen's Filter pick and a drill send (eq, ne, isNull, isNotNull;
         // W-172), and a stored field's plain sort, so Studio's column headers can be tried; every
@@ -207,9 +210,25 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
           const compared = order(a, b);
           return payload.descending ? -compared : compared;
         };
-        result = this.previewPage(this.session.records.filter(row => row.entityId === payload.entityId && matches(row))
-          .sort((left, right) => byField(left, right) || byId(left, right)), payload,
-          `records:${String(payload.entityId)}:${JSON.stringify(filters)}:${String(payload.recordId ?? '')}:${sortFieldId ?? ''}:${payload.descending ? 'desc' : 'asc'}`);
+        const rows = this.session.records.filter(row => row.entityId === payload.entityId && matches(row))
+          .sort((left, right) => byField(left, right) || byId(left, right));
+        const scope = `records:${String(payload.entityId)}:${JSON.stringify(filters)}:${String(payload.recordId ?? '')}:${sortFieldId ?? ''}:${payload.descending ? 'desc' : 'asc'}`;
+        if (windowRequest === null) result = this.previewPage(rows, payload, scope);
+        else {
+          const sequence = this.session.manifest?.changeSequence ?? 0;
+          const queryToken = JSON.stringify([this.session.fileSessionId, sequence, scope]);
+          if (windowRequest.queryToken != null && windowRequest.queryToken !== queryToken)
+            throw new WorkbenchHostError('stale-cursor', 'The file or query changed. Refresh the table.');
+          const limit = Number(windowRequest.limit ?? 100);
+          let start = Number(windowRequest.start ?? 0);
+          if (!Number.isInteger(limit) || limit < 1 || limit > 200 || !Number.isInteger(start) || start < 0 || start > 2147483647 - limit)
+            throw new WorkbenchHostError('invalid-limit', 'Request a bounded window of 1–200 records.');
+          const found = rows.findIndex(row => row.recordId === windowRequest.locateRecordId);
+          if (found >= 0) start = Math.floor(found / limit) * limit;
+          else if (windowRequest.locateRecordId != null) start = 0;
+          result = { items: rows.slice(start, start + limit), start, hasMore: start + limit < rows.length,
+            changeSequence: sequence, queryToken, locatedIndex: found < 0 ? null : found };
+        }
         break;
       }
       case 'history.foldPreview':

@@ -51,6 +51,19 @@ Each area below is a gap. Do not read a gap as a feature.
 | The notification area and Windows notifications | Owner-reported. `Review-ShellRuntime.ps1` checks four things: close hides the window, the process and its file survive, opening the same file again brings the hidden window back, and the exit pin exits. A script cannot observe the icon, its menu or the notifications, and no lane instruments them. By default, Windows puts a new tray icon in the overflow. No test checks whether a first-time person finds their window again |
 | What the Windows shell draws | Owner-reported. The line between measured and not measured is stated precisely here. Measured, item by item: the registry writes that setup makes and removes; the shell identity, read back from the running window and from the notification registration that Windows filed under it; the Jump List file that Windows stored, and the fact that it names the open file; and the `-new` command line, run by hand against both an empty placeholder and an existing file (agent-observed, not a lane). Not measured, and not reachable from a script: Explorer draws the document icon; the taskbar paints the overlay badge or progress; the menu appears on right-click; a file dragged from Explorer arrives; the Jump List is rebuilt when the open file changes. `SetOverlayIcon` and `SetProgressState` report nothing back, and nothing can read them, so the call is unobserved as well as the paint. WebView2 itself refuses a page-made file, and that refusal is measured |
 
+## Lazy data views
+
+W-233 delivers continuous loading for Studio's flat table. Use lists, related records,
+boards and date-range views still need separate loading policies; outlines retain
+bounded sibling reads. Rectangular paste and bulk edits need their own decision.
+The 2026-10-14 synthetic Engine run reached the final block of 100,000 records in one
+request (19.43 ms), versus 1,000 cursor requests (3709.31 ms), with no full-record read.
+Unindexed text sorting at that size measured 1525.69 ms p95 across 12 samples and
+locating an edited record took 867.14 ms. These exceed the proposed 250 ms ordinary-block
+budget: bounded transport is delivered, but fast deep sorting of arbitrary large tables
+is not qualified. Timings are observations on the development machine, not guarantees.
+See [the plan](design/lazy-data-views.md) for the remaining acceptance scope.
+
 ## Archi in Nendo
 
 I-007 builds an offline ArchiMate modeller as a Nendo application, following

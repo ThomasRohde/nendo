@@ -27,6 +27,7 @@ internal static partial class WorkbenchMethods
     internal const string HistoryGet = "history.get";
     internal const string HistoryQuery = "history.query";
     internal const string HistoryOperations = "history.operations";
+    internal const string DataQueryRecordWindow = "data.queryRecordWindow";
     internal const string DataQueryRecords = "data.queryRecords";
     internal const string DataCountRecords = "data.countRecords";
     internal const string DataAggregateRecords = "data.aggregateRecords";
@@ -411,6 +412,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.HistoryGet => await _session.GetHistoryAsync(cancellationToken),
                     WorkbenchMethods.HistoryQuery => await _session.QueryHistoryAsync(Deserialize<NendoHistoryQuery>(payload), cancellationToken),
                     WorkbenchMethods.HistoryOperations => await _session.QueryRevisionOperationsAsync(Deserialize<NendoRevisionOperationsQuery>(payload), cancellationToken),
+                    WorkbenchMethods.DataQueryRecordWindow => await _session.QueryRecordWindowAsync(Deserialize<NendoRecordWindowQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataQueryRecords => await _session.QueryRecordsAsync(Deserialize<NendoRecordQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataCountRecords => await _session.CountRecordsAsync(Deserialize<NendoRecordCountQuery>(payload), cancellationToken),
                     WorkbenchMethods.DataAggregateRecords => await _session.AggregateRecordsAsync(Deserialize<NendoRecordAggregateQuery>(payload), cancellationToken),
