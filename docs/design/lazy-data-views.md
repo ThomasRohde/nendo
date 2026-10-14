@@ -22,7 +22,7 @@ part of the first delivery.
 `nd.work.r.lazy-data-views`, ready for owner review within accepted scope; branch
 `codex/lazy-data-views` in worktree a360. W-231 remains in its separate main
 checkout. The only current overlapping path is `docs/architecture.md`, with edits
-in separate sections. No merge or owner installation has been performed.
+in separate sections. At that handoff, no merge or owner installation had been performed.
 
 Implemented: typed revision-bound host windows and stable-ID location; bounded
 lazy Studio blocks; Enter/Tab continuation across delayed blocks; column
@@ -34,7 +34,7 @@ browser lane, query/Studio contracts, ADR-0002, architecture/roadmap/help/site.
 | Executed lane | Literal outcome / scope |
 | --- | --- |
 | Workbench type check and tests in `Publish-NendoPayload.ps1` | Passed; 747 tests, zero failures. |
-| .NET suites in `Test-Production.ps1 -SkipRestore` | 2,171 passed, nine opt-in skips; build zero warnings/errors. Final focused Engine/Desktop reruns passed 5/1. |
+| .NET suites in `Test-Production.ps1 -SkipRestore` | 2,171 passed, nine skipped tests; build zero warnings/errors. Final focused Engine/Desktop reruns passed 5/1. |
 | Opt-in Engine scale lane | Passed 100, 10,000 and 100,000 records on Intel Core Ultra 9 185H; no full-record reads. |
 | `Review-WorkbenchShell.ps1` | Passed all 98 checks, browser exceptions 0. Includes both themes, cache eviction/reload, deep editing, delayed Enter/Tab, horizontal scroll, clipboard adapter/refusal, storage refusal, disposed-menu event and 600px toolbar geometry. |
 | Other production browser lanes | Graph, Dependencies, Systems Lens, Gantt, BCM Atlas and Archi passed in the initial run; Swarm, Garden and Agent Chat passed sequential reruns. |
@@ -70,9 +70,41 @@ specific button is not measured. Deep unindexed text sorts at 100,000 rows excee
 the proposed latency target (see roadmap). Other data-view renderers remain the
 explicit follow-ups below. These limits are not represented as passed checks.
 
-Next action: owner reviews the branch and the outstanding qualification limits,
-then integrates it with W-231 when main is ready. Recheck the combined changes at
-merge time. W-233 stays in Review rather than treating check passes as acceptance.
+The owner subsequently authorized merging into main, preserving uncommitted work,
+running integration checks and pushing after they pass. The integration record
+below supersedes the earlier merge handoff. Outstanding qualification limits stay
+explicit; check passes do not relabel those limits as measured.
+
+## Integration with W-231 (2026-10-14)
+
+Merge `d342bdbcad0b23992732c1a6c16d720cc5b6cd74` combines W-231's
+`6d8d5b23bc77ab5e1e3bd82830dec42f85a5fbb1` with feature commit
+`3e5238b1cb3d2594c8ec327b7a00edebf0b33c02`, without conflicts. Integration ran
+in worktree a360 on `codex/lazy-data-views-integration`. Main's uncommitted
+`ACP.md` deletion is excluded from these commits and retained for its owner.
+
+The initial `Test-Production.ps1 -SkipRestore` run passed 747 Workbench tests,
+the .NET build with zero warnings/errors, and 2,197 .NET tests (Engine 1,356,
+Local MCP 304, Desktop 537; nine skipped). Structural checks, Graph and Work
+Dependencies passed. Systems Lens then exposed a test race: restoring a label
+waited for summary counts that had not changed. An unchanged rerun passed.
+
+Test-only commit `8ce06cf2c5ee390ae66e20fec0915bf35768facd` waits for the actual
+restored label with a deliberately delayed reply. Reinstating the old wait failed
+with "The restore wait ended before the original component label arrived."
+The corrected Systems Lens lane and every remaining production lane passed in
+sequence: Gantt, Capability Atlas, Archi, Swarm, Garden, Agent Chat, all 98 Workbench
+shell checks (zero browser exceptions), and `Test-Repository.ps1`.
+This is completion across sequential invocations; the original combined command's
+failure remains recorded. No product code changed during integration.
+
+`Test-Site.ps1` passed including its search-browser check and all 815 internal
+references across 15 pages. `Publish-NendoPayload.ps1`, `Build-NendoInstaller.ps1`
+and `Test-NendoSetupIsolated.ps1` passed for the integrated source; payload source
+hashes match. `Test-NendoInstaller.ps1` preserved the existing owner installation
+by refusing its install/uninstall smoke. The clean-user NSIS obligation remains.
+Evidence is recorded in C-578 through C-580 and F-292. Final main/remote commit
+identity and preservation checks are recorded in W-233's planner handoff.
 
 ## Baseline before this delivery
 
