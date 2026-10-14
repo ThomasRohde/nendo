@@ -11017,3 +11017,182 @@ Runs, after the review's fixes:
 
 Not run: Desktop tests, host, window and input lanes, and `Test-Production`. No installer was
 built, so the setup retry reaches the owner only with the next installer.
+
+### Twenty-seventh pass: Studio flows and proposal review (W-230)
+
+2026-10-14: the twenty findings planned as W-230 (1 P2, 19 P3) are closed: sixteen fixed, WSP-09
+fixed where a fallback could still reach it, and WSP-12 and WSP-15 refuted as already fixed by
+earlier passes. WSP-05 is built as the owner accepted it on 2026-10-13: History's Undo asks first
+only for a multi-record batch or a definition or package undo, and one record's edit stays one
+press. The guards are a new Workbench test file, `scripts/studio-flows.test.mjs`, which renders
+through the functions the pages draw with and bundles `actions.ts` and `view-structure.ts` with
+only the host, the page boundary and the dialog standing in; a case each in
+`scripts/studio-outline.test.mjs` and `scripts/overview-open-record.test.mjs`; and four new checks
+in `tools/Gate-WorkbenchShell.mjs`. Every guard failed with its defect put back, and the quoted
+texts are from those runs. Two shell-lane runs with defects in place also failed checks no W-230
+change touches (UIK-04, UIK-02, WDV-08, UIT-10, WST-01) while another session edited the
+Workbench under the dev server; the same checks passed in the two complete runs afterwards.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [WSP-02](#wsp-02) | Make required and Reactivate draw each record's control through `backfillControlMarkup`: a required choice with no value starts on a selected, disabled *Choose…* placeholder that the required check refuses, so an untouched form is refused rather than writing the first option. A record form is unchanged. | Node: `a required choice with no value starts on its first option, which the preview then writes for every record: <label>Status<select name="task.status" required><option value="idea"  >Idea</option>…`; shell lane: `WSP-02: the form starts each record on a choice nobody made: [{"value":"Low","disabled":false}].` |
+| [WSP-01](#wsp-01) | A record of a reference conversion counts as mapped only when its own picker marks it: a target chosen or Clear pressed sets `data-chosen` on the control. The form-level `change` listener, which a typed and abandoned search fired, is gone. | Shell lane: `WSP-01: a record whose search was typed and abandoned was converted as cleared (proposal, "").` |
+| [WSP-05](#wsp-05) | Built as accepted: `compensateRevision` reads a data revision's first page of operations and asks through `confirmDialog` when they reach more than one record or the page did not hold them all, and always for a definition or package revision. The question names the entry and its effect (*deletes 3 records this change added or brought back*; package code that comes back runs where its view is shown) (`undoQuestion`). Cancel sends nothing. A second press while the question is read or open, and a confirmed undo turned away because another action began, each say *Wait for the current action to finish*. Help and the files guide say so. | `undoing a batch of three created records asked nothing`; review: `a second press read and asked again` (`2 !== 1`), `a confirmed undo turned away as busy said nothing` |
+| [WSP-08](#wsp-08) | The backfill plan carries the rating's scale (`backfillPlan`), so the value is chosen on the scale's numbers. | `the backfill plan drops the rating’s scale` |
+| [WSP-09](#wsp-09) | Triage was right that the typed text is shown; the status line's fallback, reached by a value-bearing filter with no text, printed `String(value)`. It reads the value through `valueDisplay` now, digits for an exact number. | `a stored number with no typed text reads [object Object]` |
+| [WSP-10](#wsp-10) | `fieldProposal` refuses an empty or blank Lowest or Highest with the existing sentence before any `Number()`, and both boxes are required while the rating type is chosen. | `Missing expected exception: a rating with bounds {"min":"","max":"5"} is proposed` |
+| [WSP-11](#wsp-11) | The recipe carries a `prepare` step that `prepareApplication` runs when it is pressed: it pages `data.queryRecords` and builds the backfill from the file, not from `session.records`, which the desktop session never fills. It filters on `isNull` only where the type already has Status; where the recipe adds Status, every record of the type is read, since the host refuses a filter on a field the type does not have. | `the recipe builds its backfill from session.records, which the desktop session never fills`; review, with the fake query refusing an unknown filter field as the host does: `The filter field does not belong to this record type.` |
+| [WSP-12](#wsp-12) | Refuted: already fixed by WST-08 in the W-224 pass (4f33242). `searchTexts` is `fileScopedClearable`, and `file-follow.test.mjs` requires every module-level cache to be emptied with the file. | Not falsified again; the W-224 guard stands: `a module-level cache keeps the previous file’s state when another file opens`. |
+| [WSP-13](#wsp-13) | `loadOutline` reads each open level again as far as it had been read, following its cursors (`readLevelAgain`), and starts over if the file moves between pages, which the host says by refusing the cursor as `stale-cursor`. | `the refresh stopped at the first page of a level read to 400 rows`; review: `a stale cursor on the top level is shown as an outline error: The file changed. Restart paging.` |
+| [WSP-14](#wsp-14) | Health's chip and File status sentence come from `healthStatus`, which shares `approvalNeeded` with the status pill: *Approval needed*, and a sentence that says editing waits on approval. | `Health reads "Ready for editing" while the pill says Approval needed` |
+| [WSP-15](#wsp-15) | Refuted: already fixed by ESC-02 in the W-212 pass (9381cd9). The offer SQL leaves out a revision that already has its undo, wherever it sits; `ESC02_ARevisionWhoseUndoIsOnAnotherPageIsNotOffered` passed in this pass. The record-batch redo branch is unchanged. | Not falsified again; the W-212 guard stands: `Page two offers to undo a revision whose undo is on page one, and the engine refuses it.` |
+| [WSP-16](#wsp-16) | A first page of a revision's operations is not refused for a moved file, since it never changes; a later page still is. Opened details are kept per revision (file-scoped) and drawn again after every History redraw. | Shell lane: `WSP-16: a redraw closed the changes the person opened (0 open).` and, with only the stale check put back, `WSP-16: View changes was refused while the file moved (1 open, "").` |
+| [WSP-17](#wsp-17) | A front-page chart is drillable only where its type has a record list (`drillPlan`), and the press changes nothing until there is one. A recent or ranked row of a type with no screen is a plain row, without the pointer or hover of a button. | `a row of a type with no screen is drawn as a button that opens nothing: <ol class="ranked-list"><li><button type="button" class="ranked-row" …`; `a chart is drillable wherever its type has any screen` |
+| [WSP-18](#wsp-18) | `prepareApplication` says *Wait for the current action to finish, then try again.* instead of dropping a press, and answers whether the review opened. The column header settles only once it has; otherwise it is put back. | Node: `the press was dropped without a word`; shell lane: `WSP-18: after a refused rename the header is still a box Escape no longer puts back, saying "The host did not answer.".` |
+| [WSP-19](#wsp-19) | A prepared proposal that is not previewable is rejected in the host and its diagnostics are said in the form, which keeps what was typed (`proposalRefusal`). | `a change the host refused opened a review nothing can accept (view proposal)` |
+| [WSP-20](#wsp-20) | A rename is titled *Rename Owner on Task to Lead* (or *Rename record type Task to Job*), from Structure and from a column header. A batch that only fills values is titled *Fill missing Status values (first 50)* (`requirementTitle`). The change marks were fixed by UIT-09 (W-225). | `+ 'Rename to Lead'` where `- 'Rename Owner on Task to Lead'` was expected; `a batch that only fills values is titled as making the field required` |
+| [WSP-21](#wsp-21) | Each conversion record is headed by its first current text value, its ID beside it (`conversionRecordMarkup`, `recordHeading`, shared with Make required). | `the record is known only by its ID: <form class="record-form conversion-record"><h3>6f1c0d4e-1b2a-4c3d-9e8f-001122334455</h3>…` |
+| [WSP-22](#wsp-22) | Make required draws its form only while the page, the view and the record type are still the ones pressed on, and says a failure only there. | `the Make required form replaced the page the person moved to` |
+| [WSP-23](#wsp-23) | The generated reference names Use's picker as the screen does (`showingLabel()`), and for a type the picker leaves out (`placePlans()`) says where its records open instead. The lanes topic names Studio's *Preview* panel and says an error diagnostic holds Accept back only on the Agent page; a refused Studio change opens no review. | `help names a Record type picker the screen calls Showing` |
+| [WSP-25](#wsp-25) | Review change stays disabled while the letter box holds a refused letter, whatever colour is picked (`lookReviewable`). The dialog stays open until the review opens, and a refusal is said in it, with the chosen look kept. | `a colour picked after a refused letter enables Review with the old letter`; review: `the Look dialog closes before it knows whether the review opened` |
+
+Documents updated: `docs/contracts/studio.md` (History's Undo question and View changes, the
+header rename, the outline refresh, a new *Making a field required* section, and the refused
+proposal); the site guide *Files and data* (Undo's question, and *Approval needed* among the
+open states); in-app Help (`help.ts`, `help-concepts.ts`).
+
+An independent review of the fixes found two defects and asked for several smaller changes.
+WSP-11's `prepare` filtered on `field.idea.status` even where the recipe adds that field, so in
+the finding's own case the host would refuse the read and Complete Idea Garden outright. It
+filters only where Status exists now, and the test's fake query refuses an unknown filter field
+as the host does: with the old filter put back it fails with `The filter field does not belong
+to this record type.` WSP-13's start-over branch never ran, because the host refuses a stale
+cursor with `stale-cursor` rather than answering from another change; the top level showed an
+outline error and an open record was closed as if it had gone. `readLevelAgain` treats that
+refusal as the file moving, and the test throws it as the host does (failure quoted in the
+row). The smaller ones: the Undo question no longer says *more than 1 record* for one record's
+long revision or *0 records* when the operations could not be read (`a single-record revision
+past the first page reads as more than it is: <p>It puts back the earlier values of 1 record,
+and more: 60 changes across more than 1 record.</p>…`, `a revision whose operations could not
+be read reads as touching 0 records: <p>It undoes 3 changes across at least 0 records.</p>…`);
+a definition undo whose operations could not be read is described as the definition or its
+view code (`an undo whose operations could not be read is not said to bring code back`), and a
+look or purpose undo is among what it names (`The input did not match the regular expression
+/look or purpose/.`); a double press and a busy refusal are said (WSP-05 row); the Look dialog
+waits for the review (WSP-25 row); and the files guide no longer counts four states over five
+rows. The dead Add view form the review found in `view-packages.ts` belongs to W-229, which owns
+that file.
+
+Left open: nothing from W-230. `prepareApplication` now rejects a non-previewable proposal for
+every Studio caller, the Add view form included (`view-packages.ts`, W-229's file).
+
+Runs:
+
+- After the review's fixes: `npx tsc --noEmit` clean, `npm test` 740 of 740, and the shell lane
+  two complete runs, 90 checks each, browser exceptions 0. `Test-Repository` and `Test-Site`
+  as below.
+- Before the review: `npx tsc --noEmit` clean, and `npm test` in the Workbench 735 of 735. One earlier full run
+  failed only `extension-settings.test.mjs`, at a bundle step, on a `focusWithoutInteraction`
+  import another session was adding to `view-frames.ts`; it passed in the next run.
+- `pwsh -NoProfile -File tools/Review-WorkbenchShell.ps1`: two complete runs, 88 checks each,
+  browser exceptions 0. Two runs before them failed only WXS-07, then UIK-02 and WXS-07, checks
+  another session was adding.
+- `dotnet test tests/Nendo.Engine.Tests --filter ESC02_ARevisionWhoseUndoIsOnAnotherPageIsNotOffered`:
+  1 passed.
+- `tools/Test-ApplicationNeutrality.ps1` passed; `tools/Test-Site.ps1 -SkipInstall`: "Website
+  build passed."; `tools/Test-Repository.ps1`: "Repository verification passed."
+
+Not run: Desktop tests, host, window and input lanes, and `Test-Production`. No installer was
+built.
+
+### Twenty-eighth pass: custom-view sandbox and broker hardening (W-229)
+
+2026-10-14: the fifteen findings planned as W-229 (1 P2, 14 P3) are fixed; none was already
+fixed, though two of WXS-19's six drifts (the port and `unknown-event` rows) had been corrected
+by the twenty-sixth pass and its fourth (filters on a calculated field) by W-222. The guards are
+new cases in `scripts/extension-broker.test.mjs`, `scripts/extension-api.test.mjs`,
+`scripts/custom-view-recipe.test.mjs` and `scripts/view-api-reference.test.mjs`, a new Desktop
+class `DesktopPackageIdRuleTests` (pure functions, no session or window), and seven checks in
+`tools/Review-WorkbenchShell.ps1`. Five of them run a real cross-origin view: the lane answers the
+preview's Board glance origin with a small page that speaks the port protocol, tells the page it
+is Nendo Desktop, and lets the page's own broker connect it. Every guard failed with its defect
+put back, and the quoted texts are from those runs. No new refusal code: the bounds reuse `busy`
+and `not-allowed`. ADR-0013 has a dated History entry, on the owner's standing pre-acceptance.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [WXS-04](#wxs-04) | A view that moves the page on its own, its frame not focused, does so at most once a second (`ui.openRecord`, `ui.openScreen` and `ui.openStudio` together, `navigationIntervalMs`), refused `busy` before the Workbench is asked. The time is kept by mount for the broker's life, so a fresh hello does not reset it, and stands only for a move that started: one the Workbench refused at once is not counted. A move made while the person is in the view (`personIn`, the frame focused) is not bounded. A switch that turns views off, pressed while an action runs, is kept on its own (`keepWhileBusy` in `busy-queue.ts`) and made when the action ends, however it ended; a later press never replaces it. Contract Limits table and ADR-0013 History. | Broker: `ui.openScreen within a second of the last move was answered: {"t":"res","id":2,"ok":true,"r":{"opened":true}}`; after a fresh hello: `A view that said hello again moved the page within a second of its last move: {"t":"res","id":6,"ok":true,"r":{"opened":true}}`; the person's clicks: `A second row the person clicked in the view was refused: {…"code":"busy",…}`; a refused move: `A move the Workbench refused at once kept the view from asking again: {…"code":"busy",…}`; shell lane: `WXS-04: turning views off while a view’s move ran was dropped; views still run ({"busy":true,"run":true}).` and, with the first pass's `deferWhileBusy`: `WXS-04: turning views off during a view’s failing move was dropped; views still run ({"busy":true,"opened":false,"alert":"alert","run":true}).` |
+| [WXS-03](#wxs-03) | `api.js` coalesces two writes to one key only when neither carries `expectedVersion`; a conditional write is sent and answered alone, in order. | `The conditional write was not sent as it was made: {"key":"layout","value":{"zoom":5}}` |
+| [WXS-05](#wxs-05) | `drawTrouble` moves focus to the overlay's Stop (or Reload) when the frame or the stage had it, so a keyboard reaches Stop and Nendo's keys while the hung view keeps none. | `WXS-05: the not-responding overlay left focus on iframe.view-frame, where no key reaches Stop.` |
+| [WXS-06](#wxs-06) | The refusal over unsaved typing is said on the page only when the view's frame has focus (the person asked) or the caller is Nendo's own Ctrl K or Studio search; a view asking on its own is refused `not-allowed` with nothing drawn and focus left where it was. | `WXS-06: the refusal moved focus from input to div.message-slot.use-message.` |
+| [WXS-07](#wxs-07) | A view that is not on screen (its placeholder gone or its frame in the parking lot, as while the person reviews its proposal) is refused `not-allowed` on the three moves, and `ui.showMenu` answers null without drawing. | Menu: `WXS-07: a parked view drew its menu over the review (menu true, answer null).`; move: `WXS-07: a parked view’s move was answered {"t":"res","id":4,"ok":true,"r":{"opened":true}} and the page is use.` |
+| [WXS-09](#wxs-09) | State writes have their own lane in `api.js`: the next leaves `stateWriteSpacingMs` after the last one actually reached the port, so writes queued behind eight requests in flight no longer arrive together. The spacing is 600 ms, not 550, so a timer's slack keeps the broker's two a second. | `State writes reached the Workbench [0,0] ms apart; the broker refuses a third within a second.` |
+| [WXS-10](#wxs-10) | `operationsParam` rebuilds payloads with `inboundJson`, which keeps a well-formed `{ $nendoNumber }` envelope (the pattern and 128-character bound `valuesParam` uses, now one `exactEnvelope`); answers to a view still go through `plainJson`. | `The proposal’s payload did not reach the host as the view sent it: {"entityId":"tasks","fieldId":"amount","default":12345678901234568,"nested":[{"big":9007199254740992}],"plain":2.5,"notAnEnvelope":null}` |
+| [WXS-11](#wxs-11) | A batch's idempotency key is `view:‹package›:‹writeKey›`; the colon is in neither alphabet. A batch left unanswered across the upgrade is a new batch when sent again (contract). | `Two packages’ batches share an idempotency key: ["view-org.nendo.garden-tasks-17","view-org.nendo.garden-tasks-17","view-org.a-b-c","view-org.a-b-c"]` |
+| [WXS-12](#wxs-12) | The host's actor check (`WorkbenchProtocolHandler.ExtensionActorPackage`) uses the Engine's `ValidPackageId`, and the Add view form a `validPackageId` with the same rule. `scripts/package-ids.json` is the one table the Engine, the host and the form are held to. | Desktop: `These disagree with the table: host actor check on 'org.view-', host actor check on 'org.my--view', host actor check on 'org.example-.map', …`; form: `The form and the Engine disagree on these package IDs.` (eight IDs, `org.view-` first) |
+| [WXS-13](#wxs-13) | `viewsOfPackage` lists an `extensionView` root as "a screen of the file, beside the front page", with an Open button that sets the file view and opens Use; the Remove review names it the same way. | `A package that a screen of the file shows is listed as shown nowhere.` |
+| [WXS-14](#wxs-14) | For a panel `refusalFor` checks the page first: "This file has no record page to put a panel on yet." when there is none. | `actual: 'Choose a record type that exists.', expected: 'This file has no record page to put a panel on yet.'` |
+| [WXS-15](#wxs-15) | `setViewPlace` answers null when the view is not on the page; the broker refuses that `not-allowed` and records no place, so the next draw hands the view nothing it had not been told. | `A place the Workbench kept nowhere was answered as kept: {"t":"res","id":1,"ok":true,"r":null}` |
+| [WXS-16](#wxs-16) | `api.js` knows a first copy by an own `window.nendo` carrying `apiVersion`; an element called `nendo` (named access, not an own property) no longer stops it, and an own non-API `nendo` is named in a console error. | `The view said no hello when the page held an element called nendo.` |
+| [WXS-17](#wxs-17) | `wireViewFrames`' run branch clears `is-notice` and the notice before it adopts or starts the frame. | `WXS-17: the panel started its view beside the stale notice: {"after":{"held":true,"notice":"Custom views are off on this device. Turn them on under Studio → Screens → Custom views.Open Custom views","isNotice":true},…}` |
+| [WXS-19](#wxs-19) | The contract's filter sentence names `descendantOf`; reference.ts's context table has `place`; ADR-0013 bounds a toolbar at 16 KiB of JSON in all. `view-api-reference.test.mjs` now reads the port and `unknown-event` rows against `viewEventNames`, the filter sentence against the query words, the context table against `viewContext` plus `place`, and the ADR's bound against the limits. | Operators: `The contract's filter operators are not the query words`; context: `The reference's context table and the context a view is handed name different keys.`; ADR: `ADR-0013 bounds a toolbar otherwise than the code: 32 items in the row, 128 in all, labels of 80 characters`; events (row put back to four): `The unknown-event row names other events` |
+
+**Independent review.** An independent review of these fixes, and of W-230's, found one defect
+it reproduced with a probe and four more in this work, all fixed and guarded here:
+
+- WXS-04's bound lived on the connection, and a view that said hello again between moves started
+  afresh: the reviewer's probe made five moves in one millisecond, all reaching the Workbench. It
+  is now kept by mount for the broker's life; the broker test says hello again and fails as
+  quoted above without it.
+- The switch press was held as an ordinary move, which a newer press replaces and an alert said
+  since drops; a view's failing move says one. It is now kept on its own and always made. A
+  second shell check makes the move fail (a record that is not in the file) and fails as quoted
+  above against the first pass's fix.
+- The bound refused ordinary clicking in shipped packages (Gantt rows, graph nodes, Garden's
+  agenda, Atlas chips). It now applies only while the person is not in the view, and a move the
+  Workbench refused at once does not count; both are in the second broker test.
+- Studio's Add view form cleared its draft before the preview was answered, so after W-230 made
+  a refused preview keep the form, every control on it did nothing. The draft is now cleared
+  only when the review opens. A shell check answers the first preview invalid, corrects the
+  title and previews again; with the old order it fails: `W-229: after a refused preview the Add
+  view form did nothing; the page is surfaces, saying "The probe refused this view. Nothing in
+  the file changed.".`
+- The WXS-07 check waited a fixed 300 ms for the menu; it now polls for the view's answer or a
+  drawn menu, and still fails with the defect put back: `WXS-07: a parked view drew its menu
+  over the review (menu true, answer null).`
+
+The contract also says now what a batch left unanswered across the key change does when it is
+sent again: it is not answered from its receipt, and if it was kept its creates and versioned
+writes collide (`record-exists-or-invalid`, `record-version-conflict`); only unversioned updates
+would be applied again, with the same values.
+
+`scripts/extension-settings.test.mjs` stubs the shell and a stage for its view-frames bundle; it
+gained `focusWithoutInteraction` and a stage `classList`, which the fixed `view-frames.ts` uses.
+The contract, the authoring guide and reference.ts say each new bound and refusal where they list
+the others (`busy`, `not-allowed`, the Limits table, state coalescing, `ui.setPlace`, the batch
+key, the actor's package rule, and how `api.js` knows a second copy).
+
+Checked after the review's fixes: `npm test` (740 pass), `npx tsc --noEmit` (exit 0),
+`tools/Review-WorkbenchShell.ps1` twice (passed both times, all checks, browser exceptions 0)
+and `tools/Test-Repository.ps1` (passed). Before them: `DesktopPackageIdRuleTests` and
+`DesktopExtensionWriterTests` (15 pass); no C# changed since.
+
+Guards written but not run: none. The shell-lane checks measure the Workbench side in headless
+Edge with a real cross-origin frame; the hang is a view that stops answering pings rather than a
+spinning renderer, and no check here ran in a real WebView2. The real-host journey
+(`tools/Review-ExtensionViews.mjs`) was not changed or run; its navigation calls come from
+separate connections or seconds apart, so the once-a-second bound should not touch it.
+
+Left open:
+
+- WXS-04's other suggestion, answering an open of the place already shown as done without a
+  redraw, is not built; the bound and the held switch remove the failure.
+- `proposals.prepare` and `proposals.open` have no rate of their own (WXS-06's note); the host's
+  one waiting proposal per package bounds them, and a view asking on its own no longer touches
+  the page.
+- Archi (`extensions/archi/view.js`) shows a refused `ui.setPlace` in its status line, so a place
+  it declares while held for its review now reads as the refusal sentence there when the person
+  returns. Ignoring `not-allowed` from `setPlace` in the package is a package change for its own
+  proposal.
+- `tools/Graph-FixtureBroker.html`, which the package gates frame their views in, does not
+  enforce the once-a-second bound on moves.

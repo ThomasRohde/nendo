@@ -1,4 +1,4 @@
-import type { DesktopSessionView } from './host';
+import type { DesktopSessionView, ReadPage, RecordSnapshot } from './host';
 
 interface CanonicalOperation {
   operationId: string;
@@ -16,6 +16,11 @@ export interface ApplicationRecipe {
   actionLabel: string;
   applicationName: string;
   proposalPayload: Record<string, unknown>;
+  /**
+   * The payload to prepare, read from the file when it is pressed, where the recipe needs records
+   * the open session does not hold. Without it, proposalPayload is prepared as it is.
+   */
+  prepare?: (query: (payload: Record<string, unknown>) => Promise<ReadPage<RecordSnapshot>>) => Promise<Record<string, unknown>>;
 }
 
 const entityId = 'entity.idea';
@@ -136,9 +141,22 @@ export function ideaGardenRecipe(session: DesktopSessionView): ApplicationRecipe
     description: 'Create the Idea Garden structure and surfaces',
     operations: definition,
   }];
-  const backfill = session.records
-    .filter((record) => record.entityId === entityId && record.values['field.idea.status'] == null)
-    .map((record, index) => ({
+  // Existing ideas without a Status go into the Idea group. They are read from the file when the
+  // recipe is pressed: the desktop session holds no records (bounded reads), so a backfill built
+  // from session.records was never made there and every existing idea sat in Ungrouped (WSP-11).
+  const proposalPayload = { proposalId, title: 'Idea form, list and board', mutations };
+  const prepare = async (query: (payload: Record<string, unknown>) => Promise<ReadPage<RecordSnapshot>>): Promise<Record<string, unknown>> => {
+    const missing: RecordSnapshot[] = [];
+    let cursor: string | null = null;
+    // Where the recipe adds Status itself, every existing record lacks it, and the host refuses a
+    // filter on a field the type does not have yet; so every record of the type is read instead.
+    const filters = existingFieldIds.has('field.idea.status') ? [{ fieldId: 'field.idea.status', operator: 'isNull' }] : [];
+    do {
+      const page: ReadPage<RecordSnapshot> = await query({ entityId, limit: 200, cursor, filters });
+      missing.push(...page.items);
+      cursor = page.nextCursor;
+    } while (cursor !== null);
+    const backfill = missing.map((record, index) => ({
       operationId: `${proposalId}-backfill-${index.toString().padStart(3, '0')}`,
       operationType: 'data.setField',
       payload: {
@@ -149,21 +167,17 @@ export function ideaGardenRecipe(session: DesktopSessionView): ApplicationRecipe
         value: 'Idea',
       },
     }));
-  if (backfill.length > 0) {
-    mutations.push({
+    return backfill.length === 0 ? proposalPayload : { ...proposalPayload, mutations: [...mutations, {
       idempotencyKey: `${proposalId}-data`,
       description: 'Place existing Ideas in the Idea group',
       operations: backfill,
-    });
-  }
+    }] };
+  };
 
   return {
     actionLabel: entity === undefined ? 'Start Idea Garden' : 'Complete Idea Garden',
     applicationName: 'Idea Garden',
-    proposalPayload: {
-      proposalId,
-      title: 'Idea form, list and board',
-      mutations,
-    },
+    proposalPayload,
+    ...(entity === undefined ? {} : { prepare }),
   };
 }

@@ -182,3 +182,12 @@ export function viewAfterAccepting(input: { returnView: ViewName; buildsScreens:
   if (input.fromView || input.codeOnly) return input.returnView;
   return input.buildsScreens && !input.hadScreens ? 'use' : input.returnView;
 }
+
+/**
+ * What a Studio form says when the host refuses its change on the copy of the file: the host's
+ * own words, said in the form, which keeps what was typed (WSP-19).
+ */
+export function proposalRefusal(preview: Pick<ProposalPreview, 'diagnostics'>): string {
+  const said = preview.diagnostics.map((item) => `${item.message} ${item.hint ?? ''}`.trim()).filter((text) => text !== '');
+  return `${said.length === 0 ? 'The file refused this change.' : said.join(' ')} Nothing in the file changed.`;
+}

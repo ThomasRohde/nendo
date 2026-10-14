@@ -527,12 +527,25 @@ internal sealed partial class WorkbenchProtocolHandler
         if (!WorkbenchMethods.ExtensionWriterMethods.Contains(method))
             throw new NendoPreconditionException("actor-not-allowed", $"A custom view may not call {method}.");
         var text = actor.ValueKind == JsonValueKind.String ? actor.GetString() : null;
-        const string prefix = "extension:";
-        if (text is null || !text.StartsWith(prefix, StringComparison.Ordinal) || text.Length > 100 ||
-            !System.Text.RegularExpressions.Regex.IsMatch(text[prefix.Length..], "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"))
-            throw new NendoPreconditionException("actor-not-allowed", "A write names its view by extension: and a package ID.");
-        _session.RequireExtensionWriter(text[prefix.Length..]);
+        var packageId = ExtensionActorPackage(text)
+            ?? throw new NendoPreconditionException("actor-not-allowed", "A write names its view by extension: and a package ID.");
+        _session.RequireExtensionWriter(packageId);
         return text;
+    }
+
+    /// <summary>
+    /// The package an actor names, <c>extension:&lt;package&gt;</c>, or null when it is not one.
+    /// The package ID is held to the Engine's own rule, which the import checked: a stricter
+    /// pattern here refused every write of a package the file carries under an ID such as
+    /// <c>org.view-</c> (WXS-12). src/Nendo.Workbench/scripts/package-ids.json is the table the
+    /// Engine, this check and the Add view form are held to.
+    /// </summary>
+    internal static string? ExtensionActorPackage(string? actor)
+    {
+        const string prefix = "extension:";
+        if (actor is null || !actor.StartsWith(prefix, StringComparison.Ordinal)) return null;
+        var packageId = actor[prefix.Length..];
+        return NendoExtensionContent.ValidPackageId(packageId) ? packageId : null;
     }
 
     private async Task<DesktopMutationView> CreateGenericRecordAsync(

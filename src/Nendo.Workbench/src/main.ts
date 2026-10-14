@@ -33,7 +33,7 @@ import { startTitleBar } from './title-bar';
 import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
 import { refreshExtensionSettings } from './extension-settings';
-import { capitalise, formatDateTime, messageFor, undoAllowedWhileUnapproved } from './format';
+import { approvalNeeded, capitalise, formatDateTime, messageFor, undoAllowedWhileUnapproved } from './format';
 import {
   CellStyleModule,
   ClientSideRowModelModule,
@@ -391,14 +391,14 @@ function updateChrome(): void {
   // is constrained, where it carries the warning the owner actually needs.
   // A healthy file whose automatic actions await approval is not editable either,
   // and nothing else on the frame said why.
-  const approvalNeeded = state.session.health === 'normal' && !state.session.capabilities.mutate &&
-    state.session.behaviourTrust?.requiresApproval === true && !state.session.behaviourTrust.isApproved;
+  // The same condition Health draws its chip from (WSP-14).
+  const awaitingApproval = approvalNeeded(state.session);
   // An unconfirmed save on a healthy file is said here too: written only by the render, it was
   // hidden again by the next chrome refresh, and before that never shown at all (WCS-14).
   const unconfirmed = state.session.health === 'normal' ? pendingSaveWords() : null;
-  sessionHealth.hidden = state.session.fileName === null || (state.session.health === 'normal' && !approvalNeeded && unconfirmed === null);
+  sessionHealth.hidden = state.session.fileName === null || (state.session.health === 'normal' && !awaitingApproval && unconfirmed === null);
   sessionHealth.dataset.state = 'warning';
-  setHealthWords(unconfirmed ?? (approvalNeeded ? 'Approval needed' : state.session.health === 'readOnly' ? 'Read-only' : 'Recovery required'));
+  setHealthWords(unconfirmed ?? (awaitingApproval ? 'Approval needed' : state.session.health === 'readOnly' ? 'Read-only' : 'Recovery required'));
 
   navigation.use.disabled = !validUse;
   navigation.agent.disabled = !state.session.capabilities.agentAccess;

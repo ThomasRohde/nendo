@@ -503,7 +503,9 @@ inside a cross-origin frame never reaches the Workbench's document.
   view*, below), on a record page in the panel's header. Each call
   replaces the whole toolbar, and an empty list removes it. The declaration is text and a
   closed set of kinds and icons, so nothing a view sends becomes markup, and a label stays
-  text. It is bounded: 32 items in the row, 128 in all, labels of 80 characters.
+  text. It is bounded: 32 items in the row, 16 KiB of JSON in all, labels of 80 characters.
+  (Until 2026-10-14 this said 128 in all, a bound the code never had; the contract's Limits
+  table was right, WXS-19.)
 - **Commands.** A press, a menu pick, a palette entry or a declared key reaches the view as
   the event `command`, `{id, value, source}`. Nendo shows the new state at once, such as a
   toggle pressed or an option chosen. The view's next declaration decides it.
@@ -900,3 +902,16 @@ falsified once, and has the failure text quoted in its planner Check.
   (a new instance ID), takes the new one. The document is written once and never again; an
   empty or absent list writes an empty map, and a list that cannot be read just then writes
   nothing until a later start. No rung. On the owner's standing pre-acceptance.
+- 2026-10-14 — sandbox and broker hardening (W-229, the WXS findings of a broad review),
+  within driver 6 and the kill switches. A view that moves the person's page on its own, its
+  frame not focused, does so at most once a second (`ui.openRecord`, `ui.openScreen` and
+  `ui.openStudio` together; the next is `busy`), because a view asking in a loop kept the
+  Workbench busy and the person's clicks, the switches among them, were dropped. The bound is
+  kept by mount through reconnects, counts only moves that started, and does not apply while
+  the person is in the view. A switch pressed while an action runs is held on its own and made
+  when the action ends, however it ended; it is never replaced or dropped. A view that is not on screen, held for the review of its own proposal, may not
+  move the page, draw a menu or keep a place (`not-allowed`, or a null menu). The refusal over
+  unsaved typing is said on the page only when the view's frame has focus. A hung or crashed
+  view's overlay takes focus when the view had it, since its keys reach Nendo only through the
+  view's own script. The toolbar's bound is 16 KiB of JSON in all, as built, not "128 in all".
+  No method, no rung. On the owner's standing pre-acceptance.

@@ -1,6 +1,6 @@
 import { openWorkspaceView, refreshDerived } from './actions';
 import { focusedRecords, leaveRecordContext, selectedSurfaces, state, surfaceErrors } from './app-state';
-import { refuseWhileDirty } from './draft-guard';
+import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { messageFor } from './format';
 import { WorkbenchHostError, type ProposalPreview } from './host';
 import { applicationPlans, overviewPlan } from './plan-selection';
@@ -18,10 +18,17 @@ import { renderDataRecordDialog } from './view-data';
  * moves while a record page holds unsaved typing. A view is told why when it is refused.
  */
 
-function refuseNow(action: string): void {
+/**
+ * The refusal over unsaved typing is said on the page when the person asked for the move: their
+ * own click in Ctrl K or Studio's search, or a click in the view (`said`, which view-frames.ts
+ * answers by whether the view's frame has focus). A view that asks on its own, from a timer or a
+ * changes event, is refused without a word on the page: the sentence moved focus out of the
+ * field the person was typing in, and blamed them for a move they never asked for (WXS-06).
+ */
+function refuseNow(action: string, said: boolean): void {
   if (state.actionInFlight)
     throw new WorkbenchHostError('busy', 'Nendo is finishing something else. Ask again in a moment.');
-  if (refuseWhileDirty(action))
+  if (said ? refuseWhileDirty(action) : recordFormIsDirty())
     throw new WorkbenchHostError('not-allowed', 'A record page has unsaved changes, so Nendo stays where it is until they are saved or closed.');
 }
 
@@ -30,9 +37,9 @@ function refuseNow(action: string): void {
  * returns to where the person was. It does not open over unsaved typing or another action;
  * the proposal then waits, and the view can open it again.
  */
-export function openProposalFromView(preview: ProposalPreview): { opened: boolean } {
+export function openProposalFromView(preview: ProposalPreview, said = true): { opened: boolean } {
   try {
-    refuseNow('opening a proposal from a custom view');
+    refuseNow('opening a proposal from a custom view', said);
   } catch {
     return { opened: false };
   }
@@ -50,8 +57,8 @@ export function openProposalFromView(preview: ProposalPreview): { opened: boolea
  * keeps running; a record of a type Use does not show opens in Studio's Data view, as a
  * graph's Open record always has.
  */
-export async function openRecordFromView(entityId: string, recordId: string): Promise<{ opened: boolean }> {
-  refuseNow('opening a record from a custom view');
+export async function openRecordFromView(entityId: string, recordId: string, said = true): Promise<{ opened: boolean }> {
+  refuseNow('opening a record from a custom view', said);
   const entity = state.session.entities.find((candidate) => candidate.entityId === entityId && candidate.retired !== true);
   if (entity === undefined) throw new WorkbenchHostError('not-found', 'That record type is not in this file.');
   const inUse = state.view === 'use' && applicationPlans().some((plan) => plan.entity.semanticId === entityId);
@@ -99,8 +106,8 @@ export async function openRecordFromView(entityId: string, recordId: string): Pr
  * Show a screen in Use. A screen is named by its root node's ID, as schema.describe lists it,
  * or by the surface that holds that root; the front page is a screen too.
  */
-export async function openScreenFromView(surfaceId: string): Promise<{ opened: boolean }> {
-  refuseNow('opening another screen');
+export async function openScreenFromView(surfaceId: string, said = true): Promise<{ opened: boolean }> {
+  refuseNow('opening another screen', said);
   const node = state.session.uiNodes.find((candidate) => candidate.parentNodeId === null &&
     (candidate.nodeId === surfaceId || candidate.surfaceId === surfaceId));
   const rootId = node?.nodeId ?? surfaceId;
@@ -141,8 +148,8 @@ export async function openScreenFromView(surfaceId: string): Promise<{ opened: b
 }
 
 /** Open Studio's Data view, on one record type when the view names it. */
-export async function openStudioFromView(entityId: string | null): Promise<{ opened: boolean }> {
-  refuseNow('opening Studio');
+export async function openStudioFromView(entityId: string | null, said = true): Promise<{ opened: boolean }> {
+  refuseNow('opening Studio', said);
   if (entityId !== null) {
     if (!state.session.entities.some((entity) => entity.entityId === entityId))
       throw new WorkbenchHostError('not-found', 'That record type is not in this file.');

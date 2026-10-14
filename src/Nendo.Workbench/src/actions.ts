@@ -4,7 +4,9 @@ import type { ApplicationRecipe } from './application-recipes';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showKeptAlert, showOutcome, showRetainedNotice } from './shell';
-import { blockedConditionsNotice, escapeHtml, foldDate, messageFor, mutationKey, valueDisplay } from './format';
+import { blockedConditionsNotice, escapeHtml, foldDate, isProposalPreviewable, messageFor, mutationKey, valueDisplay } from './format';
+import { undoMayAsk, undoQuestion } from './history-markup';
+import { proposalRefusal } from './proposal-markup';
 import { decideWriteFailure, errorCode, nameHolder, nameTarget, namingFieldId, referenceRefusalCodes, referenceTargetOf } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
 import { deferWhileBusy } from './busy-queue';
@@ -20,6 +22,7 @@ import { readsOwnRecords } from './surface-model';
 import {
   WorkbenchHostError, type AgentStatus, type CompileResult, type DesktopMutationView, type DesktopOperationView, type DesktopPromotionView,
   type DesktopSessionView, type HelpPagesView, type HistoryFoldPreview, type HistoryFoldResult, type ProposalPreview, type ReadPage, type RecordSnapshot, type RevisionSummary,
+  type StoredOperationSnapshot,
 } from './host';
 
 /**
@@ -590,8 +593,32 @@ function confirmFold(preview: HistoryFoldPreview): Promise<boolean> {
   });
 }
 
+let undoAsking = false;
+const undoBusy = 'Wait for the current action to finish, then try again.';
+
 export async function compensateRevision(revisionId: string): Promise<void> {
-  await runMutation('history.compensate', { revisionId, idempotencyKey: mutationKey() }, 'Undone. History lists the undo as a new change.', true);
+  // A second press while the question is read or open is the same undo asked twice.
+  if (state.actionInFlight || undoAsking) { showError(undoBusy); return; }
+  // A multi-record batch, a definition or a package is named and its effect said before it is
+  // undone; one record's edit stays one press (WSP-05, accepted 2026-10-13).
+  const revision = state.history.find(item => item.revisionId === revisionId);
+  if (revision !== undefined && undoMayAsk(revision)) {
+    undoAsking = true;
+    try {
+      let operations: StoredOperationSnapshot[] = [];
+      let more = false;
+      try {
+        const page = await client.request<ReadPage<StoredOperationSnapshot>>('history.operations', { revisionId, limit: 50, cursor: null });
+        operations = page.items;
+        more = page.nextCursor !== null;
+      } catch { more = true; /* Asked on what the entry itself says. */ }
+      const question = undoQuestion(revision, operations, more);
+      if (question !== null && !(await confirmDialog(question))) return;
+    } finally { undoAsking = false; }
+  }
+  const outcome = await runMutation('history.compensate', { revisionId, idempotencyKey: mutationKey() }, 'Undone. History lists the undo as a new change.', true);
+  // Another action began while the question was open: the undo was not sent, and that is said.
+  if (outcome === 'busy') showError(`${undoBusy} Nothing was undone.`);
 }
 
 export async function retryPendingSave(): Promise<void> {
@@ -734,19 +761,37 @@ async function readHelpPages(): Promise<FileHelpPage[]> {
   catch { return []; }
 }
 
-export async function prepareApplication(recipe: ApplicationRecipe, returnView: ViewName): Promise<void> {
-  if (state.actionInFlight) return;
+/**
+ * Prepares a Studio change as a proposal and opens its review. Answers whether the review opened.
+ *
+ * A press while another action runs says so: it was dropped without a word, and a column rename
+ * typed into its header stayed a box nothing answered (WSP-18). A change the host refuses on its
+ * copy of the file is rejected there and said in the form it came from, which keeps what was
+ * typed: it opened a review nothing could accept, whose Back lost the form (WSP-19).
+ */
+export async function prepareApplication(recipe: ApplicationRecipe, returnView: ViewName): Promise<boolean> {
+  if (state.actionInFlight) { showError('Wait for the current action to finish, then try again.'); return false; }
   state.actionInFlight = true;
   setBusy(true);
   clearError();
   try {
-    state.proposal = await client.request<ProposalPreview>('proposal.prepareChangeSet', recipe.proposalPayload);
+    const payload = recipe.prepare === undefined ? recipe.proposalPayload
+      : await recipe.prepare(query => client.request<ReadPage<RecordSnapshot>>('data.queryRecords', query));
+    const preview = await client.request<ProposalPreview>('proposal.prepareChangeSet', payload);
+    if (!isProposalPreviewable(preview.state)) {
+      try { await client.request('proposal.reject', { proposalId: preview.proposalId }); } catch { /* The refusal is what is said. */ }
+      showError(proposalRefusal(preview));
+      return false;
+    }
+    state.proposal = preview;
     state.proposalReturnView = returnView;
     state.view = 'proposal';
     rerender();
     announce('Proposal ready to review.');
+    return true;
   } catch (error) {
     showError(messageFor(error));
+    return false;
   } finally {
     state.actionInFlight = false;
     setBusy(false);

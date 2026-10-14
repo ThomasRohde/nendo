@@ -124,7 +124,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.proposals.prepare(title, operations)',
     params: 'title of 1 to 200 characters; operations, 1 to 128 canonical operations {operationType, payload, operationId?} from nendo://application/vocabulary.',
     answer: '{proposalId, title, state, diagnostics, opened}. opened is false when Nendo could not show the review at once; proposals.open shows it later.',
-    note: 'A definition change in the package\'s name, which the person accepts or rejects in Nendo\'s review. One proposal of a package waits at a time: another is refused with proposal-waiting.',
+    note: 'A definition change in the package\'s name, which the person accepts or rejects in Nendo\'s review. One proposal of a package waits at a time: another is refused with proposal-waiting. A number a JavaScript number would round goes in a payload as {"$nendoNumber": "digits"}, which reaches Nendo exactly. While the review is open the view runs on hidden: it cannot move the page, draw a menu or keep a place.',
   },
   'proposals.get': {
     call: 'nendo.proposals.get(proposalId)',
@@ -150,7 +150,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.state.set(key, value, options?)',
     params: 'value is JSON of at most 64 KiB. options is {scope?, expectedVersion?}: the key\'s version, or 0 for a key that must not exist yet; without it, the last write wins.',
     answer: '{key, value, version}.',
-    note: 'Kept in the file, so a copy carries it, and named in History. api.js sends a view\'s writes at most twice a second and joins writes to one key made meanwhile. A stale expectedVersion is refused with state-version-conflict.',
+    note: 'Kept in the file, so a copy carries it, and named in History. api.js sends a view\'s writes at most twice a second and joins writes to one key made meanwhile, but never a write with expectedVersion, which is sent and answered on its own. A stale expectedVersion is refused with state-version-conflict.',
   },
   'state.delete': {
     call: 'nendo.state.delete(key, options?)',
@@ -161,12 +161,13 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.ui.openRecord(entityId, recordId)',
     params: 'The record to open.',
     answer: '{opened}.',
-    note: 'Opens the record on its Use page when there is one, otherwise in Studio. Nothing moves while another action runs (busy) or a record page holds unsaved typing (not-allowed).',
+    note: 'Opens the record on its Use page when there is one, otherwise in Studio. Nothing moves while another action runs (busy) or a record page holds unsaved typing (not-allowed). Made with the person not in the view, the three ui.open calls together go at most once a second (busy); a move the person makes by clicking in the view is not bounded. A view that is not on screen is refused (not-allowed). Move the page when the person asks, not on a timer.',
   },
   'ui.openScreen': {
     call: 'nendo.ui.openScreen(surfaceId)',
     params: 'A screen\'s id or surfaceId from schema.describe; the front page is a screen too.',
     answer: '{opened}.',
+    note: 'As ui.openRecord: once a second with the other ui.open calls unless the person is in the view, and not while another action runs, a record page holds unsaved typing or the view is not on screen.',
   },
   'ui.openStudio': {
     call: 'nendo.ui.openStudio(entityId?)',
@@ -201,7 +202,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.ui.setPlace(place, {label?, replace?})',
     params: 'Where the view is: JSON of at most 4 KiB, such as {view: id, selected: id}. label names it on Nendo\'s Back button, at most 80 characters; the view\'s title when left out. replace corrects the step the person is on rather than making one.',
     answer: 'null.',
-    note: 'A new place is a step in Back and Forward; use replace for a selection and for the place the view starts at. Declaring the place it already has does nothing, so a view may declare its place after restoring it. Back and Forward hand a place back as the event place, and a view that has to start again finds it in context.place. At most twenty a second. Check nendo.has(\'ui.setPlace\') first.',
+    note: 'A new place is a step in Back and Forward; use replace for a selection and for the place the view starts at. Declaring the place it already has does nothing, so a view may declare its place after restoring it. Back and Forward hand a place back as the event place, and a view that has to start again finds it in context.place. At most twenty a second. Refused with not-allowed while the view is not on screen, waiting for the review of its proposal: declare the place again once it is shown. Check nendo.has(\'ui.setPlace\') first.',
   },
 };
 
@@ -302,6 +303,7 @@ export function viewApiReference() {
       locale: 'The browser\'s language, or en.',
       readOnly: 'True when the open file takes no edits. Writes, state and proposals are then refused with read-only.',
       methods: 'Every method this Nendo answers, which nendo.has reads.',
+      place: 'The place this view declared with ui.setPlace on the page the person is on, or null: a view that starts again, after its screen was left, starts there.',
     },
     record: {
       shape: '{entityId, recordId, version, values, exact, labels, calculated}.',
@@ -377,11 +379,11 @@ export function viewApiReference() {
     refusals: {
       'invalid-params': 'A parameter breaks its rule; the message names it.',
       'too-large': 'The parameters take more than 256 KiB.',
-      busy: 'Too many requests wait, a second toast or menu came too soon, or Nendo is running another action. Try again shortly.',
+      busy: 'Too many requests wait, a second toast, menu or move of the page came too soon, or Nendo is running another action. Try again shortly.',
       'views-off': 'Custom views were turned off while the request waited.',
       'stale-file-session': 'The view\'s file is no longer open. Nendo disconnects the view and its frame ends; do not retry.',
       'read-only': 'The open file takes no edits.',
-      'not-allowed': 'A record page holds unsaved typing, so Nendo stays where it is.',
+      'not-allowed': 'A record page holds unsaved typing, so Nendo stays where it is; or the view is not on screen, so it cannot move the page or keep a place.',
       'not-found': 'The record type or the screen is not in this file.',
       'record-version-conflict': 'The record changed since the view read it. Read it again.',
       'record-referenced': 'Other records still point at the record being deleted.',

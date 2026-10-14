@@ -2,7 +2,7 @@ import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { holdingThePage } from './draft-guard';
 import { messageFor } from './format';
-import type { EntitySnapshot, ReadPage } from './host';
+import { WorkbenchHostError, type EntitySnapshot, type ReadPage } from './host';
 import { type OutlineLevel, type OutlineNode, type OutlineState, TOP, emptyOutline } from './outline-model';
 import { createReadChase, type ReadChase } from './read-chase';
 import { rerender } from './shell';
@@ -30,20 +30,41 @@ export async function readOutlineLevel(entityId: string, parentKey: string, curs
   return { items: page.items, nextCursor: page.nextCursor, changeSequence: page.changeSequence };
 }
 
-/** Reads the top level and every open record's children again, keeping what was open. */
+/**
+ * One level read again as far as it had been read: the pages Show more added are read too, so a
+ * refresh does not drop back to the first 200 rows and take an edited row out of view (WSP-13).
+ * Null when the file moved between its pages, which the host says by refusing the cursor as
+ * stale, or when the reply is no longer this file's.
+ */
+async function readLevelAgain(entityId: string, parentKey: string, loaded: number, current: () => boolean): Promise<(OutlineLevel & { changeSequence: number }) | null> {
+  const level = await readOutlineLevel(entityId, parentKey, null);
+  while (current() && level.items.length < loaded && level.nextCursor !== null) {
+    let more: OutlineLevel & { changeSequence: number };
+    try { more = await readOutlineLevel(entityId, parentKey, level.nextCursor); }
+    catch (error) { if (error instanceof WorkbenchHostError && error.code === 'stale-cursor') return null; throw error; }
+    if (more.changeSequence !== level.changeSequence) return null;
+    level.items = [...level.items, ...more.items];
+    level.nextCursor = more.nextCursor;
+  }
+  return current() ? level : null;
+}
+
+/** Reads the top level and every open record's children again, keeping what was open and how much of it was read. */
 async function loadOutline(entityId: string, current: () => boolean): Promise<void> {
   const previous = outlines.get(entityId);
+  const loaded = (key: string): number => previous?.levels.get(key)?.items.length ?? 0;
   for (let attempt = 0; attempt < 3; attempt++) {
-    const top = await readOutlineLevel(entityId, TOP, null);
+    const top = await readLevelAgain(entityId, TOP, loaded(TOP), current);
     if (!current()) return;
+    if (top === null) continue;
     const next = emptyOutline(entityId, top.changeSequence);
     next.levels.set(TOP, top);
     let consistent = true;
     for (const id of previous?.expanded ?? []) {
       try {
-        const level = await readOutlineLevel(entityId, id, null);
+        const level = await readLevelAgain(entityId, id, loaded(id), current);
         if (!current()) return;
-        if (level.changeSequence !== top.changeSequence) { consistent = false; break; }
+        if (level === null || level.changeSequence !== top.changeSequence) { consistent = false; break; }
         next.levels.set(id, level);
         next.expanded.add(id);
       } catch { if (!current()) return; /* A record that has gone is no longer open. */ }

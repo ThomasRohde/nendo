@@ -7,7 +7,7 @@ import { state } from './app-state';
 import { recentFileState } from './recent-files';
 import { openHelp, prepareApplication, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
 import { openCustomViews } from './view-packages';
-import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookSentence, normaliseLetter } from './file-look';
+import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookReviewable, lookSentence, normaliseLetter } from './file-look';
 import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { decideDraftState } from './draft-state';
 import { newFileMenuLabel } from './new-file';
@@ -162,7 +162,7 @@ function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSess
     if (icon !== null) icon.outerHTML = lookIconMarkup(shownTone, shownLetter);
     const sentence = dialog.querySelector('[data-look-sentence]');
     if (sentence !== null) sentence.textContent = lookSentence(shownTone, shownLetter, next.tone !== null || next.letter !== null);
-    review.disabled = lookProposal(look, next, 0) === null;
+    review.disabled = !lookReviewable(look, next, letterInput.value);
   };
   for (const swatch of dialog.querySelectorAll<HTMLInputElement>('input[name="look-tone"]')) {
     swatch.addEventListener('change', () => {
@@ -187,13 +187,27 @@ function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSess
     for (const swatch of dialog.querySelectorAll<HTMLInputElement>('input[name="look-tone"]')) swatch.checked = swatch.value === tone;
     redraw();
   });
+  // The dialog stays until the review opens: a refusal is said here, where the chosen look still
+  // is, rather than behind the dialog after it had closed and taken the choice with it.
+  const said = document.createElement('p');
+  said.className = 'inline-alert look-refusal';
+  said.setAttribute('role', 'alert');
+  said.hidden = true;
+  review.closest('.look-actions')?.after(said);
   review.addEventListener('click', () => {
     const revision = state.session.manifest?.definitionRevision;
     if (revision === undefined) return;
     const proposal = lookProposal(look, next, revision);
     if (proposal === null) return;
-    dialog.close();
-    void prepareApplication({ actionLabel: String(proposal.title), applicationName: state.session.fileName ?? 'This file', proposalPayload: proposal }, state.view);
+    review.disabled = true;
+    said.hidden = true;
+    void prepareApplication({ actionLabel: String(proposal.title), applicationName: state.session.fileName ?? 'This file', proposalPayload: proposal }, state.view)
+      .then(opened => {
+        if (opened) { dialog.close(); return; }
+        review.disabled = !lookReviewable(look, next, letterInput.value);
+        said.textContent = state.lastOutcome?.message ?? 'The change was not prepared.';
+        said.hidden = false;
+      });
   });
   redraw();
 }

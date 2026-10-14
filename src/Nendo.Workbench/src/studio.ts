@@ -4,12 +4,18 @@ export function selectedEntity(session: DesktopSessionView, entityId: string | n
   return session.entities.find(entity => entity.entityId === entityId) ?? session.entities[0] ?? null;
 }
 
-export function renameSchemaProposal(entityId: string, fieldId: string | null, displayName: string, expectedDefinitionRevision: number): Record<string, unknown> {
+/**
+ * A rename names what it renames: the field, its record type and the old name. "Rename to Owner"
+ * left the review, the outcome and History to guess which field had been renamed (WSP-20).
+ */
+export function renameSchemaProposal(entityId: string, fieldId: string | null, displayName: string, expectedDefinitionRevision: number,
+  names: { current: string; typeName: string }): Record<string, unknown> {
   displayName = displayName.trim();
   if (!displayName || displayName.length > 120) throw new Error('Enter a display name up to 120 characters.');
   const id = crypto.randomUUID().replaceAll('-', '');
-  return { proposalId: `proposal-${id}`, title: `Rename to ${displayName}`, mutations: [{ idempotencyKey: `rename-${id}`,
-    description: `Rename to ${displayName}`, operations: [{ operationId: `rename-${id}`,
+  const title = fieldId ? `Rename ${names.current} on ${names.typeName} to ${displayName}` : `Rename record type ${names.current} to ${displayName}`;
+  return { proposalId: `proposal-${id}`, title, mutations: [{ idempotencyKey: `rename-${id}`,
+    description: title, operations: [{ operationId: `rename-${id}`,
       operationType: fieldId ? 'schema.renameField' : 'schema.renameEntity',
       payload: { entityId, ...(fieldId ? { fieldId } : {}), displayName, expectedDefinitionRevision },
     }],
@@ -78,8 +84,11 @@ export function fieldProposal(entityId: string, name: string, kind: string, choi
   // named before it costs a proposal.
   let bounds: { min: number; max: number } | null = null;
   if (kind === 'rating') {
-    const min = Number((scale?.min ?? '').trim());
-    const max = Number((scale?.max ?? '').trim());
+    // An empty box is not 0: Number('') is, and a scale set once would have started there (WSP-10).
+    const lowest = (scale?.min ?? '').trim();
+    const highest = (scale?.max ?? '').trim();
+    const min = lowest === '' ? Number.NaN : Number(lowest);
+    const max = highest === '' ? Number.NaN : Number(highest);
     if (!Number.isInteger(min) || !Number.isInteger(max)) throw new Error('Enter whole numbers for the lowest and highest values.');
     if (max <= min) throw new Error('The highest value must be greater than the lowest.');
     if (max - min > 9) throw new Error(`A rating scale carries at most 10 values, and ${min} to ${max} is ${max - min + 1}.`);

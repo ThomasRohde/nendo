@@ -1,5 +1,6 @@
 import { openWorkspaceView, prepareApplication } from './actions';
 import { selectedSurfaces, state, type ViewName } from './app-state';
+import { keepWhileBusy } from './busy-queue';
 import { client } from './client';
 import {
   addedViewLanding, addViewProposal, edgeChoices, pageChoices, refusalFor, showableFields, viewEntities, viewKinds, viewsOfPackage, viewUsePlace,
@@ -126,8 +127,10 @@ function packageUsesMarkup(pkg: ExtensionPackageView): string {
   if (uses.length === 0)
     return `<p class="package-uses package-uses-none">Not shown anywhere yet. Add a view to put it on a screen or a record page.</p>`;
   return `<ul class="package-uses" aria-label="Where ${escapeAttribute(pkg.title)} is shown">${uses.map((use) =>
-    `<li><strong>${escapeHtml(use.title)}</strong> <span>${escapeHtml(whereItIs(use))}</span>${use.kind === 'panel' || use.entityId === null ? ''
-      : ` <button type="button" class="text-button" data-view-open="${escapeAttribute(use.nodeId)}" data-view-entity="${escapeAttribute(use.entityId)}">Open</button>`}</li>`).join('')}</ul>`;
+    `<li><strong>${escapeHtml(use.title)}</strong> <span>${escapeHtml(whereItIs(use))}</span>${use.kind === 'file'
+      ? ` <button type="button" class="text-button" data-view-file="${escapeAttribute(use.nodeId)}">Open</button>`
+      : use.kind === 'panel' || use.entityId === null ? ''
+        : ` <button type="button" class="text-button" data-view-open="${escapeAttribute(use.nodeId)}" data-view-entity="${escapeAttribute(use.entityId)}">Open</button>`}</li>`).join('')}</ul>`;
 }
 
 /** Sensible first choices, so the form opens ready to preview whenever the file allows it. */
@@ -217,6 +220,8 @@ function wireAddView(root: ParentNode): void {
     });
   for (const button of root.querySelectorAll<HTMLButtonElement>('[data-view-open]'))
     button.addEventListener('click', () => void openView(button.dataset.viewEntity!, button.dataset.viewOpen!));
+  for (const button of root.querySelectorAll<HTMLButtonElement>('[data-view-file]'))
+    button.addEventListener('click', () => void openFileView(button.dataset.viewFile!));
   const form = root.querySelector<HTMLFormElement>('#add-view-form');
   if (form === null || draft === null) return;
   const pkg = state.session.extensions?.packages.find((candidate) => candidate.packageId === draft!.packageId);
@@ -273,8 +278,15 @@ function wireAddView(root: ParentNode): void {
     const page = pageChoices(state.session.uiNodes, state.session.entities).find((candidate) => candidate.nodeId === draft!.pageNodeId);
     adding = { proposalId: payload.proposalId as string, kind: draft.kind, nodeId: `node.view.${id}`, title: draft.title.trim(),
       entityId: draft.entityId, pageTitle: draft.kind === 'panel' ? page?.title ?? null : null };
-    draft = null;
-    void prepareApplication({ actionLabel: 'Add view', applicationName: adding.title, proposalPayload: payload }, 'surfaces');
+    // The form is the person's until the proposal is ready to review. Cleared before the answer,
+    // a refused preview left a form whose every control did nothing, so the person could not
+    // correct it and preview again (W-230 review).
+    const submitted = draft;
+    const proposalId = adding.proposalId;
+    void prepareApplication({ actionLabel: 'Add view', applicationName: adding.title, proposalPayload: payload }, 'surfaces').then((prepared) => {
+      if (prepared) { if (draft === submitted) draft = null; return; }
+      if (adding?.proposalId === proposalId) adding = null;
+    });
   });
 }
 
@@ -283,6 +295,13 @@ async function openView(entityId: string, nodeId: string): Promise<void> {
   state.selectedApplicationEntity = entityId;
   state.showOverview = false;
   selectedSurfaces.set(entityId, nodeId);
+  await openWorkspaceView('use');
+}
+
+/** Use, on one of the file's own screens (W-106), as the view picker opens it. */
+async function openFileView(nodeId: string): Promise<void> {
+  state.fileView = nodeId;
+  state.showOverview = false;
   await openWorkspaceView('use');
 }
 
@@ -331,7 +350,11 @@ export function wireCustomViewsPanel(root: ParentNode): void {
  * snapshot may come bare or as `{ session }`, as the other file actions' answers do.
  */
 export async function setViewSwitch(scope: 'device' | 'file', enabled: boolean): Promise<void> {
-  if (state.actionInFlight) return;
+  // Turning views off is how a person gets out of a view that misbehaves, so a press while an
+  // action runs is made when it ends, however the action ended, and is never replaced by a later
+  // press: a view that asked Nendo to open its own screen over and over kept an action running,
+  // and the switch did nothing; held as an ordinary move, a view's failing move dropped it (WXS-04).
+  if (keepWhileBusy(() => { void setViewSwitch(scope, enabled); })) return;
   state.actionInFlight = true;
   setBusy(true);
   clearError();

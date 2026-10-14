@@ -597,7 +597,11 @@ A package takes it with one classic script tag, before its own scripts:
 ```
 
 The script defines `window.nendo` as a frozen object that cannot be replaced. A
-second copy of the script does nothing. A page opened on its own, outside any frame,
+second copy of the script does nothing; it knows the first by `window.nendo`'s own
+`apiVersion`, so an element with the id or name `nendo`, which the browser also makes
+`window.nendo`, does not stop the view connecting (WXS-16, 2026-10-14). A page script's
+own global `nendo`, made before the script, does: the script then installs nothing and
+says so in the console. A page opened on its own, outside any frame,
 is told so: `nendo.ready` rejects with `not-framed`, and so does every request.
 
 ### The handshake
@@ -684,8 +688,9 @@ can round. A record keeps each number's exact digits in `exact`, and the aggrega
 answers carry them as `valueLexeme` beside each `value`.
 
 A filter is `{fieldId, operator, value}`, with `operator` one of `eq`, `ne`, `lt`,
-`le`, `gt`, `ge`, `contains`, `isNull` and `isNotNull`, and no `value` for the last
-two. The broker takes at most 64 clauses, and the host refuses a query of more than
+`le`, `gt`, `ge`, `contains`, `isNull`, `isNotNull` and `descendantOf`, and no `value`
+for `isNull` and `isNotNull`. `descendantOf` takes a record ID and matches every record
+under it, on the parent field of a declared tree. The broker takes at most 64 clauses, and the host refuses a query of more than
 eight. The [query contract](queries.md) has the rest: exact comparisons, cursors
 that bind the file's change sequence, and a filter or sort by a calculated field worked out
 over at most 10,000 records.
@@ -705,7 +710,9 @@ commands, through the same typed operations and version checks as a person's edi
   refuses it on every other method with `actor-not-allowed`. Since 2026-10-04 it also
   admits one on `data.undoRecordWrites` ([below](#writes)). It refuses an actor
   whose package the open file does not carry the same way, and any write while
-  views are off with `views-off`.
+  views are off with `views-off`. The package ID in the actor is held to the
+  [package ID rule](#packages-in-the-file) the import used; until 2026-10-14 the host used a
+  stricter pattern and refused every write of a package such as `org.view-` (WXS-12).
 - **History names the package.** Each write is a revision whose origin is
   `extension:‹package›`, read and compensated in History like any other.
 - **Versions.** `version` is the record's version as the view last read it. A write
@@ -715,9 +722,16 @@ commands, through the same typed operations and version checks as a person's edi
   `disconnected` mean Nendo never said; the write may have been kept. A view finishes
   one by sending the same `records.batch` again under the same `writeKey` (1–64
   letters, digits, `-` or `_`): the broker writes it under the idempotency key
-  `view-‹package›-‹writeKey›`, so the host keeps it once and answers a repeat as it
+  `view:‹package›:‹writeKey›`, so the host keeps it once and answers a repeat as it
   answered the first; the same key with other writes is refused. The package is part
-  of the key, so one package's key never answers for another's. A create in such a
+  of the key, so one package's key never answers for another's: the colon is in
+  neither alphabet. Until 2026-10-14 the two were joined by a hyphen, and `org.a` with
+  `b-c` and `org.a-b` with `c` were one key (WXS-11). A batch left unanswered across that
+  upgrade and sent again goes under the new key, so it is not answered from its receipt: if it
+  was kept, its creates collide with the records it made (their IDs come from the package, the
+  `writeKey` and the position) and its versioned writes with the versions it left, and it is
+  refused (`record-exists-or-invalid` or `record-version-conflict`); only a batch of
+  unversioned updates would be applied again, with the same values. A create in such a
   batch that names no `recordId` is given `record-` and 32 hex digits of SHA-256 over
   the package, the `writeKey` and the write's position, so the batch sent again names
   the same records (R2AP-04, 2026-10-13): a fresh random ID on every send made the
@@ -883,9 +897,12 @@ file through `nendo.state`.
   view; 1 MiB per package, counting the views the file has and the package's shared
   state. Past a bound the write is refused with `state-too-large`.
 - **Two a second.** The broker sends at most two state writes a second from one view
-  and answers the next with `busy`. `api.js` sends a view's writes 550 ms apart and
-  coalesces writes to one key made meanwhile: every caller hears the one answer, and
-  History has one row.
+  and answers the next with `busy`. `api.js` sends a view's writes 600 ms apart,
+  measured from when the last one reached the Workbench, so writes that waited behind
+  eight requests in flight are not let through together (WXS-09, 2026-10-14). It
+  coalesces writes to one key made meanwhile, so every caller hears the one answer and
+  History has one row, but never a write with `expectedVersion`: that one is sent and
+  answered alone, so its condition is checked against the host (WXS-03).
 - **Host methods.** `extension.state.read` `{viewId, key}` answers `{entries}`: the
   key's `{key, value, version}`, or, with no key, every key's `{key, version}` without
   its value. `extension.state.set` `{viewId, key, value, expectedVersion, description,
@@ -1007,7 +1024,19 @@ are the Workbench's reads, under its file session.
 
 The navigation methods follow the rules a click follows. Nothing moves while
 another action runs (`busy`) or while a record page holds unsaved typing
-(`not-allowed`). `ui.openRecord` opens a record on its record type's Use page when
+(`not-allowed`). The refusal over unsaved typing is said in Nendo's message line only
+when the view's frame has focus, so the person asked; a view that asks on its own is
+refused without a word on the page, which would take focus from the field the person
+types in (WXS-06, 2026-10-14). A view that moves the page on its own, its frame not
+focused, does so at most once a second, the three methods together, and the next is
+refused as `busy` before Nendo is asked (WXS-04): a view asking in a loop kept Nendo busy
+and dropped the person's clicks. The bound is kept by mount, so saying hello again does
+not reset it, and counts only a move that started: one the Workbench refused at once does
+not. A move made while the person is in the view, as when they click its rows, is not
+bounded. A view that is not on screen, held while the person reviews its own proposal, is
+refused `not-allowed`, and its `ui.showMenu` answers null without drawing (WXS-07). A
+press of a switch that turns views off while an action runs is made when the action ends,
+however it ended, and a later press never replaces it. `ui.openRecord` opens a record on its record type's Use page when
 Use shows that type, beside the view when the view is that type's screen, and in
 Studio's Data view otherwise. `ui.openScreen` takes a screen's root node ID, as
 `schema.describe` lists it, or its surface ID; the front page is a screen too.
@@ -1028,7 +1057,9 @@ never a step.
   when left out), and `replace`. A new place is a step on the trail. With `replace: true` it
   corrects the step the person is on instead: for a selection, and for the place the view
   starts at. Declaring the place the view already has, value and label, does nothing, so a
-  view may declare its place after restoring it. At most 20 a second from one view.
+  view may declare its place after restoring it. At most 20 a second from one view. A view
+  that is not on the page, held for the review of its own proposal, is refused `not-allowed`
+  and nothing is kept; it declares its place again once it is shown (WXS-15, 2026-10-14).
 - **Where it is kept.** The Workbench keeps each view's place against the Nendo place it was
   declared on (the view, record type, front page, screen and record) and the view's identity
   there (placement, view ID, and the page's record). A trail entry carries the places of the
@@ -1167,6 +1198,7 @@ holds the latest theme.
 | Requests waiting at the broker for one view | 64. The next one is refused as `busy` |
 | `changes` events | At most one every 250 ms to one view |
 | Toasts | One a second from one view, 1–300 characters |
+| Moves of the page | One a second from one view while the person is not in it (its frame not focused): `ui.openRecord`, `ui.openScreen` and `ui.openStudio` together; the next is refused as `busy` |
 | Heartbeat | A ping every 5 s while no ping waits |
 | Not responding | A ping has waited 2 s and the view has said nothing for 10 s |
 | Height | 80–4,000 pixels; a record-page panel starts at 360 |
@@ -1191,10 +1223,10 @@ sentence.
 | `unknown-method` | Broker | The name is not in the method table |
 | `invalid-params` | Script or broker | The parameters are not a JSON object, or one of them breaks its rule |
 | `too-large` | Script or broker | The parameters take more than 256 KiB |
-| `busy` | Broker or Workbench | 64 requests already wait, a second toast came within a second, or another action is running |
+| `busy` | Broker or Workbench | 64 requests already wait, a second toast or a second move of the page came within a second, or another action is running |
 | `views-off` | Broker | Views were off when the request ran |
 | `stale-file-session` | Broker | The view's file is no longer open. The broker disconnects the view and its frame is about to end; do not retry |
-| `not-allowed` | Workbench | A record page holds unsaved changes, so Nendo stays where it is |
+| `not-allowed` | Workbench | A record page holds unsaved changes, so Nendo stays where it is; or the view is not on screen, held for the review of its proposal, so it cannot move the page or keep a place |
 | `not-found` | Workbench | The record type or the screen is not in this file |
 | `disconnected` | Script | The Workbench reconnected the view before it answered. Send a read again; a write may have been kept, so read first or send a batch again under its `writeKey` |
 | `host-timeout` | Workbench | Nendo did not answer within 15 seconds. As `disconnected` |
@@ -2133,6 +2165,16 @@ passed. Each guard below was falsified, seen to fail and then restored:
   answers windows of a file as the proposal under review leaves it, bound to its reviewed
   digest, and each review offers *Read the whole file*; a cut-short change says so folded.
   Measured by `ExtensionPackageTests` and `scripts/package-diff.test.mjs`. No rung.
+- 2026-10-14 — sandbox and broker hardening (W-229, the broad review's WXS findings): a view
+  moves the page on its own once a second, is refused moves, menus and places while it is not on screen,
+  and is refused without a word on the page over unsaved typing it did not cause; the switches
+  that turn views off are held, not dropped, while an action runs; a hung view's overlay takes
+  focus; a conditional state write is never coalesced, and state writes are spaced as sent; a
+  proposal's exact numbers reach the host exactly; batch keys are `view:‹package›:‹writeKey›`;
+  the host takes every package ID the Engine takes; `api.js` is not stopped by an element called
+  `nendo`. Measured by `scripts/extension-broker.test.mjs`, `scripts/extension-api.test.mjs`,
+  `scripts/custom-view-recipe.test.mjs`, `DesktopPackageIdRuleTests` and
+  `tools/Review-WorkbenchShell.ps1`. No rung.
 - 2026-10-11 — hidden characters in reviewed code (WMX-01 in a broad review): the Code section
   and the whole-file dialog draw direction controls, invisible format characters and the Hangul
   fillers as their code points, and say so above the lines and in the folded summary. Measured

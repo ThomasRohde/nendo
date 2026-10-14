@@ -5,8 +5,9 @@ import { describeSchema, viewContext, viewTheme, type ViewSpec } from './extensi
 import { hostKeys, type CommandSource, type Json, type ViewTheme } from './extension-api/protocol';
 import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
 import type { ProposalPreview } from './host';
+import { WorkbenchHostError } from './host-types';
 import { navigationTrail } from './navigation-trail';
-import { content, refreshChrome, root, showKeptAlert } from './shell';
+import { content, focusWithoutInteraction, refreshChrome, root, showKeptAlert } from './shell';
 import type { PaletteCommand } from './shortcuts';
 import { icon } from './icons';
 import { viewKeyMayRun, viewMenuMayShow } from './view-input';
@@ -109,16 +110,17 @@ export function installViewFrames(): void {
     }),
     describe: () => describeSchema(state.session),
     ui: {
-      openRecord: (_mount, target) => openRecordFromView(target.entityId, target.recordId),
-      openScreen: (_mount, target) => openScreenFromView(target.surfaceId),
-      openStudio: (_mount, target) => openStudioFromView(target.entityId),
+      openRecord: (mount, target) => openRecordFromView(target.entityId, target.recordId, movable(mount as Mount)),
+      openScreen: (mount, target) => openScreenFromView(target.surfaceId, movable(mount as Mount)),
+      openStudio: (mount, target) => openStudioFromView(target.entityId, movable(mount as Mount)),
+      personIn: (mount) => viewHasFocus(mount as Mount),
       toast: (mount, text) => toastFromView((mount as Mount).spec.title, text),
       actionsSkipped: (mount, text) => showKeptAlert(`${(mount as Mount).spec.title} saved a change. ${text}`),
       setHeight: (mount, pixels) => setHeight(mount as Mount, pixels),
       openProposal: (mount, preview) => {
         const key = (mount as Mount).key;
         heldForReview.add(key);
-        const answer = openProposalFromView(preview as ProposalPreview);
+        const answer = openProposalFromView(preview as ProposalPreview, viewHasFocus(mount as Mount));
         if (!answer.opened) heldForReview.delete(key);
         return answer;
       },
@@ -176,6 +178,33 @@ function keepTicking(): void {
       ticker = null;
     }
   }, 1_000);
+}
+
+/**
+ * Whether a view is on the page the person is looking at: its placeholder drawn, and its frame
+ * in it rather than parked. A view held while the person reviews its own proposal runs on in the
+ * parking lot, hidden, and is not (WXS-07).
+ */
+function onScreen(mount: Mount): boolean {
+  return mount.placeholder !== null && mount.placeholder.isConnected &&
+    mount.frame !== null && mount.frame.isConnected && (parking === null || !parking.contains(mount.frame));
+}
+
+/** Whether the person is in the view: its frame has the Workbench's focus. */
+function viewHasFocus(mount: Mount): boolean {
+  return mount.frame !== null && document.activeElement === mount.frame;
+}
+
+/**
+ * A view asks Nendo to move the person's page. A view that is not on screen cannot: held for
+ * the review of its own proposal, it took the person out of the review they were reading
+ * (WXS-07). Answers whether the person is in the view, so a refusal over unsaved typing is
+ * said on the page only then, and otherwise leaves the field they type in alone (WXS-06).
+ */
+function movable(mount: Mount): boolean {
+  if (!onScreen(mount))
+    throw new WorkbenchHostError('not-allowed', 'This view is not on screen, so it cannot move Nendo elsewhere.');
+  return viewHasFocus(mount);
 }
 
 function parkingLot(): HTMLElement {
@@ -264,6 +293,12 @@ export function wireViewFrames(scope: ParentNode): void {
       continue;
     }
     developmentBanner(element, stage, notice.pkg.developmentFolder ?? null, spec.packageId);
+    // Views came on while the page was held, so this placeholder still says they are off; the
+    // frame starts in a stage that holds nothing else (WXS-17).
+    if (stage.classList.contains('is-notice')) {
+      stage.classList.remove('is-notice');
+      stage.replaceChildren();
+    }
     const key = mountKey(spec, state.session.fileSessionId, notice.pkg);
     let mount = mounts.get(key);
     if (mount === undefined) {
@@ -299,11 +334,12 @@ function placeOf(mount: Mount): Json {
 /**
  * The view says where it is. A new place is a step on the trail, and with `replace` it
  * corrects the step the person is on. A view that is not on the page, held for its review,
- * has no step to take or correct.
+ * has no step to take or correct: null, which the broker refuses, rather than false, which
+ * says the place was already kept (WXS-15).
  */
-function setViewPlace(mount: Mount, place: { value: Json; label: string | null; replace: boolean }): boolean {
+function setViewPlace(mount: Mount, place: { value: Json; label: string | null; replace: boolean }): boolean | null {
   const here = navigationTrail.current();
-  if (here === null || mount.placeholder === null || !mount.placeholder.isConnected) return false;
+  if (here === null || mount.placeholder === null || !mount.placeholder.isConnected) return null;
   const anchor = viewAnchor(here);
   if (!keepViewPlace(anchor, { view: viewPlaceKey(mount.spec), value: place.value, label: place.label ?? mount.spec.title })) return false;
   // While Back or Forward puts a place back, the trail is held still; the place just kept is
@@ -447,7 +483,9 @@ export function viewPaletteCommands(): PaletteCommand[] {
  */
 async function showMenuFor(mount: Mount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null> {
   const frame = mount.frame;
-  if (frame === null || !frame.isConnected || document.querySelector('dialog[open]') !== null) return null;
+  // A parked frame is connected but hidden, so its box is all zeros and the menu was drawn at
+  // the window's corner, over the review of the view's own proposal (WXS-07).
+  if (frame === null || !onScreen(mount) || document.querySelector('dialog[open]') !== null) return null;
   if (!viewMenuMayShow(document.activeElement, frame, mount.commandAt, performance.now())) return null;
   const box = frame.getBoundingClientRect();
   const x = box.left + Math.min(Math.max(menu.x, 0), box.width);
@@ -552,6 +590,9 @@ function setTrouble(mount: Mount, trouble: ViewTrouble | null): void {
 function drawTrouble(mount: Mount): void {
   const stage = stageOf(mount);
   if (stage === null) return;
+  // Asked before the old overlay goes, which takes a focused button with it.
+  const active = document.activeElement;
+  const focused = active !== null && active !== document.body && (active === mount.frame || stage.contains(active));
   stage.querySelector(':scope > .view-overlay')?.remove();
   markState(mount);
   if (mount.trouble === null) return;
@@ -559,6 +600,10 @@ function drawTrouble(mount: Mount): void {
   const overlay = stage.lastElementChild as HTMLElement;
   overlay.querySelector<HTMLButtonElement>('[data-view-reload]')?.addEventListener('click', () => reload(mount));
   overlay.querySelector<HTMLButtonElement>('[data-view-stop]')?.addEventListener('click', () => stop(mount));
+  // A view that hangs with focus keeps every key, since the keys reach Nendo only through the
+  // view's own script: a keyboard could reach neither Stop nor any of Nendo's keys (WXS-05).
+  // Moving focus is the parent document's own act, which needs nothing from the hung view.
+  if (focused) focusWithoutInteraction(overlay.querySelector<HTMLButtonElement>('[data-view-stop], [data-view-reload]'));
 }
 
 /**

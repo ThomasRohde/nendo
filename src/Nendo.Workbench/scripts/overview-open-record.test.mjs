@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +28,7 @@ const stubs = {
   './view-packages': 'export const openCustomViews = async () => {};',
 };
 const entry = [
-  `export { openOverviewRecord, rankedRowsMarkup } from ${JSON.stringify(resolve(root, 'src/view-overview.ts'))};`,
+  `export { drillPlan, openOverviewRecord, rankedRowsMarkup } from ${JSON.stringify(resolve(root, 'src/view-overview.ts'))};`,
   `export { state, emptySession, focusedRecords } from ${JSON.stringify(resolve(root, 'src/app-state.ts'))};`,
 ].join('\n');
 const bundle = await build({
@@ -117,4 +118,29 @@ test('a ranking numbers two different exact values apart, and one value spelt tw
   assert.match(apart, /aria-label="b, ranked 2, /);
   const alike = p.rankedRowsMarkup(entity, [row('a', '12.50'), row('b', '12.5'), row('c', '3')], 'value', ['title'], 12.5);
   assert.deepEqual(numerals(alike), [1, 1, 3]);
+});
+
+// WSP-17: a front-page chart of a type whose only screen is a board was drawn as bars to press
+// that did nothing, and the press had already left the front page for a later redraw to show;
+// a row of a type with no screen at all was a button that opened nothing.
+test('WSP-17: a chart drills only into a type with a list, and a row of a type with no screen is no button', () => {
+  openFile();
+  const board = { semanticId: 'board', automationTarget: 'board', kind: 'boardSurface', properties: { entityId: 'tasks' }, children: [] };
+  p.state.compilation = { ...definition, applications: [{ ...plan, surfaces: [board] }] };
+  assert.equal(p.drillPlan('tasks'), null, 'a board-only type is offered as a list to drill into');
+  const records = { semanticId: 'records', automationTarget: 'records', kind: 'recordList', properties: { entityId: 'tasks' }, children: [] };
+  p.state.compilation = { ...definition, applications: [{ ...plan, surfaces: [records] }] };
+  assert.equal(p.drillPlan('tasks')?.entity.semanticId, 'tasks');
+  const entity = { semanticId: 'tasks', displayName: 'Tasks', fields: [field], derivedFields: [] };
+  const row = { semanticId: 'a', automationTarget: 'record-a', version: 1, values: { title: 'A', value: 3 } };
+  assert.match(p.rankedRowsMarkup(entity, [row], 'value', ['title'], 3), /<button type="button" class="ranked-row" data-overview-record="a"/);
+  p.state.compilation = { ...definition, applications: [] };
+  const plain = p.rankedRowsMarkup(entity, [row], 'value', ['title'], 3);
+  assert.doesNotMatch(plain, /<button/, `a row of a type with no screen is drawn as a button that opens nothing: ${plain}`);
+  assert.match(plain, /<div class="ranked-row">/);
+  const view = readFileSync(new URL('../src/view-overview.ts', import.meta.url), 'utf8');
+  assert.match(view, /drillable: entityId !== null && drillPlan\(entityId\) !== null/, 'a chart is drillable wherever its type has any screen');
+  const handler = view.slice(view.indexOf("'[data-chart-drill]'"), view.indexOf('void drillInto(target, scoped, group);'));
+  assert.ok(handler.indexOf('drillPlan(') >= 0 && handler.indexOf('drillPlan(') < handler.indexOf('state.showOverview = false'),
+    'the press leaves the front page before it knows there is a list to drill into');
 });

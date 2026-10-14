@@ -3,7 +3,7 @@ import { state } from './app-state';
 import { refuseWhileDirty } from './draft-guard';
 import { client } from './client';
 import { fileActionButton, wireFileActions } from './file-actions';
-import { escapeHtml, formatDateTime, messageFor } from './format';
+import { escapeHtml, formatDateTime, healthStatus, messageFor } from './format';
 import { type DesktopSessionView, WorkbenchHostError } from './host';
 import { type IconName, icon } from './icons';
 import { clearError, content, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
@@ -57,8 +57,8 @@ export function behaviourApprovalMarkup(): string {
 export function renderHealth(): void {
   const capabilities = state.session.capabilities;
   const local = client.mode === 'desktop';
-  const status = state.session.health === 'normal' ? 'Ready for editing' : state.session.health === 'readOnly' ? 'Open read-only' : state.session.fileName === null ? 'No file open' : 'Recovery required';
-  content.innerHTML = `<div class="studio-page file-health-page"><header class="page-heading"><span class="health-chip ${state.session.health === 'normal' ? 'healthy' : 'warning'}">${status}</span></header>
+  const status = healthStatus(state.session);
+  content.innerHTML = `<div class="studio-page file-health-page"><header class="page-heading"><span class="health-chip ${status.healthy ? 'healthy' : 'warning'}">${escapeHtml(status.label)}</span></header>
     <div class="message-slot" role="alert" hidden></div>
     <div class="health-grid">
       ${healthCard('Data', capabilities.readData, capabilities.readData ? 'Available' : 'Unavailable', capabilities.readData ? '' : 'Not available for inspection.', 'data')}
@@ -66,7 +66,7 @@ export function renderHealth(): void {
       ${customViewsCard()}
     </div>
     <div class="recovery-layout"><section class="recovery-findings"><h2>File status</h2>
-      ${state.session.findings.length ? state.session.findings.map(finding => `<p>${escapeHtml(finding.message)}</p>`).join('') : `<p>${state.session.health === 'normal' ? 'This file passed the checks required for editing. Changes are saved as you work.' : state.session.health === 'readOnly' ? 'You can inspect this file and create a backup without changing it. Editing and agent access are off.' : 'Choose Open file to inspect an application or a verified backup.'}</p>`}
+      ${state.session.findings.length ? state.session.findings.map(finding => `<p>${escapeHtml(finding.message)}</p>`).join('') : `<p>${escapeHtml(status.sentence)}</p>`}
       ${state.session.agentCleanupNotice ? `<p>${escapeHtml(state.session.agentCleanupNotice)}</p>` : ''}
       ${state.session.storage?.integrityCheckedAt ? `<p>Last integrity check: ${escapeHtml(formatDateTime(state.session.storage.integrityCheckedAt))} · change ${state.session.storage.integrityChangeSequence ?? 'unknown'}.</p>` : ''}
       ${state.session.locationWarning ? `<p>${escapeHtml(state.session.locationWarning.message)}</p>` : ''}

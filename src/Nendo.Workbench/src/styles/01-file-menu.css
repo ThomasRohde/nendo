@@ -55,6 +55,7 @@
 .look-letter input[aria-invalid="true"] { border-color: var(--danger); }
 .look-letter small { grid-column: 1 / -1; color: var(--muted); }
 .look-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.look-refusal { width: auto; margin: 8px 0 0; }
 .outline-icon { display: block; width: 21px; height: 21px; flex: 0 0 21px; }
 .file-menu-panel button:not(:disabled):hover { background: var(--surface-soft); }
 .file-menu-divider { height: 1px; margin: 5px; background: var(--line); }

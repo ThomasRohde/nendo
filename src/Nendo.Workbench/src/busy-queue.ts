@@ -20,14 +20,37 @@ export function deferWhileBusy(move: () => void): boolean {
   return true;
 }
 
+/**
+ * Presses that are never dropped: the switches that turn custom views off, which are how a person
+ * gets out of a view that misbehaves (WXS-04). Each is held while an action runs and made when it
+ * ends, however that action ended and whatever was pressed since; held as a move, a view's own
+ * failing move said an alert first and the switch was dropped.
+ */
+let kept: Array<() => void> = [];
+
+/** Hold `press` while an action runs, never to be replaced or dropped. True when it was held. */
+export function keepWhileBusy(press: () => void): boolean {
+  if (!state.actionInFlight) return false;
+  kept.push(press);
+  return true;
+}
+
 /** Whether a move is waiting for the running action. */
 export function hasDeferredMove(): boolean {
-  return waiting !== null;
+  return waiting !== null || kept.length > 0;
 }
 
 /** The action ended: make the move that was held, unless another action has started since. */
 export function runDeferredMove(): void {
-  if (waiting === null || state.actionInFlight) return;
+  if (state.actionInFlight) return;
+  // A kept press first; one that starts an action holds itself again, and the next waits for it.
+  if (kept.length > 0) {
+    const presses = kept;
+    kept = [];
+    for (const press of presses) press();
+    if (state.actionInFlight) return;
+  }
+  if (waiting === null) return;
   const held = waiting;
   waiting = null;
   // A refusal said since the press is about the action the person was waiting on.

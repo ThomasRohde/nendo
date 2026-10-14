@@ -1,5 +1,6 @@
-import { counted, escapeAttribute, escapeHtml } from './format';
-import type { EntitySnapshot } from './host-types';
+import { counted, escapeAttribute, escapeHtml, storageLabel, valueDisplay } from './format';
+import type { EntitySnapshot, RecordSnapshot } from './host-types';
+import { referenceControl } from './reference-controls';
 
 /**
  * Structure's calculated fields (UIT-19, accepted 2026-10-13): a read-only Calculated group with
@@ -107,4 +108,30 @@ export function calculatedFieldsMarkup(entity: Named, entities: readonly Named[]
         <div class="field-row field-row-head" aria-hidden="true"><span>Field</span><span>Result</span><span>Formula</span><span>Reads</span></div>
         ${calculations.map((calculation) => calculatedRow(calculation, entity, entities)).join('')}
       </div>`;
+}
+
+/**
+ * A record as a person knows it on a Studio form: by its first current text value, else by its
+ * ID. The reference conversion headed every record with its ID alone (WSP-21).
+ */
+export function recordHeading(entity: Pick<EntitySnapshot, 'fields'>, record: Pick<RecordSnapshot, 'recordId' | 'values'>, exceptFieldId: string): string {
+  const label = entity.fields.find((candidate) => candidate.fieldId !== exceptFieldId && !candidate.retired && storageLabel(candidate.storageKind) === 'Text');
+  return (label === undefined ? '' : valueDisplay(record.values[label.fieldId])) || record.recordId;
+}
+
+/** One record of a reference conversion: named, its ID beside, its old value, and the picker for its target. */
+export function conversionRecordMarkup(entity: Pick<EntitySnapshot, 'fields'>, field: EntitySnapshot['fields'][number], record: Pick<RecordSnapshot, 'recordId' | 'values'>): string {
+  const original = record.values[field.fieldId];
+  return `<form class="record-form conversion-record"><h3>${escapeHtml(recordHeading(entity, record, field.fieldId))}</h3><code>${escapeHtml(record.recordId)}</code>`
+    + `<p>Original value: <code>${escapeHtml(original === null ? '(null)' : valueDisplay(original))}</code></p>${referenceControl(field, '')}</form>`;
+}
+
+/**
+ * The title of a Make required or Reactivate proposal. A batch that only fills values says so:
+ * accepting the first of three batches announced "Make Status required accepted." while Status
+ * was still optional (WSP-20).
+ */
+export function requirementTitle(fieldName: string, change: { reactivate: boolean; required: boolean; batch: number | null }): string {
+  if (change.batch !== null) return `Fill missing ${fieldName} values (first ${change.batch})`;
+  return change.reactivate ? `Reactivate ${fieldName}` : `Make ${fieldName} ${change.required ? 'required' : 'optional'}`;
 }

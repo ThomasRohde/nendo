@@ -1,4 +1,4 @@
-import { escapeHtml, operationLabel, reversibilityLabel } from './format';
+import { counted, escapeHtml, laneLabel, operationLabel, reversibilityLabel } from './format';
 import type { EntitySnapshot, OperationAttribution, RevisionSummary, StoredOperationSnapshot } from './host';
 
 /**
@@ -73,4 +73,60 @@ export function attributionLabel(attribution: OperationAttribution): string {
   return attribution.triggerName
     ? `made by the automatic action “${attribution.triggerName}”`
     : `made by an automatic action no longer in this file (${attribution.triggerId})`;
+}
+
+/** The record an operation acts on, from its stored payload, or null for one that acts on no record. */
+function operationRecordId(operation: Pick<StoredOperationSnapshot, 'canonicalJson'>): string | null {
+  try {
+    const parsed = JSON.parse(operation.canonicalJson) as { payload?: { recordId?: unknown } };
+    return typeof parsed?.payload?.recordId === 'string' ? parsed.payload.recordId : null;
+  } catch { return null; }
+}
+
+/** Whether History's Undo needs to read a revision's operations before it can say whether to ask. */
+export function undoMayAsk(revision: Pick<RevisionSummary, 'lane' | 'operationCount'>): boolean {
+  return laneLabel(revision.lane) !== 'Data' || revision.operationCount > 1;
+}
+
+/**
+ * What History's Undo asks before it acts, or null where it acts at once (WSP-05, accepted
+ * 2026-10-13). An undo of one record's edit stays one press. An undo that reaches several records,
+ * or a definition or a package, names the change and says what undoing it does first: one press
+ * on the row beside a batch import deleted every record it made. The operations are the
+ * revision's first page; `more` says the page did not hold them all.
+ */
+export function undoQuestion(
+  revision: Pick<RevisionSummary, 'description' | 'lane' | 'operationCount'>,
+  operations: readonly Pick<StoredOperationSnapshot, 'operationType' | 'canonicalJson'>[],
+  more: boolean,
+): { headingId: string; title: string; bodyHtml: string; confirmLabel: string } | null {
+  const title = `Undo “${escapeHtml(revision.description)}”?`;
+  const changes = counted(revision.operationCount, 'change');
+  if (laneLabel(revision.lane) !== 'Data') {
+    const code = operations.length > 0 && operations.every((operation) => operation.operationType.startsWith('extension.'));
+    // Operations that could not be read leave open whether this is a package: both are said.
+    const effect = operations.length === 0
+      ? 'This puts the file’s definition, or its custom view code, back as it was before this change. Code that comes back runs wherever its view is shown.'
+      : code
+        ? 'This puts the file’s custom view code back as it was before this change. Code that comes back runs wherever its view is shown, and code this change added leaves the file.'
+        : 'This puts the file’s definition back as it was before this change: record types, fields, screens, rules, or the file’s look or purpose. Records keep their stored values.';
+    return { headingId: 'undo-heading', title, confirmLabel: 'Undo',
+      bodyHtml: `<p>${escapeHtml(`${effect} It undoes ${changes}.`)}</p><p>History lists the undo as a new change. An undo of a definition change cannot itself be undone from History; make the change again instead.</p>` };
+  }
+  const records = new Set(operations.map(operationRecordId).filter((id): id is string => id !== null));
+  if (!more && records.size <= 1) return null;
+  // Where the page did not hold every operation, what it held is a floor, not a count.
+  const reach = more ? `at least ${counted(records.size, 'record')}` : counted(records.size, 'record');
+  const recordsOf = (types: readonly string[]): number =>
+    new Set(operations.filter((operation) => types.includes(operation.operationType)).map(operationRecordId).filter((id) => id !== null)).size;
+  const effects = [
+    [recordsOf(['data.createRecord', 'data.restoreDeletedRecord']), 'deletes %s this change added or brought back; their IDs stay reserved'],
+    [recordsOf(['data.deleteRecord']), 'brings back %s this change deleted'],
+    [recordsOf(['data.setField', 'data.backfillRetiredField']), 'puts back the earlier values of %s'],
+    [recordsOf(['data.setKeptInNewFiles']), 'puts back whether %s are kept in new files'],
+  ].filter(([count]) => (count as number) > 0).map(([count, words]) => (words as string).replace('%s', counted(count as number, 'record')));
+  const said = operations.length === 0 ? `It undoes ${changes}; Nendo could not list which records they touch.`
+    : effects.length === 0 ? `It undoes ${changes} across ${reach}.` : `It ${effects.join(', ')}${more ? ', and more' : ''}: ${changes} across ${reach}.`;
+  return { headingId: 'undo-heading', title, confirmLabel: 'Undo',
+    bodyHtml: `<p>${escapeHtml(said)}</p><p>History lists the undo as a new change, which can be undone in turn.</p>` };
 }

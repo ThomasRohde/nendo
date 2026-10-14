@@ -21,7 +21,7 @@ function harness() {
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
   const mount = { key: 'mount-1', origin, fileSessionId: 'file-A', frameWindow: () => frameWindow };
   const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, fileSessionId: 'file-A', heights: [], opened: [], canOpen: true,
-    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [], skipped: [] };
+    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [], placeAnswer: true, skipped: [], moves: [], personIn: false, moveRefusal: null };
   h.broker = broker.createExtensionBroker({
     request: (method, payload) => {
       h.calls.push({ method, payload });
@@ -33,16 +33,20 @@ function harness() {
     context: () => h.context ?? context,
     describe: () => h.schema ?? ({ purpose: null, changeSequence: 1, entities: [], screens: [], commands: [] }),
     ui: {
-      openRecord: async (_mount, target) => ({ opened: true, target }),
-      openScreen: async () => ({ opened: true }),
-      openStudio: async () => ({ opened: true }),
+      openRecord: async (_mount, target) => { h.moves.push(['record', target]); return { opened: true, target }; },
+      openScreen: async (_mount, target) => {
+        if (h.moveRefusal !== null) throw Object.assign(new Error(h.moveRefusal), { code: h.moveRefusal });
+        h.moves.push(['screen', target]); return { opened: true };
+      },
+      personIn: () => h.personIn,
+      openStudio: async (_mount, target) => { h.moves.push(['studio', target]); return { opened: true }; },
       toast: (_mount, text) => h.toasts.push(text),
       setHeight: (_mount, pixels) => { h.heights.push(pixels); return pixels; },
       openProposal: (_mount, preview) => { h.opened.push(preview); return { opened: h.canOpen }; },
       setToolbar: (_mount, toolbar) => { h.toolbars.push(toolbar); },
       showMenu: async (_mount, menu) => { h.menus.push(menu); return h.menuAnswer; },
       key: (_mount, keys) => { h.keys.push(keys); },
-      setPlace: (_mount, place) => { h.places.push(place); return true; },
+      setPlace: (_mount, place) => { h.places.push(place); return h.placeAnswer; },
       actionsSkipped: (_mount, text) => { h.skipped.push(text); },
     },
     responsive: (_mount, responsive) => h.responsive.push(responsive),
@@ -1214,7 +1218,7 @@ test('R-011: a batch sent again under its writeKey carries the same idempotency 
   assert.equal((await view.next((message) => message.id === 1)).ok, false);
   view.send({ t: 'req', id: 2, m: 'records.batch', p: { writes, writeKey: 'save-7f3a' } });
   await until(() => h.calls.length === 2, 'the batch sent again');
-  assert.equal(h.calls[0].payload.idempotencyKey, 'view-org.example.glance-save-7f3a');
+  assert.equal(h.calls[0].payload.idempotencyKey, 'view:org.example.glance:save-7f3a');
   assert.equal(h.calls[1].payload.idempotencyKey, h.calls[0].payload.idempotencyKey, 'A batch sent again under its writeKey must replay, not write twice.');
   h.pending[1].resolve({ mutation: { changeSequence: 3, revisionId: 'revision-a' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: 1 }] });
   assert.equal((await view.next((message) => message.id === 2)).ok, true);
@@ -1279,4 +1283,111 @@ test('R-011: a write kept but not read back is answered as written-not-read, nev
   const answered = await view.next((message) => message.id === 1);
   assert.equal(answered.ok, false);
   assert.equal(answered.e.code, 'written-not-read', `A kept write was answered as ${answered.e.code}.`);
+});
+
+
+// WXS-04: a view that asked Nendo to open its own screen in a loop kept the Workbench busy, and a
+// person's click on Studio or on the switch that turns views off landed while it was and did
+// nothing. A view moves the person's page at most once a second without the person in it,
+// refused before Nendo is asked, and saying hello again does not start it afresh.
+test('WXS-04: a view moves the person\u2019s page at most once a second, refused busy before the Workbench is asked', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  h.now = 10_000;
+  view.send({ t: 'req', id: 1, m: 'ui.openScreen', p: { surfaceId: 'node.glance' } });
+  assert.equal((await view.next((message) => message.id === 1)).ok, true);
+  for (const [id, m, p] of [[2, 'ui.openScreen', { surfaceId: 'node.glance' }], [3, 'ui.openRecord', { entityId: 'tasks', recordId: 't1' }], [4, 'ui.openStudio', {}]]) {
+    view.send({ t: 'req', id, m, p });
+    const refused = await view.next((message) => message.id === id);
+    assert.equal(refused.ok, false, `${m} within a second of the last move was answered: ${JSON.stringify(refused)}`);
+    assert.equal(refused.e.code, 'busy', m);
+  }
+  await settle();
+  assert.deepEqual(h.moves, [['screen', { surfaceId: 'node.glance' }]], 'A move within a second of the last one reached the Workbench.');
+  h.now = 11_000;
+  view.send({ t: 'req', id: 5, m: 'ui.openRecord', p: { entityId: 'tasks', recordId: 't1' } });
+  assert.equal((await view.next((message) => message.id === 5)).ok, true, 'A move a second later was refused.');
+  assert.equal(h.moves.length, 2);
+  // A hello builds a fresh connection; the mount's last move stands.
+  h.now = 11_100;
+  const again = connect(h);
+  again.send({ t: 'req', id: 6, m: 'ui.openScreen', p: { surfaceId: 'node.glance' } });
+  const afterHello = await again.next((message) => message.id === 6);
+  assert.equal(afterHello.ok, false, 'A view that said hello again moved the page within a second of its last move: ' + JSON.stringify(afterHello));
+  assert.equal(afterHello.e.code, 'busy');
+  assert.equal(h.moves.length, 2, 'The move after a fresh hello reached the Workbench.');
+});
+
+// WXS-04, the person's own clicks: rows clicked in a view a tenth of a second apart are both
+// opened while the person is in the view; without the person the second is refused. A move
+// the Workbench refused at once does not count against the next.
+test('WXS-04: moves the person makes in a view are not held to the bound, and a refused move does not count', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  h.personIn = true;
+  h.now = 20_000;
+  view.send({ t: 'req', id: 1, m: 'ui.openRecord', p: { entityId: 'tasks', recordId: 't1' } });
+  assert.equal((await view.next((message) => message.id === 1)).ok, true);
+  h.now = 20_100;
+  view.send({ t: 'req', id: 2, m: 'ui.openRecord', p: { entityId: 'tasks', recordId: 't2' } });
+  const second = await view.next((message) => message.id === 2);
+  assert.equal(second.ok, true, 'A second row the person clicked in the view was refused: ' + JSON.stringify(second));
+  h.personIn = false;
+  h.now = 30_000;
+  view.send({ t: 'req', id: 3, m: 'ui.openRecord', p: { entityId: 'tasks', recordId: 't1' } });
+  assert.equal((await view.next((message) => message.id === 3)).ok, true);
+  h.now = 30_100;
+  view.send({ t: 'req', id: 4, m: 'ui.openRecord', p: { entityId: 'tasks', recordId: 't2' } });
+  assert.equal((await view.next((message) => message.id === 4)).e?.code, 'busy', 'A view moved the page twice in a tenth of a second on its own.');
+  h.now = 40_000;
+  h.moveRefusal = 'not-allowed';
+  view.send({ t: 'req', id: 5, m: 'ui.openScreen', p: { surfaceId: 'node.glance' } });
+  assert.equal((await view.next((message) => message.id === 5)).e?.code, 'not-allowed');
+  h.moveRefusal = null;
+  h.now = 40_050;
+  view.send({ t: 'req', id: 6, m: 'ui.openScreen', p: { surfaceId: 'node.glance' } });
+  const retry = await view.next((message) => message.id === 6);
+  assert.equal(retry.ok, true, 'A move the Workbench refused at once kept the view from asking again: ' + JSON.stringify(retry));
+});
+
+// WXS-10: proposals.prepare rebuilt each payload as plain JSON, which turned an exact-number
+// envelope into a JavaScript number, so the host was proposed 12345678901234568.
+test('WXS-10: an exact-number envelope in a proposed operation reaches the host as the view sent it', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const payload = { entityId: 'tasks', fieldId: 'amount', default: { $nendoNumber: '12345678901234567.89' }, nested: [{ big: { $nendoNumber: '9007199254740993' } }], plain: 2.5,
+    notAnEnvelope: { $nendoNumber: 'twelve' } };
+  view.send({ t: 'req', id: 1, m: 'proposals.prepare', p: { title: 'Exact default', operations: [{ operationType: 'schema.setFieldDefault', payload }] } });
+  await until(() => h.calls.length === 1, 'the prepared proposal');
+  assert.deepEqual(h.calls[0].payload.mutations[0].operations[0].payload, payload,
+    'The proposal\u2019s payload did not reach the host as the view sent it: ' + JSON.stringify(h.calls[0].payload.mutations[0].operations[0].payload));
+});
+
+// WXS-11: the package and the writeKey were joined by a hyphen, which both may hold.
+test('WXS-11: two packages\u2019 batches never share an idempotency key, however their IDs and writeKeys line up', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const writes = [{ op: 'delete', entityId: 'tasks', recordId: 't1', version: 1 }];
+  const pairs = [['org.nendo.garden', 'tasks-17'], ['org.nendo.garden-tasks', '17'], ['org.a', 'b-c'], ['org.a-b', 'c']];
+  for (const [index, [packageId, writeKey]] of pairs.entries()) {
+    h.context = { ...context, packageId };
+    view.send({ t: 'req', id: index + 1, m: 'records.batch', p: { writes, writeKey } });
+    await until(() => h.calls.length === index + 1, `the batch of ${packageId}`);
+  }
+  const keys = h.calls.map((call) => call.payload.idempotencyKey);
+  assert.equal(new Set(keys).size, keys.length, `Two packages\u2019 batches share an idempotency key: ${JSON.stringify(keys)}`);
+});
+
+// WXS-15: ui.setPlace answered success when the Workbench kept nothing (the view held for its
+// review), and the next draw handed the view its older place back.
+test('WXS-15: a place the Workbench could not keep is refused, and the next draw tells the view nothing new', async (t) => {
+  const h = harness();
+  h.context = { ...context, place: { view: 'old' } };
+  const view = connect(h);
+  t.after(() => close(h));
+  h.placeAnswer = null;
+  view.send({ t: 'req', id: 1, m: 'ui.setPlace', p: { place: { view: 'new' }, replace: true } });
+  const answered = await view.next((message) => message.id === 1);
+  assert.equal(answered.ok, false, 'A place the Workbench kept nowhere was answered as kept: ' + JSON.stringify(answered));
+  assert.equal(answered.e.code, 'not-allowed');
+  h.broker.place(h.mount, { view: 'old' });
+  await settle();
+  assert.deepEqual(view.inbox.filter((message) => message.t === 'evt' && message.n === 'place'), [],
+    'The next draw handed the view a place it had not declared, as though it had moved.');
 });

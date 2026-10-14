@@ -200,7 +200,16 @@ type ProposalAnswer = { proposalId: string; title: string; state: string; diagno
 
 function install(host: Window & { nendo?: unknown }): void {
   // Taken twice, the second copy would answer a second connect and strand the first's calls.
-  if (host.nendo !== undefined) return;
+  // The first copy is known by its own property and its apiVersion: an element with id or name
+  // "nendo" is window.nendo too, through the window's named access, and taken for a first copy
+  // it left the view never connecting and nendo.ready undefined, with nothing said (WXS-16).
+  // Named access is not an own property of the window, so the API defined below shadows it.
+  const existing = Object.prototype.hasOwnProperty.call(host, 'nendo') ? host.nendo : undefined;
+  if (typeof existing === 'object' && existing !== null && (existing as { apiVersion?: unknown }).apiVersion !== undefined) return;
+  if (existing !== undefined) {
+    console.error(new Error('window.nendo is already something else, so Nendo\'s view API cannot be installed. Rename the variable or the element called nendo.'));
+    return;
+  }
 
   let port: MessagePort | null = null;
   let context: ViewContext | null = null;
@@ -234,7 +243,7 @@ function install(host: Window & { nendo?: unknown }): void {
     while (waiting.size < extensionLimits.inFlight && queue.length > 0) queue.shift()!();
   }
 
-  function call<T>(method: string, params: unknown = {}): Promise<T> {
+  function call<T>(method: string, params: unknown = {}, dispatched?: () => void): Promise<T> {
     // Sent as JSON, because JSON is what reaches the host. Checked here as well as at the
     // Workbench, so an honest view learns its request is too large without costing the
     // window a quarter of a megabyte per attempt.
@@ -251,6 +260,7 @@ function install(host: Window & { nendo?: unknown }): void {
         const id = nextId++;
         waiting.set(id, { resolve: (value) => resolve(value as T), reject });
         port!.postMessage({ t: 'req', id, m: method, p: payload } satisfies PortMessage);
+        dispatched?.();
       };
       if (waiting.size < extensionLimits.inFlight) dispatch(); else queue.push(dispatch);
     }));
@@ -380,33 +390,48 @@ function install(host: Window & { nendo?: unknown }): void {
     return graphOf(view, schema, nodeRecords, edgeRecords);
   }
 
-  // State writes wait their turn, one every stateWriteSpacingMs; a key written again while its
-  // write waits replaces the value, and every caller of that key hears the one answer.
-  const stateQueue = new Map<string, { method: string; params: Record<string, unknown>; waiters: Waiting[] }>();
+  // State writes wait their turn in a lane of their own, in the order they were made, one every
+  // stateWriteSpacingMs after the last one actually reached the Workbench. Spaced when they left
+  // this lane, they could still wait together behind eight reads in flight and reach the
+  // broker in the same millisecond, where the third was refused as busy (WXS-09).
+  //
+  // A key written again while its write waits replaces the value, and every caller of that key
+  // hears the one answer, but only when neither write is conditional. A write with an
+  // expectedVersion is sent alone and answered alone: merged with a later write, its condition
+  // was dropped and its caller told the other write's answer (WXS-03).
+  const stateQueue: Array<{ id: string; conditional: boolean; method: string; params: Record<string, unknown>; waiters: Waiting[] }> = [];
   let stateTimer: ReturnType<typeof setTimeout> | null = null;
+  let stateSending = false;
   let stateSentAt = -Infinity;
   function queueState(method: string, params: Record<string, unknown>): Promise<StateEntry | null> {
     const id = `${String(params.scope ?? 'view')}\u0000${String(params.key)}`;
+    const conditional = params.expectedVersion !== undefined && params.expectedVersion !== null;
     return new Promise((resolve, reject) => {
-      const waiting = stateQueue.get(id);
-      if (waiting === undefined) stateQueue.set(id, { method, params, waiters: [{ resolve: resolve as (value: unknown) => void, reject }] });
-      else { waiting.method = method; waiting.params = params; waiting.waiters.push({ resolve: resolve as (value: unknown) => void, reject }); }
+      const waiter: Waiting = { resolve: resolve as (value: unknown) => void, reject };
+      const last = stateQueue.findLast((entry) => entry.id === id);
+      if (last !== undefined && !last.conditional && !conditional) { last.method = method; last.params = params; last.waiters.push(waiter); }
+      else stateQueue.push({ id, conditional, method, params, waiters: [waiter] });
       pumpState();
     });
   }
   function pumpState(): void {
-    if (stateTimer !== null || stateQueue.size === 0) return;
+    if (stateTimer !== null || stateSending || stateQueue.length === 0) return;
     stateTimer = setTimeout(() => {
       stateTimer = null;
-      const next = stateQueue.entries().next().value;
-      if (next === undefined) return;
-      const [id, entry] = next;
-      stateQueue.delete(id);
-      stateSentAt = Date.now();
-      call(entry.method, entry.params).then(
+      const entry = stateQueue.shift();
+      if (entry === undefined) return;
+      stateSending = true;
+      let sent = false;
+      const reached = (): void => {
+        if (sent) return;
+        sent = true;
+        stateSentAt = Date.now();
+        stateSending = false;
+        pumpState();
+      };
+      call(entry.method, entry.params, reached).then(
         (answer) => { for (const waiter of entry.waiters) waiter.resolve(answer); },
-        (error: unknown) => { for (const waiter of entry.waiters) waiter.reject(error); });
-      pumpState();
+        (error: unknown) => { for (const waiter of entry.waiters) waiter.reject(error); }).finally(reached);
     }, Math.max(0, stateSentAt + extensionLimits.stateWriteSpacingMs - Date.now()));
   }
 
@@ -578,7 +603,8 @@ function install(host: Window & { nendo?: unknown }): void {
        * What this view keeps with the file (ADR-0013 Phase 3): a copy of the file carries it,
        * History names the package on each change, and the person can undo one there. Values
        * are JSON of at most 64 KiB. `{ scope: 'package' }` shares a value across the package's
-       * views. Writes to one key are coalesced and sent at most twice a second.
+       * views. Writes to one key are coalesced and sent at most twice a second; a write with an
+       * expectedVersion is never coalesced, and is answered on its own.
        */
       get: (key: string, options: StateOptions = {}): Promise<StateEntry | null> => call<StateEntry | null>('state.get', { key, ...options }),
       set: (key: string, value: unknown, options: StateOptions & { expectedVersion?: number } = {}): Promise<StateEntry | null> =>

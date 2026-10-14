@@ -17,7 +17,8 @@ import type { SortDirection } from './studio-columns';
 export interface StudioHeaderOptions {
   sort: SortDirection | null;
   onSort: ((byKeyboard: boolean) => void) | null;
-  onRename: ((name: string) => void) | null;
+  /** Prepares the rename; answers whether its review opened. */
+  onRename: ((name: string) => Promise<boolean>) | null;
 }
 
 export class StudioHeader implements IHeaderComp {
@@ -106,8 +107,9 @@ export class StudioHeader implements IHeaderComp {
     input.maxLength = 120;
     input.setAttribute('aria-label', `New name for ${displayName}. Enter reviews the rename, Escape cancels.`);
     let settled = false;
+    let sending = false;
     const cancel = (refocus: boolean): void => {
-      if (settled) return;
+      if (settled || sending) return;
       settled = true;
       this.draw();
       if (refocus) this.params.eGridHeader.focus();
@@ -120,8 +122,15 @@ export class StudioHeader implements IHeaderComp {
       event.preventDefault();
       const name = input.value.trim();
       if (name === '' || name === displayName) { cancel(true); return; }
-      settled = true;
-      onRename(name);
+      if (sending) return;
+      // Settled only once the review opens. A rename the host refused, or one pressed while
+      // another action ran, left a box that Escape and leaving no longer put back (WSP-18).
+      sending = true;
+      void onRename(name).then(opened => opened, () => false).then(opened => {
+        sending = false;
+        if (opened) settled = true;
+        else cancel(false);
+      });
     });
     for (const type of ['click', 'mousedown', 'dblclick'] as const) input.addEventListener(type, event => event.stopPropagation());
     // Leaving the box puts the header back. A rename is a reviewed change, so it is not sent by a stray click.

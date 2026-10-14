@@ -1,4 +1,4 @@
-import { plainJson, plainPage, plainRecord, plainSearchPage, plainTreePage } from './extension-model';
+import { exactEnvelope, inboundJson, plainJson, plainPage, plainRecord, plainSearchPage, plainTreePage } from './extension-model';
 import { blockedConditionsNotice } from './format';
 import { WorkbenchHostError, type BlockedCondition, type RecordSnapshot } from './host-types';
 import {
@@ -37,6 +37,11 @@ export interface BrokerUi {
   openRecord(mount: BrokerMount, target: { entityId: string; recordId: string }): Promise<unknown>;
   openScreen(mount: BrokerMount, target: { surfaceId: string }): Promise<unknown>;
   openStudio(mount: BrokerMount, target: { entityId: string | null }): Promise<unknown>;
+  /**
+   * Whether the person is in the view now, its frame focused: a move it asks for answers their
+   * click, and is not held to the once-a-second bound of a move the view makes on its own.
+   */
+  personIn?(mount: BrokerMount): boolean;
   toast(mount: BrokerMount, text: string): void;
   /** Sets the mount's height and answers the height it now has. */
   setHeight(mount: BrokerMount, pixels: number): number;
@@ -66,9 +71,10 @@ export interface BrokerUi {
   key(mount: BrokerMount, keys: string): void;
   /**
    * The view says where it is, for Back and Forward (W-127): a new step, or with `replace` a
-   * correction of the step the person is on. Answers whether anything changed.
+   * correction of the step the person is on. Answers whether anything changed, or null when
+   * the view is not on the page and nothing was kept.
    */
-  setPlace(mount: BrokerMount, place: { value: Json; label: string | null; replace: boolean }): boolean;
+  setPlace(mount: BrokerMount, place: { value: Json; label: string | null; replace: boolean }): boolean | null;
 }
 
 export interface BrokerDeps {
@@ -102,6 +108,8 @@ interface MethodCall {
   params: Params;
   mount: BrokerMount;
   deps: BrokerDeps;
+  /** When each mount last started a move of the person's page without the person in it (WXS-04). */
+  moves: Map<string, number>;
   connection: {
     toastAt: number; stateWrites: number[]; toolbars: number[]; menus: number[]; keys: Set<string>;
     places: number[]; placeJson: string; contextJson: string;
@@ -209,6 +217,34 @@ function local(run: (call: MethodCall) => unknown): MethodEntry {
   return { host: null, run };
 }
 
+/**
+ * A move of the person's page a view asks for. One the view makes without the person in it,
+ * its frame not focused, is refused as `busy` within a second of the last such move from the
+ * same mount, before the Workbench is asked, so a view's loop costs nothing (WXS-04). The
+ * person clicking rows in a view is in it, and is never refused for clicking quickly.
+ *
+ * The time is kept by mount, not by connection, so a view that says hello again between moves
+ * does not start afresh; and it stands only for a move that started: one the Workbench refused
+ * at once (another action runs, unsaved typing, not on screen, not found) leaves the view free
+ * to ask again.
+ */
+function navigation(run: (call: MethodCall) => unknown): MethodEntry {
+  return local(async (call) => {
+    if (call.deps.ui.personIn?.(call.mount) === true) return run(call);
+    const now = call.deps.now();
+    const previous = call.moves.get(call.mount.key) ?? -Infinity;
+    if (now - previous < extensionLimits.navigationIntervalMs)
+      throw new WorkbenchHostError('busy', 'A view may move Nendo to another place once a second unless the person is in it.');
+    call.moves.set(call.mount.key, now);
+    try {
+      return await run(call);
+    } catch (error) {
+      if (call.moves.get(call.mount.key) === now) call.moves.set(call.mount.key, previous);
+      throw error;
+    }
+  });
+}
+
 function versionParam(params: Params, key = 'version'): number {
   const value = params[key];
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1)
@@ -233,10 +269,8 @@ function valuesParam(params: Params): Params {
     else if (typeof item === 'number') {
       if (!Number.isFinite(item)) throw invalid(`${fieldId} must be a finite number.`);
       rebuilt.set(fieldId, { $nendoNumber: String(item) });
-    } else if (typeof item === 'object' && !Array.isArray(item) && Object.keys(item).length === 1 &&
-      typeof (item as Params).$nendoNumber === 'string' && /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test((item as Params).$nendoNumber as string) &&
-      ((item as Params).$nendoNumber as string).length <= 128) {
-      rebuilt.set(fieldId, { $nendoNumber: (item as Params).$nendoNumber });
+    } else if (exactEnvelope(item) !== null) {
+      rebuilt.set(fieldId, exactEnvelope(item));
     } else throw invalid(`${fieldId} must be null, text, true or false, a number, or { $nendoNumber: '…' }.`);
   }
   return Object.fromEntries(rebuilt);
@@ -359,14 +393,17 @@ function reportSkipped(deps: BrokerDeps, mount: BrokerMount, answer: unknown): v
  * The idempotency key a batch is written under. A view's own writeKey makes it the same key
  * every time the view sends that batch, so a batch whose answer was lost (a timeout, a
  * reconnect) is kept once however often it is sent; the package is part of the key, so one
- * package's key never answers for another's. Without a writeKey each call is a new batch.
+ * package's key never answers for another's. The two are joined by a colon, which neither a
+ * package ID nor a writeKey may hold: joined by a hyphen, org.a with b-c and org.a-b with c
+ * were one key, and the second package's batch was refused as an idempotency conflict for
+ * good (WXS-11). Without a writeKey each call is a new batch.
  */
 function batchKey(params: Params, packageId: string): string {
   const writeKey = params.writeKey;
   if (writeKey === undefined || writeKey === null) return `view-${crypto.randomUUID()}`;
   if (typeof writeKey !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(writeKey))
     throw invalid('writeKey must be 1 to 64 letters, digits, - or _.');
-  return `view-${packageId}-${writeKey}`;
+  return `view:${packageId}:${writeKey}`;
 }
 
 /**
@@ -440,7 +477,10 @@ function plainProposal(result: unknown): Params {
 /**
  * The canonical operations a view proposes, each rebuilt: an operation type, its payload as a
  * JSON object, and an operation ID the view chose or one made for it. The host validates the
- * payload exactly as it validates the Workbench's own proposals.
+ * payload exactly as it validates the Workbench's own proposals. A `{ $nendoNumber: '…' }`
+ * envelope in a payload reaches the host as it was sent, as in a record write: rebuilt as plain
+ * JSON it became a JavaScript number, and a default or a literal of 17 digits was proposed
+ * rounded (WXS-10).
  */
 function operationsParam(params: Params): Params[] {
   const value = params.operations;
@@ -452,7 +492,7 @@ function operationsParam(params: Params): Params[] {
     const payload = operation.payload;
     if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) throw invalid(`operations[${index}].payload must be a JSON object.`);
     const operationId = optionalText(operation, 'operationId', 120) ?? `view-op-${crypto.randomUUID().replaceAll('-', '')}`;
-    return { operationId, operationType, payload: plainJson(payload) as Params };
+    return { operationId, operationType, payload: inboundJson(payload) as Params };
   });
 }
 
@@ -728,10 +768,13 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   },
   'state.set': stateWrite(false),
   'state.delete': stateWrite(true),
-  'ui.openRecord': local(({ mount, params, deps }) =>
+  // A move of the person's page. At most one a second from one view (WXS-04): each holds the
+  // Workbench busy while it redraws, and a view that asked in a loop kept it busy enough to drop
+  // the person's own clicks, the switch that turns views off among them.
+  'ui.openRecord': navigation(({ mount, params, deps }) =>
     deps.ui.openRecord(mount, { entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId') })),
-  'ui.openScreen': local(({ mount, params, deps }) => deps.ui.openScreen(mount, { surfaceId: textParam(params, 'surfaceId') })),
-  'ui.openStudio': local(({ mount, params, deps }) => deps.ui.openStudio(mount, { entityId: optionalText(params, 'entityId') ?? null })),
+  'ui.openScreen': navigation(({ mount, params, deps }) => deps.ui.openScreen(mount, { surfaceId: textParam(params, 'surfaceId') })),
+  'ui.openStudio': navigation(({ mount, params, deps }) => deps.ui.openStudio(mount, { entityId: optionalText(params, 'entityId') ?? null })),
   'ui.toast': local(({ mount, params, deps, connection }) => {
     const text = textParam(params, 'text', extensionLimits.toastCharacters);
     const now = deps.now();
@@ -772,7 +815,11 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       throw invalid(`place must be JSON of at most ${extensionLimits.placeBytes} bytes.`);
     const label = optionalText(params, 'label', extensionLimits.labelCharacters) ?? null;
     const replace = optionalBoolean(params, 'replace') ?? false;
-    deps.ui.setPlace(mount, { value, label, replace });
+    // A view that is not on the page, held while the person reviews its proposal, has no step
+    // to keep its place on. Answered as kept, the place it declared was the one the broker
+    // remembered, and the next draw handed it the older one back (WXS-15).
+    if (deps.ui.setPlace(mount, { value, label, replace }) === null)
+      throw new WorkbenchHostError('not-allowed', 'This view is not on the page, so Nendo keeps no place for it. Declare the place again once the view is shown.');
     // The view knows its own place: neither the event nor the context goes back to it.
     connection.placeJson = json;
     connection.contextJson = JSON.stringify(deps.context(mount));
@@ -860,6 +907,9 @@ function describeError(error: unknown): { code: string; message: string } {
 
 export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
   const connections = new Map<string, Connection>();
+  // Kept for the broker's life, through reconnects and disposal: a fresh connection is no reason
+  // to forget when its mount last moved the person's page.
+  const moves = new Map<string, number>();
   let nextPing = 1;
 
   function post(connection: Connection, message: PortMessage): void {
@@ -910,7 +960,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       if (raw !== undefined && raw !== null && (typeof raw !== 'object' || Array.isArray(raw)))
         throw invalid('The parameters must be an object.');
       const params = (raw ?? {}) as Params;
-      const result = await brokerMethods[pending.method].run({ params, mount: connection.mount, deps, connection });
+      const result = await brokerMethods[pending.method].run({ params, mount: connection.mount, deps, connection, moves });
       post(connection, { t: 'res', id: pending.id, ok: true, r: result === undefined ? null : result });
     } catch (error) {
       const described = describeError(error);

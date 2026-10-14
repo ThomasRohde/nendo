@@ -27,10 +27,16 @@ export const extensionLimits = {
   /** The fewest milliseconds between two toasts from one view. */
   toastIntervalMs: 1_000,
   toastCharacters: 300,
+  /**
+   * The fewest milliseconds between two moves a view asks of Nendo, ui.openRecord, ui.openScreen
+   * or ui.openStudio, from one view without the person in it (WXS-04): a view that asks in a loop
+   * must not keep the Workbench busy, which drops the person's own clicks.
+   */
+  navigationIntervalMs: 1_000,
   /** The most state writes one view sends in any second (ADR-0013 Phase 3); the API spaces them wider. */
   stateWritesPerSecond: 2,
   /** How far apart the API sends one view's state writes, coalescing a key written again meanwhile. */
-  stateWriteSpacingMs: 550,
+  stateWriteSpacingMs: 600,
   stateKeyCharacters: 128,
   pingIntervalMs: 5_000,
   /** A view that has said nothing for this long while a ping waits is not responding. */

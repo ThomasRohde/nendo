@@ -477,6 +477,11 @@ zoom, so they are not theme values. The kit's focus ring answers the first two.
   as `schema.describe` lists it, or by its surface. The front page is a screen too.
 - `nendo.ui.openStudio(entityId)` opens Studio's Data, on one record type when you
   name it.
+- Made on its own, with the person not in the view, the three moves together go at most
+  once a second; the next is refused as `busy`. A move the person makes by clicking in your
+  view is not bounded. A
+  view that is not on screen, such as one waiting while the person reviews its proposal,
+  is refused `not-allowed`. Move the page when the person asks you to, not on a timer.
 - `nendo.ui.toast(text)` shows one sentence in Nendo's outcome line, as
   "‹view title›: ‹text›": 1–300 characters, at most one a second.
 - `nendo.ui.setHeight(pixels)` sets the height of a panel on a record page, between
@@ -511,7 +516,9 @@ function select(id) {
 A place is plain JSON of at most 4 KiB. `replace: true` corrects the step the person is on,
 for a selection and for the place a view starts at; without it the place is a new step.
 Declaring the place the view already has does nothing, so `show` may declare it too. Answer
-the `place` event by showing the place, never with a new step. Ask
+the `place` event by showing the place, never with a new step. While the view is not on
+screen, waiting for the review of its proposal, a declaration is refused `not-allowed`;
+declare the place again when the view is shown. Ask
 `nendo.has('ui.setPlace')` first.
 
 ## Controls in Nendo's toolbar
@@ -758,7 +765,8 @@ await nendo.state.delete('layout');
   object's keys may come back in another order.
 - Every change is in History under your package, and the person can undo it there.
   Writes go at most twice a second: writing one key again before its write has gone
-  replaces the value, and every call hears the one answer. Keep a scroll position in
+  replaces the value, and every call hears the one answer. A write with
+  `expectedVersion` is never joined with another; it is sent and answered on its own. Keep a scroll position in
   `localStorage`, not here.
 - Pass `{ expectedVersion }` to refuse a write when somebody else changed the key
   since you read it (`state-version-conflict`); 0 means the key must not exist yet.
@@ -785,8 +793,8 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `invalid-params` | The parameters are not a JSON object, or one of them breaks its rule. The message names it |
 | `too-large` | The parameters take more than 256 KiB |
 | `unknown-method` | Nendo does not answer that method |
-| `busy` | 64 requests already wait, a second toast came within a second, or Nendo is finishing another action |
-| `not-allowed` | A record page has unsaved changes, so Nendo stays where it is |
+| `busy` | 64 requests already wait, a second toast or a second move of the page came within a second, or Nendo is finishing another action |
+| `not-allowed` | A record page has unsaved changes, so Nendo stays where it is; or the view is not on screen, so it cannot move the page or keep a place |
 | `not-found` | The record type or the screen is not in this file |
 | `views-off` | Custom views were turned off |
 | `stale-file-session` | The person opened another file. Nendo disconnects the view and its frame ends; do not retry |

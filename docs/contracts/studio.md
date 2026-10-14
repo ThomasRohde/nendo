@@ -112,7 +112,12 @@ record type and the record it acts on, by the record's label even after a delete
 record and a record an undo brought back read "Undone by deleting the record; its ID stays
 reserved", which is what History's Undo does to them (W-212, R2RM-05). A structure change is
 offered only while it is the file's latest, and an undo of an undo is named Redo. It is not
-universal undo.
+universal undo. Undo of one record's edit acts at once. An undo that reaches more than one
+record, or a definition or package change, first asks in a dialog that names the entry and says
+what undoing it does (*deletes 3 records this change added or brought back*); Cancel sends
+nothing (WSP-05, accepted 2026-10-13). View changes opens a revision's operations whatever the
+file has done since, since they never change, and what is open stays open across a redraw
+(WSP-16).
 
 **Columns as built.** A column's header carries the field's name. Clicking it, or Enter
 on the focused header, sorts every record of the type by that field through
@@ -121,7 +126,9 @@ loaded page; a calculated column sorts the same way, and the outline does not so
 filter above the table keeps the sort and the sort keeps the filter. A width is dragged at
 the column's edge, or fitted by double-clicking it, and kept for the device by application
 ID and record type, never in the file. The header's pencil, or F2, renames the field: Enter
-prepares `schema.renameField` as a proposal to review. Opening a record is an icon at the
+prepares `schema.renameField` as a proposal to review, titled *Rename Owner on Task to Lead*. A
+rename that does not open its review, refused or pressed while another action runs, puts the
+header back and says why (WSP-18). Opening a record is an icon at the
 row's start, faint until the row is pointed at or focused; Enter or Space on that cell
 opens it too. Movable and hideable columns are not built.
 
@@ -131,7 +138,8 @@ table. The outline is a pinned first column: each record indented by its depth, 
 and a child count on a record with children, and "Show more" where a level has more than
 the 200 read. Enter or Space opens or closes the focused record. Move up, Move down, Indent
 and Outdent — or Alt+Shift and an arrow — move it with `data.moveRecord`; a move that would
-pass siblings not yet read is not offered. The other columns edit as in the table.
+pass siblings not yet read is not offered. The other columns edit as in the table. When the
+file moves, each open level is read again as far as Show more had read it (WSP-13).
 
 Outline rows, layout choices and pending reads belong to the open file session. A file
 switch clears them even when both files have the same type IDs and change sequence;
@@ -162,7 +170,24 @@ calculations names them among its reads. The reads come from the record type's s
 `derivedFields[].readsFieldIds`, `readsCalculationIds` and `readsEntityIds`, matched by ID as
 the host's check matches them (UIT-19, accepted 2026-10-13).
 
+### Making a field required
+
+**Make required** and **Reactivate** of a required field list the records that have no value,
+50 at a time, each by its label, and ask for a value for each. Nothing is filled in for the
+person: a choice starts on *Choose…*, which the form refuses, and a rating is chosen on its scale
+(WSP-02, WSP-08). A batch that only fills values is titled *Fill missing Status values (first 50)*;
+the requirement changes with the last batch (WSP-20). The form is drawn only while the person is
+still on the page they pressed it on (WSP-22). **Convert reference** heads each record by its
+label too, and a record counts as mapped only once a target is chosen or Clear is pressed in its
+own picker (WSP-01, WSP-21). A rating's Lowest and Highest are required while the rating type is
+chosen; an empty one is refused, not read as 0 (WSP-10).
+
 ### Reviewing a proposal Studio prepared
+
+A change the host refuses on its copy of the file opens no review: Studio rejects that proposal
+in the host and says the host's words in the form, which keeps what was typed. A press while
+another action runs says *Wait for the current action to finish, then try again.* (WSP-18,
+WSP-19).
 
 Accepting a proposal that Structure, Screens or Data prepared returns to that page, with the
 outcome on it (*Add Effort points field accepted.*). Only a proposal that builds the file's

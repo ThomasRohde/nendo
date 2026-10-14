@@ -35,6 +35,35 @@ export function plainJson(value: unknown): Json {
   return typeof value === 'string' || typeof value === 'boolean' ? value : null;
 }
 
+/** The digits of an exact number: the pattern and the bound every envelope a view sends is held to. */
+const envelopeDigits = /^-?\d+(\.\d+)?([eE][-+]?\d+)?$/;
+
+/**
+ * A well-formed `{ $nendoNumber: '…' }` a view sent, rebuilt, or null when the value is not one:
+ * exactly that one key, holding at most 128 characters of decimal digits.
+ */
+export function exactEnvelope(value: unknown): { $nendoNumber: string } | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const keys = Object.keys(value);
+  const lexeme = (value as { $nendoNumber?: unknown }).$nendoNumber;
+  return keys.length === 1 && keys[0] === '$nendoNumber' && typeof lexeme === 'string' && lexeme.length <= 128 &&
+    envelopeDigits.test(lexeme) ? { $nendoNumber: lexeme } : null;
+}
+
+/**
+ * JSON a view sends on to the host, rebuilt as plainJson rebuilds it, except that a well-formed
+ * envelope is kept: the host decodes it exactly, where a JavaScript number would round it
+ * (WXS-10). Answers to a view still go through plainJson.
+ */
+export function inboundJson(value: unknown): Json {
+  const envelope = exactEnvelope(value);
+  if (envelope !== null) return envelope;
+  if (Array.isArray(value)) return value.map((item) => inboundJson(item));
+  if (value !== null && typeof value === 'object')
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, inboundJson(item)]));
+  return plainJson(value);
+}
+
 /**
  * One record as a view reads it: plain values, the exact digits of every number, the label
  * of every reference, and each calculated field with its state. A calculated field's value

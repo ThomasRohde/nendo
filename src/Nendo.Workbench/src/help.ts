@@ -12,7 +12,13 @@ export interface HelpSection { heading: string; paragraphs?: string[]; steps?: s
 export interface HelpTopic { id: string; title: string; category: string; summary: string; sections: HelpSection[]; markdown?: string; source?: string; setupRequest?: string; related?: string[] }
 /** One help page the open file carries: Markdown under `help/` in one of its packages (ADR-0027). */
 export interface FileHelpPage { packageId: string; packageTitle: string; path: string; markdown: string }
-export interface HelpContext { entities: EntitySnapshot[]; applications?: ApplicationPlan[]; fileName: string | null; pages?: FileHelpPage[] }
+export interface HelpContext {
+  entities: EntitySnapshot[]; applications?: ApplicationPlan[]; fileName: string | null; pages?: FileHelpPage[];
+  /** The name of Use's picker, as the screen gives it: Showing where the file has a front page or views, else Record type. */
+  pickerLabel?: string;
+  /** The record types Use's picker offers, which leaves out a type with no screen of its own; every type with a plan when unsaid. */
+  placeIds?: readonly string[];
+}
 export type HelpProvider = (context: HelpContext) => HelpTopic[];
 
 /**
@@ -95,7 +101,7 @@ const coreHelp: HelpProvider = () => [
     { heading: 'Rename or retire a choice', steps: ['Open Studio → Structure and choose the record type.', 'Beside a choice field, click Edit choices. Select an option, change its display label or select Retired, then click Preview choice change.', 'Review and accept the proposal. A renamed choice keeps the same stored ID and board column membership. A retired choice remains visible on existing records but cannot be newly selected or used as a drop target.', 'To make it available again, return to Edit choices, clear Retired and review the new proposal.'] },
     { heading: 'Delete and restore a record', steps: ['In Studio → Data, select the record type and click the open icon at the start of the record’s row.', 'Click Delete record… in the page’s top bar, beside Save changes; it stays in view as the page scrolls. Read the confirmation, then choose Delete record. Cancel or Escape leaves the record unchanged.', 'If another record references it, Nendo rejects deletion. Open those records and clear optional references or choose another target first.', 'To restore a deleted record, open History. Find its Delete entry, which names the record, and click Undo. Nendo restores its saved values only if its record type, fields and linked records still fit them; the record receives a new version.'] },
     { heading: 'Move a card', paragraphs: ['Hold the left mouse button on a card, move it over a named column, then release. Nendo saves the grouping field automatically. Escape cancels the gesture. Save or close unfinished form edits before dragging.', 'Ungrouped contains records whose grouping value is missing or outside the board’s named groups. Drag one to a named column to assign it. Page counts describe the current page, not necessarily the entire file.'] },
-    { heading: 'Undo where supported', paragraphs: ['Open History, find the change and choose Undo when it is offered. This creates a new change reversing supported effects if the current state still permits it. Some structure changes cannot be undone. This is not universal undo.'] },
+    { heading: 'Undo where supported', paragraphs: ['Open History, find the change and choose Undo when it is offered. This creates a new change reversing supported effects if the current state still permits it. Undoing one record’s edit happens at once; an undo that reaches several records, or changes the app’s shape or a package, first names the change and says what undoing it does, and goes ahead only when you choose Undo. Some structure changes cannot be undone. This is not universal undo.'] },
   ] },
 ];
 
@@ -131,7 +137,7 @@ export function fileHelpTopic(page: FileHelpPage): HelpTopic {
 const fileHelp: HelpProvider = ({ pages }) => (pages ?? []).map(fileHelpTopic);
 
 // Providers are host-owned code. Application content is always plain text, never executable help.
-const applicationHelp: HelpProvider = ({ entities, applications, fileName }) => entities.map(entity => ({
+const applicationHelp: HelpProvider = ({ entities, applications, fileName, pickerLabel, placeIds }) => entities.map(entity => ({
   id: `entity:${entity.entityId}`, title: entity.displayName, category: 'About this app',
   summary: `Records and fields in ${fileName ?? 'this file'}.`, sections: [
     { heading: 'Work with these records', paragraphs: [entity.retired ? `This record type is retired. Open Studio → Data and select Show retired data to inspect ${entity.displayName}. Reactivate it in Structure before editing.` : `Open Studio → Data and select ${entity.displayName}. Click Add ${entity.displayName} to create a record. This reference is generated from the current file, including record types and fields added by you or an agent.`] },
@@ -147,7 +153,10 @@ const applicationHelp: HelpProvider = ({ entities, applications, fileName }) => 
       ...(entity.derivedFields ?? []).map(field => `${field.displayName}: calculated, shown but never typed in.`),
     ] },
     ...(applications ?? []).filter(app => app.entity.semanticId === entity.entityId).map(app => ({ heading: 'Screens and actions', paragraphs: [
-      `Open Use and select ${entity.displayName} in Record type. ${[rootTitle(app, 'recordForm'), rootTitle(app, 'recordList'), rootTitle(app, 'boardSurface')].filter(Boolean).map(title => `“${title}”`).join(', ') || 'Select a record to use its configured action.'}`,
+      // In the picker's own name, and only for a type the picker offers (WSP-23).
+      placeIds === undefined || placeIds.includes(entity.entityId)
+        ? `Open Use and select ${entity.displayName} in ${pickerLabel ?? 'Record type'}. ${[rootTitle(app, 'recordForm'), rootTitle(app, 'recordList'), rootTitle(app, 'boardSurface')].filter(Boolean).map(title => `“${title}”`).join(', ') || 'Select a record to use its configured action.'}`
+        : `Use does not list ${entity.displayName} on its own, because it has no screen of its own. Its records open from Studio → Data, or from a record that links to them.`,
       rootTitle(app, 'recordCommand') ? `Open a record to use “${rootTitle(app, 'recordCommand')}”. Changes are saved in History.` : 'This record type has no configured action.',
       app.surfaces.some(node => node.kind === 'recordForm' || node.kind === 'detailSurface') ? 'Record details use the configured form.' : 'Record details use the Studio editor because this type has no custom form.',
     ] })),

@@ -106,11 +106,32 @@ export interface AddViewContext {
   id: string;
 }
 
+/**
+ * A package ID as the Engine takes one (NendoExtensionContent.ValidPackageId, and the contract):
+ * 3 to 80 characters in at least two dotted segments, each starting with a letter, of lowercase
+ * letters, digits and hyphens. The form and the host's actor check used a stricter pattern, so a
+ * package the file carries, such as org.view- or org.my--view, was refused here and every write
+ * its views made was refused as actor-not-allowed (WXS-12). scripts/package-ids.json holds the
+ * three to one table.
+ */
+export function validPackageId(packageId: string): boolean {
+  if (packageId.length < 3 || packageId.length > 80) return false;
+  const segments = packageId.split('.');
+  return segments.length >= 2 && segments.every((segment) => /^[a-z][a-z0-9-]*$/.test(segment));
+}
+
 /** Why the choices cannot make a view, in the words the form shows, or null when they can. */
 export function refusalFor(input: AddViewInput, context: AddViewContext): string | null {
   const title = input.title.trim();
   if (title.length === 0 || title.length > 120) return 'Give the view a title of up to 120 characters.';
-  if (!/^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(input.packageId)) return 'Choose a package this file carries.';
+  if (!validPackageId(input.packageId)) return 'Choose a package this file carries.';
+  // A panel's record type is its page's, and the form offers no record type for one: in a file
+  // with no record page the person was asked to choose a record type that was not there (WXS-14).
+  if (input.kind === 'panel') {
+    const pages = pageChoices(context.nodes, context.entities);
+    if (pages.length === 0) return 'This file has no record page to put a panel on yet.';
+    if (!pages.some((candidate) => candidate.nodeId === input.pageNodeId)) return 'Choose the record page the panel goes on.';
+  }
   const entity = viewEntities(context.entities).find((candidate) => candidate.entityId === input.entityId);
   if (entity === undefined) return 'Choose a record type that exists.';
   const showable = new Set(showableFields(entity).map((field) => field.fieldId));
@@ -183,7 +204,11 @@ export function addViewProposal(input: AddViewInput, context: AddViewContext): R
   return { proposalId, title: `Add view ${title}`, mutations: [{ idempotencyKey: `${proposalId}-view`, description, operations }] };
 }
 
-export interface ViewUse { nodeId: string; surfaceId: string; kind: ViewKind; title: string; entityId: string | null; pageTitle: string | null }
+/**
+ * One place a package is shown. `file` is a screen of the file (an extensionView root, W-106),
+ * which the Add view form does not make but the file may carry, and may open on.
+ */
+export interface ViewUse { nodeId: string; surfaceId: string; kind: ViewKind | 'file'; title: string; entityId: string | null; pageTitle: string | null }
 
 /**
  * Where accepting a view the Add view form made puts the person (W-062): a screen opens in Use,
@@ -203,6 +228,7 @@ export function addedViewLanding(
 
 /** Where a person finds one use of a package: the Custom views card and the Remove review say it the same way. */
 export function viewUsePlace(use: ViewUse, entities: readonly Pick<EntitySnapshot, 'entityId' | 'displayName'>[]): string {
+  if (use.kind === 'file') return 'a screen of the file, beside the front page';
   const entityName = entities.find((entity) => entity.entityId === use.entityId)?.displayName ?? 'records';
   if (use.kind === 'panel') return `a panel on ${use.pageTitle ?? 'the record page'}, for each ${entityName} record`;
   return `${use.kind === 'graph' ? 'a graph' : 'a screen'} under View in ${entityName}`;
@@ -214,16 +240,20 @@ export function viewUsePlace(use: ViewUse, entities: readonly Pick<EntitySnapsho
  * (C-189) -- which package to install to see a graph that was already there.
  */
 export function viewsOfPackage(packageId: string, nodes: readonly UiNodeSnapshot[]): ViewUse[] {
+  // A screen of the file shows its package too: left out, a package that only such a screen
+  // shows, perhaps the one the file opens on, read 'Not shown anywhere yet' (WXS-13).
+  const isFileView = (node: UiNodeSnapshot): boolean => node.kind === 'extensionView' && node.parentNodeId === null;
   return nodes
-    .filter((node) => node.properties.packageId === packageId && viewKinds.some((kind) => kind.nodeKind === node.kind))
+    .filter((node) => node.properties.packageId === packageId && (isFileView(node) || viewKinds.some((kind) => kind.nodeKind === node.kind)))
     .map((node) => {
-      const kind = viewKinds.find((candidate) => candidate.nodeKind === node.kind)!.kind;
+      const kind: ViewUse['kind'] = isFileView(node) ? 'file' : viewKinds.find((candidate) => candidate.nodeKind === node.kind)!.kind;
       const page = kind === 'panel' ? pageOf(node, nodes) : null;
       return {
         nodeId: node.nodeId,
         surfaceId: node.surfaceId,
         kind,
-        title: typeof node.properties.title === 'string' && node.properties.title.length > 0 ? node.properties.title : kind === 'graph' ? 'Custom graph' : 'Custom view',
+        title: typeof node.properties.title === 'string' && node.properties.title.length > 0 ? node.properties.title
+          : kind === 'graph' ? 'Custom graph' : kind === 'file' ? 'Screen of the file' : 'Custom view',
         entityId: typeof node.properties.entityId === 'string' ? node.properties.entityId : typeof page?.properties.entityId === 'string' ? page.properties.entityId : null,
         pageTitle: page === null ? null : typeof page.properties.title === 'string' ? page.properties.title : 'Record page',
       };

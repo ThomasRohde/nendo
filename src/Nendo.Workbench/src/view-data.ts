@@ -194,13 +194,14 @@ function sortByColumn(entity: EntitySnapshot, columnId: string, byKeyboard: bool
     sort.sortFieldId === null ? 'Back to record order.' : `Sorted by ${name}, ${sort.descending ? 'descending' : 'ascending'}.`);
 }
 
-function renameColumn(entity: EntitySnapshot, fieldId: string, name: string): void {
+function renameColumn(entity: EntitySnapshot, fieldId: string, name: string): Promise<boolean> {
   const revision = state.session.manifest?.definitionRevision;
-  if (revision === undefined) return;
+  if (revision === undefined) return Promise.resolve(false);
   try {
-    const proposal = renameSchemaProposal(entity.entityId, fieldId, name, revision);
-    void prepareApplication({ actionLabel: String(proposal.title), applicationName: entity.displayName, proposalPayload: proposal }, 'data');
-  } catch (error) { showError(messageFor(error)); }
+    const current = entity.fields.find(field => field.fieldId === fieldId)?.displayName ?? fieldId;
+    const proposal = renameSchemaProposal(entity.entityId, fieldId, name, revision, { current, typeName: entity.displayName });
+    return prepareApplication({ actionLabel: String(proposal.title), applicationName: entity.displayName, proposalPayload: proposal }, 'data');
+  } catch (error) { showError(messageFor(error)); return Promise.resolve(false); }
 }
 
 function studioHeader(options: StudioHeaderOptions): Pick<ColDef<GridRow>, 'headerComponent' | 'headerComponentParams'> {

@@ -90,7 +90,7 @@ const frames = { mounts: [], retired: [], controls: [], deps: null, timers: [] }
 globalThis.extensionSettingsFrames = frames;
 const frameStubs = {
   './client': 'export const client = { mode: "desktop" };',
-  './shell': 'export const content = { contains: () => true }; export const root = { dataset: {} }; export const refreshChrome = () => {}; export const showKeptAlert = () => {};',
+  './shell': 'export const content = { contains: () => true }; export const root = { dataset: {} }; export const refreshChrome = () => {}; export const showKeptAlert = () => {}; export const focusWithoutInteraction = () => {};',
   './extension-broker': `export const brokerMethodNames = []; export const createExtensionBroker = deps => {
     const f = globalThis.extensionSettingsFrames; f.deps = deps;
     return { disconnect: mount => f.retired.push(mount), isConnected: () => true, place: () => {}, refreshContext: () => {} }; };`,
@@ -114,7 +114,7 @@ const frameBundle = await build({ root, configFile: false, logLevel: 'error',
 const lifecycle = await import('data:text/javascript;base64,' + Buffer.from(frameBundle.output.find(item => item.type === 'chunk').code).toString('base64'));
 
 test('R30-014: Off retires even a frame held for proposal review and removes its toolbar', () => {
-  const stage = { style: {}, querySelector: () => null, prepend: frame => frames.mounts.push(frame) };
+  const stage = { style: {}, classList: { contains: () => false, remove() {} }, querySelector: () => null, prepend: frame => frames.mounts.push(frame) };
   const placeholder = { isConnected: true, dataset: { viewId: 'view.glance', viewPlacement: 'screen', viewPackage: 'org.example.glance' },
     querySelector: selector => selector === '[data-view-stage]' ? stage : null };
   globalThis.window = { addEventListener() {}, setTimeout: callback => frames.timers.push(callback) };

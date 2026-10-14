@@ -77,3 +77,12 @@ export function lookProposal(current: ResolvedLook, next: { tone: string | null;
       payload: { tone: next.tone, letter: next.letter, expectedDefinitionRevision } }],
   }] };
 }
+
+/**
+ * Whether Review change can be pressed: something differs, and the letter box holds a letter. A
+ * refused letter followed by a colour enabled it again with the last good letter, while the box
+ * still showed the refused text (WSP-25).
+ */
+export function lookReviewable(current: ResolvedLook, next: { tone: string | null; letter: string | null }, typedLetter: string): boolean {
+  return normaliseLetter(typedLetter) !== null && lookProposal(current, next, 0) !== null;
+}

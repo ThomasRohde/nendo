@@ -197,3 +197,30 @@ test('the filter notes and the query method agree that a calculated field may be
   for (const [where, text] of [['records.query', query.note], ['filters.notes', reference.filters.notes.join(' ')]])
     assert.match(text, /calculated field.*calculated-query-too-wide/s, `${where} does not say a calculated field is worked out, and refused past its bound as calculated-query-too-wide.`);
 });
+
+// WXS-19: the contract's port and refusal tables named three or four of the five events, its
+// filter sentence left out descendantOf, the reference's context table had no place, and
+// ADR-0013 bounded a toolbar at "128 in all", which the code never did. Each is read here
+// against the table it restates.
+test('WXS-19: the contract, the reference and ADR-0013 restate the events, operators, context and toolbar bound as built', () => {
+  const contract = readFileSync(new URL('../../../docs/contracts/custom-views.md', import.meta.url), 'utf8');
+  const named = (line) => [...line.matchAll(/`([a-zA-Z]+)`/g)].map(([, name]) => name);
+  const eventRow = contract.split('\n').find((line) => line.startsWith("| Workbench | `{t: 'evt', n, d}` |")) ?? '';
+  assert.deepEqual(named(eventRow.split('An event:')[1] ?? '').sort(), [...protocol.viewEventNames].sort(), `The port table names other events: ${eventRow}`);
+  const unknownRow = contract.split('\n').find((line) => line.startsWith('| `unknown-event` |')) ?? '';
+  assert.deepEqual(named(unknownRow.split('other than')[1] ?? '').sort(), [...protocol.viewEventNames].sort(), `The unknown-event row names other events: ${unknownRow}`);
+  const filterSentence = contract.match(/A filter is `\{fieldId, operator, value\}`, with `operator` one of ([^]*?), and no `value`/)?.[1] ?? '';
+  assert.deepEqual(named(filterSentence).sort(), [...reference.filters.operators].sort(), `The contract's filter operators are not the query words: ${filterSentence}`);
+
+  const context = model.viewContext(
+    { viewId: 'view.x', kind: 'extensionRecordsSurface', placement: 'screen', title: 'X', packageId: 'org.example.x', entityId: 'tasks', recordId: null },
+    { uiNodes: [], entities: [], capabilities: { mutate: true } }, { mode: 'light', tokens: {} }, 'en', [...broker.brokerMethodNames]);
+  // view-frames.ts adds the view's place to what viewContext builds.
+  assert.deepEqual(Object.keys(reference.context).sort(), [...Object.keys(context), 'place'].sort(), 'The reference\'s context table and the context a view is handed name different keys.');
+
+  const adr = readFileSync(new URL('../../../docs/decisions/0013-custom-views-with-code-in-the-file.md', import.meta.url), 'utf8');
+  const bound = adr.match(/It is bounded: ([^.]*)\./)?.[1] ?? '';
+  assert.equal(protocol.extensionLimits.toolbarItems, 32);
+  assert.equal(protocol.extensionLimits.toolbarBytes, 16 * 1024);
+  assert.match(bound, /^32 items in the row, 16 KiB of JSON in all, labels of 80 characters$/, `ADR-0013 bounds a toolbar otherwise than the code: ${bound}`);
+});

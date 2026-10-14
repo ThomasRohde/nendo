@@ -2,6 +2,8 @@ import { state } from './app-state';
 import { escapeAttribute, escapeHtml } from './format';
 import { type HelpSection, groupHelpTopics, helpQuery, helpSearchText, helpTopics } from './help';
 import { markdownMarkup } from './markdown';
+import { showingLabel } from './file-view-model';
+import { placePlans } from './plan-selection';
 import { content, requiredElement, rerender } from './shell';
 /**
  * Help: how the system works, the guides, and the reference this build ties to
@@ -12,7 +14,8 @@ import { content, requiredElement, rerender } from './shell';
 export function renderHelp(): void {
   const topics = helpTopics({ entities: state.session.entities,
     applications: state.compilation?.isValid ? state.compilation.applications : [], fileName: state.session.fileName,
-    pages: state.session.hasFile ? state.helpPages : [] });
+    pages: state.session.hasFile ? state.helpPages : [],
+    pickerLabel: showingLabel(), placeIds: placePlans().map(plan => plan.entity.semanticId) });
   // With no topic named, Help opens on the file's own first page (ADR-0027), else on Start.
   const topic = topics.find(item=>item.id===state.helpTopicId) ?? topics.find(item=>item.id.startsWith('page:')) ?? topics.find(item=>item.id==='start') ?? topics[0];
   state.helpTopicId = topic.id;

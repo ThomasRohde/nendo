@@ -3,14 +3,14 @@ import { focusedRecords, rankedWindows, recentWindows, state, summaryCounts, sur
 import { foldSection, sectionIsOpen } from './fold-state';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { strip, type ChartStatus } from './chart-kit';
-import type { OverviewPlan, RecordPlan, SurfaceNodePlan } from './host';
+import type { ApplicationPlan, OverviewPlan, RecordPlan, SurfaceNodePlan } from './host';
 import {
   nodeEntityId, overviewDescription, overviewTitle, rangeEndKey, rangeEndText, rangeTitle, rankFieldId,
   rankedLimit, rankedMaxKey, rankedTitle, rankedWindowKey, recentLimit, recentTitle, recentWindowKey,
 } from './overview-model';
 import { drillGroupOf, drillInto, refreshOverview, wireChartTables } from './panels';
 import { createReadChase } from './read-chase';
-import { applicationPlans, chartPending, overviewPlan, overviewReadIsPending, recordPlanOf, tilePending } from './plan-selection';
+import { applicationPlans, chartPending, drillTarget, overviewPlan, overviewReadIsPending, recordPlanOf, tilePending } from './plan-selection';
 import { chartStates, chartTables } from './app-state';
 import { overviewCharts, overviewRanges, overviewRankedLists, overviewRecentLists, overviewTiles, rangeReads } from './overview-model';
 import { chartTileMarkupFor, recordFieldDisplay, summaryTileMarkup } from './record-markup';
@@ -38,9 +38,28 @@ import { windowIsCurrent } from './record-window';
 const entityOf = (overview: OverviewPlan, entityId: string | null): OverviewPlan['entities'][number] | null =>
   entityId === null ? null : overview.entities.find((entity) => entity.semanticId === entityId) ?? null;
 
-/** Whether a record type has a list to drill into. A type with no surfaces has not. */
+/** Whether a record type has a screen to open a record on. A type with no surfaces has not. */
 const hasPlan = (entityId: string): boolean =>
   applicationPlans().some((plan) => plan.entity.semanticId === entityId);
+
+/**
+ * The plan a front-page chart of this record type drills into: one with a record list. A type
+ * whose only screen is a board drew its bars as buttons that did nothing, and a later redraw
+ * jumped to that type with no drill applied (WSP-17).
+ */
+export function drillPlan(entityId: string): ApplicationPlan | null {
+  return applicationPlans().find((plan) => plan.entity.semanticId === entityId && drillTarget(plan) !== null) ?? null;
+}
+
+/**
+ * A front-page row: a button that opens the record where its type has a screen, and a plain row
+ * where it has none, which looked clickable and did nothing (WSP-17).
+ */
+function overviewRow(className: string, entityId: string, recordId: string, label: string, inner: string): string {
+  return hasPlan(entityId)
+    ? `<button type="button" class="${className}" data-overview-record="${escapeAttribute(recordId)}" data-overview-entity="${escapeAttribute(entityId)}" aria-label="${escapeAttribute(label)}">${inner}</button>`
+    : `<div class="${className}">${inner}</div>`;
+}
 
 function rangeMarkup(overview: OverviewPlan, tile: SurfaceNodePlan, scope: OverviewTileScope): string {
   const lowKey = rangeEndKey(tile, scope, 'min');
@@ -75,7 +94,7 @@ function recentRowMarkup(entity: OverviewPlan['entities'][number], record: Recor
       return display === '' ? '' : `<span><small>${escapeHtml(name)}</small>${escapeHtml(display)}</span>`;
     })
     .join('');
-  return `<li><button type="button" class="recent-row" data-overview-record="${escapeAttribute(record.semanticId)}" data-overview-entity="${escapeAttribute(entity.semanticId)}" aria-label="Open ${escapeAttribute(heading)}"><strong>${escapeHtml(heading)}</strong>${details === '' ? '' : `<span class="recent-values">${details}</span>`}</button></li>`;
+  return `<li>${overviewRow('recent-row', entity.semanticId, record.semanticId, `Open ${heading}`, `<strong>${escapeHtml(heading)}</strong>${details === '' ? '' : `<span class="recent-values">${details}</span>`}`)}</li>`;
 }
 
 function recentListMarkup(overview: OverviewPlan, node: SurfaceNodePlan): string {
@@ -172,11 +191,11 @@ export function rankedRowsMarkup(
       })
       .join('');
     const width = rankProportion(values[index], largest);
-    return `<li><button type="button" class="ranked-row" data-overview-record="${escapeAttribute(record.semanticId)}" data-overview-entity="${escapeAttribute(entity.semanticId)}" aria-label="${escapeAttribute(`${heading}, ranked ${numerals[index]}, ${amount === '' ? 'no value' : amount}`)}">` +
+    return `<li>${overviewRow('ranked-row', entity.semanticId, record.semanticId, `${heading}, ranked ${numerals[index]}, ${amount === '' ? 'no value' : amount}`,
       `<span class="ranked-numeral" aria-hidden="true">${numerals[index]}</span>` +
       `<span class="ranked-body"><strong>${escapeHtml(heading)}</strong>${details === '' ? '' : `<span class="recent-values">${details}</span>`}` +
       `${bars ? `<span class="ranked-bar" aria-hidden="true"><span class="ranked-bar-fill" style="width: ${width.toFixed(2)}%"></span></span>` : ''}</span>` +
-      `<span class="ranked-value">${escapeHtml(amount === '' ? '—' : amount)}</span></button></li>`;
+      `<span class="ranked-value">${escapeHtml(amount === '' ? '—' : amount)}</span>`)}</li>`;
   }).join('')}</ol>`;
 }
 
@@ -202,7 +221,7 @@ function levelMarkup(overview: OverviewPlan, nodes: SurfaceNodePlan[]): string {
       row.push(chartTileMarkupFor({
         fields: entity?.fields ?? [],
         names: (fieldId) => entity?.fields.find((field) => field.semanticId === fieldId)?.displayName ?? fieldId,
-        drillable: entityId !== null && hasPlan(entityId),
+        drillable: entityId !== null && drillPlan(entityId) !== null,
       }, { node, scope }));
       continue;
     }
@@ -326,8 +345,9 @@ export function renderOverview(overview: OverviewPlan): void {
       if (key === undefined || state.actionInFlight) return;
       const scoped = overviewCharts(overview).find((candidate) => chartKey(candidate.node, candidate.scope) === key);
       if (scoped === undefined || scoped.scope.kind !== 'overview') return;
-      const target = applicationPlans().find((plan) => plan.entity.semanticId === (scoped.scope as OverviewTileScope).entityId);
-      if (target === undefined) return;
+      // Nothing changes until there is a list to drill into.
+      const target = drillPlan((scoped.scope as OverviewTileScope).entityId);
+      if (target === null) return;
       const group = drillGroupOf(button);
       state.showOverview = false;
       state.selectedApplicationEntity = target.entity.semanticId;

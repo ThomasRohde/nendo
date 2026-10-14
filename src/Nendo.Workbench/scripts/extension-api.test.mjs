@@ -440,3 +440,91 @@ test('G31: a view declares its place, starts from context.place, and hears the e
   assert.deepEqual(heard, [{ view: 'v-1' }]);
   assert.deepEqual(plain(nendo.context.place), { view: 'v-1' }, 'context.place was left behind the place the view was moved to.');
 });
+
+
+/** A view's window with timers, which the client spaces its state writes with, and api.js run in it. */
+function frameWithTimers(windowOf = (parent) => ({ parent })) {
+  const sent = [];
+  const listeners = [];
+  const errors = [];
+  const parent = { postMessage: (message, targetOrigin) => sent.push({ message, targetOrigin }) };
+  const window = windowOf(parent);
+  window.addEventListener = (type, listener) => { if (type === 'message') listeners.push(listener); };
+  const run = () => vm.runInNewContext(source, { window, console: { error: (error) => errors.push(error) }, setTimeout, clearTimeout });
+  run();
+  return { window, parent, sent, errors, run, deliver: (event) => { for (const listener of listeners) listener(event); } };
+}
+
+const stateContext = { ...baseContext, methods: [...baseContext.methods, 'state.set', 'state.delete', 'state.get'] };
+
+// WXS-03: a write with an expectedVersion was merged with a later write to its key while it
+// waited; only the later one was sent, and the conditional caller heard it had been kept.
+test('WXS-03: a conditional state write is sent and answered on its own, never merged with another write to its key', async (t) => {
+  const view = frameWithTimers();
+  const workbench = connect(view, stateContext, t);
+  const nendo = view.window.nendo;
+  const conditional = nendo.state.set('layout', { merged: true }, { expectedVersion: 3 });
+  const blind = nendo.state.set('layout', { zoom: 5 });
+  conditional.catch(() => undefined);
+  const first = await workbench.next((message) => message.t === 'req' && message.m === 'state.set');
+  assert.deepEqual(plain(first.p), { key: 'layout', value: { merged: true }, expectedVersion: 3 },
+    'The conditional write was not sent as it was made: ' + JSON.stringify(first.p));
+  workbench.send({ t: 'res', id: first.id, ok: false, e: { code: 'state-version-conflict', message: 'layout has been written since.' } });
+  await assert.rejects(conditional, (error) => error.code === 'state-version-conflict');
+  const second = await workbench.next((message) => message.t === 'req' && message.m === 'state.set' && message.id !== first.id);
+  assert.deepEqual(plain(second.p), { key: 'layout', value: { zoom: 5 } });
+  workbench.send({ t: 'res', id: second.id, ok: true, r: { key: 'layout', value: { zoom: 5 }, version: 5 } });
+  assert.deepEqual(plain(await blind), { key: 'layout', value: { zoom: 5 }, version: 5 }, 'The blind write heard the conditional write\u2019s refusal.');
+
+  // Two blind writes to one key are still one request, which both callers hear.
+  const one = nendo.state.set('scroll', 10);
+  const two = nendo.state.set('scroll', 20);
+  const joined = await workbench.next((message) => message.t === 'req' && message.m === 'state.set' && message.p.key === 'scroll');
+  assert.equal(joined.p.value, 20);
+  workbench.send({ t: 'res', id: joined.id, ok: true, r: { key: 'scroll', value: 20, version: 2 } });
+  assert.deepEqual([plain(await one), plain(await two)], [{ key: 'scroll', value: 20, version: 2 }, { key: 'scroll', value: 20, version: 2 }]);
+  await settle();
+  assert.equal(workbench.inbox.filter((message) => message.m === 'state.set').length, 3);
+});
+
+// WXS-09: the client spaced its state writes when they left their own lane, but they could then
+// wait behind eight reads in flight and reach the broker in the same millisecond, where the
+// third of a second is refused as busy.
+test('WXS-09: state writes reach the Workbench spaced, even when they waited behind eight reads in flight', async (t) => {
+  const view = frameWithTimers();
+  const workbench = connect(view, stateContext, t);
+  const reached = [];
+  workbench.port.onmessage = (event) => { workbench.inbox.push(event.data); if (event.data.m === 'state.set') reached.push(Date.now()); };
+  const nendo = view.window.nendo;
+  const reads = Array.from({ length: 8 }, (_, index) => nendo.records.count({ entityId: `t${index}` }));
+  await until(() => workbench.inbox.filter((message) => message.t === 'req').length === 8, 'eight reads in flight');
+  const writes = ['a', 'b', 'c'].map((key) => nendo.state.set(key, key));
+  await new Promise((resolve) => setTimeout(resolve, 1_300));
+  for (const read of workbench.inbox.filter((message) => message.m === 'records.count'))
+    workbench.send({ t: 'res', id: read.id, ok: true, r: { count: 0 } });
+  await Promise.all(reads);
+  for (let answered = 0; answered < 3; answered += 1) {
+    const request = await workbench.next((message) => message.m === 'state.set' && !message.answered);
+    request.answered = true;
+    workbench.send({ t: 'res', id: request.id, ok: true, r: { key: request.p.key, value: request.p.value, version: 1 } });
+  }
+  await Promise.all(writes);
+  const gaps = reached.slice(1).map((at, index) => at - reached[index]);
+  assert.ok(gaps.every((gap) => gap >= 500), `State writes reached the Workbench ${JSON.stringify(gaps)} ms apart; the broker refuses a third within a second.`);
+});
+
+// WXS-16: any window.nendo was taken for a first copy of the script, and an element with
+// id="nendo" is window.nendo through the window's named access, so the view never connected.
+test('WXS-16: an element named nendo does not stop the view from connecting; a second copy of the script still does nothing', async () => {
+  const element = { tagName: 'MAIN', id: 'nendo' };
+  const named = frameWithTimers((parent) => Object.assign(Object.create({ nendo: element }), { parent }));
+  assert.equal(named.sent.length, 1, 'The view said no hello when the page held an element called nendo.');
+  assert.equal(named.window.nendo.apiVersion, 1, 'window.nendo is still the element.');
+  assert.equal(typeof named.window.nendo.ready?.then, 'function', 'nendo.ready is not there to wait on.');
+  named.run();
+  assert.equal(named.sent.length, 1, 'A second copy of the script said hello again.');
+
+  const taken = frameWithTimers((parent) => ({ parent, nendo: 'a variable of the page' }));
+  assert.equal(taken.sent.length, 0);
+  assert.match(String(taken.errors[0]?.message ?? taken.errors[0]), /window\.nendo is already something else/, 'Nothing said why the view never connected.');
+});

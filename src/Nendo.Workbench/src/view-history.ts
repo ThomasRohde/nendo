@@ -1,5 +1,5 @@
 import { compensateRevision, foldHistory, handlePageFailure } from './actions';
-import { state } from './app-state';
+import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { canCompensate, counted, escapeAttribute, escapeHtml, foldDate, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
 import { historyUndoOffer, operationDetailsMarkup } from './history-markup';
@@ -28,6 +28,26 @@ export function renderHistory(): void {
     button.addEventListener('click', () => void loadHistoryWindow(Number(button.dataset.historyPage)));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-history-detail]'))
     button.addEventListener('click', () => void loadHistoryDetails(button.dataset.historyDetail!));
+  // What was opened stays open across a redraw: the fold section's first reply redrew History and
+  // closed a list just opened (WSP-16).
+  for (const [revisionId, opened] of openedDetails) drawDetails(revisionId, opened.page, opened.cursor);
+}
+
+/**
+ * The operations shown under each opened entry, by revision. A revision's operations never
+ * change, so a page read once stays true; the labels are drawn again from the file as it is.
+ */
+const openedDetails = fileScopedClearable(new Map<string, { page: ReadPage<StoredOperationSnapshot>; cursor: string | null }>());
+
+function drawDetails(revisionId: string, page: ReadPage<StoredOperationSnapshot>, cursor: string | null): void {
+  const slot = content.querySelector<HTMLElement>(`[data-operation-detail="${CSS.escape(revisionId)}"]`);
+  if (!slot) return;
+  // A create or a restore reads as History undoes it only where History offers that Undo (R2RM-05).
+  const revision = state.history.find(item => item.revisionId === revisionId);
+  const offered = historyUndoOffer(revision, state.history, client.mode === 'desktop');
+  slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities, offered)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
+  slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
+  slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));
 }
 
 /**
@@ -97,15 +117,12 @@ export async function loadHistoryDetails(revisionId: string, cursor: string | nu
   setBusy(true);
   try {
     const page = await client.request<ReadPage<StoredOperationSnapshot>>('history.operations', { revisionId, limit: 50, cursor });
-    if (page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
-    const slot = content.querySelector<HTMLElement>(`[data-operation-detail="${CSS.escape(revisionId)}"]`);
-    if (!slot) return;
-    // A create or a restore reads as History undoes it only where History offers that Undo (R2RM-05).
-    const revision = state.history.find(item => item.revisionId === revisionId);
-    const offered = historyUndoOffer(revision, state.history, client.mode === 'desktop');
-    slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities, offered)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
-    slot.querySelector<HTMLButtonElement>('[data-operation-first]')?.addEventListener('click', () => void loadHistoryDetails(revisionId));
-    slot.querySelector<HTMLButtonElement>('[data-operation-next]')?.addEventListener('click', () => void loadHistoryDetails(revisionId, page.nextCursor));
+    // A first page cannot be stale, since a revision's operations never change: refusing it
+    // whenever the file had moved threw the person back to History's first page (WSP-16). A
+    // later page continues a cursor, which the host checks against the file.
+    if (cursor !== null && page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
+    openedDetails.set(revisionId, { page, cursor });
+    drawDetails(revisionId, page, cursor);
   } catch (error) { await handlePageFailure(error); }
   finally { state.actionInFlight = false; setBusy(false); }
 }

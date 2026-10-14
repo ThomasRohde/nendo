@@ -39,6 +39,8 @@ export function wireReferenceControls(form: HTMLFormElement, fields: Field[], qu
     const select = (record: RecordSnapshot | null): void => {
       input.value = record?.recordId ?? '';
       root.dataset.targetVersion = record ? String(record.recordVersion) : '';
+      // Chosen by the person: a record picked or Clear pressed, never a search typed and left.
+      root.dataset.chosen = 'true';
       selected.textContent = record ? label(record) : 'Not set';
       selected.classList.toggle('is-unset', record === null);
       input.dispatchEvent(new Event('change', { bubbles: true }));

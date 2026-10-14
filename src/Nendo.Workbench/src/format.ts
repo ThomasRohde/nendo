@@ -134,8 +134,26 @@ export function counted(count: number, singular: string, plural = `${singular}s`
  * keeps Undo off.
  */
 export function undoAllowedWhileUnapproved(session: Pick<DesktopSessionView, 'health' | 'capabilities' | 'behaviourTrust'>): boolean {
+  return approvalNeeded(session);
+}
+
+/** A healthy file whose editing waits on this device approving its automatic actions: the status pill's "Approval needed". */
+export function approvalNeeded(session: Pick<DesktopSessionView, 'health' | 'capabilities' | 'behaviourTrust'>): boolean {
   return session.health === 'normal' && !session.capabilities.mutate &&
     session.behaviourTrust?.requiresApproval === true && !session.behaviourTrust.isApproved;
+}
+
+/**
+ * Health's chip and File status sentence, in the words of the status pill. A file waiting on
+ * approval read "Ready for editing" and "Changes are saved as you work" above the panel saying
+ * editing was off (WSP-14).
+ */
+export function healthStatus(session: Pick<DesktopSessionView, 'health' | 'capabilities' | 'behaviourTrust' | 'fileName'>): { label: string; healthy: boolean; sentence: string } {
+  if (approvalNeeded(session)) return { label: 'Approval needed', healthy: false,
+    sentence: 'This file passed the checks required for editing. Editing waits until you approve its automatic actions below; reading, exports and backups work now.' };
+  if (session.health === 'normal') return { label: 'Ready for editing', healthy: true, sentence: 'This file passed the checks required for editing. Changes are saved as you work.' };
+  if (session.health === 'readOnly') return { label: 'Open read-only', healthy: false, sentence: 'You can inspect this file and create a backup without changing it. Editing and agent access are off.' };
+  return { label: session.fileName === null ? 'No file open' : 'Recovery required', healthy: false, sentence: 'Choose Open file to inspect an application or a verified backup.' };
 }
 
 // The history a caller already holds decides this, not a module-level snapshot:

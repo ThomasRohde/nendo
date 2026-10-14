@@ -6,7 +6,7 @@ import { treeCommands } from './surface-model';
 import { calculatedDisplay, isDerived, resultFor } from './calculated-fields';
 import { referenceControl } from './reference-controls';
 import { markdownMarkup } from './markdown';
-import { choiceDisplay, escapeAttribute, escapeHtml, fieldName, formatDateTime, isDateTimeKind, sameValue, storageLabel, valueDisplay, withLocalOffset } from './format';
+import { choiceDisplay, cssToken, escapeAttribute, escapeHtml, fieldName, formatDateTime, isDateTimeKind, sameValue, storageLabel, valueDisplay, withLocalOffset } from './format';
 import { ratingControlMarkup, ratingMarkup, ratingScaleOf } from './rating';
 import { chartStates, chartTables, relatedWindows, state, summaryCounts } from './app-state';
 import { applicationPlans, drillTarget, recordPlanOf } from './plan-selection';
@@ -447,7 +447,7 @@ export function sequenceExample(sequence: { prefix: string; width: number }): st
   return sequence.prefix + '1'.padStart(sequence.width, '0');
 }
 
-export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): string {
+export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, options: { explicitChoice?: boolean } = {}): string {
   const value = valueDisplay(currentValue);
   const definition = state.session.entities.flatMap(entity => entity.fields).find(candidate => candidate.fieldId === field.semanticId);
   if (definition && storageLabel(field.storageKind) === 'Reference') return referenceControl(definition, value);
@@ -476,7 +476,10 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
       + `<textarea name="${name}" rows="8" aria-label="${escapeAttribute(field.displayName)}" ${required}>\n${escapeHtml(value)}</textarea></details></div>`);
   }
   if (field.presentation === 'singleChoice') {
-    return `<label>${label}<select name="${name}" ${required}>${field.required ? '' : '<option value="">Not set</option>'}${field.options.filter(id => id === value || !field.choices?.some(choice => choice.id === id && choice.retired)).map(id => `<option value="${escapeAttribute(id)}" ${id === value ? 'selected' : ''} ${field.choices?.some(choice => choice.id === id && choice.retired) ? 'disabled' : ''}>${escapeHtml(choiceDisplay(field, id))}</option>`).join('')}</select></label>`;
+    // Where every value has to be chosen by the person, an empty required choice starts on a
+    // placeholder the required check refuses, rather than on the first option (WSP-02).
+    const choose = field.required && options.explicitChoice === true && (currentValue === null || currentValue === undefined || currentValue === '');
+    return `<label>${label}<select name="${name}" ${required}>${field.required ? choose ? '<option value="" selected disabled>Choose…</option>' : '' : '<option value="">Not set</option>'}${field.options.filter(id => id === value || !field.choices?.some(choice => choice.id === id && choice.retired)).map(id => `<option value="${escapeAttribute(id)}" ${id === value ? 'selected' : ''} ${field.choices?.some(choice => choice.id === id && choice.retired) ? 'disabled' : ''}>${escapeHtml(choiceDisplay(field, id))}</option>`).join('')}</select></label>`;
   }
   const scale = ratingScaleOf(field);
   if (scale !== null) {
@@ -502,6 +505,22 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown): str
   const keypad = !numeric ? '' : storageLabel(field.storageKind) === 'Integer' ? 'inputmode="numeric"' : 'inputmode="decimal"';
   const markup = `<label>${label}<input name="${name}" type="text" ${keypad} value="${escapeAttribute(value)}" ${required} /></label>`;
   return storageLabel(field.storageKind) === 'Text' ? textControl(markup) : markup;
+}
+
+/**
+ * The plan a Make required or Reactivate form draws one record's control from: the field as the
+ * file defines it, required. A rating keeps its scale, so it is chosen on the scale's numbers
+ * rather than typed as free text (WSP-08).
+ */
+export function backfillPlan(field: EntitySnapshot['fields'][number]): FieldPlan {
+  return { semanticId: field.fieldId, automationTarget: `field-${cssToken(field.fieldId)}`, displayName: field.displayName,
+    storageKind: field.storageKind, required: true, presentation: field.presentation, options: field.options, choices: field.choices,
+    scale: field.scale ?? null };
+}
+
+/** One record's control on a Make required or Reactivate form: nothing is filled in for the person (WSP-02). */
+export function backfillControlMarkup(field: EntitySnapshot['fields'][number]): string {
+  return fieldControlMarkup(backfillPlan(field), null, { explicitChoice: true });
 }
 
 export function recordFormMarkup(

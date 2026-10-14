@@ -1055,6 +1055,9 @@
 }
 
 .recent-row:hover { background: var(--surface-soft); }
+/* A row of a record type with no screen opens nothing, so it does not look as if it would (WSP-17). */
+div.recent-row, div.ranked-row { cursor: default; }
+div.recent-row:hover, div.ranked-row:hover { background: none; }
 .recent-row:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 
 .recent-values {

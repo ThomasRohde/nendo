@@ -2,12 +2,12 @@ import { presentationToggleMarkup } from './field-presentation';
 import { prepareApplication } from './actions';
 import { state } from './app-state';
 import { client } from './client';
-import { choiceDisplay, cssToken, escapeAttribute, escapeHtml, messageFor, presentationLabel, storageLabel, valueDisplay } from './format';
-import { type EntitySnapshot, type FieldPlan, type ReadPage, type RecordSnapshot } from './host';
+import { choiceDisplay, escapeAttribute, escapeHtml, messageFor, presentationLabel, storageLabel } from './format';
+import { type EntitySnapshot, type ReadPage, type RecordSnapshot } from './host';
 import { currentRecipe, sessionEntity } from './plan-selection';
 import { formValue } from './record-form';
-import { fieldControlMarkup, sequenceExample } from './record-markup';
-import { referenceControl, referenceVersions, wireReferenceControls } from './reference-controls';
+import { backfillControlMarkup, backfillPlan, sequenceExample } from './record-markup';
+import { referenceVersions, wireReferenceControls } from './reference-controls';
 import { content, requiredElement, rerender, showError } from './shell';
 import { fieldProposal, renameSchemaProposal } from './studio';
 import { CHOICE_TONES, toneLabel, toneOf } from './tones';
@@ -15,7 +15,7 @@ import { icon } from './icons';
 import { linkRuleNote } from './link-rule-markup';
 import { renderData } from './view-data';
 import { recordTypePicker } from './read-controls';
-import { calculatedFieldsMarkup, calculationsHoldingType, calculationsReading, fieldCountLabel, readByMarkup, token, typeHeldByMarkup } from './structure-markup';
+import { calculatedFieldsMarkup, calculationsHoldingType, calculationsReading, conversionRecordMarkup, fieldCountLabel, readByMarkup, recordHeading, requirementTitle, token, typeHeldByMarkup } from './structure-markup';
 /**
  * Studio structure: the fields of one record type and every change that can be
  * made to them. Each dialog prepares a proposal rather than writing, so a
@@ -197,7 +197,10 @@ export function renderAddField(entity: EntitySnapshot): void {
   requiredElement<HTMLSelectElement>('#field-kind').addEventListener('change', event => {
     requiredElement<HTMLElement>('#field-choices-label').hidden = (event.target as HTMLSelectElement).value !== 'choice';
     requiredElement<HTMLElement>('#reference-definition').hidden = (event.target as HTMLSelectElement).value !== 'reference';
-    requiredElement<HTMLElement>('#field-scale').hidden = (event.target as HTMLSelectElement).value !== 'rating';
+    const rating = (event.target as HTMLSelectElement).value === 'rating';
+    requiredElement<HTMLElement>('#field-scale').hidden = !rating;
+    // An emptied bound is refused where it is typed, not read as 0 (WSP-10).
+    for (const bound of content.querySelectorAll<HTMLInputElement>('#field-scale input')) bound.required = rating;
   });
   const updateReferenceLabels = (): void => {
     const target = state.session.entities.find(candidate => candidate.entityId === requiredElement<HTMLSelectElement>('#reference-target').value);
@@ -232,7 +235,8 @@ export function renderRenameSchema(entity: EntitySnapshot, fieldId: string | nul
   requiredElement<HTMLFormElement>('#rename-schema-form').addEventListener('submit', event => {
     event.preventDefault();
     try {
-      const payload = renameSchemaProposal(entity.entityId, fieldId, requiredElement<HTMLInputElement>('#schema-name').value, expectedRevision);
+      const payload = renameSchemaProposal(entity.entityId, fieldId, requiredElement<HTMLInputElement>('#schema-name').value, expectedRevision,
+        { current: name, typeName: entity.displayName });
       void prepareApplication({ actionLabel: 'Rename', applicationName: entity.displayName, proposalPayload: payload }, 'structure');
     } catch (error) { showError(messageFor(error)); }
   });
@@ -273,14 +277,13 @@ export function renderReferenceConversion(entity: EntitySnapshot, fieldId: strin
         content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>${escapeHtml(title)}</h2>
           <p>Choose a target for each record${field.required ? '.' : ', or use Clear to explicitly leave it unset.'} Original values remain in history; this conversion cannot be undone automatically.</p>
           <div class="message-slot" role="alert" hidden></div>
-          ${page.items.map(record => `<form class="record-form conversion-record"><h3>${escapeHtml(record.recordId)}</h3><p>Original value: <code>${escapeHtml(record.values[fieldId] === null ? '(null)' : valueDisplay(record.values[fieldId]))}</code></p>${referenceControl(boundField, '')}</form>`).join('')}
+          ${page.items.map(record => conversionRecordMarkup(entity, boundField, record)).join('')}
           <div class="form-actions"><button id="cancel-conversion" class="secondary-button" type="button" data-dismiss>Cancel</button><button id="preview-conversion" class="primary-button" data-action type="button">Preview conversion</button></div>
           </section></div>`;
         requiredElement('#cancel-conversion').addEventListener('click', () => rerender());
         const forms = [...content.querySelectorAll<HTMLFormElement>('.conversion-record')];
         for (const form of forms) {
           form.addEventListener('submit', event => event.preventDefault());
-          form.addEventListener('change', () => { form.dataset.explicitMapping = 'true'; });
           wireReferenceControls(form, [boundField], payload => client.request<ReadPage<RecordSnapshot>>('data.queryRecords', payload));
         }
         requiredElement('#preview-conversion').addEventListener('click', () => {
@@ -288,7 +291,9 @@ export function renderReferenceConversion(entity: EntitySnapshot, fieldId: strin
             if (state.session.fileSessionId !== fileSessionId || state.session.manifest?.definitionRevision !== expectedDefinitionRevision)
               throw new Error('The file or definition changed. Return to Structure and review again.');
             const records = forms.map((form, index) => {
-              if (form.dataset.explicitMapping !== 'true') throw new Error('Choose a target or explicitly clear every record before previewing.');
+              // Only a target chosen, or Clear pressed, in the record's own picker maps it. A search
+              // typed and abandoned fired the form's change and counted as clearing it (WSP-01).
+              if (form.querySelector<HTMLElement>('[data-reference-field]')?.dataset.chosen !== 'true') throw new Error('Choose a target or explicitly clear every record before previewing.');
               const targetRecordId = String(new FormData(form).get(fieldId) ?? '') || null;
               const expectedTargetRecordVersion = referenceVersions(form, { [fieldId]: targetRecordId })[fieldId] ?? null;
               if ((field.required && targetRecordId === null) || (targetRecordId !== null && expectedTargetRecordVersion === null))
@@ -379,20 +384,24 @@ export async function renderFieldRequirement(entity: EntitySnapshot, fieldId: st
   const required = reactivate || !field.required;
   const fileSessionId = state.session.fileSessionId;
   const expectedDefinitionRevision = state.session.manifest!.definitionRevision;
-  const title = reactivate ? `Reactivate ${field.displayName}` : `Make ${field.displayName} ${required ? 'required' : 'optional'}`;
+  // The page the person pressed on. The read can outlast a move to another page, and the form
+  // was then drawn over whatever was there (WSP-22).
+  const place = content.dataset.place;
+  const view = state.view;
+  const stillHere = (): boolean => state.session.fileSessionId === fileSessionId && content.dataset.place === place && state.view === view
+    && state.selectedEntityId === entity.entityId;
   try {
     const page = required ? await client.request<ReadPage<RecordSnapshot>>('data.queryRecords', {
       entityId: entity.entityId, limit: 50, filters: [{ fieldId, operator: 'isNull' }],
     }) : { items: [], nextCursor: null };
-    if (state.session.fileSessionId !== fileSessionId) return;
-    const plan: FieldPlan = { semanticId: fieldId, automationTarget: `field-${cssToken(fieldId)}`, displayName: field.displayName,
-      storageKind: field.storageKind, required: true, presentation: field.presentation, options: field.options, choices: field.choices };
-    const labelField = entity.fields.find(candidate => candidate.fieldId !== fieldId && storageLabel(candidate.storageKind) === 'Text');
+    if (!stillHere()) return;
+    const title = requirementTitle(field.displayName, { reactivate, required, batch: page.nextCursor ? page.items.length : null });
+    const plan = backfillPlan(field);
     content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>${escapeHtml(title)}</h2>
       <p>${page.items.length ? 'Enter an explicit value for each record below. Review every change before applying it.' : 'No missing values need filling. Review the definition change before applying it.'}</p>
       ${page.nextCursor ? '<p>More than 50 records need values. This proposal fills this batch only. Return here after accepting it to continue; the field changes only after all missing values are filled.</p>' : ''}
       <div class="message-slot" role="alert" hidden></div>
-      ${page.items.map((record, index) => `<form class="record-form backfill-record" data-row="${index}"><h3>${escapeHtml(labelField ? valueDisplay(record.values[labelField.fieldId]) || record.recordId : record.recordId)}</h3><code>${escapeHtml(record.recordId)}</code>${fieldControlMarkup(plan, null)}</form>`).join('')}
+      ${page.items.map((record, index) => `<form class="record-form backfill-record" data-row="${index}"><h3>${escapeHtml(recordHeading(entity, record, fieldId))}</h3><code>${escapeHtml(record.recordId)}</code>${backfillControlMarkup(field)}</form>`).join('')}
       <div class="form-actions"><button id="cancel-requirement" class="secondary-button" type="button" data-dismiss>Cancel</button><button id="preview-requirement" class="primary-button" data-action type="button">Preview changes</button></div>
       </section></div>`;
     requiredElement('#cancel-requirement').addEventListener('click', () => rerender());
@@ -416,7 +425,7 @@ export async function renderFieldRequirement(entity: EntitySnapshot, fieldId: st
         });
         const mutations: Array<{ idempotencyKey: string; description: string; operations: unknown[] }> = [];
         if (operations.length) mutations.push({ idempotencyKey: `fill-${id}`, description: `Fill missing ${field.displayName} values`, operations });
-        if (!page.nextCursor) mutations.push({ idempotencyKey: `require-${id}`, description: title, operations: [{
+        if (!page.nextCursor) mutations.push({ idempotencyKey: `require-${id}`, description: requirementTitle(field.displayName, { reactivate, required, batch: null }), operations: [{
           operationId: `require-${id}`, operationType: reactivate ? 'schema.setRetired' : 'schema.setFieldRequired',
           payload: { entityId: entity.entityId, fieldId, expectedDefinitionRevision, ...(reactivate ? { retired: false } : { required }) },
         }] });
@@ -425,6 +434,6 @@ export async function renderFieldRequirement(entity: EntitySnapshot, fieldId: st
       } catch (error) { showError(messageFor(error)); }
     });
     content.querySelector<HTMLElement>('input, select, #preview-requirement')?.focus();
-  } catch (error) { showError(messageFor(error)); }
+  } catch (error) { if (stillHere()) showError(messageFor(error)); }
 }
 

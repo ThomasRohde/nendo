@@ -1,0 +1,27 @@
+{
+  "about": "Package IDs and whether the Engine takes each (NendoExtensionContent.ValidPackageId). The host's actor check (WorkbenchProtocolHandler.ExtensionActorPackage, DesktopPackageIdRuleTests) and Studio's Add view form (validPackageId, custom-view-recipe.test.mjs) are held to the same answers (WXS-12).",
+  "ids": [
+    { "id": "org.example.glance", "valid": true },
+    { "id": "a.b", "valid": true },
+    { "id": "org.view-", "valid": true },
+    { "id": "org.my--view", "valid": true },
+    { "id": "org.example-.map", "valid": true },
+    { "id": "org.nendo.garden-tasks", "valid": true },
+    { "id": "org.x2", "valid": true },
+    { "id": "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "valid": true },
+    { "id": "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "valid": false },
+    { "id": "1org.map", "valid": false },
+    { "id": "org.1map", "valid": false },
+    { "id": "org.-map", "valid": false },
+    { "id": "Org.Example", "valid": false },
+    { "id": "org", "valid": false },
+    { "id": "ab", "valid": false },
+    { "id": "org..map", "valid": false },
+    { "id": "org.map.", "valid": false },
+    { "id": ".org.map", "valid": false },
+    { "id": "org.ex_ample", "valid": false },
+    { "id": "org.ex ample", "valid": false },
+    { "id": "org.exämple", "valid": false },
+    { "id": "", "valid": false }
+  ]
+}

@@ -1278,6 +1278,39 @@ async page => {
     assert(view === 'use' && said.includes('open now'), `W-062: accepting an added screen landed on ${view}, saying ${JSON.stringify(said)}.`);
   });
 
+  // W-229 (from the W-230 review): an Add view preview the host refuses keeps the form, which the
+  // person corrects and previews again; the form was cleared before the answer and did nothing.
+  await check('W-229 refused Add view previews again', 'idea', async () => {
+    await page.click('#nav-surfaces');
+    await until(() => document.querySelector('[data-view-add]') !== null, null, 'the Custom views panel', 6000);
+    await page.click('[data-view-add]');
+    await until(() => document.querySelector('#add-view-form button[type="submit"]')?.disabled === false, null, 'an Add view form ready to preview', 6000);
+    // The preview host validates nothing, so the first preview is answered invalid here.
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const request = client.request.bind(client);
+      let refuse = true;
+      client.request = async (method, payload) => {
+        if (method === 'proposal.prepareChangeSet' && refuse) {
+          refuse = false;
+          return { proposalId: payload.proposalId, title: payload.title, state: 'invalid', diagnostics: [{ code: 'NUI450', message: 'The probe refused this view.', severity: 'error' }] };
+        }
+        return request(method, payload);
+      };
+    });
+    await page.locator('#add-view-title').fill('Refused once');
+    await page.click('#add-view-form button[type="submit"]');
+    await until(() => (document.querySelector('.message-slot:not([hidden])')?.textContent ?? '').includes('The probe refused this view.'), null, 'the refusal', 6000);
+    assert(await appView() !== 'proposal', 'W-229: a refused Add view opened a review; the check measures nothing.');
+    await page.locator('#add-view-title').fill('Corrected');
+    await page.click('#add-view-form button[type="submit"]');
+    try {
+      await until(() => document.querySelector('#accept-proposal') !== null, null, 'the corrected Add view proposal', 6000);
+    } catch {
+      throw Error(`W-229: after a refused preview the Add view form did nothing; the page is ${await appView()}, saying ${JSON.stringify(await message())}.`);
+    }
+  });
+
   // UIT-03: a custom view whose package the file lacks does not read Healthy on Surfaces.
   await check('UIT-03 Surfaces names a missing package', 'idea', async () => {
     await page.click('#nav-surfaces');
@@ -1618,6 +1651,324 @@ async page => {
       retry: document.querySelector('#retry-pending-save') !== null, text: document.querySelector('#pending-save-notice')?.textContent ?? '' }));
     assert(offered.send === false && offered.discard === false, `WCS-03: a save made in another file offers no way out: ${JSON.stringify(offered)}.`);
     assert(!offered.retry, 'WCS-03: the notice still offers Check or retry, which refuses in a file of another name.');
+  });
+
+  // --- W-230: Studio flows and proposal review (FIXES.md WSP-01 to WSP-25) ----------------------
+
+  // A write through the page's own write path, so the session and its reads follow it.
+  const studioWrite = (method, payload) => page.evaluate(async ([method, payload]) => {
+    const { runMutation } = await import('/src/actions.ts');
+    return runMutation(method, { idempotencyKey: `w230-${crypto.randomUUID()}`, ...payload }, 'Saved.');
+  }, [method, payload]);
+  const ideaRecords = () => page.evaluate(() => import('/src/app-state.ts').then(({ state }) =>
+    state.session.records.filter(record => record.entityId === 'entity.idea').map(record => ({ recordId: record.recordId, recordVersion: record.recordVersion }))));
+
+  // WSP-02: Make required on a choice field starts each record on a placeholder, and an untouched preview is refused.
+  await check('WSP-02 Make required asks for every choice', 'idea', async () => {
+    const [first] = await ideaRecords();
+    assert(first !== undefined, 'WSP-02: the preview file has no record to empty.');
+    assert(await studioWrite('data.setField', { entityId: 'entity.idea', recordId: first.recordId, fieldId: 'field.idea.energy', expectedRecordVersion: first.recordVersion, value: null }) === 'saved',
+      'WSP-02: emptying a record’s Energy did not save.');
+    await page.click('#nav-structure');
+    await until(() => document.querySelector('[data-require-field="field.idea.energy"]:not(:disabled)') !== null, null, 'Make Energy required', 6000);
+    await page.click('[data-require-field="field.idea.energy"]');
+    await until(() => document.querySelector('#preview-requirement') !== null, null, 'the Make required form', 6000);
+    const selects = await page.evaluate(() => [...document.querySelectorAll('.backfill-record select')].map(select => ({ value: select.value, disabled: select.selectedOptions[0]?.disabled ?? null })));
+    assert(selects.length > 0, 'WSP-02: the Make required form lists no record to fill; the check measures nothing.');
+    assert(selects.every(select => select.value === '' && select.disabled === true), `WSP-02: the form starts each record on a choice nobody made: ${JSON.stringify(selects)}.`);
+    await page.click('#preview-requirement');
+    await page.waitForTimeout(400);
+    const view = await appView();
+    const said = await message();
+    assert(view !== 'proposal' && said.includes('Fill every missing value before previewing.'), `WSP-02: an untouched form previewed (${view}, ${JSON.stringify(said)}).`);
+  });
+
+  // WSP-01: a search typed into a record's picker and abandoned does not count as clearing that record.
+  await check('WSP-01 abandoned search maps nothing', 'idea', async () => {
+    await page.click('#nav-structure');
+    await until(() => document.querySelector('#add-field')?.disabled === false, null, 'Structure', 6000);
+    await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      const { renderReferenceConversion } = await import('/src/view-structure.ts');
+      const entity = state.session.entities.find(candidate => candidate.entityId === 'entity.idea');
+      const legacy = { fieldId: 'field.idea.legacyOwner', displayName: 'Legacy owner', storageKind: 'reference', required: false, retired: false, presentation: null, options: [], choices: [], reference: null };
+      renderReferenceConversion({ ...entity, fields: [...entity.fields, legacy] }, 'field.idea.legacyOwner');
+    });
+    await page.selectOption('#conversion-target', 'entity.idea');
+    await page.selectOption('#conversion-label', 'field.idea.title');
+    await page.click('#conversion-target-form button[type="submit"]');
+    await until(() => document.querySelectorAll('.conversion-record').length > 1, null, 'the records to map', 6000);
+    const first = page.locator('.conversion-record').first();
+    await first.locator('.reference-choose').click();
+    await first.locator('.reference-search').fill('nothing matches this');
+    await first.locator('.reference-find').click();
+    await page.waitForTimeout(200);
+    await first.locator('.reference-cancel').click();
+    const others = await page.locator('.conversion-record').count();
+    for (let index = 1; index < others; index++) await page.locator('.conversion-record').nth(index).locator('.reference-clear').click();
+    await page.click('#preview-conversion');
+    await page.waitForTimeout(400);
+    const view = await appView();
+    const said = await message();
+    assert(view !== 'proposal' && said.includes('Choose a target or explicitly clear every record before previewing.'),
+      `WSP-01: a record whose search was typed and abandoned was converted as cleared (${view}, ${JSON.stringify(said)}).`);
+  });
+
+  // WSP-16: View changes stays open across a redraw, and opens though the file moved since History was read.
+  await check('WSP-16 View changes survives a redraw', 'idea', async () => {
+    const records = (await ideaRecords()).slice(0, 2);
+    for (const [index, record] of records.entries())
+      assert(await studioWrite('data.setField', { entityId: 'entity.idea', recordId: record.recordId, fieldId: 'field.idea.nextAction', expectedRecordVersion: record.recordVersion, value: `Step ${index}` }) === 'saved',
+        'WSP-16: a seed edit did not save.');
+    await page.click('#nav-history');
+    await until(() => document.querySelectorAll('[data-history-detail]').length > 1, null, 'two History entries', 6000);
+    await page.click('[data-history-detail] >> nth=0');
+    await until(() => document.querySelector('[data-operation-detail] .operation-details') !== null, null, 'the first entry’s changes', 6000);
+    await page.evaluate(() => import('/src/shell.ts').then(shell => shell.rerender()));
+    const kept = await page.evaluate(() => document.querySelectorAll('[data-operation-detail] .operation-details').length);
+    assert(kept === 1, `WSP-16: a redraw closed the changes the person opened (${kept} open).`);
+    // The file moved and the page has not caught up: the revision's operations are the same.
+    await page.evaluate(() => import('/src/app-state.ts').then(({ state }) => { state.session.manifest.changeSequence -= 1; }));
+    await page.click('[data-history-detail] >> nth=1');
+    await page.waitForTimeout(500);
+    const opened = await page.evaluate(() => document.querySelectorAll('[data-operation-detail] .operation-details').length);
+    const said = await message();
+    assert(opened === 2 && !said.includes('The file changed'), `WSP-16: View changes was refused while the file moved (${opened} open, ${JSON.stringify(said)}).`);
+  });
+
+  // WSP-18: a header rename the host refuses puts the header back, and says why.
+  await check('WSP-18 refused header rename puts the header back', 'idea', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.studio-header-rename') !== null, null, 'a column header with Rename', 8000);
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const { WorkbenchHostError } = await import('/src/host.ts');
+      window.__w230Request = client.request.bind(client);
+      client.request = (method, payload) => method === 'proposal.prepareChangeSet'
+        ? Promise.reject(new WorkbenchHostError('host-unavailable', 'The host did not answer.')) : window.__w230Request(method, payload);
+      document.querySelector('.studio-header-rename').click();
+    });
+    await until(() => document.querySelector('.studio-header-input') !== null, null, 'the rename box', 4000);
+    await page.locator('.studio-header-input').fill('Renamed column');
+    await page.locator('.studio-header-input').press('Enter');
+    await page.waitForTimeout(500);
+    const after = await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      client.request = window.__w230Request;
+      return { box: document.querySelector('.studio-header-input') !== null, said: document.querySelector('.message-slot:not([hidden])')?.textContent ?? '' };
+    });
+    assert(!after.box && after.said.includes('The host did not answer.'), `WSP-18: after a refused rename the header is ${after.box ? 'still a box Escape no longer puts back' : 'back'}, saying ${JSON.stringify(after.said)}.`);
+  });
+
+  // W-229: custom views that run. The preview host serves no view origin, so the page is told it
+  // is Nendo Desktop and the Board glance package's origin is answered here with a small view of
+  // our own that speaks the port protocol directly: a real cross-origin frame, connected by the
+  // page's own broker, whose requests and pings the checks drive.
+  const viewOrigin = 'https://org-example-board-glance-5d1c7e9a20.example';
+  const viewPage = `<!doctype html><meta charset="utf-8"><title>Probe view</title><body><input id="probe-field" aria-label="Probe field"><script>
+window.__answers = {}; window.__events = []; window.__hang = false; window.__connected = false;
+let port = null; let next = 1;
+addEventListener('message', (event) => {
+  if (event.source !== parent || !event.data || event.data.nendo !== 'connect') return;
+  port = event.ports[0];
+  window.__context = event.data.context;
+  port.onmessage = (message) => {
+    const data = message.data;
+    if (data.t === 'res') window.__answers[data.id] = data;
+    else if (data.t === 'ping') { if (!window.__hang) port.postMessage({ t: 'pong', id: data.id }); }
+    else window.__events.push(data);
+  };
+  window.__connected = true;
+});
+parent.postMessage({ nendo: 'hello', apiVersion: 1 }, '*');
+window.__send = (m, p) => { const id = next++; port.postMessage({ t: 'req', id, m, p }); return id; };
+window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
+  const id = window.__send(m, p); const until = Date.now() + wait;
+  const poll = () => window.__answers[id] ? resolve(window.__answers[id]) : Date.now() > until ? resolve(null) : setTimeout(poll, 20);
+  poll();
+});
+</script>`;
+  let viewRouted = false;
+  const runViews = async () => {
+    if (!viewRouted) {
+      await page.route(`${viewOrigin}/**`, route => route.fulfill({ status: 200, contentType: 'text/html', body: viewPage }));
+      viewRouted = true;
+    }
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      Object.defineProperty(client, 'mode', { value: 'desktop', configurable: true, writable: true });
+    });
+  };
+  const rerenderPage = () => page.evaluate(async () => (await import('/src/shell.ts')).rerender());
+  /** The frame of the probe view under `selector` once it is connected. */
+  const viewFrame = async (selector) => {
+    await until(selector => document.querySelector(`${selector} iframe.view-frame`) !== null, selector, `a view frame in ${selector}`, 6000);
+    const handle = await page.$(`${selector} iframe.view-frame`);
+    const frame = await handle.contentFrame();
+    await frame.waitForFunction(() => window.__connected === true, null, { timeout: 6000 }).catch(() => { throw Error(`The probe view in ${selector} never connected.`); });
+    return frame;
+  };
+  const glanceScreen = async () => {
+    await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      const root = state.session.uiNodes.find(node => node.kind === 'extensionRecordsSurface' && node.parentNodeId === null);
+      await (await import('/src/extension-ui.ts')).openScreenFromView(root.nodeId);
+    });
+    return viewFrame('.studio-content');
+  };
+
+  // WXS-04: the switch that turns views off, pressed while a view's own move of the page runs, is
+  // made when the move ends; it was dropped.
+  await check('WXS-04 view switch during a view’s move', 'idea', async () => {
+    const run = await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      const { openScreenFromView } = await import('/src/extension-ui.ts');
+      const { setViewSwitch } = await import('/src/view-packages.ts');
+      const root = state.session.uiNodes.find(node => node.kind === 'extensionRecordsSurface' && node.parentNodeId === null);
+      // The press lands while the view's move holds the action, before anything is awaited.
+      const moving = openScreenFromView(root.nodeId, false);
+      const busy = state.actionInFlight;
+      const pressed = setViewSwitch('device', false);
+      await moving;
+      await pressed;
+      for (let wait = 0; wait < 60 && state.session.extensions?.run !== false; wait += 1) await new Promise(resolve => setTimeout(resolve, 50));
+      return { busy, run: state.session.extensions?.run ?? null };
+    });
+    assert(run.busy, 'WXS-04: the view’s move held no action, so the check measures nothing.');
+    assert(run.run === false, `WXS-04: turning views off while a view’s move ran was dropped; views still run (${JSON.stringify(run)}).`);
+  });
+
+  // WXS-04 again: the move ends in failure, which says an alert before the held press is made; an
+  // ordinary held move is dropped then, and the switch was one.
+  await check('WXS-04 view switch during a view’s failing move', 'idea', async () => {
+    const run = await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      const { openRecordFromView } = await import('/src/extension-ui.ts');
+      const { setViewSwitch } = await import('/src/view-packages.ts');
+      const entityId = state.session.entities.find(entity => entity.retired !== true).entityId;
+      const moving = openRecordFromView(entityId, 'record-that-is-not-in-the-file', false);
+      const busy = state.actionInFlight;
+      const pressed = setViewSwitch('device', false);
+      const opened = await moving;
+      // Said before the held press is made, as the old queue read it.
+      const alert = state.lastOutcome?.tone ?? null;
+      await pressed;
+      for (let wait = 0; wait < 60 && state.session.extensions?.run !== false; wait += 1) await new Promise(resolve => setTimeout(resolve, 50));
+      return { busy, opened: opened.opened, alert, run: state.session.extensions?.run ?? null };
+    });
+    assert(run.busy && run.opened === false && run.alert === 'alert', `WXS-04: the view’s move did not fail with an alert while it held the action, so the check measures nothing (${JSON.stringify(run)}).`);
+    assert(run.run === false, `WXS-04: turning views off during a view’s failing move was dropped; views still run (${JSON.stringify(run)}).`);
+  });
+
+  // WXS-17: views come on while the page is held by unsaved typing; the panel's frame starts in a
+  // stage that no longer holds the 'Custom views are off' notice.
+  await check('WXS-17 off notice gone when views come on held', 'idea', async () => {
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const { state } = await import('/src/app-state.ts');
+      const result = await client.request('extension.settings.set', { scope: 'device', enabled: false });
+      state.session = 'session' in result ? result.session : result;
+      (await import('/src/shell.ts')).rerender();
+    });
+    await openRecord();
+    await until(() => document.querySelector('.record-inspector [data-view-notice="off"]') !== null, null, 'the panel’s off notice');
+    const field = page.locator('.record-inspector input[type="text"], .record-inspector textarea').first();
+    await field.click();
+    await field.pressSequentially(' held');
+    await runViews();
+    const after = await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const { holdingThePage } = await import('/src/draft-guard.ts');
+      await client.request('extension.settings.set', { scope: 'device', enabled: true });
+      const held = holdingThePage();
+      await (await import('/src/extension-settings.ts')).refreshExtensionSettings();
+      const stage = document.querySelector('.record-inspector [data-view-mount] [data-view-stage]');
+      return { held, notice: stage?.querySelector('[data-view-notice]')?.textContent ?? null, isNotice: stage?.classList.contains('is-notice') ?? null };
+    });
+    assert(after.held, 'WXS-17: the page was not held, so the check measures nothing.');
+    await until(() => document.querySelector('.record-inspector [data-view-mount] [data-view-stage] iframe.view-frame') !== null, null, 'the panel’s frame to start', 6000);
+    const started = await page.evaluate(() => {
+      const stage = document.querySelector('.record-inspector [data-view-mount] [data-view-stage]');
+      return { notice: stage?.querySelector('[data-view-notice]')?.textContent ?? null, isNotice: stage?.classList.contains('is-notice') ?? null };
+    });
+    assert(after.notice === null && after.isNotice === false && started.notice === null && started.isNotice === false,
+      `WXS-17: the panel started its view beside the stale notice: ${JSON.stringify({ after, started })}.`);
+  });
+
+  // WXS-06: a view that asks to open a record on its own, while the person types in a record
+  // form, is refused without taking the person's focus.
+  await check('WXS-06 a view’s move keeps the person’s field', 'idea', async () => {
+    await runViews();
+    await rerenderPage();
+    await openRecord();
+    const frame = await viewFrame('.record-inspector');
+    const field = page.locator('.record-inspector input[type="text"], .record-inspector textarea').first();
+    await field.click();
+    await field.pressSequentially(' typing');
+    const before = await focus();
+    const target = await frame.evaluate(() => ({ entityId: window.__context.entityId, recordId: window.__context.recordId }));
+    const answer = await frame.evaluate(target => window.__ask('ui.openRecord', target), target);
+    const after = await focus();
+    assert(answer?.ok === false && answer.e.code === 'not-allowed', `WXS-06: the view’s open over unsaved typing was answered ${JSON.stringify(answer)}.`);
+    assert(after === before, `WXS-06: the refusal moved focus from ${before} to ${after}.`);
+  });
+
+  // WXS-07: a view held while the person reviews its own proposal neither draws a menu over the
+  // review nor moves the person out of it.
+  await check('WXS-07 a parked view stays out of the review', 'idea', async () => {
+    await runViews();
+    const frame = await glanceScreen();
+    // A command Nendo just sent the view lets a menu answer it without the frame's focus (WXS-08).
+    // The view declares Add first; a redraw that lands between the two can take the declaration
+    // with it, so it is declared again, at most three times, before the check gives up.
+    let added = false;
+    let declared = null;
+    for (let attempt = 0; attempt < 3 && !added; attempt += 1) {
+      await frame.waitForFunction(() => window.__connected === true, null, { timeout: 6000 }).catch(() => undefined);
+      declared = await frame.evaluate(() => window.__ask('ui.setToolbar', { items: [], add: 'probe-add' }));
+      added = declared?.ok === true && await page.evaluate(async () => { const command = (await import('/src/view-frames.ts')).viewAddCommand(); command?.(); return command !== null; });
+    }
+    assert(added, `WXS-07: the probe view’s Add was not taken, so the check measures nothing (toolbar answer ${JSON.stringify(declared)}).`);
+    const prepared = await frame.evaluate(() => window.__ask('proposals.prepare', { title: 'Probe look', operations: [{ operationType: 'application.setLook', payload: { tone: null, letter: 'Q' } }] }));
+    assert(prepared?.ok === true && prepared.r.opened === true, `WXS-07: the probe view’s proposal did not open: ${JSON.stringify(prepared)}.`);
+    await until(() => document.querySelector('[data-testid="proposal-review"]') !== null, null, 'the review of the view’s proposal');
+    const menuId = await frame.evaluate(() => window.__send('ui.showMenu', { items: [{ id: 'probe', label: 'Probe item' }], x: 4, y: 4 }));
+    // Settled when the view hears its answer, or when a menu is drawn, which waits for the person.
+    let menu = false;
+    let menuAnswer = null;
+    for (let wait = 0; wait < 60 && menuAnswer === null && !menu; wait += 1) {
+      menuAnswer = await frame.evaluate(id => window.__answers[id] ?? null, menuId);
+      menu = await page.evaluate(() => document.querySelector('.view-menu') !== null);
+      if (menuAnswer === null && !menu) await page.waitForTimeout(50);
+    }
+    if (menu) await page.keyboard.press('Escape');
+    const moved = await frame.evaluate(async () => {
+      const id = window.__send('ui.openScreen', { surfaceId: window.__context.viewId });
+      for (let wait = 0; wait < 100 && !window.__answers[id]; wait += 1) await new Promise(resolve => setTimeout(resolve, 20));
+      return window.__answers[id] ?? null;
+    });
+    const view = await page.evaluate(async () => (await import('/src/app-state.ts')).state.view);
+    assert(!menu && menuAnswer?.ok === true && menuAnswer.r === null, `WXS-07: a parked view drew its menu over the review (menu ${menu}, answer ${JSON.stringify(menuAnswer)}).`);
+    assert(moved?.ok === false && moved.e.code === 'not-allowed' && view === 'proposal', `WXS-07: a parked view’s move was answered ${JSON.stringify(moved)} and the page is ${view}.`);
+  });
+
+  // WXS-05: a view that hangs while it has focus hands the keyboard to the overlay's Stop.
+  await check('WXS-05 a hung view’s overlay takes focus', 'idea', async () => {
+    await runViews();
+    const frame = await glanceScreen();
+    await page.evaluate(() => document.querySelector('.studio-content iframe.view-frame').focus());
+    const before = await focus();
+    assert(before.startsWith('iframe'), `WXS-05: the view’s frame did not take focus (${before}), so the check measures nothing.`);
+    const hungAt = Date.now();
+    await frame.evaluate(() => { window.__hang = true; });
+    try {
+      await until(() => document.querySelector('[data-view-overlay="unresponsive"]') !== null, null, 'the not-responding overlay', 30000);
+    } catch (error) {
+      const seen = await page.evaluate(() => ({ state: document.querySelector('.studio-content [data-view-mount]')?.dataset.viewState ?? null, focus: document.activeElement?.tagName ?? null }));
+      throw Error(`${error.message} After ${Date.now() - hungAt} ms the view reads ${JSON.stringify(seen)}.`);
+    }
+    const after = await page.evaluate(() => document.activeElement?.hasAttribute('data-view-stop') ?? false);
+    assert(after, `WXS-05: the not-responding overlay left focus on ${await focus()}, where no key reaches Stop.`);
   });
 
   // WST-10: a window in dark mode is dark before the bundle has run. Last, since it changes the colour scheme.
