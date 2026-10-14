@@ -82,6 +82,10 @@ Merge `d342bdbcad0b23992732c1a6c16d720cc5b6cd74` combines W-231's
 `3e5238b1cb3d2594c8ec327b7a00edebf0b33c02`, without conflicts. Integration ran
 in worktree a360 on `codex/lazy-data-views-integration`. Main's uncommitted
 `ACP.md` deletion is excluded from these commits and retained for its owner.
+During final handoff, the owner committed that deletion as `97f9e1c`; the main-tip
+guard stopped before changing the checkout. Integration then included that commit
+on `codex/lazy-data-views-main`. Product source hashes still match the tested
+payload; the repository gate was rerun for the documentation-only change.
 
 The initial `Test-Production.ps1 -SkipRestore` run passed 747 Workbench tests,
 the .NET build with zero warnings/errors, and 2,197 .NET tests (Engine 1,356,
