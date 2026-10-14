@@ -60,3 +60,14 @@ test('the edge is a focusable, named separator', () => {
   assert.match(inspectorResizerMarkup, /tabindex="0"/);
   assert.match(inspectorResizerMarkup, /aria-label="Resize details pane"/);
 });
+
+// A wider page stretched each command button across it, one per row. They are sized by
+// their labels and wrap instead, so widening the page lines them up.
+test('the record commands wrap at their own width rather than stretch', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/styles/10-forms.css', import.meta.url), 'utf8');
+  const rule = (selector) => css.match(new RegExp(`(?:^|\\n)${selector.replace(/[.]/g, '\\.')}\\s*\\{([^}]*)\\}`))?.[1] ?? '';
+  assert.match(rule('.record-actions'), /display:\s*flex/);
+  assert.match(rule('.record-actions'), /flex-wrap:\s*wrap/);
+  assert.match(rule('.record-actions .command-button'), /width:\s*auto/);
+});

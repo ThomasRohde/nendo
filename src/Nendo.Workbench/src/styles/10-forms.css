@@ -57,10 +57,19 @@ textarea:focus {
 
 /* The record's commands sit under the header, where a person looks for the action. */
 .record-actions {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
-  padding: 4px 0 8px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--line);
+}
+
+/* Sized by their labels and wrapped into rows, so a wider page lines them up rather
+   than stretching each one across it. */
+.record-actions .command-button {
+  width: auto;
+  margin: 0;
+  padding: 4px 14px;
 }
 
 .icon-button,
