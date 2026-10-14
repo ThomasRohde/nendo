@@ -88,6 +88,11 @@ same type). It stores the target record's ID and shows one text field of the
 target as its label. A record page can show the other direction as a
 **related list**: all records whose reference points at this record.
 
+The label can change: **Label by…** in Structure shows the reference's records by
+another text field of the target, such as a code instead of a name. Nothing stored
+changes, and History can undo it while it is the latest definition change. While a
+field is a reference's label it cannot be retired, so to retire it, choose another label first.
+
 Nendo refuses to delete a record that another record still references. Clear or
 reassign the references first. Nothing cascades.
 

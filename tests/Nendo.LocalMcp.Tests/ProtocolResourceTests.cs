@@ -289,15 +289,29 @@ public sealed class ProtocolResourceTests
         }
     }
 
-    internal static async Task<McpClient> ConnectAsync(NendoLocalMcpHost host)
+    internal static Task<McpClient> ConnectAsync(NendoLocalMcpHost host) => ConnectAsync(host.Endpoint);
+
+    /// <summary>
+    /// The handshake's one bound, 10 s. The client asks <c>server/discover</c> first and gave
+    /// that probe only its own default of 5 s, reporting a slow answer as "The server does not
+    /// support the requested protocol version": under load a fresh host's first answer took
+    /// 5.1 to 7.2 s, and the 10 s set here never applied (TST-02 recurring). The probe now has
+    /// the same bound as the handshake (<see cref="HandshakeBound"/>).
+    /// </summary>
+    internal static readonly TimeSpan HandshakeBound = TimeSpan.FromSeconds(10);
+
+    internal static async Task<McpClient> ConnectAsync(Uri endpoint, HttpMessageHandler? handler = null)
     {
-        var transport = new HttpClientTransport(new HttpClientTransportOptions
+        var options = new HttpClientTransportOptions
         {
-            Endpoint = host.Endpoint,
+            Endpoint = endpoint,
             Name = "nendo-p3-tests",
             TransportMode = HttpTransportMode.StreamableHttp,
-            ConnectionTimeout = TimeSpan.FromSeconds(5),
-        });
+            ConnectionTimeout = HandshakeBound,
+        };
+        var transport = handler is null
+            ? new HttpClientTransport(options)
+            : new HttpClientTransport(options, new HttpClient(handler), ownsHttpClient: true);
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         McpClient client;
         try
@@ -312,7 +326,9 @@ public sealed class ProtocolResourceTests
                     Version = "1.0.0",
                 },
                 ProtocolVersion = "2026-07-28",
-                InitializationTimeout = TimeSpan.FromSeconds(10),
+                InitializationTimeout = HandshakeBound,
+                // Infinite here means "no separate bound": the probe is under InitializationTimeout.
+                DiscoverProbeTimeout = Timeout.InfiniteTimeSpan,
             });
         }
         catch (McpException error)

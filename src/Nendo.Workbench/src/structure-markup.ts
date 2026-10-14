@@ -135,3 +135,39 @@ export function requirementTitle(fieldName: string, change: { reactivate: boolea
   if (change.batch !== null) return `Fill missing ${fieldName} values (first ${change.batch})`;
   return change.reactivate ? `Reactivate ${fieldName}` : `Make ${fieldName} ${change.required ? 'required' : 'optional'}`;
 }
+
+type Field = EntitySnapshot['fields'][number];
+type Entities = readonly Pick<EntitySnapshot, 'entityId' | 'displayName' | 'retired' | 'fields'>[];
+
+/**
+ * The text fields a bound reference may show its records by instead of its label (ADR-0003,
+ * 2026-10-14 note, W-232): the target's active Text fields, its current label left out. The
+ * Engine applies the same rule, so a choice offered here is one it accepts.
+ */
+export function referenceLabelChoices(field: Field, entities: Entities): Field[] {
+  const reference = field.reference;
+  if (!reference) return [];
+  const target = entities.find(candidate => candidate.entityId === reference.targetEntityId);
+  if (target === undefined || target.retired) return [];
+  return target.fields.filter(candidate => !candidate.retired && storageLabel(candidate.storageKind) === 'Text' && candidate.fieldId !== reference.labelFieldId);
+}
+
+/**
+ * A bound reference's target and label in its Stores column, with Label by… to change the label.
+ * A label could be chosen once, when the reference was bound, and then held its field from
+ * retirement with nothing that moved it (ESS-09).
+ */
+export function referenceLabelMarkup(entity: Pick<EntitySnapshot, 'retired'>, field: Field, entities: Entities): string {
+  const reference = field.reference;
+  if (!reference) return '';
+  const target = entities.find(candidate => candidate.entityId === reference.targetEntityId);
+  const label = target?.fields.find(candidate => candidate.fieldId === reference.labelFieldId);
+  const choices = referenceLabelChoices(field, entities);
+  const off = entity.retired || field.retired || choices.length === 0;
+  const why = choices.length === 0 && !(entity.retired || field.retired)
+    ? ` title="${escapeAttribute(target === undefined || target.retired
+      ? `${target?.displayName ?? 'The target record type'} is retired. Reactivate it to choose another label.`
+      : `${target.displayName} has no other active text field to show its records by.`)}"` : '';
+  return `<span class="reference-target">${escapeHtml(target?.displayName ?? reference.targetEntityId)} by ${escapeHtml(label?.displayName ?? reference.labelFieldId)}</span>`
+    + `<button class="text-button" data-reference-label="${escapeAttribute(field.fieldId)}" data-action type="button" ${off ? 'disabled' : ''}${why} aria-label="Label ${escapeAttribute(field.displayName)} by another field">Label by…</button>`;
+}

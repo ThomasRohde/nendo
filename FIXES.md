@@ -11196,3 +11196,176 @@ Left open:
   proposal.
 - `tools/Graph-FixtureBroker.html`, which the package gates frame their views in, does not
   enforce the once-a-second bound on moves.
+
+### Twenty-ninth pass: .NET test reliability and coverage (W-218)
+
+2026-10-14: the twenty findings planned as W-218 (3 P2, 17 P3) and five flakes seen in the gate
+runs of 2026-10-13 and 14. Seventeen findings are fixed with a guard. TST-05 was already fixed.
+TST-02's fix was incomplete, and the rest of it is fixed here. TST-14 is left open: the permission
+check refused the file deletion it needs. Each flake had a root cause in code: two are fixed in the
+host, one in the Desktop host, and two in the lanes that measure them. Every guard failed with its
+defect put back. The quoted texts are from those runs. Each defect was put back from a byte copy,
+compared byte for byte after the restore, and rebuilt.
+
+| Finding | Fix | Failure with the defect put back |
+| --- | --- | --- |
+| [BL-01](#bl-01) | A host on a device-state root of its own (`NENDO_DEVICE_STATE_ROOT`) under the product identity now writes neither the taskbar Jump List nor the notification registration, because Windows files both under the installed Nendo's identity (`DesktopRuntimeConfiguration.WritesShellState`). A lane that pins `NENDO_DESKTOP_APP_ID` still writes both, under its own identity. This one host rule covers the journey tests and every runtime lane that launches a host. The journey records the installed identity's `customDestinations-ms` file and the registry key's write time before launch, and checks both after the host exits. | Unit: `A lane on an isolated device state writes the installed Nendo's Jump List and notification registration.` Journey: `The journey rewrote the installed Nendo's Jump List (…\CustomDestinations\2943bb3f738370c0.customDestinations-ms) with rows that start the host under C:\Users\thoma\Projects\nendo\artifacts\bin\Nendo.Desktop\debug_win-x64.` |
+| [TST-01](#tst-01) and the journey's clipboard flake | G36 asks first whether the workstation is locked: the input desktop is not `Default`, or LogonUI is running. If it is, G36 reports `interlock: G36 was not run: …` with the reason, and the C# test reports the journey Inconclusive after every other check has run. If the session locks during the step, the step's failure is reported the same way. On an unlocked desktop a clipboard failure still fails the journey. The reader waits up to two more seconds when another program holds the clipboard open. Text the person had on the clipboard is put back afterwards, and the journey reads it back to check. `clipboard-probe.test.mjs` covers the locked, unlocked, refused-probe, retry and stdin paths. | Lock check removed: `AssertionError [ERR_ASSERTION]: The "string" argument must be of type string. Received type object (null)` in `a session on the secure desktop or under LogonUI is named as locked`. Retry removed: `The input did not match the regular expression /for \(\$try = 1; -not \$data; …/`. Live run, with another process holding the clipboard open for 2.5 s: the old reader `failed after 1609 ms: Windows clipboard probe failed: Exception calling "GetDataObject" with "0" argument(s): "Requested Clipboard operation did not succeed."`; the new reader `read after 2677 ms`. With a lock simulated in the script, the journey reported `Skipped! - Failed: 0 … Skipped: 1`. |
+| [TST-02](#tst-02), still recurring | The TST-02 fix set a 10 s `InitializationTimeout`, but the client first sends a `server/discover` probe, which has a 5 s bound of its own (`McpClientOptions.DiscoverProbeTimeout`). When that probe runs out, the client reports "The server does not support the requested protocol version". Both suites' clients now set it to infinite, so the probe comes under the one 10 s bound. The LocalMcp helper's `ConnectionTimeout` goes from 5 s to the same 10 s. A new LocalMcp test holds a real host's first answer for 6 s, and the Desktop shape test checks the probe bound. | `ModelContextProtocol.McpException: The server does not support the requested protocol version '2026-07-28'. … [after 5062 ms; thread pool 8 threads (min 88, busy 2), 0 queued, 22 processors]`. Desktop: `The server/discover probe gives up after 00:00:05, inside the 00:00:10 handshake bound.` |
+| [BL-03](#bl-03) | **Open, for the owner.** `BcmAtlasUpgradeTests` can only report Inconclusive, because `workspace/BCM.nendo` has carried the upgrade since 2026-09-29; retiring it (deleting the file, and saying in the bcm-atlas README and `upgrade.mjs` that `upgrade.test.mjs` is what holds `upgrade-operations.json`) was prepared, but staging the deletion was refused by the permission check, so the file and its text are back as they were. | None yet. |
+| [BL-04](#bl-04) | `Test-BinaryAssets.ps1` now reports a tracked binary that has been deleted under its own sentence, which names both remedies (`git rm` or `git restore`). It no longer appears under "Corrupt binary asset(s)". A self-check covers that wording. `Test-Repository.ps1`'s hygiene loop used to stop at a deleted source file with a bare "Could not find file", and now names the file the same way. | `Self-check: a tracked file deleted from the working tree is not reported as deleted with its remedy. The lane reported: Corrupt binary asset(s); …` |
+| [BL-05](#bl-05) | Each suite's TRX now goes under `artifacts/test-results/<run>/<suite>`. It is deleted when the suite passes, and the folder path is printed when the suite fails. Previously the TRX went into `tests/<suite>/TestResults`, where nothing removed it. `TestHarnessShapeTests` reads the gate's `dotnet test` line. | `StringAssert.Contains failed. String '        & dotnet test $project --no-build --no-restore --nologo --logger trx' does not contain string '--results-directory $suiteResults'. The gate writes test results into each test project..` |
+| [BL-06](#bl-06) | The README now says `dotnet build` on a fresh clone stops with "Build the Workbench first". Every "about a minute" now reads "a few minutes" or "several minutes": README, AGENTS.md, CONTRIBUTING.md, architecture.md, ADR-0018 and the getting-started guide. `Test-Repository.ps1` refuses both claims. | `README.md says dotnet build on a fresh clone succeeds, but Nendo.LocalMcp.csproj stops the build until the Workbench is built (RequireViewApiReference).` and `These documents say the gate or the suite runs in about a minute; it takes several: AGENTS.md` |
+| [BL-07](#bl-07) | Stripped the BOM from the eight files. `Test-Repository.ps1` now reads the first three bytes of every tracked text path. | `Tracked text file(s) start with a UTF-8 byte order mark; the repository is UTF-8 without one. Remove the first three bytes (EF BB BF) of each …` |
+| [TST-04](#tst-04) | A new process-owner variable, `NENDO_AGENT_PORTS=system`: on a device with no saved setting, the system picks the agent ports. `DesktopTestDeviceState` sets it for the Desktop suite, and the journey host inherits it. A saved setting still wins, so the tests of kept ports name their own ports. `AStaleWindowSavesOnlyItsChangedPreferences` now saves the product defaults first. The isolation test checks both the port a suite host asks for and the port it binds. | `Assert.AreEqual failed. Expected:<0>. Actual:<41763>. … A suite host asks for the person's kept agent port.` |
+| [TST-05](#tst-05) | Already fixed in `dba4621` (W-220/W-228). The test runs under `NendoCivilClock.StandInFor(CivilTime.JustAfterLocalMidnight(2026-01-15))` and expects `2026-01-15`. | None: refuted, already fixed. |
+| [TST-08](#tst-08) | `StopCancelsTheTurnAndAnyQuestionOpenInIt` now also stops a turn while its permission question is open. It then checks that the entry reads `Cancelled`, that the fake agent logged `outcome: cancelled`, and that the turn ends. | Loop in `CancelTurnAsync` removed: `The conversation never got there. It is ready: ; you: wait \| agent: Working… \| notice: Stopped. \| you: permission \| tool:  \| permission: ` (after 31 s). |
+| [TST-09](#tst-09) | A new `McpSecurityTests` case sends a body with no declared length, 4 MiB more than the cap and the envelope scan together, in 16 KiB reads. It checks that the body is refused as `NENDO_REQUEST_TOO_LARGE`, as the request's own JSON-RPC error (id 7), that it is never dispatched, and that it is read no further than the cap plus the scan. | In-loop total check disabled: `String '{"error":"NENDO_INVALID_JSON","message":"The request body is not valid JSON at line 1, byte 21233665. …"}' does not contain string '"id":7,"error"'`. The whole 21 MB body was buffered. |
+| [TST-11](#tst-11) | `HistoryFoldTests` now has a `TestContext`. Each write batch checks the cooperative timeout's token and passes it to `ApplyRecordWritesAsync`. `CooperativeTimeoutTests` requires every cooperative `[Timeout]` to have a TestContext and to read its token. | `HistoryFoldTests.AFileWrittenPastTheRowBoundKeepsAcceptingWritesByFoldingAndStillOpens asks for a cooperative timeout, but HistoryFoldTests has no TestContext to carry its token.` |
+| [TST-12](#tst-12) | `Refused` now requires the expected code and a fragment of its sentence, and prints every diagnostic when it fails. Four of the eight cases share NUI450, so the code alone could not tell them apart. | With a fixture that trips another rule: `a filter: expected NUI013 naming ''filterClause' cannot be a child', got NUI450 The field 'nothing' is not an active field of Tasks.` |
+| [TST-13](#tst-13) | The clock half was already fixed in `dba4621`: the Engine and the test now read one stand-in clock. The culture half is fixed here. Bucket keys and stored dates are formatted in the invariant culture, in `DateBucketReadTests` and in `ReviewStorageRegressionTests`. A new test runs the three bucket tests under th-TH, where 2026 is 2569. | `Assert.AreEqual failed. Expected:<15>. Actual:<>. 'expected' expression: '"15"', 'actual' expression: 'current.ValueLexeme'.` |
+| [TST-14](#tst-14) | **Open.** Deleting `tests/Nendo.Desktop.Tests/TestFixtures/HttpCanary.cs` was refused by this session's permission check as a destructive action. A grep still finds no reference to it outside the file and FIXES.md. | None. |
+| [TST-15](#tst-15) | The amendment's five tests are renumbered D1_26 to D1_30, with matching catalogue rows; the D1 lane now has 30 cases. ADR-0008's note names the new IDs, and the D1_25 comment now points at D1_27. `RegressionLaneIdTests` requires each lane ID to name one test, and each D1 test to have a catalogue row. | `Two tests share a lane ID: D1_19_: BehaviourScalarTests.D1_19_AFormulaThatEndsEmptyUnderARequiredResultIsAMissingInput, BehaviourScalarTests.D1_19_DaysBetweenIsASignedCalendarDifference` |
+| [TST-16](#tst-16) | A controller with a device folder of its own keeps its recent files there. `DesktopFileHistory.DefaultRoot` now follows `NENDO_DEVICE_STATE_ROOT`, using the same `file-history` folder that MainPage composes for an isolated profile. The isolation test checks the history folder of a controller built with no arguments, and of one built with only a device folder. | `A controller built with no device folder and no history writes the person's recent files: C:\Users\thoma\AppData\Local\Nendo\FileHistory` |
+| [TST-17](#tst-17) | The three files are written beside the folder and moved in back to back, so they land as one save does. The second phase now waits for the deletion's own notice instead of a fixed 1 s. | None. This fix makes the test's input deterministic and puts back no product defect. Rates under 22 CPU hogs: old test 0 of 20 failed, new test 0 of 20. The recorded rate was 1 in about 100 runs. |
+| [TST-18](#tst-18) | A product lost update, the cause the verifier proposed. When `Read()` under the lock could not open the document, `Change` still saved, writing only that store's approvals over every other window's. A read refused with IO or access errors now keeps the change for this session and reports `Persisted=false` with a notice. A corrupt document is still repaired. The concurrency test now checks what the design promises for each store. A new guard denies read access to the document while still allowing it to be replaced. | `Assert.IsFalse failed. 'condition' expression: 'store.Persisted'. An approval made without reading the document said it was saved.` |
+| `SurfaceMetadataTests.APageQueryIsASetAndAnEmptyCursorIsTheFirstPage` | The cause of "Request failed (remote): An error occurred." To put a query in order, `NendoResourceQuery` matched each path with a regex that had a 100 ms wall-clock bound. A blocking garbage collection or a descheduled thread ran past it. The `RegexMatchTimeoutException` then escaped the read filter outside every translation, so the SDK answered with no code. The paths are linear patterns and now have no bound. A failure in that filter step is now translated as the read's own failures are (`NENDO_INTERNAL_ERROR` with a failure reference). | Bound put back: `A read path is matched with a wall-clock bound (00:00:00.1000000), which a collection pause runs past.` Under forced blocking collections, the 100 ms bound threw `RegexMatchTimeoutException` 7 times in 4,241,280 matches. Without the bound: 0 in 9,118,738. |
+| The handshake timeouts: `TheVocabularyIsReadASectionAtATime`, `AToolCallOverTheBodyCapIsARefusedToolResult`, `RecordValueByteCapsArePublishedAndRefusedByName`, `TheSkillAndTheInstancesReadPointAtTheGuideThatNamesTheDiscoveryFolder` and others | The `server/discover` probe bound described in the TST-02 row. Every handshake loss tonight was reported between 5.0 and 9.0 s, as that bound predicts. | As in the TST-02 row. |
+| `LingeringHandleTests.AReopenWaitsOutAHandleThatLetsGoAndNamesItsHolder` | Two assumptions. A fixed 600 ms release could free the file before a slow first open reached it. And only the first refusal line was required to name the holder, but under load Restart Manager answers "nobody" on one look and names the holder on the next. The holder is now released once a refusal has named it, or after 10 s (the wait allows 15 s). The test requires some line to name `testhost`. | The old test under 66 CPU hogs: 2 of 15 failed with `…held by nobody Restart Manager can see: … does not contain string 'testhost'. Restart Manager did not name the process holding the file.` The new class: 15 of 15 passed. |
+| `tools/Review-Garden.ps1`, "Timeout 30000ms exceeded [after: wikilink navigation and places]" | `Gate-Garden.mjs` took `window.garden.note` changing to mean that the note was shown. The view sets it before reading the note's links, tags and tasks and before redrawing the page. On a slow first run, the next click landed on a page that was still changing. `noteShown(id)` now waits for the tree to mark the note current, which `showNote` does last. The tree-folds step now runs with the related reads held for 1.5 s, as on a cold run. `reread` had a fixed 300 ms wait. It now waits for the four related queries after the note read, then for two frames. | Old waits with the reads held: `Error: Opening a note in a folded branch must unfold it and show the note as current. [after: wikilink navigation and places]` |
+
+Flake rates, before and after:
+
+- **LocalMcp suite under 22 CPU hogs, three whole runs each.** Before: 3 of 3 runs failed, with
+  16 handshake losses (2, 5 and 9 per run), all reported at 5.0 to 9.0 s. The same runs also had
+  two timing failures in `ALongStringAheadOfTheIdScansInLinearTime` (3301 and 1786 ms against
+  1500) and two failures from W-232 work that was in progress. After: 3 of 3 runs passed (8 m 12 s, 3 m 27 s, 3 m 19 s).
+- **Reopen test under 66 CPU hogs.** Before: 2 of 15 runs failed. After: 15 of 15 passed, with
+  the whole class run each time.
+- **Garden lane.** The cold-start timeout did not recur here: one run of the old lane passed under
+  load. With the reads held, the old waits failed at the same checkpoint as the reported flake.
+  After `noteShown`, two runs failed later in the lane: one at G-002, on the fixed-wait `reread`
+  ("the draft must save over the version it moved onto"), and one whose output was not kept. A
+  third run passed. After the `reread` fix, 3 of 3 runs passed.
+- **The journey's clipboard step.** The workstation was not locked during this pass: the input
+  desktop was `Default` and the clipboard read worked. So the locked path was checked by the probe
+  tests, by a simulated lock in the script (Skipped, 0 failed), and by the live busy-clipboard
+  check above. It has not run against a real lock screen.
+- **TST-17 and TST-18 under 22 CPU hogs.** The old tests failed 0 of 20 times and the new tests
+  0 of 20. TST-18's cause is shown by the deterministic guard instead.
+
+Checks:
+
+- `dotnet test` for each suite, one at a time, after the solution build: Engine 1354 of 1356
+  passed (2 skipped), Local MCP 302 of 306 (4 skipped), Desktop 512 of 512. Desktop included both
+  journeys, with G36 measured on an unlocked desktop.
+- `node --test tools/clipboard-probe.test.mjs`: 9 of 9.
+- `Test-Repository.ps1`: with the BL-03 deletion undone, it no longer stops on a deleted tracked file; the new BL-04 sentence names such a file with its remedy.
+- `Test-Production.ps1` was not run in this pass. The lead runs it.
+
+Left open:
+
+- TST-14: delete `tests/Nendo.Desktop.Tests/TestFixtures/HttpCanary.cs`. The permission check
+  refused the deletion here.
+- BL-03: retire `tests/Nendo.LocalMcp.Tests/BcmAtlasUpgradeTests.cs` (it can only report Inconclusive), once the owner agrees to the deletion.
+- The installed Nendo's notification registration (`HKCU\Software\Classes\AppUserModelId\Nendo.Desktop`)
+  still points `IconUri` and the activator at the Debug build under `artifacts/`. Its Jump List
+  was last written by this pass's falsification runs. A repair or reinstall of Nendo restores the
+  registration, and the Jump List repairs itself the next time the installed Nendo switches
+  files. This change stops further writes and does not repair what earlier runs left.
+- `ALongStringAheadOfTheIdScansInLinearTime` asserts a wall-clock 1500 ms. It failed twice under
+  22 CPU hogs and never in a gate run. It is not changed here.
+- The installer was not rebuilt in this pass.
+
+### Thirtieth pass: changing the field a bound reference shows its records by (W-232)
+
+2026-10-14. The follow-up to ESS-09 (eighth pass, W-205): retiring a bound reference's label
+field has been refused since 2026-10-13, and nothing could point a bound reference at another
+label, so a person who wanted Tasks.Project shown by Projects.Code, or Projects.Name retired, had
+no way to do it. The owner asked for the operation on 2026-10-13. ADR-0003 carries a dated note
+(2026-10-14) and the decisions README an amendment entry: `schema.setReferenceLabel`
+`{entityId, fieldId, labelFieldId, expectedDefinitionRevision}`, definition lane, reversible with
+retained state (the evidence keeps the previous label and the inverse sets it back), host 1.51.0.
+No stored value moves; only the one `__nendo_reference` row changes. Studio's Structure names a
+bound reference's target and label in its Stores column and offers **Label by…**.
+
+An independent review found nothing that had to be fixed and two things that should be. The
+`reference-label-in-use` refusal told a person to use `schema.setReferenceLabel` first, which
+is refused when the holding reference or its record type is retired, so the only way out was
+three proposals. A retired reference, or one on a retired record type, draws and groups
+nothing, so it no longer holds its label; reactivating it later meets a retired label as any
+reactivation meets what was retired after it, and NUI239 then names `schema.setReferenceLabel`,
+which works again on the active reference. The stale comment on the check is rewritten. A
+disabled Label by… on a reference whose target type is retired says the type is retired.
+
+The plan said "Reversible"; the operation declares `reversibleWithRetainedState`, as every other
+definition operation whose undo reads its evidence does (`schema.renameField`,
+`schema.setFieldPresentation`, `schema.setFieldUnique`), and the ADR note says so.
+
+| Acceptance | Guard | Failure with the defect put back |
+| --- | --- | --- |
+| An unbound reference is refused | `ReferenceLabelTests.AnUnboundOrRetiredReferenceIsRefused` | unbound check removed: `Expected exception type:<Nendo.Engine.NendoPreconditionException>. Actual exception type:<System.NullReferenceException>. ... An unbound reference was given a label without a target.` |
+| A retired reference is refused | the same test | `RequireActive` removed: `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. ... A retired reference was relabelled.` |
+| A label that is not an active Text field on the target is refused | `ALabelThatIsNotAnActiveTextFieldOnTheTargetIsRefused` (a number, a retired text field, another type's field, no field) | check removed: `but no exception was thrown. ... budget was accepted as the label of Tasks.Project.` (and `archived`, `title`; `missing` reached SQLite as a foreign-key `SqliteException`) |
+| An unchanged label is refused | `AnUnchangedLabelAndAStaleRevisionAreRefused` | check removed: `but no exception was thrown. ... Setting the label a reference already has recorded a change that changed nothing.` |
+| A stale definition revision is refused | the same test | check removed: `but no exception was thrown. ... A label change written against an older definition was applied.` |
+| No stored value changes | `AChangedLabelShowsTheRecordsByTheNewFieldMovesNoValueAndFreesTheOldOne` | a record-version bump added: `Assert.AreEqual failed. Expected:<1>. Actual:<2>. ... launch changed version.` |
+| Reads, reference columns and pickers show the new label; the old field can then be retired | the same test (snapshot record, `QueryRecordsAsync`, the field's `Reference.LabelFieldId`, then `schema.setRetired` on Name) | the row update removed: `Expected string length 3 but was 6. 'expected' expression: '"APL"' ... A record read still shows the project by its old label.` |
+| History offers Undo | `HistoryOffersUndoAndTheUndoPutsTheOldLabelBack` | the type taken out of the offer SQL: `Assert.IsTrue failed. 'condition' expression: 'offered.CanRequestCompensation'. History offers no Undo for a changed reference label.` |
+| The undo puts the old label back | the same test | the compensation arm removed: `Nendo.Engine.NendoCompensationNotSupportedException: Compensation is not implemented for schema.setReferenceLabel.` |
+| `reference-label-in-use` names the operation | `TheDeadEndsNameTheOperation` | sentence reverted: `String 'Tasks.Project shows Projects by Name, so Name cannot be retired.' does not contain string 'with schema.setReferenceLabel first'.` |
+| NUI239 names it | the same test | hint reverted: `String 'Reactivate the label field, or group the board by another field.' does not contain string 'schema.setReferenceLabel'.` |
+| A proposal's review says what changes | `AProposalSaysWhatTheLabelChangesFromAndTo` | "instead of" dropped: `Expected string length 88 but was 72. 'expected' expression: '"Show Tasks.Project's records by Code instead of Name. Every stored value stays as it is."'` |
+| MCP carries the operation | `ReferenceLabelProtocolTests.TheAuthoringTableCarriesTheOperationAndTheCompilerTakesIt` | definition renamed: `System.InvalidOperationException: Sequence contains no matching element` |
+| `reference-label-unchanged` reaches an agent whole | `ReferenceLabelProtocolTests.ItsRefusalsReachTheAgentWhole`; `McpDataParityTests.EveryDataPathRefusalIsAuditedAndTheWriteRefusalsReachTheAgentWhole` | code taken off `DiagnosablePreconditions`: `Expected string length 78 but was 71. 'expected' expression: '"NENDO_REFERENCE_LABEL_UNCHANGED: Tasks.Project already shows Projects by Name."'`; `Assert.IsEmpty failed. ... A data path refuses with a code that is neither audited nor withheld with a reason` |
+| Structure offers Label by… on a bound reference | shell lane `W-232 Label by proposes the label` (tree fixture, Part of) | the markup call removed: `W-232 Label by proposes the label: Timed out waiting for Label by… on Part of.` |
+| …and it proposes the operation | the same check, which captures the `proposal.prepareChangeSet` payload | wrong type: `W-232: Label by proposed schema.configureReference {"entityId":"entity.capability","fieldId":"field.capability.parent","labelFieldId":"field.capability.code","expectedDefinitionRevision":1}, not schema.setReferenceLabel {…}`; the current label sent instead of the chosen one: `W-232: Label by proposed schema.setReferenceLabel {…"labelFieldId":"field.capability.name"…}, not schema.setReferenceLabel {…"labelFieldId":"field.capability.code"…}` |
+| A retired reference, or one on a retired record type, does not hold its label (review P8, P9) | `ARetiredReferenceDoesNotHoldItsLabel` (both cases; relabelling it is refused as `field-retired` / `entity-retired`, and retiring Name is then accepted) | the skip in `RequireNotReferenceLabelAsync` removed: `Nendo.Engine.NendoPreconditionException: Tasks.Project shows Projects by Name, so Name cannot be retired. Show Projects by another text field with schema.setReferenceLabel first.` (both rows) |
+| After a later definition change History does not offer the undo, and the engine refuses it (P4) | `ALaterDefinitionChangeEndsTheUndo` | the offer's latest-definition condition replaced by `1 = 1`: `Assert.IsFalse failed. ... History offers to undo a label change the definition has moved past.`; `RequireDefinitionAsLeftAsync` skipped: `Expected exception type:<Nendo.Engine.NendoCompensationNotSupportedException>. Actual exception type:<Nendo.Engine.NendoPreconditionException>` (the inverse's own expected revision still refuses it, so the undo stays refused either way) |
+| Relabel then retire in one mutation applies, as a revision not offered for undo; the other order is refused (P2, P3) | `RelabelThenRetireInOneMutationAppliesAndTheOtherOrderIsRefused` | the retirement's label check removed: `Expected exception type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown. ... "Retire then relabel"`; the row update removed: `Nendo.Engine.NendoPreconditionException: Tasks.Project shows Projects by Name, so Name cannot be retired.` |
+| A file that never relabels stays below 1.51.0 (P1) | `AFileThatNeverRelabelsStaysBelowTheRung` | a retirement stating the new rung: `Assert.IsLessThan failed. Actual value <1.51.0> is not less than expected value <1.51.0>. ... A file that never changed a label states host 1.51.0.` |
+| Label by… is disabled, saying why, when the target has no other active text field | shell lane `W-232 Label by disabled without another text field` (the target's other text fields retired in the page's state, then redrawn) | the `choices.length === 0` condition removed: `W-232: Label by… is offered on Part of though Capability has no other active text field to show it by.` |
+| History names the change | `scripts/ux-review.test.mjs` UX-07 (every operation has a History label) | the existing guard, not falsified in this pass; it passes with "Change a reference’s label" |
+
+Documents updated: ADR-0003 (note and History) and the decisions README's amendments list;
+`docs/contracts/relationships.md` (the label can change, retire the old one after; the undo),
+`docs/contracts/mcp-interface.md` (the operation, thirty-eight of forty-one, the refusal list),
+`docs/contracts/semantic-surfaces.md` (1.51 placed), `docs/contracts/studio.md` (Label by…),
+`docs/architecture.md` (forty-one types, thirty-eight authorable, the ladder's highest 1.51.0),
+the roadmap entry removed; the Workbench help (the agents page's count and list, the concepts
+page's count, a "Change what a reference shows" task); the site guides `agents.md` (38,
+`schema.*` 17), `concepts.md` (Reference), `getting-started.md` (Structure's actions),
+`files-and-data.md` (undoable changes) and `how-it-works.astro` (forty-one, thirty-eight, the
+table row).
+
+After the review: `ReferenceLabelTests`, `OperationGapReviewTests`, `RetirementTests`,
+`ReferenceTests` and `ReferenceBoardTests` (51 pass); `ReferenceLabelProtocolTests` and
+`McpDataParityTests` (25 pass); `npm test` (740 pass), `npx tsc --noEmit` (exit 0); the shell
+lane once (passed, 92 checks with both W-232 checks, browser exceptions 0); `Test-Site.ps1`
+(passed); `Test-Repository.ps1` again stopped in the checkout on the deleted
+`BcmAtlasUpgradeTests.cs` and passed on a scratch copy with that file from HEAD.
+
+Before it: `ReferenceLabelTests` and `OperationGapReviewTests.ESS09` (11 pass); the full Engine
+project (1,348 pass, 2 skipped, 0 failed); `ReferenceLabelProtocolTests` and `McpDataParityTests`
+(25 pass); the full LocalMcp project (298 pass, 5 failed, 4 skipped), whose five failures rerun
+alone gave four passes and `McpSecurityTests.ABodyWithNoDeclaredLengthIsBoundedWhileItIsRead`
+failing again (`Expected:<413>. Actual:<200>`), a test the concurrent W-218 work added in its
+own uncommitted change, not touched here; `npm test` (740 pass) and `npx tsc --noEmit` (exit 0);
+`tools/Review-WorkbenchShell.ps1` twice (passed both times, 91 checks with W-232, browser
+exceptions 0); `tools/Test-Site.ps1` (passed). `tools/Test-Repository.ps1` in the checkout
+stopped in its tracked-file hygiene on `tests/Nendo.LocalMcp.Tests/BcmAtlasUpgradeTests.cs`,
+deleted in the working tree by other work; run on a scratch copy of the tracked tree with that
+one file taken from HEAD, it passed (the ladder reaches 1.51.0, 40 rungs placed, 91 precondition
+codes named). `Test-Production.ps1` and the installer rebuild were left to the lead.
+
+Left open:
+
+- A board grouped by the reference reads the label through the same `__nendo_reference` row as
+  the record reads the test measures; no test draws a board after a label change.
+- The preview host behind the shell lane does not apply a promoted `schema.setReferenceLabel`
+  to its fixture; the lane measures the proposal Structure sends, not the accepted result.
+- The retired-target wording of a disabled Label by… has no lane check: the shell lane's only
+  bound reference is a self-reference, whose own record type being retired disables every
+  action on the row.
+- A label change states host 1.51.0, and an undo leaves the rung there (the roadmap's "a file's
+  minimum host never goes down").

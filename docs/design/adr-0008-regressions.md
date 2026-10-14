@@ -12,7 +12,7 @@ prototype cleanup: D1 25, D2 25, D3 12 and D4 8. Some cases contain multiple
 assertions. The additional production cases at the end were not proved by that
 count. Use actual typed comparisons, not formatted-string equality, for scalars.
 
-## D1: runtime and scalar fidelity (25 cases)
+## D1: runtime and scalar fidelity (30 cases)
 
 All numeric expression inputs below are explicitly typed long or decimal.
 `x`, `y`, `z` mean aliases mapped to stable semantic IDs. Expected arithmetic is
@@ -45,6 +45,11 @@ computed by .NET decimal/checked Int64 independently of the evaluator.
 | D1.23 | A()=B(), B()=A() | Recursive definition refusal |
 | D1.24 | `Pow(2,100)`, `ReadFile('x')`, `Network('https://example.org')`, `2**3`, `1<<2`, `(1,2)`, unknown binding, `'x'.Length`, `[x].GetType()` | All refuse before evaluation; no I/O/object authority |
 | D1.25 | Calculate `1`, nullable identity, `1/0` | Distinct value, null and error results |
+| D1.26 | `x+1` with x=null Int64, `x and true` with x=null Boolean, each under a result declared to allow empty (2026-09-20 amendment) | Empty result of the declared kind, never zero or false |
+| D1.27 | `x` with x=null Text under a result declared always to answer | Missing input error |
+| D1.28 | Optional function `Score(value,effort)=value/effort`; callers `Score(v,e)` (optional) and `Score(v,e)+1` (required), with e=null and e=2 | Optional caller reads empty, required caller a missing input; 2 and 3 when rated |
+| D1.29 | `x > 5 ? Refuse('Ratings are 1 to 5.') : x` with x=3 and 7, also under an optional result | 3; refused with the author's sentence, not quietened by the optional result; the refusal takes the other outcome's kind |
+| D1.30 | `Refuse('...')` alone, inside arithmetic, on both sides of a choice, with a non-text or second argument | Definition refusal |
 
 Also preserve the original library-only control: with the same decimal/Int64/
 overflow/invariant options but without interception, `1L/3L` and literal `1/3`

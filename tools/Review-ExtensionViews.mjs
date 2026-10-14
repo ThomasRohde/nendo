@@ -15,6 +15,9 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const report = { checks: [], measurements: {} };
 function assert(value, message) { if (!value) throw new Error(message); }
 function check(line) { report.checks.push(line); console.log('ok  ' + line); }
+// A step the machine cannot run, named with the reason. Not a pass and not a failure: the test
+// reports the journey Inconclusive with this line, as the opt-in lanes do (TST-01).
+function interlock(step, reason) { (report.interlocks ??= []).push({ step, reason }); console.log(`interlock: ${step} was not run: ${reason}`); }
 async function waitFor(read, label, timeout = 25000) {
   const until = Date.now() + timeout;
   let last;
@@ -183,7 +186,9 @@ function readWindowsClipboard() {
   const script = [
     "$ErrorActionPreference = 'Stop'",
     'Add-Type -AssemblyName System.Windows.Forms, System.Drawing',
-    '$data = [Windows.Forms.Clipboard]::GetDataObject()',
+    // Another program holding the clipboard open is a moment, not a failure: WinForms already
+    // retries for about a second, and this waits two more before it gives up (TST-01).
+    '$data = $null; for ($try = 1; -not $data; $try++) { try { $data = [Windows.Forms.Clipboard]::GetDataObject() } catch { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 } }',
     '$out = [ordered]@{ formats = @($data.GetFormats()) }',
     'function Sample($bitmap) { $c = $bitmap.GetPixel(2, 2); $m = $bitmap.GetPixel([int]($bitmap.Width / 2), [int]($bitmap.Height / 2)); "$($bitmap.Width)x$($bitmap.Height) corner=$($c.A),$($c.R),$($c.G),$($c.B) centre=$($m.A),$($m.R),$($m.G),$($m.B)" }',
     '$image = [Windows.Forms.Clipboard]::GetImage(); if ($image) { $out.bitmap = Sample (New-Object Drawing.Bitmap $image) }',
@@ -207,6 +212,53 @@ function readWindowsClipboard() {
         resolve(result);
       } catch (failure) { reject(new Error('Windows clipboard probe returned invalid JSON: ' + failure.message)); }
     }));
+}
+
+// TST-01: a locked workstation refuses every clipboard read, whoever asks. Its input desktop is
+// the secure one rather than Default, and LogonUI runs. The reason is returned, or null when the
+// session is unlocked; a probe that cannot answer is a failure, not a guess.
+const lockSource = `using System; using System.Runtime.InteropServices; using System.Text;
+public static class NendoJourneyLock {
+  [DllImport("user32.dll", SetLastError = true)] static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+  [DllImport("user32.dll")] static extern bool CloseDesktop(IntPtr desktop);
+  [DllImport("user32.dll")] static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder info, int length, out int needed);
+  public static string InputDesktop() {
+    var desktop = OpenInputDesktop(0, false, 0x0001);
+    if (desktop == IntPtr.Zero) return "none (error " + Marshal.GetLastWin32Error() + ")";
+    try { var name = new StringBuilder(256); int needed; return GetUserObjectInformation(desktop, 2, name, 512, out needed) ? name.ToString() : "unnamed"; }
+    finally { CloseDesktop(desktop); }
+  }
+}`;
+function lockReason(probe) {
+  if (probe === null || typeof probe !== 'object' || typeof probe.desktop !== 'string' || typeof probe.logonUi !== 'boolean') {
+    throw new Error('The workstation lock probe returned no answer: ' + JSON.stringify(probe));
+  }
+  if (probe.desktop === 'Default' && !probe.logonUi) return null;
+  return `the workstation is locked (input desktop ${probe.desktop}${probe.logonUi ? ', LogonUI running' : ''}), and a locked session refuses every clipboard read; run the journey on an unlocked desktop to measure it`;
+}
+function workstationLocked() {
+  const script = `Add-Type -TypeDefinition @'\n${lockSource}\n'@\n` +
+    `ConvertTo-Json -Compress -InputObject @{ desktop = [NendoJourneyLock]::InputDesktop(); logonUi = @(Get-Process LogonUI -ErrorAction SilentlyContinue).Count -gt 0 }`;
+  return new Promise((resolve, reject) => execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 60000 },
+    (error, stdout, stderr) => {
+      if (error) { reject(new Error('The workstation lock probe failed: ' + String(stderr || error.message).trim())); return; }
+      try { resolve(lockReason(JSON.parse(String(stdout).trim() || 'null'))); } catch (failure) { reject(failure); }
+    }));
+}
+// What the person had copied as text, put back after G36 writes its pictures there (TST-01). The
+// text travels on standard input and output, never on a command line or in a file.
+function clipboardText() {
+  const script = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; $text = Get-Clipboard -Raw -Format Text -ErrorAction Stop; ConvertTo-Json -Compress -InputObject @{ text = $text }";
+  return new Promise((resolve, reject) => execFile('powershell.exe', ['-STA', '-NoProfile', '-NonInteractive', '-Command', script], { timeout: 60000 },
+    (error, stdout, stderr) => error ? reject(new Error('Reading the clipboard text failed: ' + String(stderr || error.message).trim())) : resolve(JSON.parse(String(stdout).trim() || '{"text":null}').text ?? null)));
+}
+function restoreClipboardText(text) {
+  const script = "[Console]::InputEncoding = [Text.Encoding]::UTF8; Set-Clipboard -Value ([Console]::In.ReadToEnd()) -ErrorAction Stop";
+  return new Promise((resolve, reject) => {
+    const child = execFile('powershell.exe', ['-STA', '-NoProfile', '-NonInteractive', '-Command', script], { timeout: 60000 },
+      (error, _stdout, stderr) => error ? reject(new Error('Putting the clipboard text back failed: ' + String(stderr || error.message).trim())) : resolve());
+    child?.stdin?.end(text, 'utf8');
+  });
 }
 
 function closeHostDialog(seconds = 10) {
@@ -852,35 +904,58 @@ try {
     { kind: 'button', id: 'copy-drawing', label: 'Copy drawing' },
   ] }).then(() => 'declared')`);
   await command('Emulation.setFocusEmulationEnabled', { enabled: true }, page);
-  const pressButton = async id => {
-    const at = await waitFor(() => evaluate(`(() => { const b = document.querySelector('button[data-view-command="${id}"]'); if (!b) return null;
-      const r = b.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`), 'the ' + id + ' button');
-    await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y }, page);
-    await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 }, page);
-    await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1 }, page);
+  const clipboardStep = async () => {
+    const pressButton = async id => {
+      const at = await waitFor(() => evaluate(`(() => { const b = document.querySelector('button[data-view-command="${id}"]'); if (!b) return null;
+        const r = b.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`), 'the ' + id + ' button');
+      await command('Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y }, page);
+      await command('Input.dispatchMouseEvent', { type: 'mousePressed', x: at.x, y: at.y, button: 'left', clickCount: 1 }, page);
+      await command('Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', clickCount: 1 }, page);
+    };
+    const copied = async count => waitFor(async () => { const list = await inFrame(clipFrame, 'probe.state.copied'); return list.length >= count ? list[count - 1] : null; }, 'the copy outcome', 10000);
+    await pressButton('copy-picture');
+    const fromRow = await copied(1);
+    await pressButton('copy-picture-focused');
+    const fromRowFocused = await copied(2);
+    const windowsClipboard = await readWindowsClipboard();
+    await evaluate(`document.querySelector('iframe[name="${clipView.name}"]').focus()`);
+    await inFrame(clipFrame, `document.body.tabIndex = -1; document.body.focus(); true`);
+    await command('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
+    const fromKey = await copied(3);
+    // A view's size drawn from SVG, as Archi copies one, read back by another program.
+    await pressButton('copy-drawing');
+    const drawing = await copied(4);
+    const drawingOnWindows = await readWindowsClipboard();
+    report.measurements.copyPicture = { fromRow, fromRowFocused, fromKey, windowsClipboard, drawing, drawingOnWindows };
+    const intact = '730x1240 corner=255,255,255,255 centre=255,255,0,0';
+    assert(drawing.answer === 'copied' && drawingOnWindows?.png === intact && drawingOnWindows?.bitmap === intact && drawingOnWindows?.dibv5?.endsWith('corner=255,255,255,255 centre=255,255,0,0'),
+      'A picture drawn from SVG did not reach the Windows clipboard intact: ' + JSON.stringify(drawingOnWindows));
+    assert(/Document is not focused/.test(fromRow.answer) && fromRowFocused.answer === 'copied' && fromRowFocused.focused && fromKey.answer === 'copied',
+      'A picture copied by a view’s command did not behave as measured: ' + JSON.stringify(report.measurements.copyPicture));
+    return `G36 a view's command from Nendo's row copies a picture once the view takes focus (without it: "${fromRow.answer.replace(/^refused: /, '')}"), and a key pressed inside the view copies it as it is; a 730 × 1240 picture drawn from SVG reaches the Windows clipboard as PNG, bitmap and DIBV5 alike: ${intact}`;
   };
-  const copied = async count => waitFor(async () => { const list = await inFrame(clipFrame, 'probe.state.copied'); return list.length >= count ? list[count - 1] : null; }, 'the copy outcome', 10000);
-  await pressButton('copy-picture');
-  const fromRow = await copied(1);
-  await pressButton('copy-picture-focused');
-  const fromRowFocused = await copied(2);
-  const windowsClipboard = await readWindowsClipboard();
-  await evaluate(`document.querySelector('iframe[name="${clipView.name}"]').focus()`);
-  await inFrame(clipFrame, `document.body.tabIndex = -1; document.body.focus(); true`);
-  await command('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
-  await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'p', code: 'KeyP', windowsVirtualKeyCode: 80, modifiers: 3 }, page);
-  const fromKey = await copied(3);
-  // A view's size drawn from SVG, as Archi copies one, read back by another program.
-  await pressButton('copy-drawing');
-  const drawing = await copied(4);
-  const drawingOnWindows = await readWindowsClipboard();
-  report.measurements.copyPicture = { fromRow, fromRowFocused, fromKey, windowsClipboard, drawing, drawingOnWindows };
-  const intact = '730x1240 corner=255,255,255,255 centre=255,255,0,0';
-  assert(drawing.answer === 'copied' && drawingOnWindows?.png === intact && drawingOnWindows?.bitmap === intact && drawingOnWindows?.dibv5?.endsWith('corner=255,255,255,255 centre=255,255,0,0'),
-    'A picture drawn from SVG did not reach the Windows clipboard intact: ' + JSON.stringify(drawingOnWindows));
-  assert(/Document is not focused/.test(fromRow.answer) && fromRowFocused.answer === 'copied' && fromRowFocused.focused && fromKey.answer === 'copied',
-    'A picture copied by a view’s command did not behave as measured: ' + JSON.stringify(report.measurements.copyPicture));
-  check(`G36 a view's command from Nendo's row copies a picture once the view takes focus (without it: "${fromRow.answer.replace(/^refused: /, '')}"), and a key pressed inside the view copies it as it is; a 730 × 1240 picture drawn from SVG reaches the Windows clipboard as PNG, bitmap and DIBV5 alike: ${intact}`);
+  const lockedBefore = await workstationLocked();
+  if (lockedBefore) interlock('G36', lockedBefore);
+  else {
+    const saved = await clipboardText();
+    let line;
+    try { line = await clipboardStep(); }
+    catch (error) {
+      // Locked while the step ran: the failure is the lock's, and is named as such.
+      const lockedDuring = await workstationLocked();
+      if (!lockedDuring) throw error;
+      interlock('G36', lockedDuring + ' (it locked during the step, which stopped at: ' + error.message + ')');
+    }
+    if (line !== undefined) {
+      if (saved !== null) {
+        await restoreClipboardText(saved);
+        const back = await clipboardText();
+        assert(back === saved, `The text on the clipboard before G36 was not put back: ${saved.length} characters before, ${back === null ? 'none' : back.length} after.`);
+      }
+      check(line + (saved === null ? '; there was no text on the clipboard to put back' : `; the ${saved.length} characters of text copied before it were put back`));
+    }
+  }
 
   // G34 (W-104): a view reads a file the person chooses with the browser's own file input. The
   // click opens Windows' Open dialog, owned by Nendo's window; closing it is Cancel, and the view

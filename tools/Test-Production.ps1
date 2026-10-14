@@ -90,12 +90,19 @@ try {
     # past its client's bound: "Initialization timed out" on 2026-10-05, 2026-10-10 and
     # 2026-10-12, never with a suite alone. Each suite still runs its own methods in parallel.
     # A failing suite does not stop the next, so one run still reports all three.
+    # Each suite's TRX goes under artifacts/test-results and is kept only when the suite failed.
+    # Without a results directory every run wrote one into tests/<suite>/TestResults, which
+    # nothing read or removed: 467 MB from 285 runs (BL-05).
     $failedSuites = @()
+    $testResults = Join-Path $repoRoot "artifacts/test-results/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))"
     foreach ($suite in @('Nendo.Engine.Tests', 'Nendo.LocalMcp.Tests', 'Nendo.Desktop.Tests')) {
         $project = Join-Path $repoRoot "tests/$suite/$suite.csproj"
-        & dotnet test $project --no-build --no-restore --nologo --logger trx
-        if ($LASTEXITCODE -ne 0) { $failedSuites += $suite }
+        $suiteResults = Join-Path $testResults $suite
+        & dotnet test $project --no-build --no-restore --nologo --logger trx --results-directory $suiteResults
+        if ($LASTEXITCODE -ne 0) { $failedSuites += $suite; Write-Host "Test results kept: $suiteResults" }
+        else { Remove-Item -LiteralPath $suiteResults -Recurse -Force -ErrorAction SilentlyContinue }
     }
+    if ($failedSuites.Count -eq 0) { Remove-Item -LiteralPath $testResults -Recurse -Force -ErrorAction SilentlyContinue }
     if ($failedSuites.Count -gt 0) { throw ".NET tests failed in $($failedSuites -join ', ')." }
 
     Write-Host '== Tool boundaries =='

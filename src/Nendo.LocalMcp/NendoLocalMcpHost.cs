@@ -527,7 +527,12 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                                 // A query is a set, not a sequence: either order, and an empty
                                 // value left out. The SDK matched the URI before this filter
                                 // ran, so a rewritten one is matched again here.
-                                var canonical = queries.Canonicalize(context.Params.Uri);
+                                // A failure here is outside the read's own translation, and an
+                                // untranslated one reaches the client as "An error occurred." with
+                                // no code and no failure record; it is translated as the read's are.
+                                string canonical;
+                                try { canonical = queries.Canonicalize(context.Params.Uri); }
+                                catch (Exception exception) when (exception is not McpProtocolException) { throw NendoMcpErrors.Translate(exception); }
                                 if (!string.Equals(canonical, context.Params.Uri, StringComparison.Ordinal))
                                 {
                                     context.Params.Uri = canonical;

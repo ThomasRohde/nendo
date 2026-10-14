@@ -54,9 +54,14 @@ internal sealed partial class DesktopSessionController
             ? Path.Combine(Path.GetTempPath(), "nendo-device-state", Guid.NewGuid().ToString("N"))
             : null;
         _deviceStateRoot = deviceStateRoot ?? _ownedDeviceStateRoot!;
-        _fileHistory = new DesktopFileHistory(fileHistoryRoot ?? DesktopFileHistory.DefaultRoot);
+        // A test's controller keeps its recent files in its own folder too (TST-16).
+        _fileHistory = new DesktopFileHistory(fileHistoryRoot
+            ?? (_ownedDeviceStateRoot is not null ? Path.Combine(_ownedDeviceStateRoot, "file-history") : DesktopFileHistory.DefaultRoot));
         _locationPolicy = locationPolicy ?? DesktopLocationPolicy.ForDevice();
     }
+
+    /// <summary>Where this controller keeps its recent files.</summary>
+    internal string FileHistoryRoot => _fileHistory.Root;
 
     // Composed per host start so a settings change takes effect on the next enable rather than needing a
     // relaunch. These are the single-user local defaults: a predictable port keeps an agent's saved

@@ -673,7 +673,7 @@ internal sealed partial class SqliteNendoStore
                             'data.setField', 'data.deleteRecord', 'data.backfillRetiredField',
                             'schema.setChoiceMetadata', 'schema.setRetired', 'schema.setFieldRequired',
                             'schema.renameEntity', 'schema.renameField',
-                            'schema.setFieldUnique', 'schema.setFieldPresentation', 'schema.setFieldSequence',
+                            'schema.setFieldUnique', 'schema.setFieldPresentation', 'schema.setFieldSequence', 'schema.setReferenceLabel',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',
                             'ui.setProperty', 'ui.removeProperty', 'ui.addNode', 'ui.moveNode', 'application.setPurpose', 'application.setLook', 'schema.declareHierarchy', 'schema.removeHierarchy',
                             'schema.declareLinkRule', 'schema.removeLinkRule',

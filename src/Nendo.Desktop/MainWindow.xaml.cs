@@ -204,7 +204,8 @@ public sealed partial class MainWindow : Window
         DesktopShellIdentity.ApplyToWindow(hwnd);
         _taskbar = new DesktopTaskbarStatus(hwnd);
         _taskbarActivity = new DesktopTaskbarActivity(_taskbar);
-        _notifier = new DesktopNotifier(route => DispatcherQueue.TryEnqueue(() => RouteFromNotification(route)));
+        _notifier = new DesktopNotifier(route => DispatcherQueue.TryEnqueue(() => RouteFromNotification(route)),
+            register: DesktopRuntimeConfiguration.WritesShellState);
         RefreshShellState();
         // Once at startup as well as on every change, so a file deleted since the last
         // session drops out of the menu without anybody having to open one first. Not
@@ -296,6 +297,8 @@ public sealed partial class MainWindow : Window
     private void RefreshJumpList()
     {
         if (Page is not { } page) return;
+        // A lane on an isolated device state would write the person's Jump List (BL-01).
+        if (!DesktopRuntimeConfiguration.WritesShellState) return;
         var identity = DesktopShellIdentity.AppUserModelId;
         // The executable that is actually running, not the name it usually has: a
         // Jump List row is a shortcut, and a shortcut to the wrong file opens nothing.

@@ -30,6 +30,11 @@ public sealed class TestHarnessShapeTests
             .ToArray();
         Assert.IsEmpty(own, "These tests build their own MCP client instead of DesktopMcpClient: " + string.Join(", ", own));
         Assert.AreEqual(TimeSpan.FromSeconds(10), DesktopMcpClient.HandshakeBound, "The Desktop suite's handshake bound is not the LocalMcp suite's.");
+        // The client's server/discover probe has a bound of its own, 5 s by default, that fails
+        // the handshake as "does not support the requested protocol version" before the 10 s.
+        var probe = DesktopMcpClient.Options("shape").DiscoverProbeTimeout;
+        Assert.IsTrue(probe == Timeout.InfiniteTimeSpan || probe >= DesktopMcpClient.HandshakeBound,
+            $"The server/discover probe gives up after {probe}, inside the {DesktopMcpClient.HandshakeBound} handshake bound.");
     }
 
     [TestMethod]
@@ -40,5 +45,20 @@ public sealed class TestHarnessShapeTests
         Assert.IsFalse(System.Text.RegularExpressions.Regex.IsMatch(gate, @"dotnet\W+test\W+Nendo\.slnx"), "The gate runs every suite at once again.");
         foreach (var suite in new[] { "Nendo.Engine.Tests", "Nendo.LocalMcp.Tests", "Nendo.Desktop.Tests" })
             Assert.Contains($"'{suite}'", gate, $"The gate does not run {suite} on its own.");
+    }
+
+    /// <summary>
+    /// BL-05: every gate run wrote a TRX and a deployment folder into each test project's
+    /// TestResults, outside artifacts/ and removed by nothing: 467 MB from 285 runs.
+    /// </summary>
+    [TestMethod]
+    public void TheGateKeepsTestResultsUnderArtifactsAndOnlyForAFailure()
+    {
+        var gate = File.ReadAllText(Path.Combine(TestRepository.Root(), "tools", "Test-Production.ps1"));
+        var run = System.Text.RegularExpressions.Regex.Match(gate, @"(?m)^\s*& dotnet test \$project .*$");
+        Assert.IsTrue(run.Success, "The gate's dotnet test line was not found.");
+        StringAssert.Contains(run.Value, "--results-directory $suiteResults", "The gate writes test results into each test project.");
+        StringAssert.Contains(gate, "\"artifacts/test-results/", "The gate's test results are not under artifacts/.");
+        StringAssert.Contains(gate, "Remove-Item -LiteralPath $suiteResults", "A passing suite's results are kept.");
     }
 }

@@ -15,15 +15,24 @@ public sealed class LingeringHandleTests
         await using var workspace = new EngineTestWorkspace();
         await ReleaseAsync(workspace, await workspace.CreateAsync());
         var lines = new List<string>();
+        var named = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var holder = new FileStream(workspace.FilePath, FileMode.Open, FileAccess.Read, FileShare.None);
+        // Let go once a refusal has named the holder, or after ten seconds, inside the wait's 15.
+        // A fixed 600 ms could free the file before a slow first open met it, and Restart Manager
+        // under load sometimes answers "nobody" on one look and names the holder on the next: the
+        // full Engine run failed on the first line alone, 2 runs in 15 under load (W-218).
         var release = Task.Run(async () =>
         {
-            await Task.Delay(600);
+            await Task.WhenAny(named.Task, Task.Delay(TimeSpan.FromSeconds(10)));
             await holder.DisposeAsync();
         });
 
         var reopened = await LingeringHandle.OpenAsync(workspace.FilePath,
-            () => NendoWriteCoordinator.OpenAsync(workspace.FilePath, "after-holder"), log: line => { lock (lines) lines.Add(line); });
+            () => NendoWriteCoordinator.OpenAsync(workspace.FilePath, "after-holder"), log: line =>
+            {
+                lock (lines) lines.Add(line);
+                if (line.Contains("testhost", StringComparison.Ordinal)) named.TrySetResult();
+            });
         await using (reopened)
         {
             await release;
@@ -31,7 +40,8 @@ public sealed class LingeringHandleTests
         }
         Assert.IsNotEmpty(lines, "The open was never refused, so this guard did not meet a lingering handle.");
         StringAssert.Contains(lines[0], "held by", "The log does not say who held the file.");
-        StringAssert.Contains(lines[0], "testhost", "Restart Manager did not name the process holding the file.");
+        Assert.IsTrue(lines.Any(line => line.Contains("testhost", StringComparison.Ordinal)),
+            "Restart Manager never named the process holding the file: " + string.Join(" | ", lines));
     }
 
     [TestMethod]

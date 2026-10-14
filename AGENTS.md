@@ -251,7 +251,7 @@ installer, and whatever a run writes while you work. Delete freely, subject to
 the checks below, and clean up what your task created. Nothing owner-owned lives
 here any more — that is what `workspace/` is for.
 
-The evidence for this project is the test suite. It runs in about a minute and
+The evidence for this project is the test suite. It runs in a few minutes and
 lives in git, so a stored run output from last week proves nothing it cannot
 prove now. Do not build a retention scheme on top of this directory, do not
 archive run outputs "for traceability", and do not turn `workspace/` into one — that is how this directory reached 5.7 GB of dead

@@ -80,3 +80,30 @@ public sealed record ConfigureReferenceOperation : NendoOperation
                 reviewedRecords = ConvertLegacyReferenceOperation.CanonicalRecords(ReviewedRecords) });
     }
 }
+
+/// <summary>
+/// Points a bound reference at another label field of its target record type (ADR-0003,
+/// 2026-10-14 note, W-232). Only the label a read, a picker or a board shows changes: the stored
+/// value is the target record ID, so no record moves. The inverse sets the previous label back,
+/// which the evidence keeps.
+/// </summary>
+public sealed record SetReferenceLabelOperation : NendoOperation
+{
+    public SetReferenceLabelOperation(string operationId, string entityId, string fieldId, string labelFieldId,
+        long expectedDefinitionRevision) : base(operationId)
+    {
+        EntityId = Require(entityId, nameof(entityId)); FieldId = Require(fieldId, nameof(fieldId));
+        LabelFieldId = Require(labelFieldId, nameof(labelFieldId));
+        if (expectedDefinitionRevision < 0) throw new NendoValidationException("The definition revision cannot be negative.");
+        ExpectedDefinitionRevision = expectedDefinitionRevision;
+    }
+    public string EntityId { get; }
+    public string FieldId { get; }
+    public string LabelFieldId { get; }
+    public long ExpectedDefinitionRevision { get; }
+    public override string OperationType => "schema.setReferenceLabel";
+    public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
+    public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
+    internal override void WritePayload(Utf8JsonWriter writer) => JsonSerializer.Serialize(writer,
+        new { entityId = EntityId, expectedDefinitionRevision = ExpectedDefinitionRevision, fieldId = FieldId, labelFieldId = LabelFieldId });
+}

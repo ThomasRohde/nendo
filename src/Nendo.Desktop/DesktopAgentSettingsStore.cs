@@ -24,10 +24,23 @@ internal sealed class DesktopAgentSettingsStore
 
     internal bool LeaseExpiry { get; private set; }
     internal int LeaseExpirySeconds { get; private set; } = 60;
-    internal bool FixedPort { get; private set; } = true;
+    internal bool FixedPort { get; private set; } = DefaultFixedPort;
     internal int Port { get; private set; } = NendoLocalMcpHostOptions.StandardPort;
     internal bool Persisted { get; private set; } = true;
     internal string? Notice { get; private set; }
+
+    /// <summary>
+    /// A kept port, the single-user local default, unless the process owner said the system
+    /// picks them (<see cref="DesktopRuntimeConfiguration.AgentPortsBySystem"/>).
+    /// </summary>
+    internal static bool DefaultFixedPort
+    {
+        get
+        {
+            try { return !DesktopRuntimeConfiguration.AgentPortsBySystem; }
+            catch (NendoValidationException) { return true; }
+        }
+    }
 
     internal DesktopAgentSettingsStore(string root)
     {

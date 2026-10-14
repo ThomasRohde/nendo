@@ -41,6 +41,9 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
 
     internal bool Persisted { get; private set; } = true;
 
+    // The last read could not open the document, as opposed to finding it absent or corrupt.
+    private bool _readRefused;
+
     public long RevocationGeneration
     {
         get { lock (_sync) { Read(); return _revocationGeneration; } }
@@ -59,6 +62,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
     {
         _grants.Clear();
         _storedRevocationGeneration = 0;
+        _readRefused = false;
         var readable = true;
         try
         {
@@ -86,6 +90,9 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
             // Nothing is trusted from a state file that could not be read in full.
             _grants.Clear();
             readable = false;
+            // A document that could not be opened may hold other windows' approvals; one that
+            // was opened and is corrupt holds none, and a save repairs it.
+            _readRefused = exception is not JsonException;
             Persisted = false;
             Notice = "Saved approvals could not be read, so nothing is approved on this device. Your files and their data are unaffected; approve again to allow automatic actions.";
         }
@@ -148,6 +155,16 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
                 using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
                 Read();
                 change();
+                // A read refused under the lock (a scanner holding the file, say) left only this
+                // window's approvals in hand, and saving them overwrote every other window's:
+                // twelve concurrent approvals kept eleven (TST-18). The change stays this
+                // session's, to be merged into the document on the next save that can read it.
+                if (_readRefused)
+                {
+                    Persisted = false;
+                    Notice = "This approval change applies for now, but could not be saved for the next launch.";
+                    return;
+                }
                 Save();
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32;
 using Nendo.Engine;
 
 namespace Nendo.Desktop.Tests;
@@ -359,6 +361,8 @@ public sealed class DesktopExtensionViewJourneyTests
         launch.Environment["NENDO_DIAGNOSTICS_DOWNLOAD_FOLDER"] = Directory.CreateDirectory(Path.Combine(output, "downloads")).FullName;
         launch.Environment["WEBVIEW2_USER_DATA_FOLDER"] = Path.Combine(output, "webview");
         launch.Environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=" + port;
+        var ownerShell = OwnerShellState.Read();
+        string? interlocks = null;
         using var host = Process.Start(launch)!;
         try
         {
@@ -376,6 +380,8 @@ public sealed class DesktopExtensionViewJourneyTests
                 Console.WriteLine(text);
                 Assert.AreEqual(0, child.ExitCode, text + "\nEvidence: " + output);
                 StringAssert.Contains(text, passed);
+                var skipped = text.Split('\n').Where(line => line.StartsWith("interlock: ", StringComparison.Ordinal)).ToArray();
+                if (skipped.Length > 0) interlocks = string.Join("\n", skipped);
             }
             finally { if (!child.HasExited) child.Kill(entireProcessTree: true); }
         }
@@ -384,9 +390,67 @@ public sealed class DesktopExtensionViewJourneyTests
             if (!host.HasExited && (!host.CloseMainWindow() || !host.WaitForExit(5000))) host.Kill(entireProcessTree: true);
             if (!host.HasExited) host.WaitForExit(5000);
         }
+        ownerShell.AssertUntouchedBy(Path.GetDirectoryName(executable)!);
         // Evidence on a failure only; a pass leaves nothing behind.
         try { Directory.Delete(output, recursive: true); }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
+        // TST-01: a step the machine could not run (the clipboard on a locked workstation) is
+        // named, and the journey is Inconclusive rather than failed; every other check ran.
+        if (interlocks is not null) Assert.Inconclusive(interlocks);
+    }
+
+    /// <summary>
+    /// BL-01: what Windows keeps for the installed Nendo's shell identity, read before the host
+    /// starts and compared after it exits. The journey host runs on an isolated device state
+    /// under that identity, and used to republish the person's Jump List with rows that start
+    /// the Debug build, and to re-register the notification icon and activator at it.
+    /// </summary>
+    private sealed record OwnerShellState(DateTime? JumpListWritten, long? RegistrationWritten)
+    {
+        // CustomDestinations names a Jump List by the CRC-64 of its identity: "Nendo.Desktop".
+        private static readonly string JumpList = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "Microsoft", "Windows", "Recent", "CustomDestinations", "2943bb3f738370c0.customDestinations-ms");
+        private const string Registration = @"Software\Classes\AppUserModelId\" + DesktopShellIdentity.DefaultAppUserModelId;
+
+        internal static OwnerShellState Read() => new(
+            File.Exists(JumpList) ? File.GetLastWriteTimeUtc(JumpList) : null,
+            RegistrationWrittenAt());
+
+        internal void AssertUntouchedBy(string hostFolder)
+        {
+            var after = Read();
+            var folder = hostFolder.ToLowerInvariant();
+            if (after.JumpListWritten != JumpListWritten && File.Exists(JumpList))
+            {
+                // The person's own Nendo may switch files meanwhile; only rows that start this host are the journey's.
+                // Paths sit in the file as UTF-16 at either byte alignment, so it is read at both.
+                var bytes = File.ReadAllBytes(JumpList);
+                var rows = (Encoding.Unicode.GetString(bytes) + "\n" + Encoding.Unicode.GetString(bytes, 1, bytes.Length - 1)).ToLowerInvariant();
+                Assert.IsFalse(rows.Contains(folder, StringComparison.Ordinal),
+                    $"The journey rewrote the installed Nendo's Jump List ({JumpList}) with rows that start the host under {hostFolder}.");
+            }
+            if (after.RegistrationWritten != RegistrationWritten)
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(Registration);
+                var icon = (key?.GetValue("IconUri") as string ?? "").ToLowerInvariant();
+                Assert.IsFalse(icon.Contains(folder, StringComparison.Ordinal),
+                    $"The journey re-registered the installed Nendo's notification identity (HKCU\\{Registration}) at the host under {hostFolder}.");
+            }
+        }
+
+        private static long? RegistrationWrittenAt()
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(Registration);
+            if (key is null) return null;
+            return RegQueryInfoKey(key.Handle, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero,
+                IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, out var written) == 0 ? written : null;
+        }
+
+        [DllImport("advapi32.dll")]
+        private static extern int RegQueryInfoKey(Microsoft.Win32.SafeHandles.SafeRegistryHandle key, IntPtr className, IntPtr classLength,
+            IntPtr reserved, IntPtr subKeys, IntPtr maxSubKeyLength, IntPtr maxClassLength, IntPtr values, IntPtr maxValueNameLength,
+            IntPtr maxValueLength, IntPtr securityDescriptor, out long lastWriteTime);
     }
 }

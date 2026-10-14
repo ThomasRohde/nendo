@@ -24,6 +24,32 @@ public sealed class DesktopRuntimeConfigurationTests
         Assert.IsFalse(Directory.Exists(path), "Resolving the profile must not write anything.");
     }
 
+    /// <summary>
+    /// BL-01: a process on an isolated device state under the product identity is a lane, and
+    /// writes neither the installed Nendo's Jump List nor its notification registration.
+    /// </summary>
+    [TestMethod]
+    public void OnlyTheProductProfileOrAPinnedIdentityWritesShellState()
+    {
+        var path = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "nendo-profile-contract"));
+        Assert.IsTrue(DesktopRuntimeConfiguration.ResolveWritesShellState(_ => null), "The person's own Nendo stopped writing its Jump List.");
+        Assert.IsFalse(DesktopRuntimeConfiguration.ResolveWritesShellState(name => name == "NENDO_DEVICE_STATE_ROOT" ? path : null),
+            "A lane on an isolated device state writes the installed Nendo's Jump List and notification registration.");
+        Assert.IsTrue(DesktopRuntimeConfiguration.ResolveWritesShellState(name => name switch
+        {
+            "NENDO_DEVICE_STATE_ROOT" => path,
+            "NENDO_DESKTOP_APP_ID" => "Nendo.Lane.abc",
+            _ => null,
+        }), "A lane with an identity of its own cannot measure its Jump List.");
+        Assert.IsFalse(DesktopRuntimeConfiguration.ResolveWritesShellState(name => name switch
+        {
+            "NENDO_DEVICE_STATE_ROOT" => path,
+            "NENDO_DESKTOP_APP_ID" => "Nendo\\Lane",
+            _ => null,
+        }), "A refused identity falls back to the product one, so it must not write.");
+        Assert.IsFalse(DesktopRuntimeConfiguration.ResolveWritesShellState(name => name == "NENDO_DEVICE_STATE_ROOT" ? "relative-profile" : null));
+    }
+
     [TestMethod]
     public void RelativeProfileFailsInsteadOfFallingBackToOwnerState()
     {

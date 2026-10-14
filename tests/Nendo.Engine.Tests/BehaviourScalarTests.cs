@@ -148,7 +148,7 @@ public sealed class BehaviourScalarTests
     /// D1_16 stand.
     /// </summary>
     [TestMethod]
-    public void D1_18_AnEmptyOperandUnderAnOptionalResultIsAnEmptyResult()
+    public void D1_26_AnEmptyOperandUnderAnOptionalResultIsAnEmptyResult()
     {
         var number = EvaluateOptional("x + 1", ("x", NullInteger()));
         Assert.AreEqual(NendoBehaviourScalar.Integer, number.Type);
@@ -161,7 +161,7 @@ public sealed class BehaviourScalarTests
     }
 
     [TestMethod]
-    public void D1_19_AFormulaThatEndsEmptyUnderARequiredResultIsAMissingInput() =>
+    public void D1_27_AFormulaThatEndsEmptyUnderARequiredResultIsAMissingInput() =>
         AssertCalculationError(NendoCalculationCodes.MissingInput, "x", ("x", NullText()));
 
     /// <summary>
@@ -169,7 +169,7 @@ public sealed class BehaviourScalarTests
     /// empty argument stops it, and the caller's own declaration then decides.
     /// </summary>
     [TestMethod]
-    public void D1_20_AnOptionalFunctionReturnsEmptyAndItsCallerDecides()
+    public void D1_28_AnOptionalFunctionReturnsEmptyAndItsCallerDecides()
     {
         var adapter = new NendoExpressionAdapter();
         var budget = Budget();
@@ -200,7 +200,7 @@ public sealed class BehaviourScalarTests
     /// by an optional result: it is the author's sentence, not an empty input.
     /// </summary>
     [TestMethod]
-    public void D1_21_AFormulaCanRefuseByNameInOneOutcomeOfAChoice()
+    public void D1_29_AFormulaCanRefuseByNameInOneOutcomeOfAChoice()
     {
         const string guard = "x > 5 ? Refuse('Ratings are 1 to 5.') : x";
         Assert.AreEqual(3L, Evaluate(guard, ("x", Integer(3))).Boxed);
@@ -216,7 +216,7 @@ public sealed class BehaviourScalarTests
     }
 
     [TestMethod]
-    public void D1_22_ARefusalOutsideAChoiceIsADefinitionError()
+    public void D1_30_ARefusalOutsideAChoiceIsADefinitionError()
     {
         AssertRefused("Refuse('Never answers.')");
         AssertRefused("1 + Refuse('Inside arithmetic.')");
@@ -356,7 +356,7 @@ public sealed class BehaviourScalarTests
         Assert.AreEqual(1L, value.Boxed);
 
         // Under a result declared to allow it; under one declared always to answer, an
-        // empty ending is the missing input D1_19 asserts (ADR-0008, 2026-09-20 amendment).
+        // empty ending is the missing input D1_27 asserts (ADR-0008, 2026-09-20 amendment).
         var empty = EvaluateOptional("x", ("x", NullInteger()));
         Assert.IsTrue(empty.IsNull);
         Assert.AreEqual(NendoBehaviourScalar.Integer, empty.Type);

@@ -30,7 +30,7 @@ the next person reads `site/` as a product component and starts to connect it to
 one.
 
 **`architecture.md` says "There is no CI, deliberately."** That sentence is a real
-position, not an omission. The gate runs in about a minute locally. On a solo
+position, not an omission. The gate runs in a few minutes locally. On a solo
 project with no pull requests, a hosted copy of the gate adds no value. A GitHub
 Actions workflow contradicts the sentence as written. If the contradiction
 stayed, the document would be wrong, and the position would not change.

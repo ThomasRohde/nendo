@@ -100,11 +100,17 @@ public sealed class ExtensionViewDefinitionTests
         return preview;
     }
 
-    private static async Task Refused(NendoApplicationService service, string why, NendoProposalRequest request)
+    /// <summary>
+    /// Refused for the rule under test: an error with its code and a sentence that names what
+    /// it refused. Any error at all used to pass, so a fixture that also tripped another rule
+    /// could hide a rule that no longer refused (TST-12).
+    /// </summary>
+    private static async Task Refused(NendoApplicationService service, string code, string names, string why, NendoProposalRequest request)
     {
         var preview = await service.PrepareProposalAsync(request);
         Assert.AreNotEqual(NendoProposalState.Previewable, preview.State, why);
-        Assert.IsTrue(preview.Diagnostics.Any(d => d.Severity == NendoDiagnosticSeverity.Error), why);
+        Assert.IsTrue(preview.Diagnostics.Any(d => d.Code == code && d.Severity == NendoDiagnosticSeverity.Error && d.Message.Contains(names, StringComparison.Ordinal)),
+            $"{why}: expected {code} naming '{names}', got {string.Join("; ", preview.Diagnostics.Select(d => d.Code + " " + d.Message))}");
     }
 
     [TestMethod]
@@ -167,15 +173,15 @@ public sealed class ExtensionViewDefinitionTests
     {
         await using var workspace = new EngineTestWorkspace();
         var (_, service) = await Seed(workspace);
-        await Refused(service, "as a root", Page(OpenPanel(), [Show("starts")], parent: null));
+        await Refused(service, "NUI012", "cannot be a surface root", "as a root", Page(OpenPanel(), [Show("starts")], parent: null));
         var named = OpenPanel(); named["entityId"] = "tasks";
-        await Refused(service, "its own record type", Page(named, [Show("starts")]));
+        await Refused(service, "NUI090", "'entityId'", "its own record type", Page(named, [Show("starts")]));
         var edged = OpenPanel(); edged["edgeEntityId"] = "tasks";
-        await Refused(service, "an edge type", Page(edged, [Show("starts")]));
-        await Refused(service, "a filter", Page(OpenPanel(), [Show("starts"), ("filterClause", new() { ["fieldId"] = "title", ["operator"] = "isNotNull" })]));
-        await Refused(service, "a field that does not exist", Page(OpenPanel(), [Show("nothing")]));
+        await Refused(service, "NUI090", "'edgeEntityId'", "an edge type", Page(edged, [Show("starts")]));
+        await Refused(service, "NUI013", "'filterClause' cannot be a child", "a filter", Page(OpenPanel(), [Show("starts"), ("filterClause", new() { ["fieldId"] = "title", ["operator"] = "isNotNull" })]));
+        await Refused(service, "NUI450", "The field 'nothing'", "a field that does not exist", Page(OpenPanel(), [Show("nothing")]));
         var unlabelled = OpenPanel(); unlabelled["labelFieldId"] = "nothing";
-        await Refused(service, "a label that does not exist", Page(unlabelled, []));
+        await Refused(service, "NUI450", "The label field 'nothing'", "a label that does not exist", Page(unlabelled, []));
         // No cap on how many a page carries: each draws where it was put.
         await Accept(service, Page(OpenPanel(), [Show("starts")], views: 6));
     }
@@ -186,9 +192,9 @@ public sealed class ExtensionViewDefinitionTests
         await using var workspace = new EngineTestWorkspace();
         var (_, service) = await Seed(workspace);
         var properties = new Dictionary<string, object?> { ["definitionVersion"] = 3, ["entityId"] = "tasks", ["title"] = "Soon", ["packageId"] = "org.nendo.gantt", ["labelFieldId"] = "title" };
-        await Refused(service, "a filter on a calculated field", Records(properties,
+        await Refused(service, "NUI450", "a calculated field is shown, not filtered", "a filter on a calculated field", Records(properties,
             [("filterClause", new() { ["fieldId"] = "titleLength", ["operator"] = "gt", ["value"] = 3 })]));
-        await Refused(service, "an operator the vocabulary does not have", Records(properties,
+        await Refused(service, "NUI450", "Filter operator 'matches'", "an operator the vocabulary does not have", Records(properties,
             [("filterClause", new() { ["fieldId"] = "title", ["operator"] = "matches", ["value"] = "x" })]));
         await Accept(service, Records(properties,
             [("filterClause", new() { ["fieldId"] = "starts", ["operator"] = "gte", ["valueKind"] = "today" })]));

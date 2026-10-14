@@ -26,6 +26,13 @@ async page => {
   const requests = method => page.evaluate(method => window.broker.requests.filter(r => r.m === method).length, method);
   const state = () => frame.evaluate(() => ({ note: window.garden.note?.recordId ?? null, version: window.garden.note?.version ?? null, dirty: window.garden.dirty, external: window.garden.external, problem: window.garden.problem, index: window.garden.index.length, undo: window.garden.undo.length }));
   const seedNotes = fixture.records['gd.note'].length;
+  // A note is shown once the view has read its links, tags and tasks and drawn them: the tree
+  // marks it current last. window.garden.note changes before any of that, while the page still
+  // shows the note before it, and a click made then could land on a page that moved or on the
+  // note left behind; on a cold first run the reads are slow and the lane timed out after
+  // "wikilink navigation and places" (W-218).
+  const noteShown = id => frame.waitForFunction(id => window.garden.note?.recordId === id
+    && document.querySelector(`#tree .row[aria-current=true][data-id="${id}"]`) !== null, id);
   const localToday = () => { const d = new Date(), pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
   const F = { body: 'gd.note.body', slug: 'gd.note.slug', stage: 'gd.note.stage', touched: 'gd.note.touched', from: 'gd.link.from', to: 'gd.link.to', kind: 'gd.link.kind', context: 'gd.link.context', source: 'gd.link.source', tagName: 'gd.tag.name', noteTagTag: 'gd.noteTag.tag', noteTagNote: 'gd.noteTag.note', taskTitle: 'gd.task.title', taskDone: 'gd.task.done', taskSource: 'gd.task.source', taskNote: 'gd.task.note' };
 
@@ -39,7 +46,7 @@ async page => {
   checks.push('mount');
 
   // 2. The garden opens on its pinned map, for reading: the page, not the Markdown.
-  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
+  await noteShown('gd.note.start-here');
   const visible = selector => frame.evaluate(selector => { const e = document.querySelector(selector); return !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden'; }, selector);
   assert(await frame.evaluate(() => window.garden.mode) === 'read' && await visible('#reading') && !await visible('#editor'), 'A note must open for reading, with the editor out of sight.');
   assert(await frame.locator('#reading-title').textContent() === 'Start here', 'Reading shows the title as the page heading.');
@@ -218,7 +225,7 @@ async page => {
 
   // A wikilink followed while reading opens its note and declares a place.
   await frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first().click();
-  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.how-links-work');
+  await noteShown('gd.note.how-links-work');
   // The place is declared once the note is shown, a moment after it is chosen: wait for it, then assert.
   await page.waitForFunction(() => window.broker.places.some(p => p.place.noteId === 'gd.note.how-links-work'), null, { timeout: 3000 }).catch(() => {});
   const places = await page.evaluate(() => window.broker.places);
@@ -252,11 +259,14 @@ async page => {
   assert(await frame.evaluate(() => document.activeElement?.dataset.id) === 'gd.note.start-here', 'Left must step up to the note a note is under.');
   await page.keyboard.press('ArrowLeft');
   assert(await rowCount() === 1 && await expanded('gd.note.start-here') === 'false', 'Left on an unfolded branch must fold it.');
+  // As on a cold first run: the next notes' links, tags and tasks come back late, so the page goes
+  // on changing after window.garden names the note. The lane waits for the note to be shown.
+  await page.evaluate(() => window.broker.hold('records.query', 1500, 8));
   await frame.locator('#reading-body a.wikilink[data-id="gd.note.start-here"]').first().click();
-  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
+  await noteShown('gd.note.start-here');
   assert(await rowCount() === 1, 'Opening a note at the top leaves a folded branch folded.');
   await frame.locator('#reading-body a.wikilink[data-id="gd.note.how-links-work"]').first().click();
-  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.how-links-work');
+  await noteShown('gd.note.how-links-work');
   assert(await rowCount() === seedNotes && await frame.locator('#tree .row[aria-current=true][data-id="gd.note.how-links-work"]').count() === 1,
     'Opening a note in a folded branch must unfold it and show the note as current.');
   checks.push('tree folds');
@@ -484,7 +494,7 @@ async page => {
 
   // 10. Light and Dark: the frame's colours follow the theme, the wikilink is the cobalt token.
   await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
-  await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
+  await noteShown('gd.note.start-here');
   const colours = {};
   for (const mode of ['light', 'dark']) {
     await page.evaluate(mode => window.broker.pushTheme(mode), mode); await page.waitForTimeout(100);
@@ -1400,11 +1410,17 @@ async page => {
   };
   const setTitle = text => frame.evaluate(text => { const t = document.getElementById('title'); t.value = text; t.dispatchEvent(new Event('input', { bubbles: true })); }, text);
   // Something that makes the view read its note again, and the moment after that read.
+  // The read is the note and then its links, tags and tasks, four queries the view draws from in
+  // one go; a fixed 300 ms after the note was asked for passed on a quiet machine and not on a
+  // busy one, where Save then ran before the read was in (W-218).
   const reread = async act => {
     const before = await requests('records.get');
     await act();
     await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.get').length > n, before, { timeout: 3000 });
-    await page.waitForTimeout(300);
+    // Counted after the last note read in the broker's own order, so a query that came before it is not one of them.
+    await page.waitForFunction(() => { const all = window.broker.requests, last = all.findLastIndex(r => r.m === 'records.get');
+      return all.slice(last + 1).filter(r => r.m === 'records.query').length >= 4; }, null, { timeout: 3000 });
+    await frame.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   };
   const draftNow = async () => ({ title: await frame.evaluate(() => document.getElementById('title').value), editor: await editorText(), ...(await state()) });
   const unsavedRows = () => frame.evaluate(() => [...document.querySelectorAll('#tree .row.unsaved')].map(r => r.querySelector('.name').textContent));

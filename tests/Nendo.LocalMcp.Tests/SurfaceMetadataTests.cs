@@ -108,6 +108,22 @@ public sealed class SurfaceMetadataTests
         }
     }
 
+    /// <summary>
+    /// The test below failed under the full gate with "Request failed (remote): An error
+    /// occurred." on a read with a query. Putting a query in order matched each path against a
+    /// regex with a 100 ms wall-clock bound, and a blocking collection or a descheduled thread
+    /// ran past it; the RegexMatchTimeoutException left the filter untranslated. The paths are
+    /// linear patterns and now carry no bound.
+    /// </summary>
+    [TestMethod]
+    public void AQueryIsPutInOrderWithoutAWallClockBound()
+    {
+        var timeouts = NendoResourceQuery.ForDeclaredResources().PathMatchTimeouts.ToArray();
+        Assert.IsGreaterThan(20, timeouts.Length, "The declared read paths were not read.");
+        Assert.IsTrue(timeouts.All(timeout => timeout == System.Text.RegularExpressions.Regex.InfiniteMatchTimeout),
+            $"A read path is matched with a wall-clock bound ({timeouts.First(timeout => timeout != System.Text.RegularExpressions.Regex.InfiniteMatchTimeout)}), which a collection pause runs past.");
+    }
+
     [TestMethod]
     public async Task APageQueryIsASetAndAnEmptyCursorIsTheFirstPage()
     {

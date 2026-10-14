@@ -201,8 +201,67 @@ public sealed class DesktopBehaviourGrantTests
         var grants = Enumerable.Range(0, 12).Select(index => Grant() with { ApplicationId = "application-" + index }).ToArray();
         var stores = grants.Select(_ => new DesktopBehaviourGrantStore(workspace.FileHistoryRoot)).ToArray();
         await Task.WhenAll(grants.Select((grant, index) => Task.Run(() => stores[index].Approve(grant))));
+        // What the design promises (TST-18): each approval is saved, or says it is this session's
+        // and holds here; none is silently dropped by another store's save.
         var reopened = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
-        foreach (var grant in grants) Assert.IsTrue(reopened.IsGranted(grant), "Concurrent approvals lost " + grant.ApplicationId);
+        for (var index = 0; index < grants.Length; index++)
+        {
+            if (stores[index].Persisted)
+                Assert.IsTrue(reopened.IsGranted(grants[index]), "Concurrent approvals lost " + grants[index].ApplicationId + ", which its store said was saved.");
+            else
+            {
+                Assert.IsNotNull(stores[index].Notice, grants[index].ApplicationId + " was neither saved nor said to be this session's.");
+                Assert.IsTrue(stores[index].IsGranted(grants[index]), grants[index].ApplicationId + " was not kept for its session.");
+                stores[index].Approve(grants[index]);
+                Assert.IsTrue(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(grants[index]), "The next save did not keep " + grants[index].ApplicationId);
+            }
+        }
+    }
+
+    /// <summary>
+    /// TST-18: a read refused under the lock (a scanner holding the document open, say) left the
+    /// store with only its own approvals in hand, and it saved them over every other window's:
+    /// the recorded flake lost application-3 of twelve. Reading the document is denied here
+    /// while replacing it is not, which is that moment held still.
+    /// </summary>
+    [TestMethod]
+    public async Task AReadRefusedUnderTheLockNeverOverwritesAnotherWindowsApproval()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var kept = Grant() with { ApplicationId = "kept" };
+        var later = Grant() with { ApplicationId = "later" };
+        new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).Approve(kept);
+        var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        var path = Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json");
+        var document = new FileInfo(path);
+        var denyRead = new System.Security.AccessControl.FileSystemAccessRule(
+            System.Security.Principal.WindowsIdentity.GetCurrent().User!,
+            System.Security.AccessControl.FileSystemRights.ReadData,
+            System.Security.AccessControl.AccessControlType.Deny);
+        var rules = document.GetAccessControl();
+        rules.AddAccessRule(denyRead);
+        document.SetAccessControl(rules);
+        try
+        {
+            Assert.ThrowsExactly<UnauthorizedAccessException>(() => File.ReadAllBytes(path), "The document could still be read; the test denies nothing.");
+            store.Approve(later);
+            Assert.IsFalse(store.Persisted, "An approval made without reading the document said it was saved.");
+            Assert.IsNotNull(store.Notice);
+        }
+        finally
+        {
+            // A save that replaced the document took the denial with it; otherwise it is lifted here.
+            rules = document.GetAccessControl();
+            rules.RemoveAccessRule(denyRead);
+            document.SetAccessControl(rules);
+        }
+        Assert.IsTrue(new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).IsGranted(kept),
+            "A save made without reading the document overwrote another window's approval.");
+        Assert.IsTrue(store.IsGranted(later), "The approval was not kept for this session.");
+        store.Approve(later);
+        var reopened = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
+        Assert.IsTrue(reopened.IsGranted(kept) && reopened.IsGranted(later), "The next save did not merge the session's approval with the document.");
+        Assert.IsTrue(store.Persisted);
     }
 
     [TestMethod]

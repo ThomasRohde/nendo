@@ -492,9 +492,6 @@ What remains open:
 
 ## Left open by the broad review's decisions (2026-10-12)
 
-- **A bound reference keeps its label field.** Retiring the field a bound reference shows its
-  targets by is refused (`reference-label-in-use`, ESS-09), and no operation points a bound
-  reference at another label. A `schema.setReferenceLabel` operation would; it is not built.
 - **ToText has no format.** It writes digits, stored decimal digits and `yyyy-MM-dd`, the same
   everywhere. Thousands separators, another date order or a currency need a format argument
   that ADR-0008's 2026-10-13 amendment leaves out. Its rung is found by the name, as

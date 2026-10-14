@@ -63,6 +63,9 @@ internal static class SemanticDiff
 
         /// <summary>Behaviour definitions by ID: the active file's and this change set's, by their display names.</summary>
         public IReadOnlyDictionary<string, string> DefinitionNames { get; init; } = new Dictionary<string, string>();
+
+        /// <summary>The label field each bound reference shows its records by, active file first.</summary>
+        public IReadOnlyDictionary<string, string> ReferenceLabels { get; init; } = new Dictionary<string, string>();
     }
 
     /// <summary>The field and the direction an ordering is made of, gathered from the change set.</summary>
@@ -83,8 +86,19 @@ internal static class SemanticDiff
         var names = Resolve(changeSet, active, definitionNames ?? new Dictionary<string, string>());
         var packages = new PackageState(active);
         var result = new List<NendoSemanticDiffEntry>();
+        // The label a reference shows as each operation meets it, so a second change in one
+        // change set says what the first left.
+        var labels = new Dictionary<string, string>(names.ReferenceLabels, StringComparer.Ordinal);
         foreach (var operation in changeSet.Mutations.SelectMany(mutation => mutation.Operations))
         {
+            if (operation is ConfigureReferenceOperation configured) labels[configured.FieldId] = configured.LabelFieldId;
+            if (operation is SetReferenceLabelOperation relabel)
+            {
+                result.Add(Entry("setReferenceLabel", ReferenceLabelSummary(names, labels.GetValueOrDefault(relabel.FieldId), relabel),
+                    relabel.Reversibility, relabel.EntityId, relabel.FieldId, relabel.LabelFieldId));
+                labels[relabel.FieldId] = relabel.LabelFieldId;
+                continue;
+            }
             // Adding a binding and saying what it binds is one change, and it used to cost
             // two lines of which the first said nothing: "Show a field on its surface." then
             // "Bind to Title." The node's own line now carries the field name, so this one is
@@ -460,6 +474,7 @@ internal static class SemanticDiff
         // Which record type a reference points at, so a board grouped by one can be read
         // back in the person's terms -- a lane per client, not "group records by Client".
         var referenceTargets = new Dictionary<string, string>(StringComparer.Ordinal);
+        var referenceLabels = new Dictionary<string, string>(StringComparer.Ordinal);
         // The name each choice option answers to, where the change set renames one. A
         // field's own options are on the operation that adds it, so the sentence naming
         // them does not depend on this; this only prefers the chosen word over the
@@ -499,7 +514,11 @@ internal static class SemanticDiff
             {
                 fields[field.FieldId] = field.DisplayName;
                 fieldKinds[field.FieldId] = field.StorageKind;
-                if (field.Reference is { } reference) referenceTargets[field.FieldId] = reference.TargetEntityId;
+                if (field.Reference is { } reference)
+                {
+                    referenceTargets[field.FieldId] = reference.TargetEntityId;
+                    referenceLabels[field.FieldId] = reference.LabelFieldId;
+                }
                 foreach (var choice in field.Choices) activeChoices[(field.FieldId, choice.Id)] = choice.DisplayName;
             }
             foreach (var field in entity.DerivedFields)
@@ -614,8 +633,18 @@ internal static class SemanticDiff
             NodeParents = nodeParents,
             NodeEntities = nodeEntities,
             DefinitionNames = definitions,
+            ReferenceLabels = referenceLabels,
         };
     }
+
+    /// <summary>
+    /// "Show Tasks.Project's records by Code instead of Name.": what a person sees change, and that
+    /// nothing they stored does (W-232).
+    /// </summary>
+    private static string ReferenceLabelSummary(DiffNames names, string? previousLabelFieldId, SetReferenceLabelOperation value) =>
+        $"Show {EntityName(names, value.EntityId)}.{FieldName(names, value.FieldId)}'s records by {FieldName(names, value.LabelFieldId)}" +
+        (previousLabelFieldId is null ? "" : $" instead of {FieldName(names, previousLabelFieldId)}") +
+        ". Every stored value stays as it is.";
 
     /// <summary>A behaviour definition's own name, whichever kind it is.</summary>
     internal static string BehaviourName(NendoBehaviourDefinition definition) => definition switch

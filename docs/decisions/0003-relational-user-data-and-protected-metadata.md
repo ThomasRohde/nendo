@@ -152,6 +152,21 @@ reserved protected metadata namespace for Nendo state.
   a user field.
 - Relationships use explicit relational metadata and foreign-key/join
   structures. They do not use encoded scalar lists.
+- Note, 2026-10-14 (W-232, the ESS-09 follow-up): a bound reference's label field can
+  change. `schema.setReferenceLabel` `{entityId, fieldId, labelFieldId,
+  expectedDefinitionRevision}` is a definition-lane operation that points one bound,
+  active reference at another active Text field of its target record type, the rule
+  `schema.configureReference` applies, and updates only that reference's row of
+  `__nendo_reference`. No stored value moves: a reference stores the target record ID,
+  so only the label a read, a picker, a column or a board shows changes. It refuses an
+  unbound or retired reference, a label that is not an active Text field on the target,
+  an unchanged label (`reference-label-unchanged`) and a stale definition revision. It is
+  reversible with retained state: its evidence keeps the previous label field, and the
+  inverse sets it back while the change is the file's latest definition change. Once the
+  label has moved, the old field is no longer held by `reference-label-in-use` and can be
+  retired. Only an active reference on an active record type holds its label: a retired
+  one draws and groups nothing and cannot be relabelled, so it does not keep its label from
+  retirement. A file that changed a label needs host 1.51.0.
 - Generated display-label recovery views are not part of format version 1.
   Stable physical names plus the semantic map are the inspectability baseline.
 
@@ -205,3 +220,5 @@ operation-level change tracking.
 - 2026-09-25 — protected metadata holds custom-view packages, an executable
   payload, by decision of [ADR-0013](0013-custom-views-with-code-in-the-file.md);
   host 1.33.0.
+- 2026-10-14 — `schema.setReferenceLabel` changes the field a bound reference shows its
+  records by; no stored value moves (note under *Decision*; W-232). Host 1.51.0.

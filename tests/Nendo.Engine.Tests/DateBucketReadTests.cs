@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Nendo.Engine.Tests;
 
 /// <summary>
@@ -15,6 +17,29 @@ namespace Nendo.Engine.Tests;
 [TestClass]
 public sealed class DateBucketReadTests
 {
+    /// <summary>
+    /// TST-13: the keys and stored dates are written in the invariant culture, so a person whose
+    /// culture counts years another way (th-TH: 2026 is 2569) reads the same buckets. The tests
+    /// formatted with the current culture, stored a due date in 2569 and looked for its key there.
+    /// </summary>
+    [TestMethod]
+    public async Task TheBucketsReadTheSameUnderACultureWithAnotherCalendar()
+    {
+        var before = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = new CultureInfo("th-TH");
+        try
+        {
+            Assert.AreEqual("2569", new DateOnly(2026, 10, 11).ToString("yyyy", CultureInfo.CurrentCulture), "th-TH no longer counts another year; pick a culture that does.");
+            await ATrendStatesAnEmptyMonthAsEmptyRatherThanLeavingItOut();
+            await AGridCountsEveryDayOfTheYearAndZeroIsAnAnswer();
+            await ARecordOutsideTheRangeOrWithNoDateIsNotInTheAnswerAtAll();
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = before;
+        }
+    }
+
     [TestMethod]
     public void EveryBucketOfTheRangeIsAnsweredEvenWhereNothingHappened()
     {
@@ -52,15 +77,15 @@ public sealed class DateBucketReadTests
         var months = result.Groups.Select(group => group.Key).ToArray();
         Assert.AreEqual(6, months.Distinct().Count(), "Every bucket of the range is answered exactly once.");
 
-        var current = result.Groups.Single(group => group.Key == today.ToString("yyyy-MM"));
+        var current = result.Groups.Single(group => group.Key == today.ToString("yyyy-MM", CultureInfo.InvariantCulture));
         Assert.AreEqual("15", current.ValueLexeme);
         Assert.AreEqual(2, current.ContributingRecords);
 
-        var quiet = result.Groups.Single(group => group.Key == today.AddMonths(-1).ToString("yyyy-MM"));
+        var quiet = result.Groups.Single(group => group.Key == today.AddMonths(-1).ToString("yyyy-MM", CultureInfo.InvariantCulture));
         Assert.IsNull(quiet.Value, "A month with nothing in it is stated as empty, never as zero.");
         Assert.AreEqual(0, quiet.ContributingRecords);
 
-        var earlier = result.Groups.Single(group => group.Key == today.AddMonths(-2).ToString("yyyy-MM"));
+        var earlier = result.Groups.Single(group => group.Key == today.AddMonths(-2).ToString("yyyy-MM", CultureInfo.InvariantCulture));
         Assert.AreEqual("7", earlier.ValueLexeme);
     }
 
@@ -86,7 +111,7 @@ public sealed class DateBucketReadTests
 
         var daysInYear = DateTime.IsLeapYear(today.Year) ? 366 : 365;
         Assert.HasCount(daysInYear, result.Groups);
-        Assert.AreEqual("2", result.Groups.Single(group => group.Key == today.ToString("yyyy-MM-dd")).ValueLexeme);
+        Assert.AreEqual("2", result.Groups.Single(group => group.Key == today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).ValueLexeme);
         Assert.IsTrue(result.Groups.All(group => group.Value is not null), "A count answers every day, and most of them are zero.");
         Assert.AreEqual(daysInYear - 1, result.Groups.Count(group => group.ValueLexeme == "0"));
     }
@@ -194,7 +219,7 @@ public sealed class DateBucketReadTests
             new Dictionary<string, object?>
             {
                 ["title"] = id,
-                ["due"] = due?.ToString("yyyy-MM-dd"),
+                ["due"] = due?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 ["amount"] = amount,
             },
             new NendoRequestContext("test", id, "test")));

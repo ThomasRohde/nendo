@@ -40,7 +40,7 @@ dotnet build Nendo.slnx
 
 The product has no CI, deliberately — see
 [architecture.md](docs/architecture.md#building-and-verifying). The gate runs in
-about a minute locally, and it is the gate:
+a few minutes locally, and it is the gate:
 
 ```powershell
 pwsh ./tools/Test-Repository.ps1     # fast invariant check

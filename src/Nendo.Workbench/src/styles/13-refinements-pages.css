@@ -362,6 +362,8 @@
 .field-presentation .text-button { margin-left: -9px; font-size: 0.76rem; text-align: left; }
 .field-kind .text-button:not(:disabled),
 .field-presentation .text-button:not(:disabled) { color: var(--cobalt); }
+/* A bound reference names its target and the field it shows them by, above Label by… (W-232). */
+.field-kind .reference-target { color: var(--muted); font-size: 0.76rem; }
 
 .field-requirement {
   display: grid;

@@ -81,11 +81,20 @@ internal sealed partial class NendoResourceQuery
             : uriTemplate[(query + 2)..^1].Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         var pattern = "^" + string.Concat(Variable().Split(path)
             .Select((piece, index) => index % 2 == 0 ? Regex.Escape(piece) : "[^/?#]+")) + "$";
+        // No match timeout. The pattern is escaped literals and [^/?#]+ between them, anchored at
+        // both ends, so a match is linear in the URI. A 100 ms bound measured wall-clock time, and
+        // a blocking collection or a descheduled thread under the full gate ran past it: a read
+        // with a query then failed in the filter, outside every translation, and reached the
+        // client as "An error occurred." (seven RegexMatchTimeoutException in 4.2 million matches
+        // under forced collections, none with the bound gone).
         return new Template(
             path,
-            new Regex(pattern, RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100)),
+            new Regex(pattern, RegexOptions.CultureInvariant, Regex.InfiniteMatchTimeout),
             parameters);
     }
+
+    /// <summary>The match timeout of each declared path, for the test that keeps them unbounded.</summary>
+    internal IEnumerable<TimeSpan> PathMatchTimeouts => _templates.Select(template => template.Path.MatchTimeout);
 
     // Split keeps the captured variable names at the odd positions.
     [GeneratedRegex(@"\{([^}?]+)\}", RegexOptions.CultureInvariant)]

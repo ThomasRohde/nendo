@@ -105,24 +105,37 @@ public sealed class DesktopExtensionDevelopmentTests
 
         var notices = new List<string>();
         var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        session.ExtensionDevelopmentChanged += packageId => { lock (notices) notices.Add(packageId); first.TrySetResult(); };
+        var next = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.ExtensionDevelopmentChanged += packageId =>
+        {
+            lock (notices) notices.Add(packageId);
+            if (!first.TrySetResult()) next.TrySetResult();
+        };
+        // An editor's save is several writes; the settle delay makes it one reload. The three are
+        // written beside the folder and moved in back to back, so they land as one save does: three
+        // writes on a loaded machine landed more than a settle apart and read as two saves (TST-17).
+        var staging = Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(folder)!, "staging-" + Guid.NewGuid().ToString("N"))).FullName;
+        File.WriteAllText(Path.Combine(staging, "index-1.html"), "<!doctype html><p>saved</p>");
+        File.WriteAllText(Path.Combine(staging, "app.js"), "console.log('saved');");
+        File.WriteAllText(Path.Combine(staging, "index-2.html"), "<!doctype html><p>saved again</p>");
         var clock = Stopwatch.StartNew();
-        // An editor's save is several writes; the settle delay makes it one reload.
-        File.WriteAllText(Path.Combine(folder, "index.html"), "<!doctype html><p>saved</p>");
-        File.WriteAllText(Path.Combine(folder, "app.js"), "console.log('saved');");
-        File.WriteAllText(Path.Combine(folder, "index.html"), "<!doctype html><p>saved again</p>");
+        File.Move(Path.Combine(staging, "index-1.html"), Path.Combine(folder, "index.html"), overwrite: true);
+        File.Move(Path.Combine(staging, "app.js"), Path.Combine(folder, "app.js"), overwrite: true);
+        File.Move(Path.Combine(staging, "index-2.html"), Path.Combine(folder, "index.html"), overwrite: true);
+        var landed = clock.Elapsed;
         await first.Task.WaitAsync(NoticeBound);
         var elapsed = clock.Elapsed;
         await Task.Delay(DesktopSessionController.DevelopmentSettle * 4);
 
         lock (notices)
-            Assert.AreEqual(PackageId, string.Join(",", notices), $"A save of three files was not one notice for the package (first after {elapsed.TotalMilliseconds:F0} ms).");
+            Assert.AreEqual(PackageId, string.Join(",", notices), $"A save of three files was not one notice for the package (landed in {landed.TotalMilliseconds:F0} ms, first notice after {elapsed.TotalMilliseconds:F0} ms).");
         Assert.AreEqual("<!doctype html><p>saved again</p>", await ReadAsync(session, host, ""), "The read after the notice served the old file.");
         Assert.AreEqual("console.log('saved');", await ReadAsync(session, host, "app.js"));
 
         // A folder that no longer reads as a package is served as the reason, not as the old code.
+        // Read once its notice has come, rather than after a fixed wait the deletion may miss.
         File.Delete(Path.Combine(folder, NendoExtensionArchives.ManifestName));
-        await Task.Delay(DesktopSessionController.DevelopmentSettle * 4);
+        await next.Task.WaitAsync(NoticeBound);
         var broken = await session.ReadExtensionAssetAsync(host, "");
         Assert.AreEqual(503, broken.Status);
         StringAssert.Contains(Encoding.UTF8.GetString(broken.Content), NendoExtensionArchives.ManifestName);

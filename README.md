@@ -113,10 +113,11 @@ dotnet build Nendo.slnx
 ./artifacts/bin/Nendo.Desktop/debug_win-x64/Nendo.Desktop.exe
 ```
 
-Do not skip the Workbench step. The Desktop project copies
-`src/Nendo.Workbench/dist` into its output but does not build it, so
-`dotnet build` on a fresh clone succeeds and produces a host with no interface
-to show. All build output goes under `artifacts/`, which is git-ignored.
+Do not skip the Workbench step. The .NET build does not build the Workbench,
+and `Nendo.LocalMcp` embeds `src/Nendo.Workbench/dist/_nendo/view-api.json`, so
+`dotnet build` on a fresh clone stops with "Build the Workbench first" until
+`npm run build` has run. All build output goes under `artifacts/`, which is
+git-ignored.
 
 Started with no argument, the app opens without a file; create one from there.
 Pass the path of a `.nendo` file to open it instead. The files in `workspace/`
@@ -131,10 +132,13 @@ pwsh ./tools/Test-Production.ps1    # full gate; includes the above
 
 `Test-Production.ps1` does the whole build itself (`npm ci`, Workbench type check,
 tests and build, then .NET restore, build and tests), so on a fresh clone it is
-also the one-command build. It takes about a minute once packages are restored.
+also the one-command build. It takes several minutes once packages are restored:
+the .NET suites alone run for about five, and the Desktop journeys open real windows.
 Some Desktop tests open real windows and use the clipboard, so run the gate in
-an unlocked, interactive desktop session. On a locked workstation or a headless
-session those tests fail without any product defect.
+an unlocked, interactive desktop session. On a locked workstation the view
+journey reports its clipboard step as not run and the journey as Inconclusive,
+naming the lock; run it again unlocked to measure that step. A headless session
+fails the window tests without any product defect.
 
 Packaging, the installer and the native review lanes outside the gate are
 documented in [architecture.md](docs/architecture.md#building-and-verifying).

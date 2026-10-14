@@ -156,6 +156,13 @@ proposal. Allow duplicates is disabled on a numbered field, saying why. On a new
 field that is empty is not required and says *Assigned when saved*, with the next code as an
 example; a code typed there is kept if it is free.
 
+**A reference's label** (ADR-0003, 2026-10-14 note, W-232). A bound reference's row says which
+record type it points at and the field it shows them by, and offers **Label by…**: a form
+listing the target's other active Text fields, which prepares a reviewed
+`schema.setReferenceLabel`. It is disabled, saying why, when the target has no other one.
+History names the change *Change a reference's label* and offers Undo while it is the latest
+definition change.
+
 ### Calculated fields in Structure
 
 A record type's calculated fields ([calculations and actions](calculations-and-actions.md))

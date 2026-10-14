@@ -65,6 +65,65 @@ internal sealed partial class SqliteNendoStore
         { RequiredHostVersion = operation.ReviewedRecords is null ? NendoFormat.ReferenceMinimumHostVersion : NendoFormat.ReferenceConversionMinimumHostVersion };
     }
 
+    /// <summary>
+    /// Points a bound reference at another label field of its target (ADR-0003, 2026-10-14 note,
+    /// W-232). The label must be what schema.configureReference would accept, an active Text field
+    /// of the target, and no record changes: the stored value is the target record ID.
+    /// </summary>
+    private async Task<OperationEvidence> ExecuteSetReferenceLabelAsync(SetReferenceLabelOperation operation,
+        SqliteTransaction transaction, CancellationToken ct)
+    {
+        var manifest = await ReadManifestAsync(transaction, ct);
+        if (manifest.DefinitionRevision != operation.ExpectedDefinitionRevision)
+            throw DefinitionVersionConflict(operation.ExpectedDefinitionRevision, manifest.DefinitionRevision);
+        var source = await GetEntityMappingAsync(operation.EntityId, transaction, ct);
+        var field = source.Fields.SingleOrDefault(candidate => candidate.FieldId == operation.FieldId)
+            ?? throw new NendoPreconditionException("field-not-found", $"Field {operation.FieldId} does not belong to {source.DisplayName}.");
+        RequireActive(source, field);
+        if (field.StorageKind != NendoStorageKind.Reference)
+            throw new NendoValidationException($"{field.DisplayName} is not a reference, so it has no label to change.");
+        var bound = field.Reference
+            ?? throw new NendoPreconditionException("reference-unbound",
+                $"{source.DisplayName}.{field.DisplayName} points at no record type yet. Bind it with schema.configureReference, which chooses its label too.");
+        var target = await GetEntityMappingAsync(bound.TargetEntityId, transaction, ct);
+        RequireActive(target);
+        var label = target.Fields.SingleOrDefault(candidate => candidate.FieldId == operation.LabelFieldId);
+        if (label is null || label.StorageKind != NendoStorageKind.Text || label.Retired)
+            throw new NendoValidationException(
+                $"A reference label must be an active text field on its target record type, and {operation.LabelFieldId} is not one on {target.DisplayName}.");
+        if (bound.LabelFieldId == operation.LabelFieldId)
+            throw new NendoPreconditionException("reference-label-unchanged",
+                $"{source.DisplayName}.{field.DisplayName} already shows {target.DisplayName} by {label.DisplayName}.");
+        await using (var update = Command("UPDATE __nendo_reference SET label_field_id = @label WHERE field_id = @field;", transaction))
+        {
+            update.Parameters.AddWithValue("@label", operation.LabelFieldId);
+            update.Parameters.AddWithValue("@field", operation.FieldId);
+            await update.ExecuteNonQueryAsync(ct);
+        }
+        return new(operation, Evidence(new
+        {
+            previousLabelFieldId = bound.LabelFieldId,
+            appliedDefinitionRevision = manifest.DefinitionRevision + 1,
+        }))
+        {
+            // An operation no older host knows, stated by its evidence; a file that never changed
+            // a label keeps the rung it had.
+            RequiredHostVersion = NendoFormat.ReferenceLabelMinimumHostVersion,
+        };
+    }
+
+    private static SetReferenceLabelOperation CreateSetReferenceLabelInverse(string canonicalJson, string evidenceJson, string key)
+    {
+        using var canonical = JsonDocument.Parse(canonicalJson);
+        using var evidence = JsonDocument.Parse(evidenceJson);
+        var payload = canonical.RootElement.GetProperty("payload");
+        return new(NendoCanonical.DeterministicId("operation", "studio.p5.compensation", key, 0),
+            payload.GetProperty("entityId").GetString()!,
+            payload.GetProperty("fieldId").GetString()!,
+            evidence.RootElement.GetProperty("previousLabelFieldId").GetString()!,
+            evidence.RootElement.GetProperty("appliedDefinitionRevision").GetInt64());
+    }
+
     private async Task<OperationEvidence> ExecuteConvertLegacyReferenceAsync(ConvertLegacyReferenceOperation operation,
         SqliteTransaction transaction, CancellationToken ct)
     {

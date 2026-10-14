@@ -469,8 +469,9 @@ function Format-OpenAsset([string] $path, [string] $full) {
     return "$path is held open by another program, most likely Nendo. Close it there, or open another file in Nendo, and run again."
 }
 
-# The gate's sentence: corrupt files first, then files that could not be checked at all.
-function Get-AssetReport([string[]] $faults, [string[]] $open) {
+# The gate's sentence: corrupt files first, then files that could not be checked at all, then
+# files deleted from the working tree, which are not corrupt and have their own remedy (BL-04).
+function Get-AssetReport([string[]] $faults, [string[]] $open, [string[]] $missing = @()) {
     $sections = @()
     if ($faults.Count -gt 0) {
         $sections += "Corrupt binary asset(s); the bytes are tracked but the files cannot be read:`n$($faults -join "`n")"
@@ -478,7 +479,17 @@ function Get-AssetReport([string[]] $faults, [string[]] $open) {
     if ($open.Count -gt 0) {
         $sections += "Tracked binary asset(s) held open by another program, so they could not be checked. That says nothing about their bytes, but a file nobody could check is not a pass:`n$($open -join "`n")"
     }
+    if ($missing.Count -gt 0) {
+        $sections += "Tracked binary asset(s) deleted from the working tree. Stage the deletion (git rm <path>) or restore the file (git restore <path>):`n$($missing -join "`n")"
+    }
     $sections -join "`n`n"
+}
+
+# The guard for that wording: a tracked path that is not on disk is reported as deleted, with
+# both remedies, and never as corrupt.
+$deletedReport = Get-AssetReport @() @() @('workspace/Example.nendo')
+if ($deletedReport -match 'Corrupt' -or -not $deletedReport.Contains('git rm <path>') -or -not $deletedReport.Contains('workspace/Example.nendo')) {
+    throw "Self-check: a tracked file deleted from the working tree is not reported as deleted with its remedy. The lane reported:`n$deletedReport"
 }
 
 # The guard for the held-file report. A copy of the smallest tracked .nendo file that can be
@@ -529,11 +540,12 @@ Assert-HeldFileIsReportedOpen
 
 $faults = @()
 $open = @()
+$missing = @()
 $totalBytes = 0L
 foreach ($path in $binaries) {
     $full = Join-Path $repoRoot $path
     if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
-        $faults += "$path is tracked but not on disk"
+        $missing += $path
         continue
     }
     $verdict = Test-BinaryAsset $full
@@ -542,8 +554,8 @@ foreach ($path in $binaries) {
     elseif ($null -ne $verdict.Fault) { $faults += "$path $($verdict.Fault)" }
 }
 
-if ($faults.Count -gt 0 -or $open.Count -gt 0) {
-    throw (Get-AssetReport $faults $open)
+if ($faults.Count -gt 0 -or $open.Count -gt 0 -or $missing.Count -gt 0) {
+    throw (Get-AssetReport $faults $open $missing)
 }
 
 # The Workbench's own pictures are drawn at most 92 CSS pixels wide, and every window fetches and

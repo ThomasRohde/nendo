@@ -203,6 +203,7 @@ export function operationLabel(value: string): string {
     'schema.setFieldSequence': 'Number a field automatically',
     'schema.setFieldUnique': 'Make a field unique or not',
     'schema.setKeptInNewFiles': 'Keep a record type in new files',
+    'schema.setReferenceLabel': 'Change a reference’s label',
     'schema.setRetired': 'Retire or reactivate',
     'ui.addNode': 'Add to a screen',
     'ui.moveNode': 'Move on a screen',

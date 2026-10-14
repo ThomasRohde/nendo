@@ -107,7 +107,7 @@ internal static class NendoToolErrors
         new([
             "definition-version-conflict", "required-field-needs-migration", "required-backfill-needed",
             "record-referenced", "entity-referenced", "behaviour-not-approved", "choice-retired",
-            "reference-label-in-use", "ui-property-absent",
+            "reference-label-in-use", "reference-label-unchanged", "ui-property-absent",
             "reference-unbound", "target-version-required", "target-not-found", "target-version-conflict",
             "record-version-conflict", "record-not-found", "field-not-found", "field-calculated",
             "aggregate-not-representable",

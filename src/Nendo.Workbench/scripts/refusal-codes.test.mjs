@@ -58,7 +58,7 @@ const notSettled = new Set([
   'idea-field-conflict', 'inspection-not-required', 'invalid-cursor', 'invalid-limit', 'location-confirmation-context',
   'open-assessment-unavailable', 'partial-export-confirmation', 'proposal-exists', 'proposal-file-missing', 'proposal-not-previewable',
   'proposal-waiting', 'reopen-to-verify', 'required-field-needs-migration', 'stale-cursor', 'state-too-large', 'state-version-conflict',
-  'reference-label-in-use', 'title-unchanged', 'ui-node-not-found', 'ui-property-absent', 'unknown-method',
+  'reference-label-in-use', 'reference-label-unchanged', 'title-unchanged', 'ui-node-not-found', 'ui-property-absent', 'unknown-method',
   // A read-only session's reads of package files and view state (W-221); a read-only session journals no write.
   'read-only-file-changed',
 ]);

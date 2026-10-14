@@ -21,6 +21,7 @@ internal sealed partial class SqliteNendoStore
             BackfillRetiredFieldOperation backfill => await ExecuteBackfillRetiredFieldAsync(backfill, transaction, cancellationToken),
             RestoreDeletedRecordOperation restore => await ExecuteRestoreDeletedRecordAsync(restore, transaction, cancellationToken),
             ConfigureReferenceOperation reference => await ExecuteConfigureReferenceAsync(reference, transaction, cancellationToken),
+            SetReferenceLabelOperation referenceLabel => await ExecuteSetReferenceLabelAsync(referenceLabel, transaction, cancellationToken),
             ConvertLegacyReferenceOperation conversion => await ExecuteConvertLegacyReferenceAsync(conversion, transaction, cancellationToken),
             RenameEntityOperation rename => await ExecuteRenameAsync(rename, rename.EntityId, null, rename.DisplayName, rename.ExpectedDefinitionRevision, transaction, cancellationToken),
             RenameFieldOperation rename => await ExecuteRenameAsync(rename, rename.EntityId, rename.FieldId, rename.DisplayName, rename.ExpectedDefinitionRevision, transaction, cancellationToken),

@@ -218,7 +218,7 @@ function. That is the ordinary behaviour of a host that lacks a catalogue entry.
 
 **Evidence obligations before this entry is marked Accepted.**
 
-*Note, 2026-09-22: the owner accepted this amendment on 2026-09-20. The list below is the record of what the acceptance required. `BehaviourScalarTests` D1_18 to D1_22 carry the automated obligations.*
+*Note, 2026-09-22: the owner accepted this amendment on 2026-09-20. The list below is the record of what the acceptance required. `BehaviourScalarTests` D1_26 to D1_30 carry the automated obligations; they were numbered D1_18 to D1_22 until 2026-10-14, which the regression catalogue gives to earlier cases (TST-15).*
 
 - `BehaviourScalarTests`:
   - an empty operand under a nullable result is a typed empty;

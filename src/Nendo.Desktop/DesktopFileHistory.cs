@@ -33,7 +33,17 @@ internal sealed class DesktopFileHistory(string root)
     private readonly string _root = Path.GetFullPath(root);
     private string StatePath => Path.Combine(_root, "recent-files.json");
 
-    internal static string DefaultRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nendo", "FileHistory");
+    /// <summary>
+    /// The person's recent files, or an isolated profile's when NENDO_DEVICE_STATE_ROOT names
+    /// one, in the same file-history folder MainPage composes for it. It ignored the variable,
+    /// so a test controller that named no history wrote into the person's list (TST-16).
+    /// </summary>
+    internal static string DefaultRoot => DesktopRuntimeConfiguration.DeviceStateRoot is { } profile
+        ? Path.Combine(profile, "file-history")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nendo", "FileHistory");
+
+    /// <summary>The folder this history is kept in.</summary>
+    internal string Root => _root;
 
     /// <param name="openPath">The file open in this window, which may be the known original.</param>
     /// <param name="openObservation">

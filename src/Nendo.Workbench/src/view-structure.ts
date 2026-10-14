@@ -15,7 +15,7 @@ import { icon } from './icons';
 import { linkRuleNote } from './link-rule-markup';
 import { renderData } from './view-data';
 import { recordTypePicker } from './read-controls';
-import { calculatedFieldsMarkup, calculationsHoldingType, calculationsReading, conversionRecordMarkup, fieldCountLabel, readByMarkup, recordHeading, requirementTitle, token, typeHeldByMarkup } from './structure-markup';
+import { calculatedFieldsMarkup, calculationsHoldingType, calculationsReading, conversionRecordMarkup, fieldCountLabel, readByMarkup, recordHeading, referenceLabelChoices, referenceLabelMarkup, requirementTitle, token, typeHeldByMarkup } from './structure-markup';
 /**
  * Studio structure: the fields of one record type and every change that can be
  * made to them. Each dialog prepares a proposal rather than writing, so a
@@ -43,7 +43,7 @@ export function renderStructure(): void {
         <div class="field-row field-row-head" aria-hidden="true"><span>Field</span><span>Stores</span><span>Shown as</span><span>Required</span></div>
         ${entity.fields.map((field) => `<article class="field-row${field.retired ? ' is-retired' : ''}">
         <div class="field-identity"><strong>${escapeHtml(field.displayName)}${field.retired ? ' <span class="field-tag">Retired</span>' : ''}</strong><code>${escapeHtml(field.fieldId)}</code>${field.retired ? '' : readByMarkup(field.fieldId, state.session.entities)}<div class="field-actions"><button class="text-button" data-rename-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''} aria-label="Rename ${escapeAttribute(field.displayName)}">Rename</button><button class="text-button" data-retire-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || retireBlocked(field) ? 'disabled' : ''}${retireBlocked(field) ? ` aria-describedby="read-by-${escapeAttribute(token(field.fieldId))}"` : ''} aria-label="${field.retired ? 'Reactivate' : 'Retire'} ${escapeAttribute(field.displayName)}">${field.retired ? 'Reactivate' : 'Retire'}</button>${field.presentation === 'singleChoice' ? `<button class="text-button" data-choice-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''} aria-label="Edit choices for ${escapeAttribute(field.displayName)}">Edit choices</button>` : ''}</div></div>
-        <span class="field-kind">${escapeHtml(storageLabel(field.storageKind, field.unsupportedStorageKind))}${storageLabel(field.storageKind) === 'Reference' && !field.reference ? `<button class="text-button" data-convert-reference="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>Convert reference</button>` : ''}</span>
+        <span class="field-kind">${escapeHtml(storageLabel(field.storageKind, field.unsupportedStorageKind))}${storageLabel(field.storageKind) === 'Reference' && !field.reference ? `<button class="text-button" data-convert-reference="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''}>Convert reference</button>` : ''}${referenceLabelMarkup(entity, field, state.session.entities)}</span>
         <span class="field-presentation">${escapeHtml(presentationLabel(field.presentation))}${field.scale ? ` ${escapeHtml(`${field.scale.min}–${field.scale.max}`)}` : ''}${presentationToggleMarkup(entity, field)}</span>
         <span class="field-requirement"><span class="requirement-value">${field.required ? 'Required' : 'Optional'}</span><button class="text-button" data-require-field="${escapeAttribute(field.fieldId)}" data-action type="button" ${entity.retired || field.retired ? 'disabled' : ''} aria-label="Make ${escapeAttribute(field.displayName)} ${field.required ? 'optional' : 'required'}">${field.required ? 'Make optional' : 'Make required'}</button>${fieldRulesMarkup(entity, field)}</span>
       </article>`).join('')}</div>
@@ -78,6 +78,8 @@ export function renderStructure(): void {
     });
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-convert-reference]'))
     button.addEventListener('click', () => renderReferenceConversion(entity, button.dataset.convertReference!));
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-reference-label]'))
+    button.addEventListener('click', () => renderReferenceLabel(entity, button.dataset.referenceLabel!));
   requiredElement<HTMLButtonElement>('#rename-entity').addEventListener('click', () => renderRenameSchema(entity, null));
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-rename-field]'))
     button.addEventListener('click', () => renderRenameSchema(entity, button.dataset.renameField!));
@@ -177,6 +179,41 @@ export function renderNumbering(entity: EntitySnapshot, fieldId: string): void {
     } }, 'structure');
   });
   form.querySelector<HTMLInputElement>('input[name="prefix"]')?.focus();
+}
+
+/**
+ * Label by…: show a bound reference's records by another active text field of its target
+ * (ADR-0003, 2026-10-14 note, W-232). A reviewed schema.setReferenceLabel; no stored value moves.
+ */
+export function renderReferenceLabel(entity: EntitySnapshot, fieldId: string): void {
+  const field = entity.fields.find(candidate => candidate.fieldId === fieldId);
+  const reference = field?.reference;
+  if (field === undefined || !reference) return;
+  const target = state.session.entities.find(candidate => candidate.entityId === reference.targetEntityId);
+  const current = target?.fields.find(candidate => candidate.fieldId === reference.labelFieldId)?.displayName ?? reference.labelFieldId;
+  const choices = referenceLabelChoices(field, state.session.entities);
+  const targetName = target?.displayName ?? reference.targetEntityId;
+  content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><header><button id="cancel-reference-label" class="text-button" type="button" data-dismiss>Back to Structure</button><h2>Label ${escapeHtml(field.displayName)} by another field</h2><p>${escapeHtml(field.displayName)} shows each ${escapeHtml(targetName)} record by its ${escapeHtml(current)}. Choose another text field to show them by. The reference keeps pointing at the same records, and nothing stored changes. Review the proposal before applying it.</p></header>
+    <form id="reference-label-form" class="record-form"><label>Show ${escapeHtml(targetName)} records by<select name="labelFieldId" required>${choices.map(choice => `<option value="${escapeAttribute(choice.fieldId)}">${escapeHtml(choice.displayName)}</option>`).join('')}</select></label>
+    <div class="message-slot" role="alert" hidden></div><div class="form-actions"><button class="primary-button" data-action type="submit">Preview label</button></div></form></section></div>`;
+  requiredElement<HTMLButtonElement>('#cancel-reference-label').addEventListener('click', () => rerender());
+  const form = requiredElement<HTMLFormElement>('#reference-label-form');
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const labelFieldId = String(new FormData(form).get('labelFieldId') ?? '');
+    const chosen = choices.find(choice => choice.fieldId === labelFieldId);
+    if (chosen === undefined) return;
+    const id = crypto.randomUUID().replaceAll('-', '');
+    const title = `Show ${entity.displayName}.${field.displayName} by ${chosen.displayName}`;
+    void prepareApplication({ actionLabel: title, applicationName: entity.displayName, proposalPayload: {
+      proposalId: `proposal-${id}`, title,
+      mutations: [{ idempotencyKey: `reference-label-${id}`, description: title, operations: [{
+        operationId: `reference-label-${id}`, operationType: 'schema.setReferenceLabel',
+        payload: { entityId: entity.entityId, fieldId, labelFieldId, expectedDefinitionRevision: state.session.manifest?.definitionRevision ?? 0 },
+      }] }],
+    } }, 'structure');
+  });
+  form.querySelector<HTMLSelectElement>('select')?.focus();
 }
 
 /** A starting prefix from the field's name: its initials in capitals and a dash, as in W- for Work. */

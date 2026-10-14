@@ -34,7 +34,7 @@ public sealed class ReviewStorageRegressionTests
         foreach (var (id, amount, parent) in new (string, long, string?)[] { ("root", 90, null), ("child", 10, "root") })
             await service.CreateRecordAsync(new("items", id, new Dictionary<string, object?> {
                 ["title"] = id, ["flag"] = id == "child", ["other"] = true, ["amount"] = amount,
-                ["date"] = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd"), ["parent"] = parent,
+                ["date"] = DateOnly.FromDateTime(DateTime.Now).ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture), ["parent"] = parent,
             }, Context(id), parent is null ? null : new Dictionary<string, long> { ["parent"] = 1 }));
         NendoRecordFilter[][] filters = [
             [new("flag", "eq", JsonSerializer.SerializeToElement(true))],

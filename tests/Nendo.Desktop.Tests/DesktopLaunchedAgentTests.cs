@@ -337,6 +337,17 @@ public sealed class DesktopLaunchedAgentTests
         var stopped = await fixture.WaitAsync(view => !view.Working);
         Assert.AreEqual("Stopped.", stopped.Entries.Last().Text);
         Assert.AreEqual("ready", stopped.State, "Stopping a turn ended the conversation.");
+
+        // TST-08: a question open when the person stops is answered cancelled, as ACP asks, so
+        // the agent's request does not wait for ever. The turn above never had one open.
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "permission", 0);
+        await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission"));
+        await fixture.Controller.CancelLaunchedAgentTurnAsync(fixture.FileSessionId, 0);
+        var ended = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent" && entry.Text == "The person cancelled."));
+        Assert.AreEqual("Cancelled", ended.Entries.Single(entry => entry.Kind == "permission").Answer, "Stop left the open question unanswered.");
+        Assert.AreEqual("cancelled", fixture.Log().Single(entry => entry.TryGetProperty("permission", out _))
+            .GetProperty("permission").GetProperty("outcome").GetProperty("outcome").GetString(), "The agent was not told its question was cancelled.");
+        Assert.AreEqual("ready", ended.State);
     }
 
     [TestMethod]

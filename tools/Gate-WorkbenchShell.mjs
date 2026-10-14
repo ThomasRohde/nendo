@@ -1349,6 +1349,69 @@ async page => {
     assert(colours.markdown === colours.required, `UIT-12: Show as Markdown is ${colours.markdown}, its row's Make required ${colours.required}.`);
   }, 1024, 768);
 
+  // W-232: Structure offers Label by… on a bound reference, lists the target's other active text
+  // fields, and the proposal it sends is one schema.setReferenceLabel naming the chosen field.
+  await check('W-232 Label by proposes the label', 'tree', async () => {
+    const button = '[data-reference-label="field.capability.parent"]';
+    await page.click('#nav-structure');
+    await until((selector) => document.querySelector(selector) !== null, button, 'Label by… on Part of', 6000);
+    const offered = await page.evaluate((selector) => {
+      const element = document.querySelector(selector);
+      return { disabled: element.disabled, text: element.textContent, target: element.parentElement.querySelector('.reference-target')?.textContent ?? '' };
+    }, button);
+    assert(!offered.disabled && offered.text === 'Label by…', `W-232: Part of offers ${JSON.stringify(offered.text)}${offered.disabled ? ', disabled' : ''}, not Label by….`);
+    assert(offered.target === 'Capability by Name', `W-232: Part of says ${JSON.stringify(offered.target)}, not which record type and field it shows.`);
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const request = client.request.bind(client);
+      window.__sentProposals = [];
+      client.request = async (method, payload) => {
+        if (method === 'proposal.prepareChangeSet') window.__sentProposals.push(JSON.parse(JSON.stringify(payload)));
+        return request(method, payload);
+      };
+    });
+    await page.click(button);
+    await until(() => document.querySelector('#reference-label-form select') !== null, null, 'the Label by form', 6000);
+    const options = await page.evaluate(() => [...document.querySelectorAll('#reference-label-form option')].map(option => option.value));
+    assert(!options.includes('field.capability.name') && options.includes('field.capability.code') && !options.includes('field.capability.order'),
+      `W-232: Label by lists ${JSON.stringify(options)}: the current label or a field that is not text is offered, or a text field is missing.`);
+    await page.selectOption('#reference-label-form select', 'field.capability.code');
+    await page.click('#reference-label-form button[type="submit"]');
+    await until(() => document.querySelector('#accept-proposal') !== null, null, 'the label proposal', 6000);
+    const sent = await page.evaluate(() => window.__sentProposals);
+    const revision = await page.evaluate(() => import('/src/app-state.ts').then(module => module.state.session.manifest?.definitionRevision ?? null));
+    const operations = sent.flatMap(proposal => proposal.mutations.flatMap(mutation => mutation.operations));
+    assert(operations.length === 1, `W-232: Label by sent ${operations.length} operations: ${JSON.stringify(operations)}.`);
+    const [operation] = operations;
+    const expected = { entityId: 'entity.capability', fieldId: 'field.capability.parent', labelFieldId: 'field.capability.code', expectedDefinitionRevision: revision };
+    assert(operation.operationType === 'schema.setReferenceLabel' && JSON.stringify(operation.payload) === JSON.stringify(expected),
+      `W-232: Label by proposed ${operation.operationType} ${JSON.stringify(operation.payload)}, not schema.setReferenceLabel ${JSON.stringify(expected)}.`);
+  });
+
+  // W-232: Label by… is disabled, saying why, when the target has no other active text field.
+  await check('W-232 Label by disabled without another text field', 'tree', async () => {
+    const button = '[data-reference-label="field.capability.parent"]';
+    await page.click('#nav-structure');
+    await until((selector) => document.querySelector(selector) !== null, button, 'Label by… on Part of', 6000);
+    // Every text field of Capability but its label, Name, retired in the page's own state, then redrawn.
+    await page.evaluate(async () => {
+      const { state } = await import('/src/app-state.ts');
+      const { rerender } = await import('/src/shell.ts');
+      for (const field of state.session.entities.find(entity => entity.entityId === 'entity.capability').fields)
+        if (field.storageKind !== 'reference' && field.fieldId !== 'field.capability.name') field.retired = true;
+      rerender();
+    });
+    await until((selector) => document.querySelector(selector)?.disabled === true, button, 'Label by… to be disabled', 4000).catch(() => {});
+    const offered = await page.evaluate((selector) => {
+      const element = document.querySelector(selector);
+      return element === null ? null : { disabled: element.disabled, title: element.getAttribute('title') ?? '' };
+    }, button);
+    assert(offered !== null, 'W-232: Part of lost its Label by… when the other fields retired.');
+    assert(offered.disabled, 'W-232: Label by… is offered on Part of though Capability has no other active text field to show it by.');
+    assert(offered.title === 'Capability has no other active text field to show its records by.',
+      `W-232: a disabled Label by… says ${JSON.stringify(offered.title)}, not why.`);
+  });
+
   // UIT-13: the Make required form's action bar stays inside its card.
   await check('UIT-13 Make required bar inside the card', 'idea', async () => {
     await page.click('#nav-structure');

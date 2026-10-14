@@ -192,7 +192,7 @@ public sealed partial class NendoSemanticCompiler
             if (!target.Fields.Any(field => field.FieldId == grouping.Reference.LabelFieldId && !field.Retired))
                 AddError(diagnostics, "NUI239",
                     $"Label field '{grouping.Reference.LabelFieldId}' is missing or retired on '{target.EntityId}', so the columns have no headings.",
-                    node.NodeId, "groupByFieldId", "Reactivate the label field, or group the board by another field.");
+                    node.NodeId, "groupByFieldId", "Reactivate the label field, show the reference's records by another text field with schema.setReferenceLabel, or group the board by another field.");
             return;
         }
 

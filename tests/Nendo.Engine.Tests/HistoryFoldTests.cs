@@ -12,6 +12,12 @@ public sealed class HistoryFoldTests
 {
     private static readonly SqliteNendoStore.HistoryFoldPolicy Small = new(5, 1_000, 2);
 
+    /// <summary>
+    /// Carries the token a cooperative [Timeout] cancels. Without it the ten-minute bound below
+    /// could not stop the test: a run took 14:13 and passed (TST-11).
+    /// </summary>
+    public TestContext TestContext { get; set; } = null!;
+
     [TestMethod]
     [Timeout(600_000, CooperativeCancellation = true)]
     public async Task AFileWrittenPastTheRowBoundKeepsAcceptingWritesByFoldingAndStillOpens()
@@ -27,12 +33,14 @@ public sealed class HistoryFoldTests
                 Values("label", "New"))).ToList(), Context("create-all")));
         var version = 1L;
         var edits = 0;
+        var timedOut = TestContext.CancellationToken;
         async Task EditAllAsync()
         {
+            timedOut.ThrowIfCancellationRequested();
             var written = await service.ApplyRecordWritesAsync(new NendoRecordWritesRequest(
                 Enumerable.Range(0, 200).Select(index => new NendoRecordWrite(NendoRecordWriteKind.Update, "notes", $"n-{index}",
                     Values("label", $"Edit {edits}", "f1", $"{edits}", "f2", $"{edits}", "f3", $"{edits}", "f4", $"{edits}"), version)).ToList(),
-                Context($"edit-{edits}")));
+                Context($"edit-{edits}")), timedOut);
             version = written.Records[0].RecordVersion!.Value;
             edits++;
         }

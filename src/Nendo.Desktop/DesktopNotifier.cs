@@ -34,9 +34,15 @@ internal sealed class DesktopNotifier : IDisposable
     /// thread belongs to the caller: the invoked event arrives on a pool thread, and
     /// this type has no dispatcher of its own to be right about.
     /// </summary>
-    internal DesktopNotifier(Action<string> routeInvoked)
+    /// <param name="register">
+    /// False for a process that must not write the shell identity's notification registration
+    /// (<see cref="DesktopRuntimeConfiguration.WritesShellState"/>): it falls back to the tray
+    /// balloon as an unavailable notifier does.
+    /// </param>
+    internal DesktopNotifier(Action<string> routeInvoked, bool register = true)
     {
         _routeInvoked = routeInvoked;
+        if (!register) return;
         try
         {
             if (!AppNotificationManager.IsSupported()) return;

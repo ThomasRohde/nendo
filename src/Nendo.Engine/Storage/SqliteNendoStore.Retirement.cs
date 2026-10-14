@@ -86,18 +86,22 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// A bound reference shows its target by a label field, and no operation points a bound
-    /// reference at another one, so retiring that field left every target created afterwards
-    /// with no label and a board grouped by it refusing with advice nobody could follow (ESS-09).
+    /// A bound reference shows its target by a label field, so retiring that field left every
+    /// target created afterwards with no label and a board grouped by it refusing with advice
+    /// nobody could follow (ESS-09). schema.setReferenceLabel moves the reference to another label
+    /// first (W-232). A retired reference, or one on a retired record type, draws and groups
+    /// nothing and cannot be relabelled, so it does not hold its label: reactivating it later
+    /// meets a retired label as any reactivation meets what retired after it.
     /// </summary>
     private async Task RequireNotReferenceLabelAsync(EntityMapping entity, FieldMapping field,
         SqliteTransaction transaction, CancellationToken ct)
     {
         foreach (var source in await ReadEntityMappingsAsync(transaction, ct))
         foreach (var reference in source.Fields)
-            if (reference.Reference is { } bound && bound.TargetEntityId == entity.EntityId && bound.LabelFieldId == field.FieldId)
+            if (!source.Retired && !reference.Retired &&
+                reference.Reference is { } bound && bound.TargetEntityId == entity.EntityId && bound.LabelFieldId == field.FieldId)
                 throw new NendoPreconditionException("reference-label-in-use",
-                    $"{source.DisplayName}.{reference.DisplayName} shows {entity.DisplayName} by {field.DisplayName}, so {field.DisplayName} cannot be retired.");
+                    $"{source.DisplayName}.{reference.DisplayName} shows {entity.DisplayName} by {field.DisplayName}, so {field.DisplayName} cannot be retired. Show {entity.DisplayName} by another text field with schema.setReferenceLabel first.");
     }
 
     private async Task RebuildRequiredConstraintsAsync(EntityMapping entity, SqliteTransaction transaction, CancellationToken ct)

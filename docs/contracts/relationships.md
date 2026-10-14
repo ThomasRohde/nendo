@@ -11,9 +11,18 @@ assert it.
 A reference field targets exactly one stable entity ID and one text field that
 gives its readable label. Its stored value is the target record ID, never the
 label. A rename of the target type, the label field or the record label keeps
-the relationship. While a bound reference shows a target type by a field, that
-field cannot be retired (`reference-label-in-use`, ESS-09); no operation points a
-bound reference at another label yet. Duplicate target labels are allowed. Pickers use record IDs to
+the relationship. While an active bound reference on an active record type shows a
+target type by a field, that field cannot be retired (`reference-label-in-use`, ESS-09); a
+retired reference, or one on a retired record type, does not hold it (W-232). The label can change:
+`schema.setReferenceLabel` `{entityId, fieldId, labelFieldId, expectedDefinitionRevision}`
+(ADR-0003, 2026-10-14 note, W-232) points a bound, active reference at another active Text
+field of its target, the rule `schema.configureReference` applies, and every read, reference
+column, picker and board grouped by it shows the new label. No stored value or record version
+moves. It refuses an unbound reference (`reference-unbound`), a retired one (`field-retired`),
+a label that is not an active Text field of the target, an unchanged label
+(`reference-label-unchanged`) and a stale definition revision, and states host 1.51.0. To
+retire a reference's label field, change the label first, then retire the old field.
+`ReferenceLabelTests.cs` asserts it. Duplicate target labels are allowed. Pickers use record IDs to
 disambiguate them. Lookups are bounded queries. Missing or retired targets
 cannot be assigned.
 
@@ -207,7 +216,9 @@ Restoration advances the version. It does not reuse the old version. Later
 edits, invalid targets or an incompatible schema cause an explicit conflict.
 Compensation never overwrites another record.
 
-Reference assignments and label changes are reversible with retained state,
+Reference assignments and label changes are reversible with retained state (a
+`schema.setReferenceLabel`'s undo sets the previous label back while it is the latest
+definition change),
 subject to current-state checks. Retirement is also reversible, unless
 definitions that came after it prevent restoration. Adding schema stays
 explicitly irreversible, as in the current operation model. Proposal promotion

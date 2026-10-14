@@ -31,12 +31,7 @@ internal static class DesktopMcpClient
         McpClient client;
         try
         {
-            client = await McpClient.CreateAsync(transport, new McpClientOptions
-            {
-                ClientInfo = new Implementation { Name = name, Version = "1.0.0" },
-                ProtocolVersion = "2026-07-28",
-                InitializationTimeout = HandshakeBound,
-            });
+            client = await McpClient.CreateAsync(transport, Options(name));
         }
         catch (Exception error) when (error is McpException or TimeoutException)
         {
@@ -45,6 +40,16 @@ internal static class DesktopMcpClient
         if (elapsed.Elapsed > TimeSpan.FromSeconds(1)) Console.WriteLine($"HANDSHAKE {elapsed.ElapsedMilliseconds} ms; {PoolState()}");
         return client;
     }
+
+    internal static McpClientOptions Options(string name) => new()
+    {
+        ClientInfo = new Implementation { Name = name, Version = "1.0.0" },
+        ProtocolVersion = "2026-07-28",
+        InitializationTimeout = HandshakeBound,
+        // The server/discover probe had its own 5 s default and reported a slow first answer
+        // as an unsupported protocol version; infinite puts it under the bound above.
+        DiscoverProbeTimeout = Timeout.InfiniteTimeSpan,
+    };
 
     /// <summary>Connects to the endpoint a host's discovery entry names.</summary>
     internal static async Task<McpClient> ConnectFromDiscoveryAsync(string discoveryPath, string name)

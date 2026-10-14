@@ -55,6 +55,27 @@ public sealed class DesktopAgentFailureLogTests
         var discovery = Path.GetFullPath(session.CurrentHostOptions().DiscoveryRoot);
         Assert.IsFalse(discovery.StartsWith(persons, StringComparison.OrdinalIgnoreCase),
             $"The suite's agent hosts announce themselves in the person's folder: {discovery}");
+
+        // Nor their recent files (TST-16): a controller that names no history, with or without a
+        // device folder of its own, keeps it under the temporary folder.
+        var temp = Path.GetFullPath(Path.GetTempPath());
+        await using var named = new DesktopSessionController(deviceStateRoot: suites);
+        foreach (var (who, history) in new[] { ("no device folder", session.FileHistoryRoot), ("a device folder", named.FileHistoryRoot) })
+        {
+            Assert.IsFalse(Path.GetFullPath(history).StartsWith(persons, StringComparison.OrdinalIgnoreCase),
+                $"A controller built with {who} and no history writes the person's recent files: {history}");
+            StringAssert.StartsWith(Path.GetFullPath(history), temp, $"A controller built with {who} keeps its recent files outside the temporary folder.");
+        }
+
+        // Nor the ports the person's Nendo keeps for its files (TST-04): asked for, and bound.
+        Assert.AreEqual(0, session.CurrentHostOptions().PreferredPort, "A suite host asks for the person's kept agent port.");
+        await using var workspace = new DesktopTestWorkspace();
+        await using var withFile = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
+        await withFile.CreateAsync(workspace.FilePath);
+        var on = await withFile.SetAgentModeAsync("inspect");
+        var port = new Uri(on.Endpoint!).Port;
+        Assert.IsFalse(port is >= NendoLocalMcpHostOptions.StandardPort and < NendoLocalMcpHostOptions.StandardPort + 37,
+            $"A suite host listens on {port}, one of the ports the person's Nendo keeps for its files.");
     }
 
     /// <summary>The tray's one switch governs this record too, read at the moment of failure.</summary>

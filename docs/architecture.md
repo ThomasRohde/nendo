@@ -167,8 +167,9 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.50.0`, for the three history indexes a fold adds (ADR-0021, 2026-10-13 note), which a
-file never folded does not have. `1.49.0` is for a formula that calls `ToText` (ADR-0008,
+is `1.51.0`, for a reference whose label changed with `schema.setReferenceLabel` (ADR-0003,
+2026-10-14 note). `1.50.0` is for the three history indexes a fold adds (ADR-0021, 2026-10-13
+note), which a file never folded does not have. `1.49.0` is for a formula that calls `ToText` (ADR-0008,
 2026-10-13). `1.48.0` is for a
 cleared screen property (`ui.removeProperty`, ADR-0004, 2026-10-13), `1.47.0` for a create
 step's links, `IsEmpty` or a total over a calculation (ADR-0008, 2026-10-10), and `1.46.0`
@@ -291,7 +292,7 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Forty operation types are the primitive: every type that a revision can
+Forty-one operation types are the primitive: every type that a revision can
 record, including the three that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
@@ -304,9 +305,10 @@ schema.setFieldRequired     data.backfillRetiredField      ui.removeProperty
 schema.setRetired           data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata    data.setKeptInNewFiles         behaviour.removeDefinition
 schema.configureReference   identity.transition *          application.setPurpose
-schema.declareHierarchy                                    application.setLook
-schema.removeHierarchy                                     application.setNewFileLabel
-schema.setFieldUnique                                      application.buildSearchIndex
+schema.setReferenceLabel                                   application.setLook
+schema.declareHierarchy                                    application.setNewFileLabel
+schema.removeHierarchy                                     application.buildSearchIndex
+schema.setFieldUnique
 schema.setFieldSequence     extension.setPackage           extension.removeFile
 schema.setFieldPresentation extension.putFile              extension.removePackage
 schema.setKeptInNewFiles    extension.setState *
@@ -316,7 +318,7 @@ schema.removeLinkRule
 
 `*` marks an operation that only host services create: a restore from deletion
 history, an identity transition, and a custom view's kept state (`nendo.state`,
-written through the application service). The other thirty-seven are the closed union that
+written through the application service). The other thirty-eight are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
@@ -1089,7 +1091,7 @@ Do not run `Test-Production.ps1` twice. It already includes `Test-Repository.ps1
 Use `-SkipRestore` only with unchanged dependencies.
 
 **The product has no CI, by choice.** The gate above is the gate. It runs locally
-in about a minute. On a solo project with no pull requests, a hosted copy of the
+in a few minutes. On a solo project with no pull requests, a hosted copy of the
 gate gives no benefit. Run the gate before you push. Add CI for the product when
 there is a reason, for example a second contributor or a real release that is
 near.
@@ -1125,7 +1127,11 @@ and browser profile of its own under its evidence folder (`NENDO_DEVICE_STATE_RO
 which every build honours, and `WEBVIEW2_USER_DATA_FOLDER`), and checks afterwards
 that the person's theme is unchanged and that `agent-ports.json` gained no port
 for one of the lane's own files. The owner's Nendo rewrites that file on every file
-open, so the check looks for the lane's traces rather than comparing the file. They close
+open, so the check looks for the lane's traces rather than comparing the file. A host
+on a device-state root of its own and the product identity writes neither the taskbar
+Jump List nor the notification registration, which Windows files under the identity
+and which belong to the installed Nendo (`DesktopRuntimeConfiguration.WritesShellState`);
+a lane that pins an identity with `NENDO_DESKTOP_APP_ID` writes both under its own. They close
 their host through `Stop-OwnedNendo` in `tools/Lane-NativeHost.ps1`: a window that
 will not close, such as one behind a native dialog after a failure, is stopped and
 reported as a warning, so the failure that got there is still the one the lane

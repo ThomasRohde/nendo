@@ -349,7 +349,14 @@ public static class NendoFormat
     /// </summary>
     public const string RevisionIndexesMinimumHostVersion = "1.50.0";
 
-    public const string CurrentHostVersion = RevisionIndexesMinimumHostVersion;
+    /// <summary>
+    /// schema.setReferenceLabel (ADR-0003, 2026-10-14 note, W-232): an operation no older host
+    /// knows, stated by its evidence. A file that never changed a reference's label keeps the rung
+    /// it had.
+    /// </summary>
+    public const string ReferenceLabelMinimumHostVersion = "1.51.0";
+
+    public const string CurrentHostVersion = ReferenceLabelMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

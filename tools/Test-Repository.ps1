@@ -66,6 +66,12 @@ try {
             $_ -match '\.(json|js|jsx|ts|tsx|mjs|cjs|cs|csproj|props|targets|xml|yaml|yml)$'
         }
     )
+    # A tracked source file deleted and not yet staged stopped this loop with a bare "Could not
+    # find file"; it is named with its remedy instead, as the binary check names one (BL-04).
+    $deleted = @($sourceLikeFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) })
+    if ($deleted.Count -gt 0) {
+        throw "Tracked file(s) deleted from the working tree. Stage the deletion (git rm <path>) or restore the file (git restore <path>):`n$($deleted -join "`n")"
+    }
     $enterpriseToken = 'ag-grid-' + 'enterprise'
     foreach ($path in $sourceLikeFiles) {
         $fullPath = Join-Path $repoRoot $path
@@ -100,6 +106,29 @@ try {
         throw "Tracked text file(s) with CRLF or mixed line endings; the repository is eol=lf. Rewrite each to LF by replacing the bytes \r\n with \n (see AGENTS.md, Files and line endings):`n$($wrongEndings -join "`n")"
     }
     Write-Host "OK       $($eolRows.Count) tracked path(s) end their lines with LF."
+
+    # AGENTS.md says UTF-8 without a BOM, and eight template-generated files kept the
+    # EF BB BF prefix because nothing here looked for it (BL-07).
+    $textPaths = @(
+        $eolRows |
+            Where-Object { $_ -match '\sattr/text' } |
+            ForEach-Object { ($_ -split "`t", 2)[1] }
+    )
+    $withBom = [Collections.Generic.List[string]]::new()
+    $head = [byte[]]::new(3)
+    foreach ($path in $textPaths) {
+        $fullPath = Join-Path $repoRoot $path
+        if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { continue }
+        $stream = [IO.File]::OpenRead($fullPath)
+        try { $count = $stream.Read($head, 0, 3) } finally { $stream.Dispose() }
+        if ($count -eq 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF) {
+            $withBom.Add($path)
+        }
+    }
+    if ($withBom.Count -gt 0) {
+        throw "Tracked text file(s) start with a UTF-8 byte order mark; the repository is UTF-8 without one. Remove the first three bytes (EF BB BF) of each (see AGENTS.md, Files and line endings):`n$($withBom -join "`n")"
+    }
+    Write-Host "OK       $($textPaths.Count) tracked text path(s) carry no byte order mark."
 
     Write-Host '== ADR structure =='
     $adrFiles = @(
@@ -237,6 +266,21 @@ try {
         throw "These contracts call a table the last rung of the layout ladder; name its rung and the one before it instead: $($lastRung -join ', ')"
     }
     Write-Host 'OK       no contract calls a table the last rung of the layout ladder'
+
+    # BL-06: the README said a fresh clone's dotnet build succeeds without the Workbench while
+    # Nendo.LocalMcp refuses to build without its view-api.json, and six documents said the
+    # gate takes about a minute when the .NET suites alone take several.
+    $localMcpProject = Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.LocalMcp/Nendo.LocalMcp.csproj') -Raw
+    $readmeText = Get-Content -LiteralPath (Join-Path $repoRoot 'README.md') -Raw
+    if ($localMcpProject -match 'RequireViewApiReference' -and $readmeText -match '(?s)fresh\s+clone\s+succeeds') {
+        throw 'README.md says dotnet build on a fresh clone succeeds, but Nendo.LocalMcp.csproj stops the build until the Workbench is built (RequireViewApiReference).'
+    }
+    $minuteClaims = @('README.md', 'AGENTS.md', 'CONTRIBUTING.md', 'docs/architecture.md', 'docs/decisions/0018-public-website-and-deployment-lane.md', 'site/src/content/docs/getting-started.md' |
+        Where-Object { (Get-Content -LiteralPath (Join-Path $repoRoot $_) -Raw) -match '(?s)about\s+a\s+minute' })
+    if ($minuteClaims.Count -gt 0) {
+        throw "These documents say the gate or the suite runs in about a minute; it takes several: $($minuteClaims -join ', ')"
+    }
+    Write-Host 'OK       the README and the guides state what a fresh build needs and how long the gate takes'
 
     Write-Host '== Shell identity =='
     # The application names itself to Windows in C# and setup registers that name in

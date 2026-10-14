@@ -277,6 +277,7 @@ internal sealed partial class SqliteNendoStore
             "schema.setFieldPresentation" => CreateSetFieldPresentationInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.setFieldSequence" => CreateSetFieldSequenceInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.removeHierarchy" => CreateRemoveHierarchyInverse(original.Canonical, original.Evidence, idempotencyKey),
+            "schema.setReferenceLabel" => CreateSetReferenceLabelInverse(original.Canonical, original.Evidence, idempotencyKey),
             _ => throw new NendoCompensationNotSupportedException(
                 $"Compensation is not implemented for {original.Type}."),
         };

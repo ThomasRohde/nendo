@@ -17,7 +17,9 @@ public sealed class DesktopAgentSettingsTests
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
 
         Assert.IsFalse(store.LeaseExpiry);
-        Assert.IsTrue(store.FixedPort);
+        // The suite lets the system pick its ports (TST-04); without that the port is kept.
+        Assert.IsFalse(DesktopRuntimeConfiguration.ResolveAgentPortsBySystem(_ => null));
+        Assert.AreEqual(!DesktopRuntimeConfiguration.AgentPortsBySystem, store.FixedPort);
         Assert.AreEqual(NendoLocalMcpHostOptions.StandardPort, store.Port);
         Assert.IsTrue(store.Persisted);
         Assert.IsFalse(Directory.Exists(workspace.FileHistoryRoot));
@@ -42,6 +44,8 @@ public sealed class DesktopAgentSettingsTests
     public async Task AStaleWindowSavesOnlyItsChangedPreferences()
     {
         await using var workspace = new DesktopTestWorkspace();
+        // Saved as the product's defaults, which the suite's own (NENDO_AGENT_PORTS) are not.
+        new DesktopAgentSettingsStore(workspace.FileHistoryRoot).Save(false, 60, true, NendoLocalMcpHostOptions.StandardPort);
         var first = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
         var second = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
         first.Save(true, 120, true, first.Port);
@@ -126,7 +130,7 @@ public sealed class DesktopAgentSettingsTests
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
 
         Assert.IsFalse(store.LeaseExpiry);
-        Assert.IsTrue(store.FixedPort);
+        Assert.AreEqual(DesktopAgentSettingsStore.DefaultFixedPort, store.FixedPort);
         Assert.IsFalse(store.Persisted);
         Assert.IsNotNull(store.Notice);
     }
