@@ -177,6 +177,52 @@ public sealed class DesktopNotificationContentTests
     }
 
     /// <summary>
+    /// R2SP-10. A notification raised for one file, still in the centre after the window came
+    /// back from the taskbar and opened another, sent its click to the Health or Agent page of
+    /// whatever file the window held then. The click says which of the window's file sessions
+    /// raised it -- a count, not the session -- and a window past it comes forward and goes
+    /// nowhere. Another live window is asked with that count; one that has gone leaves the click
+    /// here, as before.
+    /// </summary>
+    [TestMethod]
+    public void AClickForAFileTheWindowHasSinceClosedGoesNowhere()
+    {
+        var notification = DesktopNotificationContent.ProposalWaiting("X.nendo", 1);
+        var argument = ArgumentOf(DesktopNotificationContent.ToXml(notification, 4242, generation: 3));
+        Assert.AreEqual("route=agent&window=4242&generation=3", argument, "Still no path, no file session, no proposal.");
+        Assert.AreEqual(3, DesktopNotificationContent.GenerationFrom(argument));
+        Assert.IsNull(DesktopNotificationContent.GenerationFrom("route=agent&window=4242&generation=0"));
+        Assert.IsNull(DesktopNotificationContent.GenerationFrom("route=agent&window=4242"));
+
+        var asked = new List<string>();
+        bool Answer(int window, string route, int? raisedIn, bool answered)
+        {
+            asked.Add($"{window}:{route}:{raisedIn}");
+            return answered;
+        }
+        Assert.AreEqual(DesktopNotificationContent.RouteOpen,
+            DesktopNotificationContent.RouteHere(argument, self: 4242, current: 4, (w, r, g) => Answer(w, r, g, true)),
+            "A click for the file this window held before went to the page of the file it holds now.");
+        Assert.AreEqual(DesktopNotificationContent.RouteAgent,
+            DesktopNotificationContent.RouteHere(argument, self: 4242, current: 3, (w, r, g) => Answer(w, r, g, true)));
+        Assert.IsEmpty(asked, "A window's own click is not sent back to it.");
+
+        Assert.IsNull(DesktopNotificationContent.RouteHere(argument, self: 5151, current: 3, (w, r, g) => Answer(w, r, g, true)),
+            "The window that raised it took the click.");
+        CollectionAssert.AreEqual(new[] { "4242:agent:3" }, asked, "The raising window was not told which of its files it was about.");
+        Assert.AreEqual(DesktopNotificationContent.RouteAgent,
+            DesktopNotificationContent.RouteHere(argument, self: 5151, current: 9, (w, r, g) => Answer(w, r, g, false)),
+            "A click whose window has gone lands here, as the architecture says.");
+        Assert.IsNull(DesktopNotificationContent.RouteHere("route=data", 4242, 3, (w, r, g) => Answer(w, r, g, true)));
+
+        // The same rule where another window's click arrives through the hand-off.
+        Assert.AreEqual(DesktopNotificationContent.RouteOpen, DesktopNotificationContent.ForFileSession(DesktopNotificationContent.RouteHealth, 2, 5));
+        Assert.AreEqual(DesktopNotificationContent.RouteHealth, DesktopNotificationContent.ForFileSession(DesktopNotificationContent.RouteHealth, 5, 5));
+        Assert.AreEqual(DesktopNotificationContent.RouteHealth, DesktopNotificationContent.ForFileSession(DesktopNotificationContent.RouteHealth, null, 5),
+            "A request that names no file session, the hand-off of a file, goes where it asks.");
+    }
+
+    /// <summary>
     /// W-089. Every notification carried the same picture whichever file it was about. It now
     /// shows the file's icon from this device's icon cache, a picture of the look and nothing
     /// about the file itself.

@@ -165,7 +165,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
         }
         foreach (var change in _pendingChanges) change.Apply();
         if (_pendingChanges.Count != 0)
-            Notice = "The custom view setting applies for this session, but could not be saved for the next launch.";
+            Notice = "The custom view setting applies in this window for this session, but could not be saved: other open windows and the next launch keep the previous setting.";
     }
 
     internal bool FileEnabled(string applicationId)
@@ -240,7 +240,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
                 change();
                 _pendingChanges.Add(new(change, runChoice ? _storedRunGeneration : null, fileChoice,
                     fileChoice is null ? 0 : _storedFileRevisions.GetValueOrDefault(fileChoice), _storedFileRevision));
-                Notice = "The custom view setting applies for this session, but could not be saved for the next launch.";
+                Notice = "The custom view setting applies in this window for this session, but could not be saved: other open windows and the next launch keep the previous setting.";
             }
             _lastNotifiedState = StateKey();
             changed = _changed;
@@ -277,7 +277,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            Notice = "The custom view setting applies for this session, but could not be saved for the next launch.";
+            Notice = "The custom view setting applies in this window for this session, but could not be saved: other open windows and the next launch keep the previous setting.";
         }
     }
 

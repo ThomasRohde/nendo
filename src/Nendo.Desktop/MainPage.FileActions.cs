@@ -237,7 +237,15 @@ public sealed partial class MainPage
     /// </summary>
     private async Task OpenAssessedOrReadOnlyAsync(DesktopFileOpenAssessment assessment, bool readOnly)
     {
-        try { await _session.OpenAssessedAsync(assessment.AssessmentId, readOnly, replaceCurrent: _session.HasFile); }
+        try
+        {
+            var open = () => (Task)_session.OpenAssessedAsync(assessment.AssessmentId, readOnly, replaceCurrent: _session.HasFile);
+            // A launch racing another Nendo that is opening the same file meets that open's guard
+            // before it says who it is (R2SP-01). An open from inside a window asked the owner first.
+            if (readOnly || !_openingForLaunch) await open();
+            else if (await DesktopStartupOpen.OpenOrHandOffAsync(open, assessment.FilePath, cancellationToken: _pageLifetime.Token))
+                _handedOffAtLaunch = true;
+        }
         catch (NendoWriteOwnershipException) when (!readOnly)
         {
             if (await ConfirmNativeAsync("This file is already in use", "Another Nendo session owns write access. You can inspect this file without changing it.", "Open read-only"))

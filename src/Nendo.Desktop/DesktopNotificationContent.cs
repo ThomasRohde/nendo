@@ -122,9 +122,14 @@ internal static class DesktopNotificationContent
     /// The file's icon as a picture from this device's icon cache, or null. It names the look it
     /// draws and nothing about the file: not its name, not where it is.
     /// </param>
-    internal static string ToXml(DesktopNotification notification, int? window = null, string? logo = null)
+    /// <param name="generation">
+    /// Which of the raising process's file sessions it was raised in: a count, not the session's
+    /// identity, so a click for a file that window has since closed can tell (R2SP-10).
+    /// </param>
+    internal static string ToXml(DesktopNotification notification, int? window = null, string? logo = null, int? generation = null)
     {
         var launch = window is { } processId ? $"route={notification.Route}&window={processId}" : $"route={notification.Route}";
+        if (generation is { } raisedIn) launch += $"&generation={raisedIn}";
         var builder = new StringBuilder();
         builder.Append("<toast launch=\"").Append(Escape(launch)).Append("\" activationType=\"foreground\">");
         builder.Append("<visual><binding template=\"ToastGeneric\">");
@@ -156,6 +161,43 @@ internal static class DesktopNotificationContent
                 System.Globalization.CultureInfo.InvariantCulture, out var processId) && processId > 0 ? processId : null;
         }
         return null;
+    }
+
+    /// <summary>Which file session of its process a notification was raised in, or null when the argument does not say.</summary>
+    internal static int? GenerationFrom(string? arguments)
+    {
+        if (string.IsNullOrEmpty(arguments)) return null;
+        foreach (var part in arguments.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (!part.StartsWith("generation=", StringComparison.Ordinal)) continue;
+            return int.TryParse(part["generation=".Length..], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var raisedIn) && raisedIn > 0 ? raisedIn : null;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The view a click raised in file session <paramref name="raisedIn"/> goes to in a window now
+    /// in <paramref name="current"/>. A notification raised for a file the window has since closed
+    /// brings the window forward and goes nowhere: it landed on the Health or Agent page of
+    /// whatever file the window held by then, which said nothing about the file it named (R2SP-10).
+    /// </summary>
+    internal static string ForFileSession(string route, int? raisedIn, int current) =>
+        raisedIn is { } raised && raised != current ? RouteOpen : route;
+
+    /// <summary>
+    /// Where a click on a notification lands in this process, or null when it is not one of ours
+    /// or the window that raised it took it. Another live Nendo that raised it is asked to come
+    /// forward with the file session it raised it in; only when it has gone does the click land
+    /// here, on its own view (docs/architecture.md, "Each window's notifications are its own").
+    /// </summary>
+    internal static string? RouteHere(string? arguments, int self, int current, Func<int, string, int?, bool> tryShow)
+    {
+        if (RouteFrom(arguments) is not { } route) return null;
+        var raisedIn = GenerationFrom(arguments);
+        if (WindowFrom(arguments) is { } window && window != self)
+            return tryShow(window, route, raisedIn) ? null : route;
+        return ForFileSession(route, raisedIn, current);
     }
 
     /// <summary>The view a click should land on, or null when the argument is not one of ours.</summary>

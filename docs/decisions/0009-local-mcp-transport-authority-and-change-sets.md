@@ -87,7 +87,9 @@ refusal names that file. The copy buttons register the file under a name made fr
 it: `nendo` for Nendo.nendo, `nendo-bcm` for BCM.nendo. A port that another program
 holds still falls back to a temporary one, as before. The list is device state. The
 file never carries a port, and a Fork, which is a new application, keeps a port of
-its own.
+its own. Since 2026-10-14 the port is filed under the application ID and the file's
+instance ID together, so a Duplicate or a new file of the application keeps a port of
+its own too (see History).
 
 **What it costs.** A file that opens first no longer takes 41763 from the file that
 kept it, and a client registered at 41763 keeps reaching the file that kept it.
@@ -500,3 +502,18 @@ services, at a static loopback address, with no credential.
   before this keeps working: its one entry is the file's while the instance matches,
   and moves to the new key on that file's next change. Authority unchanged; the failure
   this removes was already the safe one.
+- 2026-10-14 — amended (W-231, R2SP-03 in a broad review): the port each file keeps is
+  filed under its application ID and instance ID together, as the remembered level is, not
+  under the application ID alone. Files of one application (File → New file, a Duplicate)
+  shared one entry: the second was handed the first's port, could not bind it while the
+  first listened and fell back to a temporary one, and a port chosen for either moved the
+  other's too, so a client registered for one could reach the other. Each instance now
+  keeps its own port. A list written before this keeps one entry per application; the
+  instance it evidently belonged to takes it over, once: the one the access-level list of
+  the same era names for that application, or else the file whose name it was kept under,
+  and only when neither says, the first to ask. What it costs: when neither says, of two
+  files of one application that both had agent access on, the one that asks first keeps
+  the old port, which may not be the one the person registered; the person gives the ports
+  back in Agent → Connection. A downgrade to an earlier build looks the port up under the
+  bare application ID, finds none once the entry has moved, and gives the file a new port,
+  so a client registered at the old one has to be registered again. Authority unchanged.

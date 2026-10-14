@@ -110,18 +110,51 @@ internal interface IDesktopTaskbarButton
 /// clear the other's progress -- a file action and an agent overlap easily, and the version
 /// that just called SetBusy(false) turned the indicator off halfway through the work still in
 /// flight.
+/// <para>
+/// An agent's work shows only once it has lasted <see cref="AgentDelay"/>, the wait the status
+/// bar's pill and the busy bar already make, because a fast read must not flash an indicator.
+/// The taskbar showed every call at once, so a client polling the file every minute flashed the
+/// button's progress each time (R2SP-13).
+/// </para>
 /// </summary>
-internal sealed class DesktopTaskbarActivity(IDesktopTaskbarButton? button)
+/// <param name="schedule">
+/// Runs an action on the window's thread after a delay; a test names its own. Without one, an
+/// agent's work shows at once.
+/// </param>
+internal sealed class DesktopTaskbarActivity(IDesktopTaskbarButton? button, Action<TimeSpan, Action>? schedule = null)
 {
+    /// <summary>The renderer's own wait before it says an agent is working (<c>busyBarDelayMs</c> in shell.ts).</summary>
+    internal static readonly TimeSpan AgentDelay = TimeSpan.FromMilliseconds(700);
+
     private bool _fileAction;
     private bool _agent;
+    private bool _agentWorking;
+    private long _agentStretch;
 
     internal bool Busy => _fileAction || _agent;
 
     internal void Set(bool? fileAction = null, bool? agent = null)
     {
         if (fileAction is { } file) _fileAction = file;
-        if (agent is { } working) _agent = working;
+        if (agent is { } working)
+        {
+            if (working != _agentWorking) _agentStretch++;
+            var started = working && !_agentWorking;
+            _agentWorking = working;
+            if (!working) _agent = false;
+            else if (schedule is null) _agent = true;
+            else if (started)
+            {
+                var stretch = _agentStretch;
+                schedule(AgentDelay, () =>
+                {
+                    // Shown only if the same stretch of work is still running.
+                    if (!_agentWorking || _agentStretch != stretch || _agent) return;
+                    _agent = true;
+                    button?.SetBusy(Busy);
+                });
+            }
+        }
         button?.SetBusy(Busy);
     }
 
@@ -201,4 +234,80 @@ internal static class DesktopStartupOpen
         assessment.KnownInstanceCollision ||
         assessment.LocationWarning is not null ||
         !assessment.Inspection.CanAcquireWriteAuthority;
+
+    /// <summary>
+    /// How long a refused launch looks for the Nendo that refused it to name itself. That Nendo
+    /// writes its sidecar straight after taking the instance's guard, so this is a margin over
+    /// one flush to disk, not over an inspection.
+    /// </summary>
+    internal static readonly TimeSpan HandOffPatience = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>
+    /// Whether a refusal can be another Nendo opening this very file: its sidecar is held
+    /// (path-in-use), or its instance's guard is, which an open takes just before writing that
+    /// sidecar (instance-in-use). A folder Nendo may not write in (write-ownership-denied) or a
+    /// guard it cannot make (instance-guard-unavailable) names nobody, and is offered read-only
+    /// at once. A copy of an open file is refused on its instance with no sidecar beside it ever
+    /// appearing: it waits out <see cref="HandOffPatience"/>, since the Engine takes the guard
+    /// before the sidecar precisely so that a copy never gets one.
+    /// </summary>
+    internal static bool MayBeHandedOff(Nendo.Engine.NendoWriteOwnershipException refusal) =>
+        refusal.Code is "path-in-use" or "instance-in-use";
+
+    /// <summary>
+    /// Runs a writable open, and when another Nendo's hold on the file refuses it, hands the file
+    /// to that Nendo's window instead. True when it was handed over; a refusal nobody answered is
+    /// thrown as it came, for the caller's read-only offer.
+    /// <para>
+    /// A launch hands a file another Nendo holds to that window before any window exists, by the
+    /// write-owner sidecar that names it. A second launch while the first was still opening the
+    /// file -- a double-click repeated while nothing showed yet -- found no sidecar, which is
+    /// written only once the open has inspected the file, and then met that open's lease: it ended
+    /// beside the healthy window on a refusal, first the recovery panel, since DSH-01 the
+    /// read-only offer (R2SP-01). The owner is now looked for again, briefly, while it has not yet
+    /// said who it is; one that has, and does not answer, is not waited for, as before. A refusal
+    /// that names nobody (<see cref="MayBeHandedOff"/>) is thrown at once, and so is the refusal
+    /// when <paramref name="cancellationToken"/> ends the wait.
+    /// </para>
+    /// </summary>
+    /// <param name="ownerOf">The Nendo that holds a file, as its sidecar names it; a test names its own.</param>
+    /// <param name="show">Asks that Nendo to bring its window forward; a test names its own.</param>
+    internal static async Task<bool> OpenOrHandOffAsync(Func<Task> open, string path,
+        Func<string, int?>? ownerOf = null, Func<int, bool>? show = null, TimeSpan? patience = null,
+        TimeSpan? interval = null, CancellationToken cancellationToken = default)
+    {
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo refusal;
+        try
+        {
+            await open();
+            return false;
+        }
+        catch (Nendo.Engine.NendoWriteOwnershipException exception) when (MayBeHandedOff(exception))
+        {
+            refusal = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+        }
+        ownerOf ??= static file => DesktopWindowHandoff.OwnerOf(file);
+        show ??= static processId => DesktopWindowHandoff.TryShow(processId);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var wait = patience ?? HandOffPatience;
+        try
+        {
+            while (true)
+            {
+                if (await Task.Run(() => ownerOf(path), cancellationToken) is { } owner)
+                {
+                    if (await Task.Run(() => show(owner), cancellationToken)) return true;
+                    break;
+                }
+                if (clock.Elapsed >= wait) break;
+                await Task.Delay(interval ?? TimeSpan.FromMilliseconds(50), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The window is going: the refusal is what there is to say.
+        }
+        refusal.Throw();
+        return false;
+    }
 }

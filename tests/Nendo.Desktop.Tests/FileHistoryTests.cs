@@ -233,6 +233,53 @@ public sealed class FileHistoryTests
         finally { File.Delete(journal); }
     }
 
+    /// <summary>
+    /// R2SP-09. A file another window holds reads as unreadable whenever that window writes,
+    /// because every write leaves a journal beside it. The start screen listed it as
+    /// unavailable, with its button greyed out, and the taskbar's Recent list, which every
+    /// window shares, was published without it. One that a live Nendo holds is open there.
+    /// </summary>
+    [TestMethod]
+    public async Task AFileAnotherWindowIsWritingStaysListedAndOnTheTaskbar()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var other = FilePath(workspace, "other.nendo");
+        await using var holder = Session(workspace);
+        await holder.CreateAsync(other);
+        await holder.CloseAsync();
+        await holder.CreateAsync(workspace.FilePath);
+        // Read as another window reads it: the holder's sidecar names this process, which the
+        // real check would not hand a file to.
+        var elsewhere = new DesktopFileHistory(workspace.FileHistoryRoot,
+            path => DesktopWindowHandoff.OwnerOf(path, _ => true, self: 1) is not null);
+        var name = Path.GetFileName(workspace.FilePath);
+        // What the holder's write in progress leaves beside the file.
+        var journal = workspace.FilePath + "-journal";
+        await File.WriteAllBytesAsync(journal, []);
+        try
+        {
+            var listed = await elsewhere.ListAsync(CancellationToken.None);
+            Assert.AreEqual("available", listed.Files.Single(file => file.FileName == name).State,
+                "A file another window was writing to was listed as unavailable.");
+            var shell = await elsewhere.ListForShellAsync(DesktopJumpList.Considered, null, null, CancellationToken.None);
+            CollectionAssert.Contains(shell.Select(file => file.FileName).ToArray(), name,
+                "A file another window was writing to dropped out of the taskbar's Recent list.");
+        }
+        finally { File.Delete(journal); }
+
+        // A journal nobody holds the file behind is a file that cannot be read now, as before.
+        await holder.CloseAsync();
+        await File.WriteAllBytesAsync(journal, []);
+        try
+        {
+            var listed = await elsewhere.ListAsync(CancellationToken.None);
+            Assert.AreEqual("unavailable", listed.Files.Single(file => file.FileName == name).State);
+            var shell = await elsewhere.ListForShellAsync(DesktopJumpList.Considered, null, null, CancellationToken.None);
+            CollectionAssert.DoesNotContain(shell.Select(file => file.FileName).ToArray(), name);
+        }
+        finally { File.Delete(journal); }
+    }
+
     private static DesktopSessionController Session(DesktopTestWorkspace workspace) => new(fileHistoryRoot: workspace.FileHistoryRoot);
     private static string FilePath(DesktopTestWorkspace workspace, string name) => Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, name);
     [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]

@@ -119,6 +119,83 @@ public sealed class DesktopAgentSettingsTests
         Assert.IsFalse(File.Exists(Path.Combine(workspace.FileHistoryRoot, "agent-settings.json")));
     }
 
+    /// <summary>
+    /// R2SP-02. The settings are the device's and every file is a window of its own. Each window
+    /// read them once, so a lease expiry chosen in one never reached a listener another window
+    /// started later, nor what that window's Agent page showed.
+    /// </summary>
+    [TestMethod]
+    public async Task AChoiceSavedInOneWindowReachesTheNextListenerAnotherWindowStarts()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var root = workspace.FileHistoryRoot;
+        await using var first = new DesktopSessionController(deviceStateRoot: root);
+        await using var second = new DesktopSessionController(deviceStateRoot: root);
+        var before = await second.GetAgentStatusAsync();
+        Assert.IsFalse(before.LeaseExpiry);
+        Assert.IsNull(second.CurrentHostOptions().LeaseTtl);
+
+        await first.SetAgentSettingsAsync(leaseExpiry: true, leaseExpirySeconds: 90, fixedPort: true, port: 51234);
+
+        var options = second.CurrentHostOptions();
+        Assert.AreEqual(TimeSpan.FromSeconds(90), options.LeaseTtl, "Another window's listener started without the lease expiry just chosen.");
+        Assert.AreEqual(51234, options.PreferredPort);
+        var after = await second.GetAgentStatusAsync();
+        Assert.IsTrue(after.LeaseExpiry, "Another window's Agent page still showed Lease expiry off.");
+        Assert.AreEqual(90, after.LeaseExpirySeconds);
+        Assert.AreEqual(51234, after.PortPreference);
+    }
+
+    /// <summary>
+    /// R2SP-02, after review. A read that fails says nothing about the device's settings: the
+    /// window keeps what it last read rather than falling back to the defaults, which would turn
+    /// a chosen lease expiry off and move the port.
+    /// </summary>
+    [TestMethod]
+    public async Task ARefreshThatCannotReadKeepsTheSettingsItHad()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var root = workspace.FileHistoryRoot;
+        new DesktopAgentSettingsStore(root).Save(true, 90, true, 51000);
+        var store = new DesktopAgentSettingsStore(root);
+        var path = Path.Combine(root, "agent-settings.json");
+        File.Delete(path);
+        Directory.CreateDirectory(path); // A task-owned obstacle: the document cannot be read.
+        try
+        {
+            store.Refresh();
+            Assert.IsTrue(store.LeaseExpiry, "One failed read turned the chosen lease expiry off.");
+            Assert.AreEqual(90, store.LeaseExpirySeconds);
+            Assert.AreEqual(51000, store.Port, "One failed read moved the port back to the default.");
+        }
+        finally { Directory.Delete(path); }
+    }
+
+    /// <summary>
+    /// R2SP-02. Reading the device's settings again keeps a choice this window could not save:
+    /// it is still this session's, and the rest follows the device.
+    /// </summary>
+    [TestMethod]
+    public async Task ARefreshKeepsAnUnsavedChoiceAndFollowsTheDeviceForTheRest()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        var root = workspace.FileHistoryRoot;
+        var store = new DesktopAgentSettingsStore(root);
+        var path = Path.Combine(root, "agent-settings.json");
+        Directory.CreateDirectory(path); // A task-owned obstacle to reading/writing the document.
+        store.Save(true, 120, store.FixedPort, store.Port);
+        Assert.IsFalse(store.Persisted);
+        Directory.Delete(path);
+        new DesktopAgentSettingsStore(root).Save(false, 60, true, 51000);
+
+        store.Refresh();
+        Assert.IsTrue(store.LeaseExpiry, "The unsaved expiry choice was dropped by a refresh.");
+        Assert.AreEqual(120, store.LeaseExpirySeconds);
+        Assert.IsTrue(store.FixedPort);
+        Assert.AreEqual(51000, store.Port, "The port another window saved was not picked up.");
+        Assert.IsFalse(store.Persisted, "The notice that the choice is this session's went before it was saved.");
+    }
+
     [TestMethod]
     public async Task UnreadableSettingsFallBackToDefaultsWithANotice()
     {
@@ -220,7 +297,7 @@ public sealed class DesktopAgentSettingsTests
             "A refused expiry saved the chosen file port.");
         AssertSettingsAndListenerUnchanged(before, after);
         Assert.AreEqual(before.PortPreference,
-            new DesktopAgentPortStore(root).Peek(current.Manifest!.ApplicationId, NendoLocalMcpHostOptions.StandardPort));
+            new DesktopAgentPortStore(root).Peek(current.Manifest!.ApplicationId, current.Manifest.InstanceId, NendoLocalMcpHostOptions.StandardPort));
         CollectionAssert.AreEqual(settingsBytes, await File.ReadAllBytesAsync(Path.Combine(root, "agent-settings.json")));
         CollectionAssert.AreEqual(portsBytes, await File.ReadAllBytesAsync(Path.Combine(root, "agent-ports.json")));
     }

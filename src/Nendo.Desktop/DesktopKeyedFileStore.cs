@@ -3,7 +3,8 @@ using System.Text.Json;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// A device-state document that keeps one entry per file, keyed by application ID, and forgets
+/// A device-state document that keeps one entry per file, keyed by the file's application and
+/// instance IDs (an older document's entries by application ID alone), and forgets
 /// the entry unused for longest once it holds <paramref name="maximumFiles"/>. The agent port
 /// and the agent access level each file keeps are both one of these.
 /// <para>
@@ -22,7 +23,7 @@ internal sealed class DesktopKeyedFileStore<T>(
 
     private string StatePath => Path.Combine(root, stem + ".json");
 
-    /// <summary>The usable entries, by application ID.</summary>
+    /// <summary>The usable entries, by the key each store gives a file.</summary>
     internal Dictionary<string, T> Read()
     {
         try

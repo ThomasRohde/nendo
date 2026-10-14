@@ -35,7 +35,11 @@ public sealed record NendoAgentWork(bool Busy, string Client, string Activity);
 public sealed class NendoAgentWorkSignal
 {
     private readonly object _gate = new();
+    private readonly object _delivery = new();
     private int _running;
+    // Taken under _gate with the state it numbers; the last one delivered, under _delivery.
+    private long _sequence;
+    private long _delivered;
     private string _client = string.Empty;
     private string _activity = string.Empty;
     private Action<NendoAgentWork>? _changed;
@@ -64,40 +68,57 @@ public sealed class NendoAgentWorkSignal
     internal IDisposable Begin(string client, string activity)
     {
         NendoAgentWork announced;
+        long sequence;
         lock (_gate)
         {
             _running++;
             _client = NendoText.Bounded(client, 120);
             _activity = NendoText.Bounded(activity, 180);
             announced = new NendoAgentWork(true, _client, _activity);
+            sequence = ++_sequence;
         }
-        Announce(announced);
+        Announce(announced, sequence);
         return new Scope(this);
     }
 
     private void End()
     {
         NendoAgentWork announced;
+        long sequence;
         lock (_gate)
         {
             if (_running > 0) _running--;
             announced = new NendoAgentWork(_running > 0, _client, _activity);
+            sequence = ++_sequence;
         }
-        Announce(announced);
+        Announce(announced, sequence);
     }
 
     /// <summary>
-    /// Outside the lock, and never able to fail the request it is describing. A handler
-    /// that threw here would turn a working agent call into a refused one, which is a
+    /// Outside the state's lock, and never able to fail the request it is describing. A
+    /// handler that threw here would turn a working agent call into a refused one, which is a
     /// worse outcome than a window that missed one update.
+    /// <para>
+    /// One delivery at a time, in the order the states were taken, and a state older than one
+    /// already delivered is dropped (R2SP-12). Calls from several clients overlap on different
+    /// request threads, and nothing ordered their deliveries: one call's idle, taken just
+    /// before another call began, could arrive after that call's busy and leave the window
+    /// saying nothing was running for the whole of a long write. The handler marshals and
+    /// returns, so holding deliveries behind it costs nothing.
+    /// </para>
     /// </summary>
-    private void Announce(NendoAgentWork work)
+    internal void Announce(NendoAgentWork work, long sequence)
     {
-        Action<NendoAgentWork>? handler;
-        lock (_gate) { handler = _changed; }
-        if (handler is null) return;
-        try { handler(work); }
-        catch (Exception) { }
+        lock (_delivery)
+        {
+            if (sequence <= _delivered) return;
+            _delivered = sequence;
+            Action<NendoAgentWork>? handler;
+            lock (_gate) { handler = _changed; }
+            if (handler is null) return;
+            try { handler(work); }
+            catch (Exception) { }
+        }
     }
 
     private sealed class Scope(NendoAgentWorkSignal owner) : IDisposable

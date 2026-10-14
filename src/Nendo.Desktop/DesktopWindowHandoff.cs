@@ -87,7 +87,11 @@ internal static class DesktopWindowHandoff
     /// <summary>
     /// Asks this Nendo process to show its window, and to go to a view when one is named.
     /// </summary>
-    internal static bool TryShow(int processId, string? route = null)
+    /// <param name="generation">
+    /// Which of that process's file sessions a notification was raised in, for a click on one:
+    /// a window that has since opened another file comes forward without going to the view.
+    /// </param>
+    internal static bool TryShow(int processId, string? route = null, int? generation = null)
     {
         if (processId == Environment.ProcessId) return false;
         var target = FindShowTarget(processId);
@@ -96,7 +100,7 @@ internal static class DesktopWindowHandoff
         // may not, unless it is told it may. Without this the window would come back behind
         // whatever is in front, flashing on the taskbar instead of being there.
         AllowSetForegroundWindow(processId);
-        var payload = Encoding.Unicode.GetBytes(Request(route) + '\0');
+        var payload = Encoding.Unicode.GetBytes(Request(route, generation) + '\0');
         var buffer = Marshal.AllocHGlobal(payload.Length);
         try
         {
@@ -112,32 +116,46 @@ internal static class DesktopWindowHandoff
         }
     }
 
-    /// <summary>The request as it travels: "show", or "show:agent" to go to a view as well.</summary>
-    internal static string Request(string? route) => route is null ? ShowCommand : $"{ShowCommand}:{route}";
+    /// <summary>
+    /// The request as it travels: "show", "show:agent" to go to a view as well, or "show:agent:3"
+    /// for a notification raised in that process's third file session (R2SP-10).
+    /// </summary>
+    internal static string Request(string? route, int? generation = null) =>
+        route is null ? ShowCommand : generation is { } raisedIn ? $"{ShowCommand}:{route}:{raisedIn}" : $"{ShowCommand}:{route}";
 
     /// <summary>
     /// Reads a request out of a <c>WM_COPYDATA</c>. True when it is one of ours, with the view it
-    /// named or null for the window alone.
+    /// named or null for the window alone, and the file session a notification was raised in.
     /// </summary>
-    internal static bool TryRead(IntPtr copyData, out string? route)
+    internal static bool TryRead(IntPtr copyData, out string? route, out int? generation)
     {
         route = null;
+        generation = null;
         if (copyData == IntPtr.Zero) return false;
         var data = Marshal.PtrToStructure<COPYDATASTRUCT>(copyData);
         if (data.dwData != Signature || data.lpData == IntPtr.Zero || data.cbData is <= 0 or > 256) return false;
         var text = Marshal.PtrToStringUni(data.lpData, data.cbData / 2).TrimEnd('\0');
-        return TryParse(text, out route);
+        return TryParse(text, out route, out generation);
     }
 
-    internal static bool TryParse(string text, out string? route)
+    internal static bool TryParse(string text, out string? route, out int? generation)
     {
         route = null;
+        generation = null;
         if (text == ShowCommand) return true;
         if (!text.StartsWith(ShowCommand + ":", StringComparison.Ordinal)) return false;
+        var parts = text[(ShowCommand.Length + 1)..].Split(':');
+        if (parts.Length > 2) return false;
         // A closed set: a request can name only the views a notification can.
-        var named = text[(ShowCommand.Length + 1)..];
+        var named = parts[0];
         if (named is not (DesktopNotificationContent.RouteOpen or DesktopNotificationContent.RouteAgent or DesktopNotificationContent.RouteHealth))
             return false;
+        if (parts.Length == 2)
+        {
+            if (!int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var raisedIn)
+                || raisedIn <= 0) return false;
+            generation = raisedIn;
+        }
         route = named;
         return true;
     }

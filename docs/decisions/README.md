@@ -52,6 +52,11 @@ ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-
 ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
 ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
 
+- **ADR-0009, 2026-10-14 — each file of an application keeps its own port**: the agent
+  port a file keeps is filed under its application and instance IDs together, so a new file
+  or a Duplicate no longer shares, and moves, the original's port; an older list's one entry
+  per application goes to the instance it was kept for, or the first to ask when nothing says
+  (R2SP-03, W-231).
 - **ADR-0003, 2026-10-14 — a bound reference's label field can change**:
   `schema.setReferenceLabel` points a bound reference at another active Text field of its
   target, moving no stored value, and its undo sets the previous label back; the old field
@@ -125,7 +130,8 @@ ADRs from ADR-0018 on, whose rows in the table above say what each has delivered
   record at its version. Nothing is stored, and the vocabulary is unchanged.
 - **ADR-0009, 2026-09-28 — each file keeps its own port** (W-089): the first file keeps
   41763 and each further file the next free port, kept for its application ID on this
-  device, so several files can be registered side by side.
+  device (for its application and instance IDs since 2026-10-14), so several files can be
+  registered side by side.
 - **ADR-0004, 2026-09-28 — a file's own look** (W-089): `application.setLook` stores the
   tone and letter a file chose for the badge on its icons, in `__nendo_application_look`,
   from host 1.38.0. The defaults come from the application ID and the file's name, and a

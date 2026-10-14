@@ -172,9 +172,13 @@ public sealed partial class MainPage : Page
         await view.EnsureCoreWebView2Async(environment);
     }
 
+    /// <summary>Ends when the page goes: a launch's wait for another window ends with it.</summary>
+    private readonly CancellationTokenSource _pageLifetime = new();
+
     private void Page_Unloaded(object sender, RoutedEventArgs e)
     {
         _unloaded = true;
+        _pageLifetime.Cancel();
         DetachWorkbench();
     }
 
@@ -406,6 +410,7 @@ public sealed partial class MainPage : Page
     internal async Task ShutdownAsync()
     {
         _unloaded = true;
+        _pageLifetime.Cancel();
         DetachWorkbench();
         await _session.DisposeAsync();
     }
@@ -508,9 +513,17 @@ public sealed partial class MainPage : Page
                     break;
                 default:
                     var assessment = await _session.AssessOpenAsync(path);
+                    _openingForLaunch = true;
                     if (DesktopStartupOpen.NeedsAQuestion(assessment)) await OpenNativeAssessmentAsync(assessment);
                     else await OpenAssessedOrReadOnlyAsync(assessment, readOnly: false);
                     break;
+            }
+            // Handed to the Nendo that was opening it at the same time: this window was only ever
+            // for that file, and goes (R2SP-01).
+            if (_handedOffAtLaunch)
+            {
+                App.CurrentWindow?.RequestExit();
+                return false;
             }
             return true;
         }
@@ -520,7 +533,14 @@ public sealed partial class MainPage : Page
             ShowRecovery(DesktopRecoveryPresentation.FailureMessage(exception));
             return false;
         }
+        finally { _openingForLaunch = false; }
     }
+
+    /// <summary>The open a launch asked for is under way: a refusal it hands to another window ends this one.</summary>
+    private bool _openingForLaunch;
+
+    /// <summary>The open a launch asked for was handed to the Nendo that holds the file.</summary>
+    private bool _handedOffAtLaunch;
 
     private async Task<string?> PickOpenPathAsync()
     {

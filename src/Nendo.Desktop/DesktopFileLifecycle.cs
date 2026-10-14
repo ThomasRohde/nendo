@@ -7,6 +7,10 @@ internal sealed record DesktopFileOpenAssessment(
     bool KnownInstanceCollision, string? KnownOriginalRecentId, string? KnownOriginalFileName, string? Notice)
 {
     public DesktopLocationWarning? LocationWarning { get; init; }
+
+    /// <summary>Where the assessed file is, for the host alone: never serialized, since an assessment's refusal can reach the Workbench.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string FilePath { get; init; } = string.Empty;
 }
 
 internal sealed class DesktopFileCollisionException(DesktopFileOpenAssessment assessment)
@@ -237,7 +241,7 @@ internal sealed partial class DesktopSessionController
         DesktopStartupTiming.Mark("session.history.check.end");
         var assessment = new DesktopFileOpenAssessment($"open-{Guid.NewGuid():N}", Path.GetFileName(fullPath),
             observation.Inspection, admission.Conflict is not null, admission.Conflict?.RecentId,
-            admission.Conflict?.FileName, admission.Notice) { LocationWarning = _locationPolicy.Inspect(fullPath) };
+            admission.Conflict?.FileName, admission.Notice) { LocationWarning = _locationPolicy.Inspect(fullPath), FilePath = fullPath };
         var candidate = new OpenCandidate(fullPath, observation, assessment);
         _openCandidates.Add(assessment.AssessmentId, candidate);
         return candidate;

@@ -10,6 +10,8 @@ namespace Nendo.Desktop;
 /// window over, so the caller goes ahead unguarded, which is what it did before.
 /// Approval and custom-view controls require the lock instead: they retain an unsaved
 /// session choice and report it rather than risk restoring another file's revoked choice.
+/// The view-failure and agent-failure logs require it too: a line written without it replaces
+/// the lines other windows wrote at the same moment (R2SP-06).
 /// </para>
 /// <para>
 /// A required lock waits longer. It guards a choice a person just made, and every holder

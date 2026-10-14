@@ -15,20 +15,31 @@ internal sealed class DesktopCappedJsonlLog<T>(string root, string stem, int max
 
     internal string LogPath => Path.Combine(_root, stem + ".jsonl");
 
-    /// <summary>Appends one entry, keeping the newest. Returns whether it was written.</summary>
+    /// <summary>
+    /// Appends one entry, keeping the newest. Returns whether it was written.
+    /// <para>
+    /// Under the device-state lock for this log, across every Nendo on this computer: one failure
+    /// can reach every window at once (a browser process they share exits), and each one read,
+    /// appended and moved its copy over the others', so one line survived and the losers' stages
+    /// were left behind (R2SP-06). The stage goes whatever happens, and the move waits out a reader.
+    /// The lock is required: going ahead without it after a second, as a convenience document may,
+    /// is how lines were still lost while several windows wrote at once on a busy disk. A line that
+    /// cannot have the lock within its wait is not written, and the call says so.
+    /// </para>
+    /// </summary>
     internal bool Record(T entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
         try
         {
             Directory.CreateDirectory(_root);
+            using var guard = DesktopDeviceStateLock.EnterRequired(LogPath);
             var kept = Read().TakeLast(maximumEntries - 1).ToList();
             kept.Add(entry);
             var text = new StringBuilder();
             foreach (var line in kept) text.Append(JsonSerializer.Serialize(line)).Append('\n');
-            var stage = Path.Combine(_root, $"{stem}-{Guid.NewGuid():N}.tmp");
-            File.WriteAllText(stage, text.ToString(), new UTF8Encoding(false));
-            File.Move(stage, LogPath, overwrite: true);
+            var bytes = new UTF8Encoding(false).GetBytes(text.ToString());
+            DesktopStateFile.Replace(_root, LogPath, stem, stream => stream.Write(bytes));
             return true;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
@@ -44,7 +55,11 @@ internal sealed class DesktopCappedJsonlLog<T>(string root, string stem, int max
         {
             if (!File.Exists(LogPath)) return [];
             var entries = new List<T>();
-            foreach (var line in File.ReadAllLines(LogPath))
+            // Shared for delete, as every device-state reader is, so a window reading the log never
+            // blocks another's replacement of it (R2SP-07).
+            using var stream = new FileStream(LogPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+            using var reader = new StreamReader(stream, new UTF8Encoding(false));
+            while (reader.ReadLine() is { } line)
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
                 try

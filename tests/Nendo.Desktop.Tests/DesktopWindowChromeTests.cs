@@ -97,6 +97,58 @@ public sealed class DesktopWindowChromeTests
         new DesktopTaskbarActivity(null).ButtonRecreated();
     }
 
+    /// <summary>
+    /// R2SP-13. The status bar's pill and the busy bar wait 700 ms before they say an agent is
+    /// working, because a fast read must not flash an indicator. The taskbar showed every call at
+    /// once, so a client reading the file every minute flashed the button's progress each time.
+    /// </summary>
+    [TestMethod]
+    public void AnAgentsShortReadDoesNotFlashTheTaskbar()
+    {
+        var button = new RecordingButton();
+        var timers = new List<(TimeSpan Delay, Action Run)>();
+        var activity = new DesktopTaskbarActivity(button, (delay, run) => timers.Add((delay, run)));
+
+        // A read that ends before the wait does.
+        activity.Set(agent: true);
+        activity.Set(agent: false);
+        foreach (var timer in timers) timer.Run();
+        Assert.DoesNotContain("busy:True", button.Calls, $"A short read flashed the taskbar: {string.Join(", ", button.Calls)}");
+        Assert.AreEqual(TimeSpan.FromMilliseconds(700), timers.Single().Delay, "The taskbar waits as long as the pill does.");
+
+        // Work that outlasts the wait shows, however many calls overlap within it, and goes when it ends.
+        timers.Clear();
+        button.Calls.Clear();
+        activity.Set(agent: true);
+        activity.Set(agent: true);
+        Assert.DoesNotContain("busy:True", button.Calls, "The taskbar showed the work before the wait was over.");
+        foreach (var timer in timers) timer.Run();
+        Assert.AreEqual("busy:True", button.Calls[^1], "Work that outlasted the wait never showed on the taskbar.");
+        activity.Set(agent: false);
+        Assert.AreEqual("busy:False", button.Calls[^1]);
+
+        // A file action is the person's own and shows at once.
+        button.Calls.Clear();
+        activity.Set(fileAction: true);
+        Assert.AreEqual("busy:True", button.Calls[^1]);
+    }
+
+    /// <summary>
+    /// R2SP-06, after review. A view failure's line waits for the device-wide lock every window
+    /// takes, and the failure that reaches every window at once is the one it keeps, so writing it
+    /// on the window's thread held the recovery panel back. The line is written off that thread;
+    /// only the way out waits for it.
+    /// </summary>
+    [TestMethod]
+    public void AViewFailureIsWrittenOffTheWindowsThread()
+    {
+        var method = Between(Source("MainWindow.xaml.cs"), "private void RecordViewFailure(", "private DesktopTrayMenuState DescribeTray()");
+        var run = method.IndexOf("Task.Run(", StringComparison.Ordinal);
+        var record = method.IndexOf(".Record(", StringComparison.Ordinal);
+        Assert.IsGreaterThanOrEqualTo(0, run, "The view failure's line is written on the window's thread, behind the device-wide lock.");
+        Assert.IsGreaterThan(run, record, "The view failure's line is written before it leaves the window's thread.");
+    }
+
     /// <summary>DSH-14: the sizes were handed to Windows as physical pixels, half-size at 200%.</summary>
     [TestMethod]
     public void TheWindowsSizesAreThePagesPixelsAtTheDisplaysScale()

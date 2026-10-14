@@ -19,6 +19,14 @@ internal sealed class DesktopNotifier : IDisposable
     private readonly Action<string> _routeInvoked;
     private bool _registered;
     private bool _disposed;
+    private int _generation = 1;
+    private string? _fileSession;
+
+    /// <summary>
+    /// Which file session of this window a notification is raised in, counted from one. Carried
+    /// in every notification, so a click for a file the window has since closed can tell.
+    /// </summary>
+    internal int Generation => Volatile.Read(ref _generation);
 
     /// <summary>Whether Windows accepted the registration. False means fall back to the tray balloon.</summary>
     internal bool IsAvailable => _registered;
@@ -64,7 +72,7 @@ internal sealed class DesktopNotifier : IDisposable
         if (!_registered) return;
         try
         {
-            var payload = new AppNotification(DesktopNotificationContent.ToXml(notification, Environment.ProcessId, Logo))
+            var payload = new AppNotification(DesktopNotificationContent.ToXml(notification, Environment.ProcessId, Logo, Generation))
             {
                 Tag = notification.Tag,
                 Group = DesktopNotificationContent.Group,
@@ -89,19 +97,27 @@ internal sealed class DesktopNotifier : IDisposable
         catch (Exception) { }
     }
 
+    /// <summary>
+    /// The window holds another file now: what it posted for the one before goes (R2SP-10). A
+    /// notification that stayed in the centre, because the window came back from the taskbar
+    /// rather than the tray, landed on the new file's page when it was clicked.
+    /// </summary>
+    internal void FileSessionChanged(string? fileSession)
+    {
+        if (string.Equals(_fileSession, fileSession, StringComparison.Ordinal)) return;
+        _fileSession = fileSession;
+        Interlocked.Increment(ref _generation);
+        ClearAll();
+    }
+
     private void OnNotificationInvoked(AppNotificationManager sender, AppNotificationActivatedEventArgs args)
     {
-        var route = DesktopNotificationContent.RouteFrom(args.Argument);
-        if (route is null) return;
         // With several files open, Windows hands the click to whichever Nendo registered the
         // activation, which need not be the one whose file the notification was about. That
         // one is asked to come forward instead; only when it has gone does the click land here.
-        if (DesktopNotificationContent.WindowFrom(args.Argument) is { } window
-            && window != Environment.ProcessId
-            && DesktopWindowHandoff.TryShow(window, route))
-        {
-            return;
-        }
+        var route = DesktopNotificationContent.RouteHere(args.Argument, Environment.ProcessId, Generation,
+            static (window, view, raisedIn) => DesktopWindowHandoff.TryShow(window, view, raisedIn));
+        if (route is null) return;
         try { _routeInvoked(route); }
         catch (Exception) { }
     }

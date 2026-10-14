@@ -25,8 +25,23 @@ internal sealed record DesktopFileAdmission(DesktopFileConflict? Conflict, strin
 /// Every entry is revalidated against its actual file before use; this store
 /// cannot grant coordinator authority or silently assign new application IDs.
 /// </summary>
-internal sealed class DesktopFileHistory(string root)
+/// <param name="heldElsewhere">
+/// Whether another Nendo holds a file for editing now; a test names its own. By default, its
+/// write-owner sidecar names a live Nendo that is not this one.
+/// </param>
+internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldElsewhere = null)
 {
+    /// <summary>
+    /// A file another window holds reads as unreadable whenever that window writes: every write
+    /// leaves a journal beside it until it commits. It was listed as unavailable, the button
+    /// greyed out, and left off the taskbar's Recent list that every window shares (R2SP-09).
+    /// An unreadable file that a live Nendo holds is in use there, and opening it hands it over.
+    /// </summary>
+    private readonly Func<string, bool> _heldElsewhere = heldElsewhere ?? (path => DesktopWindowHandoff.OwnerOf(path) is not null);
+
+    private bool InUseElsewhere(NendoFileIdentity? identity, string path) =>
+        identity is null && File.Exists(path) && _heldElsewhere(path);
+
     private const int MaximumEntries = 32;
     private const long MaximumBytes = 64 * 1024;
     private const string Unavailable = "Recent-file history is unavailable. Recovery remains available; detection of older local copies may be incomplete.";
@@ -96,7 +111,7 @@ internal sealed class DesktopFileHistory(string root)
             // Who the file says it is, not a full inspection: the list asks whether the file is
             // still there and still the same one, and opening it inspects it in full.
             var identity = await NendoWriteCoordinator.IdentifyAsync(entry.Path, cancellationToken);
-            var state = Matches(entry, identity) ? "available" : !File.Exists(entry.Path)
+            var state = Matches(entry, identity) || InUseElsewhere(identity, entry.Path) ? "available" : !File.Exists(entry.Path)
                 ? "missing" : identity is not null ? "changed" : "unavailable";
             result.Add(new(entry.Id, Path.GetFileName(entry.Path), state, entry.LastOpened));
         }
@@ -131,7 +146,8 @@ internal sealed class DesktopFileHistory(string root)
             if (result.Count >= wanted) break;
             var isOpenFile = openObservation is not null && string.Equals(entry.Path, openPath, StringComparison.OrdinalIgnoreCase) &&
                 Matches(entry, openObservation);
-            if (!isOpenFile && !Matches(entry, await NendoWriteCoordinator.IdentifyAsync(entry.Path, cancellationToken))) continue;
+            if (!isOpenFile && await NendoWriteCoordinator.IdentifyAsync(entry.Path, cancellationToken) is var identity &&
+                !Matches(entry, identity) && !InUseElsewhere(identity, entry.Path)) continue;
             result.Add(new(entry.Path, Path.GetFileName(entry.Path), entry.LastOpened));
         }
         return result.AsReadOnly();
@@ -211,7 +227,8 @@ internal sealed class DesktopFileHistory(string root)
                 stream.Flush(flushToDisk: true);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            File.Move(stage, StatePath, overwrite: true);
+            // Another window reading the list holds it open for the moment of its read (R2SP-07).
+            DesktopStateFile.MoveOver(stage, StatePath);
             stage = null;
             return true;
         }
@@ -241,7 +258,7 @@ internal sealed class DesktopFileHistory(string root)
         try
         {
             if (!File.Exists(StatePath)) return new Dictionary<string, string>(StringComparer.Ordinal);
-            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
             if (stream.Length > MaximumBytes) return new Dictionary<string, string>(StringComparer.Ordinal);
             document = JsonSerializer.Deserialize<HistoryDocument>(stream);
         }
@@ -260,7 +277,7 @@ internal sealed class DesktopFileHistory(string root)
         try
         {
             if (!File.Exists(StatePath)) return new(new(1, []), true, null);
-            await using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            await using var stream = new FileStream(StatePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
             if (stream.Length > MaximumBytes) return new(new(1, []), false, Unavailable);
             var document = await JsonSerializer.DeserializeAsync<HistoryDocument>(stream, cancellationToken: cancellationToken);
             if (document is null || document.Version != 1 || document.Entries is null || document.Entries.Count > MaximumEntries ||

@@ -89,7 +89,7 @@ internal sealed class DesktopTrayIcon : IDisposable
 
     private readonly Action<DesktopTrayCommand> _invoke;
     private readonly Action? _taskbarRecreated;
-    private readonly Action<string?>? _showRequested;
+    private readonly Action<string?, int?>? _showRequested;
     private readonly Action? _sessionEnding;
     private readonly Func<DesktopTrayMenuState> _describe;
     private readonly WndProcDelegate _wndProc;
@@ -126,7 +126,7 @@ internal sealed class DesktopTrayIcon : IDisposable
     /// showing. Raised on the message-pumping thread; Windows ends the process soon after.
     /// </param>
     internal DesktopTrayIcon(Func<DesktopTrayMenuState> describe, Action<DesktopTrayCommand> invoke,
-        Action? taskbarRecreated = null, Action<string?>? showRequested = null, Action? sessionEnding = null)
+        Action? taskbarRecreated = null, Action<string?, int?>? showRequested = null, Action? sessionEnding = null)
     {
         _describe = describe;
         _invoke = invoke;
@@ -261,8 +261,8 @@ internal sealed class DesktopTrayIcon : IDisposable
             // Another Nendo was asked for a file this window has open, or a notification this
             // process raised was clicked in that one. Answered 1 only once the window has been
             // asked to come forward, so the sender knows whether to go on opening it itself.
-            if (_showRequested is null || !DesktopWindowHandoff.TryRead(lParam, out var route)) return IntPtr.Zero;
-            try { _showRequested(route); }
+            if (_showRequested is null || !DesktopWindowHandoff.TryRead(lParam, out var route, out var generation)) return IntPtr.Zero;
+            try { _showRequested(route, generation); }
             catch (Exception) { return IntPtr.Zero; }
             return 1;
         }

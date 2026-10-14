@@ -58,7 +58,23 @@ async function openFiles($: $, workspace: string): Promise<string[]> {
     .sort((a, b) => (a === PLANNER ? -1 : b === PLANNER ? 1 : a.localeCompare(b)))
 }
 
-async function plannerEndpoint($: $): Promise<string | null> {
+// The process that holds the workspace's Planner.nendo, as the write-owner sidecar beside it names
+// it. The sidecar goes when that process lets go of the file, so a process named here is alive and
+// holds this planner, not another file of the same name elsewhere (R2SP-14).
+async function plannerOwner($: $, workspace: string): Promise<number | null> {
+  const text = await $.fs.read(`${workspace}/${PLANNER}.write-owner`).catch(() => null)
+  if (typeof text !== 'string') return null
+  try {
+    const id = JSON.parse(text)?.processId
+    return Number.isInteger(id) && id > 0 ? id : null
+  } catch {
+    return null
+  }
+}
+
+// The discovery entry of that process. Picked by display name, the newest entry for any file named
+// Planner.nendo won, a crashed run's included, whose endpoint answers nothing (R2SP-14).
+async function plannerEndpoint($: $, owner: number): Promise<string | null> {
   const local = await $.env.get('LOCALAPPDATA')
   if (!local) return null
   const folder = `${local}/Nendo/Mcp/active`
@@ -67,26 +83,39 @@ async function plannerEndpoint($: $): Promise<string | null> {
   for (const entry of entries) {
     if (!entry.name.endsWith('.json')) continue
     const found = await $.fs.read(`${folder}/${entry.name}`).then(t => JSON.parse(t as string)).catch(() => null)
-    if (found?.displayName !== PLANNER || typeof found.endpoint !== 'string') continue
+    if (found?.processId !== owner || typeof found.endpoint !== 'string') continue
     if (!best || found.createdAt > best.createdAt) best = found
   }
   return best?.endpoint ?? null
+}
+
+// A cursor holds the file's change sequence, so a commit between two page reads refuses the next
+// one: "Restart from the first page." The whole read starts again once (R2SP-14).
+async function readRecords($: $, endpoint: string): Promise<any[]> {
+  for (let attempt = 0; ; attempt++) {
+    const records: any[] = []
+    let cursor: string | null = null
+    try {
+      do {
+        const uri = 'nendo://application/entity/nd.work/records?'
+          + (cursor ? `cursor=${encodeURIComponent(cursor)}&` : '') + 'limit=100'
+        const result = await rpc($, endpoint, 'resources/read', { uri })
+        const page = JSON.parse(result.contents[0].text)
+        records.push(...page.items)
+        cursor = page.nextCursor ?? null
+      } while (cursor)
+      return records
+    } catch (error) {
+      if (attempt > 0 || !/first page/i.test(String((error as Error)?.message ?? error))) throw error
+    }
+  }
 }
 
 async function readPlanner($: $, endpoint: string): Promise<Planner> {
   const lease = await rpc($, endpoint, 'tools/call', { name: 'nendo.lease.status', arguments: {} })
   const holder = lease.structuredContent?.hasLease ? lease.structuredContent.clientDisplayName ?? 'someone' : null
 
-  const records: any[] = []
-  let cursor: string | null = null
-  do {
-    const uri = 'nendo://application/entity/nd.work/records?'
-      + (cursor ? `cursor=${encodeURIComponent(cursor)}&` : '') + 'limit=100'
-    const result = await rpc($, endpoint, 'resources/read', { uri })
-    const page = JSON.parse(result.contents[0].text)
-    records.push(...page.items)
-    cursor = page.nextCursor ?? null
-  } while (cursor)
+  const records = await readRecords($, endpoint)
 
   const open = records.filter(r => !CLOSED.has(r.values['nd.work.status']))
   const lane = (horizon: string): WorkItem[] => open
@@ -121,11 +150,13 @@ async function refresh($: $) {
   isRefreshing = true
   try {
     const root = await $.session.root()
-    const open = await openFiles($, `${root}/workspace`)
+    const workspace = `${root}/workspace`
+    const open = await openFiles($, workspace)
     let planner: Planner | null = null
     let problem: string | null = null
     if (open.includes(PLANNER)) {
-      const endpoint = await plannerEndpoint($)
+      const owner = await plannerOwner($, workspace)
+      const endpoint = owner === null ? null : await plannerEndpoint($, owner)
       if (!endpoint) problem = 'Planner is open but has no MCP endpoint'
       else planner = await readPlanner($, endpoint).catch(error => {
         problem = `Planner did not answer (${String(error?.message ?? error).slice(0, 60)})`
@@ -205,7 +236,7 @@ export const register: Register = on => {
     const rows = now.length > 0
       ? now.slice(0, SHOWN).map(w => item(w, 'Now '))
       : upNext.length > 0
-        ? [item(upNext[0], 'Next')]
+        ? [item(upNext[0]!, 'Next')]
         : [<Text key="empty" dimColor>Now and Next are empty · {inbox} in the Later inbox</Text>]
 
     const more = now.length > SHOWN ? now.length - SHOWN : now.length === 0 && upNext.length > 1 ? upNext.length - 1 : 0

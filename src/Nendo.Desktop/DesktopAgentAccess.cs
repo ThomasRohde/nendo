@@ -73,7 +73,7 @@ internal sealed partial class DesktopSessionController
     /// </param>
     internal NendoLocalMcpHostOptions CurrentHostOptions(int? preferredPort = null)
     {
-        var settings = Settings();
+        var settings = FreshSettings();
         // A device-state root named by NENDO_DEVICE_STATE_ROOT is a whole profile, discovery
         // included, as MainPage composes one; a controller built without options keeps its
         // discovery entries there too, rather than in the person's own folder.
@@ -109,6 +109,17 @@ internal sealed partial class DesktopSessionController
     private DesktopAgentSettingsStore Settings() =>
         _agentSettings ??= new DesktopAgentSettingsStore(_deviceStateRoot);
 
+    /// <summary>
+    /// The settings as the device holds them now, which another window may have changed since
+    /// this one last looked (R2SP-02). Read before each listener start and each status read.
+    /// </summary>
+    private DesktopAgentSettingsStore FreshSettings()
+    {
+        var settings = Settings();
+        settings.Refresh();
+        return settings;
+    }
+
     private DesktopAgentPortStore Ports() =>
         _agentPorts ??= new DesktopAgentPortStore(_deviceStateRoot);
 
@@ -116,8 +127,9 @@ internal sealed partial class DesktopSessionController
         _agentModes ??= new DesktopAgentModeStore(_deviceStateRoot);
 
     /// <summary>
-    /// Which application the open file is, read once per file session: the port it keeps is
-    /// filed under it, so a moved or renamed file keeps its port and a Fork gets its own.
+    /// Which application the open file is, and which instance of it, read once per file session:
+    /// the port and the level it keeps are filed under both, so a moved or renamed file keeps
+    /// them and a Fork, a Duplicate or a new file of the application gets its own (R2SP-03).
     /// </summary>
     private async Task<string> AgentApplicationIdAsync(NendoApplicationService service, CancellationToken cancellationToken)
     {
@@ -195,8 +207,8 @@ internal sealed partial class DesktopSessionController
 
     /// <summary>The port this file listens on: its own kept port, or a new one each time with Fixed port off.</summary>
     private async Task<int?> FilePortAsync(NendoApplicationService service, CancellationToken cancellationToken) =>
-        Settings().FixedPort
-            ? Ports().Claim(await AgentApplicationIdAsync(service, cancellationToken), _agentFileName, Settings().Port)
+        FreshSettings().FixedPort
+            ? Ports().Claim(await AgentApplicationIdAsync(service, cancellationToken), _agentInstanceId!, _agentFileName, Settings().Port)
             : null;
 
     /// <summary>
@@ -207,7 +219,7 @@ internal sealed partial class DesktopSessionController
     private async Task<int> PortPreferenceAsync(CancellationToken cancellationToken)
     {
         if (_service is not { } service) return Settings().Port;
-        try { return Ports().Peek(await AgentApplicationIdAsync(service, cancellationToken), Settings().Port); }
+        try { return Ports().Peek(await AgentApplicationIdAsync(service, cancellationToken), _agentInstanceId!, Settings().Port, _agentFileName); }
         catch (NendoException) { return Settings().Port; }
     }
 
@@ -229,7 +241,7 @@ internal sealed partial class DesktopSessionController
             {
                 // With a file open the Port field is that file's own port. Its
                 // reservation can still be refused, before saving the validated settings.
-                if (fixedPort) Ports().Set(await AgentApplicationIdAsync(open, cancellationToken), _agentFileName, port);
+                if (fixedPort) Ports().Set(await AgentApplicationIdAsync(open, cancellationToken), _agentInstanceId!, _agentFileName, port);
                 Settings().Save(leaseExpiry, leaseExpirySeconds, fixedPort, Settings().Port);
             }
             else
@@ -474,6 +486,7 @@ internal sealed partial class DesktopSessionController
 
     private async Task<DesktopAgentStatus> ReadAgentStatusCoreAsync(CancellationToken cancellationToken)
     {
+        FreshSettings();
         if (_service is null)
         {
             return OffStatus(false, "noFile", [], Settings().Port);

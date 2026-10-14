@@ -50,6 +50,22 @@ internal sealed class DesktopAgentModeStore(string root)
         Write(modes);
     }
 
+    /// <summary>
+    /// The instance this list says keeps a level for the application: the one its older single
+    /// entry was kept for, or else the only instance with an entry of its own. Null when it says
+    /// nothing, or names several. It tells an older one-per-application port whose it was.
+    /// </summary>
+    internal string? InstanceOf(string applicationId)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId)) return null;
+        var modes = Read();
+        if (modes.TryGetValue(applicationId, out var legacy)) return legacy.Instance;
+        var prefix = applicationId + "\n";
+        var instances = modes.Where(pair => pair.Key.StartsWith(prefix, StringComparison.Ordinal))
+            .Select(pair => pair.Value.Instance).Distinct(StringComparer.Ordinal).Take(2).ToList();
+        return instances.Count == 1 ? instances[0] : null;
+    }
+
     /// <summary>One file's entry: its application and its instance, joined by a character neither identifier holds.</summary>
     private static string Key(string applicationId, string instanceId) => applicationId + "\n" + instanceId;
 

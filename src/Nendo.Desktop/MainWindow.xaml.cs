@@ -88,6 +88,7 @@ public sealed partial class MainWindow : Window
             _placementFile = openFile;
         }
         _trigger.OnFileSession(Page?.Session.CurrentFileSessionId);
+        _notifier?.FileSessionChanged(Page?.Session.CurrentFileSessionId);
         RefreshShellState();
     }
 
@@ -199,13 +200,31 @@ public sealed partial class MainWindow : Window
         // The third argument is Explorer having restarted: the tray icon puts itself
         // back, and the taskbar button needs its badge back for the same reason.
         _tray = new DesktopTrayIcon(DescribeTray, OnTrayCommand, RestoreTaskbarState,
-            route => RouteFromNotification(route ?? DesktopNotificationContent.RouteOpen), EndSession);
+            (route, generation) => RouteFromNotification(DesktopNotificationContent.ForFileSession(
+                route ?? DesktopNotificationContent.RouteOpen, generation, _notifier?.Generation ?? 0)), EndSession);
         var hwnd = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         DesktopShellIdentity.ApplyToWindow(hwnd);
         _taskbar = new DesktopTaskbarStatus(hwnd);
-        _taskbarActivity = new DesktopTaskbarActivity(_taskbar);
+        _taskbarActivity = new DesktopTaskbarActivity(_taskbar, (delay, action) =>
+        {
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = delay;
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                action();
+            };
+            timer.Start();
+        });
         _notifier = new DesktopNotifier(route => DispatcherQueue.TryEnqueue(() => RouteFromNotification(route)),
             register: DesktopRuntimeConfiguration.WritesShellState);
+        // A person looking at the window does not need a notification telling them to look at
+        // it, however the window came back: the taskbar left them in place (R2SP-10).
+        Activated += (_, args) =>
+        {
+            if (args.WindowActivationState != WindowActivationState.Deactivated) _notifier?.ClearAll();
+        };
         RefreshShellState();
         // Once at startup as well as on every change, so a file deleted since the last
         // session drops out of the menu without anybody having to open one first. Not
@@ -329,26 +348,32 @@ public sealed partial class MainWindow : Window
     /// Nothing here can throw into the failure path — the recovery panel is already on its
     /// way up, and a diagnostic that broke it would be the worse defect.
     /// </para>
+    /// <para>
+    /// Written off the window's thread: the log waits for the device-wide lock that every window
+    /// takes, and the failure that reaches every window at once is the one this keeps, so the
+    /// recovery panel waited behind the other windows' lines (R2SP-06, after review). Only the
+    /// way out waits for it, since the process ends straight after.
+    /// </para>
     /// </summary>
-    private void RecordViewFailure(string kind, int viewUpSeconds)
+    private void RecordViewFailure(string kind, int viewUpSeconds, bool waitForIt = false)
     {
         // Another window may have switched it off since this one read it (DSH-09).
         _shell.Refresh();
         if (!_shell.RecordViewFailures) return;
-        try
+        var outOfSight = IsOutOfSight;
+        var log = _viewFailures;
+        var record = Task.Run(() =>
         {
-            var (availableMb, loadPercent) = DesktopViewFailureLog.MemoryNow();
-            _viewFailures.Record(new DesktopViewFailure(
-                DateTimeOffset.UtcNow,
-                kind,
-                viewUpSeconds,
-                IsOutOfSight,
-                availableMb,
-                loadPercent));
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-        }
+            try
+            {
+                var (availableMb, loadPercent) = DesktopViewFailureLog.MemoryNow();
+                log.Record(new DesktopViewFailure(DateTimeOffset.UtcNow, kind, viewUpSeconds, outOfSight, availableMb, loadPercent));
+            }
+            catch (Exception)
+            {
+            }
+        });
+        if (waitForIt) record.Wait(TimeSpan.FromSeconds(2));
     }
 
     private DesktopTrayMenuState DescribeTray()
@@ -499,7 +524,7 @@ public sealed partial class MainWindow : Window
             // Kept in the device's failure record when the person records failures, by its kind
             // alone: its message can name a path.
             if (RootFrame.Content is MainPage page && await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync) is { } failure)
-                RecordViewFailure($"ShutdownFailed:{failure.GetType().Name}", 0);
+                RecordViewFailure($"ShutdownFailed:{failure.GetType().Name}", 0, waitForIt: true);
         }
         finally
         {

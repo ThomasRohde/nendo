@@ -488,8 +488,9 @@ or minimised:
 - the open file stopped being writable;
 - the workspace failed.
 
-The activation argument of a notification carries a view name and the number of the
-process that raised it, and nothing else (see *Several files at once*).
+The activation argument of a notification carries a view name, the number of the
+process that raised it and which of that process's file sessions raised it, a count,
+and nothing else (see *Several files at once*).
 The text names the open file, but it carries no path, no digest and no proposal
 id. Notifications **route; they do not grant**. A click on a notification
 opens the page where the person answers. No notification carries the answer,
@@ -539,7 +540,8 @@ see:
 
 - a badge when the open file is waiting on approval or recovery;
 - a lock when the file is read-only;
-- indeterminate progress while a file action runs.
+- indeterminate progress while a file action runs, or while an agent's work has lasted
+  700 ms, the wait the status bar's pill makes, so a client's quick read does not flash it.
 
 One `DesktopShellBadge` decides the state, and the notification-area tooltip reads
 the same one. Thus the two cannot disagree. When the open file changes, the host
@@ -631,7 +633,14 @@ have several open (W-089).
   place, so a second file opened exactly on top of the first. A file opened into an
   existing window leaves the window where it is. `DesktopDeviceStateLock` is the
   named mutex that stops two processes from overwriting each other's writes to a
-  device-state document they share.
+  device-state document they share, the view-failure and agent-failure logs included.
+  Readers take no lock, and `File.Move` is refused over a document a reader has open,
+  so `DesktopStateFile` replaces it with the POSIX rename Windows offers, which a reader
+  that shares delete does not block, and otherwise tries the move again for up to half a
+  second.
+  Settings that are the device's, such as the agent connection settings, are read
+  again before each listener start and each Agent page read, so a choice saved in one
+  window reaches the others.
 - **A file another window has open goes to that window.** Opening it again, by a
   double-click, the taskbar's Recent list, *Open file*, the recent list or a drop,
   used to start a second process that could only refuse it ("already open for editing
@@ -643,7 +652,14 @@ have several open (W-089).
   window is hidden. The request is sent with a three-second timeout and after
   `AllowSetForegroundWindow`. The owner shows its window exactly as the tray's
   *Open* does and answers 1. A second launch then exits without drawing anything;
-  an open from inside a window leaves that window's own file open. When nothing
+  an open from inside a window leaves that window's own file open. A second launch
+  that starts while the first is still opening the file finds no sidecar yet and is
+  refused by the first's guard, which an open takes just before writing its sidecar; it
+  then looks for the owner again, for up to 750 ms, and closes once that window answers.
+  A refusal that names nobody (a folder Nendo may not write in, a guard it cannot make)
+  goes to the read-only offer at once. The recent
+  list and the taskbar's Recent list keep a file whose sidecar names a live Nendo
+  while that Nendo is writing to it, when its journal makes it unreadable. When nothing
   answers (the owner is hung, elevated or gone), the open goes ahead as before, and
   the refusal still offers read-only, Duplicate and Fork. A request names the window
   and at most one of the views a notification can route to. It carries no file and
@@ -671,6 +687,9 @@ have several open (W-089).
   notification activation, which need not be the one whose file it was about, so a
   click carries `window=<process>`. A process that receives another's click forwards
   it with the same request, and routes it itself only when that process has gone.
+  The click also carries `generation=<n>`, which of that window's file sessions raised
+  it: a window that has since opened another file comes forward and goes to no view,
+  and it clears its notifications when its file changes or it is activated.
 
 **Agent work is now visible from every screen.** The MCP host brackets every tool
 and resource call and sends `(busy, client, what)` to the shell. The shell
