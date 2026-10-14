@@ -396,8 +396,16 @@ internal sealed partial class SqliteNendoStore
                 member = memberId is null ? null : Locate(binding.RelatedEntityId!, memberId).Field;
                 RequireCalculator(binding);
                 var selection = member is null ? "1" : $"r.{Quote(member.PhysicalColumnName)}";
-                sql = $"{subtree} SELECT {selection}, r.{Quote("__nendo_record_id")}, r.{Quote("__nendo_record_version")} " +
-                    $"FROM {Quote(related.PhysicalTableName)} r WHERE r.{Quote(pointer.PhysicalColumnName)} IN (SELECT id FROM sub UNION ALL SELECT @recordId) LIMIT @limit;";
+                // The descendants are bounded too, as the subtree form, the tree read and
+                // descendantOf bound them (ADR-0019 point 7): the limit counts only the related
+                // rows, so a subtree of 20,000 records with three links was answered while every
+                // other read of it was refused (R2AAV-06). The count joins the same walk, one
+                // statement and one materialised subtree, and comes back on every row; with no
+                // related row, or past the bound, it comes back alone on a row with no record.
+                sql = $"{subtree}, bound(n) AS (SELECT COUNT(*) FROM (SELECT 1 FROM sub LIMIT @descendants)) " +
+                    $"SELECT {selection}, r.{Quote("__nendo_record_id")}, r.{Quote("__nendo_record_version")}, bound.n " +
+                    $"FROM bound LEFT JOIN {Quote(related.PhysicalTableName)} r ON bound.n <= @maximumDescendants " +
+                    $"AND r.{Quote(pointer.PhysicalColumnName)} IN (SELECT id FROM sub UNION ALL SELECT @recordId) LIMIT @limit;";
             }
             budget.SpendScan();
             // A calculated member is worked out once per record, so each one is charged
@@ -410,9 +418,15 @@ internal sealed partial class SqliteNendoStore
             await using var command = store.Command(sql, transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             command.Parameters.AddWithValue("@limit", (long)bound + 1);
+            var descendantBound = binding.Kind == NendoBindingKind.SubtreeAggregate ? (int?)null : NendoHierarchyLimits.MaximumDescendants;
+            if (descendantBound is { } maximum)
+            {
+                command.Parameters.AddWithValue("@descendants", (long)maximum + 1);
+                command.Parameters.AddWithValue("@maximumDescendants", (long)maximum);
+            }
             return await FoldAsync(command, binding, member, bound, chargePerRow: calculated,
                 $"More than {bound} records contribute to this calculation across the hierarchy, so no total is shown rather than an incomplete one.",
-                budget, cancellationToken, budgetBound);
+                budget, cancellationToken, budgetBound, descendantBound);
         }
 
         /// <summary>
@@ -480,7 +494,8 @@ internal sealed partial class SqliteNendoStore
             string pastLimit,
             BehaviourBudget budget,
             CancellationToken cancellationToken,
-            bool budgetBound = false)
+            bool budgetBound = false,
+            int? descendantBound = null)
         {
             var memberEntityId = binding.Kind == NendoBindingKind.SubtreeAggregate ? binding.EntityId : binding.RelatedEntityId!;
             var count = 0L;
@@ -495,6 +510,15 @@ internal sealed partial class SqliteNendoStore
             {
                 while (await rows.ReadAsync(cancellationToken))
                 {
+                    // A related aggregate across a subtree carries the descendant count in its
+                    // fourth column, and a row with no record when nothing is related.
+                    if (descendantBound is { } maximum)
+                    {
+                        if (rows.GetInt64(3) > maximum)
+                            throw new NendoCalculationException(NendoCalculationCodes.LimitReached,
+                                $"More than {maximum} records sit under this record in the hierarchy, so no total is shown rather than an incomplete one.");
+                        if (rows.IsDBNull(1)) continue;
+                    }
                     rowsRead++;
                     if (rowsRead > allowance)
                         throw new NendoCalculationException(NendoCalculationCodes.LimitReached, pastLimit) { ExhaustedBudget = budgetBound };

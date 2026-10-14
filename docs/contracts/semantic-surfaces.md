@@ -1165,10 +1165,15 @@ for that relation. It reads as loading until it is read again, as every other
 window here already does. A record page chases its relations on the same bounded
 terms on which it chases its totals.
 
-Nothing here allocates the reference codes that a file's own convention may
-require. The host requires a Reference field to be non-empty. It does not fill the
-field in, enforce uniqueness or stop a change to it. So in a file whose records
-are named by hand, a person still decides which name is next.
+The relation flows above allocate no code of their own for the record they create.
+A code field the file's convention names, such as a Reference, is what its schema
+makes it ([ADR-0020](../decisions/0020-unique-and-generated-fields.md)). Declared
+unique, a duplicate is refused as `value-not-unique` on every write. Numbered too
+(`schema.setFieldSequence`), the create form says "Assigned when saved" and the host
+writes the next code inside the create when the field is left empty. A field with
+neither rule is only text: a required one must be filled, and in a file whose records
+are named by hand a person still decides which name is next
+([relationships](relationships.md#unique-fields)).
 
 ## Bounded query composition
 
@@ -1403,10 +1408,11 @@ opened from. The step is named after that record and sits in the same toolbar
 group as the surface picker and the drill pill. It is removed once it is taken.
 It is cleared with the rest of the view whenever the record context is left.
 
-Beside it, the control group of the workspace header starts with a back arrow and
-a forward arrow. They are available from every view, not only from a relation.
-They have the same style as the theme control next to them, and they are placed
-before the File menu.
+The workspace header, the address row over each tab's content, starts with a back
+arrow and a forward arrow, before the place the row names and the command box. They
+are available from every view, not only from a relation. The theme control sits at
+the end of the status line and the File menu in the title band over the navigation
+(the Mica-with-tabs shell, 2026-10-03), so neither is beside the arrows.
 
 Each arrow says where it goes, with the same eyebrow and title that the header
 shows: "Back to Use · Work — All work". If a direction leads nowhere, its arrow is

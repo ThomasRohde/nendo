@@ -1,3 +1,5 @@
+using Microsoft.Data.Sqlite;
+
 namespace Nendo.Engine.Tests;
 
 /// <summary>
@@ -174,6 +176,169 @@ public sealed class BehaviourFunctionCallTests
         params (string Alias, ValidatedExpression Target)[] calls) =>
         adapter.Validate(new BehaviourFormula("caller", source, parameters,
             calls.ToDictionary(call => call.Alias, call => call.Target, StringComparer.Ordinal), resultNullable), Budget());
+
+    // R2AAV-01. A function's declared result is its published signature, so installing a formula
+    // of another kind is refused naming the function, and so is a definition that calls one,
+    // rather than typing its callers by the formula and blaming a calculation that trusted it.
+    [TestMethod]
+    public async Task InstallingAFunctionWhoseFormulaIsNotItsDeclaredKindIsRefusedNamingTheFunction()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SizedItemsAsync(coordinator, service);
+
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var refused = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => coordinator.ApplyAsync(Mutation("label",
+            new SetBehaviourDefinitionOperation("f", new NendoFunctionDefinition("fn.label", "Label",
+                [new NendoFunctionParameter("x", "X", NendoBehaviourScalar.Integer, false)], NendoBehaviourScalar.Integer, false, "Concat('n', 'o')"), revision),
+            new SetBehaviourDefinitionOperation("c", SizeCalculation("calc.t", "t", NendoBehaviourScalar.Text, "label(size)", "label", "fn.label"), revision))),
+            "A function declared integer with a text formula installed, and its callers were typed by the formula.");
+        StringAssert.Contains(refused.Message, "Function 'fn.label' declares integer but its formula produces text.");
+    }
+
+    // R2AAV-01. A file a host wrote before installation checked declarations keeps working: the
+    // check runs where a definition is installed, never on the open and save every file compiles.
+    // A stored function whose formula is not its declared kind is read by its formula, as it was,
+    // and its callers and every other calculation still compute; only a new caller is refused.
+    [TestMethod]
+    public async Task AStoredFunctionOfTheWrongKindStillComputesAndADataWriteStillCommits()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (coordinator, service) = await StoredTwiceAsync(workspace, "Text");
+
+        var item = await Item(service);
+        Assert.AreEqual(8L, Calculated(item, "twice"), "The caller of a stored function of the wrong kind stopped computing.");
+        Assert.AreEqual(5L, Calculated(item, "next"), "A calculation that calls no function stopped computing.");
+        await service.SetFieldAsync(new("items", "r1", "size", item.RecordVersion, 5L, Context("edit")));
+        item = await Item(service);
+        Assert.AreEqual(10L, Calculated(item, "twice"));
+        Assert.AreEqual(6L, Calculated(item, "next"));
+
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var refused = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => coordinator.ApplyAsync(Mutation("caller",
+            new SetBehaviourDefinitionOperation("thrice", SizeCalculation("calc.thrice", "thrice", NendoBehaviourScalar.Integer, "twice(size) + size", "twice", "fn.twice"), revision))));
+        StringAssert.Contains(refused.Message, "'calc.thrice' calls 'fn.twice', which declares text but whose formula produces integer.");
+    }
+
+    // R2AAV-01, as the independent review reproduced it: a function declared decimal over a
+    // whole-number formula, called by a calculation declared integer. Reading every caller as the
+    // declaration made that calculation a decimal one, so after a reopen every calculation
+    // vanished and every data write failed with "'calc.twice' declares integer but its formula
+    // produces decimal". An integer caller reads the whole number the formula produces.
+    [TestMethod]
+    public async Task AStoredDecimalFunctionOverAWholeNumberStillServesAnIntegerCaller()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var (_, service) = await StoredTwiceAsync(workspace, "Decimal");
+
+        var item = await Item(service);
+        Assert.AreEqual(8L, Calculated(item, "twice"), "An integer caller of a decimal-declared function stopped computing after a reopen.");
+        Assert.AreEqual(5L, Calculated(item, "next"));
+        await service.SetFieldAsync(new("items", "r1", "size", item.RecordVersion, 5L, Context("edit")));
+        item = await Item(service);
+        Assert.AreEqual(10L, Calculated(item, "twice"));
+        Assert.AreEqual(6L, Calculated(item, "next"));
+    }
+
+    // R2AAV-01. A whole-number body under a decimal declaration loses nothing, and its callers
+    // compute in decimal as the signature says, so a total past Int64 is answered, not an overflow.
+    [TestMethod]
+    public void AWholeNumberBodyDeclaredDecimalIsCalledAsADecimal()
+    {
+        var definitions = Definitions(
+            new NendoFunctionDefinition("fn.same", "Same", [new NendoFunctionParameter("x", "X", NendoBehaviourScalar.Integer, false)],
+                NendoBehaviourScalar.Decimal, false, "x"),
+            Calculation("calc.d", NendoBehaviourScalar.Decimal, "same(x) * 2", "same", "fn.same"));
+        var adapter = new NendoExpressionAdapter();
+        var compiled = CompiledBehaviour.Compile(definitions, adapter, Budget());
+        var calculation = compiled.CalculationsByEntity["entity"].Single();
+
+        Assert.AreEqual(NendoBehaviourScalar.Decimal, calculation.Expression.Calls["same"].ResultType,
+            "The callers of a function declared decimal were typed by its whole-number body.");
+        var result = adapter.Calculate(calculation.Expression, Values(("x", BehaviourValue.Integer(long.MaxValue))), Budget());
+        Assert.AreEqual(NendoBehaviourScalar.Decimal, result.Type);
+        Assert.AreEqual(18446744073709551614m, result.AsDecimal());
+    }
+
+    // R2AAV-01. A caller declared integer reads the whole number the formula produces, as every
+    // caller did before declarations were checked, so a file holding one keeps compiling.
+    [TestMethod]
+    public void AnIntegerCallerReadsTheWholeNumberADecimalDeclaredFunctionProduces()
+    {
+        var definitions = Definitions(
+            new NendoFunctionDefinition("fn.same", "Same", [new NendoFunctionParameter("x", "X", NendoBehaviourScalar.Integer, false)],
+                NendoBehaviourScalar.Decimal, false, "x"),
+            Calculation("calc.i", NendoBehaviourScalar.Integer, "same(x) + 1", "same", "fn.same"));
+        var compiled = CompiledBehaviour.Compile(definitions, new NendoExpressionAdapter(), Budget());
+        Assert.AreEqual(NendoBehaviourScalar.Integer, compiled.CalculationsByEntity["entity"].Single().Expression.ResultType);
+    }
+
+    /// <summary>
+    /// Items with a whole-number size, one item of size 4, a function fn.twice declared integer
+    /// over size * 2, an integer calculation that calls it and one that calls nothing. Then, as a
+    /// host before the install check could leave it, the stored function's declared result is
+    /// rewritten to <paramref name="storedResultType"/> and the file opened again.
+    /// </summary>
+    private static async Task<(NendoWriteCoordinator Coordinator, NendoApplicationService Service)> StoredTwiceAsync(
+        EngineTestWorkspace workspace, string storedResultType)
+    {
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SizedItemsAsync(coordinator, service);
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(Mutation("twice",
+            new SetBehaviourDefinitionOperation("f", new NendoFunctionDefinition("fn.twice", "Twice",
+                [new NendoFunctionParameter("x", "X", NendoBehaviourScalar.Integer, false)], NendoBehaviourScalar.Integer, false, "x * 2"), revision),
+            new SetBehaviourDefinitionOperation("c", SizeCalculation("calc.twice", "twice", NendoBehaviourScalar.Integer, "twice(size)", "twice", "fn.twice"), revision),
+            new SetBehaviourDefinitionOperation("n", SizeCalculation("calc.next", "next", NendoBehaviourScalar.Integer, "size + 1"), revision)));
+        await coordinator.DisposeAsync();
+        workspace.Forget(coordinator);
+        await using (var connection = new SqliteConnection($"Data Source={workspace.FilePath};Pooling=False"))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE __nendo_behaviour SET body_json = json_set(body_json, '$.resultType', @type) WHERE definition_id = 'fn.twice';";
+            command.Parameters.AddWithValue("@type", storedResultType);
+            Assert.AreEqual(1, await command.ExecuteNonQueryAsync(), "The stored function was not found to rewrite.");
+        }
+        var reopened = await workspace.OpenAsync();
+        return (reopened, new NendoApplicationService(reopened));
+    }
+
+    private static async Task SizedItemsAsync(NendoWriteCoordinator coordinator, NendoApplicationService service)
+    {
+        await coordinator.ApplyAsync(Mutation("schema",
+            new CreateEntityOperation("entity", "items", "Items", "items"),
+            new AddFieldOperation("title", "items", "title", "Title", "title", NendoStorageKind.Text, true),
+            new AddFieldOperation("size", "items", "size", "Size", "size", NendoStorageKind.Integer, true)));
+        await service.CreateRecordAsync(new("items", "r1", new Dictionary<string, object?> { ["title"] = "One", ["size"] = 4L }, Context("r1")));
+    }
+
+    private static NendoCalculationDefinition SizeCalculation(
+        string id, string fieldId, NendoBehaviourScalar type, string formula, string? alias = null, string? functionId = null) =>
+        new(id, "items", fieldId, fieldId, type, false, formula,
+            [NendoBehaviourBinding.SameRecordField("size", "items", "size", NendoBehaviourScalar.Integer, false)],
+            alias is null ? null : [new NendoFunctionCallAlias(alias, functionId!)]);
+
+    private static async Task<NendoRecordSnapshot> Item(NendoApplicationService service) =>
+        (await service.GetSnapshotAsync()).Records.Single(record => record.RecordId == "r1");
+
+    private static long Calculated(NendoRecordSnapshot record, string fieldId)
+    {
+        var result = record.Calculations.SingleOrDefault(calculation => calculation.FieldId == fieldId);
+        Assert.IsNotNull(result, $"The calculated field {fieldId} is gone: the file's calculations no longer compile.");
+        Assert.AreEqual(NendoCalculationState.Value, result.State, $"{fieldId}: {result.ErrorCode} {result.ErrorMessage}");
+        return result.Value.GetInt64();
+    }
+
+    private static Dictionary<string, NendoBehaviourDefinition> Definitions(params NendoBehaviourDefinition[] definitions) =>
+        definitions.ToDictionary(definition => definition.DefinitionId, StringComparer.Ordinal);
+
+    private static NendoCalculationDefinition Calculation(string id, NendoBehaviourScalar type, string formula, string alias, string functionId) =>
+        new(id, "entity", id.Replace("calc.", "", StringComparison.Ordinal), id, type, false, formula,
+            [NendoBehaviourBinding.SameRecordField("x", "entity", "x", NendoBehaviourScalar.Integer, false)],
+            [new NendoFunctionCallAlias(alias, functionId)]);
 
     private static Dictionary<string, BehaviourValue> Values(params (string Name, BehaviourValue Value)[] values) =>
         values.ToDictionary(value => value.Name, value => value.Value, StringComparer.Ordinal);

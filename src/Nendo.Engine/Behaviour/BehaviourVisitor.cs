@@ -26,6 +26,7 @@ internal sealed class BehaviourEvaluationVisitor : EvaluationVisitor
     private readonly ExpressionEvaluationOptions _options;
     private readonly CultureInfo _culture;
     private readonly BehaviourBudget _budget;
+    private readonly IReadOnlySet<LogicalExpression> _widenedChoices;
 
     internal BehaviourEvaluationVisitor(
         ExpressionContext context,
@@ -33,12 +34,14 @@ internal sealed class BehaviourEvaluationVisitor : EvaluationVisitor
         CultureInfo cultureInfo,
         IEvaluationVisitorFactory factory,
         CancellationToken cancellationToken,
-        BehaviourBudget budget)
+        BehaviourBudget budget,
+        IReadOnlySet<LogicalExpression> widenedChoices)
         : base(context, options, cultureInfo, factory, cancellationToken)
     {
         _options = options;
         _culture = cultureInfo;
         _budget = budget;
+        _widenedChoices = widenedChoices;
     }
 
     public override object? Visit(ValueExpression expression)
@@ -99,7 +102,7 @@ internal sealed class BehaviourEvaluationVisitor : EvaluationVisitor
     {
         _budget.SpendWork();
         var condition = expression.LeftExpression.Accept(this);
-        return condition switch
+        var outcome = condition switch
         {
             true => expression.MiddleExpression.Accept(this),
             false => expression.RightExpression.Accept(this),
@@ -107,6 +110,10 @@ internal sealed class BehaviourEvaluationVisitor : EvaluationVisitor
                 "The true/false test in this calculation is empty."),
             _ => throw new NendoValidationException("A choice needs a true/false test before the question mark."),
         };
+        // A choice between a whole number and a decimal is typed decimal. Its whole-number
+        // outcome reached the operator around it as a long, which then computed in Int64 and
+        // overflowed where the decimal its type promises would answer (R2AAV-02).
+        return outcome is long whole && _widenedChoices.Contains(expression) ? (decimal)whole : outcome;
     }
 
     public override object? Visit(LogicalExpressionList list)
@@ -125,21 +132,21 @@ internal sealed class BehaviourEvaluationVisitor : EvaluationVisitor
 /// that does work without paying for it.
 /// </para>
 /// </summary>
-internal sealed class BehaviourVisitorFactory(BehaviourBudget budget) : IEvaluationVisitorFactory
+internal sealed class BehaviourVisitorFactory(BehaviourBudget budget, IReadOnlySet<LogicalExpression> widenedChoices) : IEvaluationVisitorFactory
 {
     public EvaluationVisitor CreateEvaluationVisitor(
         ExpressionContext context,
         ExpressionEvaluationOptions options,
         CultureInfo cultureInfo,
         CancellationToken cancellationToken) =>
-        new BehaviourEvaluationVisitor(context, options, cultureInfo, this, cancellationToken, budget);
+        new BehaviourEvaluationVisitor(context, options, cultureInfo, this, cancellationToken, budget, widenedChoices);
 
     public AsyncEvaluationVisitor CreateAsyncEvaluationVisitor(
         ExpressionContext context,
         ExpressionEvaluationOptions options,
         CultureInfo cultureInfo,
         CancellationToken cancellationToken) =>
-        new BehaviourAsyncEvaluationVisitor(context, options, cultureInfo, this, cancellationToken, budget);
+        new BehaviourAsyncEvaluationVisitor(context, options, cultureInfo, this, cancellationToken, budget, widenedChoices);
 }
 
 /// <summary>
@@ -153,7 +160,8 @@ internal sealed class BehaviourAsyncEvaluationVisitor(
     CultureInfo cultureInfo,
     IEvaluationVisitorFactory factory,
     CancellationToken cancellationToken,
-    BehaviourBudget budget)
+    BehaviourBudget budget,
+    IReadOnlySet<LogicalExpression> widenedChoices)
     : AsyncEvaluationVisitor(context, options, cultureInfo, factory, cancellationToken)
 {
     public override Task<object?> Visit(ValueExpression expression)
@@ -188,10 +196,11 @@ internal sealed class BehaviourAsyncEvaluationVisitor(
         return base.Visit(expression);
     }
 
-    public override Task<object?> Visit(TernaryExpression expression)
+    public override async Task<object?> Visit(TernaryExpression expression)
     {
         budget.SpendWork();
-        return base.Visit(expression);
+        var outcome = await base.Visit(expression);
+        return outcome is long whole && widenedChoices.Contains(expression) ? (decimal)whole : outcome;
     }
 
     public override Task<object?> Visit(LogicalExpressionList list)

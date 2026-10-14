@@ -8,8 +8,10 @@ an assumed one.
 ## The trust boundary, stated plainly
 
 **The boundary is this computer, at the access level the owner chose.** While a
-file is open with Agent access on, Nendo listens on `127.0.0.1:41763`. Any
-process on the machine, under any account, can connect at that level. There is
+file is open with Agent access on, Nendo listens on a loopback port of `127.0.0.1`
+that the file keeps on this computer: 41763 for the first file, the next free port
+for each further one, so every open file with Agent access on is its own endpoint.
+Any process on the machine, under any account, can connect to each at its level. There is
 no credential: exact Host and Origin matching keeps browser origins and DNS
 rebinding out, and the owner's controls are the access level (Off by default),
 lease revocation and the approval dialog for application changes.
@@ -92,7 +94,9 @@ The enforcement worth reading first:
 - `src/Nendo.LocalMcp/NendoMcpSecurityMiddleware.cs` — the loopback perimeter
 - `src/Nendo.LocalMcp/NendoAgentAuthority.cs` — access levels and leases
 - `src/Nendo.Engine/Storage/SqliteNendoStore.Operations.cs` — identifier
-  validation and quoting, the only place SQL is built
+  validation and quoting (`ValidatePhysicalIdentifier`, `Quote`). SQL is built only
+  in the store's partial files, `src/Nendo.Engine/Storage/SqliteNendoStore*.cs`,
+  and most of them compose statements with quoted identifiers, so read them all
 - `src/Nendo.Desktop/Extensions/ExtensionAssetServer.cs` and
   `ExtensionWebViewPolicy.cs` — serving views from the file, and what a view may
   do in the browser

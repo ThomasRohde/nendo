@@ -333,7 +333,9 @@ const all = await nendo.records.queryAll({ entityId: 'task' }, { max: 5000 });
   `le`, `gt`, `ge`, `contains`, `isNull` and `isNotNull`; the last two take no
   value. On a record type that declares a hierarchy, `descendantOf` on its parent
   field takes a record ID and matches everything under it. A query carries at most eight filters. A choice compares by its option
-  ID. A query cannot filter or sort by a calculated field.
+  ID. A query may sort by a calculated field and filter on one: Nendo works the
+  values out for every record the stored filters leave, at most 10,000, and refuses a
+  wider read with `calculated-query-too-wide`. A filter on a stored field narrows it.
 - `records.groupAggregate`, `records.bucketAggregate` and `records.cellAggregate`
   answer the grouped, date-bucketed and crossed totals that Nendo's own charts
   draw. `aggregate` is `count`, `sum`, `min` or `max`, and `avg` is refused. The
@@ -383,14 +385,16 @@ fields a view shows and to turn a choice's ID into its name.
 
 ## Following the file
 
-`nendo.on(name, listener)` subscribes to one of three events and returns a function
-that unsubscribes:
+`nendo.on(name, listener)` subscribes to one of five events and returns a function
+that unsubscribes. Any other name is refused with `unknown-event`:
 
 | Event | Data | When |
 | --- | --- | --- |
 | `changes` | The file's change sequence | When anything commits to the open file, from anyone: at most once every 250 ms, carrying the latest sequence |
 | `context` | The context | When the view's context changes, for example after its definition changed |
 | `theme` | `{mode, tokens}` | When the person switches between light and dark |
+| `place` | The place the view declared with `ui.setPlace`, or null | When Back or Forward moved the person to one of the view's places ([Back and Forward](#back-and-forward)) |
+| `command` | `{id, value, source}` | When the person pressed one of the controls the view declared ([Controls in Nendo's toolbar](#controls-in-nendos-toolbar)) |
 
 An event is a nudge, not data. Read again what your view shows, and collapse a
 burst into one read, as the first view does. `nendo.changes.subscribe(listener)`
@@ -678,6 +682,14 @@ const { records, revision } = await nendo.records.batch([
   leaves. A reference to anything else takes `targetVersions` as usual.
 - A batch has no move. Set a tree's parent and order fields in an `update`, or use
   `records.move`.
+- **Name a batch you may send again.** A write that ends in `disconnected` or
+  `host-timeout` may have been kept. Give the batch a `writeKey`, 1 to 64 letters, digits,
+  `-` or `_`: `nendo.records.batch(writes, { label: 'Arrange', writeKey: 'arrange-7' })`.
+  Sent again with the same writes under the same key, it answers as the first did if that
+  was kept, and writes once if it was not; the same key with other writes is refused. Nendo
+  keeps the key under your package's name, so it never answers for another package's
+  batch. A create that names no record ID gets the same ID each time it is sent under one
+  key. Without a `writeKey`, every call is a new write: read before you write again.
 
 **Undo and redo.** Keep each batch's `revision` as a step. `records.undo(revision)` takes
 the batch back as one new revision: fields put back, deleted records restored under their
@@ -784,9 +796,17 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `proposal-not-found` | Your package did not prepare that proposal in this session |
 | `state-version-conflict` | The key changed since you read it, or it exists and you expected version 0 |
 | `state-too-large` | The view has 256 keys, or the package 1 MiB of state |
-| `disconnected` | Nendo reconnected the view while the request waited. Send it again |
+| `record-referenced` | Other records still point at the record you are deleting |
+| `target-version-required` | A reference was written without its target's version in `targetVersions` |
+| `target-version-conflict` | A reference's target changed since you read it. Read it again |
+| `actor-not-allowed` | The file no longer carries your view's package |
+| `disconnected` | Nendo reconnected the view before it answered. A read can be sent again. A write may have been kept: read before writing again, or send a batch again under the same `writeKey` |
+| `host-timeout` | Nendo did not answer in time. A write may have been kept, as with `disconnected` |
+| `written-not-read` | The write was kept, but reading the record back failed. Do not write it again; read the record |
 | `not-framed` | The page was opened on its own, not in Nendo |
+| `unknown-event` | `nendo.on` was given a name that is not one of its five events |
 | `stale-cursor`, `invalid-cursor` | The file changed between pages, or the cursor belongs to another query. Read again from the first page |
+| `failed` | The answer could not be sent, or the failure had no code of its own |
 
 A read Nendo refuses keeps Nendo's own code, such as `validation`. At most eight
 requests are in flight at once; the API holds the rest back, so a view that fires a
@@ -887,9 +907,11 @@ only while that file's agent access is **Unattended**; below that it waits for y
 
 With more than one Nendo running, name the file by its application ID with
 `--application <applicationId>`. `--title` sets the proposal's title. The script
-sends each operation as its own mutation, so History shows a revision for each
-file. If the draft does not validate, the script prints why and leaves the draft
-open.
+packs the operations into mutations of up to 16 operations each, fewer when the files
+are large, and the views that show the package get a mutation of their own. Each
+mutation becomes one revision in History, so a package of many small files shows a few
+revisions rather than one for each file. If the draft does not validate, the script
+prints why and leaves the draft open.
 
 ## Show it: the view definition
 
@@ -1068,7 +1090,7 @@ Nendo does not interpret it. It is not the place for data.
 | Read and write the clipboard, and download files | Reach SQL, a file path, another file or a device setting |
 | Keep `localStorage` and IndexedDB, per package and file, on this device | Navigate Nendo away, or load Nendo inside a frame |
 | Send a link the person clicks, one that opens a new window, to their own browser | Open a window by script without the person's click |
-| Show the browser's `alert`, `confirm` and `prompt` | Choose the idempotency key or the name a write is made in |
+| Show the browser's `alert`, `confirm` and `prompt` | Choose the name a write is made in, or a key outside its package: a batch's `writeKey` is kept under the package's name |
 | Create, change and delete records and run record commands, in its package's name | Write under any other name, or without a version check |
 | Ask Nendo to open a record, a screen or Studio, show a sentence and size its panel | Accept or reject a proposal, ever |
 

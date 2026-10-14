@@ -11,7 +11,7 @@ authority above both.
 | Contract | Covers |
 | --- | --- |
 | [mcp-interface.md](mcp-interface.md) | The resources and tools that an agent sees, lease and handle authority, cursor rules |
-| [semantic-surfaces.md](semantic-surfaces.md) | How stored surface definitions compile into render plans, across contract versions 1-3 |
+| [semantic-surfaces.md](semantic-surfaces.md) | How stored surface definitions compile into render plans, in contract version 3 (versions 1 and 2 are refused as `NUI003`) |
 | [studio.md](studio.md) | The permanent host-owned database editor |
 | [scalars.md](scalars.md) | Exact values through storage, the Workbench bridge and the MCP wire |
 | [queries.md](queries.md) | Bounded record queries: sorting, predicates, cursors |

@@ -399,14 +399,13 @@ before/after placement, record-level listen notifications, a Markdown field, and
 filter a person picks on a list, board or matrix. Transient History writes and a shared
 data lease were declined against ADR-0021 and ADR-0009.
 
+An assignment bound to the wrong record no longer installs: installation validates each
+trigger with its action and refuses a step that writes a field its target record lacks as
+`action-target-mismatch`, naming the action, the step and the field
+([calculations and actions](contracts/calculations-and-actions.md#actions-and-triggers)).
+
 What remains open:
 
-- **An assignment bound to the wrong record installs cleanly.** The published
-  example warns about this mistake: a step binds the event record while it
-  writes to the referenced record. The step now fails the save, and the failure
-  names the action, step and field. A refusal at install needs the action's
-  target entity, and only the trigger knows that entity. The check is therefore
-  a validation over the pair.
 - **A sum totals a required field only.** A member with no value is an error.
   Installation refuses a `Sum` over an optional field, because it does not
   promise a total that the first empty value breaks. A `Coalesce` or a

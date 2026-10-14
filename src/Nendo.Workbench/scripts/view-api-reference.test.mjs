@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { build } from 'vite';
@@ -157,4 +158,42 @@ test('the whole view in the reference runs against the real api.js', async (t) =
   channel.port1.postMessage({ t: 'evt', n: 'changes', d: 3 });
   answer(await next('records.query'), { items: [], nextCursor: null, changeSequence: 3 });
   assert.deepEqual(errors, [], 'The example threw.');
+});
+
+// The guide an author reads restated the refusal codes and events by hand, and fell behind:
+// it told a view to send a write again after `disconnected`, which can write it twice, and it
+// listed three of the five events (W-222, DOC-01 and DOC-05).
+test('the authoring guide tabulates every refusal code and every event the reference names', () => {
+  const guide = readFileSync(new URL('../../../docs/custom-view-authoring.md', import.meta.url), 'utf8');
+  const section = (heading) => {
+    const start = guide.indexOf(`\n## ${heading}\n`);
+    assert.ok(start >= 0, `docs/custom-view-authoring.md has no section "${heading}".`);
+    const end = guide.indexOf('\n## ', start + 1);
+    return guide.slice(start, end < 0 ? undefined : end);
+  };
+  const firstCells = (text) => new Set([...text.matchAll(/^\| ([^|]+) \|/gm)]
+    .flatMap(([, cell]) => [...cell.matchAll(/`([^`]+)`/g)].map(([, name]) => name)));
+  const refusals = section('When a request is refused');
+  const refused = firstCells(refusals);
+  const untabulated = Object.keys(reference.refusals).filter((code) => code !== 'other' && !refused.has(code));
+  assert.deepEqual(untabulated, [], `The guide's refusal table has no row for ${untabulated.join(', ')}, which reference.ts documents.`);
+  const disconnectedRow = refusals.split('\n').find((line) => line.startsWith('| `disconnected` |')) ?? '';
+  assert.match(disconnectedRow, /may have been kept.*writeKey/,
+    'The guide\'s disconnected row does not say a write may have been kept and is sent again only under its writeKey.');
+  const following = section('Following the file');
+  const tabulatedEvents = firstCells(following);
+  const unlisted = reference.events.names.filter((name) => !tabulatedEvents.has(name));
+  assert.deepEqual(unlisted, [], `The guide's events table has no row for ${unlisted.join(', ')}, which nendo.on accepts.`);
+  const words = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'];
+  const count = reference.events.names.length;
+  const said = following.match(/subscribes to one of (\w+) events/)?.[1];
+  assert.ok(said === words[count] || said === String(count), `The guide says nendo.on takes one of ${said ?? 'no number of'} events; it takes ${count}.`);
+});
+
+// The filter notes said a clause could not name a calculated field while the records.query note,
+// and the Engine since F-222, allow one (W-222, DOC-06): both say what the Engine answers.
+test('the filter notes and the query method agree that a calculated field may be filtered on', () => {
+  const query = reference.methods.find((line) => line.method === 'records.query');
+  for (const [where, text] of [['records.query', query.note], ['filters.notes', reference.filters.notes.join(' ')]])
+    assert.match(text, /calculated field.*calculated-query-too-wide/s, `${where} does not say a calculated field is worked out, and refused past its bound as calculated-query-too-wide.`);
 });

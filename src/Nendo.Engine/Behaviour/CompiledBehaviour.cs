@@ -54,6 +54,14 @@ internal sealed class CompiledBehaviour
 
     internal IReadOnlyDictionary<string, ValidatedExpression> Functions { get; }
 
+    /// <summary>
+    /// Each function whose formula produces another kind than it declares, with the kind it
+    /// produces: a file a host wrote before installation checked it (R2AAV-01). It compiles, typed
+    /// by its formula as before; installation refuses it, and any definition that calls it.
+    /// </summary>
+    internal IReadOnlyDictionary<string, NendoBehaviourScalar> MismatchedFunctions { get; private init; } =
+        new Dictionary<string, NendoBehaviourScalar>(StringComparer.Ordinal);
+
     internal IReadOnlyDictionary<string, CompiledCalculation> Calculations { get; }
 
     /// <summary>
@@ -101,36 +109,58 @@ internal sealed class CompiledBehaviour
         // CatalogueSize counts functions only, so it never bounded the whole compile.
         BehaviourBudget FormulaBudget() => new(budget.Limits, budget.CancellationToken, BehaviourBudgetUse.Check);
 
+        // Each reusable function in two typings (R2AAV-01). As its formula produces it, with its
+        // own calls read the same way, is how every caller read a function before declarations
+        // were checked, and how a caller that is not itself declared decimal still reads one: an
+        // integer calculation, an action's assignment, a trigger's condition. As declared is a
+        // function declared decimal read as a decimal, with its own calls read the same way, for
+        // a calculation declared decimal, which computes in decimal from then on rather than in
+        // Int64. A caller reads the declared typing only where its formula still validates that
+        // way, so a file a host wrote before keeps compiling to the same answers, an Int64
+        // overflow apart. Nothing is refused here, on every open and save: installation refuses
+        // a function whose formula is not of its declared kind, and a definition that calls one.
         var functions = new Dictionary<string, ValidatedExpression>(StringComparer.Ordinal);
+        var declaredFunctions = new Dictionary<string, ValidatedExpression>(StringComparer.Ordinal);
+        var mismatched = new Dictionary<string, NendoBehaviourScalar>(StringComparer.Ordinal);
         foreach (var definitionId in TopologicalOrder(definitions))
         {
             if (definitions[definitionId] is not NendoFunctionDefinition function) continue;
-            functions[definitionId] = adapter.Validate(
+            ValidatedExpression Body(IReadOnlyDictionary<string, ValidatedExpression> callees) => adapter.Validate(
                 new BehaviourFormula(
                     function.DefinitionId,
                     function.Expression,
                     function.Parameters
                         .Select(parameter => new BehaviourParameter(parameter.ParameterId, parameter.ParameterType, parameter.Nullable))
                         .ToArray(),
-                    Resolve(function.CallAliases, functions, function.DefinitionId),
+                    Resolve(function.CallAliases, callees, function.DefinitionId),
                     function.ResultNullable),
                 FormulaBudget());
+            var body = Body(functions);
+            functions[definitionId] = body;
+            if (body.ResultType != function.ResultType && !Widens(function.ResultType, body.ResultType))
+                mismatched[definitionId] = body.ResultType;
+            declaredFunctions[definitionId] = function.ResultType == NendoBehaviourScalar.Decimal
+                ? AsDeclaredDecimal(ReadAsDecimal(() => Body(declaredFunctions)) ?? body)
+                : body;
         }
 
         var calculations = new Dictionary<string, CompiledCalculation>(StringComparer.Ordinal);
         foreach (var definitionId in TopologicalOrder(definitions))
         {
             if (definitions[definitionId] is not NendoCalculationDefinition calculation) continue;
-            var expression = adapter.Validate(
+            ValidatedExpression Formula(IReadOnlyDictionary<string, ValidatedExpression> callees) => adapter.Validate(
                 new BehaviourFormula(
                     calculation.DefinitionId,
                     calculation.Expression,
                     calculation.Bindings
                         .Select(binding => new BehaviourParameter(binding.BindingId, binding.ResultType, binding.Nullable))
                         .ToArray(),
-                    Resolve(calculation.CallAliases, functions, calculation.DefinitionId),
+                    Resolve(calculation.CallAliases, callees, calculation.DefinitionId),
                     calculation.ResultNullable),
                 FormulaBudget());
+            var expression = calculation.ResultType == NendoBehaviourScalar.Decimal
+                ? ReadAsDecimal(() => Formula(declaredFunctions)) ?? Formula(functions)
+                : Formula(functions);
             if (expression.ResultType != calculation.ResultType &&
                 !(calculation.ResultType == NendoBehaviourScalar.Decimal && expression.ResultType == NendoBehaviourScalar.Integer))
             {
@@ -193,8 +223,36 @@ internal sealed class CompiledBehaviour
                 group => (IReadOnlyList<CompiledCalculation>)Ordered(group).ToArray(),
                 StringComparer.Ordinal);
 
-        return new CompiledBehaviour(definitions, functions, calculations, byEntity, assignments, conditions);
+        return new CompiledBehaviour(definitions, functions, calculations, byEntity, assignments, conditions)
+        {
+            MismatchedFunctions = mismatched,
+        };
     }
+
+    /// <summary>A whole number where a decimal is declared: the one widening a declaration allows.</summary>
+    private static bool Widens(NendoBehaviourScalar declared, NendoBehaviourScalar produced) =>
+        declared == NendoBehaviourScalar.Decimal && produced == NendoBehaviourScalar.Integer;
+
+    /// <summary>
+    /// A formula read with the decimal typing of the functions it calls, or null when it does not
+    /// validate that way or produces something other than a number, so the caller falls back to
+    /// the typing every file was compiled with before (R2AAV-01).
+    /// </summary>
+    private static ValidatedExpression? ReadAsDecimal(Func<ValidatedExpression> validate)
+    {
+        try
+        {
+            var validated = validate();
+            return validated.ResultType is NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal ? validated : null;
+        }
+        catch (NendoValidationException)
+        {
+            return null;
+        }
+    }
+
+    private static ValidatedExpression AsDeclaredDecimal(ValidatedExpression expression) =>
+        expression.ResultType == NendoBehaviourScalar.Integer ? expression.Declared(NendoBehaviourScalar.Decimal) : expression;
 
     private static IReadOnlyDictionary<string, ValidatedExpression> Resolve(
         IReadOnlyList<NendoFunctionCallAlias> aliases,

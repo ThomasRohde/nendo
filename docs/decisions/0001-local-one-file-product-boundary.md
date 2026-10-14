@@ -105,8 +105,11 @@ layout or source tree of the disposable prototype.
 ### Negative
 
 - Asset fields and multi-file application bundles are excluded. A custom-view
-  package, with its code and assets, is the one executable payload that a file may
-  carry (ADR-0013).
+  package, with its code and assets, is the one payload that Nendo runs, and only in
+  its view (ADR-0013). A skill package may also carry scripts, which the connected
+  agent's client runs on its own machine under its own approval and Nendo never runs
+  ([ADR-0029](0029-a-skill-may-carry-scripts-its-client-runs.md)); a package's help
+  pages are text (ADR-0027).
 - A received file's view code runs when its view is shown. Nendo does not sandbox
   hostile files ([ADR-0012](0012-safe-mode-compatibility-and-migration.md)).
 - Open-file copies need an explicit host operation. An Explorer copy is not
@@ -135,3 +138,7 @@ single-user MVP is proved.
 - 2026-09-25 — a custom view's code may travel in the file
   ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Asset fields and
   multi-file bundles stay excluded.
+- 2026-10-14 — the Negative consequence names the second kind of executable content a
+  file may carry since ADR-0029 (accepted 2026-10-08): a skill package's scripts, which the
+  agent's client runs and Nendo never runs. The boundary does not move: Nendo still runs
+  only view code, in the view (R2AAV-10, W-222).

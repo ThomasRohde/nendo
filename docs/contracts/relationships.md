@@ -38,8 +38,8 @@ hierarchy with `schema.declareHierarchy { entityId, parentFieldId, orderFieldId?
 ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)). The parent field must be an
 optional reference configured to the same record type; the order field, if named, an
 Integer field of it. A record type has at most one hierarchy. The declaration is stored in
-`__nendo_hierarchy`, the last rung of the layout ladder, and a file that carries one needs
-host 1.35.0.
+`__nendo_hierarchy`, the layout ladder's `-hierarchy-` rung after the package tables, and a
+file that carries one needs host 1.35.0.
 
 - **Declaring checks the data.** Every record must be reachable from a top-level record
   within 32 levels. A record on a loop, including one that is its own parent, is refused as
@@ -86,8 +86,8 @@ A field can be declared unique with `schema.setFieldUnique { entityId, fieldId, 
 Text field (not a single choice, not long text) or a plain Integer field can be unique;
 anything else is `field-unique-invalid`. Text compares case-insensitively for ASCII letters,
 so `w-001` collides with `W-001`; an empty value never collides. The rule is stored in
-`__nendo_field_rule`, the last rung of the layout ladder, and a file that carries one needs
-host 1.37.0.
+`__nendo_field_rule`, the layout ladder's `-rule-` rung after the hierarchy table, and a file
+that carries one needs host 1.37.0.
 
 - **Declaring checks the data.** Records that already share a value are refused as
   `field-values-not-unique`, naming the records group by group (the first 20 groups) and
@@ -136,8 +136,8 @@ type that end points at. The table is another record type, and its three fields 
 combinations of source kind, target kind and link kind. Each table field is the same kind of
 field as the one it stands for: a reference to the same record type, or single-line Text.
 Anything else is `link-rule-invalid`, naming the field. One rule per link type
-(`link-rule-already-declared`); it is stored in `__nendo_link_rule`, the last rung of the layout
-ladder, and a file that carries one needs host 1.45.0.
+(`link-rule-already-declared`); it is stored in `__nendo_link_rule`, the layout ladder's
+`-linkrule-` rung after the skill table, and a file that carries one needs host 1.45.0.
 
 - **What is checked.** A link whose source, target and kind are all set is allowed when a table
   record holds its source's kind, its target's kind and its kind, compared exactly as stored. An

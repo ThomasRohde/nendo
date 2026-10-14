@@ -65,6 +65,11 @@ An aggregate never returns a partial total. If there are more related rows than 
 | `not`, unary `-` | true or false, a number | the same kind |
 | `? :` | a condition and two values | one of the two values; the other side is not evaluated |
 
+Operators bind in this order, tightest first: `not` and unary `-`; `*` `/` `%`; `+` `-`; `<` `<=` `>` `>=`; `==` `!=`; `and`; `or`; and `? :` last. Operators of one level group from the left, so `a - b - c` is `(a - b) - c`. Two readings differ from some other languages:
+
+- `not` binds tighter than a comparison: `not a == b` means `(not a) == b`. Write `not (a == b)`, or `a != b`.
+- A choice inside a choice goes in parentheses, in either outcome: `x > 90 ? 'A' : (x > 80 ? 'B' : 'C')`. Without them the formula is refused, and the refusal says to add them.
+
 Text and true/false values never become numbers: `'2' + 1` and `true + 1` are refused when the definition is installed. Power, bitwise operators, lists, member access and any undeclared name are also refused.
 
 ### Functions

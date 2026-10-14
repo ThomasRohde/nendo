@@ -511,15 +511,33 @@ public sealed class HierarchyTests
             $"wide-{index}", Entity, $"w{index:D5}", new Dictionary<string, object?> { ["title"] = $"W{index}", ["parent"] = "root" },
             new Dictionary<string, long> { ["parent"] = 1 })).ToArray();
         await coordinator.ApplyAsync(new("test", "wide", "test", "One more child than a subtree read folds", children));
+        // One record linked at the root, so the related rows stay far inside their own bound and
+        // only the descendants can be too many (R2AAV-06).
+        var schemaRevision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "links", "test", "A link at the root", [
+            new CreateEntityOperation("e-link", "links", "Links", "links"),
+            new AddFieldOperation("l-name", "links", "name", "Name", "name", NendoStorageKind.Text, true),
+            new AddFieldOperation("l-node", "links", "node", "Node", "node_id", NendoStorageKind.Reference, true),
+            new ConfigureReferenceOperation("l-bind", "links", "node", Entity, "title", schemaRevision),
+        ]));
+        await service.CreateRecordAsync(new("links", "l1", new Dictionary<string, object?> { ["name"] = "l1", ["node"] = "root" },
+            Context("link-l1"), new Dictionary<string, long> { ["node"] = 1 }));
         await DeclareAsync(coordinator, service);
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await coordinator.ApplyAsync(new("test", "calc", "test", "Count", [
             new SetBehaviourDefinitionOperation("c", new NendoCalculationDefinition("calc.inside", Entity, "inside", "Inside",
-                NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.Subtree("v", Entity, NendoAggregateFunction.Count)]), revision)]));
+                NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.Subtree("v", Entity, NendoAggregateFunction.Count)]), revision),
+            new SetBehaviourDefinitionOperation("a", new NendoCalculationDefinition("calc.linked", Entity, "linked", "Linked",
+                NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.RelatedCount("v", Entity, "links", "node", acrossSubtree: true)]), revision)]));
 
-        var count = (await RecordAsync(service, "root")).Calculations.Single();
+        var calculations = (await RecordAsync(service, "root")).Calculations;
+        var count = calculations.Single(calculation => calculation.FieldId == "inside");
         Assert.AreEqual(NendoCalculationState.Error, count.State);
         StringAssert.Contains(count.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumDescendants} records");
+        var linked = calculations.Single(calculation => calculation.FieldId == "linked");
+        Assert.AreEqual(NendoCalculationState.Error, linked.State,
+            $"A related count across a subtree of {NendoHierarchyLimits.MaximumDescendants + 1} records answered {linked.Value} while every other read of it was refused.");
+        StringAssert.Contains(linked.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumDescendants} records sit under this record");
         Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.TreeRecordsAsync(new(Entity, "root")))).Code);
         var under = new NendoRecordFilter("parent", "descendantOf", System.Text.Json.JsonSerializer.SerializeToElement("root"));
         Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.CountRecordsAsync(new(Entity) { Filters = [under] }))).Code);

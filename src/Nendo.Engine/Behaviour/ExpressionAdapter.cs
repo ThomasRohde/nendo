@@ -34,10 +34,12 @@ internal sealed class ValidatedExpression
         IReadOnlyDictionary<string, ValidatedExpression> calls,
         NendoBehaviourScalar resultType,
         bool? resultNullable,
-        string cacheKey)
+        string cacheKey,
+        IReadOnlySet<LogicalExpression>? widenedChoices = null)
     {
         FormulaId = formulaId;
         Ast = ast;
+        WidenedChoices = widenedChoices ?? new HashSet<LogicalExpression>();
         Parameters = parameters;
         Calls = calls;
         ResultType = resultType;
@@ -67,6 +69,21 @@ internal sealed class ValidatedExpression
     internal bool? ResultNullable { get; }
 
     internal string CacheKey { get; }
+
+    /// <summary>
+    /// The choices the analyzer typed decimal because one outcome is a whole number and the
+    /// other a decimal, by node. Evaluation widens the whole-number outcome of each, so the
+    /// operator around the choice computes in the decimal its type promises (R2AAV-02).
+    /// </summary>
+    internal IReadOnlySet<LogicalExpression> WidenedChoices { get; }
+
+    /// <summary>
+    /// The same formula typed as its definition declares it: a function whose whole-number
+    /// body is declared decimal is called as a decimal, and <see cref="NendoExpressionAdapter"/>
+    /// widens its answer, so a caller computes in decimal where the signature says so.
+    /// </summary>
+    internal ValidatedExpression Declared(NendoBehaviourScalar declared) =>
+        new(FormulaId, Ast, Parameters, Calls, declared, ResultNullable, $"{CacheKey}|declared:{declared}", WidenedChoices);
 }
 
 /// <summary>
@@ -149,22 +166,42 @@ internal sealed class NendoExpressionAdapter
     /// The parser's own reason and position, as "Parenthesis not closed at line 1, character
     /// 13". The parser reports both, and the refusal used to drop them (EBH-15).
     /// </summary>
-    private static string ParseProblem(Exception? failure)
+    private static string ParseProblem(Exception? failure, string source)
     {
         // The position is on the parser's own exception, which the library wraps.
         for (var current = failure; current is not null; current = current.InnerException)
         {
-            if (Located(current.Message) is { } located) return located;
+            var match = System.Text.RegularExpressions.Regex.Match(current.Message, @"^(?<reason>.*?)\.?\s*at position \((?<line>\d+):(?<column>\d+)\)");
+            if (!match.Success) continue;
+            var reason = match.Groups["reason"].Value.Trim();
+            var located = $"This formula could not be read: {reason} at line {match.Groups["line"].Value}, character {match.Groups["column"].Value}. Check its syntax.";
+            // The parser reads a choice inside a choice only in parentheses, in either outcome,
+            // and an ordinary grading chain cost an agent a round trip per guess (R2AAV-04). It
+            // reports that as an invalid token, at the second question mark for an outcome after
+            // the colon and at the first for one before it, so the position cannot tell; the
+            // reason can, and an unclosed parenthesis or any other slip gets no such hint.
+            return reason.StartsWith("Invalid token", StringComparison.Ordinal) && ChoiceMarks(source) > 1
+                ? $"{located} A choice inside another choice goes in parentheses: a ? x : (b ? y : z)."
+                : located;
         }
         return "This formula could not be read. Check its syntax.";
     }
 
-    private static string? Located(string parserMessage)
+    /// <summary>How many question marks the source holds outside quoted text.</summary>
+    private static int ChoiceMarks(string source)
     {
-        var match = System.Text.RegularExpressions.Regex.Match(parserMessage, @"^(?<reason>.*?)\.?\s*at position \((?<line>\d+):(?<column>\d+)\)");
-        return match.Success
-            ? $"This formula could not be read: {match.Groups["reason"].Value.Trim()} at line {match.Groups["line"].Value}, character {match.Groups["column"].Value}. Check its syntax."
-            : null;
+        var marks = 0;
+        char? quote = null;
+        foreach (var character in source)
+        {
+            if (quote is not null)
+            {
+                if (character == quote) quote = null;
+            }
+            else if (character is '\'' or '"') quote = character;
+            else if (character == '?') marks++;
+        }
+        return marks;
     }
 
     private ValidatedExpression ValidateUncached(BehaviourFormula formula, BehaviourBudget budget, string key)
@@ -182,11 +219,11 @@ internal sealed class NendoExpressionAdapter
             // A cancelled parse can surface as a parse error, so cancellation is
             // rechecked before this is reported as the author's mistake.
             budget.CancellationToken.ThrowIfCancellationRequested();
-            throw new NendoValidationException(ParseProblem(exception));
+            throw new NendoValidationException(ParseProblem(exception, formula.Source));
         }
         budget.CancellationToken.ThrowIfCancellationRequested();
         if (ast is null || expression.Error is not null)
-            throw new NendoValidationException(ParseProblem(expression.Error));
+            throw new NendoValidationException(ParseProblem(expression.Error, formula.Source));
 
         var parameters = new Dictionary<string, BehaviourParameter>(StringComparer.Ordinal);
         if (formula.Parameters.Count > budget.Limits.Parameters)
@@ -200,9 +237,10 @@ internal sealed class NendoExpressionAdapter
         }
         foreach (var alias in formula.Calls.Keys) NendoBehaviourValidation.RequireIdentifier(alias, "function alias");
 
-        var resultType = NendoBehaviourAnalyzer.Analyze(ast, parameters, formula.Calls, budget);
+        var widened = new HashSet<LogicalExpression>(ReferenceEqualityComparer.Instance);
+        var resultType = NendoBehaviourAnalyzer.Analyze(ast, parameters, formula.Calls, budget, widened);
         return new ValidatedExpression(
-            formula.FormulaId, ast, formula.Parameters, formula.Calls, resultType, formula.ResultNullable, key);
+            formula.FormulaId, ast, formula.Parameters, formula.Calls, resultType, formula.ResultNullable, key, widened);
     }
 
     /// <summary>
@@ -260,7 +298,7 @@ internal sealed class NendoExpressionAdapter
                 context.Functions[alias] = data => InvokeApplicationFunction(callee, data, budget);
             }
 
-            var factory = new BehaviourVisitorFactory(budget);
+            var factory = new BehaviourVisitorFactory(budget, expression.WidenedChoices);
             var runner = new Expression(expression.Ast, _configuration, context, Culture, factory);
             runner.EvaluateBinary += args => EvaluateBinary(args, budget);
 

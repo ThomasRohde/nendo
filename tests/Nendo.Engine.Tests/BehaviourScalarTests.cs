@@ -389,6 +389,48 @@ public sealed class BehaviourScalarTests
         id, id, [], NendoBehaviourScalar.Integer, false, "next(1)",
         [new NendoFunctionCallAlias("next", callee)]);
 
+    // R2AAV-02. A choice between a whole number and a decimal is typed decimal, so the operator
+    // around it computes in decimal whichever outcome is taken. The whole-number outcome reached
+    // it as a long, and the product overflowed Int64 where the decimal answer is in range.
+    [TestMethod]
+    public void AChoiceTypedDecimalAnswersADecimalWhicheverOutcomeIsTaken()
+    {
+        var doubled = Evaluate("(c ? x : 0.5) * 2", ("c", Boolean(true)), ("x", Integer(long.MaxValue)));
+        Assert.AreEqual(NendoBehaviourScalar.Decimal, doubled.Type);
+        Assert.AreEqual(18446744073709551614m, doubled.Boxed, "The whole-number outcome of a decimal choice was multiplied in Int64.");
+        var negated = Evaluate("-(c ? x : 0.5)", ("c", Boolean(true)), ("x", Integer(long.MinValue)));
+        Assert.AreEqual(9223372036854775808m, negated.Boxed);
+        var added = Evaluate("(c ? x : y) + 1", ("c", Boolean(true)), ("x", Integer(long.MaxValue)), ("y", Decimal(0.5m)));
+        Assert.AreEqual(9223372036854775808m, added.Boxed);
+        // A choice of two whole numbers stays whole, and still overflows in Int64 as its type says.
+        AssertCalculationError(NendoCalculationCodes.Overflow, "(c ? x : 1) * 2", ("c", Boolean(true)), ("x", Integer(long.MaxValue)));
+    }
+
+    // R2AAV-04. The parser reads a choice inside a choice only in parentheses, and the refusal
+    // said only that the formula could not be read, so each rewrite was a guess.
+    [TestMethod]
+    public void AChoiceInsideAChoiceWithoutParenthesesIsRefusedWithTheRemedy()
+    {
+        var refused = Assert.ThrowsExactly<NendoValidationException>(
+            () => Evaluate("x > 90 ? 'A' : x > 80 ? 'B' : 'C'", ("x", Integer(85))));
+        StringAssert.Contains(refused.Message, "character 23");
+        StringAssert.Contains(refused.Message, "A choice inside another choice goes in parentheses: a ? x : (b ? y : z).",
+            "A nested choice was refused without saying it needs parentheses.");
+        Assert.AreEqual("B", Evaluate("x > 90 ? 'A' : (x > 80 ? 'B' : 'C')", ("x", Integer(85))).Boxed);
+        // The same chain in the outcome before the colon is reported at the first question mark.
+        var before = Assert.ThrowsExactly<NendoValidationException>(() => Evaluate("c ? d ? 1 : 2 : 3", ("c", Boolean(true)), ("d", Boolean(true))));
+        StringAssert.Contains(before.Message, "goes in parentheses");
+        // A question mark inside quoted text is not a choice, so an unrelated slip gets no such hint.
+        var quoted = Assert.ThrowsExactly<NendoValidationException>(() => Evaluate("x > 1 ? 'why?' : 'no' )", ("x", Integer(2))));
+        Assert.DoesNotContain("goes in parentheses", quoted.Message);
+        // Nor does an unclosed parenthesis, although it is reported after the second question mark.
+        var unclosed = Assert.ThrowsExactly<NendoValidationException>(() => Evaluate("(c ? 1 : 2) + (c ? 3 : 4", ("c", Boolean(true))));
+        StringAssert.Contains(unclosed.Message, "Parenthesis not closed");
+        Assert.DoesNotContain("goes in parentheses", unclosed.Message, "An unclosed parenthesis was blamed on a nested choice.");
+        StringAssert.Contains(NendoBehaviourVocabulary.Description().Note, "A choice inside either outcome of another choice goes in parentheses",
+            "The published vocabulary does not say how a choice nests.");
+    }
+
     internal static BehaviourBudget Budget(NendoBehaviourLimits? limits = null, CancellationToken token = default) =>
         new(limits ?? NendoBehaviourLimits.Default, token);
 

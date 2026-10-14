@@ -46,8 +46,8 @@ person reviews it as code before it reaches the file.
 ### Storage
 
 Four protected tables hold packages. The Engine creates all four together on the
-first extension write, never at file creation. They are the last rung of the
-layout ladder, after the file purpose. A file that never carries a package keeps
+first extension write, never at file creation. They are the layout ladder's
+`-extension-` rung, after the file purpose. A file that never carries a package keeps
 its layout and the host version it states.
 
 | Table | Holds |
@@ -308,7 +308,7 @@ accepted, reversed, imported and exported as every package is.
 - A view that names a skill package does not compile (`NUI454`). A write in a skill
   package's name is `actor-not-allowed`, and view state for one is refused.
 - The kind is a row in `__nendo_extension_kind` (`package_id`, `kind`), the ladder's
-  last rung after the new-file tables. The first skill package creates it, so a file
+  `-skill-` rung after the new-file tables. The first skill package creates it, so a file
   of view packages keeps its layout and host. The package table's text is fixed by
   released layouts, so a skill package's required `entry_point` holds `SKILL.md`; every
   read takes the kind from the new table and gives a skill package no entry point.
@@ -624,7 +624,7 @@ Everything after the handshake travels on the port.
 | View | `{t: 'req', id, m, p}` | A request. `id` is a safe integer the view chooses, `m` a method name, `p` its parameters, an object |
 | Workbench | `{t: 'res', id, ok: true, r}` | The answer to request `id` |
 | Workbench | `{t: 'res', id, ok: false, e: {code, message}}` | A refusal of request `id` |
-| Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme` or `changes`, with its data |
+| Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme`, `changes`, `command` or `place`, with its data ([Events](#events)) |
 | Workbench | `{t: 'ping', id}` | A heartbeat. The script answers `{t: 'pong', id}` |
 | View | `{t: 'ping', id}` | The broker answers `{t: 'pong', id}` |
 | View | `{t: 'key', keys}` | A key pressed inside the view that is one of Nendo's own, or one its toolbar declares, normalised (`Ctrl+K`). The Workbench runs it as if it had been pressed there, and nothing answers ([Nendo's toolbar, menus and keys](#nendos-toolbar-menus-and-keys)) |
@@ -1200,7 +1200,7 @@ sentence.
 | `host-timeout` | Workbench | Nendo did not answer within 15 seconds. As `disconnected` |
 | `written-not-read` | Broker | The write was kept, but reading the record back failed. Read it; do not write it again |
 | `not-framed` | Script | The page was opened on its own, outside any frame, so nothing can connect it |
-| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes` or `command` |
+| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes`, `command` or `place` |
 | `failed` | Broker | The answer could not be sent, or the failure had no code |
 
 A read the host refuses keeps the host's own code, for example `validation`,
@@ -1697,7 +1697,9 @@ before any write. View code needs no approval of its own.
 - A `.nendoview` archive from the contained slice still imports. Its code spoke the
   retired `window.chrome.webview` protocol, which nothing answers in a frame, so it
   draws nothing until it is ported to `window.nendo`. The four packages under
-  `extensions/` are ported.
+  `extensions/` at Phase 2 (Gantt, Dependency graph, Systems Lens and Work
+  dependencies) were ported then; the four added since were written for
+  `window.nendo`.
 - The contained slice's device state is obsolete: `extension-packages/` (the
   package cache), `extension-grants.json` (device consent) and `extension-runs/`
   (the helper's run folders), all in the device-state root. This host neither reads
@@ -1996,7 +1998,7 @@ browser particulars (S1–S22) on a synthetic harness, not the Workbench, on
 Not measured in a product lane (the clipboard since W-123's G36, and downloads since F-237's G41, are):
 pop-ups, script dialogs,
 DevTools and context menus in a view (the spike measured them, S10, S13, S15, S19
-and S22); the memory budget against the four real packages rather than the probes;
+and S22); the memory budget against the eight real packages rather than the probes;
 and every property of Phases 3 to 5.
 
 ### Phase 1

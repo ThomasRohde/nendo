@@ -52,6 +52,10 @@ ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-
 ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
 ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
 
+- **ADR-0001, 2026-10-14 — a skill's scripts are named in the product boundary**: a
+  custom view's code stays the one payload Nendo runs; a skill package's scripts, which
+  the agent's client runs and Nendo never runs (ADR-0029), are named beside it (R2AAV-10,
+  W-222).
 - **ADR-0012, 2026-10-13 — an interrupted write is rolled back when the person opens the
   file**: a lone rollback journal a crashed writer left is played back by SQLite itself only
   on the person's own open of that file, never in a synced folder, only once plain reads show

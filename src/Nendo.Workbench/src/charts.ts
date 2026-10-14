@@ -305,11 +305,11 @@ export function cellDrillFilters(
  * Equal numbers share a numeral and the next numeral skips it: two records holding the
  * same number are not first and second. The limit is a limit on rows, so a tie straddling
  * it is cut rather than drawn in full — a ranking of ten says "the top ten", not
- * "everyone who reached tenth".
+ * "everyone who reached tenth". Pass each row's `rankKey`, so equal means equal digits.
  */
-export function rankNumerals(values: Array<number | null>): number[] {
+export function rankNumerals(values: Array<string | number | null>): number[] {
   const numerals: number[] = [];
-  let previous: number | null = null;
+  let previous: string | number | null = null;
   let numeral = 0;
   values.forEach((value, index) => {
     if (previous === null || value === null || value !== previous) numeral = index + 1;
@@ -340,11 +340,36 @@ export function rankProportion(value: number | null, largest: number): number {
  * which looked like a ranking of records that all held nothing.
  */
 export function rankValue(stored: unknown): number | null {
-  const lexeme = exactNumberText(stored)
-    ?? (typeof stored === 'number' || typeof stored === 'string' ? String(stored) : null);
-  if (lexeme === null || lexeme === '') return null;
+  const lexeme = rankLexeme(stored);
+  if (lexeme === null) return null;
   const value = Number(lexeme);
   return Number.isFinite(value) ? value : null;
+}
+
+/**
+ * A stored number's exact digits in one spelling, or null when the field holds nothing readable:
+ * no sign on zero, no leading zeros, no trailing zeros after the point. Two rows tie only when
+ * their keys are equal. A JavaScript number reads 9007199254740993 and 9007199254740992 as one
+ * value, so the ranking gave two different exact numbers one numeral (R2AAV-07).
+ */
+export function rankKey(stored: unknown): string | null {
+  const lexeme = rankLexeme(stored);
+  if (lexeme === null) return null;
+  const parts = /^([+-]?)(\d*)(?:\.(\d*))?$/.exec(lexeme.trim());
+  if (parts === null || (parts[2] === '' && (parts[3] ?? '') === '')) {
+    const value = rankValue(stored);
+    return value === null ? null : String(value);
+  }
+  const whole = parts[2].replace(/^0+(?=\d)/, '') || '0';
+  const fraction = (parts[3] ?? '').replace(/0+$/, '');
+  const digits = fraction === '' ? whole : `${whole}.${fraction}`;
+  return digits === '0' ? '0' : `${parts[1] === '-' ? '-' : ''}${digits}`;
+}
+
+function rankLexeme(stored: unknown): string | null {
+  const lexeme = exactNumberText(stored)
+    ?? (typeof stored === 'number' || typeof stored === 'string' ? String(stored) : null);
+  return lexeme === null || lexeme === '' ? null : lexeme;
 }
 
 /** The two counts a ring is drawn from: its own clauses over its scope, and its scope alone. */

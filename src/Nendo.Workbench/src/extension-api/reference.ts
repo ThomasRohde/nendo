@@ -328,7 +328,7 @@ export function viewApiReference() {
         'These are the query words. The vocabulary\'s lte and gte belong to a filterClause in a view definition, and records.query refuses them.',
         'Compared exactly, by the field\'s storage kind; contains matches text ignoring case.',
         'descendantOf takes a record ID and matches every record under it, on the parent field of a declared tree.',
-        'Eight clauses at most in one read, and none on a calculated field.',
+        'Eight clauses at most in one read. A clause on a calculated field works out every record the stored clauses leave, at most 10,000, or is refused as calculated-query-too-wide.',
       ],
     },
     values: {

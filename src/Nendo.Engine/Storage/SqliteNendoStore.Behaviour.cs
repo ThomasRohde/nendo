@@ -179,6 +179,27 @@ internal sealed partial class SqliteNendoStore
         return derived;
     }
 
+    /// <summary>
+    /// A function's declared result is its published signature: what describe, the review and an
+    /// agent read. A formula of another kind installed, and its callers were typed by the formula,
+    /// so a calculation that trusted the signature was blamed for the function (R2AAV-01). Checked
+    /// at installation, never on the read path every open and save compiles, so a file that
+    /// already holds such a function keeps its calculations; a definition installed now that
+    /// calls one is refused too, naming the function to correct.
+    /// </summary>
+    private static void RequireDeclaredFunctionKinds(NendoBehaviourDefinition definition, CompiledBehaviour compiled)
+    {
+        if (definition is NendoFunctionDefinition function && compiled.MismatchedFunctions.TryGetValue(function.DefinitionId, out var produced))
+            throw new NendoValidationException(
+                $"Function '{function.DefinitionId}' declares {function.ResultType.ToString().ToLowerInvariant()} but its formula produces {produced.ToString().ToLowerInvariant()}.");
+        foreach (var called in definition.ReferencedDefinitionIds.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
+        {
+            if (compiled.MismatchedFunctions.TryGetValue(called, out var calledProduces) && compiled.Definitions[called] is NendoFunctionDefinition callee)
+                throw new NendoValidationException(
+                    $"'{definition.DefinitionId}' calls '{called}', which declares {callee.ResultType.ToString().ToLowerInvariant()} but whose formula produces {calledProduces.ToString().ToLowerInvariant()}. Correct that function first.");
+        }
+    }
+
     private async Task<OperationEvidence> ExecuteSetBehaviourDefinitionAsync(
         SetBehaviourDefinitionOperation operation,
         SqliteTransaction transaction,
@@ -234,6 +255,7 @@ internal sealed partial class SqliteNendoStore
         if (!_replayingRecordedOperations && definition is NendoTriggerDefinition trigger)
             await RequireRelevantFieldsResolveAsync(trigger, existing, transaction, cancellationToken);
         var compiled = CompileCandidate(existing, cancellationToken);
+        if (!_replayingRecordedOperations) RequireDeclaredFunctionKinds(definition, compiled);
         await RequireActionTargetsResolveAsync(existing, compiled, definition, transaction, cancellationToken);
 
         await EnsureBehaviourLayoutAsync(transaction, cancellationToken);

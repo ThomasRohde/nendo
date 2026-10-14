@@ -44,7 +44,8 @@ internal static class NendoBehaviourAnalyzer
         LogicalExpression expression,
         IReadOnlyDictionary<string, BehaviourParameter> parameters,
         IReadOnlyDictionary<string, ValidatedExpression> calls,
-        BehaviourBudget budget)
+        BehaviourBudget budget,
+        ISet<LogicalExpression>? widenedChoices = null)
     {
         var nodes = 0;
         return Walk(expression, 1);
@@ -126,7 +127,13 @@ internal static class NendoBehaviourAnalyzer
                     if (whenTrue is null) return whenFalse!.Value;
                     if (whenFalse is null) return whenTrue.Value;
                     if (whenTrue == whenFalse) return whenTrue.Value;
-                    if (IsNumeric(whenTrue.Value) && IsNumeric(whenFalse.Value)) return NendoBehaviourScalar.Decimal;
+                    if (IsNumeric(whenTrue.Value) && IsNumeric(whenFalse.Value))
+                    {
+                        // Typed decimal, so evaluation must answer a decimal whichever outcome
+                        // is taken: the whole-number one is widened there (R2AAV-02).
+                        widenedChoices?.Add(ternary);
+                        return NendoBehaviourScalar.Decimal;
+                    }
                     throw new NendoValidationException("Both outcomes of a choice must be the same kind of value.");
                 }
 

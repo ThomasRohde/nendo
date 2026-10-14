@@ -155,7 +155,10 @@ record or at anything under it: the applications that support a capability or an
 it. Both are installed only on a record type that declares a hierarchy, and while one is in
 place the hierarchy cannot be removed (`hierarchy-field-in-use`). They are bounded by the
 hierarchy's own limit of 10,000 records rather than the related-row budget, which one
-subtree would exceed; past it they are an error, never a partial total. The keys appear in
+subtree would exceed; past it they are an error, never a partial total. Both count the
+descendants against that limit, as the tree read and `descendantOf` do, so a subtree of more
+than 10,000 records is refused by every read of it, whatever few records point into it;
+`acrossSubtree` also refuses past 10,000 related records (R2AAV-06, 2026-10-14). The keys appear in
 a stored definition only when true, so every definition written before them keeps its
 canonical bytes and digest.
 
@@ -330,6 +333,15 @@ are properties of the graph. Installation refuses when:
 - a call or the action of a trigger names a definition that the file does not
   hold, or a definition of the wrong kind;
 - definitions call each other in a loop, or nest more than 8 deep;
+- a reusable function's formula produces another kind than its declared `resultType`,
+  naming the function: "Function 'fn.label' declares integer but its formula produces
+  text."; or a definition calls such a function (R2AAV-01, 2026-10-14). Installation
+  refuses these; a file that already holds such a function, from a host before this rule,
+  keeps compiling, its callers typed by the function's formula as before. A whole-number
+  formula under a decimal declaration is accepted. A calculation declared decimal that calls
+  it, directly or through functions declared decimal, computes in decimal, so a total past Int64 is answered rather than overflowing; every
+  other caller (a calculation declared integer, an action's assignment, a trigger's
+  condition) reads the whole number the formula produces, as it always has;
 - a binding names a missing field, a field of a different stored type, a
   relationship that points at another record type, or an unbound reference;
 - a binding reads an optional field without declaring itself nullable, or
@@ -953,12 +965,26 @@ or to a reusable function.
 
 | Operator | Accepts | Produces |
 | --- | --- | --- |
-| `+` `-` `*` `%` | two numbers | whole number, or decimal if either side is |
+| `+` `-` `*` `%` | two numbers | whole number, or decimal if either side is; a choice between a whole number and a decimal is a decimal whichever outcome is taken (R2AAV-02) |
 | `/` | two numbers | **always decimal**, including whole ÷ whole |
 | `==` `!=` | two values of the same kind | true/false |
 | `<` `<=` `>` `>=` | two numbers, dates or texts | true/false |
 | `and` `or` | true/false | true/false, short-circuiting |
 | `not` `-` (unary) | true/false, number | the same kind |
+
+**Precedence**, tightest first: `not` and unary `-`; `*` `/` `%`; `+` `-`; `<` `<=` `>`
+`>=`; `==` `!=`; `and`; `or`; and the choice `? :` last. Operators of one level group
+from the left, so `a - b - c` is `(a - b) - c`. Two readings follow that other languages
+differ on, measured against the parser on 2026-10-14 (R2AAV-04):
+
+- `not` binds tighter than a comparison: `not a == b` is `(not a) == b`, and is refused
+  when `a` is not true/false. Write `not (a == b)`, or `a != b`.
+- A choice inside a choice must be in parentheses, in either outcome:
+  `x > 90 ? 'A' : (x > 80 ? 'B' : 'C')`. Without them, `x > 90 ? 'A' : x > 80 ? 'B' : 'C'`
+  is refused as a formula that could not be read, at the second `?`, and the refusal ends
+  "A choice inside another choice goes in parentheses: a ? x : (b ? y : z)." whenever the
+  formula holds more than one `?` outside quotes. The condition needs
+  none: `a and b ? 1 : 2` is `(a and b) ? 1 : 2`.
 
 A refusal at validation names the formula it is about: a calculation or
 function by its ID, "The condition of trigger 't'", or "The formula for 'total' in
@@ -1252,8 +1278,9 @@ the real host with its own file and device-state root:
   person approves in the shell. No tool or resource names that route.
 - After approval, the trigger runs and the results read back as exact digits, a
   third of a hundred included.
-- A list ordered by a calculated field is refused. The refusal names the field
-  and gives a remedy.
+- A board grouped by a calculated field is refused as `NUI214`. The refusal names the
+  field and what it refuses, and its hint offers a stored field. (A list ordered by a
+  calculated field was refused here until F-222, 2026-09-30.)
 - A field shown only when a calculation says so raises the minimum host version
   of the file to 1.18.0.
 - The four blind refusals of the 2026-09-13 review each name the item: a key of
@@ -1344,8 +1371,11 @@ surface:
 
 - A form binds a calculated field beside a stored one and carries its result.
 - A related list resolves the calculated fields of the *related* record type.
-- Sorting, filtering, grouping, dating a calendar, totalling and assigning each
-  refuse a calculated field, and the refusal names it.
+- A list sorts by and filters on a calculated field, and a calculated filter past its
+  bound is refused rather than read slowly (F-222).
+- A filter on a calculated field compiles; grouping a board, dating a calendar or a
+  timeline, ending a timeline's span, totalling in a summary tile and assigning in a record command each refuse
+  one, and the refusal names the property.
 - A form of only calculated fields is refused.
 - A calculation that cannot be done still serializes, so one failed result
   cannot make a whole surface unreadable.

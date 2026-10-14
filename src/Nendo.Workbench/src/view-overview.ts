@@ -18,7 +18,7 @@ import { content, rerender, setBusy, showError, interactionInProgress } from './
 import { loadFocusedRecord } from './reads';
 import { loadOpenedRecordPanels } from './related-actions';
 import { isSettledSummaryFailure, type OverviewTileScope } from './summary-tiles';
-import { chartKey, isChartKind, rankNumerals, rankProportion, rankValue } from './charts';
+import { chartKey, isChartKind, rankKey, rankNumerals, rankProportion, rankValue } from './charts';
 import { refreshDerived } from './actions';
 import { leaveRecordContext } from './app-state';
 import { fileViewValue, showFileView, showingOptionsMarkup } from './file-view-model';
@@ -142,7 +142,8 @@ function rankedListMarkup(overview: OverviewPlan, node: SurfaceNodePlan): string
   return `<section class="overview-ranked" data-ranked="${escapeAttribute(node.semanticId)}"><header><span class="summary-title">${escapeHtml(title)}</span>${context}</header>${body}</section>`;
 }
 
-function rankedRowsMarkup(
+/** The rows of a ranking, numbered; exported for the markup test, which reads its numerals. */
+export function rankedRowsMarkup(
   entity: OverviewPlan['entities'][number],
   records: RecordPlan[],
   rankByFieldId: string,
@@ -150,8 +151,10 @@ function rankedRowsMarkup(
   largest: number,
 ): string {
   if (records.length === 0) return `<p class="empty-note">No ${escapeHtml(entity.displayName)} has a number to rank.</p>`;
+  // The bar's width is a proportion, which a JavaScript number draws well enough; the numeral
+  // decides a tie, which only the exact digits can.
   const values = records.map((record) => rankValue(record.values[rankByFieldId]));
-  const numerals = rankNumerals(values);
+  const numerals = rankNumerals(records.map((record) => rankKey(record.values[rankByFieldId])));
   // A maximum that is not positive means no bar is honest, so none is drawn and the
   // numbers carry the whole of it.
   const bars = largest > 0;

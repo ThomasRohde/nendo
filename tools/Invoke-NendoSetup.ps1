@@ -832,7 +832,18 @@ try {
     if ($null -ne $old) {
         Write-Step 'Keeping the installed version as a backup.'
         Save-Backup $root $partial $old
-        [IO.Directory]::Move($partial, $previous)
+        # A folder cannot be renamed while any file in it is open, and a virus scanner opens the
+        # executables just copied into it (the isolated lane once failed here with "Access to the
+        # path ... is denied", then passed twice). Wait it out, briefly, before refusing.
+        for ($attempt = 1; ; $attempt++) {
+            try { [IO.Directory]::Move($partial, $previous); break }
+            catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+                if ($attempt -ge 40) {
+                    throw "The backup folder $partial stayed in use for 10 seconds, so the installed version was left as it was. Run setup again; a virus scanner lets go once it has read the files. ($($_.Exception.Message))"
+                }
+                Start-Sleep -Milliseconds 250
+            }
+        }
     }
     [void][IO.Directory]::CreateDirectory($root)
     @{schemaVersion=1; product='Nendo'; hadPrevious=($null -ne $old); files=@($next.files)} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $root $pendingName) -Encoding UTF8

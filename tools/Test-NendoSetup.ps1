@@ -111,6 +111,64 @@ try {
     $handle = [IO.File]::Open((Join-Path $root 'app.txt'),'Open','ReadWrite','None')
     try { Run-Setup Install $root $v1 $false } finally { $handle.Dispose() }
     Assert ((Get-Content -LiteralPath (Join-Path $root 'app.txt') -Raw) -eq 'version two') 'Locked upgrade changed payload.'
+    # A virus scanner opens the files just linked into the backup being built, and a folder
+    # cannot be renamed while a file in it is open: the isolated lane once failed renaming
+    # .previous.partial to .previous. Setup waits that out. A job opens one file of that backup
+    # as soon as it appears, keeps it open until the backup's inventory is written, which the
+    # rename follows at once, and a while longer. The file held is the installed inventory's
+    # first, which setup links first, and two hundred more after it keep the backup building
+    # long enough for the job to be holding it before the rename is tried, whatever order a
+    # hashtable gave the payload's files.
+    function Start-BackupHold([string] $Root, [int] $HoldMilliseconds) {
+        $ready = Join-Path $evidence ('hold-ready-' + [Guid]::NewGuid().ToString('N'))
+        $firstLinked = @((Get-Content -LiteralPath (Join-Path $Root 'nendo-install.json') -Raw | ConvertFrom-Json).files)[0].path
+        $job = Start-Job -ArgumentList "$Root.previous.partial", $HoldMilliseconds, $ready, $firstLinked -ScriptBlock {
+            param($partial, $holdMilliseconds, $ready, $firstLinked)
+            [IO.File]::WriteAllText($ready, 'ready')
+            $first = Join-Path $partial $firstLinked
+            $clock = [Diagnostics.Stopwatch]::StartNew()
+            $handle = $null
+            while ($null -eq $handle -and $clock.Elapsed.TotalSeconds -lt 120) {
+                if (Test-Path -LiteralPath $first) { try { $handle = [IO.File]::Open($first, 'Open', 'Read', 'ReadWrite') } catch { $handle = $null } }
+                if ($null -eq $handle) { Start-Sleep -Milliseconds 2 }
+            }
+            if ($null -eq $handle) { return 'never-held' }
+            try {
+                $inventory = Join-Path $partial 'nendo-install.json'
+                while (-not (Test-Path -LiteralPath $inventory) -and $clock.Elapsed.TotalSeconds -lt 120) { Start-Sleep -Milliseconds 2 }
+                Start-Sleep -Milliseconds $holdMilliseconds
+                # The rename follows the inventory at once, so a folder still here was refused while held.
+                if (Test-Path -LiteralPath $partial) { 'held-across-rename' } else { 'renamed-while-held' }
+            } finally { $handle.Dispose() }
+        }
+        while (-not (Test-Path -LiteralPath $ready) -and $job.State -eq 'Running') { Start-Sleep -Milliseconds 50 }
+        return $job
+    }
+    $heldRoot = Join-Path $evidence 'held\Nendo'
+    $parts = @{}
+    for ($i = 0; $i -lt 200; $i++) { $parts["lib/part$i.txt"] = "part $i" }
+    $h1 = New-Payload 'h1' ($parts + @{'app.txt'='held one'})
+    $h2 = New-Payload 'h2' ($parts + @{'app.txt'='held two'})
+    $h3 = New-Payload 'h3' ($parts + @{'app.txt'='held three'})
+    Run-Setup Install $heldRoot $h1
+    $holdJob = Start-BackupHold $heldRoot 1000
+    try { Run-Setup Install $heldRoot $h2 } finally { $holdResult = Receive-Job $holdJob -Wait -AutoRemoveJob }
+    Assert ($holdResult -eq 'held-across-rename') "The backup folder was not held while setup renamed it ($holdResult), so this check proved nothing."
+    Assert ((Get-Content -LiteralPath (Join-Path $heldRoot 'app.txt') -Raw) -eq 'held two') 'An upgrade whose backup folder was held for a second did not install.'
+    Assert ((Get-Content -LiteralPath (Join-Path "$heldRoot.previous" 'app.txt') -Raw) -eq 'held one') 'An upgrade whose backup folder was held for a second kept no backup.'
+    # Held past the retries (40 x 250 ms), the upgrade refuses before a new file is put in
+    # place: the installed version stands, its backup waits under .partial, no update journal
+    # is left, and the next run goes ahead.
+    $holdJob = Start-BackupHold $heldRoot 15000
+    try { Run-Setup Install $heldRoot $h3 $false } finally { $holdResult = Receive-Job $holdJob -Wait -AutoRemoveJob }
+    Assert ($holdResult -eq 'held-across-rename') "The backup folder was not held past the retries ($holdResult), so this check proved nothing."
+    Assert (($script:lastSetupOutput -replace '\r?\n', '') -match [regex]::Escape("The backup folder $heldRoot.previous.partial stayed in use for 10 seconds, so the installed version was left as it was.")) "The refusal over a held backup folder does not say so in a sentence:`n$($script:lastSetupOutput)"
+    Assert ((Get-Content -LiteralPath (Join-Path $heldRoot 'app.txt') -Raw) -eq 'held two') 'A refused upgrade over a held backup folder changed the installed version.'
+    Assert (-not (Test-Path -LiteralPath (Join-Path $heldRoot 'nendo-update.json'))) 'A refused upgrade over a held backup folder left an update journal.'
+    Assert ((Get-Content -LiteralPath (Join-Path "$heldRoot.previous.partial" 'app.txt') -Raw) -eq 'held two') 'A refused upgrade over a held backup folder lost the backup it had built.'
+    Run-Setup Install $heldRoot $h3
+    Assert ((Get-Content -LiteralPath (Join-Path $heldRoot 'app.txt') -Raw) -eq 'held three') 'The run after a refused upgrade did not install.'
+    Assert ((Get-Content -LiteralPath (Join-Path "$heldRoot.previous" 'app.txt') -Raw) -eq 'held two') 'The run after a refused upgrade kept no backup of what was installed.'
     # Pre-existing unowned path cannot be overwritten by a new release.
     $conflict = New-Payload 'conflict' @{'app.txt'='version three'; 'user.nendo'='overwrite forbidden'}
     Run-Setup Install $root $conflict $false
@@ -353,5 +411,5 @@ finally {
     }
 }
 Assert (-not (Test-Path -LiteralPath $runClasses)) "The run's class store survived its cleanup: $runClasses"
-@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','registration failure then rerun repairs association and shortcut, backup retained','path traversal refusal','account registrations untouched','empty folder of a removed owned file removed','running-process predicate across sessions','identical-payload comparison within its time bound','missing owned file restored by the same payload and no veto on upgrade or uninstall','earlier browser profile moved once, kept by refusals and by a move that fails, stale copy removed, also from the backup','uninstall keeps an unfinished backup that is not the payload','interrupted backup cleared and replaced','uninstall refuses over a file in use before removing anything','a Nendo running from the backup refused with the notification-area sentence','install and uninstall through a junction above the root, link inside refused'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
+@{result='passed'; checks=@('fresh install','changed-version upgrade','same-version reinstall','application rollback/user-file retention','injected staging-capacity boundaries','one previous payload','stale owned removal','locked-file refusal','unowned collision refusal','corrupt extraction refusal','interrupted update recovery','uninstall/user-file retention','moved payload and linked backup by file identity','recovery over a linked backup','registration failure then rerun repairs association and shortcut, backup retained','path traversal refusal','account registrations untouched','empty folder of a removed owned file removed','running-process predicate across sessions','identical-payload comparison within its time bound','missing owned file restored by the same payload and no veto on upgrade or uninstall','earlier browser profile moved once, kept by refusals and by a move that fails, stale copy removed, also from the backup','uninstall keeps an unfinished backup that is not the payload','interrupted backup cleared and replaced','uninstall refuses over a file in use before removing anything','a Nendo running from the backup refused with the notification-area sentence','install and uninstall through a junction above the root, link inside refused','backup folder held for a second is waited out, held past the retries refused before anything changes'); shell='Windows PowerShell 5.1'; capacityLimitation='Injected measurements at the production predicate; no physical disk exhaustion.'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $evidence 'results.json')
 Write-Output "Nendo setup checks passed: $evidence"

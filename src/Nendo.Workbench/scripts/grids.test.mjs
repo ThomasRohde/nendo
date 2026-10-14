@@ -4,7 +4,7 @@ import { bundleOf } from './bundle-of.mjs';
 
 // The two grid kinds (ADR-0004, 2026-09-17 amendment, S6): the shape of a matrix, the
 // two-clause drill out of one of its cells, and the arithmetic behind a ranking.
-const { cellDrillFilters, cellRead, cellValue, rankNumerals, rankProportion, rankValue } = await bundleOf('src/charts.ts');
+const { cellDrillFilters, cellRead, cellValue, rankKey, rankNumerals, rankProportion, rankValue } = await bundleOf('src/charts.ts');
 const { addedSurfaceSentence, matrixViewOf } = await bundleOf('src/surface-model.ts');
 const { rankedRead, rankedLimit, rankedWindowKey } = await bundleOf('src/overview-model.ts');
 
@@ -96,6 +96,20 @@ test('equal numbers share a rank numeral and the next numeral skips it', () => {
   assert.deepEqual(rankNumerals([4, 4, 4]), [1, 1, 1]);
   assert.deepEqual(rankNumerals([]), []);
   assert.deepEqual(rankNumerals([3]), [1]);
+});
+
+test('two different exact numbers never share a rank numeral, and one number spelt two ways does', () => {
+  // R2AAV-07: a JavaScript number reads these two as one value, and both were ranked 1.
+  const keys = (...digits) => digits.map((text) => rankKey({ $nendoNumber: text }));
+  assert.deepEqual(rankNumerals(keys('9007199254740993', '9007199254740992')), [1, 2],
+    'Two different whole numbers past 2^53 shared a rank numeral.');
+  assert.deepEqual(rankNumerals(keys('0.30000000000000000001', '0.3')), [1, 2]);
+  assert.deepEqual(rankNumerals(keys('12.50', '12.5', '012.500', '12')), [1, 1, 1, 4]);
+  assert.deepEqual(keys('-0.0', '0', '-1.10', '+7'), ['0', '0', '-1.1', '7']);
+  assert.equal(rankKey(12.5), '12.5');
+  assert.equal(rankKey(null), null);
+  assert.equal(rankKey(''), null);
+  assert.equal(rankKey('nope'), null);
 });
 
 test('a bar is a proportion of the largest, and nothing at all when a proportion would lie', () => {

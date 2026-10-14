@@ -172,6 +172,72 @@ try {
     }
     Write-Host "OK       the site guides count $mcpResourceCount resources where they count them"
 
+    Write-Host '== Documents that state the code =='
+    # The broad review found contracts restating a number or a list the code had moved past
+    # (W-222). Each check below reads the declaration and the sentence that restates it.
+
+    # DOC-02: the host-version ladder. architecture.md names the highest rung, and
+    # semantic-surfaces.md places every rung above 1.11 either in its node-shape table or in
+    # the sentence that lists the rest; a rung added to NendoFormat.cs without either drifted.
+    $formatText = Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.Engine/NendoFormat.cs') -Raw
+    $currentName = [regex]::Match($formatText, 'CurrentHostVersion\s*=\s*(\w+)\s*;')
+    if (-not $currentName.Success) { throw 'NendoFormat.cs no longer sets CurrentHostVersion from a named rung.' }
+    $currentValue = [regex]::Match($formatText, "const string $($currentName.Groups[1].Value)\s*=\s*`"(\d+\.\d+\.\d+)`"")
+    if (-not $currentValue.Success) { throw "NendoFormat.cs names $($currentName.Groups[1].Value) as the current host version but declares no value for it." }
+    $currentHost = $currentValue.Groups[1].Value
+    $architectureText = Get-Content -LiteralPath (Join-Path $repoRoot 'docs/architecture.md') -Raw
+    $statedHighest = [regex]::Match($architectureText, 'The highest version\s+is\s+`(\d+\.\d+\.\d+)`')
+    if (-not $statedHighest.Success) { throw 'docs/architecture.md no longer says "The highest version is `x.y.z`" in its host-version ladder.' }
+    if ($statedHighest.Groups[1].Value -ne $currentHost) {
+        throw ("docs/architecture.md says the highest host version is {0}; NendoFormat.CurrentHostVersion is {1}. Add the new rung to the ladder paragraph." -f $statedHighest.Groups[1].Value, $currentHost)
+    }
+    $surfacesText = Get-Content -LiteralPath (Join-Path $repoRoot 'docs/contracts/semantic-surfaces.md') -Raw
+    $shapeTable = [regex]::Match($surfacesText, '(?s)\| Feature \| Minimum host \|\s*\n\| --- \| --- \|\s*\n(.+?)\n\s*\n')
+    if (-not $shapeTable.Success) { throw 'docs/contracts/semantic-surfaces.md no longer has its node-shape table (| Feature | Minimum host |).' }
+    $tableRungs = @([regex]::Matches($shapeTable.Groups[1].Value, '(?m)^\|.*\|\s*(1\.\d+)\s*\|\s*$') | ForEach-Object { $_.Groups[1].Value })
+    $restSentence = [regex]::Match($surfacesText, '(?s)Every rung above 1\.11 that is not in the table is not a shape of the node tree:(.+?)\(`NendoFormat`\)')
+    if (-not $restSentence.Success) { throw 'docs/contracts/semantic-surfaces.md no longer lists the rungs above 1.11 that are not node shapes.' }
+    $listedRungs = @([regex]::Matches($restSentence.Groups[1].Value, '\b1\.\d+\b') | ForEach-Object { $_.Value })
+    $declaredRungs = @([regex]::Matches($formatText, 'const string \w+\s*=\s*"1\.(\d+)\.0"') |
+        ForEach-Object { [int]$_.Groups[1].Value } | Where-Object { $_ -gt 11 } | Sort-Object -Unique | ForEach-Object { "1.$_" })
+    # A floor, so a change in how the constants or the table are written cannot pass by reading nothing.
+    if ($declaredRungs.Count -lt 30 -or $tableRungs.Count -lt 10) {
+        throw "Read only $($declaredRungs.Count) rungs above 1.11 from NendoFormat.cs and $($tableRungs.Count) from the node-shape table; the patterns no longer fit what they read."
+    }
+    $unplaced = @($declaredRungs | Where-Object { $_ -notin $tableRungs -and $_ -notin $listedRungs })
+    if ($unplaced.Count -gt 0) {
+        throw "docs/contracts/semantic-surfaces.md places no host rung $($unplaced -join ', ') from NendoFormat.cs: add it to the node-shape table or to the sentence listing the other rungs."
+    }
+    Write-Host "OK       the ladder reaches $currentHost in architecture.md, and semantic-surfaces.md places all $($declaredRungs.Count) rungs above 1.11"
+
+    # DOC-11: every precondition code the MCP adapter lets through whole is named in the
+    # contract's list, by itself or by a family written as `prefix-*`.
+    $errorsText = Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.LocalMcp/NendoToolErrors.cs') -Raw
+    $auditedBlock = [regex]::Match($errorsText, '(?s)HashSet<string>\s+DiagnosablePreconditions\s*=\s*new\(\[(.+?)\],\s*StringComparer')
+    if (-not $auditedBlock.Success) { throw 'NendoToolErrors.cs no longer declares DiagnosablePreconditions as a list this check can read.' }
+    $auditedBody = [regex]::Replace($auditedBlock.Groups[1].Value, '(?m)//.*$', '')
+    $auditedCodes = @([regex]::Matches($auditedBody, '"([a-z0-9-]+)"') | ForEach-Object { $_.Groups[1].Value })
+    if ($auditedCodes.Count -lt 20) { throw "Only $($auditedCodes.Count) codes were read from DiagnosablePreconditions; the pattern no longer fits the declaration." }
+    $refusalSection = [regex]::Match($contractText, '(?s)## What a refusal says(.+?)(?=\n## |\z)')
+    if (-not $refusalSection.Success) { throw 'docs/contracts/mcp-interface.md has no section "What a refusal says".' }
+    $named = @([regex]::Matches($refusalSection.Groups[1].Value, '`([a-z0-9-]+\*?)`') | ForEach-Object { $_.Groups[1].Value })
+    $families = @($named | Where-Object { $_.EndsWith('-*') } | ForEach-Object { $_.TrimEnd('*') })
+    $unnamed = @($auditedCodes | Where-Object { $code = $_; $code -notin $named -and -not ($families | Where-Object { $code.StartsWith($_) }) })
+    if ($unnamed.Count -gt 0) {
+        throw "docs/contracts/mcp-interface.md ('What a refusal says') does not name these codes NendoToolErrors.DiagnosablePreconditions lets through: $($unnamed -join ', ')"
+    }
+    Write-Host "OK       the contract names all $($auditedCodes.Count) precondition codes the MCP adapter lets through"
+
+    # DOC-04: the layout ladder only grows, so a contract that calls a table "the last rung"
+    # is wrong the day the next rung lands. Name the rung and its neighbour instead; a dated
+    # ADR may still say "a new last rung".
+    $lastRung = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'docs/contracts') -Filter '*.md' -File |
+        Where-Object { [IO.File]::ReadAllText($_.FullName) -match '(?<![-\w])last\s+rung' } | ForEach-Object Name)
+    if ($lastRung.Count -gt 0) {
+        throw "These contracts call a table the last rung of the layout ladder; name its rung and the one before it instead: $($lastRung -join ', ')"
+    }
+    Write-Host 'OK       no contract calls a table the last rung of the layout ladder'
+
     Write-Host '== Shell identity =='
     # The application names itself to Windows in C# and setup registers that name in
     # PowerShell. Neither can see the other, and the failure when they drift is silent:

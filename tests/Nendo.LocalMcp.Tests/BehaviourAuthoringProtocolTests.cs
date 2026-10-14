@@ -54,6 +54,9 @@ public sealed class BehaviourAuthoringProtocolTests
         Assert.AreEqual(NendoBehaviourLimits.Default.GeneratedChanges, behaviour.Limits.GeneratedChanges);
 
         CollectionAssert.Contains(behaviour.Operators.ToArray(), "?:");
+        // How the operators bind is published with them, so a nested choice is not learnt by refusal (R2AAV-04).
+        StringAssert.Contains(behaviour.Note, "Operators bind tightest first");
+        StringAssert.Contains(behaviour.Note, "a ? x : (b ? y : z)");
         CollectionAssert.Contains(behaviour.Scalars.ToArray(), "Decimal");
         CollectionAssert.AreEquivalent(
             new[] { "SameRecordField", "SameRecordCalculation", "ReferenceTraversal", "RelatedAggregate", "SubtreeAggregate", "HierarchyPath" },

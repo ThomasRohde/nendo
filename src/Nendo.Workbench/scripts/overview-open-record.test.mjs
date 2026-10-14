@@ -27,7 +27,7 @@ const stubs = {
   './view-packages': 'export const openCustomViews = async () => {};',
 };
 const entry = [
-  `export { openOverviewRecord } from ${JSON.stringify(resolve(root, 'src/view-overview.ts'))};`,
+  `export { openOverviewRecord, rankedRowsMarkup } from ${JSON.stringify(resolve(root, 'src/view-overview.ts'))};`,
   `export { state, emptySession, focusedRecords } from ${JSON.stringify(resolve(root, 'src/app-state.ts'))};`,
 ].join('\n');
 const bundle = await build({
@@ -102,4 +102,19 @@ test('a row inside the first window still opens, read by ID all the same', async
   openFile();
   await p.openOverviewRecord('tasks', 'record-3');
   assert.equal(p.state.selectedRecordId, 'record-3');
+});
+
+// R2AAV-07: the numerals a ranking draws decide ties on the exact digits. The host ordered
+// 9007199254740993 above 9007199254740992, and both rows read "ranked 1", because the
+// numerals compared the JavaScript numbers the two lexemes round to.
+test('a ranking numbers two different exact values apart, and one value spelt two ways alike', () => {
+  const entity = { semanticId: 'tasks', displayName: 'Tasks', fields: [field], derivedFields: [] };
+  const row = (id, digits) => ({ semanticId: id, automationTarget: `record-${id}`, version: 1, values: { title: id, value: { $nendoNumber: digits } } });
+  const numerals = (markup) => [...markup.matchAll(/<span class="ranked-numeral" aria-hidden="true">(\d+)<\/span>/g)].map(([, numeral]) => Number(numeral));
+  const apart = p.rankedRowsMarkup(entity, [row('a', '9007199254740993'), row('b', '9007199254740992'), row('c', '7')], 'value', ['title'], 9007199254740993);
+  assert.deepEqual(numerals(apart), [1, 2, 3], 'Two different exact values shared a rank numeral.');
+  assert.match(apart, /aria-label="a, ranked 1, /);
+  assert.match(apart, /aria-label="b, ranked 2, /);
+  const alike = p.rankedRowsMarkup(entity, [row('a', '12.50'), row('b', '12.5'), row('c', '3')], 'value', ['title'], 12.5);
+  assert.deepEqual(numerals(alike), [1, 1, 3]);
 });
