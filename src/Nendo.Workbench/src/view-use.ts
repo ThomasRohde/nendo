@@ -6,6 +6,7 @@ import { holdingThePage, recordFormIsDirty, refuseWhileDirty } from './draft-gua
 import { escapeAttribute, escapeHtml, messageFor, mutationKey } from './format';
 import { WorkbenchHostError, type ApplicationPlan, type FieldPlan, type RecordPlan, type SurfaceNodePlan } from './host';
 import { icon } from './icons';
+import { inspectorResizerMarkup, wireInspectorResizer } from './inspector-width';
 import { inspectorMarkup, pageFormBody, pageHasTabs } from './page-markup';
 import { drillIntoCell, matrixPending, refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { renderOverview, showsOverview } from './view-overview';
@@ -174,6 +175,7 @@ export function renderUse(): void {
       <section class="use-surface${surface?.kind === 'calendarSurface' ? ' calendar-surface' : surface?.kind === 'timelineSurface' ? ' timeline-surface' : surface?.kind === 'gallerySurface' ? ' gallery-surface' : surface?.kind === 'matrixSurface' ? ' matrix-surface' : surface?.kind === 'outlineSurface' ? ' outline-surface' : isCustomViewKind(surface?.kind) ? ' custom-view-surface' : ''}"${surface === null ? '' : ` data-surface="${escapeAttribute(surface.semanticId)}"`}>${surfaceTileMarkup(plan)}${surfaceBodyMarkup(plan)}</section>
       ${created !== null && relatedTarget !== null ? relatedCreateInspector(created, relatedTarget)
         : state.creatingRecord ? `<aside class="record-inspector"><header><span>New ${escapeHtml(entityName)}</span><button id="close-inspector" class="icon-button" type="button" aria-label="Close" data-dismiss>${icon('close')}</button></header>${recordFormMarkup(null, formFields(plan), `Add ${entityName}`, pageFormBody(plan, null, false), '', pageHasTabs(plan))}</aside>` : selected !== null ? inspectorMarkup(plan, selected) : ''}
+      ${selected !== null || state.creatingRecord || relatedTarget !== null ? inspectorResizerMarkup : ''}
     </div>
   </div>`;
   requiredElement<HTMLSelectElement>('#use-entity').addEventListener('change', event => {
@@ -233,6 +235,7 @@ export function renderUse(): void {
     });
   wireRecordPager();
   wireQuickFilter(plan, surface);
+  wireInspectorResizer(requiredElement<HTMLElement>('.use-layout'));
   content.querySelector<HTMLButtonElement>('#related-back')?.addEventListener('click', () => void returnFromRelatedRecord());
   // Adding a record of the type in view abandons whatever record context there was,
   // including a related record half filled in and the way back to somewhere else — so

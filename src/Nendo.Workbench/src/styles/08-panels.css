@@ -549,13 +549,52 @@
 }
 
 .use-layout {
-  --record-inspector-width: 330px;
+  --record-inspector-width: 420px;
+  position: relative;
   display: grid;
   min-height: 0;
 }
 
 .use-layout.has-inspector {
   grid-template-columns: minmax(0, 1fr) var(--record-inspector-width);
+}
+
+/* The record page's left edge, dragged or moved with the arrow keys (inspector-width.ts).
+   It sits over the border rather than in the grid, so the two columns stay two. */
+.inspector-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(var(--record-inspector-width) - 4px);
+  z-index: 3;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.inspector-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
+.inspector-resizer:hover::after,
+.use-layout.is-resizing-inspector .inspector-resizer::after {
+  background: var(--cobalt);
+}
+
+.inspector-resizer:focus { outline: none; }
+.inspector-resizer:focus-visible::after { background: var(--cobalt); }
+
+/* A drag selects nothing on its way across the list. */
+.use-layout.is-resizing-inspector {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .use-surface {

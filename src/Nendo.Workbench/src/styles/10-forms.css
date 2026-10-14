@@ -289,10 +289,6 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
-  .use-layout.has-inspector {
-    --record-inspector-width: 300px;
-  }
-
   .health-grid {
     grid-template-columns: 1fr;
   }
@@ -354,6 +350,9 @@ textarea:focus {
     z-index: 2;
     border-left: 0;
   }
+
+  /* The page covers the list here, so it has no edge to move. */
+  .inspector-resizer { display: none; }
 
   .use-layout {
     position: relative;
