@@ -322,8 +322,13 @@ async (page) => {
   const kept = await keyboardState();
   assert(kept.focused === 'manifold' && JSON.stringify(kept.stops) === JSON.stringify(['manifold']),
     'A re-read dropped the keyboard from the component it was on: ' + JSON.stringify(kept));
-  await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, fixture(projection));
-  await until(text => document.getElementById('summary').textContent === text, fullSummary, 'The schematic did not read the original file again.');
+  // Counts do not change when C is relabelled back to the original. Wait for
+  // the changed value, including when the reread answers late, before testing opens.
+  await page.evaluate(value => { window.broker.hold('records.query', 600); window.broker.setFixture(value); window.broker.pushChanges(); }, fixture(projection));
+  await until(() => document.querySelector('.node[data-id="orphan"] title')?.textContent === 'COM · Link quality sensor — Online', undefined,
+    'The schematic did not read the original file again.');
+  assert(await view.locator('.node[data-id="orphan"] title').textContent() === 'COM · Link quality sensor — Online',
+    'The restore wait ended before the original component label arrived.');
   await view.getByRole('button', { name: 'Fit', exact: true }).click();
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/systems-lens-light.png' });
 
