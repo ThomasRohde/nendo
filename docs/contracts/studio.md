@@ -121,7 +121,7 @@ file has done since, since they never change, and what is open stays open across
 
 **Columns as built.** A column's header carries the field's name. Clicking it, or Enter
 on the focused header, sorts every record of the type by that field through
-`data.queryRecords` — ascending, descending, then record order — never a reorder of the
+`data.queryRecordWindow` — ascending, descending, then record order — never a reorder of the
 loaded page; a calculated column sorts the same way, and the outline does not sort. The
 filter above the table keeps the sort and the sort keeps the filter. A width is dragged at
 the column's edge, or fitted by double-clicking it, and kept for the device by application
@@ -130,7 +130,25 @@ prepares `schema.renameField` as a proposal to review, titled *Rename Owner on T
 rename that does not open its review, refused or pressed while another action runs, puts the
 header back and says why (WSP-18). Opening a record is an icon at the
 row's start, faint until the row is pointed at or focused; Enter or Space on that cell
-opens it too. Movable and hideable columns are not built.
+opens it too. Drag headers to reorder columns. **Columns** hides or pins fields and
+**Reset columns** restores the layout. The record-open column stays visible and pinned.
+Order, visibility and pinning are validated device preferences keyed by application and
+record type. **Copy cell** (or Ctrl+C outside an editor) copies one formatted value;
+clipboard refusal is reported. Rectangular selection, bulk paste and Enterprise modules
+are not part of this delivery.
+
+Enter saves a cell and continues in the same field on the next row. Escape cancels
+the editor; Tab outside editing leaves the grid so it does not trap keyboard users.
+
+**Flat tables load while scrolling (W-233).** AG Grid Community's Infinite Row Model
+requests blocks of 100 records through the typed window query, with five cached blocks
+and at most two concurrent requests. Evicted blocks reload under the same signed query
+and revision. The grid remains mounted as blocks arrive. No total is invented before
+an end block is read; loading, empty results, Retry and Refresh have local status.
+A write from elsewhere marks the table stale without moving the reader; Refresh reads
+again. Edits use the same versioned typed operations and refresh the focused record's
+neighborhood by stable ID, including a record that moves under sorting. Missing anchors
+are reported. The outline and Use renderers retain their existing loading policies.
 
 **An outline for a declared hierarchy** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)).
 A record type that declares a hierarchy opens as an outline, with a switch to the flat

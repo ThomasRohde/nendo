@@ -75,7 +75,7 @@ function scrollPositions(): HTMLElement[] {
   // A Filter menu stays open across the redraw that lists a reference's records (W-172).
   // Help scrolls its index and its article rather than the pane, and a file-change redraw sent
   // an article being read back to its top once a second while an agent wrote (WST-01).
-  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel, .help-index, .help-topics, .help-article, .preview-content')];
+  return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel, .help-index, .help-topics, .help-article, .preview-content, .grid-column-options')];
 }
 
 export function rerender(): void {

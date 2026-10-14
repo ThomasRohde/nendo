@@ -9,7 +9,7 @@ async page => {
   const errors = [];
   try { return await (async () => {
   const assert = (ok, message) => { if (!ok) throw Error(message); };
-  page.on('pageerror', error => errors.push(error.message));
+  page.on('pageerror', error => errors.push(error.stack ?? error.message));
   const base = '__WORKBENCH_URL__';
   const open = async (fixture, width = 1440, height = 900) => {
     await page.setViewportSize({ width, height });
@@ -58,8 +58,200 @@ async page => {
 
   // Each check starts from a fresh page and runs whether or not the one before it passed.
   const check = async (name, fixture, body, width, height) => {
+    if ("__SHELL_CHECK__" && !name.includes("__SHELL_CHECK__")) return;
     try { await open(fixture, width, height); await body(); checks.push(name); } catch (error) { failures.push(`${name}: ${error?.message ?? error}`); }
   };
+
+  for (const theme of ['light', 'dark']) await check(`W-233 lazy grid ${theme}`, 'idea', async () => {
+    await page.evaluate(async theme => {
+      const { client } = await import('/src/client.ts');
+      const { applyTheme } = await import('/src/shell.ts');
+      applyTheme(theme, false);
+      const template = client.session.records.find(record => record.entityId === 'entity.idea');
+      client.session.records = Array.from({ length: 1000 }, (_, index) => ({ ...structuredClone(template),
+        recordId: `lazy-${String(index).padStart(5, '0')}`, recordVersion: 1 }));
+      window.__lazyCalls = [];
+      const request = client.request.bind(client);
+      client.request = async (method, payload) => {
+        if (method === 'data.queryRecordWindow') window.__lazyCalls.push(structuredClone(payload));
+        return request(method, payload);
+      };
+    }, theme);
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-id="lazy-00000"]') !== null, null, 'the first lazy row', 10000);
+    assert(await page.evaluate(() => window.__lazyCalls.length <= 2), 'W-233: opening fetched beyond the first viewport.');
+    assert(await page.locator('[data-page-next]').count() === 0, 'W-233: the table still needs its pager.');
+    const grid = await page.locator('#record-grid').elementHandle();
+    for (let index = 1; index < 10; index++) {
+      await page.waitForFunction(index => {
+        const viewport = document.querySelector('#record-grid .ag-grid-viewport');
+        viewport.scrollTop = viewport.scrollHeight;
+        return window.__lazyCalls.some(call => call.start >= index * 100);
+      }, index, { polling: 200, timeout: 10000 });
+      await until(index => [...document.querySelectorAll('#record-grid .ag-row[row-id]')].some(row =>
+        Number(row.getAttribute('row-index')) >= index * 100), index, `loaded lazy block ${index}`, 10000);
+    }
+    const counts = await page.evaluate(async () => ({ ...(await import('/src/view-data.ts')).dataGridReadDiagnostics(),
+      dom: document.querySelectorAll('#record-grid .ag-row').length }));
+    assert(counts.cachedRecords > 0 && counts.cachedRecords <= 500 && counts.blocks > 0 && counts.blocks <= 5 && counts.dom > 0 && counts.dom < 200,
+      `W-233: cache grew with visited rows: ${JSON.stringify(counts)}.`);
+    assert(await grid.evaluate(element => element.isConnected), 'W-233: loading replaced the grid.');
+    await page.evaluate(() => { document.querySelector('#record-grid .ag-grid-viewport').scrollTop = 0; });
+    await until(() => document.querySelector('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]')?.textContent?.length > 0,
+      null, 'evicted first block to reload', 10000);
+    assert(await page.evaluate(() => window.__lazyCalls.filter(call => call.start === 0).length >= 2), 'W-233: evicted block did not reload.');
+    const copiedCell = page.locator('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]');
+    const copiedText = await copiedCell.textContent();
+    await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true,
+      value: { writeText: async text => { window.__lazyCopied = text; } } }));
+    await copiedCell.click();
+    await page.click('[data-grid-copy]');
+    await until(text => window.__lazyCopied === text, copiedText, 'the formatted cell to reach the clipboard adapter');
+    await page.evaluate(() => { navigator.clipboard.writeText = async () => { throw Error('clipboard refused'); }; });
+    await page.click('[data-grid-copy]');
+    await until(() => /clipboard refused/i.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'clipboard refusal feedback');
+    await page.click('details.grid-columns summary');
+    const hide = '[data-column-visible="field.idea.title"]';
+    await page.locator(hide).uncheck();
+    assert(await page.locator('.ag-header-cell[col-id="field.idea.title"]').count() === 0, 'W-233: hiding the column left it visible.');
+    await page.locator(hide).check();
+    await page.locator('[data-column-pin="field.idea.title"]').selectOption('left');
+    assert(await page.locator('.ag-header .ag-grid-pinned-left-cells .ag-header-cell[col-id="field.idea.title"]').count() === 1, 'W-233: pin left did not move the column.');
+    await page.click('[data-grid-reset]');
+    await page.click('details.grid-columns summary');
+    const colors = await page.evaluate(() => { const root = getComputedStyle(document.documentElement); const box = document.querySelector('#record-grid').getBoundingClientRect();
+      return { surface: root.getPropertyValue('--surface').trim(), width: box.width, height: box.height }; });
+    assert(colors.width > 300 && colors.height > 200, `W-233: grid lost its viewport: ${JSON.stringify(colors)}.`);
+    assert(theme === 'light' ? colors.surface === '#ffffff' : colors.surface === '#2d2e30', `W-233: wrong theme tokens: ${JSON.stringify(colors)}.`);
+    await page.setViewportSize({ width: 600, height: 800 });
+    const toolbarFits = await page.evaluate(() => {
+      const toolbar = document.querySelector('.data-toolbar').getBoundingClientRect();
+      return [...document.querySelectorAll('.data-toolbar > button, .data-toolbar > details')].every(control => {
+        const box = control.getBoundingClientRect(); return box.left >= toolbar.left && box.right <= toolbar.right;
+      });
+    });
+    assert(toolbarFits, 'W-233: table actions overflow the narrow toolbar.');
+    await page.evaluate(async () => { (await import('/src/view-data.ts')).markDataGridChanged(999999); });
+    assert(/Refresh/.test(await page.locator('[data-grid-load-status]').textContent()), 'W-233: stale data did not offer an explicit refresh.');
+    assert(await grid.evaluate(element => element.isConnected), 'W-233: a stale notification replaced the reading position.');
+  });
+
+  await check('W-233 deep edit and keyboard', 'idea', async () => {
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const template = client.session.records.find(record => record.entityId === 'entity.idea');
+      client.session.records = Array.from({ length: 1000 }, (_, index) => ({ ...structuredClone(template),
+        recordId: `lazy-${String(index).padStart(5, '0')}`, recordVersion: 1 }));
+    });
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-id="lazy-00000"]') !== null, null, 'initial block');
+    for (let index = 1; index < 6; index++) {
+      await page.waitForFunction(index => {
+        const viewport = document.querySelector('#record-grid .ag-grid-viewport');
+        viewport.scrollTop = viewport.scrollHeight;
+        return [...document.querySelectorAll('#record-grid .ag-row[row-id]')].some(row => Number(row.getAttribute('row-index')) >= index * 100);
+      }, index, { polling: 200, timeout: 10000 });
+    }
+    await page.waitForTimeout(150);
+    const target = await page.evaluate(() => {
+      const viewport = document.querySelector('#record-grid .ag-grid-viewport').getBoundingClientRect();
+      return [...document.querySelectorAll('.ag-row[row-id]')].find(row => {
+        const box = row.getBoundingClientRect();
+        return /^lazy-00[5-9]/.test(row.getAttribute('row-id')) && box.top >= viewport.top && box.bottom <= viewport.bottom;
+      })?.getAttribute('row-id');
+    });
+    assert(target, 'W-233: the deep edit never reached the sixth block.');
+    const cell = `.ag-row[row-id="${target}"] .ag-cell[col-id="field.idea.title"]`;
+    await page.locator(cell).dblclick();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('Lazy deep edit');
+    await page.keyboard.press('Enter');
+    await until(async id => {
+      const { client } = await import('/src/client.ts');
+      const record = client.session.records.find(record => record.recordId === id);
+      return record?.recordVersion === 2 && record.values['field.idea.title'] === 'Lazy deep edit';
+    }, target, 'the deep record and version to save');
+    const continued = `lazy-${String(Number(target.slice(5)) + 1).padStart(5, '0')}`;
+    await until(id => document.activeElement?.closest('.ag-row')?.getAttribute('row-id') === id, continued, 'Enter to continue on the next record');
+    await page.keyboard.press('ArrowDown');
+    const next = await page.evaluate(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-id'));
+    assert(next !== continued && next?.startsWith('lazy-'), 'W-233: ArrowDown lost the loaded record focus.');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('cancel me');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Tab');
+    assert(await page.evaluate(() => !document.activeElement?.closest('.ag-cell')), 'W-233: Tab outside editing trapped focus in the grid.');
+  });
+
+  for (const key of ['Enter', 'Tab']) await check(`W-233 ${key} unloaded keyboard boundary`, 'idea', async () => {
+    await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      const template = client.session.records.find(record => record.entityId === 'entity.idea');
+      client.session.records = Array.from({ length: 300 }, (_, index) => ({ ...structuredClone(template),
+        recordId: `lazy-${String(index).padStart(5, '0')}`, recordVersion: 1 }));
+      window.__lazyReleases = [];
+      window.__lazyReleased = false;
+      const request = client.request.bind(client);
+      client.request = async (method, payload) => {
+        if (method === 'data.queryRecordWindow' && payload.start === 100 && !window.__lazyReleased)
+          await new Promise(resolve => window.__lazyReleases.push(resolve));
+        return request(method, payload);
+      };
+    });
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-id="lazy-00000"]') !== null, null, 'initial keyboard block');
+    if (key === 'Tab') {
+      await page.click('details.grid-columns summary');
+      await page.locator('[data-column-visible="field.idea.title"]').waitFor({ state: 'visible' });
+      const columns = await page.locator('[data-column-visible]').evaluateAll(inputs => inputs.map(input => input.dataset.columnVisible));
+      for (const column of columns) if (column !== 'field.idea.title') await page.locator(`[data-column-visible="${column}"]`).uncheck();
+      await page.click('details.grid-columns summary');
+      const visible = await page.locator('.ag-header-cell:not([col-id="openRecord"])').evaluateAll(cells => cells.map(cell => cell.getAttribute('col-id')));
+      assert(visible.length === 1 && visible[0] === 'field.idea.title',
+        `W-233: the Tab fixture did not leave exactly one data column visible: ${JSON.stringify(visible)}.`);
+    }
+    await page.evaluate(() => { const viewport = document.querySelector('#record-grid .ag-grid-viewport'); viewport.scrollTop = viewport.scrollHeight; });
+    await until(() => window.__lazyReleases.length > 0, null, 'a blocked second block');
+    await page.locator('.ag-row[row-id="lazy-00099"] .ag-cell[col-id="field.idea.title"]').dblclick();
+    await page.keyboard.press('Control+a');
+    await page.keyboard.type('Boundary edit');
+    await page.keyboard.press(key);
+    await until(async () => (await import('/src/client.ts')).client.session.records.find(record => record.recordId === 'lazy-00099')?.recordVersion === 2,
+      null, 'the boundary save');
+    await page.waitForTimeout(150);
+    await page.evaluate(() => { window.__lazyReleased = true; window.__lazyReleases.splice(0).forEach(release => release()); });
+    try { await until(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-id') === 'lazy-00100', null, 'Enter focus after the missing block arrives', 8000); }
+    catch (error) { throw Error(`${error.message} ${JSON.stringify(await page.evaluate(async () => ({ ...(await import('/src/view-data.ts')).dataGridReadDiagnostics(), active: document.activeElement?.outerHTML?.slice(0, 250), status: document.querySelector('[data-grid-load-status]')?.textContent })))}`); }
+    assert(await page.evaluate(() => document.activeElement?.getAttribute('col-id')) === 'field.idea.title', 'W-233: continuation changed fields.');
+    if (key === 'Tab') {
+      await page.click('details.grid-columns summary');
+      await page.click('[data-grid-reset]');
+      await page.click('details.grid-columns summary');
+    }
+  });
+
+  await check('W-233 column layout survives refused device storage', 'idea', async () => {
+    await page.evaluate(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) { if (key.startsWith('nendo.studioLayout.')) throw Error('storage refused'); return set.call(this, key, value); };
+    });
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row .ag-cell[col-id="field.idea.title"]') !== null, null, 'the table before layout changes');
+    await page.click('details.grid-columns summary');
+    await page.locator('[data-column-visible="field.idea.title"]').uncheck();
+    await page.click('details.grid-columns summary');
+    const oldGrid = await page.locator('#record-grid').elementHandle();
+    const oldColumns = await page.locator('details.grid-columns').elementHandle();
+    await page.keyboard.press('F5');
+    await until(async () => document.querySelector('#studio-content')?.getAttribute('aria-busy') === 'false', null, 'refresh after layout changes');
+    await page.waitForTimeout(250);
+    assert(!await oldGrid.evaluate(element => element.isConnected), 'W-233: the layout check did not rebuild the table.');
+    // A queued toggle may arrive after disposal. It must not read the old grid API.
+    await oldColumns.evaluate(element => element.dispatchEvent(new Event('toggle')));
+    assert(await page.locator('.ag-header-cell[col-id="field.idea.title"]').count() === 0, 'W-233: a refused storage write lost the session column layout.');
+    await page.click('details.grid-columns summary');
+    await page.click('[data-grid-reset]');
+  });
 
   // UIS-21: a button's glyph is not part of its name in Ctrl K.
   await check('UIS-21 palette label', 'decision', async () => {
@@ -630,7 +822,7 @@ async page => {
     assert(after === before, `UX-02: after the refusal (${said}) the cell shows ${JSON.stringify(after)}, not the stored ${JSON.stringify(before)}.`);
   });
 
-  // UX-03 and UX-04: a keyboard save keeps the focus on its cell and the columns where they were,
+  // UX-03 and UX-04: Enter continues to the next row (W-233), keeping the field and horizontal position,
   // and says it saved where it can be seen.
   await check('UX-03 UX-04 grid save keeps its place', 'idea', async () => {
     await page.click('#nav-data');
@@ -651,21 +843,24 @@ async page => {
     assert(target !== null, 'no text cell is in view; the check measures nothing');
     const scrollBefore = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
     await page.locator(`.ag-row[row-index="0"] .ag-cell[col-id="${target}"]`).click();
+    const scrollAtClick = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(200);
+    const scrollAtEditor = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
     await page.keyboard.press('End');
     await page.keyboard.type(' (kept)');
     await page.keyboard.press('Enter');
     await until(() => /saved/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'a visible saved message', 6000);
     await page.waitForTimeout(400);
     const where = await page.evaluate(() => { const cell = document.activeElement?.closest('.ag-cell'); return cell ? `${cell.closest('.ag-row')?.getAttribute('row-index')}:${cell.getAttribute('col-id')}` : document.activeElement?.tagName ?? 'none'; });
-    assert(where === `0:${target}`, `UX-03: after the save the focus is on ${where}, not the cell it saved.`);
+    assert(where === `1:${target}`, `UX-03: after the save the focus is on ${where}, not the next row of the same field.`);
     const scrollAfter = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
-    assert(Math.abs(scrollAfter - scrollBefore) <= 2, `UX-03: the columns scrolled from ${scrollBefore} to ${scrollAfter} px.`);
-    await page.keyboard.press('ArrowDown');
+    const scrollDiagnostics = await page.evaluate(async () => (await import('/src/view-data.ts')).dataGridReadDiagnostics());
+    assert(Math.abs(scrollAfter - scrollBefore) <= 2, `UX-03: the columns scrolled from ${scrollBefore} to ${scrollAfter} px. Click ${scrollAtClick}, editor ${scrollAtEditor}, target ${target}. ${JSON.stringify(scrollDiagnostics)}`);
+    await page.keyboard.press('ArrowUp');
     await page.waitForTimeout(150);
     const down = await page.evaluate(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-index') ?? null);
-    assert(down === '1', `UX-03: ArrowDown after the save went to row ${down}.`);
+    assert(down === '0', `UX-03: ArrowUp after the save went to row ${down}.`);
   }, 900, 800);
 
   // UX-24 and UX-04: rejecting an agent's proposal asks first, and the outcome is on screen.
@@ -2050,6 +2245,7 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     assert(first !== null && first.theme === 'dark', `WST-10: in dark mode the page's first frame is themed ${JSON.stringify(first)}, before the module had run.`);
   });
 
+  assert(checks.length + failures.length > 0, 'No browser checks matched the requested filter.');
   return { complete: failures.length === 0, checks, errors, failure: failures.join(' || ') };
   })(); } catch (error) {
     return { complete: false, checks, errors, failure: [...failures, String(error?.message ?? error)].join(' || ') };

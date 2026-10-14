@@ -243,6 +243,18 @@ ladder's search rung, built on the link-rule rung: `__nendo_search_doc` maps eac
 sync-managed paths (OneDrive, Dropbox, Google Drive) and shows a warning. The
 project makes no sync-safety claim and has no live-provider evidence.
 
+## Studio record windows
+
+Studio flat tables use AG Grid Community's Infinite Row Model through
+`data.queryRecordWindow` and `NendoApplicationService.QueryRecordWindowAsync`.
+The Engine shares the cursor query's typed predicates, exact comparisons, calculated
+query limits and deterministic ordering. A signed token binds file/session, complete
+query and revision. Storage performs a bounded offset read (maximum 200 records);
+an optional stable-ID lookup returns the record's current position in that same query.
+The Workbench requests 100 rows per block, retains five blocks and discards obsolete
+generations. This adds no custom-view or MCP authority and changes no file format.
+See [the query contract](contracts/queries.md) and [delivery plan](design/lazy-data-views.md).
+
 ## Data model
 
 User entities materialise as ordinary relational tables. Stable semantic IDs map

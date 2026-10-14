@@ -446,3 +446,13 @@ It is a decision for Nendo's recorded constraints and evidence.
   lower total system cost.
 - Cross-platform delivery becomes an explicit product requirement with funded
   validation, not an architectural option value.
+
+## 2026-10-14 note — bounded Studio record windows
+
+The owner approved the lazy-data-views plan (W-233). The bundled Workbench gains
+`data.queryRecordWindow`, a named, cancellable read through the existing typed
+application service. It opens, reads and locates within a revision-bound query;
+its bounds and token are specified in the query contract. It carries no SQL,
+path or write authority and is not exposed to custom-view actors. Host and
+Workbench ship together under the existing protocol 7 policy. ADR-0015's
+Community-only component and transient grid-state boundaries are unchanged.

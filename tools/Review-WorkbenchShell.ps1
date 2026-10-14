@@ -7,7 +7,7 @@
 # module (the redraw hold, a redraw on demand) as the page itself does: one module instance, one
 # state. What it does NOT cover: the Desktop host, WebView2 or a real agent.
 [CmdletBinding()]
-param()
+param([string] $Check = '')
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -30,7 +30,7 @@ try {
         if ([DateTime]::UtcNow -gt $deadline) { throw "The Vite dev server did not answer at $url." }
         Start-Sleep -Milliseconds 200
     }
-    $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-WorkbenchShell.mjs')).Replace('__WORKBENCH_URL__', $url)
+    $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-WorkbenchShell.mjs')).Replace('__WORKBENCH_URL__', $url).Replace('"__SHELL_CHECK__"', (ConvertTo-Json -InputObject $Check -Compress))
     $probePath = Join-Path $output 'probe.mjs'
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" open about:blank --browser msedge

@@ -138,3 +138,30 @@ A chart range (`last30Days`, `thisYear`, …) and a command step's `today` resol
 machine's civil day. The Engine reads the machine's time zone again from Windows at most once
 a minute, so a zone changed while Nendo keeps running moves its today as it moves the
 Workbench's (R2LAT-06).
+
+## Bounded record windows
+
+Owner accepted on 2026-10-14 with the lazy-data-views implementation plan (W-233).
+`QueryRecordWindowAsync` uses the same typed query as `QueryRecordsAsync`, with
+`start`, a `limit` of 1–200, an optional `queryToken` and optional `locateRecordId`.
+The first read opens the query and returns its authenticated token; further reads
+must present that token. It binds the query, open file instance/session and change
+sequence. A write makes it stale; changing the query or reopening the file makes
+it invalid. A page cursor cannot be used as a window token or supplied in the
+window's nested query. Negative and overflowing positions are refused.
+
+The response contains records, start, hasMore, changeSequence, queryToken and
+locatedIndex. A locate reads the block containing that record in the filtered
+order and returns its absolute index. A missing record leaves locatedIndex null
+and returns to the first block. Ranking and offset work stay inside storage;
+only the requested records and one lookahead are materialized for a stored query.
+The read-only snapshot path preserves the same typed comparisons. Calculated
+queries retain their existing candidate bound. No read holds a transaction open
+between calls, and no full result crosses the storage boundary.
+
+Studio uses 100-row blocks and a five-block AG Grid cache, with at most two
+requests in flight and one bounded opening block. A write opens a new query;
+record identity, rather than the old row number, anchors a restored viewport.
+External changes stop continuation and offer Refresh. Existing cursor consumers
+keep their contract. This addition is a named Workbench read, not a new MCP tool
+or custom-view capability.

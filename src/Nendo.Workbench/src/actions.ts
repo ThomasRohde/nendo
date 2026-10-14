@@ -342,7 +342,10 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   ]);
   const applicationEntity =
     (definition?.applications?.find(app => app.entity.semanticId === state.selectedApplicationEntity) ?? definition?.applications?.[0])?.entity.semanticId;
-  const entityIds = state.session.capabilities.readData ? [...new Set([sessionEntity()?.entityId, applicationEntity]
+  // A fresh file chooses its Use landing screen after compilation. Seed that screen once;
+  // an already-open Studio table owns its own blocks instead.
+  const studioOwnsReads = state.view === 'data' && state.compilation !== null;
+  const entityIds = state.session.capabilities.readData ? [...new Set(studioOwnsReads ? [] : [sessionEntity()?.entityId, applicationEntity]
     .filter((id): id is string => id !== undefined))] : [];
   const browseQuery = emptyWindowQuery();
   const pages = await Promise.all(entityIds.map(async entityId => ({ entityId, request: JSON.stringify(windowRequest(entityId, browseQuery)),
@@ -357,7 +360,7 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   // The query the screen opened under, a drill or a Filter pick included: the declared one alone
   // put records back on a narrowed screen after every write (W-172).
   const surfaceDay = readDay();
-  const declared = surfaceNode === null || readsOwnRecords(surfaceNode.kind) || applicationEntity === undefined
+  const declared = studioOwnsReads || surfaceNode === null || readsOwnRecords(surfaceNode.kind) || applicationEntity === undefined
     ? null
     : effectiveSurfaceQuery(applicationEntity, surfaceNode);
   // A screen that asks for exactly what the browse window read takes that page rather than reading it twice.
@@ -712,6 +715,7 @@ async function settlePendingSave(settle: () => Promise<DesktopOperationView | nu
 }
 
 export async function refreshStudioQuery(entityId: string): Promise<void> {
+  if (state.view === 'data') return; // The grid owns bounded reads of the Studio query.
   const studio = studioQueries.get(entityId);
   if (!studio) return;
   const query: WindowQuery = {

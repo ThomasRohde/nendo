@@ -53,6 +53,7 @@ test('the refresh after a write reads a narrowed screen under its pick', async (
     capabilities: { ...empty.capabilities, readData: true, customSurfaces: true, mutate: true },
     manifest: { changeSequence: 1 }, entities: [{ entityId: 'tasks', displayName: 'Tasks', fields: [], retired: false }],
   };
+  p.state.view = 'use';
   p.state.compilation = definition;
   p.state.showOverview = false;
   p.state.selectedApplicationEntity = 'tasks';
@@ -69,4 +70,15 @@ test('the refresh after a write reads a narrowed screen under its pick', async (
   const reads = host.calls.filter(call => call.method === 'data.queryRecords' && call.payload.filters.length > 0);
   assert.deepEqual(reads.map(call => call.payload.filters), [[{ fieldId: 'status', operator: 'eq', value: 'open' }]],
     'The board was read again without its Filter pick.');
+});
+
+test('a fresh file seeds its landing screen but an open Studio grid owns its reads', async () => {
+  p.state.view = 'data';
+  p.state.compilation = null;
+  host.calls = [];
+  await p.refreshDerived();
+  assert.ok(host.calls.some(call => call.method === 'data.queryRecords'), 'The landing screen opened without records.');
+  host.calls = [];
+  await p.refreshDerived();
+  assert.equal(host.calls.filter(call => call.method === 'data.queryRecords').length, 0, 'Studio eagerly fetched a page outside its datasource.');
 });
