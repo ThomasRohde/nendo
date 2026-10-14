@@ -6,6 +6,58 @@ namespace Nendo.Engine.Tests;
 public sealed class TypedRecordQueryTests
 {
     [TestMethod]
+    public async Task RecordWindowsSeekLocateAndBindTheCompleteQueryAndRevision()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await Seed(coordinator);
+        var query = new NendoRecordQuery("items") { SortFieldId = "amount" };
+        var first = await service.QueryRecordWindowAsync(new(query, 0, 2));
+        CollectionAssert.AreEqual(new[] { "a", "d" }, first.Items.Select(row => row.RecordId).ToArray());
+        Assert.IsTrue(first.HasMore);
+        var distant = await service.QueryRecordWindowAsync(new(query, 4, 2, first.QueryToken));
+        CollectionAssert.AreEqual(new[] { "c" }, distant.Items.Select(row => row.RecordId).ToArray());
+        Assert.IsFalse(distant.HasMore);
+        Assert.AreEqual(4, distant.Start);
+        var located = await service.QueryRecordWindowAsync(new(query, 0, 2, first.QueryToken, "b"));
+        Assert.AreEqual(3, located.LocatedIndex);
+        Assert.AreEqual(2, located.Start);
+        CollectionAssert.AreEqual(new[] { "e", "b" }, located.Items.Select(row => row.RecordId).ToArray());
+        var filtered = query with { Filters = [Filter("amount", "lt", 0m)] };
+        var negative = await service.QueryRecordWindowAsync(new(filtered, 0, 2));
+        CollectionAssert.AreEqual(new[] { "d", "e" }, negative.Items.Select(row => row.RecordId).ToArray());
+        Assert.IsFalse(negative.HasMore, "An exact block must signal its end without an extra read.");
+        var removed = await service.QueryRecordWindowAsync(new(filtered, 900, 2, negative.QueryToken, "b"));
+        Assert.IsNull(removed.LocatedIndex);
+        Assert.AreEqual(0, removed.Start, "A missing anchor must return to the first block.");
+        Assert.HasCount(2, removed.Items);
+        await Code("invalid-cursor", () => service.QueryRecordWindowAsync(new(filtered, 0, 2, first.QueryToken)));
+        await Code("invalid-cursor", () => service.QueryRecordWindowAsync(new(query with { Descending = true }, 0, 2, first.QueryToken)));
+        await Code("invalid-cursor", () => service.QueryRecordsAsync(query with { Cursor = first.QueryToken }));
+        await Code("invalid-limit", () => service.QueryRecordWindowAsync(new(query, 0, 201)));
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => service.QueryRecordWindowAsync(new(query, -1)));
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => service.QueryRecordWindowAsync(new(query, int.MaxValue)));
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => service.QueryRecordWindowAsync(new(query with { Cursor = "cursor" })));
+        await service.SetFieldAsync(new("items", "c", "title", 1, "changed", new("test", "window-edit", "test")));
+        await Code("stale-cursor", () => service.QueryRecordWindowAsync(new(query, 2, 2, first.QueryToken)));
+        var fresh = await service.QueryRecordWindowAsync(new(query));
+        await coordinator.DisposeAsync(); workspace.Forget(coordinator);
+        service = new(await workspace.OpenAsync());
+        await Code("invalid-cursor", () => service.QueryRecordWindowAsync(new(query, QueryToken: fresh.QueryToken)));
+        await using var readOnly = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
+        var snapshot = new NendoApplicationService(readOnly);
+        var safe = await snapshot.QueryRecordWindowAsync(new(query, 2, 2, LocateRecordId: "b"));
+        CollectionAssert.AreEqual(new[] { "e", "b" }, safe.Items.Select(row => row.RecordId).ToArray());
+        Assert.AreEqual(3, safe.LocatedIndex);
+        var absent = await snapshot.QueryRecordWindowAsync(new(filtered, 900, 2, LocateRecordId: "b"));
+        Assert.AreEqual(0, absent.Start);
+        Assert.HasCount(2, absent.Items);
+        var descending = await snapshot.QueryRecordWindowAsync(new(query with { Descending = true }, 0, 2));
+        CollectionAssert.AreEqual(new[] { "c", "b" }, descending.Items.Select(row => row.RecordId).ToArray());
+    }
+
+    [TestMethod]
     public async Task ExactDecimalOrderingPagesAcrossNullsAndTiesInBothDirections()
     {
         await using var workspace = new EngineTestWorkspace();

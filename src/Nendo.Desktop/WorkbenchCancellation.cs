@@ -44,6 +44,7 @@ internal static partial class WorkbenchMethods
         DataExecuteCommand,
         DataGetReceipt,
         DataQueryRecords,
+        DataQueryRecordWindow,
         DataCountRecords,
         DataAggregateRecords,
         DataGroupAggregateRecords,

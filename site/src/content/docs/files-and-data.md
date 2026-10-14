@@ -5,6 +5,20 @@ group: Use
 order: 50
 ---
 
+## Work in a Studio table
+
+In **Studio → Data**, scroll to read more records; a flat table loads them as needed.
+Sorting a header and applying a filter query the whole record type. The status below
+the table reports loading, the rows read so far, or the total once it reaches the end.
+Use **Retry** after a failed read. If another writer changes the file, **Refresh** reads
+the current result while keeping the previous record in view when it still matches.
+
+Drag column headers to reorder them. **Columns** lets you hide fields or pin them on
+either side; **Reset columns** restores the layout. These preferences stay on this
+computer. **Copy cell**, or Ctrl+C outside a cell editor, copies the selected value.
+Edits still validate and save through Nendo, with record versions and History.
+Lists, boards and the tree outline keep their existing navigation controls.
+
 ## The .nendo file
 
 A Nendo application is one SQLite file with the extension `.nendo`. There is no server and no account. You can move the file, copy it and back it up like any other file.

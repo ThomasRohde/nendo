@@ -2,7 +2,7 @@
 import './frame-guard';
 import { agentDigest, refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
 import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-chat';
-import { destroyGrid, renderData, stopGridEditing } from './view-data';
+import { destroyGrid, renderData, stopGridEditing, markDataGridChanged } from './view-data';
 import { openHealth, renderHealth } from './view-health';
 import { renderHelp } from './view-help';
 import { renderHistory } from './view-history';
@@ -36,7 +36,12 @@ import { refreshExtensionSettings } from './extension-settings';
 import { approvalNeeded, capitalise, formatDateTime, messageFor, undoAllowedWhileUnapproved } from './format';
 import {
   CellStyleModule,
+  CellApiModule,
   ClientSideRowModelModule,
+  InfiniteRowModelModule,
+  EventApiModule,
+  RowApiModule,
+  ColumnApiModule,
   ColumnAutoSizeModule,
   DateEditorModule,
   LargeTextEditorModule,
@@ -66,7 +71,12 @@ import './styles.css';
 // Markdown are edited in the large-text popup, which needs LargeTextEditor (review R-018).
 ModuleRegistry.registerModules([
   CellStyleModule,
+  CellApiModule,
   ClientSideRowModelModule,
+  InfiniteRowModelModule,
+  EventApiModule,
+  RowApiModule,
+  ColumnApiModule,
   ColumnAutoSizeModule,
   DateEditorModule,
   LargeTextEditorModule,
@@ -889,6 +899,7 @@ startTitleBar(client);
 client.onFileChanged?.((changeSequence) => {
   if (!state.session.hasFile) return;
   // Only a change ahead of what the screen was drawn from is news (file-follow.ts).
+  if (markDataGridChanged(changeSequence)) return;
   fileFollow.nudge(state.session.fileSessionId, changeSequence);
 });
 

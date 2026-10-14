@@ -197,13 +197,14 @@ internal sealed partial class SqliteNendoStore
         return names;
     }
 
-    internal async Task<NendoPage<NendoRecordSnapshot>> QueryRecordsAsync(
-        NendoRecordQuery query, NendoQueryCursor cursors, CancellationToken cancellationToken)
+    internal async Task<NendoRecordRead> QueryRecordReadAsync(
+        NendoRecordQuery query, NendoQueryCursor cursors, CancellationToken cancellationToken, NendoRecordWindowQuery? window = null)
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
         _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
         var manifest = await ReadManifestAsync(transaction, cancellationToken);
         var scope = NendoWriteCoordinator.RecordScope(query);
+        var token = window is null ? null : RecordWindowSemantics.Token(window, cursors, manifest);
         var after = cursors.Decode(query.Cursor, manifest, scope);
         var mappings = await ReadEntityMappingsAsync(transaction, cancellationToken);
         var entity = mappings
@@ -263,13 +264,26 @@ internal sealed partial class SqliteNendoStore
         await AddFilterPredicatesAsync(entity, StoredFilters(query.Filters, derived), "nendo_query_filter", predicates, parameters, transaction, cancellationToken);
         if (selection?.KeepPredicate is { } keep) predicates.Add(keep);
         // Only storage-owned mappings become identifiers. User values are parameters.
-        var sql = $"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} source_record " +
-            (predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)} ") +
-            $"ORDER BY {order} LIMIT @limit;";
+        var from = $"FROM {Quote(entity.PhysicalTableName)} source_record " +
+            (predicates.Count == 0 ? string.Empty : $"WHERE {string.Join(" AND ", predicates)} ");
+        var start = window?.Start ?? 0;
+        int? located = null;
+        if (window?.LocateRecordId is { } locatedRecordId)
+        {
+            // Rank IDs inside storage; no intervening records cross the service boundary.
+            await using var locate = Command($"SELECT position FROM (SELECT {id} AS record_id, ROW_NUMBER() OVER (ORDER BY {order}) - 1 AS position {from}) WHERE record_id = @target;", transaction);
+            foreach (var parameter in parameters) locate.Parameters.AddWithValue(parameter.Key, parameter.Value);
+            locate.Parameters.AddWithValue("@target", locatedRecordId);
+            var value = await locate.ExecuteScalarAsync(cancellationToken);
+            if (value is long position) { located = checked((int)position); start = located.Value / query.Limit * query.Limit; }
+            else start = 0; // A removed/filtered anchor cannot leave an empty far-away viewport.
+        }
+        var sql = $"SELECT {string.Join(", ", columns)} {from}ORDER BY {order} LIMIT @limit OFFSET @offset;";
         var records = new List<NendoRecordSnapshot>(query.Limit + 1);
         await using (var command = Command(sql, transaction))
         {
             command.Parameters.AddWithValue("@limit", query.Limit + 1);
+            command.Parameters.AddWithValue("@offset", start);
             if (after is not null) command.Parameters.AddWithValue("@after", after);
             foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter.Key, parameter.Value);
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -281,7 +295,7 @@ internal sealed partial class SqliteNendoStore
         // never disagree about what a calculated field currently is.
         var page = await WithKeptMarksAsync(await WithCalculationsAsync(
             records.Take(query.Limit).ToArray(), mappings, transaction, cancellationToken), transaction, cancellationToken, entity.EntityId);
-        return new(page, next, manifest.ChangeSequence);
+        return new(new(page, next, manifest.ChangeSequence), start, token, located);
     }
 
     /// <summary>

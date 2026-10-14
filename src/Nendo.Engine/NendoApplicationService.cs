@@ -156,6 +156,10 @@ public sealed partial class NendoApplicationService
         NendoRecordQuery query, CancellationToken cancellationToken = default) =>
         _coordinator.QueryRecordsAsync(query, cancellationToken);
 
+    public Task<NendoRecordWindow> QueryRecordWindowAsync(
+        NendoRecordWindowQuery query, CancellationToken cancellationToken = default) =>
+        _coordinator.QueryRecordWindowAsync(query, cancellationToken);
+
     /// <summary>A full-text search over the file's text fields (ADR-0028).</summary>
     public Task<NendoPage<NendoSearchHit>> SearchRecordsAsync(
         NendoSearchQuery query, CancellationToken cancellationToken = default) =>

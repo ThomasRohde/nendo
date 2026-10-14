@@ -407,6 +407,7 @@ code {
 
 .data-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
@@ -517,3 +518,12 @@ code {
 .outline-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline-count { flex: none; padding: 0 6px; border-radius: 999px; color: var(--muted); background: var(--surface-soft); font-family: var(--mono); font-size: 11px; line-height: 18px; }
 .outline-more { font-size: 12px; }
+
+/* The table's column controls use the same surface and border tokens as Studio. */
+.grid-columns { position: relative; }
+.grid-columns summary { cursor: pointer; }
+.grid-columns[open] { z-index: 5; }
+.grid-column-menu { position: absolute; right: 0; top: 28px; width: min(320px, 75vw); padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-panel); }
+.grid-column-options { max-height: 45vh; overflow: auto; }
+.grid-column-option { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.grid-column-option select { margin-left: auto; max-width: 110px; }

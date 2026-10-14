@@ -337,7 +337,20 @@ public sealed partial class NendoWriteCoordinator
     }
 
     public async Task<NendoPage<NendoRecordSnapshot>> QueryRecordsAsync(
-        NendoRecordQuery query, CancellationToken cancellationToken = default)
+        NendoRecordQuery query, CancellationToken cancellationToken = default) =>
+        (await QueryRecordReadAsync(query, null, cancellationToken)).Page;
+
+    public async Task<NendoRecordWindow> QueryRecordWindowAsync(
+        NendoRecordWindowQuery window, CancellationToken cancellationToken = default)
+    {
+        RecordWindowSemantics.Validate(window);
+        var read = await QueryRecordReadAsync(window.Query with { Limit = window.Limit }, window, cancellationToken);
+        return new(read.Page.Items, read.Start, read.Page.NextCursor is not null,
+            read.Page.ChangeSequence, read.QueryToken!, read.LocatedIndex);
+    }
+
+    private async Task<NendoRecordRead> QueryRecordReadAsync(
+        NendoRecordQuery query, NendoRecordWindowQuery? window, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
         NendoQueryCursor.RequireLimit(query.Limit);
@@ -398,11 +411,22 @@ public sealed partial class NendoWriteCoordinator
                     return StringComparer.Ordinal.Compare(left.RecordId, right.RecordId);
                 });
                 var previous = after is null ? null : _readOnlySnapshot.Records.Single(record => record.EntityId == query.EntityId && record.RecordId == after);
-                var items = rows.OrderBy(record => record, comparer)
-                    .Where(record => previous is null || comparer.Compare(record, previous) > 0).Take(query.Limit + 1).ToArray();
-                return RecordPage(items, query.Limit, _readOnlySnapshot.Manifest, scope);
+                var token = window is null ? null : RecordWindowSemantics.Token(window, _queryCursors, _readOnlySnapshot.Manifest);
+                var ordered = rows.OrderBy(record => record, comparer);
+                var start = window?.Start ?? 0;
+                int? located = null;
+                if (window?.LocateRecordId is { } target)
+                {
+                    var index = 0;
+                    foreach (var row in ordered) { if (row.RecordId == target) { located = index; break; } index++; }
+                    if (located is { } position) start = position / query.Limit * query.Limit;
+                    else start = 0;
+                }
+                var items = ordered.Where(record => previous is null || comparer.Compare(record, previous) > 0)
+                    .Skip(start).Take(query.Limit + 1).ToArray();
+                return new(RecordPage(items, query.Limit, _readOnlySnapshot.Manifest, scope), start, token, located);
             }
-            return await GetStore().QueryRecordsAsync(query, _queryCursors, cancellationToken);
+            return await GetStore().QueryRecordReadAsync(query, _queryCursors, cancellationToken, window);
         }
         catch (NendoRecoveryRequiredException) { EnterRecovery(); throw; }
         finally { _gate.Release(); }

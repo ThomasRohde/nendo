@@ -397,6 +397,9 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     internal Task<NendoPage<NendoRecordSnapshot>> QueryRecordsAsync(NendoRecordQuery query, CancellationToken cancellationToken) =>
         QueryAsync(service => service.QueryRecordsAsync(query, cancellationToken), cancellationToken);
 
+    internal Task<NendoRecordWindow> QueryRecordWindowAsync(NendoRecordWindowQuery query, CancellationToken cancellationToken) =>
+        QueryAsync(service => service.QueryRecordWindowAsync(query, cancellationToken), cancellationToken);
+
     internal Task<NendoRecordCount> CountRecordsAsync(NendoRecordCountQuery query, CancellationToken cancellationToken) =>
         QueryAsync(service => service.CountRecordsAsync(query, cancellationToken), cancellationToken);
 
