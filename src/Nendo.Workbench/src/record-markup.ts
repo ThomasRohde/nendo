@@ -524,6 +524,14 @@ export function backfillControlMarkup(field: EntitySnapshot['fields'][number]): 
   return fieldControlMarkup(backfillPlan(field), null, { explicitChoice: true });
 }
 
+/**
+ * The way to throw away what was typed on a saved record. Every move off the page with
+ * unsaved typing says "Save or discard your changes", and only Back to Data's dialog
+ * offered to discard (W-243): this is the discard that sentence names, shown while there
+ * is something to discard. `wireRecordForm` shows it and puts the stored values back.
+ */
+const discardButton = '<button id="discard-changes" class="secondary-button" type="button" hidden>Discard changes</button>';
+
 export function recordFormMarkup(
   record: RecordPlan | null,
   fields: FieldPlan[],
@@ -538,7 +546,7 @@ export function recordFormMarkup(
   // one has its tab opened, and only then is the failure reported.
   return `<form id="record-form" class="record-form" ${ownedValidation ? 'novalidate' : ''}>
     ${body ?? fieldsMarkup(record, fields)}${extra}
-    <div class="form-actions">${record !== null && state.session.capabilities.mutate ? '<button id="delete-record" data-action type="button">Delete record…</button>' : ''}${record === null ? '<button id="cancel-create" class="secondary-button" type="button" data-dismiss>Cancel</button>' : ''}<button class="primary-button" data-action type="submit">${escapeHtml(submitLabel)}</button></div>
+    <div class="form-actions">${record !== null && state.session.capabilities.mutate ? '<button id="delete-record" data-action type="button">Delete record…</button>' : ''}${record === null ? '<button id="cancel-create" class="secondary-button" type="button" data-dismiss>Cancel</button>' : discardButton}<button class="primary-button" data-action type="submit">${escapeHtml(submitLabel)}</button></div>
   </form>`;
 }
 
@@ -604,6 +612,7 @@ export function recordSheetMarkup(
       <h2 id="${escapeAttribute(text.headingId)}">${escapeHtml(text.heading)}</h2>
       <span class="record-sheet-spacer"></span>
       ${canDelete ? '<button id="delete-record" data-action type="button">Delete record…</button>' : ''}
+      ${record === null ? '' : discardButton}
       <button class="primary-button" data-action type="submit">${escapeHtml(text.submitLabel)}</button>
     </div>
     <div class="record-sheet-body">

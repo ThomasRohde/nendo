@@ -656,7 +656,7 @@ export function renderDataRecordDialog(entity: EntitySnapshot, record: RecordPla
   const fields = snapshotFieldPlans(entity);
   content.innerHTML = `<div class="record-sheet-page" role="region" aria-labelledby="record-details-heading">${recordSheetMarkup(entity.displayName, record, fields, derivedFor(entity),
     { backId: 'close-inspector', backLabel: 'Back to Data', headingId: 'record-details-heading', heading: `${entity.displayName} details`, submitLabel: 'Save changes' })}</div>`;
-  wireRecordForm(record, entity.entityId, fields, () => { state.view = 'data'; rerender(); });
+  wireRecordForm(record, entity.entityId, fields, () => { state.view = 'data'; rerender(); }, null, () => renderDataRecordDialog(entity, record));
   if (!state.session.capabilities.mutate) {
     for (const control of content.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>('input, select, textarea, [data-action]')) control.disabled = true;
   }

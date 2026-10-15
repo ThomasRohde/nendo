@@ -179,6 +179,44 @@ async page => {
     assert(surface === (theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(45, 46, 48)'), `W-242: the sheet is not on the theme's surface: ${surface}.`);
   });
 
+  // "Save or discard your changes" names a discard the record page can be seen to offer (W-243):
+  // Discard changes appears once something is typed, puts the stored text back and frees Back.
+  await check('W-243 discard changes on the record page', 'idea', async () => {
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="0"] .record-open-cell') !== null, null, 'the first row');
+    await page.click('.ag-row[row-index="0"] .record-open-cell');
+    const notes = 'textarea[name="field.idea.notes"]';
+    await until(selector => document.querySelector(selector) !== null, notes, 'the record page');
+    const stored = await page.inputValue(notes);
+    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes is offered before anything was typed.');
+    await page.fill(notes, `${stored} and a sentence nobody wants`);
+    assert(await page.isVisible('#discard-changes'), 'W-243: no visible Discard changes while the record holds unsaved typing.');
+    await page.click('#nav-back');
+    await until(() => /Save or discard/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'the refusal to go back');
+    await page.click('#discard-changes');
+    await until(([selector, text]) => document.querySelector(selector)?.value === text, [notes, stored], 'the stored text to come back');
+    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes stays after discarding.');
+    await page.click('#nav-back');
+    await until(() => document.querySelector('textarea[name="field.idea.notes"]') === null, null, 'Back to leave the record page after discarding');
+  });
+
+  await check('W-243 discard changes on a Use record', 'idea', async () => {
+    await openRecord();
+    const control = await page.evaluate(() => {
+      const found = document.querySelector('.record-inspector #record-form :is(textarea, input[type="text"])');
+      return found === null ? null : `.record-inspector #record-form [name="${found.getAttribute('name')}"]`;
+    });
+    assert(control !== null, 'W-243: the Use record has no text control to type in.');
+    const stored = await page.inputValue(control);
+    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes is offered on a Use record before anything was typed.');
+    await page.fill(control, `${stored} and more`);
+    assert(await page.isVisible('#discard-changes'), 'W-243: no visible Discard changes on a Use record holding unsaved typing.');
+    await page.click('#discard-changes');
+    await until(([selector, text]) => document.querySelector(selector)?.value === text, [control, stored], 'the Use record to show its stored text again');
+    assert(await page.locator('.record-inspector').count() === 1, 'W-243: discarding closed the Use record.');
+    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes stays on a Use record after discarding.');
+  });
+
   await check('W-233 deep edit and keyboard', 'idea', async () => {
     await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');

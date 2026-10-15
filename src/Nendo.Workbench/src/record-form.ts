@@ -39,6 +39,9 @@ export function wireRecordForm(
   fields: FieldPlan[],
   close: () => void,
   page: ApplicationPlan | null = null,
+  // How the page is drawn again from the stored record. Studio's record page is drawn over
+  // the Data view rather than from the app's state, so a plain redraw would leave it.
+  redraw: () => void = rerender,
 ): void {
   // Escape presses the same button, so both ask before unsaved typing goes (UX-12).
   const closeAsking = (): void => {
@@ -123,6 +126,20 @@ export function wireRecordForm(
   });
   recordForm.addEventListener('input', trackEdit);
   recordForm.addEventListener('change', trackEdit);
+  // Discard changes is shown while there is something to discard, and puts the stored record
+  // back by drawing the page again: the draft lives only in the controls it replaces (W-243).
+  const discard = recordForm.querySelector<HTMLButtonElement>('#discard-changes');
+  if (discard !== null) {
+    const showDiscard = (): void => { discard.hidden = editedFields.size === 0; };
+    recordForm.addEventListener('input', showDiscard);
+    recordForm.addEventListener('change', showDiscard);
+    discard.addEventListener('click', () => {
+      editedFields.clear();
+      state.openDraft = null;
+      redraw();
+      showOutcome('Your changes were discarded.');
+    });
+  }
   // The rendering above a Markdown field shows its source as typed, not the stored text, so the
   // page never shows two versions of one field (UIS-14).
   const rendering = new Map<Element, number>();

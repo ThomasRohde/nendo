@@ -137,7 +137,9 @@ Opening a record in Studio › Data, or adding one, shows a sheet and a sidebar
 640px card with every field in one column.
 
 - A sticky page toolbar holds Back to Data, the page's name, Delete record… and
-  the primary action.
+  the primary action. Once a field differs from what is stored, *Discard changes*
+  appears beside Save and puts the stored values back (W-243); it is the discard
+  that "Save or discard your changes" names.
 - The record type's first line of text heads the page at title size. Where the
   record type has long text, the heading and the long text are one document
   (W-242, direction A of the text record page canvas,
