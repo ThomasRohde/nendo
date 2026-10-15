@@ -59,6 +59,44 @@ public sealed class NodePlacementTests
         Assert.AreEqual("e,c,a,d,b2", await OrderAsync(client));
     }
 
+    /// <summary>
+    /// W-245: the vocabulary lists position as optional, and the Billable author left it out. The
+    /// node was refused by the Engine as "Canonical operation property position requires an
+    /// integer." A new node given no placement now goes after its siblings, root or child, a node
+    /// added earlier in the change set counting as one, and a null position is a position not sent.
+    /// </summary>
+    [TestMethod]
+    public async Task ANewNodeGivenNoPlacementGoesAfterItsSiblings()
+    {
+        await using var workspace = new LocalMcpTestWorkspace();
+        await workspace.CreateEmptyAsync();
+        await using var host = await NendoLocalMcpHost.StartAsync(
+            workspace.Service, AgentAccessMode.Unattended, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
+        await using var client = await ProtocolResourceTests.ConnectAsync(host);
+        var session = await AcquireAsync(client);
+        await ApplyAsync(client, session, "lists", [.. EntityMutation("notes").Operations, List("a", position: 0), List("b", position: 7)]);
+
+        await ApplyAsync(client, session, "unplaced",
+        [
+            List("c"),
+            List("d"),
+            Operation("ui.addNode", new
+            {
+                surfaceId = "e", nodeId = "e", kind = "recordList", position = (int?)null,
+                properties = new { definitionVersion = 3, entityId = "notes", title = "E" },
+            }),
+            Operation("schema.addField", new { entityId = "notes", fieldId = "notes.extra", displayName = "Extra", storageKind = "Text", required = false }),
+            Operation("ui.addNode", new { surfaceId = "a", nodeId = "a-extra", parentNodeId = "a", kind = "fieldBinding", properties = new { fieldId = "notes.extra" } }),
+        ]);
+
+        var roots = await RootsAsync(client);
+        Assert.AreEqual("a,b,c,d,e", string.Join(',', roots.Select(root => root.GetProperty("nodeId").GetString())));
+        CollectionAssert.AreEqual(new[] { 8, 9, 10 }, roots.Skip(2).Select(root => root.GetProperty("position").GetInt32()).ToArray());
+        var children = roots[0].GetProperty("children").EnumerateArray().ToArray();
+        Assert.AreEqual("a-label,a-extra", string.Join(',', children.Select(child => child.GetProperty("nodeId").GetString())));
+        Assert.AreEqual(1, children[1].GetProperty("position").GetInt32());
+    }
+
     [TestMethod]
     public async Task AnAnchorThatCannotBeResolvedIsRefusedByName()
     {
@@ -75,7 +113,7 @@ public sealed class NodePlacementTests
         var missing = await AddAsync(client, scoped, "missing", [List("x", before: "nowhere")]);
         StringAssert.Contains(Text(missing), "nowhere is not a node in this file or earlier in this change set", StringComparison.Ordinal);
         var both = await AddAsync(client, scoped, "both", [Operation("ui.addNode", new { surfaceId = "y", nodeId = "y", kind = "recordList", position = 0, afterNodeId = "a" })]);
-        StringAssert.Contains(Text(both), "Give exactly one of position, beforeNodeId and afterNodeId", StringComparison.Ordinal);
+        StringAssert.Contains(Text(both), "Give at most one of position, beforeNodeId and afterNodeId", StringComparison.Ordinal);
         var parent = await AddAsync(client, scoped, "parent", [Operation("ui.addNode", new { surfaceId = "a", nodeId = "z", kind = "fieldBinding", parentNodeId = "a", afterNodeId = "a" })]);
         StringAssert.Contains(Text(parent), "takes its parent, none (a root)", StringComparison.Ordinal);
     }

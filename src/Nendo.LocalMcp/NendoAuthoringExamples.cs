@@ -233,7 +233,7 @@ internal static class NendoAuthoringExamples
         "Replace a screen and keep it where a person expects it, by placing the new one beside a neighbour.",
         [
             "A position is a sort key among a node's siblings, not an index: siblings draw in position order, then by surface and ID. nendo://application/surfaces gives every node its surfaceId, parentNodeId and position.",
-            "ui.addNode and ui.moveNode take exactly one of position, beforeNodeId and afterNodeId. An anchor may be a node earlier in the same change set, and the new node takes the anchor's parent.",
+            "ui.addNode and ui.moveNode take at most one of position, beforeNodeId and afterNodeId; a ui.addNode given none goes after its siblings. An anchor may be a node earlier in the same change set, and the new node takes the anchor's parent.",
             "Where no free key lies between the neighbours, the host adds a ui.moveNode for each later sibling that has to move up, stopping at the first already clear. Those moves are ordinary operations in the change set, counted and reviewed with it.",
             "Removing a screen and adding its replacement before the next one, in one mutation, is how a replacement keeps the old one's place.",
         ],

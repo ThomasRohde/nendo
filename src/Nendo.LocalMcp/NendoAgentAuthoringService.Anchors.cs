@@ -37,13 +37,21 @@ internal sealed partial class NendoAgentAuthoringService
         !operation.Payload.Element.TryGetProperty("parentNodeId", out _) &&
         !HasAnchor(operation);
 
+    /// <summary>
+    /// A new node that names none of position, beforeNodeId and afterNodeId goes after its siblings
+    /// (W-245). The vocabulary listed position as optional, and a node sent without one reached the
+    /// Engine and was refused there as "requires an integer", which says nothing about placement.
+    /// </summary>
+    private static bool Unplaced(NendoAgentOperationInput operation) =>
+        operation.OperationType == "ui.addNode" && !HasAnchor(operation) && !Given(operation.Payload.Element, "position");
+
     private async Task<IReadOnlyList<NendoAgentMutationInput>> ResolveAnchorsAsync(
         IReadOnlyList<NendoAgentMutationInput> earlier,
         IReadOnlyList<NendoAgentMutationInput> mutations,
         int firstMutationOrdinal,
         CancellationToken cancellationToken)
     {
-        if (!mutations.Any(mutation => mutation.Operations.Any(operation => HasAnchor(operation) || KeepsParent(operation)))) return mutations;
+        if (!mutations.Any(mutation => mutation.Operations.Any(operation => HasAnchor(operation) || KeepsParent(operation) || Unplaced(operation)))) return mutations;
         var nodes = (await application.GetDefinitionSnapshotAsync(cancellationToken)).UiNodes
             .ToDictionary(node => node.NodeId, node => new PlacedNode(node.SurfaceId, node.ParentNodeId, node.Position), StringComparer.Ordinal);
         foreach (var operation in earlier.SelectMany(mutation => mutation.Operations).SelectMany(Expand)) Place(nodes, operation);
@@ -60,6 +68,7 @@ internal sealed partial class NendoAgentAuthoringService
                 {
                     placed = HasAnchor(operation) ? Anchor(nodes, operation)
                         : KeepsParent(operation) ? [WithCurrentParent(nodes, operation)]
+                        : Unplaced(operation) ? [AtEnd(nodes, operation)]
                         : [operation];
                 }
                 catch (NendoValidationException exception)
@@ -86,7 +95,7 @@ internal sealed partial class NendoAgentAuthoringService
         var after = Text(payload, "afterNodeId");
         var nodeId = Text(payload, "nodeId") ?? throw new NendoValidationException($"{operation.OperationType} requires nodeId.");
         if (before is not null && after is not null || Given(payload, "position"))
-            throw new NendoValidationException("Give exactly one of position, beforeNodeId and afterNodeId.");
+            throw new NendoValidationException("Give at most one of position, beforeNodeId and afterNodeId; a new node given none goes after its siblings.");
         var anchorId = before ?? after!;
         if (anchorId == nodeId) throw new NendoValidationException($"{nodeId} cannot be placed beside itself.");
         if (!nodes.TryGetValue(anchorId, out var anchor))
@@ -149,6 +158,26 @@ internal sealed partial class NendoAgentAuthoringService
             writer.WriteNumber("position", position.Value);
         }));
         return [placed, .. moves];
+    }
+
+    /// <summary>The new node with the position one past its last sibling's, or 0 when it has none.</summary>
+    private static NendoAgentOperationInput AtEnd(Dictionary<string, PlacedNode> nodes, NendoAgentOperationInput operation)
+    {
+        var payload = operation.Payload.Element;
+        var nodeId = Text(payload, "nodeId") ?? throw new NendoValidationException("ui.addNode requires nodeId.");
+        var parentId = Text(payload, "parentNodeId");
+        var last = nodes
+            .Where(pair => pair.Key != nodeId && pair.Value.ParentNodeId == parentId)
+            .Select(pair => (int?)pair.Value.Position)
+            .Max();
+        if (last == int.MaxValue)
+            throw new NendoValidationException(
+                $"{nodeId} cannot go after its siblings: the last one holds the highest position. Place it with beforeNodeId or afterNodeId.");
+        return new NendoAgentOperationInput(operation.OperationType, Object(writer =>
+        {
+            foreach (var property in payload.EnumerateObject().Where(property => property.Name != "position")) property.WriteTo(writer);
+            writer.WriteNumber("position", last is { } position ? position + 1 : 0);
+        }));
     }
 
     /// <summary>The move with the node's current parent written out, as the file and the change set's earlier operations leave it.</summary>

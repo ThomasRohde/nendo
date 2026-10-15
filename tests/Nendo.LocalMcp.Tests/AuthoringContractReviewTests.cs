@@ -47,9 +47,10 @@ public sealed class AuthoringContractReviewTests
         await rig.AddAsync(begun.ChangeSetId, Mutation("Place one beside it, position null",
             Op("ui.addNode", new { surfaceId = "notes2", nodeId = "notesOther", kind = "recordList", afterNodeId = "notesAll", position = (int?)null, beforeNodeId = (string?)null })));
 
-        var refused = await Assert.ThrowsAsync<NendoValidationException>(() => rig.AddAsync(begun.ChangeSetId, Mutation("Only null anchors",
-            Op("ui.addNode", new { surfaceId = "notes3", nodeId = "notesThird", kind = "recordList", parentNodeId = (string?)null, beforeNodeId = (string?)null }))));
-        StringAssert.Contains(refused.Message, "position", "MAA-04: only null anchors should be refused for the missing position.");
+        // Only null anchors is no placement, and a new node given none goes after its siblings (W-245;
+        // MAA-04 refused it for the missing position, in the Engine's words).
+        await rig.AddAsync(begun.ChangeSetId, Mutation("Only null anchors",
+            Op("ui.addNode", new { surfaceId = "notes3", nodeId = "notesThird", kind = "recordList", parentNodeId = (string?)null, beforeNodeId = (string?)null })));
     }
 
     [TestMethod]

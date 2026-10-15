@@ -1468,13 +1468,14 @@ internal sealed partial class NendoAgentAuthoringService(
 
     /// <summary>
     /// A placement key sent as null is a key not sent (MAA-04): a null beforeNodeId or afterNodeId
-    /// leaves the payload, and so does a null position beside an anchor that places the node.
+    /// leaves the payload, and so does a null position beside an anchor that places the node, or on
+    /// a new node, which then goes after its siblings (W-245).
     /// </summary>
     private static NendoAgentOperationInput WithoutUnusedAnchors(NendoAgentOperationInput operation)
     {
         if (operation.OperationType is not ("ui.addNode" or "ui.moveNode")) return operation;
         var payload = operation.Payload.Element;
-        var anchored = HasAnchor(operation);
+        var anchored = HasAnchor(operation) || operation.OperationType == "ui.addNode";
         bool Unused(JsonProperty property) =>
             property.Value.ValueKind == JsonValueKind.Null &&
             (property.Name is "beforeNodeId" or "afterNodeId" || (anchored && property.Name == "position"));
