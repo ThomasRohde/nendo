@@ -174,6 +174,12 @@ test('the record page sorts fields by the room they need (W-071)',()=>{
  assert.match(main,/class="record-sheet-title">(<div class="scalar-field">)?<label>name<input name="name"/);
  assert.match(main,/<textarea name="note"/);
  assert.match(main,/<textarea name="brief"/);
+ // Long text is one document (W-242): the heading field and each long field one under
+ // another on one sheet, never two to a row, and an empty box says so.
+ assert.match(main,/<article class="record-sheet-document"><div class="record-sheet-title">[\s\S]*<\/article>/);
+ assert.equal(main.match(/<section class="record-sheet-section">/g)?.length,2);
+ assert.ok(!main.includes('record-sheet-long'),'long text is not laid out two to a row');
+ assert.match(main,/<section class="record-sheet-section"><div class="scalar-field"><label>note<textarea name="note" rows="4" placeholder="Nothing written yet"/);
  assert.ok(!main.includes('name="stage"'),'a choice fits on a line and belongs in the side panel');
  assert.match(side,/<h3>Properties<\/h3>[\s\S]*<select name="stage"/);
  assert.ok(!side.includes('<textarea'),'long text never lands in the side panel');

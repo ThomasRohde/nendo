@@ -84,20 +84,85 @@
   letter-spacing: -0.01em;
 }
 
-/* Long text two to a row, and an odd one out across the whole row. */
-.record-sheet-long {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-  align-items: start;
+/* Long text as a document (W-242): the heading field and every long text field on one
+   sheet, one under another. Two boxes to a row, each a fixed height with its own
+   scrollbar, cut long text off mid-sentence. */
+.record-sheet-main > .record-sheet-document {
+  width: 100%;
+  max-width: 820px;
+  margin: 0 auto;
 }
 
-.record-sheet-long > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+.record-sheet-document {
+  box-sizing: border-box;
+  padding: 36px 56px 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
 
-.record-sheet-long textarea {
-  min-height: 168px;
-  line-height: 1.55;
-  resize: vertical;
+.record-sheet-document > .record-sheet-title { margin-bottom: var(--space-4); }
+
+/* Each field is a section under a hairline, its name as the section's heading. */
+.record-sheet-section {
+  position: relative;
+  padding: 18px 0 20px;
+  border-top: 1px solid var(--line);
+}
+
+.record-sheet-section label:not(.checkbox-field),
+.record-sheet-section .markdown-field-label {
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+/* Not set is the field's own toggle, in its heading row rather than under the box. */
+.record-sheet-section > .scalar-field > .checkbox-field {
+  position: absolute;
+  top: 18px;
+  right: 0;
+}
+
+/* A text box as tall as its text, with no grip and no scrollbar of its own: the page
+   scrolls. It looks like the text it holds until it is pointed at or typed in. */
+.record-sheet-section label > textarea,
+.record-sheet-document .record-sheet-title input:not([type="checkbox"]) {
+  box-sizing: border-box;
+  width: calc(100% + 20px);
+  margin: 0 -10px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.record-sheet-section label > textarea {
+  min-height: calc(1.65em + 14px);
+  padding: 6px 10px;
+  color: var(--ink);
+  font-weight: 400;
+  overflow: hidden;
+  field-sizing: content;
+  resize: none;
+  font-size: 1.07rem;
+  line-height: 1.65;
+}
+
+/* An empty box keeps an outline, so there is somewhere to click. */
+.record-sheet-section label > textarea:placeholder-shown { border-color: var(--line); }
+
+.record-sheet-section label > textarea::placeholder { color: var(--muted); }
+
+.record-sheet-section label > textarea:hover,
+.record-sheet-document .record-sheet-title input:not([type="checkbox"]):hover {
+  border-color: var(--line-strong);
+  background: var(--canvas);
+}
+
+.record-sheet-section label > textarea:focus,
+.record-sheet-document .record-sheet-title input:not([type="checkbox"]):focus {
+  border-color: var(--cobalt);
+  background: var(--canvas);
 }
 
 /* A record type with no long text: its fields fill the main column, two to a row. */
@@ -169,7 +234,7 @@
   .record-sheet-body,
   .record-sheet.is-compact .record-sheet-body { grid-template-columns: minmax(0, 1fr); }
   .record-sheet-main { padding: 20px var(--space-5) 28px; }
-  .record-sheet-long,
   .record-sheet-grid { grid-template-columns: minmax(0, 1fr); }
+  .record-sheet-document { padding: 24px 24px 28px; }
   .record-sheet-side { border-top: 1px solid var(--line); border-left: 0; }
 }

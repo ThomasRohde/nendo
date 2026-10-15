@@ -61,7 +61,7 @@ test('a markdown field shows its text formatted with its source a control of the
 test('a record sheet treats a markdown field as long text', () => {
   const sheet = recordSheetMarkup('Note', null, [field('singleLine', { semanticId: 'title', displayName: 'Title' }), field('markdown')], [],
     { backId: 'back', backLabel: 'Back', heading: 'New note', headingId: 'heading', submitLabel: 'Save' });
-  assert.match(sheet, /<div class="record-sheet-long">[\s\S]*markdown-source/);
+  assert.match(sheet, /<article class="record-sheet-document">[\s\S]*<section class="record-sheet-section">[\s\S]*markdown-source/);
   assert.match(sheet, /<div class="record-sheet-title">[\s\S]*name="title"/);
 });
 

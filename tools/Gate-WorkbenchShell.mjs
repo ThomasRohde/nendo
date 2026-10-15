@@ -146,6 +146,39 @@ async page => {
     assert(await grid.evaluate(element => element.isConnected), 'W-233: a stale notification replaced the reading position.');
   });
 
+  // A record's long text is one document (W-242): its box is as tall as its text, with no
+  // scrollbar or grip of its own, the field one under another, and Not set in the heading row.
+  for (const theme of ['light', 'dark']) await check(`W-242 long text as a document ${theme}`, 'idea', async () => {
+    await page.evaluate(async theme => (await import('/src/shell.ts')).applyTheme(theme, false), theme);
+    await page.click('#nav-data');
+    await until(() => document.querySelector('.ag-row[row-index="0"] .record-open-cell') !== null, null, 'the first row');
+    await page.click('.ag-row[row-index="0"] .record-open-cell');
+    const notes = 'textarea[name="field.idea.notes"]';
+    await until(selector => document.querySelector(selector) !== null, notes, 'the record page');
+    await page.fill(notes, [
+      '1. Rinse the cold, peeled potatoes in a colander and leave them to drip. Wet potatoes help the caramel coat evenly.',
+      '2. Melt the sugar in a wide frying pan over a medium heat without stirring, until it is a clear, golden-brown caramel. Do not let it go dark, or it turns bitter.',
+      '3. Add the butter and stir until it melts into the caramel.',
+      '4. Add the potatoes and turn them gently and often, 10-15 minutes, until every potato is glossy and evenly browned.',
+      '5. Season with a pinch of salt and serve at once.'].join('\n'));
+    const measured = await page.evaluate(selector => {
+      const box = document.querySelector(selector);
+      const sheet = document.querySelector('.record-sheet-document');
+      const unset = document.querySelector('[data-null-field="field.idea.notes"]');
+      const style = getComputedStyle(box);
+      return { scroll: box.scrollHeight, client: box.clientHeight, resize: style.resize, overflowY: style.overflowY,
+        width: box.getBoundingClientRect().width, sheet: sheet?.getBoundingClientRect().width ?? 0,
+        unsetTop: unset.getBoundingClientRect().top, boxTop: box.getBoundingClientRect().top };
+    }, notes);
+    assert(measured.scroll <= measured.client + 1 && measured.client > 150,
+      `W-242: the long text box does not grow with its text: ${JSON.stringify(measured)}.`);
+    assert(measured.resize === 'none' && measured.overflowY === 'hidden', `W-242: the long text box keeps a grip or a scrollbar: ${JSON.stringify(measured)}.`);
+    assert(measured.sheet > 0 && measured.width >= measured.sheet * 0.8, `W-242: the long text is not one column across the sheet: ${JSON.stringify(measured)}.`);
+    assert(measured.unsetTop < measured.boxTop, `W-242: Not set is not in the field's heading row: ${JSON.stringify(measured)}.`);
+    const surface = await page.evaluate(() => getComputedStyle(document.querySelector('.record-sheet-document')).backgroundColor);
+    assert(surface === (theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(45, 46, 48)'), `W-242: the sheet is not on the theme's surface: ${surface}.`);
+  });
+
   await check('W-233 deep edit and keyboard', 'idea', async () => {
     await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');

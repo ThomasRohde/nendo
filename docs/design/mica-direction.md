@@ -175,7 +175,8 @@ panel's header. A toolbar menu and a right-click menu are the File menu's panel.
 ## Studio's record page and the split pane
 
 These are unchanged from Console (W-071). The record page is a sheet and a sidebar, and the record
-inspector beside a list is the split pane.
+inspector beside a list is the split pane. Since W-242 a record's long text is one document on that
+sheet, one field under another, each box as tall as its text.
 
 ## Where it lives
 

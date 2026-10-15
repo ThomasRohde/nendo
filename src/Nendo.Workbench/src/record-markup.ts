@@ -447,7 +447,7 @@ export function sequenceExample(sequence: { prefix: string; width: number }): st
   return sequence.prefix + '1'.padStart(sequence.width, '0');
 }
 
-export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, options: { explicitChoice?: boolean } = {}): string {
+export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, options: { explicitChoice?: boolean; placeholder?: string } = {}): string {
   const value = valueDisplay(currentValue);
   const definition = state.session.entities.flatMap(entity => entity.fields).find(candidate => candidate.fieldId === field.semanticId);
   if (definition && storageLabel(field.storageKind) === 'Reference') return referenceControl(definition, value);
@@ -463,7 +463,8 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
   const textControl = (markup: string): string => field.required ? markup : `<div class="scalar-field">${markup}<label class="checkbox-field"><input type="checkbox" name="__unset:${name}" data-null-field="${name}" value="true" aria-label="${escapeAttribute(field.displayName)} not set" ${currentValue === null || currentValue === undefined ? 'checked' : ''} />Not set</label></div>`;
   if (field.presentation === 'longText') {
     // The parser drops one line break right after <textarea>; one is written for it (WMX-03).
-    return textControl(`<label>${label}<textarea name="${name}" rows="4" ${required}>\n${escapeHtml(value)}</textarea></label>`);
+    const placeholder = options.placeholder === undefined ? '' : ` placeholder="${escapeAttribute(options.placeholder)}"`;
+    return textControl(`<label>${label}<textarea name="${name}" rows="4"${placeholder} ${required}>\n${escapeHtml(value)}</textarea></label>`);
   }
   if (field.presentation === 'markdown') {
     // Read as formatted text, written as Markdown (W-173). The source sits in a disclosure under
@@ -564,6 +565,12 @@ export interface RecordSheetText {
  * fields fill the main column two to a row instead and the side panel keeps only the
  * record's own facts.
  *
+ * Where there is long text, the heading field and the long text are one document (W-242,
+ * direction A of the text record page canvas, chosen 2026-10-15): a sheet with one field
+ * under another, each a section under a hairline. Two text boxes to a row, each a fixed
+ * height with its own scrollbar, cut a recipe's method off mid-sentence; a section is as
+ * tall as its text, and draws its box only when pointed at or typed in.
+ *
  * It is one form around the toolbar and both columns, so the save, the delete and the
  * edit tracking in record-form.ts reach every control exactly as they did.
  */
@@ -584,6 +591,7 @@ export function recordSheetMarkup(
     + derived.map((field) => derivedFieldMarkup(record, field)).join('')
     + retired.map((field) => fieldMarkup(record, field)).join('');
   const hasLong = long.length > 0;
+  const titleMarkup = heading === null ? '' : `<div class="record-sheet-title">${fieldMarkup(record, heading)}</div>`;
   const facts = `<section class="record-sheet-facts"><h3>Record</h3><dl>
       <div><dt>Record type</dt><dd>${escapeHtml(entityName)}</dd></div>
       <div><dt>Version</dt><dd class="record-sheet-mono">${record === null ? 'Not saved yet' : record.version}</dd></div>
@@ -601,10 +609,10 @@ export function recordSheetMarkup(
     <div class="record-sheet-body">
       <div class="record-sheet-main">
         <div class="message-slot" role="alert" hidden></div>
-        ${heading === null ? '' : `<div class="record-sheet-title">${fieldMarkup(record, heading)}</div>`}
         ${hasLong
-          ? `<div class="record-sheet-long">${long.map((field) => fieldMarkup(record, field)).join('')}</div>`
-          : `<div class="record-sheet-grid">${shortMarkup}</div>`}
+          ? `<article class="record-sheet-document">${titleMarkup}${long.map((field) =>
+            `<section class="record-sheet-section">${fieldControlMarkup(field, record?.values[field.semanticId], { placeholder: 'Nothing written yet' })}</section>`).join('')}</article>`
+          : `${titleMarkup}<div class="record-sheet-grid">${shortMarkup}</div>`}
       </div>
       <aside class="record-sheet-side" aria-label="Properties">
         ${hasLong && shortMarkup !== '' ? `<section class="record-sheet-properties"><h3>Properties</h3>${shortMarkup}</section>` : ''}

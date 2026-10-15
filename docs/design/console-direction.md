@@ -138,9 +138,15 @@ Opening a record in Studio › Data, or adding one, shows a sheet and a sidebar
 
 - A sticky page toolbar holds Back to Data, the page's name, Delete record… and
   the primary action.
-- The record type's first line of text heads the page at title size. Long text
-  takes the wide main column, two fields to a row, and an odd one out takes the
-  whole row.
+- The record type's first line of text heads the page at title size. Where the
+  record type has long text, the heading and the long text are one document
+  (W-242, direction A of the text record page canvas,
+  <https://claude.ai/artifact/R9rfpxLNVWna86qHZYCn91>, chosen 2026-10-15): a sheet
+  up to 820px wide with each long field a section under a hairline, one under
+  another. A text box is as tall as its text (`field-sizing: content`), with no
+  grip and no scrollbar of its own, and draws its box only when pointed at or
+  typed in; an empty one keeps a faint outline and says *Nothing written yet*. An
+  optional field's *Not set* sits in its heading row.
 - Every field that fits on one line goes in a 360px side panel under
   *Properties*. That covers choices, references, dates, numbers, ratings and
   calculations. Below it, *Record* lists the record type, version and record id.
