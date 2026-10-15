@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Nendo.Engine;
 
 /// <summary>
@@ -114,9 +116,15 @@ internal sealed class BehaviourBudget
     /// <summary>Rows a related read may still ask SQLite for, so the LIMIT is real.</summary>
     internal int RemainingScanAllowance => Math.Max(0, Limits.RelatedRows - _scans);
 
-    /// <summary>The refusal for an allowance of this budget that ran out, worded for what the budget pays for.</summary>
-    internal NendoCalculationException Exhausted(string what) =>
-        new(NendoCalculationCodes.LimitReached, Use switch
+    /// <summary>
+    /// The refusal for an allowance of this budget that ran out, worded for what the budget pays
+    /// for, with what it had spent of every allowance (W-246).
+    /// </summary>
+    internal NendoCalculationException Exhausted(string what)
+    {
+        var spend = new NendoBudgetSpend(what, _calls, Limits.FunctionCalls, _scans, Limits.RelatedRows,
+            _changes, Limits.GeneratedChanges, _work, Limits.WorkUnits);
+        var reason = Use switch
         {
             BehaviourBudgetUse.Read =>
                 $"This calculation reached the {what} limit for one record. Simplify the formula or narrow what it reads.",
@@ -126,6 +134,31 @@ internal sealed class BehaviourBudget
                 ? "This save reached the automatic change limit: its actions changed more records than one save may. " +
                   "An action that starts itself again, directly or through another trigger, runs until this limit; narrow its trigger or condition."
                 : $"This calculation reached the {what} limit for a single save. Simplify the formula or narrow what it reads.",
-        })
-        { ExhaustedBudget = true };
+        } + " " + Spent(spend);
+        return new(NendoCalculationCodes.LimitReached, reason) { ExhaustedBudget = true, Spend = spend, Reason = reason };
+    }
+
+    private static string Spent(NendoBudgetSpend spend) => string.Create(CultureInfo.InvariantCulture,
+        $"It had spent {spend.FunctionCalls:N0} of {spend.FunctionCallLimit:N0} function calls, " +
+        $"{spend.RelatedRecords:N0} of {spend.RelatedRecordLimit:N0} related records, " +
+        $"{spend.AutomaticChanges:N0} of {spend.AutomaticChangeLimit:N0} automatic changes " +
+        $"and {spend.WorkUnits:N0} of {spend.WorkUnitLimit:N0} work units.");
+
+    /// <summary>
+    /// A ceiling met inside a related record's calculation, with that step named (W-246). The
+    /// calculation the person sees is the outermost one; without the path they could not tell
+    /// which member's formula spent the allowance.
+    /// </summary>
+    internal static NendoCalculationException Inside(NendoCalculationException exception, string calculationId, string recordId)
+    {
+        var reason = exception.Reason ?? exception.Message;
+        IReadOnlyList<string> path = [$"{calculationId} of record {recordId}", .. exception.Path];
+        return new(exception.Code, $"{reason} It ran out inside {string.Join(", inside ", path)}.")
+        {
+            ExhaustedBudget = exception.ExhaustedBudget,
+            Spend = exception.Spend,
+            Path = path,
+            Reason = reason,
+        };
+    }
 }

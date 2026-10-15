@@ -80,6 +80,35 @@ public sealed class StructuredRefusalTests
         Assert.IsTrue(shape.Meta is null || !shape.Meta.ContainsKey(NendoToolRefusal.MetaKey));
     }
 
+    /// <summary>W-246: a calculation limit carries what was spent and where as fields, not only in its sentence.</summary>
+    [TestMethod]
+    public void ACalculationLimitCarriesItsSpendAndPathAsFields()
+    {
+        var limit = new NendoCalculationException(NendoCalculationCodes.LimitReached, "This calculation reached the function call limit for one record.")
+        {
+            Spend = new NendoBudgetSpend("function call", 64, 64, 66, 256, 0, 64, 400, 16384),
+            Path = ["project.amount of record p1", "entry.amount of record p1e30"],
+        };
+        using (var refusal = NendoToolRefusal.Begin())
+        {
+            NendoToolErrors.Translate(limit);
+            Assert.AreEqual("NENDO_CALCULATION_LIMIT_REACHED", refusal.Refusal?.Code);
+            var json = JsonSerializer.SerializeToElement(refusal.Refusal, NendoMcpJson.Options).GetProperty("limit");
+            Assert.AreEqual("function call", json.GetProperty("allowance").GetString());
+            Assert.AreEqual(64, json.GetProperty("functionCallLimit").GetInt32());
+            Assert.AreEqual(66, json.GetProperty("relatedRecords").GetInt32());
+            Assert.AreEqual("project.amount of record p1,entry.amount of record p1e30",
+                string.Join(',', json.GetProperty("path").EnumerateArray().Select(step => step.GetString())));
+        }
+
+        // Any other refusal carries no limit.
+        using (var refusal = NendoToolRefusal.Begin())
+        {
+            NendoToolErrors.Translate(new NendoCalculationException(NendoCalculationCodes.MissingInput, "A value is empty."));
+            Assert.IsNull(refusal.Refusal?.Limit);
+        }
+    }
+
     [TestMethod]
     public async Task NoToolDescriptionRepeatsABoundTheVocabularyPublishes()
     {

@@ -639,7 +639,11 @@ What each now says:
   refusal the boundary makes before a tool runs, and every `-32602` protocol error,
   keep their text, which begins with the code and a colon. `StructuredRefusalTests`
   holds the object equal to the text for a precondition, an authority refusal, an
-  authoring refusal and a pending-cause advisory.
+  authoring refusal and a pending-cause advisory. Since 2026-10-15 (W-246) a calculation
+  limit adds `limit`: `{allowance, functionCalls, functionCallLimit, relatedRecords,
+  relatedRecordLimit, automaticChanges, automaticChangeLimit, workUnits, workUnitLimit,
+  path}`, what the budget had spent and the related records' calculations it ran out
+  inside, outermost first. No other refusal carries it.
 - No tool or parameter description repeats a bound the vocabulary publishes (W-149):
   `add_operations`, `create_records`, `import_records`, `update_record` and
   `apply_writes` point at `limits` by name, and the vocabulary now publishes

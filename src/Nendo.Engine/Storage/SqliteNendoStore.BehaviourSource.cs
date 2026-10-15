@@ -613,6 +613,10 @@ internal sealed partial class SqliteNendoStore
             {
                 value = await Calculate!(calculationId, recordId, budget, cancellationToken);
             }
+            catch (NendoCalculationException exception) when (exception.ExhaustedBudget)
+            {
+                throw BehaviourBudget.Inside(exception, calculationId, recordId);
+            }
             catch (NendoCalculationException exception) when (exception.Code != NendoCalculationCodes.LimitReached)
             {
                 throw new NendoCalculationException(exception.Code == NendoCalculationCodes.MissingInput

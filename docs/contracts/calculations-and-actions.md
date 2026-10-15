@@ -483,7 +483,7 @@ field, a date that is not a date, or a delete blocked by references. The refusal
 keeps its own type and code, so every surface maps it as before (2026-10-13,
 EBH-05). A ceiling says which allowance ran out: a save's, one record's read, or
 one formula's check. An action that starts itself again until the change limit
-is told so (EBH-20). The Workbench receives it under the code of the calculation. An agent
+is told so (EBH-20). Since 2026-10-15 (W-246) a ceiling also says what the budget had spent of every allowance against its limit, names each related record's calculation it ran out inside ("It ran out inside project.amount of record p1, inside entry.amount of record p1e30"), and on a save that named more than one record says how many shared the one budget. An agent receives the same as fields under `limit` in the refusal's `_meta` (`allowance`, each counter and its limit, `path`). The refused charge is not counted, so the allowance that ran out reads at or near its limit. The Workbench receives it under the code of the calculation. An agent
 receives it as `NENDO_CALCULATION_*` with the same sentence. Before this rule, an
 assignment could bind to the event record while it wrote to the referenced
 record. The published example warns about this mistake. Such an assignment

@@ -66,7 +66,8 @@ internal static class NendoToolErrors
         // or a ceiling; it reached the wire as an internal error until now.
         NendoCalculationException calculation => Error(
             $"NENDO_{NendoText.ErrorCode(calculation.Code)}",
-            calculation.Message),
+            calculation.Message,
+            NendoToolLimit.From(calculation)),
         // Every engine validation message is a constant template that interpolates
         // stable IDs, operation types, property names, declared choice IDs or counts, and
         // may echo what the caller itself sent, such as a CSV cell or header it is refused
@@ -179,9 +180,9 @@ internal static class NendoToolErrors
             "CHANGE_SET_STALE", "AUTHORITY_CHANGED", "IDEMPOTENCY_CONFLICT",
         ], StringComparer.Ordinal);
 
-    private static McpException Error(string code, string message)
+    private static McpException Error(string code, string message, NendoToolLimit? limit = null)
     {
-        NendoToolRefusal.Record(code, message);
+        NendoToolRefusal.Record(code, message, limit: limit);
         return new McpException($"{code}: {message}");
     }
 

@@ -71,4 +71,36 @@ public sealed class NendoCalculationException(string code, string message) : Nen
     /// (EBH-20). Null for every other failure.
     /// </summary>
     internal (string FormulaId, string Parameter)? EmptyInput { get; init; }
+
+    /// <summary>
+    /// What the budget had spent when one of its allowances ran out, or null for every other
+    /// failure (W-246). An author who met a ceiling used to learn only its name, and the Billable
+    /// author simplified formulas for a function-call limit when the related-record one had run out.
+    /// </summary>
+    public NendoBudgetSpend? Spend { get; init; }
+
+    /// <summary>
+    /// The calculations of related records the ceiling was met inside, outermost first, each as
+    /// "calculationId of record recordId" (W-246). Empty when it was met in the formula itself.
+    /// </summary>
+    public IReadOnlyList<string> Path { get; init; } = [];
+
+    /// <summary>The sentence without the path, so the next calculation out can add its own step.</summary>
+    internal string? Reason { get; init; }
 }
+
+/// <summary>
+/// One budget's spend when an allowance ran out (W-246): which one, and every counter against
+/// its limit. The refused charge is not counted, so the allowance that ran out reads at or near
+/// its limit.
+/// </summary>
+public sealed record NendoBudgetSpend(
+    string Allowance,
+    int FunctionCalls,
+    int FunctionCallLimit,
+    int RelatedRecords,
+    int RelatedRecordLimit,
+    int AutomaticChanges,
+    int AutomaticChangeLimit,
+    int WorkUnits,
+    int WorkUnitLimit);

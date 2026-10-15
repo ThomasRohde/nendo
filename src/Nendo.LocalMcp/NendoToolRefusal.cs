@@ -19,6 +19,10 @@ public sealed record NendoToolRefusal(
     [Description("The validated proposal whose acceptance the refused write depends on, when the refusal is explained by one.")]
     public string? PendingProposalId { get; init; }
 
+    /// <summary>What a calculation's budget had spent when an allowance ran out (W-246).</summary>
+    [Description("When a calculation limit was reached: the allowance that ran out, what was spent of each allowance, and the related records' calculations it ran out inside.")]
+    public NendoToolLimit? Limit { get; init; }
+
     /// <summary>The <c>_meta</c> key the object travels under: the project's website domain, reversed, and the field.</summary>
     public const string MetaKey = "io.github.thomasrohde.nendo/refusal";
 
@@ -32,11 +36,11 @@ public sealed record NendoToolRefusal(
     /// </summary>
     internal static Scope Begin() => new();
 
-    internal static void Record(string code, string message, string? pendingProposalId = null)
+    internal static void Record(string code, string message, string? pendingProposalId = null, NendoToolLimit? limit = null)
     {
         if (Current.Value is { } holder)
         {
-            holder.Refusal = new NendoToolRefusal(code, message) { PendingProposalId = pendingProposalId };
+            holder.Refusal = new NendoToolRefusal(code, message) { PendingProposalId = pendingProposalId, Limit = limit };
         }
     }
 
@@ -61,6 +65,27 @@ public sealed record NendoToolRefusal(
 
         public void Dispose() => Current.Value = _previous;
     }
+}
+
+/// <summary>A calculation limit as a client reads it: the allowance, each counter against its limit, and where (W-246).</summary>
+public sealed record NendoToolLimit(
+    [property: Description("The allowance that ran out: function call, related record, automatic change or work.")]
+    string Allowance,
+    [property: Description("Function calls spent.")] int FunctionCalls,
+    [property: Description("Function calls one budget allows.")] int FunctionCallLimit,
+    [property: Description("Related records read.")] int RelatedRecords,
+    [property: Description("Related records one budget allows.")] int RelatedRecordLimit,
+    [property: Description("Automatic changes made.")] int AutomaticChanges,
+    [property: Description("Automatic changes one save allows.")] int AutomaticChangeLimit,
+    [property: Description("Work units spent.")] int WorkUnits,
+    [property: Description("Work units one budget allows.")] int WorkUnitLimit,
+    [property: Description("The related records' calculations it ran out inside, outermost first, each 'calculationId of record recordId'.")]
+    IReadOnlyList<string> Path)
+{
+    internal static NendoToolLimit? From(Nendo.Engine.NendoCalculationException exception) =>
+        exception.Spend is not { } spend ? null : new(spend.Allowance, spend.FunctionCalls, spend.FunctionCallLimit,
+            spend.RelatedRecords, spend.RelatedRecordLimit, spend.AutomaticChanges, spend.AutomaticChangeLimit,
+            spend.WorkUnits, spend.WorkUnitLimit, exception.Path);
 }
 
 /// <summary>What an outstanding proposal has to do with a refused write: the sentence, and the proposal it names.</summary>

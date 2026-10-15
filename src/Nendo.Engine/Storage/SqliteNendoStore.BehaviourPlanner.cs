@@ -244,7 +244,7 @@ internal sealed partial class SqliteNendoStore
                 throw exception switch
                 {
                     NendoCalculationException calculation => new NendoCalculationException(calculation.Code, message)
-                    { ExhaustedBudget = calculation.ExhaustedBudget },
+                    { ExhaustedBudget = calculation.ExhaustedBudget, Spend = calculation.Spend, Path = calculation.Path },
                     NendoPreconditionException precondition => new NendoPreconditionException(precondition.Code, message)
                     { RecordId = precondition.RecordId },
                     _ => new NendoValidationException(message),
