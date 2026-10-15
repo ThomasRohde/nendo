@@ -108,6 +108,73 @@ public sealed class DesktopExtensionProposalTests
         Assert.IsTrue(own.Ok, own.Error?.Message);
     }
 
+    /// <summary>
+    /// A view cannot read the definition revision, so it sends the operations that take one
+    /// without it, as Clay did (W-241, F-299). The host fills it in, as MCP does for an agent,
+    /// on the view's path and on the Workbench's own; it used to pass them through, and the
+    /// Engine refused the whole proposal: "expectedDefinitionRevision requires an integer".
+    /// </summary>
+    [TestMethod]
+    public async Task AProposalWithoutDefinitionRevisionsHasThemFilledInAndPromotes()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+
+        foreach (var (actor, suffix, retired) in new[] { (Actor, "view", "starts"), ((string?)null, "person", "moodview") })
+        {
+            var operations = new object[]
+            {
+                Op("op-" + suffix + "-1", "schema.addField", new { entityId = "tasks", fieldId = "mood" + suffix, displayName = "Mood " + suffix, storageKind = "text", required = false, presentation = "singleChoice", options = new[] { "Calm", "Wild" } }),
+                Op("op-" + suffix + "-2", "schema.setChoiceMetadata", new { entityId = "tasks", fieldId = "mood" + suffix, choiceId = "Calm", displayName = "Calm", retired = false, tone = "teal" }),
+                Op("op-" + suffix + "-3", "schema.setChoiceMetadata", new { entityId = "tasks", fieldId = "mood" + suffix, choiceId = "Wild", displayName = "Wild", retired = false, tone = (string?)null }),
+                Op("op-" + suffix + "-4", "schema.addField", new { entityId = "tasks", fieldId = "after" + suffix, displayName = "After " + suffix, storageKind = "reference", required = false, presentation = (string?)null, options = Array.Empty<string>() }),
+                Op("op-" + suffix + "-5", "schema.configureReference", new { entityId = "tasks", fieldId = "after" + suffix, targetEntityId = "tasks", labelFieldId = "title" }),
+                Op("op-" + suffix + "-6", "schema.setRetired", new { entityId = "tasks", fieldId = retired, retired = true }),
+            };
+            var prepared = await handler.HandleAsync(PrepareOperations(fileSessionId, suffix, actor, operations));
+            Assert.IsTrue(prepared.Ok, $"The {suffix}'s proposal without definition revisions was refused: {prepared.Error?.Code}: {prepared.Error?.Message}");
+            var proposal = (NendoProposalPreview)prepared.Result!;
+            Assert.AreEqual(NendoProposalState.Previewable, proposal.State, string.Join("; ", proposal.Diagnostics.Select(d => d.Message)));
+            var accepted = await session.PromoteProposalAsync(proposal.ProposalId, expectedOperationDigest: proposal.OperationDigest);
+            Assert.IsTrue(accepted.Promotion.Applied, accepted.Promotion.Message);
+        }
+
+        var tasks = (await session.GetDefinitionViewAsync()).Entities.Single(entity => entity.EntityId == "tasks");
+        Assert.IsTrue(tasks.Fields.Any(field => field.FieldId == "afterview"), "The view's link field is not in the file after promotion.");
+        Assert.IsFalse(tasks.Fields.Any(field => field.FieldId == "starts" && field.Retired != true), "The view's retirement of Starts did not land.");
+    }
+
+    /// <summary>An explicit revision is the sender's to state: it is passed through, and a wrong one is still refused.</summary>
+    [TestMethod]
+    public async Task AnExplicitDefinitionRevisionIsKeptAndAWrongOneIsRefused()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+
+        var wrong = new object[]
+        {
+            Op("op-wrong-7", "schema.setRetired", new { entityId = "tasks", fieldId = "notes", retired = true, expectedDefinitionRevision = 9999 }),
+        };
+        var prepared = await handler.HandleAsync(PrepareOperations(fileSessionId, "wrong", Actor, wrong));
+        Assert.IsFalse(prepared.Ok && ((NendoProposalPreview)prepared.Result!).State == NendoProposalState.Previewable,
+            "A proposal stating a wrong definition revision was taken as if the host had filled in its own.");
+    }
+
+    private static object Op(string operationId, string operationType, object payload) => new { operationId, operationType, payload };
+
+    private static string PrepareOperations(string fileSessionId, string key, string? actor, object[] operations)
+    {
+        var mutations = new[] { new { idempotencyKey = "m-" + key, description = "Grow " + key, operations } };
+        object payload = actor is null
+            ? new { proposalId = NewProposalId(), title = "Grow " + key, mutations }
+            : new { proposalId = NewProposalId(), title = "Grow " + key, mutations, actor };
+        return Request(fileSessionId, WorkbenchMethods.ProposalPrepareChangeSet, payload);
+    }
+
     private static string Prepare(string fileSessionId, string fieldId, string? actor)
     {
         var operation = new

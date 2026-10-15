@@ -844,6 +844,16 @@ package's name, and the person decides it in the ordinary review.
   refused with a diagnostic naming it. The broker makes the proposal ID and the idempotency key, and
   sends the whole list as one mutation titled like the proposal. The host validates it
   exactly as it validates the Workbench's own, diagnostics included.
+- **The definition revision is the host's to fill** (W-241, 2026-10-15). A view has no read
+  that states the file's definition revision, so an operation that takes
+  `expectedDefinitionRevision` (`schema.setChoiceMetadata`, `schema.configureReference`,
+  `schema.setRetired` and the rest the vocabulary lists) leaves it out, or sends null, and the
+  host fills it in from the revision the proposal is prepared at, advancing once per preceding
+  definition-lane mutation, as MCP does for an agent (`NendoDefinitionRevisions`). The
+  Workbench's own proposals go through the same fill. A value the view states is passed through
+  untouched, and a wrong one is still refused. Until then every such operation was refused with
+  "Canonical operation property expectedDefinitionRevision requires an integer.", which is how
+  Clay's Create shelf with a choice failed (F-299).
 - **The origin is the package.** The host admits the actor on
   `proposal.prepareChangeSet` and `proposal.get` as well as the record writes. The
   proposal and its mutation carry `extension:‹package›` as their origin, the preview

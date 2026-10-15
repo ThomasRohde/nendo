@@ -240,7 +240,21 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     internal Task<NendoProposalPreview> PrepareProposalAsync(
         NendoCanonicalProposalRequest request,
         CancellationToken cancellationToken = default) =>
-        QueryAsync(service => service.PrepareProposalAsync(request, cancellationToken), cancellationToken);
+        QueryAsync(async service => await service.PrepareProposalAsync(
+            await WithDefinitionRevisionAsync(service, request, cancellationToken), cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The proposal with every omitted <c>expectedDefinitionRevision</c> filled in from the file's
+    /// current definition revision, as MCP fills an agent's (W-241). A custom view has no read that
+    /// states the revision, so without this every operation that takes one was refused.
+    /// </summary>
+    internal static async Task<NendoCanonicalProposalRequest> WithDefinitionRevisionAsync(
+        NendoApplicationService service, NendoCanonicalProposalRequest request, CancellationToken cancellationToken)
+    {
+        if (request.ChangeSet?.Mutations is null) return request;
+        var snapshot = await service.GetDefinitionSnapshotAsync(cancellationToken);
+        return request with { ChangeSet = Nendo.LocalMcp.NendoDefinitionRevisions.Fill(request.ChangeSet, snapshot.Manifest.DefinitionRevision) };
+    }
 
     internal async Task<DesktopMutationView> CreateRecordAsync(
         string entityId,

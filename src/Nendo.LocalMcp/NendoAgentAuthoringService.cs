@@ -1220,31 +1220,11 @@ internal sealed partial class NendoAgentAuthoringService(
         return document.RootElement.Clone();
     }
 
-    private static JsonElement ResolveRevision(NendoAgentOperationInput operation, long revision)
-    {
-        if (!RevisionScopedOperations.Contains(operation.OperationType) ||
-            (operation.Payload.Element.TryGetProperty("expectedDefinitionRevision", out var declared) &&
-             declared.ValueKind != JsonValueKind.Null))
-        {
-            return operation.Payload.Element.Clone();
-        }
-        return Object(writer =>
-        {
-            foreach (var property in operation.Payload.Element.EnumerateObject()
-                         .Where(property => property.Name != "expectedDefinitionRevision"))
-            {
-                property.WriteTo(writer);
-            }
-            writer.WriteNumber("expectedDefinitionRevision", revision);
-        });
-    }
+    // The Desktop's prepare path fills a view's operations the same way (W-241).
+    private static JsonElement ResolveRevision(NendoAgentOperationInput operation, long revision) =>
+        NendoDefinitionRevisions.Resolve(operation.OperationType, operation.Payload.Element, revision);
 
-    private static bool IsDefinitionLane(string operationType) =>
-        operationType.StartsWith("schema.", StringComparison.Ordinal) ||
-        operationType.StartsWith("ui.", StringComparison.Ordinal) ||
-        operationType.StartsWith("behaviour.", StringComparison.Ordinal) ||
-        operationType.StartsWith("application.", StringComparison.Ordinal) ||
-        operationType.StartsWith("extension.", StringComparison.Ordinal);
+    private static bool IsDefinitionLane(string operationType) => NendoDefinitionRevisions.IsDefinitionLane(operationType);
 
     private static bool IsAppend(NendoAgentOperationInput operation) =>
         operation.OperationType == "extension.putFile" &&
@@ -1340,17 +1320,6 @@ internal sealed partial class NendoAgentAuthoringService(
         }
         return [];
     }
-
-    /// <summary>
-    /// The operations whose payload carries <c>expectedDefinitionRevision</c>. A
-    /// data-lane conversion is included because it is validated against the same
-    /// counter even though it does not advance it.
-    /// </summary>
-    private static IReadOnlySet<string> RevisionScopedOperations { get; } = new HashSet<string>(
-        NendoAuthoringOperations.All
-            .Where(operation => operation.OptionalPayload.Contains("expectedDefinitionRevision"))
-            .Select(operation => operation.OperationType),
-        StringComparer.Ordinal);
 
     // Echoing the limit beside the usage makes the ceiling self-documenting, so it
     // is not discovered by crashing into it two-thirds of the way through a build.

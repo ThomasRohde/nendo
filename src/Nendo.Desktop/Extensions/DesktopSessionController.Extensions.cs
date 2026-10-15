@@ -184,7 +184,7 @@ internal sealed partial class DesktopSessionController
             if (waiting is not null)
                 throw new NendoPreconditionException("proposal-waiting",
                     $"This view's proposal \"{waiting.Title}\" ({waiting.ProposalId}) is still waiting for a person. It can prepare another once that one is accepted or rejected.");
-            var preview = await service.PrepareProposalAsync(request, cancellationToken);
+            var preview = await service.PrepareProposalAsync(await WithDefinitionRevisionAsync(service, request, cancellationToken), cancellationToken);
             lock (_viewProposals)
             {
                 if (_viewProposals.Count >= MaximumViewProposals) _viewProposals.Remove(_viewProposals.Keys.First());
