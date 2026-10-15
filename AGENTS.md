@@ -185,7 +185,9 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 - Run the narrowest applicable build and tests, plus `pwsh ./tools/Test-Repository.ps1`.
 - For full validation use `pwsh ./tools/Test-Production.ps1`, which already
   includes the repository gate — do not run it twice. Use `-SkipRestore` only
-  with unchanged dependencies.
+  with unchanged dependencies. While it runs it writes where it has got to in
+  `artifacts/gate-progress.json` (`tools/GateProgress.psm1`), steps weighted by
+  the last passing run's times in `artifacts/gate-timings.json`.
 - The public website in `site/` is outside the product boundary and outside the
   gate ([ADR-0018](docs/decisions/0018-public-website-and-deployment-lane.md)).
   Build it with `pwsh ./tools/Test-Site.ps1`; `.github/workflows/pages.yml`

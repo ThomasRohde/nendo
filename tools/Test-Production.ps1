@@ -60,6 +60,37 @@ function Invoke-Npm {
     Invoke-Checked -FilePath $Command.FilePath -Arguments $allArguments -Description $Description
 }
 
+# Where this run has got to, in artifacts/gate-progress.json, for anything that shows it while it
+# runs (GateProgress.psm1). The steps are planned here, in the order they run below.
+Import-Module (Join-Path $PSScriptRoot 'GateProgress.psm1') -Force
+$plannedSteps = @(
+    if (-not $SkipRestore) { , @('workbench.restore', 'Workbench restore') }
+    , @('workbench.check', 'Workbench type check')
+    , @('workbench.test', 'Workbench tests')
+    , @('workbench.dependencies', 'Workbench dependencies')
+    , @('workbench.build', 'Workbench build')
+    if (-not $SkipRestore) { , @('dotnet.restore', '.NET restore') }
+    , @('dotnet.build', '.NET build')
+    , @('dotnet.Nendo.Engine.Tests', 'Engine tests')
+    , @('dotnet.Nendo.LocalMcp.Tests', 'MCP tests')
+    , @('dotnet.Nendo.Desktop.Tests', 'Desktop tests')
+    , @('tool-boundaries', 'Tool boundaries')
+    , @('production-boundaries', 'Production boundaries')
+    , @('view.graph', 'Graph view')
+    , @('view.work-dependencies', 'Work dependencies view')
+    , @('view.systems-lens', 'Systems Lens')
+    , @('view.gantt', 'Gantt')
+    , @('view.capability-atlas', 'Capability Atlas')
+    , @('view.archi', 'Archi workbench')
+    , @('view.swarm', 'Swarm')
+    , @('view.garden', 'Garden')
+    , @('agent-chat', 'Agent conversation')
+    , @('workbench-shell', 'Workbench shell')
+    , @('repository', 'Repository')
+)
+Start-GateProgress -Path (Join-Path $repoRoot 'artifacts/gate-progress.json') -Steps $plannedSteps `
+    -TimingsPath (Join-Path $repoRoot 'artifacts/gate-timings.json')
+
 Push-Location $repoRoot
 try {
     Write-Host '== Workbench =='
@@ -67,11 +98,16 @@ try {
     Push-Location $workbenchRoot
     try {
         if (-not $SkipRestore) {
+            Enter-GateStep 'workbench.restore'
             Invoke-Npm $npmCommand @('ci') 'Workbench restore'
         }
+        Enter-GateStep 'workbench.check'
         Invoke-Npm $npmCommand @('run', 'check') 'Workbench type check'
+        Enter-GateStep 'workbench.test'
         Invoke-Npm $npmCommand @('test') 'Workbench behavior tests'
+        Enter-GateStep 'workbench.dependencies'
         Invoke-Npm $npmCommand @('run', 'verify:dependencies') 'Workbench dependency verification'
+        Enter-GateStep 'workbench.build'
         Invoke-Npm $npmCommand @('run', 'build') 'Workbench build'
     }
     finally {
@@ -80,8 +116,10 @@ try {
 
     Write-Host '== .NET =='
     if (-not $SkipRestore) {
+        Enter-GateStep 'dotnet.restore'
         Invoke-Checked 'dotnet' @('restore', 'Nendo.slnx', '--nologo') '.NET restore'
     }
+    Enter-GateStep 'dotnet.build'
     Invoke-Checked 'dotnet' @('build', 'Nendo.slnx', '--no-restore', '--nologo') '.NET build'
     if ($Inspector) { $env:NENDO_RUN_INSPECTOR = '1' }
     if ($Soak) { $env:NENDO_RUN_SOAK = '1' }
@@ -98,6 +136,7 @@ try {
     foreach ($suite in @('Nendo.Engine.Tests', 'Nendo.LocalMcp.Tests', 'Nendo.Desktop.Tests')) {
         $project = Join-Path $repoRoot "tests/$suite/$suite.csproj"
         $suiteResults = Join-Path $testResults $suite
+        Enter-GateStep "dotnet.$suite"
         & dotnet test $project --no-build --no-restore --nologo --logger trx --results-directory $suiteResults
         if ($LASTEXITCODE -ne 0) { $failedSuites += $suite; Write-Host "Test results kept: $suiteResults" }
         else { Remove-Item -LiteralPath $suiteResults -Recurse -Force -ErrorAction SilentlyContinue }
@@ -106,9 +145,11 @@ try {
     if ($failedSuites.Count -gt 0) { throw ".NET tests failed in $($failedSuites -join ', ')." }
 
     Write-Host '== Tool boundaries =='
-    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs'), (Join-Path $PSScriptRoot 'info-file.test.mjs')) 'Package uploader, clipboard probe and fixture address file boundaries'
+    Enter-GateStep 'tool-boundaries'
+    Invoke-Checked 'node' @('--test', (Join-Path $PSScriptRoot 'put-package.test.mjs'), (Join-Path $PSScriptRoot 'clipboard-probe.test.mjs'), (Join-Path $PSScriptRoot 'info-file.test.mjs'), (Join-Path $PSScriptRoot 'gate-progress.test.mjs')) 'Package uploader, clipboard probe, fixture address file and gate progress boundaries'
 
     Write-Host '== Production boundaries =='
+    Enter-GateStep 'production-boundaries'
     & (Join-Path $PSScriptRoot 'Test-ApplicationNeutrality.ps1')
 
     # The output this gate built and its tests ran against, not any output: a Release or
@@ -412,25 +453,41 @@ try {
     Write-Host "OK       local MCP contracts exclude database paths, connections and credentials"
 
     Write-Host '== Custom-view presentation =='
+    Enter-GateStep 'view.graph'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-NendoGraph.ps1')) 'Offline graph presentation'
+    Enter-GateStep 'view.work-dependencies'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-WorkDependencies.ps1')) 'Work-dependency view presentation'
+    Enter-GateStep 'view.systems-lens'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-SystemsLens.ps1')) 'Systems Lens presentation'
+    Enter-GateStep 'view.gantt'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Gantt.ps1')) 'Gantt record-set presentation'
+    Enter-GateStep 'view.capability-atlas'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-BcmAtlas.ps1')) 'Capability Atlas presentation'
+    Enter-GateStep 'view.archi'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-ArchiWorkbench.ps1')) 'Archi workbench presentation'
+    Enter-GateStep 'view.swarm'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Swarm.ps1')) 'Swarm behaviour, simulation and replay'
+    Enter-GateStep 'view.garden'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Garden.ps1')) 'Garden notes, sync and backlinks'
 
     Write-Host '== Launched agent conversation =='
+    Enter-GateStep 'agent-chat'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-AgentChat.ps1')) 'Launched agent conversation tab'
 
     Write-Host '== Workbench shell =='
+    Enter-GateStep 'workbench-shell'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-WorkbenchShell.ps1')) 'Workbench shell, Use screens and Agent page'
 
     Write-Host '== Repository =='
+    Enter-GateStep 'repository'
     & (Join-Path $PSScriptRoot 'Test-Repository.ps1')
 
+    Complete-GateProgress
     Write-Host 'Production verification passed.'
+}
+catch {
+    Complete-GateProgress -Failure $_.Exception.Message
+    throw
 }
 finally {
     Pop-Location

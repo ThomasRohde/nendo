@@ -1,8 +1,13 @@
 import type { EngineInterface, Register } from 'claude-code'
 
-import type { Planner, Snapshot, WorkItem } from '../types'
+import type { GateView, Planner, Snapshot, WorkItem } from '../types'
+import { bar, GATE_FILE, gateLine, gateShown, gateView, gateWords, parseGateFile } from './gate'
 
 const SNAPSHOT = { plugin: 'nendo-planner', key: 'snapshot' } as const
+const GATE = { plugin: 'nendo-planner', key: 'gate' } as const
+const GATE_EVERY_MS = 2_000
+// How often a run still marked running has its process looked for.
+const ALIVE_EVERY_MS = 15_000
 
 const PLANNER = 'Planner.nendo'
 const EVERY_MS = 60_000
@@ -171,6 +176,46 @@ async function refresh($: $) {
   }
 }
 
+// The full gate's run, read from the file Test-Production.ps1 writes as it goes (GateProgress.psm1).
+let isPolling = false
+let aliveCheckedAt = 0
+let aliveFor: { processId: number; alive: boolean } | null = null
+
+async function processAlive($: $, processId: number, nowMs: number): Promise<boolean> {
+  if (aliveFor?.processId === processId && nowMs - aliveCheckedAt < ALIVE_EVERY_MS) return aliveFor.alive
+  aliveCheckedAt = nowMs
+  let alive = true
+  try {
+    const { stdout } = await $.process.run(['tasklist', '/FI', `PID eq ${processId}`, '/NH', '/FO', 'CSV'], { timeoutMs: 5_000 })
+    alive = stdout.includes(`"${processId}"`)
+  } catch {
+    // Not knowing is not the same as gone: the bar keeps going.
+  }
+  aliveFor = { processId, alive }
+  return alive
+}
+
+async function pollGate($: $) {
+  if (isPolling) return
+  isPolling = true
+  try {
+    const nowMs = await $.clock.now()
+    const root = await $.session.root()
+    const text = await $.fs.read(`${root}/${GATE_FILE}`).catch(() => null)
+    const file = typeof text === 'string' ? parseGateFile(text) : null
+    const view = file === null ? null
+      : gateView(file, nowMs, file.state !== 'running' || await processAlive($, file.processId, nowMs))
+    const before = (await $.state.get(GATE)).value ?? null
+    const shown = gateShown(view, nowMs) ? view : null
+    if (JSON.stringify(shown) === JSON.stringify(before)) return
+    await $.state.set(GATE, shown)
+    // Said once, when a run this session watched comes to an end.
+    if (before?.state === 'running' && shown !== null && shown.state !== 'running') $.ui.toast(gateLine(shown, 20))
+  } finally {
+    isPolling = false
+  }
+}
+
 function summary(s: Snapshot | null): string {
   if (!s) return 'Not checked yet.'
   if (!s.planner) return s.problem ?? 'Planner.nendo is not open.'
@@ -190,10 +235,22 @@ export const register: Register = on => {
       name: 'planner',
       description: 'Refresh and print the Nendo planner\'s Now and Next lanes',
     })
+    await $.command.register({
+      name: 'gate',
+      description: 'Show how far the running Test-Production.ps1 has got',
+    })
     void refresh($)
     $.clock.every(EVERY_MS, () => void refresh($))
+    void pollGate($)
+    $.clock.every(GATE_EVERY_MS, () => void pollGate($))
 
     return next(e)
+  })
+
+  on('command.run', { command: 'gate' }, async $ => {
+    await pollGate($)
+    const view = (await $.state.get(GATE)).value ?? null
+    return { text: view === null ? 'No run of Test-Production.ps1 in the last ten minutes.' : gateLine(view) }
   })
 
   on('command.run', { command: 'planner' }, async $ => {
@@ -210,20 +267,40 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const s = (await $.state.get(SNAPSHOT)).value ?? null
-    if (e.props.hasSurvey || !s || (!s.planner && !s.problem)) return next(e)
+    const gate = (await $.state.get(GATE)).value ?? null
+    const hasPlanner = s !== null && (s.planner !== null || s.problem !== null)
+    if (e.props.hasSurvey || (!hasPlanner && gate === null)) return next(e)
 
     const { Box, Button, Text } = $.ui.resolve(e)
     const width = e.props.bodyColumns
 
-    if (!s.planner) {
+    // The gate's bar, above the planner's lanes, while a run goes and for a while after it ends.
+    const gateRow = (view: GateView) => {
+      const cells = Math.max(10, Math.min(40, Math.floor(width * 0.35)))
+      const { filled, empty } = bar(view.fraction, cells)
+      const tone = view.state === 'passed' ? 'green' : view.state === 'running' ? 'cyan' : 'red'
       return (
-        <Box>
-          <Text dimColor wrap="truncate">{s.problem}</Text>
+        <Box key="gate" width={width}>
+          <Text bold>Gate </Text>
+          <Text color={tone}>{filled}</Text>
+          <Text dimColor>{empty}</Text>
+          <Text wrap="truncate"> {gateWords(view)}</Text>
         </Box>
       )
     }
 
-    const { now, next: upNext, inbox } = s.planner
+    if (!hasPlanner) return <Box flexDirection="column">{gateRow(gate!)}</Box>
+
+    if (!s!.planner) {
+      return (
+        <Box flexDirection="column">
+          {gate !== null ? gateRow(gate) : null}
+          <Text dimColor wrap="truncate">{s!.problem}</Text>
+        </Box>
+      )
+    }
+
+    const { now, next: upNext, inbox } = s!.planner
     const item = (w: WorkItem, label: string) => (
       <Box key={`${label}-${w.ref}`} width={width}>
         <Text color="cyan">{label} </Text>
@@ -243,6 +320,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column">
+        {gate !== null ? gateRow(gate) : null}
         {rows}
         <Box>
           <Text dimColor>
