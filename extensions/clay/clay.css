@@ -1,0 +1,166 @@
+/* Nendo's own colours, so Clay sits with the app. The Workbench hands a view its theme's
+   tokens and api.js sets them on this page as --nendo-*; the value after each is that token
+   as src/Nendo.Workbench/src/styles/02-tokens.css declares it, used only when the page runs
+   without them. tools/view-kit/tokens.test.mjs holds them to it. */
+:root{
+  color-scheme:light;
+  font:14px/1.45 "Segoe UI Variable Text","Segoe UI",sans-serif;
+  --canvas:var(--nendo-canvas,#f9f9fa);--surface:var(--nendo-surface,#ffffff);--surface-raised:var(--nendo-surface-raised,#ffffff);--surface-soft:var(--nendo-surface-soft,#f3f3f4);
+  --ink:var(--nendo-ink,#1b1b1b);--muted:var(--nendo-muted,#5d5d5d);--line:var(--nendo-line,#e5e5e5);--line-strong:var(--nendo-line-strong,#d1d1d1);
+  --cobalt:var(--nendo-cobalt,#005fb8);--cobalt-soft:var(--nendo-cobalt-soft,#e5eff9);--danger:var(--nendo-danger,#c23a31);
+  --tone-red:var(--nendo-tone-red,#c93a3a);--tone-orange:var(--nendo-tone-orange,#c75a17);--tone-amber:var(--nendo-tone-amber,#a37608);--tone-green:var(--nendo-tone-green,#1f8a52);
+  --tone-teal:var(--nendo-tone-teal,#16837e);--tone-blue:var(--nendo-tone-blue,#2f63d6);--tone-violet:var(--nendo-tone-violet,#7446d4);--tone-grey:var(--nendo-tone-grey,#677080);
+}
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --canvas:var(--nendo-canvas,#272829);--surface:var(--nendo-surface,#2d2e30);--surface-raised:var(--nendo-surface-raised,#323335);--surface-soft:var(--nendo-surface-soft,#38393b);
+  --ink:var(--nendo-ink,#ffffff);--muted:var(--nendo-muted,#c5c5c5);--line:var(--nendo-line,#3b3c3e);--line-strong:var(--nendo-line-strong,#4b4c4f);
+  --cobalt:var(--nendo-cobalt,#60cdff);--cobalt-soft:var(--nendo-cobalt-soft,#1f3a4a);--danger:var(--nendo-danger,#f37b72);
+  --tone-red:var(--nendo-tone-red,#f27a7a);--tone-orange:var(--nendo-tone-orange,#f29a5c);--tone-amber:var(--nendo-tone-amber,#e8c15a);--tone-green:var(--nendo-tone-green,#52d18f);
+  --tone-teal:var(--nendo-tone-teal,#4ecdc4);--tone-blue:var(--nendo-tone-blue,#6f9bff);--tone-violet:var(--nendo-tone-violet,#b392ff);--tone-grey:var(--nendo-tone-grey,#a3abb8);
+}
+/* Amber is the file's own tone: Clay uses it for the moments the shape changes, and Nendo's
+   cobalt for everything a person does to the data. */
+:root{--clay:var(--tone-amber);--clay-soft:color-mix(in srgb,var(--tone-amber) 12%,var(--surface-raised))}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--canvas);color:var(--ink)}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--cobalt);outline-offset:2px}
+[hidden]{display:none !important}
+
+#app{display:grid;grid-template-columns:232px 1fr;height:100%;min-height:0}
+@media (max-width:640px){#app{grid-template-columns:1fr;grid-template-rows:auto 1fr}#rail{border-right:0;border-bottom:1px solid var(--line);max-height:42vh}}
+
+/* The rail: shelves, a new shelf, and how the file grew. */
+#rail{display:flex;flex-direction:column;gap:12px;padding:16px 12px;border-right:1px solid var(--line);background:var(--surface);overflow:auto;user-select:none}
+.rail-head{display:flex;align-items:center;gap:10px;padding:0 4px}
+.rail-head small{display:block;color:var(--muted);font-size:.8rem}
+.mark{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--clay);color:var(--surface);font-weight:700}
+#shelves{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.shelf-link{display:flex;justify-content:space-between;align-items:center;width:100%;padding:7px 10px;border:0;border-radius:8px;background:none;text-align:left}
+.shelf-link:hover{background:var(--surface-soft)}
+.shelf-link[aria-current=true]{background:var(--cobalt-soft);font-weight:600}
+.shelf-link .n{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+.new-shelf label{display:block;padding:0 4px 4px;color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+input{width:100%;padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-raised)}
+input::placeholder{color:var(--muted);opacity:.8}
+input:disabled{opacity:.6}
+.growth{margin-top:auto;border-top:1px solid var(--line);padding-top:10px}
+.growth summary{padding:2px 4px;color:var(--muted);font-size:.85rem;cursor:pointer}
+.growth summary span{display:inline-block;min-width:1.6em;padding:0 6px;border-radius:999px;background:var(--clay-soft);color:var(--ink);font-size:.75rem;text-align:center}
+#growth-list{list-style:none;margin:8px 0 0;padding:0 0 0 6px;display:flex;flex-direction:column;gap:6px;font-size:.82rem}
+#growth-list li{position:relative;padding-left:14px;user-select:text}
+#growth-list li::before{content:"";position:absolute;left:0;top:.5em;width:7px;height:7px;border-radius:50%;background:var(--clay)}
+#growth-list time{display:block;color:var(--muted);font-size:.75rem}
+
+/* The main pane. */
+#main{overflow:auto;padding:20px 24px 48px;min-width:0}
+.pending{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px;padding:10px 14px;border:1px solid var(--clay);border-radius:10px;background:var(--clay-soft)}
+.pending p{margin:0;flex:1 1 260px}
+.pending .spin{width:10px;height:10px;border-radius:50%;background:var(--clay);animation:pulse 1.4s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.pending .spin{animation:none}}
+.button{padding:6px 12px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-raised)}
+.button:hover{background:var(--surface-soft)}
+.button.primary,.new-item button{border-color:var(--cobalt);background:var(--cobalt);color:var(--surface)}
+.button:disabled{opacity:.5;cursor:default}
+
+.hero{max-width:560px;margin:8vh auto 0;text-align:center}
+.hero .mark{width:56px;height:56px;margin:0 auto 16px;border-radius:16px;font-size:1.6rem}
+.hero h1{margin:0 0 8px;font-size:1.6rem;font-weight:650}
+.hero p{margin:0 0 20px;color:var(--muted)}
+.hero form{display:flex;gap:8px;max-width:420px;margin:0 auto 14px}
+.hero form .button{white-space:nowrap}
+.hero .ideas{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.chip{padding:4px 12px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-raised);font-size:.85rem}
+.chip:hover{border-color:var(--clay)}
+
+.shelf-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 16px;margin-bottom:10px}
+.shelf-title{display:flex;align-items:baseline;gap:10px}
+.shelf-title h1{margin:0;font-size:1.5rem;font-weight:650}
+#shelf-count{color:var(--muted)}
+.shelf-tools{display:flex;gap:6px;align-items:center}
+.shelf-tools input{width:200px}
+.shelf-tools button{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:none;color:var(--muted)}
+.shelf-tools button:hover{color:var(--ink);background:var(--surface-soft)}
+
+/* The shelf's shape: one tag per detail, the shelf's own field list. */
+.shape{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;user-select:none}
+.tag{display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface-raised);font-size:.82rem}
+.tag .k{min-width:1.6em;padding:0 4px;border-radius:4px;background:var(--surface-soft);color:var(--muted);font-size:.72rem;text-align:center;font-variant-numeric:tabular-nums}
+.tag button{width:20px;height:20px;padding:0;border:0;border-radius:5px;background:none;color:var(--muted);line-height:1}
+.tag button:hover{background:var(--surface-soft);color:var(--danger)}
+.tag.fresh{border-color:var(--clay);animation:settle 1.6s ease-out}
+@keyframes settle{from{background:var(--clay-soft);transform:scale(1.06)}}
+@media (prefers-reduced-motion:reduce){.tag.fresh{animation:none}}
+.shape .hint{color:var(--muted);font-size:.82rem;align-self:center}
+
+.new-item{display:flex;gap:8px;max-width:520px;margin-bottom:16px}
+.new-item button{padding:6px 16px;border:1px solid;border-radius:8px}
+
+.items{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;align-items:start}
+.card{display:flex;flex-direction:column;gap:8px;padding:12px 12px 10px;border:1px solid var(--line);border-radius:12px;background:var(--surface-raised);box-shadow:var(--nendo-shadow,none)}
+.card.flash{border-color:var(--cobalt)}
+.card-head{display:flex;align-items:flex-start;gap:6px}
+.card-head h2{flex:1;margin:0;font-size:1rem;font-weight:600;min-width:0}
+.card-head h2 button{all:unset;cursor:text;overflow-wrap:anywhere}
+.card-head h2 button:focus-visible{outline:2px solid var(--cobalt);outline-offset:2px;border-radius:3px}
+.card-tools{display:flex;gap:2px;opacity:.55}
+.card:hover .card-tools,.card:focus-within .card-tools{opacity:1}
+.card-tools button{padding:2px 6px;border:0;border-radius:6px;background:none;color:var(--muted);font-size:.78rem}
+.card-tools button:hover{background:var(--surface-soft);color:var(--ink)}
+.card-tools button.armed{background:var(--danger);color:var(--surface)}
+/* A compact card: short details on one wrapping line, the first long text cut to two lines. */
+.facts{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.84rem}
+.facts li{min-width:0}
+.fact-label{color:var(--muted);font-size:.78rem}
+.fact button,button.fact{all:unset;cursor:text}
+button.fact.off{color:var(--muted)}
+.facts button:focus-visible{outline:2px solid var(--cobalt);border-radius:3px}
+.excerpt{margin:0;font-size:.88rem;color:var(--muted)}
+.excerpt button{all:unset;cursor:text;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden}
+.excerpt button:focus-visible{outline:2px solid var(--cobalt);border-radius:3px}
+.more{align-self:flex-start;padding:0;border:0;background:none;color:var(--cobalt);font-size:.82rem;text-align:left}
+.more:hover{text-decoration:underline}
+.details{margin:0;display:grid;grid-template-columns:minmax(70px,auto) 1fr;gap:3px 10px;font-size:.88rem}
+.details dt{color:var(--muted)}
+.details dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.details dd button{all:unset;cursor:text}
+.details dd button:focus-visible{outline:2px solid var(--cobalt);border-radius:3px}
+.details .long{white-space:pre-wrap}
+.stars{color:var(--clay);letter-spacing:1px}
+.pill{display:inline-block;padding:0 8px;border-radius:999px;font-size:.8rem;background:color-mix(in srgb,var(--tone,var(--tone-grey)) 16%,transparent);color:var(--ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tone,var(--tone-grey)) 45%,transparent)}
+.link{color:var(--cobalt);cursor:pointer;text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--cobalt) 35%,transparent);text-underline-offset:2px}
+.detail-line input{padding:5px 9px;border-style:dashed;background:transparent;font-size:.86rem}
+.detail-line input:focus{border-style:solid;background:var(--surface-raised)}
+.problem{margin:0;color:var(--danger);font-size:.82rem}
+
+/* The field form: a shelf's name, then a label and a type per field, and Create. */
+.builder{max-width:640px;margin:0 0 18px;padding:16px;border:1px solid var(--clay);border-radius:12px;background:var(--surface-raised)}
+.builder form{display:flex;flex-direction:column;gap:8px}
+.builder h2{margin:0;font-size:1.1rem;font-weight:650}
+.b-name{display:flex;flex-direction:column;gap:4px;max-width:360px}
+.b-name span,.b-head{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+.b-hint{margin:0;color:var(--muted);font-size:.86rem}
+.b-head,.b-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 28px;gap:6px;align-items:center}
+.b-head{margin-top:6px}
+.b-row select{width:100%;padding:7px 8px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface-raised)}
+.b-row .b-options{grid-column:1 / 3}
+.b-remove{width:28px;height:28px;padding:0;border:0;border-radius:6px;background:none;color:var(--muted);font-size:1.1rem}
+.b-remove:hover{background:var(--surface-soft);color:var(--danger)}
+.b-add{align-self:flex-start;padding:2px 0;border:0;background:none;color:var(--cobalt);font-size:.86rem}
+.b-add:hover{text-decoration:underline}
+.b-actions{display:flex;gap:8px;margin-top:4px}
+.tag.add{padding:3px 10px;border-style:dashed;border-color:var(--clay);background:none;color:var(--ink);cursor:pointer}
+.tag.add:hover{background:var(--clay-soft)}
+.tag.add:disabled{opacity:.5;cursor:default}
+
+.empty{color:var(--muted);margin:24px 0}
+.read-only{margin:0 0 12px;color:var(--muted)}
+#status{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);max-width:min(560px,calc(100% - 32px));margin:0;padding:8px 14px;border-radius:10px;background:var(--ink);color:var(--canvas);font-size:.88rem;box-shadow:0 8px 24px -10px rgba(0,0,0,.4);transition:opacity .2s}
+#status:empty{opacity:0;pointer-events:none}
+#status.problem-line{background:var(--danger);color:var(--surface)}
+@media (forced-colors:active){.mark,.button.primary{forced-color-adjust:none;background:Highlight;color:HighlightText}}

@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.clay",
+  "title": "Clay",
+  "version": "0.3.1",
+  "entryPoint": "index.html",
+  "description": "Collect anything. Make shelves and fill them; a detail a shelf has no field for yet grows the shelf, as a proposal you accept."
+}

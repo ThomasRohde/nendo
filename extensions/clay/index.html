@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Clay</title>
+  <link rel="stylesheet" href="clay.css">
+</head>
+<body>
+  <div id="app" aria-busy="true">
+    <nav id="rail" aria-label="Shelves">
+      <div class="rail-head"><span class="mark" aria-hidden="true">C</span><div><strong>Clay</strong><small id="tally">Reading the file…</small></div></div>
+      <ul id="shelves"></ul>
+      <form id="new-shelf" class="new-shelf" autocomplete="off">
+        <label for="shelf-name">New shelf</label>
+        <input id="shelf-name" maxlength="60" placeholder="Books, Plants, Recipes…">
+      </form>
+      <details id="growth" class="growth">
+        <summary>How Clay grew <span id="growth-count">0</span></summary>
+        <ol id="growth-list"></ol>
+      </details>
+    </nav>
+    <main id="main" tabindex="-1">
+      <div id="pending" class="pending" role="status" hidden></div>
+      <section id="builder" class="builder" aria-label="Fields" hidden></section>
+      <section id="hero" class="hero" hidden></section>
+      <section id="shelf" hidden>
+        <header class="shelf-head">
+          <div class="shelf-title"><h1 id="shelf-title"></h1><span id="shelf-count"></span></div>
+          <div class="shelf-tools">
+            <input id="find" type="search" placeholder="Find on this shelf" aria-label="Find on this shelf" autocomplete="off">
+            <button id="studio" type="button" title="Open this shelf in Studio">Studio</button>
+            <button id="put-away" type="button" title="Retire this shelf; its items stay in the file">Put away</button>
+          </div>
+        </header>
+        <div id="shape" class="shape" aria-label="The details this shelf holds"></div>
+        <form id="new-item" class="new-item" autocomplete="off">
+          <input id="item-name" maxlength="200" aria-label="Name of a new item">
+          <button type="submit">Add</button>
+        </form>
+        <ul id="items" class="items" aria-label="Items"></ul>
+        <p id="empty" class="empty" hidden></p>
+      </section>
+    </main>
+  </div>
+  <p id="status" role="status" aria-live="polite"></p>
+  <script src="/_nendo/api.js"></script>
+  <script type="module" src="clay.mjs"></script>
+</body>
+</html>
