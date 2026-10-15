@@ -81,7 +81,10 @@ Claude Code also loads `.claude/skills/nendo-planner`, a read-only mod. Its
 status line names the workspace files Nendo holds open and the lease holder. A
 band above the prompt shows the open Now items, or the first Next item when Now
 is empty, and `/planner` prints both lanes. While `tools/Test-Production.ps1` runs, the band
-also draws its progress bar from `artifacts/gate-progress.json`, and `/gate` prints it. It reads the planner over the
+also draws its progress bar from `artifacts/gate-progress.json`, and `/gate` prints it.
+Claude Code loads it from this folder as `nendo-planner@skills-dir` (`claude plugin list`)
+when a session starts. A session the desktop app hosts did not pick up an edit to it
+(2026-10-15): start a new session to run the changed mod. It reads the planner over the
 endpoint in `%LOCALAPPDATA%\Nendo\Mcp\active`, so it keeps working after the
 session's `nendo` tools drop. It never writes and takes no lease.
 
