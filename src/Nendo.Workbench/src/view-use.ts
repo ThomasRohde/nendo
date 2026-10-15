@@ -11,7 +11,7 @@ import { inspectorMarkup, pageFormBody, pageHasTabs } from './page-markup';
 import { drillIntoCell, matrixPending, refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { renderOverview, showsOverview } from './view-overview';
 import { createReadChase } from './read-chase';
-import { activePlan, overviewPlan, calendarKeyFor, calendarModeFor, calendarMonthFor, chartPending, formFields, referenceColumnsOf, selectedBoard, selectedSurfaceNode, tilePending, timelineKeyFor, timelineModeFor, timelineYearFor, visibleCharts, visibleTiles } from './plan-selection';
+import { activePlan, boardColumnsPending, overviewPlan, calendarKeyFor, calendarModeFor, calendarMonthFor, chartPending, formFields, referenceColumnsOf, selectedBoard, selectedSurfaceNode, tilePending, timelineKeyFor, timelineModeFor, timelineYearFor, visibleCharts, visibleTiles } from './plan-selection';
 import { loadCalendarPage, loadRelatedWindows, loadSurfaceWindow, loadTimelinePage, relatedWindowsPending, wireRecordPager } from './reads';
 import {
   closeRelatedCreate, recordInView, relatedTargetPlan, returnFromRelatedRecord, seedRelatedReference, wireRelatedActions,
@@ -278,7 +278,10 @@ export function renderUse(): void {
   // tile pending again, and the redraw starts the next one. Bounded here instead.
   // Both chases redraw when their reads land, so both wait on the person's hold on the
   // page and on their unsaved typing, for the reason draft-guard.ts gives.
-  if (visibleTiles(plan).some(tilePending) || visibleCharts(plan).some(chartPending) || matrixPending(plan))
+  // A reference board's columns are chased for themselves. They were read only as a step of
+  // a pending tile, so a board with no tiles of its own said "Reading the ... records this
+  // board's columns come from" for good (the planner's By initiative, 2026-10-15).
+  if (boardColumnsPending(plan) || visibleTiles(plan).some(tilePending) || visibleCharts(plan).some(chartPending) || matrixPending(plan))
     surfaceChase.run(() => refreshVisibleTiles(plan), rerender, error => showError(messageFor(error)), holdingThePage);
   if (selected !== null && relatedWindowsPending(plan, selected.semanticId)) {
     const recordId = selected.semanticId;

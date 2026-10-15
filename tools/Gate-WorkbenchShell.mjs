@@ -788,6 +788,35 @@ async page => {
   });
 
   // UIS-12, the reference half: the tree fixture has a reference field, Part of.
+  // The planner's By initiative board said "Reading the Initiatives records this board's columns
+  // come from…" for good (2026-10-15): a reference board's columns were read only beside a pending
+  // tile, and that board has none. This one has none either.
+  await check('Reference board without tiles reads its columns', 'tree', async () => {
+    await pickView('Capabilities by parent');
+    try {
+      await until(() => document.querySelectorAll('.record-board .board-column[data-group]').length > 0, null, 'the reference board\'s columns', 6000);
+    } catch {
+      const said = await page.evaluate(() => document.querySelector('.surface-empty')?.textContent ?? document.querySelector('#studio-content')?.textContent?.slice(0, 200));
+      throw Error(`The board by parent drew no columns; it says ${JSON.stringify(said)}.`);
+    }
+    const lanes = await page.evaluate(() => [...document.querySelectorAll('.record-board .board-column[data-group] h3')].map(heading => heading.textContent.trim()));
+    assert(lanes.length === 11, `The board by parent drew ${lanes.length} columns, not one per capability: ${JSON.stringify(lanes)}.`);
+  });
+
+  // "Complete completed" stayed on the planner's By initiative board after the person ran Complete
+  // on a work item and chose another screen (2026-10-15). A sentence belongs to the screen it was said on.
+  await check('A command outcome stays on its own screen', 'tree', async () => {
+    await pickView('All capabilities');
+    await page.click('[data-record-id="cap-performance"]');
+    await until(() => document.querySelector('.record-inspector [data-run-command]') !== null, null, 'the record\'s command');
+    await page.click('.record-inspector [data-run-command]');
+    await until(() => /Activate completed/.test(document.querySelector('.message-slot')?.textContent ?? ''), null, 'the command\'s outcome');
+    await pickView('Capabilities by status');
+    await page.waitForTimeout(300);
+    const left = await page.evaluate(() => { const slot = document.querySelector('.message-slot'); return slot === null || slot.hidden ? null : slot.textContent; });
+    assert(left === null || !/Activate completed/.test(left), `The command's outcome followed the person to another screen: ${JSON.stringify(left)}.`);
+  });
+
   await check('UIS-12 reference controls named by field', 'tree', async () => {
     await openRecord();
     const name = await page.evaluate(() => document.querySelector('.record-inspector .reference-choose')?.getAttribute('aria-label') ?? null);

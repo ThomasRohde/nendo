@@ -140,6 +140,12 @@ export interface ReturnTo { entityId: string; recordId: string; label: string }
  */
 export interface OutcomeNotice {
   view: string;
+  /**
+   * The screen it was said on (`outcomeScreen`): the record type, the file's view, the surface and
+   * the record. Every Use screen is the view `use`, so a sentence kept by view alone followed the
+   * person from a work item's Complete to another board, and stayed there (2026-10-15).
+   */
+  screen?: string;
   message: string;
   tone: 'done' | 'alert';
   refresh?: (button: HTMLButtonElement) => Promise<void>;

@@ -88,6 +88,13 @@ function capabilityTreeFixture(): PreviewFixture {
         reorder: true,
         fields: ['field.capability.status'],
       },
+      referenceBoard: {
+        surfaceId: 'surface.capability.byParent',
+        nodeId: 'node.capability.byParent.root',
+        title: 'Capabilities by parent',
+        groupByFieldId: 'field.capability.parent',
+        fields: ['field.capability.name'],
+      },
     },
   );
 }
@@ -251,6 +258,14 @@ interface FixtureSurfaces {
     reorder?: boolean;
     fields: string[];
   };
+  /** A board grouped by a reference, with no tiles: its columns are read for themselves. */
+  referenceBoard?: {
+    surfaceId: string;
+    nodeId: string;
+    title: string;
+    groupByFieldId: string;
+    fields: string[];
+  };
 }
 
 // One authored shape drives both the stored nodes and the compiled tree, so the
@@ -317,6 +332,11 @@ function fixture(
       bindings(gallery.surfaceId, gallery.nodeId, gallery.fields));
   }
 
+  const referenceBoard = surfaces.referenceBoard;
+  if (referenceBoard !== undefined)
+    root(referenceBoard.surfaceId, referenceBoard.nodeId, 'boardSurface', referenceBoard.title,
+      { groupByFieldId: referenceBoard.groupByFieldId }, bindings(referenceBoard.surfaceId, referenceBoard.nodeId, referenceBoard.fields));
+
   const outline = surfaces.outline;
   if (outline !== undefined) {
     const extra: Record<string, unknown> = {};
@@ -366,6 +386,8 @@ function fixture(
         required: candidate.required,
         presentation: candidate.presentation,
         options: [...candidate.options],
+        // As the host compiles it, so a board grouped by a reference reads its columns here too.
+        ...(candidate.reference == null ? {} : { reference: { ...candidate.reference } }),
       })),
     },
     surfaces: roots,

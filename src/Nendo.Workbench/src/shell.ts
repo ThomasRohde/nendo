@@ -1,5 +1,5 @@
 import { client } from './client';
-import { state, type OutcomeNotice } from './app-state';
+import { selectedSurfaces, state, type OutcomeNotice } from './app-state';
 import { capitalise, releasedByNextInteraction } from './format';
 import { icon } from './icons';
 import type { AgentWork, EffectiveTheme, ThemePreference } from './host';
@@ -120,12 +120,23 @@ export function restoreOutcome(): void {
   // It belongs to the page it happened on. A message that followed somebody to the next
   // screen would be reporting an action they had already left behind.
   if (state.lastOutcome.view !== state.view) { state.lastOutcome = null; return; }
+  if (state.lastOutcome.screen !== undefined && state.lastOutcome.screen !== outcomeScreen()) { state.lastOutcome = null; return; }
   // It was about the file at one change, and a redraw at another has already read it again.
   const sequence = state.lastOutcome.changeSequence;
   if (sequence !== undefined && sequence !== (state.session.manifest?.changeSequence ?? null)) { state.lastOutcome = null; return; }
   const slot = content.querySelector<HTMLElement>('.message-slot');
   if (slot === null || !slot.hidden) return;
   drawOutcome(slot, state.lastOutcome);
+}
+
+/**
+ * Which screen a sentence is said on, finer than the view: the record type, the file's view, the
+ * screen chosen for each record type, and the record open beside it. A tab inside a record page
+ * or a drill is not another screen, so neither is in it.
+ */
+export function outcomeScreen(): string {
+  return JSON.stringify([state.view, state.selectedApplicationEntity, state.selectedEntityId, state.showOverview,
+    state.fileView, [...selectedSurfaces].sort(([left], [right]) => left.localeCompare(right)), state.selectedRecordId]);
 }
 
 /** The slot in the shape the outcome asks for, with its Refresh view button when it has one. */
@@ -506,7 +517,7 @@ function messageSlot(): HTMLElement {
  * does -- the listener below -- or by leaving the view.
  */
 export function showError(message: string): void {
-  state.lastOutcome = { view: state.view, message, tone: 'alert' };
+  state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'alert' };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.tabIndex = -1;
@@ -541,7 +552,7 @@ for (const kind of ['pointerdown', 'keydown'] as const)
  * and it does not steal focus — nobody needs taking somewhere after a success.
  */
 export function showOutcome(message: string, action?: OutcomeNotice['action']): void {
-  state.lastOutcome = { view: state.view, message, tone: 'done', ...(action === undefined ? {} : { action }) };
+  state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'done', ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.scrollIntoView({ block: 'nearest' });
@@ -564,7 +575,7 @@ export function showOutcome(message: string, action?: OutcomeNotice['action']): 
  * step a success offers.
  */
 export function showKeptAlert(message: string, action?: OutcomeNotice['action']): void {
-  state.lastOutcome = { view: state.view, message, tone: 'alert', kept: true, ...(action === undefined ? {} : { action }) };
+  state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'alert', kept: true, ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.scrollIntoView({ block: 'nearest' });
@@ -572,7 +583,7 @@ export function showKeptAlert(message: string, action?: OutcomeNotice['action'])
 }
 
 export function showRetainedNotice(message: string, refresh: (button: HTMLButtonElement) => Promise<void>, takeFocus = true): void {
-  state.lastOutcome = { view: state.view, message, tone: 'alert', refresh };
+  state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'alert', refresh };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.tabIndex = -1;
