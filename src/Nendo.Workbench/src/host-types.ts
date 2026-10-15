@@ -308,6 +308,16 @@ export interface AgentOption {
   values: Array<{ value: string; name: string; description: string | null; group: string | null }>;
 }
 
+/**
+ * One of the agent's slash commands, as it advertised it (ACP available_commands_update): its name
+ * without the slash, what it does, and the hint for its input when it takes some.
+ */
+export interface AgentCommand {
+  name: string;
+  description: string;
+  hint: string | null;
+}
+
 /** The conversation tab's read: the agent, its state, and what changed after the revision asked from. */
 export interface LaunchedAgentView {
   exists: boolean;
@@ -331,6 +341,8 @@ export interface LaunchedAgentView {
   firstOrder: number;
   /** A sign-in the person started still runs; another is refused until it ends (DAE-10). */
   signingIn?: boolean;
+  /** The agent's slash commands, as it last stated them; absent from an older host. */
+  commands?: AgentCommand[];
 }
 
 /**

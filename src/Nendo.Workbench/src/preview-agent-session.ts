@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
+import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
 
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
@@ -29,6 +29,12 @@ export class PreviewAgentSession {
   private pendingStep: AgentTranscriptEntry | null = null;
   private customCommandLine: string | null = null;
   private hidden: string[] = [];
+  // Slash commands as an ACP agent advertises them, trimmed.
+  private commands: AgentCommand[] = [
+    { name: 'review', description: 'Review the changes waiting in this file', hint: 'what to look at' },
+    { name: 'compact', description: 'Summarise the conversation so far', hint: null },
+    { name: 'init', description: 'Write a guide to this file for later sessions', hint: null },
+  ];
   // The options Copilot CLI 1.0.93 offered when probed on 2026-10-08, trimmed.
   private options: AgentOption[] = [
     { id: 'mode', name: 'Mode', description: null, category: 'mode', currentValue: 'agent', values: [
@@ -147,6 +153,15 @@ export class PreviewAgentSession {
     this.working = true;
     this.add({ kind: 'you', text: text.trim(), title: pointedAt.length === 0 ? null : pointedAt.join(' · ') });
     if (text.trim() === 'parallel') return this.parallel(after);
+    if (text.trim().startsWith('/')) {
+      const name = text.trim().slice(1).split(/\s/)[0];
+      this.later(300, () => {
+        this.add({ kind: 'agent', text: `Ran /${name}. (The preview agent only says so.)` });
+        this.working = false;
+        this.touch();
+      });
+      return this.read(after);
+    }
     const plan = this.add({ kind: 'plan', text: '', plan: [
       { text: 'Read the record types', status: 'in_progress' },
       { text: 'Add a record type for the request', status: 'pending' },
@@ -240,6 +255,7 @@ export class PreviewAgentSession {
       more: false,
       signInMethods: [],
       options: this.agent === null || this.state === 'starting' ? [] : structuredClone(this.options),
+      commands: this.agent === null || this.state === 'starting' ? [] : structuredClone(this.commands),
       firstOrder: this.entries[0]?.order ?? this.order + 1,
       signingIn: false,
     };

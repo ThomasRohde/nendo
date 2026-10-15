@@ -983,6 +983,10 @@ host is an ACP client (`Desktop/Agents/`). It keeps no model client and no crede
   The `model`, `thought_level`, `mode` and `model_config` categories sit in the
   composer; anything else sits under More, such as Copilot's custom agent and Allow
   All. Nendo sends only a value the agent offered, and only when the person picks it.
+- **The agent's slash commands.** The list from `available_commands_update` is kept
+  whole and read with the conversation (`AgentConversation.Commands.cs`); / at the start
+  of a message opens it in the box (`agent-command-menu.ts`). A command runs as the
+  message's own text, which Nendo sends unchecked (2026-10-15).
 - **Permission requests.** Each one waits for the person's choice, with the diff and
   places the request supplied there to read first. Stop cancels the turn and every open
   request.

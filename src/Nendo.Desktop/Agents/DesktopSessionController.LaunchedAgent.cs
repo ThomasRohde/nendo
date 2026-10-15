@@ -38,7 +38,8 @@ internal sealed record DesktopLaunchableAgents(
 /// <summary>
 /// The conversation tab's read: which launch it is, who the agent is, the level it works at, the
 /// MCP address it was given, its state, the entries that changed after the revision the tab asked
-/// from, the order of the oldest entry still kept, and whether a sign-in runs (DAE-10).
+/// from, the order of the oldest entry still kept, whether a sign-in runs (DAE-10), and the agent's
+/// slash commands.
 /// </summary>
 internal sealed record DesktopLaunchedAgentView(
     bool Exists,
@@ -58,10 +59,11 @@ internal sealed record DesktopLaunchedAgentView(
     IReadOnlyList<AgentSignInMethodView> SignInMethods,
     IReadOnlyList<AgentOptionView> Options,
     long FirstOrder,
-    bool SigningIn = false)
+    bool SigningIn = false,
+    IReadOnlyList<AgentCommandView>? Commands = null)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
-        new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0);
+        new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0, false, []);
 }
 
 internal sealed partial class DesktopSessionController
@@ -379,7 +381,7 @@ internal sealed partial class DesktopSessionController
         var snapshot = agent.Conversation.Read(after);
         return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
-            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn);
+            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn, snapshot.Commands ?? []);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

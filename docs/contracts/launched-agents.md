@@ -111,14 +111,19 @@ Every method except `list`, `setCommand` and `setHidden` answers with the conver
 ```text
 { exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
   notice, agentTitle, revision, entries, more, signInMethods, options, firstOrder,
-  signingIn }
+  signingIn, commands }
 ```
 
 `conversationId` names the launch, new for each; null when none was launched. `state` is
 `none`, `starting`, `signIn`, `ready` or `ended`. `level` is the access level's display name
 now. `endpoint` is the one MCP address the agent was given. `firstOrder` is the order of the
 oldest entry the transcript still keeps. `signingIn` is true while a sign-in the person started
-runs; the tab holds the ways to sign in until it ends (DAE-10).
+runs; the tab holds the ways to sign in until it ends (DAE-10). `commands` is the agent's
+slash commands as it last stated them in an `available_commands_update`, each
+`{ name, description, hint }`: the name without its slash, and `hint` null for a command that
+takes no input. A name with white space in it, an empty one or a repeat is left out, and at most
+200 are kept. Running one is `agentSession.prompt` with text that starts with `/name`; the host
+sends it as any other message and never checks it against the list.
 
 ## Reading the conversation
 

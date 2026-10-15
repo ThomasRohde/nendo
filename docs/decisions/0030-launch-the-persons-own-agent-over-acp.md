@@ -447,6 +447,37 @@ conversation in its tab. The status is read again whenever the agent's activity 
 be there." while the old sentence was put back. A headless tour measured the count, the link
 opening Activity beside the conversation, and the level's line after the proposal was rejected.
 
+### The agent's slash commands (2026-10-15)
+
+The owner asked for ACP's slash commands. The agent advertises them with an
+`available_commands_update` after the session opens, and again whole whenever they change. Each
+has a name, a description and, when it takes input, a hint. Running one is an ordinary
+`session/prompt` whose first text block is `/name` and what follows; the agent recognises it.
+
+**What Nendo does with them:**
+- The host keeps the latest list on the conversation and returns it with every read, as
+  `commands`. A name loses a leading slash the agent sent, and a name with white space in it, an
+  empty one or a repeat is left out, since the box could not write it back as one word. At most
+  200 are kept; a description is cut at 500 characters and a hint at 200, and both pass the
+  handle redaction like any text of the agent's.
+- In the message box, / at the start of a message opens the list while the caret is in its first
+  word. Typing narrows it; Tab writes `/name ` and, while nothing follows, the line under the box
+  shows the command's hint in place of the keys. Enter on a name typed out in full sends it.
+- Nendo never runs or checks a command itself. A message starting with a name the agent did not
+  offer is sent as it was written. Nothing new reaches the agent: the command is text the person
+  typed, and what it does is the agent's.
+
+**Checks:**
+- `TheAgentsSlashCommandsAreListedAndRunAsAMessage` covers the list, the names left out, the
+  hint, the restated list and the prompt's first block. Without the `available_commands_update`
+  case the conversation never had commands and the test failed with "The conversation never got
+  there".
+- `agent-commands.test.mjs` covers where the menu opens, the narrowing, the markup's escaping,
+  the hint and the merge; dropping `commands` from the merge failed it with `actual: []`.
+- The Workbench shell lane's `ACP slash commands menu` drives the box in Edge: /, /re, Tab, the
+  hint, typing on, and Enter on `/compact`. With Enter always writing the name, it failed with
+  "Timed out waiting for the command to run".
+
 ## Consequences
 
 ### Positive

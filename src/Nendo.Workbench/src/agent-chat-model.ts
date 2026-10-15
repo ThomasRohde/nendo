@@ -1,7 +1,7 @@
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { markdownMarkup } from './markdown';
-import type { AgentOption, AgentTranscriptEntry, LaunchedAgentState, LaunchedAgentView } from './host-types';
+import type { AgentCommand, AgentOption, AgentTranscriptEntry, LaunchedAgentState, LaunchedAgentView } from './host-types';
 
 /**
  * The conversation with an agent launched from the Agent page (ADR-0030), as the tab holds it:
@@ -36,12 +36,14 @@ export interface AgentChat {
   /** A sign-in the person started still runs, so its buttons are held (DAE-10). */
   signingIn: boolean;
   options: AgentOption[];
+  /** The agent's slash commands, offered when a message starts with /. */
+  commands: AgentCommand[];
 }
 
 export function emptyChat(): AgentChat {
   return {
     key: '', conversationId: null, exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
-    state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], signingIn: false, options: [],
+    state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], signingIn: false, options: [], commands: [],
   };
 }
 
@@ -73,6 +75,7 @@ export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: s
   chat.signInMethods = view.signInMethods;
   chat.signingIn = view.signingIn === true;
   chat.options = view.options ?? [];
+  chat.commands = view.commands ?? [];
   chat.revision = Math.max(chat.revision, view.revision);
   const changed: string[] = [];
   for (const entry of view.entries) {

@@ -50,7 +50,8 @@ internal sealed record AgentConversationSnapshot(
     IReadOnlyList<AgentSignInMethodView> SignInMethods,
     IReadOnlyList<AgentOptionView> Options,
     long FirstOrder,
-    bool SigningIn = false);
+    bool SigningIn = false,
+    IReadOnlyList<AgentCommandView>? Commands = null);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -431,7 +432,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
             var firstOrder = _entries.Count == 0 ? _order + 1 : _entries[0].Order;
-            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn);
+            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands);
         }
     }
 
@@ -552,8 +553,11 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 case "current_model_update":
                     if (!ApplyOptionUpdate(kind, update)) return;
                     break;
+                case "available_commands_update":
+                    if (!ApplyCommands(update)) return;
+                    break;
                 default:
-                    // Commands, modes and the agent's echo of what the person typed are not drawn.
+                    // The agent's echo of what the person typed, and anything newer, are not drawn.
                     return;
             }
             revision = Touch();

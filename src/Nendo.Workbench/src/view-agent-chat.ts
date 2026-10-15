@@ -7,6 +7,8 @@ import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyCha
 import { announce, content, rerender, showError } from './shell';
 import { drawTabs, onTabClosed, openTabOn, releaseOwnedPage, setTabStatus } from './workspace-tabs';
 import { clearPointedAt, composerNote, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
+import { commandKey, commandsChanged, wireCommands } from './agent-command-menu';
+import { keysLine } from './agent-command-model';
 
 /**
  * The conversation with an agent launched from the Agent page, in a tab of its own (ADR-0030),
@@ -31,6 +33,8 @@ const drawn = new Map<string, string>();
 /** Each item's markup, built again only when something it draws changed (WAU-05). */
 const markup = createMarkupCache();
 let drawnOptions = '';
+/** The agent's commands as the menu last had them, so a read that did not change them leaves it alone. */
+let shownCommands = '';
 /** A launch or a message on its way: a second press waits for its answer (WAU-10). */
 let launching = false;
 let sending = false;
@@ -312,8 +316,9 @@ export function renderAgentChat(): void {
           <button id="send-prompt" class="chat-round is-primary" type="submit" aria-label="Send" title="Send (Enter)">${icon('arrowUp')}</button>
         </div>
         <div id="chat-mention" class="chat-mention" role="listbox" aria-label="Point at something in this file" hidden></div>
+        <div id="chat-commands" class="chat-mention chat-commands" role="listbox" aria-label="The agent's commands" hidden></div>
       </form>
-      <div class="chat-under"><span>Enter sends · Shift+Enter for a new line · @ points at something in the file</span><span id="chat-review"></span></div>
+      <div class="chat-under"><span id="chat-keys"></span><span id="chat-command-hint" class="chat-command-hint" hidden></span><span id="chat-review"></span></div>
     </div>
   </div>`;
   const chatPage = content.querySelector<HTMLElement>('[data-agent-chat]')!;
@@ -321,12 +326,15 @@ export function renderAgentChat(): void {
   prompt.value = draft;
   prompt.addEventListener('input', () => { draft = prompt.value; });
   wireMentions(chatPage);
+  shownCommands = '';
+  wireCommands(chatPage, () => ({ list: chat.commands, agent: chat.name }));
   content.querySelector<HTMLButtonElement>('#chat-access')!.addEventListener('click', () => openAgentPage(false));
   content.querySelector<HTMLElement>('#chat-review')!.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('#chat-review-open') !== null) openAgentPage(true);
   });
   prompt.addEventListener('keydown', (event) => {
     if (mentionKey(event, chatPage, prompt)) return;
+    if (commandKey(event, chatPage, prompt)) return;
     if (event.key === 'Escape' && composerState(chat).canStop) { event.preventDefault(); void act('agentSession.cancel', {}, 'Stopping.'); return; }
     if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
     event.preventDefault();
@@ -459,7 +467,11 @@ async function send(): Promise<void> {
     const sent = await act('agentSession.prompt', context.length === 0 ? { text } : { text, context }, null);
     if (!sent) return;
     draft = '';
-    if (prompt !== null) prompt.value = '';
+    if (prompt !== null) {
+      prompt.value = '';
+      // The menus and the command's hint follow the box, which is empty now.
+      prompt.dispatchEvent(new Event('input', { bubbles: true }));
+    }
     clearPointedAt(content);
   } finally {
     sending = false;
@@ -529,6 +541,12 @@ function patchChat(force: boolean, only?: string): void {
   if (roundFocused === 'stop' && stopButton.hidden) prompt.focus({ preventScroll: true });
   page.querySelector<HTMLButtonElement>('#chat-add-context')!.disabled = chat.state === 'ended' || !chat.exists;
   page.querySelector<HTMLButtonElement>('#new-agent-session')!.disabled = chat.agentId === null || chat.state === 'starting';
+  page.querySelector('#chat-keys')!.textContent = keysLine(chat.commands.length > 0);
+  const commandsNow = JSON.stringify(chat.commands);
+  if (commandsNow !== shownCommands) {
+    shownCommands = commandsNow;
+    commandsChanged(page);
+  }
 
   const options = page.querySelector<HTMLElement>('#chat-options')!;
   const optionsHtml = chat.state === 'ended' ? '' : optionsMarkup(chat.options);

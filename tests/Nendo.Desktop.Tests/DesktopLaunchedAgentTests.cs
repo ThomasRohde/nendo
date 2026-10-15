@@ -508,6 +508,47 @@ public sealed class DesktopLaunchedAgentTests
         await fixture.WaitAsync(view => !view.Working && view.Options[0].CurrentValue == "plan");
     }
 
+    /// <summary>
+    /// The owner asked for ACP slash commands (2026-10-15). The agent's advertised commands reach
+    /// the tab as names the box can write after a slash, each once, with the hint of one that
+    /// takes input; the agent's restatement replaces them whole; and a command runs as a message
+    /// whose first block is the command's text, as ACP says.
+    /// </summary>
+    [TestMethod]
+    public async Task TheAgentsSlashCommandsAreListedAndRunAsAMessage()
+    {
+        await using var fixture = await Fixture.StartAsync("editData", "--commands");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready" && view.Commands!.Count > 0);
+        CollectionAssert.AreEqual(new[] { "review", "compact" }, ready.Commands!.Select(command => command.Name).ToArray(),
+            "The commands are not the agent's runnable ones, once each, without the slash it sent.");
+        Assert.AreEqual("what to review", ready.Commands![0].Hint, "A command that takes input lost its hint.");
+        Assert.IsNull(ready.Commands![1].Hint, "A command that takes no input was given a hint.");
+        Assert.AreEqual("Summarise the conversation so far", ready.Commands![1].Description);
+
+        var books = new AgentPromptContext("nendo://application/entity/books", "Books", "Record type \"Books\"");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "/review the @Books changes", 0, [books]);
+        var ran = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent"));
+        var prompt = fixture.Log().Single(entry => Method(entry) == "session/prompt").GetProperty("params").GetProperty("prompt");
+        Assert.AreEqual("/review the @Books changes", prompt[0].GetProperty("text").GetString(), "The command was not the message's first text block.");
+        StringAssert.StartsWith(ran.Entries.Single(entry => entry.Kind == "agent").Text, "Ran review with");
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "drop-commands", 0);
+        var dropped = await fixture.WaitAsync(view => !view.Working && view.Commands!.All(command => command.Name != "review"));
+        CollectionAssert.AreEqual(new[] { "compact" }, dropped.Commands!.Select(command => command.Name).ToArray(), "The restated list did not replace the old one.");
+    }
+
+    /// <summary>An agent that advertises no commands leaves the list empty rather than absent.</summary>
+    [TestMethod]
+    public async Task AnAgentWithoutCommandsHasAnEmptyList()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.IsNotNull(ready.Commands);
+        Assert.IsEmpty(ready.Commands);
+    }
+
     [TestMethod]
     public async Task AToolSaysWhetherItWentThroughNendoOrWasTheAgentsOwn()
     {

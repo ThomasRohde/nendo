@@ -627,6 +627,53 @@ async page => {
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
+  // ACP slash commands (2026-10-15): / at the start of a message lists the agent's commands, Tab
+  // writes one, its hint stands under the box until input follows, and Enter on a name typed out
+  // in full sends it as the message.
+  await check('ACP slash commands menu', 'idea', async () => {
+    await launch();
+    const problems = [];
+    const box = page.locator('#agent-prompt');
+    const menu = () => page.evaluate(() => {
+      const list = document.getElementById('chat-commands');
+      return { open: !list.hidden, names: [...list.querySelectorAll('[data-command] .mention-label')].map(label => label.textContent),
+        controls: document.getElementById('agent-prompt').getAttribute('aria-controls'), mention: !document.getElementById('chat-mention').hidden };
+    });
+    const keys = await page.evaluate(() => document.getElementById('chat-keys').textContent);
+    if (!keys.includes("/ runs one of the agent's commands")) problems.push(`the keys under the box do not name /: ${keys}`);
+    await box.fill('/');
+    await until(() => document.querySelector('#chat-commands:not([hidden]) [data-command]') !== null, null, 'the / menu');
+    const all = await menu();
+    if (all.names.join() !== '/review,/compact,/init') problems.push(`/ lists ${JSON.stringify(all.names)}`);
+    if (all.controls !== 'chat-commands') problems.push(`the box controls ${all.controls} while the / menu is open`);
+    if (all.mention) problems.push('the @ menu opened with the / menu');
+    await box.fill('/re');
+    await page.waitForTimeout(50);
+    const narrowed = await menu();
+    if (narrowed.names.join() !== '/review') problems.push(`/re lists ${JSON.stringify(narrowed.names)}`);
+    await box.press('Tab');
+    await page.waitForTimeout(50);
+    const written = await page.evaluate(() => {
+      const hint = document.getElementById('chat-command-hint');
+      return { value: document.getElementById('agent-prompt').value, hint: hint.hidden ? null : hint.textContent, keys: document.getElementById('chat-keys').hidden };
+    });
+    if (written.value !== '/review ') problems.push(`Tab wrote ${JSON.stringify(written.value)}`);
+    if (written.hint !== '/review: what to look at') problems.push(`the hint under the box is ${JSON.stringify(written.hint)}`);
+    if (!written.keys) problems.push('the keys stayed beside the hint');
+    if ((await menu()).open) problems.push('the / menu stayed open after a choice');
+    await page.keyboard.type('the books');
+    await page.waitForTimeout(50);
+    if (await page.evaluate(() => !document.getElementById('chat-command-hint').hidden)) problems.push('the hint stayed once input followed');
+    await box.fill('/compact');
+    await page.waitForTimeout(50);
+    await box.press('Enter');
+    await until(() => [...document.querySelectorAll('.chat-agent')].some(item => item.textContent.includes('Ran /compact')), null, 'the command to run', 8000);
+    const after = await page.evaluate(() => document.getElementById('agent-prompt').value);
+    if (after !== '') problems.push(`the box still holds ${JSON.stringify(after)} after the command was sent`);
+    if ((await menu()).open) problems.push('the / menu stayed open after sending');
+    assert(problems.length === 0, problems.join('; ') + '.');
+  });
+
   // UIK-06 and UIK-09: an arrow key in an option looks and keeps More open; the focused option says so.
   await check('UIK-06 UIK-09 agent options', 'idea', async () => {
     await launch();

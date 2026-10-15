@@ -22,8 +22,10 @@
 // "Internal error" and the reason in data.details), --no-embedded (does not read context embedded
 // in a prompt), --version-text (answers initialize with a version as text, as an MCP server
 // would), --slow-auth (takes a second and a half to sign in), --text-code (refuses
-// session/set_config_option with an error whose code is text). The prompt 'switch' makes the
-// agent change its own mode. The started line logs NENDO_AGENT_PROBE from its environment.
+// session/set_config_option with an error whose code is text), --commands (advertises slash
+// commands once the session is open, as the Claude adapter does). The prompt 'switch' makes the
+// agent change its own mode; 'drop-commands' restates its commands without /review; a prompt
+// that starts with / is answered as the command it names. The started line logs NENDO_AGENT_PROBE from its environment.
 import { appendFileSync, readdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -53,6 +55,13 @@ const configOptions = [
 ];
 const legacy = { modes: { currentModeId: 'build', availableModes: [{ id: 'build', name: 'Build' }, { id: 'plan', name: 'Plan' }] },
   models: { currentModelId: 'big', availableModels: [{ modelId: 'big', name: 'Big' }, { modelId: 'small', name: 'Small' }] } };
+const commands = [
+  { name: 'review', description: 'Review the open changes', input: { hint: 'what to review' } },
+  { name: '/compact', description: 'Summarise the conversation so far' },
+  { name: 'two words', description: 'Not a name the box can write' },
+  { name: 'review', description: 'The same name again' },
+  { name: '', description: 'No name' },
+];
 let cancelTurn = null;
 log({ started: true, cwd: process.cwd(), cwdEntries: readdirSync(process.cwd()), probe: process.env.NENDO_AGENT_PROBE ?? null });
 if (args.includes('--banner')) process.stdout.write('fake agent starting up\n');
@@ -111,6 +120,17 @@ async function prompt(id, params) {
     child.unref();
     log({ child: child.pid, self: process.pid });
     update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Started ${child.pid}.` } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text.startsWith('/')) {
+    const [name, ...rest] = text.slice(1).split(' ');
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Ran ${name} with "${rest.join(' ')}".` } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'drop-commands') {
+    update(sessionId, { sessionUpdate: 'available_commands_update', availableCommands: commands.filter((command) => command.name !== 'review') });
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
@@ -222,6 +242,7 @@ lines.on('line', (line) => {
       else send({ id: message.id, result: { sessionId: 'session-1',
         ...(args.includes('--config') ? { configOptions, modes: legacy.modes } : {}),
         ...(args.includes('--legacy') ? legacy : {}) } });
+      if (signedIn && args.includes('--commands')) setTimeout(() => update('session-1', { sessionUpdate: 'available_commands_update', availableCommands: commands }), 20);
       break;
     case 'session/set_config_option': {
       const option = configOptions.find((candidate) => candidate.id === message.params.configId);

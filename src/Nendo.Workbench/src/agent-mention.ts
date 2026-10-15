@@ -157,7 +157,7 @@ function drawMenu(page: ParentNode): void {
  * over it (--mention-gap, styles/22-agent-chat.css). A window that changes size while the menu is
  * open changes the room, so it is measured again then.
  */
-function fitMenu(list: HTMLElement): void {
+export function fitMenu(list: HTMLElement): void {
   const box = list.offsetParent;
   const pane = list.closest('.studio-content');
   if (box === null || pane === null) return;
@@ -167,8 +167,7 @@ function fitMenu(list: HTMLElement): void {
   if (!refitsOnResize) {
     refitsOnResize = true;
     window.addEventListener('resize', () => {
-      const open = document.querySelector<HTMLElement>('#chat-mention');
-      if (open !== null && !open.hidden) fitMenu(open);
+      for (const open of document.querySelectorAll<HTMLElement>('#chat-mention, #chat-commands')) if (!open.hidden) fitMenu(open);
     });
   }
 }

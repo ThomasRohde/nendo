@@ -1139,6 +1139,31 @@
   white-space: nowrap;
 }
 
+/* The / menu: the agent's commands, in the @ menu's frame. Names are the agent's, in full. */
+.chat-commands .mention-option {
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+}
+
+.chat-commands .mention-label {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.chat-commands .mention-detail {
+  max-width: none;
+}
+
+.command-hint {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* What the command written takes, in the keys' place under the box until input follows. */
+.chat-command-hint {
+  color: var(--ink);
+  font-family: var(--mono);
+}
+
 .mention-empty,
 .mention-note {
   padding: 8px;
@@ -1172,7 +1197,7 @@
     padding-left: 16px;
   }
 
-  .chat-under span + span:not(.is-waiting) {
+  .chat-under span + span:not(.is-waiting, .chat-command-hint) {
     display: none;
   }
 }
