@@ -1394,6 +1394,31 @@ async page => {
     assert(narrow.toolbar >= narrow.header - 1, `One bar: in a narrow window the toolbar is not below the address row: ${JSON.stringify(narrow)}`);
   }, 1600, 900);
 
+  // A message can be put away (owner, 2026-10-16: "add a x to remove the message"). A saved
+  // download's notice is a success, which is kept until the person leaves the screen, so it had
+  // no way to go. Its close button is at the box's right end and pressable there; a real press
+  // empties the slot, and a redraw does not bring the sentence back.
+  for (const theme of ['light', 'dark']) await check(`Message close button ${theme}`, 'decision', async () => {
+    await page.evaluate(async theme => { const { applyTheme } = await import('/src/shell.ts'); applyTheme(theme, false); }, theme);
+    await page.click('#nav-use');
+    await until(() => document.querySelector('.use-page > .use-toolbar #new-record') !== null, null, 'the Use screen', 6000);
+    await page.evaluate(async () => (await import('/src/shell.ts')).showOutcome('Saved Paper.zip to Downloads.', { label: 'Show in folder', run: async () => {} }));
+    const box = await page.evaluate(() => {
+      const slot = document.querySelector('.message-slot'), close = slot?.querySelector('[data-outcome-close]');
+      if (!slot || slot.hidden || !close) return { slot: Boolean(slot), hidden: slot?.hidden, close: Boolean(close) };
+      const s = slot.getBoundingClientRect(), c = close.getBoundingClientRect();
+      const hit = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2);
+      return { slotRight: Math.round(s.right), closeRight: Math.round(c.right), inside: c.left >= s.left && c.right <= s.right && c.top >= s.top && c.bottom <= s.bottom,
+        width: Math.round(c.width), pressable: hit?.closest('[data-outcome-close]') === close, label: close.getAttribute('aria-label'), x: c.left + c.width / 2, y: c.top + c.height / 2 };
+    });
+    assert(box.inside && box.slotRight - box.closeRight <= 16 && box.width >= 20 && box.pressable && box.label === 'Close message',
+      `The message has no close button at its end: ${JSON.stringify(box)}`);
+    await page.mouse.click(box.x, box.y);
+    await page.evaluate(async () => (await import('/src/shell.ts')).rerender());
+    const after = await page.evaluate(async () => ({ hidden: document.querySelector('.message-slot')?.hidden ?? true, kept: (await import('/src/app-state.ts')).state.lastOutcome }));
+    assert(after.hidden && after.kept === null, `Closing the message left it: ${JSON.stringify(after)}`);
+  }, 1600, 900);
+
   // CSS-05: the address row is one row at every width.
   await check('CSS-05 address row one row', 'decision', async () => {
     for (const width of [600, 400]) {
@@ -2035,7 +2060,10 @@ async page => {
     await page.keyboard.press('Control+1');
     await until(() => document.querySelector('#nav-use')?.classList.contains('is-selected') === true, null, 'Use after Ctrl 1', 6000);
     await page.click('#nav-data');
-    await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid again', 8000);
+    // The lazy grid (W-233) draws a row's cells before their values: an empty cell is one not
+    // filled yet, which failed this check one run in three (2026-10-16), not one that lost text.
+    await until(selector => (document.querySelector(selector)?.textContent ?? '').trim() !== '', cell, 'the Data grid again, filled', 8000)
+      .catch(() => {});
     const text = (await page.locator(cell).textContent()).trim();
     assert(text.endsWith('w224'), `WCS-06: after Ctrl 1 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
   }, 1440, 900);

@@ -543,7 +543,8 @@ A view gets most of what a web page gets
   process spun and Nendo's window stayed white until every one of its processes was
   ended. So the browser's question about a file type is not asked, and the view says
   what it saved. When the file is complete, Nendo says so in its own notice line, with
-  the file's name, its folder and **Show in folder**, which opens Explorer on it. The
+  the file's name, its folder and **Show in folder**, which opens Explorer on it, and a
+  close button that puts the notice away, as every notice line has. The
   host posts `downloadSaved` with an identifier, and `downloads.show` takes that
   identifier, so the page never hands the host a path.
 - **Files a person hands it** (W-104). A view's own `<input type="file">`, clicked

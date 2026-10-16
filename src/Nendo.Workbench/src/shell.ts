@@ -156,14 +156,26 @@ function drawOutcome(slot: HTMLElement, outcome: OutcomeNotice): void {
     slot.append(' ', button);
   }
   const refresh = outcome.refresh;
-  if (refresh === undefined) return;
-  const button = document.createElement('button');
-  button.id = 'refresh-outcome-view';
-  button.type = 'button';
-  button.className = 'secondary-button';
-  button.textContent = 'Refresh view';
-  button.addEventListener('click', () => void refresh(button));
-  slot.append(' ', button);
+  if (refresh !== undefined) {
+    const button = document.createElement('button');
+    button.id = 'refresh-outcome-view';
+    button.type = 'button';
+    button.className = 'secondary-button';
+    button.textContent = 'Refresh view';
+    button.addEventListener('click', () => void refresh(button));
+    slot.append(' ', button);
+  }
+  // Every sentence can be put away (owner, 2026-10-16: "add a x to remove the message"). A
+  // saved download's stayed until the person left the screen, since a success is kept.
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'icon-button outcome-close';
+  close.dataset.outcomeClose = '';
+  close.setAttribute('aria-label', 'Close message');
+  close.title = 'Close';
+  close.innerHTML = icon('close');
+  close.addEventListener('click', () => { clearError(); });
+  slot.append(close);
 }
 
 export function markPlace(place: string): void {

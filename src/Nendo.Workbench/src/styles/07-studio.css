@@ -306,6 +306,20 @@ code {
   display: none;
 }
 
+/* Its close button, at the end of the box, whatever the sentence's length. */
+.message-slot:has(> .outcome-close) {
+  position: relative;
+  padding-right: 44px;
+}
+
+.message-slot > .outcome-close {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  color: inherit;
+}
+
 /* The same slot, for something that worked. A finished action drawn in the colour of a
    failure reads as one, which is what the outcome notice looked like before this. */
 .message-slot.is-done {
