@@ -287,6 +287,46 @@ public sealed class MediaTests
         StringAssert.Contains(refused.Message, NendoMediaAddress.Embedded(NendoExtensionContent.Sha256(picture)));
     }
 
+    [TestMethod]
+    public async Task ANewFileCarriesOnlyThePicturesItsKeptRecordsName()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await service.CreateRecordAsync(new(Albums, "kept", new Dictionary<string, object?> { ["album.title"] = "Kept" }, Context("kept"), KeptInNewFiles: true));
+        await service.CreateRecordAsync(new(Albums, "left", new Dictionary<string, object?> { ["album.title"] = "Left" }, Context("left")));
+        var keptPicture = Png(10, 10, 512);
+        var leftPicture = Png(11, 11, 512);
+        await service.PutMediaAsync(new(keptPicture, null, null, Context("p-kept"), new(Albums, "kept", "album.cover", 1)));
+        await service.PutMediaAsync(new(leftPicture, null, null, Context("p-left"), new(Albums, "left", "album.cover", 1)));
+        await service.PutMediaAsync(new(Png(12, 12, 512), null, null, Context("p-none")));
+
+        var destination = Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, "fresh.nendo");
+        await service.CreateNewFileAsync(destination, "new-media");
+        await using var opened = await NendoWriteCoordinator.OpenAsync(destination, "test-new");
+        var fresh = new NendoApplicationService(opened);
+        CollectionAssert.AreEqual(keptPicture, await fresh.ReadMediaContentAsync(NendoExtensionContent.Sha256(keptPicture)));
+        Assert.IsNull(await fresh.ReadMediaAsync(NendoExtensionContent.Sha256(leftPicture)), "a left-out record's picture was carried");
+        Assert.AreEqual("ok", (await fresh.VerifyIntegrityAsync()).IntegrityResult);
+    }
+
+    [TestMethod]
+    public async Task SearchLeavesMediaAddressesOut()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await SchemaAsync(coordinator);
+        await service.CreateRecordAsync(new(Albums, "a1", new Dictionary<string, object?>
+        {
+            ["album.title"] = "Harbour", ["album.cover"] = "https://pictures.example.org/lighthouse.jpg",
+        }, Context("a1")));
+        await service.BuildSearchIndexAsync(Context("index"));
+        Assert.HasCount(1, (await service.SearchRecordsAsync(new("Harbour"))).Items);
+        Assert.IsEmpty((await service.SearchRecordsAsync(new("lighthouse"))).Items, "a media field's address was indexed");
+    }
+
     private static async Task SchemaAsync(NendoWriteCoordinator coordinator) =>
         await coordinator.ApplyAsync(new("test", "schema", "test", "Albums with covers",
         [

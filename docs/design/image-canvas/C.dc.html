@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C · Card with toolbar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#005fb8}a:hover{color:#004a8f}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1060px; box-sizing: border-box; background: {{c.canvas}}; color: {{c.ink}}; font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; font-size: 14px; display: grid; grid-template-columns: 820px 1fr; gap: 24px; padding: 28px">
+
+<section aria-label="Record page" style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px">
+  <div style="display: flex; gap: 8px; color: {{c.muted}}; font-size: 13px"><span>Albums</span><span aria-hidden="true">›</span><span style="color: {{c.ink}}">Blue Harbour</span></div>
+  <h1 style="margin: 0; font-size: 26px; font-weight: 600">Blue Harbour</h1>
+  <div style="display: grid; grid-template-columns: 140px 1fr; row-gap: 16px; column-gap: 20px; align-items: start">
+    <div style="color: {{c.muted}}; padding-top: 6px">Cover</div>
+    <div style="width: 460px; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden">
+      <div style="position: relative; height: 270px; background: {{c.pic1}}">
+        <svg viewBox="0 0 460 270" width="460" height="270" aria-hidden="true"><circle cx="350" cy="74" r="32" fill="{{c.pic2}}"></circle><path d="M0 270 L130 140 L220 220 L310 110 L460 270 Z" fill="{{c.pic3}}"></path></svg>
+        <span style="position: absolute; left: 10px; top: 10px; background: {{c.surface}}; color: {{c.ink}}; border-radius: 4px; padding: 2px 8px; font-size: 12.5px; font-weight: 600">In file</span>
+      </div>
+      <div style="display: flex; gap: 4px; padding: 6px; border-top: 1px solid {{c.line}}; background: {{c.soft}}; flex-wrap: wrap">
+        <button type="button" style="border: 0; background: transparent; color: {{c.ink}}; padding: 6px 10px">Replace</button>
+        <button type="button" style="border: 0; background: transparent; color: {{c.ink}}; padding: 6px 10px">Paste</button>
+        <button type="button" style="border: 0; background: transparent; color: {{c.ink}}; padding: 6px 10px">Link a file</button>
+        <button type="button" style="border: 0; background: transparent; color: {{c.ink}}; padding: 6px 10px">Web address</button>
+        <button type="button" style="border: 0; background: transparent; color: {{c.ink}}; padding: 6px 10px">Larger</button>
+        <span style="flex: 1"></span>
+        <button type="button" style="border: 0; background: transparent; color: {{c.danger}}; padding: 6px 10px">Remove</button>
+      </div>
+      <div style="padding: 6px 10px; color: {{c.muted}}; font-size: 12.5px; border-top: 1px solid {{c.line}}">front.jpg · 1.2 MB · 1200 × 1200</div>
+    </div>
+    <div style="color: {{c.muted}}; padding-top: 6px">Back cover</div>
+    <div style="width: 460px; height: 120px; box-sizing: border-box; border: 1.5px dashed {{c.accent}}; background: {{c.accentSoft}}; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 10px; color: {{c.accent}}; font-weight: 600">Drop to embed · Alt+drop to link</div>
+    <div style="color: {{c.muted}}; padding-top: 6px">Booklet scan</div>
+    <div style="width: 460px; box-sizing: border-box; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden">
+      <div style="height: 90px; background: {{c.soft}}; display: flex; align-items: center; justify-content: center; color: {{c.warning}}; font-weight: 600">Picture not found</div>
+      <div style="display: flex; gap: 4px; padding: 6px; border-top: 1px solid {{c.line}}; align-items: center"><span style="font-family: Consolas, monospace; color: {{c.muted}}; font-size: 12.5px; padding: 0 6px">..\Scans\booklet-01.jpg</span><span style="flex: 1"></span><button type="button" style="border: 0; background: transparent; color: {{c.ink}}; padding: 6px 10px">Relink</button><button type="button" style="border: 0; background: transparent; color: {{c.danger}}; padding: 6px 10px">Remove</button></div>
+    </div>
+  </div>
+</section>
+
+<div style="display: flex; flex-direction: column; gap: 20px; min-width: 0">
+  <section aria-label="List" style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden">
+    <div style="padding: 10px 14px; font-weight: 600; border-bottom: 1px solid {{c.line}}">Albums · list</div>
+    <sc-for list="{{rows}}" as="row" hint-placeholder-count="3">
+      <div style="display: grid; grid-template-columns: 1fr 140px 40px; gap: 12px; align-items: center; padding: 8px 14px; border-bottom: 1px solid {{c.line}}">
+        <span>{{row.title}}</span><span style="color: {{c.muted}}">{{row.artist}}</span>
+        <div style="width: 40px; height: 40px; border-radius: 4px; background: {{row.fill}}"></div>
+      </div>
+    </sc-for>
+  </section>
+  <section aria-label="Gallery" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+    <sc-for list="{{rows}}" as="row" hint-placeholder-count="3">
+      <div style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden">
+        <div style="position: relative; height: 130px; background: {{row.fill}}"><span style="position: absolute; left: 6px; top: 6px; background: {{c.surface}}; border-radius: 4px; padding: 1px 6px; font-size: 11.5px">{{row.source}}</span></div>
+        <div style="padding: 8px 10px"><div style="font-weight: 600">{{row.title}}</div><div style="color: {{c.muted}}; font-size: 12.5px">{{row.artist}}</div></div>
+      </div>
+    </sc-for>
+  </section>
+  <section aria-label="Studio" style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden; font-size: 13px">
+    <div style="display: grid; grid-template-columns: 1fr 1.6fr; background: {{c.soft}}; font-weight: 600"><div style="padding: 6px 10px">Title</div><div style="padding: 6px 10px">Cover</div></div>
+    <div style="display: grid; grid-template-columns: 1fr 1.6fr; border-top: 1px solid {{c.line}}"><div style="padding: 6px 10px">Blue Harbour</div><div style="padding: 6px 10px; display: flex; gap: 8px; align-items: center"><span style="width: 22px; height: 22px; border-radius: 3px; background: {{c.pic1}}; display: inline-block"></span><span style="font-family: Consolas, monospace; color: {{c.muted}}">media:3f9a…c1e2</span></div></div>
+  </section>
+  <section aria-label="Larger view" style="position: relative; height: 230px; border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.78); display: flex; align-items: center; justify-content: center">
+    <div style="width: 300px; height: 200px; background: {{c.pic1}}"></div>
+    <button type="button" aria-label="Close" style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.14); color: #ffffff; border: 0; border-radius: 4px; width: 32px; height: 32px">✕</button>
+  </section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const c = dark
+      ? { canvas: '#272829', surface: '#2d2e30', soft: '#38393b', ink: '#ffffff', muted: '#c5c5c5', line: '#3b3c3e', lineStrong: '#4b4c4f', accent: '#60cdff', accentSoft: '#1f3a4a', warning: '#e9b659', danger: '#f37b72', pic1: '#33485a', pic2: '#c9a03b', pic3: '#4f6b84', pic4: '#5a4a3b' }
+      : { canvas: '#f9f9fa', surface: '#ffffff', soft: '#f3f3f4', ink: '#1b1b1b', muted: '#5d5d5d', line: '#e5e5e5', lineStrong: '#d1d1d1', accent: '#005fb8', accentSoft: '#e5eff9', warning: '#9c6400', danger: '#c23a31', pic1: '#c9d6e3', pic2: '#f2c14e', pic3: '#5b7c99', pic4: '#d8c3a5' };
+    const rows = [
+      { title: 'Blue Harbour', artist: 'Marta Lind', fill: c.pic1, source: 'In file' },
+      { title: 'Tide Lines', artist: 'Oskar Berg', fill: c.pic4, source: 'Web' },
+      { title: 'North Light', artist: 'Ida Holm', fill: c.pic3, source: 'Linked file' },
+    ];
+    return { c, rows };
+  }
+}
+</script>
+</body>
+</html>

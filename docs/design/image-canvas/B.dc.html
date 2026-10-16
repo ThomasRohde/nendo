@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>B · Cover banner</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#005fb8}a:hover{color:#004a8f}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1060px; box-sizing: border-box; background: {{c.canvas}}; color: {{c.ink}}; font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif; font-size: 14px; display: grid; grid-template-columns: 820px 1fr; gap: 24px; padding: 28px">
+
+<section aria-label="Record page" style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column">
+  <div style="position: relative; height: 240px; background: {{c.pic1}}">
+    <svg viewBox="0 0 820 240" width="820" height="240" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><circle cx="640" cy="70" r="36" fill="{{c.pic2}}"></circle><path d="M0 240 L220 110 L380 200 L540 90 L820 240 Z" fill="{{c.pic3}}"></path></svg>
+    <div style="position: absolute; right: 14px; bottom: 14px; display: flex; gap: 8px">
+      <button type="button" style="background: rgba(0,0,0,0.6); color: #ffffff; border: 0; border-radius: 4px; padding: 7px 12px">Change cover</button>
+      <button type="button" aria-label="Cover actions" style="background: rgba(0,0,0,0.6); color: #ffffff; border: 0; border-radius: 4px; width: 34px">⋯</button>
+    </div>
+    <span style="position: absolute; left: 14px; bottom: 14px; background: rgba(0,0,0,0.6); color: #ffffff; border-radius: 4px; padding: 3px 8px; font-size: 12.5px">In file · front.jpg</span>
+  </div>
+  <div style="padding: 20px 28px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; gap: 8px; color: {{c.muted}}; font-size: 13px"><span>Albums</span><span aria-hidden="true">›</span><span style="color: {{c.ink}}">Blue Harbour</span></div>
+    <h1 style="margin: 0; font-size: 26px; font-weight: 600">Blue Harbour</h1>
+    <div style="display: grid; grid-template-columns: 140px 1fr; row-gap: 14px; column-gap: 20px; align-items: start">
+      <div style="color: {{c.muted}}; padding-top: 6px">Artist</div>
+      <div style="border: 1px solid {{c.line}}; border-radius: 4px; padding: 6px 10px">Marta Lind</div>
+      <div style="color: {{c.muted}}; padding-top: 6px">Other pictures</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 150px); gap: 12px">
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 110px; border-radius: 6px; background: {{c.pic4}}; border: 1px solid {{c.line}}"></div>
+          <span style="font-size: 12.5px; color: {{c.muted}}">Back cover · Web</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <div style="height: 110px; box-sizing: border-box; border-radius: 6px; border: 1px solid {{c.line}}; background: {{c.soft}}; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; color: {{c.warning}}; font-size: 12.5px">Not found<br>..\Scans\booklet-01.jpg</div>
+          <span style="font-size: 12.5px; color: {{c.muted}}">Booklet · Linked file</span>
+        </div>
+        <button type="button" style="height: 110px; border-radius: 6px; border: 1.5px dashed {{c.lineStrong}}; background: transparent; color: {{c.muted}}">Drop or choose a picture</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div style="display: flex; flex-direction: column; gap: 20px; min-width: 0">
+  <section aria-label="List" style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden">
+    <div style="padding: 10px 14px; font-weight: 600; border-bottom: 1px solid {{c.line}}">Albums · list</div>
+    <sc-for list="{{rows}}" as="row" hint-placeholder-count="3">
+      <div style="display: grid; grid-template-columns: 56px 1fr 140px; gap: 12px; align-items: center; padding: 8px 14px; border-bottom: 1px solid {{c.line}}">
+        <div style="width: 56px; height: 40px; border-radius: 6px; background: {{row.fill}}"></div>
+        <span>{{row.title}}</span><span style="color: {{c.muted}}">{{row.artist}}</span>
+      </div>
+    </sc-for>
+  </section>
+  <section aria-label="Gallery" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+    <sc-for list="{{rows}}" as="row" hint-placeholder-count="3">
+      <div style="position: relative; border-radius: 8px; overflow: hidden; height: 190px; background: {{row.fill}}">
+        <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 10px; background: rgba(0,0,0,0.55); color: #ffffff"><div style="font-weight: 600">{{row.title}}</div><div style="font-size: 12.5px">{{row.artist}}</div></div>
+      </div>
+    </sc-for>
+  </section>
+  <section aria-label="Studio" style="background: {{c.surface}}; border: 1px solid {{c.line}}; border-radius: 8px; overflow: hidden; font-size: 13px">
+    <div style="display: grid; grid-template-columns: 1fr 1.6fr; background: {{c.soft}}; font-weight: 600"><div style="padding: 6px 10px">Title</div><div style="padding: 6px 10px">Cover</div></div>
+    <div style="display: grid; grid-template-columns: 1fr 1.6fr; border-top: 1px solid {{c.line}}"><div style="padding: 6px 10px">Blue Harbour</div><div style="padding: 6px 10px; display: flex; gap: 8px; align-items: center"><span style="width: 30px; height: 20px; border-radius: 3px; background: {{c.pic1}}; display: inline-block"></span><span style="font-family: Consolas, monospace; color: {{c.muted}}">media:3f9a…c1e2</span></div></div>
+  </section>
+  <section aria-label="Larger view" style="position: relative; height: 230px; border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.78); display: flex; align-items: center; justify-content: center">
+    <div style="width: 340px; height: 190px; background: {{c.pic1}}"></div>
+    <button type="button" aria-label="Close" style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.14); color: #ffffff; border: 0; border-radius: 4px; width: 32px; height: 32px">✕</button>
+  </section>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["light","dark"],"default":"light"},"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dark = (this.props.theme ?? 'light') === 'dark';
+    const c = dark
+      ? { canvas: '#272829', surface: '#2d2e30', soft: '#38393b', ink: '#ffffff', muted: '#c5c5c5', line: '#3b3c3e', lineStrong: '#4b4c4f', accent: '#60cdff', warning: '#e9b659', pic1: '#33485a', pic2: '#c9a03b', pic3: '#4f6b84', pic4: '#5a4a3b' }
+      : { canvas: '#f9f9fa', surface: '#ffffff', soft: '#f3f3f4', ink: '#1b1b1b', muted: '#5d5d5d', line: '#e5e5e5', lineStrong: '#d1d1d1', accent: '#005fb8', warning: '#9c6400', pic1: '#c9d6e3', pic2: '#f2c14e', pic3: '#5b7c99', pic4: '#d8c3a5' };
+    const rows = [
+      { title: 'Blue Harbour', artist: 'Marta Lind', fill: c.pic1 },
+      { title: 'Tide Lines', artist: 'Oskar Berg', fill: c.pic4 },
+      { title: 'North Light', artist: 'Ida Holm', fill: c.pic3 },
+    ];
+    return { c, rows };
+  }
+}
+</script>
+</body>
+</html>

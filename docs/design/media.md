@@ -137,7 +137,7 @@ and not a path through Nendo.
 
 ## Native UI
 
-The look is the canvas's job (W-263); this is what it must cover:
+The look is the canvas's job (W-263): <https://claude.ai/artifact/Umg16L46DWePJVmMJDf78b>, its artboards copied to [`image-canvas/`](image-canvas/README.md). Direction **A · Inline picture** was taken on 2026-10-16. It covers:
 
 - **Record page.** A picture fitted to its column, with a larger view on click; sound and video with
   their own controls; a line naming the source (In file, Linked file, Web), the name and the size.
