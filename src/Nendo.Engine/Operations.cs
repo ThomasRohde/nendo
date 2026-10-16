@@ -178,7 +178,7 @@ public sealed record AddFieldOperation : NendoOperation
             throw new ArgumentException("Unsupported field kinds are inspection-only and cannot be authored.", nameof(StorageKind));
         }
         var supported = new HashSet<string>(
-            ["singleLine", "longText", "markdown", "singleChoice", "date", "rating"],
+            ["singleLine", "longText", "markdown", "singleChoice", "date", "rating", NendoMedia.Presentation],
             StringComparer.Ordinal);
         if (Presentation is not null && !supported.Contains(Presentation))
         {
@@ -211,7 +211,7 @@ public sealed record AddFieldOperation : NendoOperation
         // A single line or long text drawn over a number, a yes/no or a date replaced its input with
         // a text box, and setFieldPresentation changes only Text fields, so nothing could correct it
         // afterwards (ESM-10).
-        if (Presentation is "singleLine" or "longText" && StorageKind != NendoStorageKind.Text)
+        if (Presentation is "singleLine" or "longText" or NendoMedia.Presentation && StorageKind != NendoStorageKind.Text)
         {
             throw new ArgumentException($"The {Presentation} presentation requires Text storage.", nameof(Presentation));
         }
@@ -600,6 +600,7 @@ public sealed record NendoMutation(
             throw new NendoValidationException("Operation IDs must be unique within a mutation.");
         }
         RequireExtensionContentWithinBound(Operations);
+        RequireMediaContentWithinBound(Operations);
 
         return this;
     }
@@ -608,6 +609,16 @@ public sealed record NendoMutation(
     /// Refuses more new package content than one commit may carry. Counted over the bytes the
     /// operations bring with them, so content the file already holds costs nothing.
     /// </summary>
+    internal static void RequireMediaContentWithinBound(IEnumerable<NendoOperation> operations)
+    {
+        // One change carries at most one picture's worth of new content, so a write that embeds
+        // stays one bounded transaction (ADR-0031 point 6).
+        var carried = operations.OfType<PutMediaOperation>().Sum(operation => operation.CarriedBytes);
+        if (carried > NendoMedia.MaximumItemBytes)
+            throw new NendoPreconditionException("media-too-large",
+                $"One change embeds at most {NendoMedia.MaximumItemBytes / (1024 * 1024)} MiB of pictures, and this one carries {carried / (1024 * 1024)} MiB. Embed them in separate changes.");
+    }
+
     internal static void RequireExtensionContentWithinBound(IEnumerable<NendoOperation> operations)
     {
         var carried = operations.OfType<PutExtensionFileOperation>().Sum(operation => (long)operation.CarriedBytes);

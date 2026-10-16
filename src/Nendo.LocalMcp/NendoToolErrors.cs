@@ -153,6 +153,10 @@ internal static class NendoToolErrors
             // W-221: a read-only session's file moved on (ECO-07, R2SMA-12), and a file marked
             // read-only that Nendo will not replace (R2SMA-10). Constant sentences, naming nothing.
             "read-only-file-changed", "replacement-target-read-only", "replacement-target-in-use",
+            // ADR-0031: a picture's refusals name the field, the record by ID, the media types and
+            // the bounds; none echoes the address or the bytes sent.
+            "media-address-invalid", "media-missing", "media-type-mismatch", "media-too-large", "media-budget-exceeded",
+            "field-not-media",
         ], StringComparer.Ordinal);
 
     /// <summary>

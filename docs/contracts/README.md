@@ -22,6 +22,7 @@ authority above both.
 | [help.md](help.md) | The permanent Help route and generated application reference |
 | [calculations-and-actions.md](calculations-and-actions.md) | Stored calculations, reusable functions, local actions and triggers (ADR-0008, stages S1-S9; P1-P8 satisfied) |
 | [custom-views.md](custom-views.md) | Custom views: packages carried in the file, how the host serves and runs them inline, the `window.nendo` API, the kill switches, view definitions, and what the host guarantees and refuses (ADR-0013) |
+| [media.md](media.md) | Media fields: the address, embedding pictures, the media rung, and how opening leaves the content out (ADR-0031) |
 | [launched-agents.md](launched-agents.md) | The person's own agent launched from the Agent page over ACP: what is offered, the `agentSession.*` bridge methods, what the agent is told, the conversation and what ends it (ADR-0030) |
 
 If a contract and the code disagree, the code is current. Fix the contract in

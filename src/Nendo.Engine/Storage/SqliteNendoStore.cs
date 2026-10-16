@@ -193,6 +193,8 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                 cancellationToken);
             // ADR-0026: the mutation as a whole, automatic actions included, before it is recorded.
             await RequireAllowedLinksAsync(evidence, transaction, cancellationToken);
+            // ADR-0031: every embedded picture a value names is in the file.
+            await RequireEmbeddedMediaPresentAsync(evidence, transaction, cancellationToken);
             // ADR-0028: the index follows everything the mutation wrote, generated writes included.
             await MaintainSearchIndexAsync(evidence, searchedBefore, transaction, cancellationToken);
 
@@ -467,6 +469,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
                         transaction,
                         cancellationToken);
                     await RequireAllowedLinksAsync(evidence, transaction, cancellationToken);
+                    await RequireEmbeddedMediaPresentAsync(evidence, transaction, cancellationToken);
                     await MaintainSearchIndexAsync(evidence, searchedBefore, transaction, cancellationToken);
 
                     var lane = mutation.Operations[0].Lane;

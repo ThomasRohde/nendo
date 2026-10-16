@@ -585,7 +585,10 @@ four `reference-conversion-*` codes, `calculated-query-too-wide`, `search-too-lo
 `data-unavailable`, `history-unavailable`, `reopen-to-verify`, `read-only`, `proposal-not-found`,
 `receipt-file-mismatch`, and the constant sentences `read-only-file-changed` (a read-only
 session's file moved on), `replacement-target-read-only` (a file marked read-only is not
-replaced) and `replacement-target-in-use` (another reader held the file, nothing changed) from W-221. Their messages name records
+replaced) and `replacement-target-in-use` (another reader held the file, nothing changed) from W-221,
+and the picture codes of ADR-0031 (`media-address-invalid`, `media-missing`,
+`media-type-mismatch`, `media-too-large`, `media-budget-exceeded`, `field-not-media`), none of
+which echoes the address or the bytes sent. Their messages name records
 by stable ID, record types and fields by ID or display name, a loop as the chain of IDs it
 would close, and a ceiling by its number, and the person reads the same sentence in Nendo.
 `aggregate-not-exact` echoes a stored value, and it stays withheld, listed with that reason in

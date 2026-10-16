@@ -83,7 +83,7 @@ internal sealed partial class SqliteNendoStore
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
         _ = await ReadAuthoritySnapshotAsync(transaction, cancellationToken);
-        var health = await GetStorageHealthAsync(cancellationToken, transaction);
+        var health = await GetStorageHealthAsync(cancellationToken, transaction, wholeFile: true);
         if (!string.Equals(health.IntegrityResult, "ok", StringComparison.OrdinalIgnoreCase))
         {
             _authorityTainted = true;
@@ -97,11 +97,18 @@ internal sealed partial class SqliteNendoStore
             throw new NendoRecoveryRequiredException(
                 $"Stored custom-view content {mismatched} no longer matches its SHA-256. Reopen for recovery inspection.");
         }
+        // The same for embedded pictures, which no open reads (ADR-0031 point 7).
+        if (await FirstMismatchedMediaContentAsync(transaction, cancellationToken) is { } picture)
+        {
+            _authorityTainted = true;
+            throw new NendoRecoveryRequiredException(
+                $"The embedded picture {picture} no longer matches its SHA-256. Reopen for recovery inspection.");
+        }
         return health;
     }
 
     internal async Task<NendoStorageHealthSnapshot> GetStorageHealthAsync(
-        CancellationToken cancellationToken, SqliteTransaction? transaction = null, bool verifyIntegrity = true)
+        CancellationToken cancellationToken, SqliteTransaction? transaction = null, bool verifyIntegrity = true, bool wholeFile = false)
     {
         var journal = Convert.ToString(
             await ScalarAsync("PRAGMA journal_mode;", transaction, cancellationToken),
@@ -114,8 +121,7 @@ internal sealed partial class SqliteNendoStore
             CultureInfo.InvariantCulture);
         if (verifyIntegrity || _integrityResult is null)
         {
-            var integrity = Convert.ToString(await ScalarAsync("PRAGMA integrity_check;", transaction, cancellationToken),
-                CultureInfo.InvariantCulture) ?? string.Empty;
+            var integrity = await IntegrityResultAsync(wholeFile, transaction, cancellationToken);
             var manifest = await ReadManifestAsync(transaction, cancellationToken);
             _integrityResult = integrity;
             _integrityCheckedAt = DateTimeOffset.UtcNow;

@@ -183,6 +183,7 @@ export function operationLabel(value: string): string {
     'data.setField': 'Set field',
     'data.setKeptInNewFiles': 'Keep a record in new files',
     'extension.putFile': 'Add or replace a custom-view file',
+    'media.put': 'Embed a picture',
     'extension.removeFile': 'Remove a custom-view file',
     'extension.removePackage': 'Remove a custom-view package',
     'extension.setPackage': 'Add or update a custom-view package',

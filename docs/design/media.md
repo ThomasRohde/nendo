@@ -88,9 +88,13 @@ open at that size costs about 6.6 seconds. One album would fill it. So the plan:
   become a read of every other table.
 - **The budget is 64 MiB per item and 2 GiB per file.** 64 MiB holds a FLAC album track or a short
   1080p clip. 2 GiB is a photo library of a few thousand pictures.
-- **The measurement decides.** W-264 starts by measuring a cold open of a file holding 2 GiB of
-  content against the same file without it. If it is not within 10%, the budget comes down to what
-  is, and the ADR says so.
+- **The measurement decided.** W-264 measured, on 2026-10-16, a cold open at SQLite level of a
+  201 MiB file and the same file with 2 GiB of embedded pictures. With the media left out the
+  median was 10.5 s against 9.6 s, +8.7% over 12 and 11 runs; a second, quieter set alone gave
+  +13%, and single runs spread from 7.9 s to 12.7 s, so the difference is inside the noise. The
+  full check, as an open did it before, took 14.6 s against 8.2 s. The 2 GiB budget stands; the
+  open through Nendo itself is measured again when the Workbench can embed (W-266). The harness is
+  [`tools/media-open/`](../../tools/media-open/Measure-MediaOpen.ps1).
 
 Backup and copy remain whole-file and grow linearly; the reference file records their times.
 

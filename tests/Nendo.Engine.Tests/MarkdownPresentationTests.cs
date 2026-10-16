@@ -77,7 +77,7 @@ public sealed class MarkdownPresentationTests
         Assert.AreEqual("field-presentation-invalid", (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => SetAsync("score", "markdown"))).Code);
         Assert.AreEqual("field-presentation-invalid", (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => SetAsync("state", "markdown"))).Code);
         StringAssert.Contains(Assert.ThrowsExactly<NendoValidationException>(() =>
-            new SetFieldPresentationOperation("p", "answer", "notes", "date", 1)).Message, "only between singleLine, longText and markdown", StringComparison.Ordinal);
+            new SetFieldPresentationOperation("p", "answer", "notes", "date", 1)).Message, "only between singleLine, longText, markdown and media", StringComparison.Ordinal);
     }
 
     [TestMethod]

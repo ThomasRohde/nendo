@@ -180,6 +180,14 @@ internal sealed partial class SqliteNendoStore
                 operations.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
             }
         }
+        // An embedded picture has no inverse to run: its content stays stored, unreferenced, until
+        // the person removes unused media, and what a field showed comes back with that field's
+        // own undo (ADR-0031 point 4). A change that only embedded one leaves nothing to undo.
+        var held = operations.Count;
+        operations.RemoveAll(operation => operation.Type == "media.put");
+        if (held > 0 && operations.Count == 0)
+            throw new NendoCompensationNotSupportedException(
+                "This change only embedded a picture, which stays in the file until unused media is removed. There is nothing else to undo.");
         var recordChanges = operations.Count >= 1 && operations.All(operation => IsRecordChange(operation.Type));
         // A compensation of record changes can itself be compensated: that is redo, and undo
         // again after it (ADR-0023). Anything else a compensation reversed stays where it is.

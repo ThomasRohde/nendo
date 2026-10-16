@@ -4,14 +4,17 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// Changes how a Text field is shown and edited, between the text presentations: a single line,
-/// long text and Markdown (W-173). No stored value changes, which is what keeps it to these three:
-/// a choice or a date would make values invalid that were valid a moment before. A field written
-/// as long text before Markdown existed can be shown formatted without being copied into a new one.
+/// long text and Markdown (W-173), and media (ADR-0031). No stored value changes, which is what
+/// keeps it to these: a choice or a date would make values invalid that were valid a moment before.
+/// A field written as long text before Markdown existed can be shown formatted without being copied
+/// into a new one. Media is a text presentation whose values are addresses, so a field moves to it
+/// only while every value it holds already is one, and leaves it at any time.
 /// </summary>
 public sealed record SetFieldPresentationOperation : NendoOperation
 {
     /// <summary>The presentations a Text field may move between; every value stays valid in each.</summary>
-    public static readonly IReadOnlySet<string> TextPresentations = new HashSet<string>(["singleLine", "longText", "markdown"], StringComparer.Ordinal);
+    public static readonly IReadOnlySet<string> TextPresentations =
+        new HashSet<string>(["singleLine", "longText", "markdown", NendoMedia.Presentation], StringComparer.Ordinal);
 
     public SetFieldPresentationOperation(string operationId, string entityId, string fieldId, string presentation, long expectedDefinitionRevision)
         : base(operationId)
@@ -21,7 +24,7 @@ public sealed record SetFieldPresentationOperation : NendoOperation
         Presentation = Require(presentation, nameof(presentation));
         if (!TextPresentations.Contains(Presentation))
             throw new NendoValidationException(
-                $"A field's presentation can change only between singleLine, longText and markdown, which keep every value valid; {Presentation} is not one of them.");
+                $"A field's presentation can change only between singleLine, longText, markdown and media, which keep every value text; {Presentation} is not one of them.");
         if (expectedDefinitionRevision < 0) throw new NendoValidationException("The definition revision cannot be negative.");
         ExpectedDefinitionRevision = expectedDefinitionRevision;
     }

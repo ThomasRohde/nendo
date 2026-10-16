@@ -356,7 +356,14 @@ public static class NendoFormat
     /// </summary>
     public const string ReferenceLabelMinimumHostVersion = "1.51.0";
 
-    public const string CurrentHostVersion = ReferenceLabelMinimumHostVersion;
+    /// <summary>
+    /// Media in user data (ADR-0031, W-264): a Text field presented as media, stated by the field
+    /// operation's evidence as Markdown's is, and the embedded media tables, stated by media.put's
+    /// evidence and by the layout rung at open. A file that never uses either keeps the rung it had.
+    /// </summary>
+    public const string MediaMinimumHostVersion = "1.52.0";
+
+    public const string CurrentHostVersion = MediaMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

@@ -261,8 +261,8 @@ Its builder, `FormatPromiseTests.BuildFixtures`, runs only when
 
 ## 2026-10-16 amendment — embedded media content is outside the open bound
 
-Decided by [ADR-0031](0031-media-in-user-data.md), accepted 2026-10-16; it takes effect when
-its Engine slice (W-264) is delivered. The 256 MiB open bound and the 224 MiB write ceiling
+Decided by [ADR-0031](0031-media-in-user-data.md), accepted 2026-10-16, and built with its Engine
+slice (W-264, host 1.52.0). The 256 MiB open bound and the 224 MiB write ceiling
 count every page of a file except those of `__nendo_media_content`. That table is bounded on
 its own: at most 64 MiB per item and 2 GiB per file. Opening checks the media tables' shape and
 totals and does not read their content, so a file's media does not lengthen its open. The
@@ -302,8 +302,8 @@ Complete rejection is rejected when bounded read-only access can be proven safe.
 
 - 2026-09-02 — accepted.
 - 2026-10-16 — embedded media content is left out of the open bound and write ceiling and
-  bounded on its own (the amendment above, [ADR-0031](0031-media-in-user-data.md)); not yet
-  built.
+  bounded on its own (the amendment above, [ADR-0031](0031-media-in-user-data.md)); built with
+  W-264.
 - 2026-09-16 — the open-time size bound raised from 64 MiB to 256 MiB (the
   amendment above).
 - 2026-09-17 — a write that would make a file unopenable is refused (the

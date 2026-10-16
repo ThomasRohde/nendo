@@ -167,8 +167,8 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.51.0`, for a reference whose label changed with `schema.setReferenceLabel` (ADR-0003,
-2026-10-14 note). `1.50.0` is for the three history indexes a fold adds (ADR-0021, 2026-10-13
+is `1.52.0`, for a media field or an embedded picture (ADR-0031). `1.51.0` is for a reference
+whose label changed with `schema.setReferenceLabel` (ADR-0003, 2026-10-14 note). `1.50.0` is for the three history indexes a fold adds (ADR-0021, 2026-10-13
 note), which a file never folded does not have. `1.49.0` is for a formula that calls `ToText` (ADR-0008,
 2026-10-13). `1.48.0` is for a
 cleared screen property (`ui.removeProperty`, ADR-0004, 2026-10-13), `1.47.0` for a create
@@ -228,6 +228,15 @@ A package's Markdown files under `help/` are the file's own help pages
 for the Workbench with `help.readPages`, and Help shows them first under *About this app*,
 rendered by the Workbench's escaping Markdown renderer. They are ordinary package files, so
 storage, review and serving are unchanged.
+
+A file may embed pictures ([ADR-0031](decisions/0031-media-in-user-data.md)). A media field is
+a Text field presented as `media` whose value is an address; an embedded picture is the ladder's
+media rung, after search: `__nendo_media` holds each item's metadata and `__nendo_media_content`
+its bytes, once per SHA-256, put by `media.put` with the bytes beside the operation and never in
+history. The end of every mutation refuses a `media:` address the file does not hold. Opening
+counts and checks every page but the media content's, and the content digest hashes its keys,
+so a file's pictures do not lengthen its open; the explicit integrity check hashes them. The
+[media contract](contracts/media.md) has the address, the bounds and the measurements.
 
 A file may carry a full-text index of its text fields
 ([ADR-0028](decisions/0028-full-text-search-in-the-file.md)). The index is the layout

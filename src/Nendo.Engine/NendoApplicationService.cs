@@ -100,6 +100,46 @@ public sealed partial class NendoApplicationService
         CancellationToken cancellationToken = default) =>
         _coordinator.ReadProposalPackageFileAsync(proposalId, reviewedDigest, packageId, path, offset, length, cancellationToken);
 
+    /// <summary>One embedded picture's metadata, or null when the file holds none by that hash (ADR-0031).</summary>
+    public Task<NendoMediaItem?> ReadMediaAsync(string sha256, CancellationToken cancellationToken = default) =>
+        _coordinator.ReadMediaAsync(sha256, cancellationToken);
+
+    /// <summary>One embedded picture's bytes, or null when the file holds none by that hash.</summary>
+    public Task<byte[]?> ReadMediaContentAsync(string sha256, CancellationToken cancellationToken = default) =>
+        _coordinator.ReadMediaContentAsync(sha256, cancellationToken);
+
+    /// <summary>
+    /// Embeds a picture (ADR-0031), and sets the target media field to its address in the same
+    /// revision when one is named. Content the file already holds is not stored twice.
+    /// </summary>
+    public async Task<NendoPutMediaResult> PutMediaAsync(NendoPutMediaRequest request, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Content);
+        RequireContext(request.Context);
+        var put = PutMediaOperation.FromContent(
+            NendoCanonical.DeterministicId("operation", request.Context.IdempotencyScope, request.Context.IdempotencyKey, 0),
+            request.Content, request.MediaType, request.Name);
+        var operations = new List<NendoOperation> { put };
+        var description = $"Embed {request.Name ?? "a picture"}";
+        if (request.Target is { } target)
+        {
+            RequireIdentity(target.EntityId, "entity ID"); RequireIdentity(target.RecordId, "record ID"); RequireIdentity(target.FieldId, "field ID");
+            var entity = await RequireEntityAsync(target.EntityId, cancellationToken);
+            var field = entity.Fields.SingleOrDefault(value => value.FieldId == target.FieldId)
+                ?? throw new NendoPreconditionException("field-not-found", $"Field {target.FieldId} does not exist on entity {target.EntityId}.");
+            if (field.Presentation != NendoMedia.Presentation)
+                throw new NendoPreconditionException("field-not-media", $"{field.DisplayName} is not a media field, so it cannot name a picture.");
+            operations.Add(new SetFieldOperation(
+                NendoCanonical.DeterministicId("operation", request.Context.IdempotencyScope, request.Context.IdempotencyKey, 1),
+                target.EntityId, target.RecordId, target.FieldId, target.ExpectedRecordVersion, put.Address));
+            description = $"Edit {entity.DisplayName} {field.DisplayName}";
+        }
+        var result = await _coordinator.ApplyAsync(new NendoMutation(request.Context.IdempotencyScope, request.Context.IdempotencyKey,
+            request.Context.Origin, description, operations), cancellationToken);
+        return new(put.Address, result);
+    }
+
     /// <summary>One file of a custom-view package carried in the file, with its bytes; null when there is none.</summary>
     public Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default) =>
         _coordinator.ReadExtensionFileAsync(packageId, path, cancellationToken);

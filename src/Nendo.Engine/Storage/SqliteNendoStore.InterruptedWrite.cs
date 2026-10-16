@@ -144,7 +144,7 @@ internal sealed partial class SqliteNendoStore
                     BinaryPrimitives.ReadInt32BigEndian(header.AsSpan(68)) != NendoFormat.SqliteApplicationId)
                     return JournalCheck.Refuse(JournalNotNendoText);
                 if (header[18] != 1 || header[19] != 1) return JournalCheck.Refuse(JournalUnsupportedProfileText);
-                if (file.Length > MaximumInspectionFileBytes) return JournalCheck.Refuse(JournalTooLargeText);
+                if (file.Length > MaximumPhysicalFileBytes) return JournalCheck.Refuse(JournalTooLargeText);
                 var pageSize = PageSize(header);
                 if (pageSize is null || file.Length < pageSize) return JournalCheck.Refuse(JournalNotNendoText);
                 page1 = new byte[pageSize.Value];
@@ -159,7 +159,7 @@ internal sealed partial class SqliteNendoStore
                 var first = new byte[1];
                 await journal.ReadExactlyAsync(first, cancellationToken);
                 if (first[0] == 0) return new(JournalVerdict.Empty, null);
-                if (journal.Length > MaximumInspectionFileBytes) return JournalCheck.Refuse(JournalOversizeText);
+                if (journal.Length > MaximumPhysicalFileBytes) return JournalCheck.Refuse(JournalOversizeText);
                 (saved, var mismatch) = await ReadJournalAsync(journal, page1.Length, cancellationToken);
                 if (mismatch) return JournalCheck.Refuse(JournalMismatchText);
             }

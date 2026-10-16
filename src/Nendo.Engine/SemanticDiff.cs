@@ -303,6 +303,7 @@ internal static class SemanticDiff
                     {
                         "markdown" => "formatted text, written in Markdown",
                         "longText" => "a paragraph of text",
+                        NendoMedia.Presentation => "a picture: one embedded in the file, a web address or a file on this computer",
                         _ => "a single line",
                     }}. Every value stays as it is.",
                     value.Reversibility,
@@ -716,6 +717,7 @@ internal static class SemanticDiff
         "rating" when operation.Scale is { } scale => $"a rating from {scale.Min} to {scale.Max}",
         "longText" => "a paragraph of text",
         "markdown" => "formatted text, written in Markdown",
+        NendoMedia.Presentation => "a picture: one embedded in the file, a web address or a file on this computer",
         _ => operation.StorageKind switch
         {
             NendoStorageKind.Integer => "a whole number",

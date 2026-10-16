@@ -83,6 +83,7 @@ internal sealed partial class SqliteNendoStore
             RemoveExtensionFileOperation removeFile => await ExecuteRemoveExtensionFileAsync(removeFile, transaction, cancellationToken),
             RemoveExtensionPackageOperation removePackage => await ExecuteRemoveExtensionPackageAsync(removePackage, transaction, cancellationToken),
             SetExtensionStateOperation setState => await ExecuteSetExtensionStateAsync(setState, transaction, cancellationToken),
+            PutMediaOperation putMedia => await ExecutePutMediaAsync(putMedia, transaction, cancellationToken),
             _ => throw new NendoValidationException(
                 $"Operation type {operation.OperationType} is not supported by format version 1."),
         };
@@ -201,6 +202,7 @@ internal sealed partial class SqliteNendoStore
             {
                 "rating" => NendoFormat.GalleryAndRatingMinimumHostVersion,
                 "markdown" => NendoFormat.MarkdownPresentationMinimumHostVersion,
+                NendoMedia.Presentation => NendoFormat.MediaMinimumHostVersion,
                 _ => operation.StorageKind == NendoStorageKind.Decimal
                     ? NendoFormat.ScalarMinimumHostVersion : NendoFormat.MinimumHostVersion,
             },
@@ -798,6 +800,10 @@ internal sealed partial class SqliteNendoStore
                     $"Value for field {field.FieldId} is not one of its declared choices ({string.Join(", ", field.Options)}); " +
                     $"received \"{(choice.Length > 40 ? choice[..40] + "…" : choice).Replace("\\", "\\\\").Replace("\"", "\\\"")}\".");
             }
+            if (field.Presentation == NendoMedia.Presentation && converted is string address && !NendoMediaAddress.TryParse(address, out _))
+                throw new NendoPreconditionException("media-address-invalid",
+                    $"Value for field {field.FieldId} is not a picture's address: use media: and a SHA-256 for an embedded picture, " +
+                    @"an https: address, a drive-letter path such as C:\Pictures\cover.jpg, or a path beside the file that starts .\ or ..\.");
             if (field.StorageKind == NendoStorageKind.Date && converted is string date &&
                 !DateOnly.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
             {

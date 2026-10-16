@@ -72,7 +72,12 @@ internal sealed partial class SqliteNendoStore
             writer.WriteStringValue(table);
             // Known production layouts use ordinary rowid tables. Preserve rowid
             // too: metadata insertion order is part of the current projection.
-            await using var command = Command($"SELECT rowid, * FROM {Quote(table)} ORDER BY rowid;", transaction);
+            // Embedded media is content-addressed: its key is the hash of its bytes, so the key
+            // stands for them here and opening never reads them (ADR-0031 point 7). Integrity checks
+            // hash the bytes themselves.
+            await using var command = Command(table == MediaContentTable
+                ? $"SELECT rowid, sha256 FROM {Quote(table)} ORDER BY rowid;"
+                : $"SELECT rowid, * FROM {Quote(table)} ORDER BY rowid;", transaction);
             await using var rows = await command.ExecuteReaderAsync(cancellationToken);
             var count = 0;
             while (await rows.ReadAsync(cancellationToken))

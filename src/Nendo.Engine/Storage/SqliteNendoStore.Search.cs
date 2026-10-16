@@ -50,14 +50,15 @@ internal sealed partial class SqliteNendoStore
 
     /// <summary>
     /// The fields a search reads: active text fields of an active record type. A choice keeps its
-    /// option ID in a text column, which is not something anyone types, so choices are left out.
+    /// option ID in a text column, which is not something anyone types, so choices are left out,
+    /// and so is a media field, whose value is an address (ADR-0031).
     /// </summary>
-    internal static bool IsSearchedField(NendoStorageKind kind, bool retired, int choices, int options) =>
-        kind == NendoStorageKind.Text && !retired && choices == 0 && options == 0;
+    internal static bool IsSearchedField(NendoStorageKind kind, bool retired, int choices, int options, string? presentation = null) =>
+        kind == NendoStorageKind.Text && !retired && choices == 0 && options == 0 && presentation != NendoMedia.Presentation;
 
     private static IReadOnlyList<FieldMapping> SearchedFields(EntityMapping entity) => entity.Retired
         ? []
-        : [.. entity.Fields.Where(field => IsSearchedField(field.StorageKind, field.Retired, field.Choices.Count, field.Options.Count))];
+        : [.. entity.Fields.Where(field => IsSearchedField(field.StorageKind, field.Retired, field.Choices.Count, field.Options.Count, field.Presentation))];
 
     private async Task<OperationEvidence> ExecuteBuildSearchIndexAsync(
         BuildSearchIndexOperation operation, SqliteTransaction transaction, CancellationToken ct)
@@ -330,7 +331,7 @@ internal sealed partial class SqliteNendoStore
         await store.NonQueryAsync(SearchSchemaSql, null, ct);
         var searched = entities.ToDictionary(entity => entity.EntityId,
             entity => entity.Retired ? [] : entity.Fields
-                .Where(field => IsSearchedField(field.StorageKind, field.Retired, field.Choices.Count, field.Options.Count)).ToArray(),
+                .Where(field => IsSearchedField(field.StorageKind, field.Retired, field.Choices.Count, field.Options.Count, field.Presentation)).ToArray(),
             StringComparer.Ordinal);
         var byKey = new Dictionary<(string, string), NendoRecordSnapshot>();
         using (var transaction = connection.BeginTransaction())

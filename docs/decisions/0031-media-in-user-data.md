@@ -17,7 +17,8 @@
   (the deferred binary and asset fields), ADR-0012 (the open bound counts everything except
   embedded media content), [`../vision.md`](../vision.md) (moves *binary and asset fields* from
   Out to In, for media) and `AGENTS.md` (the out-of-scope line)
-- **Related design:** [`../design/media.md`](../design/media.md)
+- **Related design:** [`../design/media.md`](../design/media.md), [`../contracts/media.md`](../contracts/media.md)
+- **Delivery:** Stage 1, the Engine, built 2026-10-16 for pictures (W-264, host 1.52.0); stages 2-9 open (I-012)
 
 ## Context
 
@@ -212,6 +213,36 @@ stage. The plan holds the slices.
   address fails while its `img` shows it; an SVG's script does not run.
 - **Removing.** Content that a current value or a retained operation names is never removed; the
   backup exists before anything is removed.
+
+## Delivery note — 2026-10-16, stage 1 (W-264)
+
+The Engine, for pictures. Details the code settled:
+
+- **The accept set has no storage yet.** Pictures are the only kind this host knows, so a media
+  field accepts pictures and `schema.setMediaAccept` and `__nendo_field_media` wait for the first
+  other kind (point 2).
+- **The media rung needs the search rung.** The ladder is linear, so the first put builds the
+  file's search index from its records when the file has none, rather than leave an empty index
+  that later writes would fill in part. Media fields are left out of the index.
+- **One change carries at most 64 MiB of new pictures**, beside the 64 MiB per item.
+- **Opening.** The open bound and the write ceiling subtract the media content's pages, estimated
+  from the metadata; a file over 256 MiB that is not SQLite is still refused by length alone. Every
+  open-time integrity check (inspection, authority, health) checks every table but the content and
+  pairs items with content; the explicit check reads the whole file and hashes every picture. The
+  content digest hashes the content's keys.
+- **Undo.** A revision's `media.put` has no inverse to run; a revision that only embedded a picture
+  says there is nothing to undo.
+
+Evidence: `MediaTests` (11); `MarkdownPresentationTests` updated for the switch's new wording, and
+`FileInspectionTests`' one-byte-over refusal kept by refusing a non-SQLite file by length alone; the
+Engine suite then passed whole. Falsified, each guard
+removed and its test seen to fail: the end-of-mutation check (*"Expected exception
+type:<Nendo.Engine.NendoPreconditionException> but no exception was thrown"*), the open bound's
+subtraction (*"inspection-limit: This file exceeds the current 256 MiB inspection limit"*), the
+explicit check's hashing (*"Expected exception type:<Nendo.Engine.NendoRecoveryRequiredException>
+but no exception was thrown"*) and the address check on a media field (as the first). Measured with
+`tools/media-open/` (the media contract has the numbers): +8.7% median open with 2 GiB of pictures
+left out, inside the run-to-run noise; the 2 GiB budget stands.
 
 ## Consequences
 

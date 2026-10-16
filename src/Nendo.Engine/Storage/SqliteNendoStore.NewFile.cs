@@ -399,6 +399,8 @@ internal sealed partial class SqliteNendoStore
             // folded nothing can undo them, so only the content a package file uses now is carried.
             if (await TableExistsAsync("__nendo_extension_blob", transaction, ct))
                 await NonQueryAsync("DELETE FROM __nendo_extension_blob WHERE sha256 NOT IN (SELECT sha256 FROM __nendo_extension_file);", transaction, ct);
+            // The same for embedded pictures: only those the kept records name are carried (ADR-0031).
+            await RemoveUnreferencedMediaAsync(transaction, ct);
             await using (var manifest = Command("UPDATE __nendo_manifest SET minimum_host_version = $version;", transaction))
             {
                 var before = await ReadManifestAsync(transaction, ct);

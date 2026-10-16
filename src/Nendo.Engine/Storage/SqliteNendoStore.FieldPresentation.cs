@@ -18,7 +18,7 @@ internal sealed partial class SqliteNendoStore
         var previous = field.Presentation ?? "singleLine";
         if (field.StorageKind != NendoStorageKind.Text || !SetFieldPresentationOperation.TextPresentations.Contains(previous))
             throw new NendoPreconditionException("field-presentation-invalid",
-                $"{field.DisplayName} is not a text field shown as a single line, long text or Markdown, so its presentation cannot change.");
+                $"{field.DisplayName} is not a text field shown as a single line, long text, Markdown or media, so its presentation cannot change.");
         if (previous == operation.Presentation)
             throw new NendoPreconditionException("field-presentation-unchanged",
                 $"{field.DisplayName} is already shown as {operation.Presentation}.");
@@ -26,6 +26,7 @@ internal sealed partial class SqliteNendoStore
             throw new NendoPreconditionException("field-presentation-invalid",
                 $"{field.DisplayName} is unique, which only a single-line text field can be. Stop keeping it unique first.");
         await RequireNotLinkRuleFieldAsync(entity, field.FieldId, "shown another way", transaction, ct);
+        if (operation.Presentation == NendoMedia.Presentation) await RequireMediaValuesAsync(entity, field, transaction, ct);
 
         await using (var update = Command("UPDATE __nendo_field SET presentation = @presentation WHERE field_id = @field;", transaction))
         {
@@ -40,9 +41,35 @@ internal sealed partial class SqliteNendoStore
         }))
         {
             // A new operation in the file's history, whichever presentation it chose: no older host
-            // can replay it.
-            RequiredHostVersion = NendoFormat.MarkdownPresentationMinimumHostVersion,
+            // can replay it. Media is newer still, and so is a field that leaves it.
+            RequiredHostVersion = operation.Presentation == NendoMedia.Presentation || previous == NendoMedia.Presentation
+                ? NendoFormat.MediaMinimumHostVersion
+                : NendoFormat.MarkdownPresentationMinimumHostVersion,
         };
+    }
+
+    /// <summary>
+    /// A field becomes media only while every value it holds is an address, and every embedded one
+    /// names a picture the file holds (ADR-0031 points 2 and 5). The refusal names the first record
+    /// that is not, by ID, never by what it holds.
+    /// </summary>
+    private async Task RequireMediaValuesAsync(EntityMapping entity, FieldMapping field, SqliteTransaction transaction, CancellationToken ct)
+    {
+        if (!await TableExistsAsync(entity.PhysicalTableName, transaction, ct) ||
+            !await ColumnExistsAsync(entity.PhysicalTableName, field.PhysicalColumnName, transaction, ct)) return;
+        await using (var query = Command(
+            $"SELECT __nendo_record_id, {Quote(field.PhysicalColumnName)} FROM {Quote(entity.PhysicalTableName)} " +
+            $"WHERE {Quote(field.PhysicalColumnName)} IS NOT NULL ORDER BY __nendo_record_id;", transaction))
+        await using (var rows = await query.ExecuteReaderAsync(ct))
+        {
+            while (await rows.ReadAsync(ct))
+            {
+                if (rows.GetValue(1) is not string value || !NendoMediaAddress.TryParse(value, out _))
+                    throw new NendoPreconditionException("media-address-invalid",
+                        $"{field.DisplayName} cannot be shown as media while {entity.DisplayName} {rows.GetString(0)} holds a value that is not a picture's address. Correct or clear it first.");
+            }
+        }
+        await RequireMediaPresentAsync(entity, [field], null, transaction, ct);
     }
 
     private static SetFieldPresentationOperation CreateSetFieldPresentationInverse(string canonicalJson, string evidenceJson, string key)

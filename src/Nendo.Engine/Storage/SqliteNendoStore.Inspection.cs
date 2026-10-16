@@ -39,6 +39,14 @@ internal sealed partial class SqliteNendoStore
     internal const long MaximumInspectionFileBytes = 256L * 1024 * 1024;
 
     /// <summary>
+    /// How large a file may be on disk: the open bound plus the embedded media a file may hold
+    /// (ADR-0031 point 6), whose content pages the open bound does not count and the inspection
+    /// does not read. Checked before SQLite opens anything; the open bound itself is checked once
+    /// the media totals can be read.
+    /// </summary>
+    internal const long MaximumPhysicalFileBytes = MaximumInspectionFileBytes + NendoMedia.MaximumFileBytes + WriteHeadroomFileBytes;
+
+    /// <summary>
     /// How many rows the audit and definition tables may carry and still be inspected.
     /// Counted per table over <c>__nendo_entity</c>, <c>__nendo_field</c>,
     /// <c>__nendo_revision</c> and <c>__nendo_operation</c>.
@@ -104,7 +112,7 @@ internal sealed partial class SqliteNendoStore
     /// </remarks>
     private async Task RequireRoomToGrowAsync(SqliteTransaction transaction, CancellationToken cancellationToken)
     {
-        var bytes = new FileInfo(_path).Length;
+        var bytes = new FileInfo(_path).Length - (await ReadMediaTotalsAsync(transaction, cancellationToken)).Bytes;
         if (bytes >= WriteCeilingFileBytes)
         {
             throw new NendoPreconditionException("write-ceiling-bytes",
@@ -132,7 +140,7 @@ internal sealed partial class SqliteNendoStore
     {
         var pages = Convert.ToInt64(await ScalarAsync("PRAGMA page_count;", transaction, cancellationToken), CultureInfo.InvariantCulture);
         var pageSize = Convert.ToInt64(await ScalarAsync("PRAGMA page_size;", transaction, cancellationToken), CultureInfo.InvariantCulture);
-        if (pages * pageSize > MaximumInspectionFileBytes)
+        if ((pages - await ReadMediaContentPagesAsync(pageSize, transaction, cancellationToken)) * pageSize > MaximumInspectionFileBytes)
             throw new NendoPreconditionException("write-ceiling-bytes",
                 $"This write would exceed the {InspectionLimitText} open limit. Nothing was changed, so the file still opens. Fold its history or start a new file.");
         var tables = new List<string>();
@@ -182,7 +190,7 @@ internal sealed partial class SqliteNendoStore
             headerRead = true;
         }
         if (new[] { "-journal", "-wal", "-shm" }.Any(suffix => File.Exists(path + suffix)) ||
-            pin.Length > MaximumInspectionFileBytes || !headerRead ||
+            pin.Length > MaximumPhysicalFileBytes || !headerRead ||
             !header.AsSpan(0, 16).SequenceEqual("SQLite format 3\0"u8) || header[18] != 1 || header[19] != 1)
             throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
     }
@@ -335,7 +343,7 @@ internal sealed partial class SqliteNendoStore
         try
         {
             using var pin = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            if (pin.Length > MaximumInspectionFileBytes)
+            if (pin.Length > MaximumPhysicalFileBytes)
             {
                 return Unreadable("inspection-limit", $"This file exceeds the current {InspectionLimitText} inspection limit. Its contents have not been changed.", observedAt);
             }
@@ -348,6 +356,12 @@ internal sealed partial class SqliteNendoStore
                 {
                     return Unreadable("unsupported-journal", "This file uses an unsupported storage read/write profile. It was not opened by SQLite or changed.", observedAt, recovery: true);
                 }
+            }
+            // Past the open bound only a SQLite file is opened, to read whether its size is embedded
+            // media (ADR-0031); anything else is refused by length alone, as it always was.
+            if (pin.Length > MaximumInspectionFileBytes && !header.AsSpan(0, 16).SequenceEqual("SQLite format 3\0"u8))
+            {
+                return Unreadable("inspection-limit", $"This file exceeds the current {InspectionLimitText} inspection limit. Its contents have not been changed.", observedAt);
             }
             await using var connection = await OpenConnectionAsync(path, SqliteOpenMode.ReadOnly, cancellationToken);
             var store = new SqliteNendoStore(path, connection);
@@ -367,7 +381,20 @@ internal sealed partial class SqliteNendoStore
             {
                 return Unreadable("unsupported-format", "This core file format is not supported by this Nendo version. No upgrade or repair was attempted.", observedAt);
             }
-            if (!string.Equals(Convert.ToString(await store.ScalarAsync("PRAGMA integrity_check;", null, cancellationToken), CultureInfo.InvariantCulture), "ok", StringComparison.Ordinal))
+            // A file that embeds media is measured and checked without its media content (ADR-0031
+            // point 7): the open bound counts every other page, and the integrity check reads every
+            // other table. A file without media is checked whole, as it always was.
+            var media = await store.ReadMediaInspectionAsync(cancellationToken);
+            if (media is { } held)
+            {
+                if (held.Bytes > NendoMedia.MaximumFileBytes || held.NonMediaBytes > MaximumInspectionFileBytes)
+                    return Unreadable("inspection-limit", $"This file exceeds the current {InspectionLimitText} inspection limit. Its contents have not been changed.", observedAt);
+            }
+            else if (pin.Length > MaximumInspectionFileBytes)
+            {
+                return Unreadable("inspection-limit", $"This file exceeds the current {InspectionLimitText} inspection limit. Its contents have not been changed.", observedAt);
+            }
+            if (await store.IntegrityResultAsync(wholeFile: false, null, cancellationToken) != "ok")
             {
                 return Unreadable("integrity-failed", "The file did not pass its integrity check. Preserve it and open a verified backup separately.", observedAt);
             }
@@ -406,6 +433,8 @@ internal sealed partial class SqliteNendoStore
             var findings = new List<NendoOpenFinding>();
             if (minimumHost < Version.Parse(NendoFormat.RevisionIndexesMinimumHostVersion) && await store.RevisionIndexesExistAsync(null, cancellationToken))
                 return Unreadable("layout-version-mismatch", "The history indexes a fold adds require the declared index-capable host version.", observedAt);
+            if (layout.Contains("-media-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.MediaMinimumHostVersion))
+                return Unreadable("layout-version-mismatch", "Embedded media requires the declared media-capable host version.", observedAt);
             if (layout.Contains("-search-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.SearchMinimumHostVersion))
                 return Unreadable("layout-version-mismatch", "A search index requires the declared search-capable host version.", observedAt);
             if (layout.Contains("-linkrule-", StringComparison.Ordinal) && minimumHost < Version.Parse(NendoFormat.LinkRuleMinimumHostVersion))
@@ -510,7 +539,7 @@ internal sealed partial class SqliteNendoStore
             }
             if (mappings.SelectMany(entity => entity.Fields).Any(field =>
                     field.StorageKind == NendoStorageKind.Unsupported ||
-                    field.Presentation is not (null or "singleLine" or "longText" or "markdown" or "singleChoice" or "date" or "rating")))
+                    field.Presentation is not (null or "singleLine" or "longText" or "markdown" or "singleChoice" or "date" or "rating" or NendoMedia.Presentation)))
             {
                 findings.Add(new("unsupported-field-semantics", "An unknown field type or presentation is shown as unsupported. Its stored values have not been changed."));
             }
@@ -959,6 +988,9 @@ internal sealed partial class SqliteNendoStore
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(SearchSchemaSql, null, CancellationToken.None);
         layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(MediaSchemaSql, null, CancellationToken.None);
+        layouts["production-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync("DROP TABLE __nendo_media_content; DROP TABLE __nendo_media;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_search; DROP TABLE __nendo_search_doc;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_link_rule;", null, CancellationToken.None);
         await store.NonQueryAsync("DROP TABLE __nendo_extension_kind;", null, CancellationToken.None);
@@ -1028,6 +1060,8 @@ internal sealed partial class SqliteNendoStore
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         await store.NonQueryAsync(SearchSchemaSql, null, CancellationToken.None);
         layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
+        await store.NonQueryAsync(MediaSchemaSql, null, CancellationToken.None);
+        layouts["production-p1-semantic-reference-deletion-choice-retirement-behaviour-tone-scale-purpose-extension-hierarchy-rule-look-fold-newfile-skill-linkrule-search-media-v1"] = await store.ProtectedSchemaSignatureAsync(CancellationToken.None);
         return layouts;
     }
 

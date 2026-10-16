@@ -463,6 +463,24 @@ public sealed record NendoSetFieldRequest(
     NendoRequestContext Context,
     long? ExpectedTargetRecordVersion = null);
 
+/// <summary>
+/// A picture to embed (ADR-0031), and optionally the media field that names it, set in the same
+/// revision so a drop on a record page is one change. The type is read from the content; a stated
+/// one must agree with it.
+/// </summary>
+public sealed record NendoPutMediaRequest(
+    byte[] Content,
+    string? MediaType,
+    string? Name,
+    NendoRequestContext Context,
+    NendoMediaTarget? Target = null);
+
+/// <summary>The media field a put also sets, at the record's expected version.</summary>
+public sealed record NendoMediaTarget(string EntityId, string RecordId, string FieldId, long ExpectedRecordVersion);
+
+/// <summary>What a put stored: the address a field names it by, and the revision it made.</summary>
+public sealed record NendoPutMediaResult(string Address, NendoApplyResult Result);
+
 public sealed record NendoSetFieldsRequest(
     string EntityId,
     string RecordId,
