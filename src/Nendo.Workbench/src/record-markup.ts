@@ -1,4 +1,4 @@
-import { mediaFieldMarkup, mediaThumbMarkup } from './media-markup';
+import { mediaContext, mediaFieldMarkup, mediaThumbMarkup } from './media-markup';
 import { choiceStyle } from './tones';
 import { proportionBar, ring, type ChartStatus, columns, activityGrid as activityGridMarkup } from './chart-kit';
 import { activityLevel, breakdownSegments, bucketLabel, bucketSegments, busiestBucket, chartContext, chartKey, chartTitle, isOverTimeKind, type ScopedChart } from './charts';
@@ -478,7 +478,7 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
     // read yet, so a required one is never a hidden control the browser cannot focus.
     const empty = value.trim() === '';
     return textControl(`<div class="markdown-field"><span class="markdown-field-label">${label}</span>`
-      + (empty ? '' : `<div class="markdown-body">${markdownMarkup(value)}</div>`)
+      + (empty ? '' : `<div class="markdown-body">${markdownMarkup(value, { pictures: mediaContext() })}</div>`)
       + `<details class="markdown-source"${empty ? ' open' : ''}><summary>${empty ? 'Write' : 'Edit'} ${label} as Markdown</summary>`
       + `<textarea name="${name}" rows="8" aria-label="${escapeAttribute(field.displayName)}" ${required}>\n${escapeHtml(value)}</textarea></details></div>`);
   }

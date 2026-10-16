@@ -130,6 +130,13 @@ Lists, boards and outlines show a thumbnail; a gallery's `coverFieldId` tops eac
 picture (ADR-0004, 2026-10-16). Studio's cell shows a small preview beside the address, edits the
 address, and Structure adds a field of type Picture.
 
+A Markdown field on a record page and in its preview shows `![alt](address)` as the picture
+when the address is a media address (W-271): drawn from the media origin, or from the web while
+the device loads web pictures, fitted to the column, and a *Picture not found* line with the alt
+text when it does not load. Any other address stays the alt text with the address as its tooltip,
+and Markdown elsewhere (an agent's chat, Help) shows no pictures. `markdown-pictures.test.mjs`
+holds this.
+
 ## For agents and views
 
 An agent embeds with `nendo.data.put_media` and reads with `nendo://application/media/{sha256}`

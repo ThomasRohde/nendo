@@ -148,3 +148,10 @@
 /* Studio's cell: a small preview, then the address itself (W-268). */
 .studio-media-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .studio-media-address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); color: var(--muted); }
+
+/* A picture in a Markdown field (W-271): fitted to the text column. */
+.markdown-picture { display: block; margin: 8px 0; }
+.markdown-picture img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
+.markdown-picture.is-missing { padding: 8px 10px; border: 1px dashed var(--warning); border-radius: var(--radius-control); background: var(--surface-soft); }
+.markdown-picture-missing { display: none; color: var(--muted); }
+.markdown-picture.is-missing .markdown-picture-missing { display: block; }

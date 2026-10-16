@@ -1,4 +1,5 @@
-import { escapeHtml } from './format';
+import { escapeAttribute, escapeHtml } from './format';
+import { mediaUrl, parseMediaAddress } from './media-model';
 
 /**
  * A text field presented as Markdown, as a page shows it (W-173). AI-written notes and answers
@@ -9,10 +10,36 @@ import { escapeHtml } from './format';
  * escapes, and inline code, strong, emphasis and strikethrough. Every character of the source is
  * escaped before any tag is added, and the only tags in the result are the ones written here, so
  * stored text can never become markup. A link is not followed: its text shows, with the address as
- * its tooltip. An image shows its alt text.
+ * its tooltip. An image shows its alt text, unless the caller gives the file's pictures and the
+ * image's address is a picture's (ADR-0031, W-271): then the picture is shown from the file's media
+ * origin, or from the web while this device loads web pictures. No other address becomes a source.
  */
-export function markdownMarkup(source: string, { headingShift = 2 }: { headingShift?: number } = {}): string {
-  return blocksOf(source.replace(/\r\n?/g, '\n').split('\n'), headingShift, 0);
+export function markdownMarkup(source: string, { headingShift = 2, pictures = null }: { headingShift?: number; pictures?: MarkdownPictures | null } = {}): string {
+  const outer = shownPictures;
+  shownPictures = pictures;
+  try {
+    return blocksOf(source.replace(/\r\n?/g, '\n').split('\n'), headingShift, 0);
+  } finally {
+    shownPictures = outer;
+  }
+}
+
+/** Where a Markdown image's picture comes from: the open file's media origin, and whether web pictures load. */
+export interface MarkdownPictures {
+  origin: string | null | undefined;
+  loadWeb: boolean;
+}
+
+/** The pictures of the call being rendered; null shows every image as its alt text. */
+let shownPictures: MarkdownPictures | null = null;
+
+/** A picture for an image whose address is a media address, or null to show its alt text. */
+function pictureMarkup(alt: string, escapedAddress: string): string | null {
+  if (shownPictures === null) return null;
+  const address = parseMediaAddress(escapedAddress.replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+  const url = address === null ? null : mediaUrl(address, shownPictures.origin, shownPictures.loadWeb);
+  return url === null ? null
+    : `<span class="markdown-picture"><img src="${escapeAttribute(url)}" alt="${alt}" loading="lazy" decoding="async" data-media-thumb /><span class="markdown-picture-missing">Picture not found: ${alt}</span></span>`;
 }
 
 /**
@@ -173,7 +200,9 @@ function inline(text: string): string {
     // never pairs with one in the text and a tag never lands in a tooltip (WMX-07).
     const linked = escapeHtml(escaped)
       .replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g,
-        (whole: string, alt: string, address: string) => addressable(address) ? hold(`<span class="markdown-image" title="${address}">${emphasis(alt)}</span>`) : whole)
+        (whole: string, alt: string, address: string) => !addressable(address) ? whole
+          : hold(address.includes('\uE000') ? `<span class="markdown-image" title="${address}">${emphasis(alt)}</span>`
+            : pictureMarkup(alt, address) ?? `<span class="markdown-image" title="${address}">${emphasis(alt)}</span>`))
       .replace(/\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g,
         (whole: string, label: string, address: string) => addressable(address) ? hold(`<span class="markdown-link" title="${address}">${emphasis(label)}</span>`) : whole);
     const formatted = emphasis(linked)

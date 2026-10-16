@@ -11,6 +11,7 @@ import { errorCode } from './write-failure';
 import { recordPlanOf } from './plan-selection';
 import { markdownMarkup } from './markdown';
 import { wireMediaFields } from './media-field';
+import { mediaContext } from './media-markup';
 import { type ApplicationPlan, type FieldPlan, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { relatedLists, visibleCharts, visibleTiles } from './plan-selection';
@@ -124,7 +125,7 @@ export function wireRecordForm(
     // Set from code, so no input event redraws the rendering above a Markdown box (UIS-14); it is
     // drawn here rather than by an input event, which would untick Not set again.
     const body = control.closest('.markdown-field')?.querySelector<HTMLElement>('.markdown-body');
-    if (body) body.innerHTML = markdownMarkup(control.value);
+    if (body) body.innerHTML = markdownMarkup(control.value, { pictures: mediaContext() });
   });
   recordForm.addEventListener('input', trackEdit);
   recordForm.addEventListener('change', trackEdit);
@@ -158,7 +159,7 @@ export function wireRecordForm(
         body.className = 'markdown-body';
         field.querySelector('.markdown-source')?.before(body);
       }
-      body.innerHTML = markdownMarkup(source.value);
+      body.innerHTML = markdownMarkup(source.value, { pictures: mediaContext() });
       body.hidden = source.value.trim() === '';
     }, 150));
   });

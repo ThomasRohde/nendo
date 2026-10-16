@@ -10,7 +10,8 @@ export interface MediaContext {
   loadWeb: boolean;
 }
 
-function currentContext(): MediaContext {
+/** The open file's pictures as the page draws them now. */
+export function mediaContext(): MediaContext {
   return { origin: state.session.mediaOrigin, canEdit: state.session.capabilities.mutate, loadWeb: loadsWebPictures() };
 }
 
@@ -61,7 +62,7 @@ export function mediaMenuMarkup(address: MediaAddress | null, saved: boolean): s
  * against a record.
  */
 export function mediaFieldMarkup(field: FieldPlan, currentValue: unknown, record: RecordPlan | null = null,
-  where: MediaContext = currentContext()): string {
+  where: MediaContext = mediaContext()): string {
   const name = escapeAttribute(field.semanticId);
   const label = escapeHtml(field.displayName);
   const raw = typeof currentValue === 'string' ? currentValue : '';
@@ -102,7 +103,7 @@ export function mediaFieldMarkup(field: FieldPlan, currentValue: unknown, record
  * A picture as a thumbnail, for a list row, a card, an outline row or Studio's cell: empty for a
  * value that is not a picture's address or not shown on this device, so the caller says Not set.
  */
-export function mediaThumbMarkup(value: unknown, label: string, small = false, where: MediaContext = currentContext()): string {
+export function mediaThumbMarkup(value: unknown, label: string, small = false, where: MediaContext = mediaContext()): string {
   const address = parseMediaAddress(value);
   if (address === null) return '';
   const url = mediaUrl(address, where.origin, where.loadWeb);
@@ -111,7 +112,7 @@ export function mediaThumbMarkup(value: unknown, label: string, small = false, w
 }
 
 /** A gallery card's cover: the picture at a square, or nothing when the record has none. */
-export function mediaCoverMarkup(value: unknown, where: MediaContext = currentContext()): string {
+export function mediaCoverMarkup(value: unknown, where: MediaContext = mediaContext()): string {
   const address = parseMediaAddress(value);
   const url = address === null ? null : mediaUrl(address, where.origin, where.loadWeb);
   return url === null ? '<span class="media-cover is-empty" aria-hidden="true"></span>'
