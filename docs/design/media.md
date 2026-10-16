@@ -4,8 +4,10 @@ Status: **planned**; nothing is built as of 2026-10-15. [ADR-0031](../decisions/
 is Proposed, and decision D-010 in the planner asks the owner its three questions.
 
 The owner asked on 2026-10-15 for Nendo applications to hold media, such as pictures and sound:
-embedded in the `.nendo` file, linked to a web address, or linked to a file on the computer. It is
-initiative I-011 in the planner; this plan is W-252, and the slices are W-253 to W-262.
+embedded in the `.nendo` file, linked to a web address, or linked to a file on the computer. On
+2026-10-16 they asked for **images first**, as initiative I-012 in the planner; this plan is
+W-252, and the image slices are W-263 to W-274. Sound and video use the same design and are not
+yet planned.
 
 This document is the plan: what a media value is, where its bytes live, how big a file may get,
 how the bytes reach the screen, what agents and views may do, and the slices that build it. The
@@ -86,7 +88,7 @@ open at that size costs about 6.6 seconds. One album would fill it. So the plan:
   become a read of every other table.
 - **The budget is 64 MiB per item and 2 GiB per file.** 64 MiB holds a FLAC album track or a short
   1080p clip. 2 GiB is a photo library of a few thousand pictures.
-- **The measurement decides.** W-254 starts by measuring a cold open of a file holding 2 GiB of
+- **The measurement decides.** W-264 starts by measuring a cold open of a file holding 2 GiB of
   content against the same file without it. If it is not within 10%, the budget comes down to what
   is, and the ADR says so.
 
@@ -131,7 +133,7 @@ and not a path through Nendo.
 
 ## Native UI
 
-The look is the canvas's job (W-253); this is what it must cover:
+The look is the canvas's job (W-263); this is what it must cover:
 
 - **Record page.** A picture fitted to its column, with a larger view on click; sound and video with
   their own controls; a line naming the source (In file, Linked file, Web), the name and the size.
@@ -163,49 +165,31 @@ a gallery of large pictures measures slow.
 
 ## Build slices
 
-Each slice is a planner work item under I-011, with its own acceptance criteria. Every guard a slice
-adds is falsified once, and the failure text goes in a Finding (`AGENTS.md`).
+The slices build pictures: PNG, JPEG, GIF, WebP, AVIF and SVG. Each is a planner work item under
+I-012, with its own acceptance criteria. Every guard a slice adds is falsified once, and the
+failure text goes in a Finding (`AGENTS.md`).
 
 | Slice | What | Acceptance and gate |
 | --- | --- | --- |
-| **M1** (W-253) Canvas | Directions for every state under [Native UI](#native-ui), Light and Dark | The owner's pick recorded here and on the item; artboards in `docs/design/media-canvas/` |
-| **M2** (W-254) Engine | The rung, field, accept set, address, `media.put`, `media-missing`, the bounds, the open inspection, integrity, new files, minimum host | Engine tests per write path, each falsified; operation rows independent of item size; layout and Format1 fixtures unchanged; **the open-time measurement first**; `Test-Production.ps1` |
-| **M3** (W-255) Serving | The media origin, streaming and ranges, local allow-list, no CORS, SVG sandbox, the shell CSP, the device setting | A lane measuring ranges, 404s, view `fetch` refused while `img` shows, SVG script not run, remote not requested when off; a 64 MiB item not allocated whole |
-| **M4** (W-256) Workbench and Studio | Record page, editor, lists, gallery cover, Studio, Markdown off, missing state | Workbench shell lane: geometry in both themes, a real-pointer drop embedding in one revision, Studio's text fallback; installer rebuilt; the owner asked to look |
-| **M5** (W-257) MCP | Vocabulary, chunked put, media read, audited refusals, skill text | Protocol tests; surface count and description lint |
-| **M6** (W-258) View API | `media.urlFor`, `describe`, `put`, `read` | A view test round-trips a picture; `read` of a link refused; the contract updated |
-| **M7** (W-259) Markdown pictures | `markdown.ts` renders media addresses | SSR markup tests, including `javascript:` and `data:` staying inert |
-| **M8** (W-260) CSV, new files, search | Export with media, import, embed all linked, search on names | A round trip between two files compared by hash; a missing `media:` refused at review |
-| **M9** (W-261) Remove unused media | The host operation and Studio's media totals | Named content never removed; backup first; size falls by what was removed |
-| **M10** (W-262) Reference file and guide | A built demo file with all three sources, the site guide and screenshots, the measurements as Checks | `Test-BinaryAssets.ps1`, `Test-Site.ps1` |
+| **W-263** Image canvas | Directions for every state under [Native UI](#native-ui), pictures only, Light and Dark | The owner's pick recorded here and on the item; artboards in `docs/design/image-canvas/` |
+| **W-264** Engine | The rung, field, accept set, address, `media.put` for picture types, `media-missing`, the bounds, the open inspection, integrity, new files, minimum host | Engine tests per write path, each falsified; operation rows independent of a picture's size; layout and Format1 fixtures unchanged; **the open-time measurement first**; `Test-Production.ps1` |
+| **W-265** Serving | The media origin, streaming, local allow-list, no CORS, SVG sandbox, the shell CSP's `img-src`, the device setting | A lane measuring 404s, view `fetch` refused while `img` shows, SVG script not run, remote not requested when off; a 64 MiB picture not allocated whole |
+| **W-266** Record page | The picture with its width and height reserved, the larger view, the editor (drop, pick, paste from the clipboard, link, web address, embed a copy, show in folder, save a copy), the missing state | Workbench shell lane in both themes; a real-pointer drop and a paste each embed in one revision; installer rebuilt; the owner asked to look |
+| **W-267** Thumbnails and covers | Thumbnails in lists and boards; a gallery cover property (ADR-0004 amendment first) | Lane geometry in both themes; a gallery of 200 large pictures measured before any thumbnail cache |
+| **W-268** Studio | The cell's preview and editor; adding an image field in Structure | The address readable when the preview is refused; safe mode shows text |
+| **W-269** MCP | Vocabulary, chunked put, the picture as MCP image content, audited refusals, skill text | Protocol tests; surface count and description lint |
+| **W-270** View API | `media.urlFor`, `describe`, `put`, `read` | A view test round-trips a picture; `read` of a link refused; the contract updated |
+| **W-271** Markdown pictures | `markdown.ts` renders media addresses | SSR markup tests, including `javascript:` and `data:` staying inert |
+| **W-272** CSV, new files, search | Export with pictures, import, embed all linked, search on names | A round trip between two files compared by hash; a missing `media:` refused at review |
+| **W-273** Remove unused pictures | The host operation and Studio's totals | Named content never removed; backup first; size falls by what was removed |
+| **W-274** Reference file and guide | A built demo file with all three sources, the site guide and screenshots, the measurements as Checks | `Test-BinaryAssets.ps1`, `Test-Site.ps1` |
 
-The order is M2 first, with M1 alongside since it changes no code. M3 follows M2; M4 needs M1, M2
-and M3. M5, M8 and M9 need only M2; M6 and M7 need M3; M10 comes last. The planner holds these as
-dependencies.
+The order is W-264 first, with W-263 alongside since it changes no code. W-265 follows W-264;
+W-266, W-267 and W-268 need the canvas and W-265. W-269, W-272 and W-273 need only W-264; W-270 and
+W-271 need W-265; W-274 comes last. The planner holds these as dependencies.
 
-## Images first
-
-On 2026-10-16 the owner asked for image support as an initiative of its own: I-012, W-263 to
-W-274. It builds the picture half of this plan on the same store, address and media origin, so
-sound and video (I-011) later add types and players, not plumbing. Its slices map onto the ones
-above, with Studio, thumbnails and the record page split apart:
-
-| Image item | Covers |
-| --- | --- |
-| W-263 Image canvas | M1, pictures only |
-| W-264 Engine | M2, picture types |
-| W-265 Serving | M3 |
-| W-266 Record page, W-267 Thumbnails and covers, W-268 Studio | M4 |
-| W-269 MCP | M5 |
-| W-270 View API | M6 |
-| W-271 Markdown | M7 |
-| W-272 CSV, new files, search | M8 |
-| W-273 Remove unused pictures | M9 |
-| W-274 Reference file and guide | M10 |
-
-The image items additionally ask for pasting a picture from the clipboard, reserving a picture's
-width and height so a page does not shift as it loads, and a measured gallery of 200 large
-pictures before any thumbnail cache is built.
+Sound and video would add their types to the accept set and their players to the record page, on
+the same store, address and origin; nothing in these slices is picture-only plumbing.
 
 ## Open questions
 
