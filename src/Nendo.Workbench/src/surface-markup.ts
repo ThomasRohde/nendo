@@ -1,3 +1,4 @@
+import { mediaCoverMarkup } from './media-markup';
 import {
   boardView, excludedLanesNote, kindLabel as surfaceKindLabel, matrixViewOf, nodeFieldIds, referenceColumnsEmpty,
   referenceColumnsOverflow, surfaceLabel, useSurfaces, type BoardView, type MatrixView, isCustomViewKind,
@@ -282,9 +283,12 @@ export function galleryMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): str
   const bodyFieldIds = bound.filter((fieldId) => fieldId !== titleFieldId);
   const accentFieldId = typeof node.properties.accentFieldId === 'string' ? node.properties.accentFieldId : null;
   const accentField = accentFieldId === null ? undefined : plan.entity.fields.find((field) => field.semanticId === accentFieldId);
-  return `<div class="record-gallery" role="list" aria-label="${escapeAttribute(`${plan.entity.displayName} cards`)}">${plan.records.map((record) =>
-    `<div role="listitem" class="record-row">${recordCardMarkup(plan, record, [titleFieldId, ...bodyFieldIds],
-      accentFieldId === null ? '' : choiceStyle(accentField, record.values[accentFieldId]))}</div>`).join('')}</div>`;
+  // A cover (ADR-0031): the picture of a media field tops each card, at a square.
+  const coverFieldId = typeof node.properties.coverFieldId === 'string' ? node.properties.coverFieldId : null;
+  return `<div class="record-gallery${coverFieldId === null ? '' : ' has-covers'}" role="list" aria-label="${escapeAttribute(`${plan.entity.displayName} cards`)}">${plan.records.map((record) =>
+    `<div role="listitem" class="record-row">${recordCardMarkup(plan, record, [titleFieldId, ...bodyFieldIds.filter(fieldId => fieldId !== coverFieldId)],
+      accentFieldId === null ? '' : choiceStyle(accentField, record.values[accentFieldId]),
+      coverFieldId === null ? '' : mediaCoverMarkup(record.values[coverFieldId]))}</div>`).join('')}</div>`;
 }
 
 /**

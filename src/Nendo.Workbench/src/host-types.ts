@@ -165,6 +165,8 @@ export interface DesktopSessionView {
   extensions?: ExtensionRuntimeView | null;
   /** The file's look as its icon draws it (W-089). Absent without a file, and in recovery. */
   look?: ResolvedLook | null;
+  /** Where this file's pictures are served (ADR-0031): /m/{sha256} and /f/?a={address}. Absent without a file. */
+  mediaOrigin?: string | null;
 }
 
 /** Why custom views may not run now (ADR-0013): each is one of the kill switches. */
@@ -898,6 +900,8 @@ export interface WorkbenchClient {
   readonly acceptsDroppedFiles?: boolean;
   /** Open a file the person dropped on the window. */
   openDroppedFile?<T>(file: File): Promise<T>;
+  /** Embed a picture dropped on a media field (ADR-0031); the host reads the file, never the page. */
+  embedDroppedPicture?<T>(payload: Record<string, unknown>, file: File): Promise<T>;
 }
 
 /** What a stop actually managed to do, counted rather than assumed. */

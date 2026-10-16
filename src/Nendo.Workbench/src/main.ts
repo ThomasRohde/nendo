@@ -1,5 +1,6 @@
 // First, so that a Workbench loaded inside a frame stops before anything else has run.
 import './frame-guard';
+import { wireMediaThumbnails } from './media-field';
 import { agentDigest, refreshAgentStatus, renderAgent, renderAgentProposal } from './view-agent';
 import { agentChatTitle, followAgentChat, renderAgentChat } from './view-agent-chat';
 import { destroyGrid, renderData, stopGridEditing, markDataGridChanged } from './view-data';
@@ -680,9 +681,13 @@ function draggedFileCount(transfer: DataTransfer | null): number {
 
 // dragenter and dragleave fire for every element the pointer crosses, so the depth
 // counter is what stops the hint flickering its way across the page.
+wireMediaThumbnails(document);
+
 document.addEventListener('dragenter', event => {
   const files = draggedFileCount(event.dataTransfer);
   if (files === 0) return;
+  // A picture dragged onto a picture field is the field's, not a file to open (ADR-0031).
+  if ((event.target as Element | null)?.closest?.('[data-media-drop]')) return;
   // A modal has hold of the window, and the overlay would appear behind it — the
   // same rule Escape and Alt+arrow follow. Opening another file underneath a dialog
   // somebody is still answering is the part that matters.
@@ -697,6 +702,12 @@ document.addEventListener('dragenter', event => {
 // watched it fall silent.
 document.addEventListener('dragover', event => {
   if (dropTarget.hidden) return;
+  // The hint covers the window; under it, a picture field still takes the picture.
+  if (document.elementsFromPoint(event.clientX, event.clientY).some(element => element.matches('[data-media-drop]'))) {
+    hideDrag();
+    dragDepth = 0;
+    return;
+  }
   event.preventDefault();
   if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
 });

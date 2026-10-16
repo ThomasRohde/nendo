@@ -247,6 +247,36 @@ public sealed class GallerySurfaceTests
             "the surface's own filterClause children");
     }
 
+    /// <summary>
+    /// A gallery's cover (ADR-0004 2026-10-16 amendment, ADR-0031): a media field whose picture tops
+    /// each card, which only a host that serves pictures draws, so it states that host.
+    /// </summary>
+    [TestMethod]
+    public void AGalleryMayBeCoveredByAMediaFieldAndStatesTheMediaHost()
+    {
+        var nodes = new[] { Gallery("cards", ("coverFieldId", "e-cover")), Binding("cards-name", "cards", "e-name") };
+        var compiled = new NendoSemanticCompiler().Compile(Source(nodes));
+        Assert.IsTrue(compiled.IsValid, Messages(compiled));
+        Assert.AreEqual("e-cover", compiled.Applications.Single().Surfaces.Single().Properties["coverFieldId"].GetString());
+        Assert.AreEqual(NendoFormat.MediaMinimumHostVersion, NendoSemanticCapability.RequiredHostVersion(nodes, []));
+        Assert.AreNotEqual(NendoFormat.MediaMinimumHostVersion,
+            NendoSemanticCapability.RequiredHostVersion([Gallery("cards"), Binding("cards-name", "cards", "e-name")], []));
+    }
+
+    [TestMethod]
+    [DataRow("e-name", "a Text, so it cannot cover a card")]
+    [DataRow("e-calc", "is calculated, so it cannot cover a card")]
+    [DataRow("e-gone", "does not exist")]
+    [DataRow("", "must name a field")]
+    public void ACoverThatIsNotAMediaFieldIsRefusedByName(string fieldId, string reason)
+    {
+        var compiled = new NendoSemanticCompiler().Compile(Source([Gallery("cards", ("coverFieldId", fieldId)), Binding("cards-name", "cards", "e-name")]));
+        Assert.IsFalse(compiled.IsValid);
+        var refusal = compiled.Diagnostics.Single(diagnostic => diagnostic.Code == "NUI459");
+        Assert.AreEqual("coverFieldId", refusal.PropertyPath);
+        StringAssert.Contains($"{refusal.Message} {refusal.Hint}", reason);
+    }
+
     private static NendoUiNodeSnapshot Gallery(
         string nodeId,
         params (string Name, object Value)[] properties) =>
@@ -286,6 +316,7 @@ public sealed class GallerySurfaceTests
                     new("e-notes", "Notes", NendoStorageKind.Text, false, "longText", []),
                     new("e-due", "Due", NendoStorageKind.Date, false, "date", []),
                     new("e-stage", "Stage", NendoStorageKind.Text, false, "singleChoice", ["open", "done"]),
+                    new("e-cover", "Cover", NendoStorageKind.Text, false, "media", []),
                 ])
                 {
                     DerivedFields =

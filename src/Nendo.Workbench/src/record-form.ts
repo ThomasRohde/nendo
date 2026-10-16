@@ -10,6 +10,7 @@ import { escapeHtml, isDateTimeKind, messageFor, mutationKey, sameValue, storage
 import { errorCode } from './write-failure';
 import { recordPlanOf } from './plan-selection';
 import { markdownMarkup } from './markdown';
+import { wireMediaFields } from './media-field';
 import { type ApplicationPlan, type FieldPlan, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
 import { refreshVisibleTiles, wireCharts, wireSummaryRetry } from './panels';
 import { relatedLists, visibleCharts, visibleTiles } from './plan-selection';
@@ -57,6 +58,7 @@ export function wireRecordForm(
   if (page !== null) { wireTabs(page, record); wireFolds(page, record); }
   const editedFields = new Set<string>();
   const recordForm = requiredElement<HTMLFormElement>('#record-form');
+  wireMediaFields(recordForm, entityId, record, redraw);
   if (state.session.entities.find(entity => entity.entityId === entityId)?.retired)
     for (const control of recordForm.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>('input, select, textarea, button')) control.disabled = true;
   recordForm.querySelector<HTMLButtonElement>('#delete-record')?.addEventListener('click', () => {
@@ -213,6 +215,8 @@ export function formValue(field: FieldPlan, form: FormData, stored?: unknown): u
     return chosen === null || chosen === stored ? chosen : parseScalar(storageLabel(field.storageKind), chosen);
   }
   if (field.presentation === 'singleChoice' && !form.get(field.semanticId)) return null;
+  // A picture field with nothing in it holds no address, not empty text (ADR-0031).
+  if (field.presentation === 'media') return stringValue(form.get(field.semanticId)) || null;
   return parseScalar(storageLabel(field.storageKind), stringValue(form.get(field.semanticId)));
 }
 

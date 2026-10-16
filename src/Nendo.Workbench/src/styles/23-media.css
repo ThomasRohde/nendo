@@ -1,0 +1,150 @@
+/* Picture fields (ADR-0031), the image canvas's direction A: the picture fitted to its column,
+   a source line with a menu under it, a dashed drop zone when empty, a quiet row when the
+   picture is not there. Colours are the theme's tokens only. */
+
+.media-field { display: flex; flex-direction: column; gap: 6px; position: relative; max-width: 560px; }
+.media-field:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 4px; border-radius: var(--radius-control); }
+.media-field-label { color: var(--muted); font-size: 0.82rem; font-weight: 600; }
+
+.media-frame { border-radius: var(--radius-control); }
+.media-frame.is-drop-target, .media-drop.is-drop-target { outline: 2px dashed var(--cobalt); outline-offset: 3px; background: var(--cobalt-soft); }
+
+.media-picture {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--surface-soft);
+  cursor: zoom-in;
+}
+.media-picture img { display: block; width: 100%; height: auto; max-height: 420px; object-fit: contain; }
+.media-picture:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
+
+.media-line { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--muted); font-size: 0.8rem; }
+.media-line-spacer { flex: 1; }
+.media-source { flex: none; padding: 1px 6px; border-radius: var(--radius-control); background: var(--cobalt-soft); color: var(--cobalt); font-weight: 600; }
+.media-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.media-menu-button {
+  flex: none;
+  min-width: 32px;
+  min-height: 28px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+.media-menu {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 240px;
+  margin-top: 4px;
+  padding: 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+.media-menu[hidden] { display: none; }
+.media-menu-item { padding: 7px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); text-align: left; }
+.media-menu-item:hover:not([disabled]), .media-menu-item:focus-visible { background: var(--surface-soft); }
+.media-menu-item[disabled] { color: var(--muted); }
+.media-menu-item.is-danger { color: var(--danger); }
+.media-menu-separator { height: 1px; margin: 4px 0; background: var(--line); }
+
+.media-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px;
+  border: 1.5px dashed var(--line-strong);
+  border-radius: var(--radius-control);
+}
+.media-drop p { margin: 0; }
+.media-drop[aria-disabled="true"] { color: var(--muted); }
+.media-drop-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.media-missing {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+}
+.media-missing[hidden], .media-picture[hidden] { display: none; }
+.media-missing-title { color: var(--warning); font-weight: 600; }
+.media-missing code, .media-unreadable code { overflow-wrap: anywhere; color: var(--muted); }
+
+.media-waiting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-soft);
+}
+.media-waiting p { margin: 0; }
+
+.media-web-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.media-web-form[hidden] { display: none; }
+.media-web-form label { flex: 1 1 260px; }
+
+.media-lightbox {
+  max-width: min(92vw, 1600px);
+  max-height: 92vh;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--canvas);
+}
+.media-lightbox::backdrop { background: color-mix(in srgb, var(--canvas) 70%, transparent); }
+.media-lightbox img { display: block; max-width: min(92vw, 1600px); max-height: 92vh; object-fit: contain; }
+.media-lightbox-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* A thumbnail in a list row, on a board card and in Studio's cell (W-267, W-268). */
+.media-thumb {
+  display: inline-block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--surface-soft);
+  vertical-align: middle;
+}
+.media-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.media-thumb.is-small { width: 22px; height: 22px; border-radius: 3px; }
+.media-thumb.is-missing { border-style: dashed; border-color: var(--warning); }
+.media-cover { display: block; aspect-ratio: 1 / 1; overflow: hidden; background: var(--surface-soft); }
+.media-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* A gallery card topped by its picture: the cover runs edge to edge above the title. */
+.record-card.has-cover { padding-top: 0; overflow: hidden; }
+.record-card.has-cover .media-cover { margin: 0 -12px 10px; border-bottom: 1px solid var(--line); }
+.media-cover.is-empty { background: var(--surface-soft); }
+.media-cover.is-missing { background: var(--surface-soft); border-bottom-style: dashed; }
+
+/* Studio's cell: a small preview, then the address itself (W-268). */
+.studio-media-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.studio-media-address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); color: var(--muted); }

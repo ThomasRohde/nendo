@@ -135,6 +135,29 @@ public sealed partial class NendoSemanticCompiler
     {
         ValidateTitleField(node, fields, derived, CardTitle, diagnostics);
         ValidateAccentField(node, fields, derived, CardAccent, diagnostics);
+        ValidateCoverField(node, fields, diagnostics);
+    }
+
+    /// <summary>
+    /// A gallery's cover (ADR-0004 2026-10-16 amendment): an active media field of the record type,
+    /// whose picture tops each card. A picture is a stored address, so a calculation cannot be one.
+    /// </summary>
+    private static void ValidateCoverField(
+        NendoUiNodeSnapshot node,
+        IReadOnlyDictionary<string, NendoFieldSnapshot> fields,
+        ICollection<NendoCompilerDiagnostic> diagnostics)
+    {
+        if (!node.Properties.ContainsKey("coverFieldId")) return;
+        var cover = HeaderField(node, "coverFieldId");
+        if (cover is null)
+            AddError(diagnostics, "NUI459", "A gallery's cover must name a field.", node.NodeId, "coverFieldId",
+                "Set the fieldId of an active media field, or clear coverFieldId with ui.removeProperty.");
+        else if (!fields.TryGetValue(cover, out var field))
+            AddError(diagnostics, "NUI459", $"Field '{cover}' does not exist, is retired or is calculated, so it cannot cover a card.", node.NodeId, "coverFieldId",
+                "Set the fieldId of an active media field of this record type.");
+        else if (field.Presentation != NendoMedia.Presentation)
+            AddError(diagnostics, "NUI459", $"Field '{cover}' is {HeaderShape(field)}, so it cannot cover a card.", node.NodeId, "coverFieldId",
+                "Name a field shown as media, whose value is a picture's address.");
     }
 
     /// <summary>

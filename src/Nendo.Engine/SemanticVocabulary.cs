@@ -149,13 +149,13 @@ public static class NendoSemanticVocabulary
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
                 // A card per record, over exactly a list's bounded window (ADR-0004
-                // 2026-09-14 amendment, S2). Cards are typographic because there are no
-                // image fields: the title leads, the accent option tones the card's edge,
-                // and the bound fields are the body. It takes the tiles and charts a list
-                // takes, in the same row above the grid.
+                // 2026-09-14 amendment, S2). The title leads, the accent option tones the
+                // card's edge, and the bound fields are the body. A media field may cover each
+                // card with its picture (ADR-0004 2026-10-16 amendment, ADR-0031). It takes the
+                // tiles and charts a list takes, in the same row above the grid.
                 ["gallerySurface"] = new(
                     "gallerySurface",
-                    Set("definitionVersion", "entityId", "title", "titleFieldId", "accentFieldId", "orderByFieldId", "orderDirection"),
+                    Set("definitionVersion", "entityId", "title", "titleFieldId", "accentFieldId", "coverFieldId", "orderByFieldId", "orderDirection"),
                     Set("definitionVersion", "entityId"),
                     Set("fieldBinding", "filterClause", "summaryTile", "breakdownChart", "progressTile", "rangeTile", "trendChart", "activityGrid"),
                     CanBeRoot: true,

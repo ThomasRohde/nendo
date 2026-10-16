@@ -192,6 +192,30 @@ internal sealed partial class SqliteNendoStore
         return await query.ExecuteScalarAsync(ct) as byte[];
     }
 
+    /// <summary>
+    /// Part of one embedded item's bytes, read through SQLite's incremental blob reader into the
+    /// caller's buffer, so serving a large picture never holds it whole. Returns how many bytes it
+    /// read: fewer than the buffer at the end of the item, and -1 when the file does not hold it.
+    /// </summary>
+    internal async Task<int> ReadMediaRangeAsync(string sha256, long offset, Memory<byte> buffer, CancellationToken ct)
+    {
+        if (!await MediaLayoutExistsAsync(null, ct)) return -1;
+        await using var query = Command("SELECT rowid FROM __nendo_media_content WHERE sha256 = @sha;", null);
+        query.Parameters.AddWithValue("@sha", sha256);
+        if (await query.ExecuteScalarAsync(ct) is not long rowid) return -1;
+        using var blob = new SqliteBlob(_connection, MediaContentTable, "content", rowid, readOnly: true);
+        if (offset >= blob.Length) return 0;
+        blob.Position = offset;
+        var read = 0;
+        while (read < buffer.Length)
+        {
+            var count = await blob.ReadAsync(buffer[read..], ct);
+            if (count == 0) break;
+            read += count;
+        }
+        return read;
+    }
+
     /// <summary>How many items the file embeds and how many bytes they hold, from the metadata alone.</summary>
     internal async Task<(long Count, long Bytes)> ReadMediaTotalsAsync(SqliteTransaction? transaction, CancellationToken ct)
     {

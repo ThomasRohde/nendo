@@ -149,6 +149,13 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return this.requestCore<T>('file.openDropped', {}, [file]);
   }
 
+  /** A picture dropped on a media field, handed over as the shell's own file object like a dropped Nendo file. */
+  embedDroppedPicture<T>(payload: Record<string, unknown>, file: File): Promise<T> {
+    if (!this.acceptsDroppedFiles)
+      return Promise.reject(new WorkbenchHostError('dropped-files-unsupported', 'This Nendo cannot take a dropped picture. Use Choose picture… instead.'));
+    return this.requestCore<T>('media.embed', payload, [file]);
+  }
+
   request<T>(method: string, payload: Record<string, unknown> = {}): Promise<T> {
     // A custom view's write (it names an actor) is not the person's save, so it does not take
     // the journal's one slot. Taking it would hold the person's next save behind a view's

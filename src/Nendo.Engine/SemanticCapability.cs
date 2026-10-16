@@ -268,6 +268,9 @@ internal static class NendoSemanticCapability
         new(NendoFormat.FileViewMinimumHostVersion,
             "a custom view with a screen of its own",
             tree => tree.HasKind(NendoExtensionViewDefinition.ScreenKind)),
+        new(NendoFormat.MediaMinimumHostVersion,
+            "a gallery covered by pictures",
+            tree => tree.OfKind("gallerySurface").Any(gallery => gallery.Properties.ContainsKey("coverFieldId"))),
     ];
 
     private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];

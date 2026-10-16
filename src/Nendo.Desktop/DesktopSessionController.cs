@@ -51,6 +51,12 @@ internal sealed record DesktopSessionView(
     public DesktopExtensionRuntimeView? Extensions { get; init; }
 
     /// <summary>
+    /// Where this file's pictures are served (ADR-0031): its embedded pictures at <c>/m/{sha256}</c>
+    /// and its local ones at <c>/f/?a={address}</c>. Null when no file is open or it is in recovery.
+    /// </summary>
+    public string? MediaOrigin { get; init; }
+
+    /// <summary>
     /// How this file is told apart from the others open beside it: the tone and letter of its
     /// icon's badge, chosen or by default (W-089). Null when no file is open or it is in recovery.
     /// </summary>
@@ -711,6 +717,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
             LocationWarning = _currentPath is null ? null : _locationPolicy.Inspect(_currentPath),
             BehaviourTrust = DescribeBehaviourTrust(),
             Extensions = DescribeExtensions(snapshot, health),
+            MediaOrigin = MediaOriginFor(snapshot.Manifest),
             Look = NendoLook.Resolve(snapshot.Manifest.ApplicationId, snapshot.FileName, snapshot.Manifest.Look),
         };
     }

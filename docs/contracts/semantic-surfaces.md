@@ -484,7 +484,7 @@ editor never reads `visibleWhen`; it is a rule for the Use view's record page.
 
 `gallerySurface` (ADR-0004, 2026-09-14 amendment, S2) is a root with
 `definitionVersion`, `entityId`, an optional `title`, the existing ordering
-properties and two optional field roles. Its children are `fieldBinding`,
+properties and three optional field roles. Its children are `fieldBinding`,
 `filterClause` and the tiles and charts that a list takes. It owns eight roots per
 entity.
 
@@ -492,8 +492,9 @@ entity.
 | --- | --- | --- |
 | `titleFieldId` | an active stored Text field that is not a single choice | `NUI380` |
 | `accentFieldId` | an active single-choice field | `NUI381` |
+| `coverFieldId` | an active media field (ADR-0031, the 2026-10-16 amendment) | `NUI459` |
 
-A calculated field in either is refused by that property's own code. Both are
+A calculated field in any of them is refused by that property's own code. All three are
 optional. If a card has no
 declared title, it leads with its **first bound field**, as a timeline entry does.
 So one rule titles a gallery card and a board card, and one function draws the
@@ -513,9 +514,13 @@ a board card. Everything else is a labelled value pair.
 
 Where `accentFieldId` is named, the record's option tones the card's border and
 tints its background, in the same way the record-page header band is tinted. No
-card or callout carries a coloured left stripe (W-096). A record whose choice is unset gets the neutral card. Cards are
-typographic because a field cannot hold an image. When the hierarchy is good,
-this is a strength of the card.
+card or callout carries a coloured left stripe (W-096). A record whose choice is unset gets the neutral card.
+
+Where `coverFieldId` is named, the record's picture tops the card at a square, edge to edge
+above the title, from the file's media origin; a record with no picture gets an empty square of
+the soft surface, and a picture that does not load a dashed one. The cover field is not repeated
+among the card's values. A gallery with a cover needs host `1.52.0`. Without one, cards are
+typographic, which is a strength of the card when the hierarchy is good.
 
 Opening a card must not recompute the grid. When the side inspector takes
 horizontal space, the gallery keeps its existing width and the surface scrolls

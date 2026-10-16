@@ -281,7 +281,8 @@ internal sealed partial class WorkbenchProtocolHandler
     internal async Task<WorkbenchResponse> HandleAsync(
         string messageJson,
         string? droppedPath = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? droppedPicture = null)
     {
         string requestId = "invalid-request";
         var responseProtocolVersion = DesktopShellContract.BridgeProtocolVersion;
@@ -395,6 +396,11 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataDeleteRecord => await DeleteGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetKeptInNewFiles => await SetKeptInNewFilesAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaEmbed => await EmbedMediaAsync(payload, droppedPicture, cancellationToken),
+                    WorkbenchMethods.MediaLink => await LinkMediaAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaEmbedCopy => await EmbedMediaCopyAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaSaveCopy => await SaveMediaCopyAsync(payload, cancellationToken),
+                    WorkbenchMethods.MediaReveal => RevealMedia(payload),
                     WorkbenchMethods.DataSetFields => await SetGenericFieldsAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataMoveRecord => await MoveGenericRecordAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataWriteRecords => await WriteGenericRecordsAsync(payload, writer, cancellationToken),

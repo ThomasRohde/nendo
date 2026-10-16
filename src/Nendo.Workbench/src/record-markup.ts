@@ -1,3 +1,4 @@
+import { mediaFieldMarkup, mediaThumbMarkup } from './media-markup';
 import { choiceStyle } from './tones';
 import { proportionBar, ring, type ChartStatus, columns, activityGrid as activityGridMarkup } from './chart-kit';
 import { activityLevel, breakdownSegments, bucketLabel, bucketSegments, busiestBucket, chartContext, chartKey, chartTitle, isOverTimeKind, type ScopedChart } from './charts';
@@ -82,7 +83,10 @@ export function fieldValueMarkup(
   fieldId: string,
   fallback = '',
 ): string {
-  const scale = ratingScaleOf(plan.entity.fields.find((field) => field.semanticId === fieldId));
+  const declared = plan.entity.fields.find((field) => field.semanticId === fieldId);
+  // A picture is a thumbnail wherever a value is shown: a list row, a card, an outline (ADR-0031).
+  if (declared?.presentation === 'media') return mediaThumbMarkup(record.values[fieldId], declared.displayName) || escapeHtml(fallback);
+  const scale = ratingScaleOf(declared);
   if (scale !== null && !isDerived(plan.entity.derivedFields, fieldId))
     return ratingMarkup(record.values[fieldId], scale, fallback);
   return escapeHtml(recordFieldDisplay(record, fieldId, plan.entity.derivedFields) || fallback);
@@ -102,7 +106,7 @@ export function accentDot(plan: ApplicationPlan, fieldId: string | null, record:
  * an accent field, as the record page's header band is toned; a board card names none and
  * is unchanged.
  */
-export function recordCardMarkup(plan: ApplicationPlan, record: RecordPlan, cardFieldIds: string[], style = ''): string {
+export function recordCardMarkup(plan: ApplicationPlan, record: RecordPlan, cardFieldIds: string[], style = '', cover = ''): string {
   const [headingFieldId, ...detailFieldIds] = cardFieldIds;
   const heading = recordFieldDisplay(record, headingFieldId, plan.entity.derivedFields) || `Untitled ${plan.entity.displayName}`;
   // Choice values read as status, so they carry the same chip treatment as the board columns
@@ -116,7 +120,7 @@ export function recordCardMarkup(plan: ApplicationPlan, record: RecordPlan, card
     return `<span class="card-chip" style="${choiceStyle(plan.entity.fields.find((field) => field.semanticId === fieldId), record.values[fieldId])}" title="${escapeAttribute(`${fieldName(plan, fieldId)}: ${display}`)}">${escapeHtml(display)}</span>`;
   }).join('')}</div>`;
   const values = valueFields.length === 0 ? '' : `<div class="card-values">${valueFields.map((fieldId) => `<span><small>${escapeHtml(fieldName(plan, fieldId))}</small>${fieldValueMarkup(plan, record, fieldId, 'Not set')}</span>`).join('')}</div>`;
-  return `<button class="record-card${style === '' ? '' : ' is-toned'}" data-record-id="${escapeAttribute(record.semanticId)}" type="button" style="${style}" aria-label="Open ${escapeAttribute(heading)}"><strong>${escapeHtml(heading)}</strong>${chips}${values}</button>`;
+  return `<button class="record-card${style === '' ? '' : ' is-toned'}${cover === '' ? '' : ' has-cover'}" data-record-id="${escapeAttribute(record.semanticId)}" type="button" style="${style}" aria-label="Open ${escapeAttribute(heading)}">${cover}<strong>${escapeHtml(heading)}</strong>${chips}${values}</button>`;
 }
 
 export function relatedKey(node: SurfaceNodePlan, recordId: string): string {
@@ -430,7 +434,7 @@ export function derivedFieldMarkup(record: RecordPlan | null, field: DerivedFiel
 export function fieldMarkup(record: RecordPlan | null, field: FieldPlan): string {
   return field.retired
     ? `<fieldset disabled><legend>${escapeHtml(field.displayName)} (retired)</legend>${fieldControlMarkup(field, record?.values[field.semanticId])}</fieldset>`
-    : fieldControlMarkup(field, record?.values[field.semanticId]);
+    : fieldControlMarkup(field, record?.values[field.semanticId], { record });
 }
 
 /**
@@ -447,7 +451,9 @@ export function sequenceExample(sequence: { prefix: string; width: number }): st
   return sequence.prefix + '1'.padStart(sequence.width, '0');
 }
 
-export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, options: { explicitChoice?: boolean; placeholder?: string } = {}): string {
+export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, options: { explicitChoice?: boolean; placeholder?: string; record?: RecordPlan | null } = {}): string {
+  // A picture (ADR-0031): drawn from its address, never as the address's text.
+  if (field.presentation === 'media') return mediaFieldMarkup(field, currentValue, options.record ?? null);
   const value = valueDisplay(currentValue);
   const definition = state.session.entities.flatMap(entity => entity.fields).find(candidate => candidate.fieldId === field.semanticId);
   if (definition && storageLabel(field.storageKind) === 'Reference') return referenceControl(definition, value);
@@ -590,7 +596,8 @@ export function recordSheetMarkup(
   text: RecordSheetText,
 ): string {
   const live = fields.filter((field) => !field.retired);
-  const isLong = (field: FieldPlan): boolean => field.presentation === 'longText' || field.presentation === 'markdown';
+  // A picture takes the document column too, fitted to it (the image canvas's direction A).
+  const isLong = (field: FieldPlan): boolean => field.presentation === 'longText' || field.presentation === 'markdown' || field.presentation === 'media';
   const heading = live.find((field) => !isLong(field) && storageLabel(field.storageKind) === 'Text') ?? null;
   const long = live.filter(isLong);
   const short = live.filter((field) => field !== heading && !isLong(field));
@@ -620,7 +627,7 @@ export function recordSheetMarkup(
         <div class="message-slot" role="alert" hidden></div>
         ${hasLong
           ? `<article class="record-sheet-document">${titleMarkup}${long.map((field) =>
-            `<section class="record-sheet-section">${fieldControlMarkup(field, record?.values[field.semanticId], { placeholder: 'Nothing written yet' })}</section>`).join('')}</article>`
+            `<section class="record-sheet-section">${fieldControlMarkup(field, record?.values[field.semanticId], { placeholder: 'Nothing written yet', record })}</section>`).join('')}</article>`
           : `${titleMarkup}<div class="record-sheet-grid">${shortMarkup}</div>`}
       </div>
       <aside class="record-sheet-side" aria-label="Properties">

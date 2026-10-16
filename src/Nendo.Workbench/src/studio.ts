@@ -68,6 +68,8 @@ export function fieldProposal(entityId: string, name: string, kind: string, choi
     text: { storageKind: 'text', presentation: 'singleLine' },
     longText: { storageKind: 'text', presentation: 'longText' },
     markdown: { storageKind: 'text', presentation: 'markdown' },
+    // A picture (ADR-0031): text holding an address, shown as the picture it names.
+    picture: { storageKind: 'text', presentation: 'media' },
     choice: { storageKind: 'text', presentation: 'singleChoice' },
     integer: { storageKind: 'integer' }, decimal: { storageKind: 'decimal' },
     boolean: { storageKind: 'boolean' }, date: { storageKind: 'date', presentation: 'date' },

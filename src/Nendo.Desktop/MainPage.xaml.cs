@@ -35,7 +35,8 @@ public sealed partial class MainPage : Page
             RunWorkbenchFileActionAsync,
             () => App.CurrentWindow?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."),
             this,
-            this);
+            this)
+        { MediaHost = this };
     }
 
     /// <summary>
@@ -320,14 +321,15 @@ public sealed partial class MainPage : Page
         var generation = _workbenchGeneration;
         var message = args.WebMessageAsJson;
         var droppedPath = DroppedFilePath(args);
+        var droppedPicture = DroppedPicturePath(args);
         // A bounded calculation is real arithmetic inside an ordinary read, and this
         // handler starts on the UI thread, so its continuations would finish that
         // arithmetic there and freeze the window for as long as it takes. Methods
         // that never touch a native picker or a XAML element are handed to a worker;
         // everything else keeps running here, where that native work belongs.
         var response = WorkbenchProtocolHandler.RunsOffUiThread(message)
-            ? await Task.Run(() => _protocol.HandleAsync(message, droppedPath))
-            : await _protocol.HandleAsync(message, droppedPath);
+            ? await Task.Run(() => _protocol.HandleAsync(message, droppedPath, droppedPicture: droppedPicture))
+            : await _protocol.HandleAsync(message, droppedPath, droppedPicture: droppedPicture);
         var responseJson = WorkbenchProtocolHandler.Serialize(response);
         void DeliverResponse()
         {

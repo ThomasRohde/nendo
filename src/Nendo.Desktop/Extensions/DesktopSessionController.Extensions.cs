@@ -120,6 +120,7 @@ internal sealed partial class DesktopSessionController
         _extensionServing = ExtensionServing.None;
         _extensionContent.Clear();
         StopDevelopment();
+        StopMediaForFile();
     }
 
     /// <summary>

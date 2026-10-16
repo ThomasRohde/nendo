@@ -104,6 +104,10 @@ public sealed partial class NendoApplicationService
     public Task<NendoMediaItem?> ReadMediaAsync(string sha256, CancellationToken cancellationToken = default) =>
         _coordinator.ReadMediaAsync(sha256, cancellationToken);
 
+    /// <summary>Part of one embedded picture's bytes into the buffer: the count read, or -1 when the file holds no such picture.</summary>
+    public Task<int> ReadMediaRangeAsync(string sha256, long offset, Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+        _coordinator.ReadMediaRangeAsync(sha256, offset, buffer, cancellationToken);
+
     /// <summary>One embedded picture's bytes, or null when the file holds none by that hash.</summary>
     public Task<byte[]?> ReadMediaContentAsync(string sha256, CancellationToken cancellationToken = default) =>
         _coordinator.ReadMediaContentAsync(sha256, cancellationToken);

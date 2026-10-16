@@ -1,3 +1,4 @@
+import { mediaThumbMarkup } from './media-markup';
 import { prepareApplication, recoverAfterWriteFailure, refreshView, refreshStudioQuery, reloadReadWindows, runMutation } from './actions';
 import { filterInputMode, filterPlaceholder, studioFilter } from './filter-input';
 import { referenceControl, wireReferenceControls } from './reference-controls';
@@ -719,7 +720,22 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
     cellDataType: false,
     // A choice cell carries its option's tone beside the label. Studio never reads a
     // surface definition, but a tone is the option's own metadata, so it shows here too.
-    cellRenderer: field.presentation === 'singleChoice'
+    // A picture reads as a small preview beside its address; the address stays readable, and
+    // is what the cell edits, when the preview is not shown (ADR-0031).
+    cellRenderer: field.presentation === 'media'
+      ? (parameters: { value?: unknown }) => {
+        const value = parameters.value;
+        if (typeof value !== 'string' || value === '') return '';
+        const cell = document.createElement('span');
+        cell.className = 'studio-media-cell';
+        cell.innerHTML = mediaThumbMarkup(value, field.displayName, true);
+        const text = document.createElement('span');
+        text.className = 'studio-media-address';
+        text.textContent = value;
+        cell.append(text);
+        return cell;
+      }
+      : field.presentation === 'singleChoice'
       ? (parameters: { value?: unknown }) => {
         const value = parameters.value;
         if (value === null || value === undefined || value === '') return '';

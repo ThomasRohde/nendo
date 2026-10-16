@@ -6,7 +6,7 @@ import { build } from 'vite';
 // The Workbench document's own boundary (ADR-0013). Its content-security policy keeps it local
 // and gains exactly one thing for custom views, frames from view origins; and the Workbench
 // refuses to start inside a frame, so no view can hold a second copy of it.
-const expected = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src https://*.example";
+const expected = "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src https://*.example";
 
 test('the Workbench document’s content-security policy is exactly the expected one', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
@@ -16,6 +16,8 @@ test('the Workbench document’s content-security policy is exactly the expected
   const directives = Object.fromEntries(policies[0].split(';').map((directive) => directive.trim().split(/\s+/)).map(([name, ...values]) => [name, values]));
   assert.deepEqual(directives['frame-src'], ['https://*.example'], 'Frames are allowed from somewhere other than view origins.');
   assert.deepEqual(directives['connect-src'], ["'self'"]);
+  // ADR-0031: pictures from the file's media origin and from the web; script still reads only its own origin.
+  assert.deepEqual(directives['img-src'], ["'self'", 'data:', 'https:']);
   assert.deepEqual(directives['script-src'], ["'self'"]);
   assert.equal(directives['child-src'], undefined);
 });

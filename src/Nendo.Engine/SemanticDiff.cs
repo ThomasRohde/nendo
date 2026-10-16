@@ -1225,6 +1225,7 @@ internal static class SemanticDiff
                 _ => $"Head the page with {FieldName(names, Text(operation.Value, "field"))}.",
             },
             "subtitleFieldId" => $"Show {FieldName(names, Text(operation.Value, "field"))} under the page title.",
+            "coverFieldId" => $"Top each card with the picture in {FieldName(names, Text(operation.Value, "field"))}.",
             "accentFieldId" => kind switch
             {
                 "timelineSurface" => $"Colour each entry by {FieldName(names, Text(operation.Value, "field"))}.",

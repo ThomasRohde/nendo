@@ -50,6 +50,7 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   'link-not-allowed', 'links-not-allowed',
   // ADR-0031: a picture's address, content or bounds, refused before the mutation committed.
   'media-missing', 'media-address-invalid', 'media-type-mismatch', 'media-too-large', 'media-budget-exceeded', 'field-not-media',
+  'media-unavailable', 'media-clipboard-empty', 'media-download-failed', 'media-already-embedded',
   // Refused inside the write's own transaction before it committed (ADR-0019, ADR-0020 and
   // the open ceilings). Left out, a duplicate in a unique field kept the save pending for
   // good and locked editing of the file on this device (WCS-01). refusal-codes.test.mjs

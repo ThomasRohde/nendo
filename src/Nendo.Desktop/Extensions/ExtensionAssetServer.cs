@@ -53,6 +53,11 @@ internal sealed class ExtensionAssetServer
         if (!Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
             !ExtensionOrigins.IsViewHost(uri.Host))
             return;
+        if (_session.IsMediaHost(uri.Host))
+        {
+            await ServeMediaAsync(sender, args, uri);
+            return;
+        }
         var deferral = args.GetDeferral();
         try
         {
@@ -70,6 +75,41 @@ internal sealed class ExtensionAssetServer
         catch (Exception)
         {
             try { args.Response = Respond(sender.Environment, new(500, "text/plain", "The view could not be served."u8.ToArray()), false, null); }
+            catch (Exception) { /* The browser went away while the file was read. */ }
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    /// <summary>The open file's media origin (ADR-0031): its pictures, streamed, with one range at a time.</summary>
+    private async Task ServeMediaAsync(CoreWebView2 sender, CoreWebView2WebResourceRequestedEventArgs args, Uri uri)
+    {
+        var deferral = args.GetDeferral();
+        Stream? body = null;
+        try
+        {
+            var method = args.Request.Method.ToUpperInvariant();
+            var range = args.Request.Headers.Contains("Range") ? args.Request.Headers.GetHeader("Range") : null;
+            var path = Uri.UnescapeDataString(uri.AbsolutePath).TrimStart('/');
+            var answer = method is "GET" or "HEAD"
+                ? await Task.Run(() => _session.ResolveMediaAsync(path, uri.Query))
+                : DesktopMediaAnswer.NotAllowed;
+            var status = answer.Status;
+            long start = 0, end = answer.Length - 1;
+            if (status == 200 && range is not null)
+                status = DesktopMediaResponses.TryRange(range, answer.Length, out start, out end) ? 206 : 416;
+            body = status is 200 or 206 && method == "GET" && answer.Open is { } open
+                ? await Task.Run(() => open(start, end - start + 1))
+                : new MemoryStream([], writable: false);
+            args.Response = sender.Environment.CreateWebResourceResponse(body.AsRandomAccessStream(), status, Reason(status),
+                string.Join("\r\n", DesktopMediaResponses.Headers(answer, status, start, end)));
+        }
+        catch (Exception)
+        {
+            body?.Dispose();
+            try { args.Response = Respond(sender.Environment, new(500, "text/plain", "The picture could not be served."u8.ToArray()), false, null); }
             catch (Exception) { /* The browser went away while the file was read. */ }
         }
         finally

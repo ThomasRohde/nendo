@@ -10,6 +10,21 @@
 
 ## Context
 
+### Accepted amendment — 2026-10-16 (a gallery may be covered by pictures)
+
+Accepted with [ADR-0031](0031-media-in-user-data.md) on 2026-10-16, for W-267.
+
+**What it changes.** `gallerySurface` takes an optional `coverFieldId`: an active media field of
+its record type, whose picture tops each card at a square, edge to edge above the title. A field
+that is missing, retired, calculated or not shown as media is `NUI459`, naming the property; the
+cover field is not repeated among the card's values. A gallery with a cover states host
+`1.52.0`, the media rung, through the capability table; one without keeps the rung it had. The
+review line reads "Top each card with the picture in ‹field›". `ui.removeProperty` takes the
+cover away like any optional property.
+
+**Why a property and not a binding.** A cover is one role on the card, as the title and the
+accent are, and a role is a property in this vocabulary; a binding is a value among the body's.
+
 ### Accepted amendment — 2026-10-13 (a screen property can be cleared)
 
 Accepted by the owner on 2026-10-12 for the broad review's finding ESM-11 (W-205).
