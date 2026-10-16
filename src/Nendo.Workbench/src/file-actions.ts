@@ -1,4 +1,5 @@
 import { client } from './client';
+import { mainWindowOnly, windowRole } from './window-role';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError } from './shell';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import { icon, type IconName } from './icons';
@@ -215,8 +216,12 @@ function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSess
 export function renderFileMenu(): void {
   const menu = requiredElement<HTMLElement>('#file-actions');
   const local = client.mode === 'desktop';
-  const item = (method: string, label: string, detail: string, glyph: IconName, enabled: boolean): string =>
-    `<button type="button" data-file-action="${method}" ${enabled ? '' : 'disabled'}>${icon(glyph)}<span><strong>${label}</strong><small>${detail}</small></span></button>`;
+  // A tab window shows the main window's file, so opening, closing or replacing it is done there (W-277).
+  const tabWindow = windowRole() === 'tab';
+  const item = (method: string, label: string, detail: string, glyph: IconName, enabled: boolean): string => {
+    const elsewhere = tabWindow && mainWindowOnly.has(method);
+    return `<button type="button" data-file-action="${method}" ${enabled && !elsewhere ? '' : 'disabled'}>${icon(glyph)}<span><strong>${label}</strong><small>${elsewhere ? 'In the main window' : detail}</small></span></button>`;
+  };
   menu.innerHTML = `<div class="file-menu-heading">${escapeHtml(state.session.fileName ?? 'No file open')}</div>
     <button type="button" id="about-file" data-file-action="about" ${state.session.hasFile ? '' : 'disabled'}>${icon('file')}<span><strong>About this file</strong><small>What it is for, in the author's words</small></span></button>
     ${state.session.hasFile

@@ -8,7 +8,7 @@ namespace Nendo.Desktop;
 /// </summary>
 public sealed partial class MainPage : IWorkbenchWindowHost
 {
-    private static MainWindow Window() => App.CurrentWindow ?? throw new NendoPreconditionException(
+    private MainWindow Window() => Owner ?? throw new NendoPreconditionException(
         "window-unavailable", "The window is not available.");
 
     /// <summary>Where the page starts in the window, in its pixels: its top left, which is the window's.</summary>
@@ -45,11 +45,11 @@ public sealed partial class MainPage : IWorkbenchWindowHost
     /// window may be closing, and a title bar that still passed a few rectangles through would
     /// cost a drag from them, not the recovery panel that follows.
     /// </summary>
-    private static void ForgetTitleBarControls()
+    private void ForgetTitleBarControls()
     {
         try
         {
-            App.CurrentWindow?.ClearTitleBarControls();
+            Owner?.ClearTitleBarControls();
         }
         catch (Exception)
         {

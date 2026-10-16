@@ -633,6 +633,27 @@ then puts its current place back as a step back does (`revisitCurrent` in
 `navigation-actions.ts`). A tab off screen holds a list of places and nothing else. Tabs are
 the window's, are never written to the file, and are cleared with the file, like the trail.
 
+A tab can move to a window of its own (W-277, ADR-0002's 2026-10-16 amendment). Dragged out of
+the strip and let go past the window's edge, or moved by *Move tab to new window* in the command
+palette, it leaves the strip as a close would take it, without the closed-tab listeners hearing
+it, so a launched agent's conversation keeps running. The page hands its trail to
+`window.detachTab` as an opaque string. The host opens another `MainWindow` in the same process
+(`MainWindow.TabWindows.cs`), at the pointer with the size of the window it came from, or one
+step down and to the right of it, and gives it a `MainPage` on the same `DesktopSessionController`.
+That page's Workbench takes the trail once with `window.takeTab` and shows its place. A browser
+keeps sending a held mouse's moves to the page past the window's edge, aimed at the document,
+which is why the drag listens on the window rather than the strip.
+
+The first window stays the main window: it alone has the notification-area icon, the taskbar
+badge, notifications, the Jump List and the file's saved place, and it owns and ends the session.
+A tab window subscribes its page to the session's events (`fileChanged`, `agentActivity`,
+`agentSessionChanged`, the extension events), draws the theme set in any window
+(`appearanceChanged`), hides and shows with the main window and closes with the process. It
+closes when its file session changes, and its Workbench offers, and its bridge runs, none of the
+file actions that open, close or replace the file (`DesktopTabWindowRules.MainWindowOnly`,
+`window-role.ts`): they answer `main-window-only`. Every window of the file shares the browser
+profile and so the one device-local save journal slot for the file.
+
 The recovery panel loads the Nendo mark when it is shown, not with the page. Once the
 TitleBar control's icon was gone, that picture in the collapsed panel was the first the
 window loaded, and it brought the process down inside XAML at every start (F-202).
@@ -649,8 +670,9 @@ there reaches the page.
 
 ### Several files at once
 
-Each open file is its own process and its own window (ADR-0002), and a person can
-have several open (W-089).
+Each open file is its own process and its own main window (ADR-0002), and a person can
+have several open (W-089). A tab moved out of a window opens a tab window of the same process and
+file, described under the title band above (W-277).
 
 - **Each file reopens where its window was.** `DesktopWindowStore` keeps the device's
   last place in `window.json` and each file's own in `window-files.json`, keyed by a

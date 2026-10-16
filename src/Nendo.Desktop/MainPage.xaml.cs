@@ -11,7 +11,16 @@ namespace Nendo.Desktop;
 public sealed partial class MainPage : Page
 {
     private WebView2? _webView;
-    private readonly DesktopSessionController _session = CreateSessionController();
+    private readonly DesktopSessionController _session;
+
+    /// <summary>
+    /// A tab window's page (W-277): it shows the session of the main window's page, which owns and
+    /// ends it, and it opens no file of its own.
+    /// </summary>
+    private readonly bool _sharesSession;
+
+    /// <summary>The trail of the tab this page's window was opened for, until the Workbench takes it.</summary>
+    private string? _pendingTab;
     private readonly WorkbenchProtocolHandler _protocol;
     private DesktopStartupRequest? _startupRequest;
     private bool _startupConsumed;
@@ -22,8 +31,20 @@ public sealed partial class MainPage : Page
     private ulong? _workbenchNavigationId;
     private ExtensionAssetServer? _extensionAssets;
 
-    public MainPage()
+    public MainPage() : this(CreateSessionController(), sharesSession: false, tab: null)
     {
+    }
+
+    /// <summary>The page of a tab window, on the main window's session and the trail it was opened for.</summary>
+    internal MainPage(DesktopSessionController session, string tab) : this(session, sharesSession: true, tab)
+    {
+    }
+
+    private MainPage(DesktopSessionController session, bool sharesSession, string? tab)
+    {
+        _session = session;
+        _sharesSession = sharesSession;
+        _pendingTab = tab;
         DesktopStartupTiming.Mark("page.constructor");
         InitializeComponent();
         DesktopStartupTiming.Mark("page.initialized");
@@ -33,11 +54,16 @@ public sealed partial class MainPage : Page
             _session,
             ApplyAppearance,
             RunWorkbenchFileActionAsync,
-            () => App.CurrentWindow?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."),
+            () => Owner?.GetAppearance() ?? new("system", "light", false, "The native window is unavailable."),
             this,
             this)
-        { MediaHost = this };
+        { MediaHost = this, TabWindowHost = this };
     }
+
+    /// <summary>The window this page is in. Set by the window; the main window's page may not have been told yet.</summary>
+    internal MainWindow? HostWindow { get; set; }
+
+    private MainWindow? Owner => HostWindow ?? App.CurrentWindow;
 
     /// <summary>
     /// The session behind this page, for the window that owns the notification area.
@@ -343,7 +369,7 @@ public sealed partial class MainPage : Page
             }
             // Every open, create, close and replacement answers through here, so the
             // title bar follows the session without a dedicated protocol message.
-            App.CurrentWindow?.ApplyFileName(_session.CurrentFileName, _session.CurrentLook);
+            Owner?.ApplyFileName(_session.CurrentFileName, _session.CurrentLook);
         }
 
         if (DispatcherQueue.HasThreadAccess)
@@ -414,7 +440,8 @@ public sealed partial class MainPage : Page
         _unloaded = true;
         _pageLifetime.Cancel();
         DetachWorkbench();
-        await _session.DisposeAsync();
+        // The main window's page ends the session; a tab window's page only lets go of its view.
+        if (!_sharesSession) await _session.DisposeAsync();
     }
 
     /// <summary>
@@ -546,7 +573,7 @@ public sealed partial class MainPage : Page
 
     private async Task<string?> PickOpenPathAsync()
     {
-        var window = App.CurrentWindow
+        var window = Owner
             ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         var picker = new FileOpenPicker(window.AppWindow.Id)
         {
@@ -562,5 +589,8 @@ public sealed partial class MainPage : Page
     {
         App.CurrentWindow?.ApplyAppearance(appearance);
     }
+
+    /// <summary>Another window of this file set the theme: this page draws it too.</summary>
+    internal void AppearanceChanged(string preference) => PostWorkbenchEvent(WorkbenchEvents.AppearanceChanged, preference);
 
 }

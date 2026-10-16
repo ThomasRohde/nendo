@@ -8,7 +8,7 @@ public sealed partial class MainPage : IWorkbenchExtensionHost
 {
     async Task<string?> IWorkbenchExtensionHost.PickPackageSourceAsync()
     {
-        var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         // One picker for both shapes a package comes in: choosing a folder's nendo-package.json
         // means that folder, and a zip or a .nendoview means itself.
         var picker = new FileOpenPicker(window.AppWindow.Id)
@@ -23,7 +23,7 @@ public sealed partial class MainPage : IWorkbenchExtensionHost
 
     async Task<string?> IWorkbenchExtensionHost.PickExportFolderAsync()
     {
-        var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         var picker = new FolderPicker(window.AppWindow.Id)
         {
             SuggestedStartLocation = PickerLocationId.DocumentsLibrary,
@@ -40,7 +40,7 @@ public sealed partial class MainPage : IWorkbenchExtensionHost
         if (DesktopRuntimeConfiguration.NativeDiagnostics &&
             Environment.GetEnvironmentVariable("NENDO_DIAGNOSTICS_DEVELOPMENT_FOLDER") is { Length: > 0 } scripted)
             return scripted;
-        var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         var picker = new FolderPicker(window.AppWindow.Id)
         {
             SuggestedStartLocation = PickerLocationId.DocumentsLibrary,

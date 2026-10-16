@@ -376,7 +376,7 @@ public sealed partial class MainPage
     {
         while (true)
         {
-            var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+            var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
             var picker = new FolderPicker(window.AppWindow.Id)
             {
                 SuggestedStartLocation = PickerLocationId.DocumentsLibrary,

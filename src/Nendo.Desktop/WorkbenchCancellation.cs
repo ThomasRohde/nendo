@@ -119,6 +119,10 @@ internal static partial class WorkbenchMethods
     /// </summary>
     internal static readonly IReadOnlySet<string> OnUiThread = new HashSet<string>(StringComparer.Ordinal)
     {
+        // A tab window (W-277): opening a window, reading the page's own window, closing one.
+        WindowDetachTab,
+        WindowTakeTab,
+        DiagnosticsCloseWindow,
         SessionCreateFile,
         SessionOpenFile,
         // A picture picked, pasted or dropped, a file linked, or a copy saved: a picker or the clipboard.

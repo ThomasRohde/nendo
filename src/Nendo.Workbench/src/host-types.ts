@@ -888,6 +888,8 @@ export interface WorkbenchClient {
    * the conversation's revision and nothing else; the tab reads what changed after its own.
    */
   onAgentSessionChanged?(listener: (revision: number) => void): () => void;
+  /** Another window of this file set the device's theme (W-277): the preference to draw, not to save again. */
+  onAppearanceChanged?(listener: (preference: string) => void): () => void;
   pendingMutation?(): PendingMutation | null;
   /** `intoThisFile`: the person said the open file is the one the save was made in, renamed (WCS-03). */
   retryPendingMutation?(intoThisFile?: boolean): Promise<DesktopOperationView | null>;
@@ -950,3 +952,6 @@ export function emptySession(): DesktopSessionView {
 export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
+
+/** Which window of the file a page is in, and the trail of the tab a tab window was opened for (W-277). */
+export interface TabWindowStart { role: 'main' | 'tab'; trail: string | null }

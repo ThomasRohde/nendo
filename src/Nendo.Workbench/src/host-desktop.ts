@@ -14,7 +14,7 @@ const frameNamePattern = /^nendo-view-[0-9a-f]{12}$/;
  * Requests about the device and the window rather than the open file: they carry no file
  * session, and their answers are not checked against one.
  */
-const independentMethods = new Set(['appearance.set', 'appearance.get', 'session.getRecentFiles', 'window.setTitleBarControls']);
+const independentMethods = new Set(['appearance.set', 'appearance.get', 'session.getRecentFiles', 'window.setTitleBarControls', 'window.takeTab']);
 
 /**
  * The real client, and the one that fails closed.
@@ -114,6 +114,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
   private readonly downloadSavedListeners = new Set<(saved: HostDownloadSaved) => void>();
   private readonly titleBarListeners = new Set<(bar: WindowTitleBar) => void>();
   private readonly agentSessionListeners = new Set<(revision: number) => void>();
+  private readonly appearanceListeners = new Set<(preference: string) => void>();
   private readonly journal = new PendingMutationJournal({
     getItem: key => window.localStorage.getItem(key),
     setItem: (key, value) => window.localStorage.setItem(key, value),
@@ -335,6 +336,11 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     return () => { this.agentSessionListeners.delete(listener); };
   }
 
+  onAppearanceChanged(listener: (preference: string) => void): () => void {
+    this.appearanceListeners.add(listener);
+    return () => { this.appearanceListeners.delete(listener); };
+  }
+
   onTitleBarChanged(listener: (bar: WindowTitleBar) => void): () => void {
     this.titleBarListeners.add(listener);
     return () => { this.titleBarListeners.delete(listener); };
@@ -412,6 +418,13 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
     if (message.event === 'extensionSettingsChanged') {
       for (const listener of this.extensionSettingsListeners) {
         try { listener(); } catch { /* Another listener must still hear the switch. */ }
+      }
+      return;
+    }
+    if (message.event === 'appearanceChanged') {
+      if (message.payload !== 'system' && message.payload !== 'light' && message.payload !== 'dark') return;
+      for (const listener of this.appearanceListeners) {
+        try { listener(message.payload); } catch { /* Another listener must still hear it. */ }
       }
       return;
     }

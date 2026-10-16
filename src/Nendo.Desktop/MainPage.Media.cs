@@ -30,7 +30,7 @@ public sealed partial class MainPage : IWorkbenchMediaHost
 
     async Task<string?> IWorkbenchMediaHost.PickPictureAsync(string commitText)
     {
-        var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         var picker = new FileOpenPicker(window.AppWindow.Id) { CommitButtonText = commitText };
         foreach (var extension in NendoMedia.PictureTypes.Values.SelectMany(extensions => extensions)) picker.FileTypeFilter.Add(extension);
         return (await picker.PickSingleFileAsync())?.Path;
@@ -38,7 +38,7 @@ public sealed partial class MainPage : IWorkbenchMediaHost
 
     async Task<string?> IWorkbenchMediaHost.PickPictureSaveAsync(string suggestedName, string extension)
     {
-        var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         var picker = new FileSavePicker(window.AppWindow.Id) { SuggestedFileName = suggestedName, DefaultFileExtension = extension };
         picker.FileTypeChoices.Add("Picture", [extension]);
         return (await picker.PickSaveFileAsync())?.Path;

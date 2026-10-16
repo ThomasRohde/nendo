@@ -9,6 +9,7 @@ import { content, requiredElement, showError } from './shell';
 import { rankCommands, shortcut, type PaletteCommand, type RankedCommand, type ShortcutId } from './shortcuts';
 import { viewPaletteCommands } from './view-frames';
 import { closeViewMenu } from './view-menu';
+import { moveActiveTabToWindow, tabsCanMove } from './workspace-tabs';
 
 /**
  * Ctrl K: one box that goes anywhere the window can go.
@@ -115,6 +116,9 @@ export function currentCommands(): PaletteCommand[] {
     if (!usable(action)) continue;
     commands.push({ id: `file:${action.dataset.fileAction}`, label: labelOf(action), group: 'File', run: press(action) });
   }
+
+  // The tab on screen into a window of its own, as a drag out of the strip does (W-277).
+  if (tabsCanMove()) commands.push({ id: 'tab:moveToWindow', label: 'Move tab to new window', group: 'Tabs', run: moveActiveTabToWindow });
 
   for (const theme of document.querySelectorAll<HTMLButtonElement>('[data-theme-option]')) {
     if (theme.getAttribute('aria-pressed') === 'true') continue;

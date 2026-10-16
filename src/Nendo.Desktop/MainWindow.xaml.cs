@@ -52,7 +52,13 @@ public sealed partial class MainWindow : Window
     internal void ApplyAppearance(AppearancePayload appearance)
     {
         _appearance.Save(appearance.Preference);
-        ApplySavedAppearance();
+        // Every window of the file takes the device's theme, and each page draws it (W-277): the
+        // page that asked has drawn it already, and drawing it again changes nothing.
+        foreach (var window in FileWindows())
+        {
+            window.ApplyPreference(_appearance.Preference);
+            (window.RootFrame.Content as MainPage)?.AppearanceChanged(_appearance.Preference);
+        }
     }
 
     /// <summary>
@@ -68,6 +74,8 @@ public sealed partial class MainWindow : Window
         {
             Title = caption;
         }
+        // The Jump List, the saved place, notifications and the badge are the main window's.
+        if (_isTabWindow) return;
         // Keyed on where the file is, not on what the caption says. The caption carries
         // the name alone, and two files can share one: opening C:\work\Plan.nendo and
         // then C:ackups\Plan.nendo leaves the caption identical, so a refresh keyed
@@ -150,13 +158,17 @@ public sealed partial class MainWindow : Window
         // Minimize retains the last usable bounds and maximized preference.
     }
 
-    internal DesktopAppearanceView GetAppearance() => new(_appearance.Preference,
-        Content is FrameworkElement { ActualTheme: ElementTheme.Dark } ? "dark" : "light",
-        _appearance.Persisted, _appearance.Notice);
+    internal DesktopAppearanceView GetAppearance() => _isTabWindow && App.CurrentWindow is { } main
+        ? main.GetAppearance()
+        : new(_appearance.Preference,
+            Content is FrameworkElement { ActualTheme: ElementTheme.Dark } ? "dark" : "light",
+            _appearance.Persisted, _appearance.Notice);
 
-    private void ApplySavedAppearance()
+    private void ApplySavedAppearance() => ApplyPreference(_appearance.Preference);
+
+    private void ApplyPreference(string preference)
     {
-        var requested = _appearance.Preference switch
+        var requested = preference switch
         {
             "light" => ElementTheme.Light,
             "dark" => ElementTheme.Dark,
@@ -166,7 +178,7 @@ public sealed partial class MainWindow : Window
         {
             root.RequestedTheme = requested;
         }
-        AppWindow.TitleBar.PreferredTheme = _appearance.Preference switch
+        AppWindow.TitleBar.PreferredTheme = preference switch
         {
             "light" => TitleBarTheme.Light,
             "dark" => TitleBarTheme.Dark,
@@ -233,6 +245,7 @@ public sealed partial class MainWindow : Window
         if (_placementFile is null) RefreshJumpList();
 
         if (Page is not { } page) return;
+        page.HostWindow = this;
         TitleBarChanged += page.TitleBarChanged;
         // Every open, close and replacement, including the recovery panel's own actions and
         // the open a launch asked for, which answer no Workbench request (DSH-11).
@@ -433,6 +446,7 @@ public sealed partial class MainWindow : Window
         {
             presenter.Restore();
         }
+        ShowTabWindows();
         Activate();
         // Activate shows the window, but a window that is already showing stays behind whatever
         // is in front of it (owner-reported, 2026-10-01: a file picked from the taskbar's Recent
@@ -490,6 +504,7 @@ public sealed partial class MainWindow : Window
             == DesktopCloseOutcome.Hide)
         {
             if (_windowState is not null) _windowStore.Save(_windowState, _placementFile);
+            HideTabWindows();
             AppWindow.Hide();
             // Said once per device. The window has just vanished from the taskbar with
             // the file still open and an agent still able to reach it; somebody who was
@@ -519,6 +534,8 @@ public sealed partial class MainWindow : Window
         if (_windowState is not null) _windowStore.Save(_windowState, _placementFile);
         try
         {
+            // Before the session ends, so no tab window's view is left asking a closed one.
+            await CloseTabWindowsAsync();
             // Returned rather than thrown: this handler is async void and the application is
             // already on its way out, so a cleanup failure here ended in a crash report (DSH-19).
             // Kept in the device's failure record when the person records failures, by its kind

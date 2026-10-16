@@ -99,7 +99,7 @@ internal static class DesktopWindowPolicy
     /// The scale of the display a work area is on: its effective DPI over 96. One when Windows
     /// cannot say, which is the size the window had before scales were applied.
     /// </summary>
-    private static double ScaleOf(RectInt32 workArea)
+    internal static double ScaleOf(RectInt32 workArea)
     {
         try
         {

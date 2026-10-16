@@ -456,3 +456,47 @@ its bounds and token are specified in the query contract. It carries no SQL,
 path or write authority and is not exposed to custom-view actors. Host and
 Workbench ship together under the existing protocol 7 policy. ADR-0015's
 Community-only component and transient grid-state boundaries are unchanged.
+
+## 2026-10-16 amendment — a file's tabs may stand in more than one window
+
+The owner asked for tabs that can be dragged out of the window into a window of
+their own, to put a place on another monitor (W-277). Until now one process had
+one window, one WebView2 and one file. That stays true for the process and the
+file, but no longer for the window.
+
+**What changes.** A tab dragged out of the tab strip and let go outside the window
+opens in a new window of the same process, where it was let go. That window shows
+the same open file through the same `DesktopSessionController`: the same Engine,
+the same file session, the same agent host and the same launched agent. It has its
+own WebView2 and its own Workbench, and so its own tabs, trail and drafts. Nothing
+about the file is opened twice, and no second process starts.
+
+- The window the process started with stays the **main window**. It alone carries
+  the notification-area icon, the taskbar badge, notifications, the Jump List and
+  the file's saved window place. A tab window opens at the drop point with the size
+  of the window it came from, and its place is not remembered: tabs never are.
+- A tab window lives as long as its file session. When the file changes under it
+  (another file opened, the file closed or replaced), it closes, as the window's
+  own tabs are cleared with the file. Hiding the main window into the notification
+  area hides the tab windows with it, *Open* shows them again, and exit closes them.
+  Closing a tab window closes its tabs; it does not end the process or the file.
+- Moving a tab is not closing it. A launched agent's conversation keeps running
+  when its tab moves, and ends with its tab only when that tab is closed.
+- The bridge gains `window.detachTab` (the page hands over a tab's trail as an
+  opaque string and the host opens the window at the pointer) and `window.takeTab`
+  (the new window's page takes that trail once). The host never parses a trail.
+  Events the session raises (`fileChanged`, `agentActivity`, `agentSessionChanged`,
+  `extensionDevelopmentChanged`, `extensionSettingsChanged`) go to every window of
+  the file; a notification's route goes to the main window.
+- The device-local save journal (`pending-mutations.ts`) keeps one slot per file,
+  and every window of that file shares it, as they share the browser profile. A save
+  in one window while another's is unconfirmed is refused unsent, as before.
+
+**What does not change.** One process holds one file; a second file is a second
+process (W-089). Custom views still run as frames of their window's WebView2. The
+typed services, the bridge's protocol version and every authority boundary are
+unchanged: a tab window's requests are the same requests, under the same file
+session check, as the main window's.
+
+**Not built.** Dragging a tab into another window to join it, a live window that
+follows the pointer during the drag, and tabs moving between two files' processes.

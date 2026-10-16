@@ -19,7 +19,7 @@ public sealed partial class MainPage
         {
             if (!await ConfirmNativeAsync("Choose a recovery record",
                     "Choose the application.nendo.recovery.json file beside an interrupted Restore or upgrade. This also works when the application file itself is missing. No file changes until you review and confirm a verified choice.", "Choose record")) return;
-            var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+            var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
             var picker = new FileOpenPicker(window.AppWindow.Id)
             {
                 SuggestedStartLocation = PickerLocationId.DocumentsLibrary,

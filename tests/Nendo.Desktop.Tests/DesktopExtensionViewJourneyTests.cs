@@ -325,6 +325,16 @@ public sealed class DesktopExtensionViewJourneyTests
     public Task AFileOpensOnItsOwnViewAndStudioStaysReachable() =>
         RunJourneyAsync(path => SeedAsync(path, opensOnView: true), "Review-FileView.mjs", "file view ok");
 
+    /// <summary>
+    /// W-277: a tab moved to a window of its own in a real host, on the same file session, refusing
+    /// the file actions that switch the file, hearing the other window's writes and theme, and
+    /// closing with its file. tools/Review-TabWindows.mjs holds the measurements (T1–T6).
+    /// </summary>
+    [TestMethod]
+    [TestCategory("ExtensionRuntime")]
+    public Task ATabMovesToAWindowOfItsOwnOnTheSameFile() =>
+        RunJourneyAsync(path => SeedAsync(path), "Review-TabWindows.mjs", "tab windows ok");
+
     private static async Task RunJourneyAsync(Func<string, Task> seed, string script, string passed)
     {
         var root = RepositoryRoot();

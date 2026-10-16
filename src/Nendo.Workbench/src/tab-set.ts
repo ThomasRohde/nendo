@@ -77,3 +77,53 @@ export function trailForNewTab(saved: SavedTrail, oneOfAKind: (place: Place) => 
 export function ownerIndex(set: TabSet, owner: number | null): number {
   return owner === null ? -1 : set.tabs.findIndex((tab) => tab.id === owner);
 }
+
+/**
+ * The trail of tab `index`, for moving it to a window of its own (W-277): the window's trail for
+ * the tab on screen, the saved one for any other. Null when the tab has no place to show, or is
+ * the window's only tab, which stays: a window always shows one.
+ */
+export function trailOfTab(set: TabSet, index: number, trail: Trail): SavedTrail | null {
+  if (set.tabs.length === 1 || index < 0 || index >= set.tabs.length) return null;
+  const saved = index === set.active ? trail.inspect() : set.tabs[index].saved;
+  return saved === null || saved.cursor < 0 || saved.places.length === 0 ? null : saved;
+}
+
+/**
+ * Put back a tab taken out for a window that did not open, where it stood, as a tab off screen
+ * with its own trail. The tab on screen stays on screen.
+ */
+export function putTabBack(set: TabSet, index: number, tab: Tab, saved: SavedTrail): void {
+  const at = Math.max(0, Math.min(index, set.tabs.length));
+  set.tabs.splice(at, 0, { ...tab, saved });
+  if (at <= set.active) set.active += 1;
+}
+
+/** A trail handed to this window by the host, read back from its text; null for anything else. */
+export function readTabTrail(text: string): SavedTrail | null {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { return null; }
+  if (typeof value !== 'object' || value === null) return null;
+  const { places, cursor } = value as { places?: unknown; cursor?: unknown };
+  if (!Array.isArray(places) || places.length === 0 || !Number.isSafeInteger(cursor)) return null;
+  if ((cursor as number) < 0 || (cursor as number) >= places.length) return null;
+  if (!places.every((place) => typeof place === 'object' && place !== null && typeof (place as { view?: unknown }).view === 'string')) return null;
+  return { places: places as Place[], cursor: cursor as number };
+}
+
+/** How far a press on a tab moves before it is a drag, in the page's pixels. */
+export const dragThreshold = 6;
+
+/** How far past the window's edge a tab must be let go to leave it, in the page's pixels. */
+export const leaveMargin = 8;
+
+/**
+ * Where a tab dragged from (`startX`, `startY`) to (`x`, `y`) stands: still a press, a drag inside
+ * the window, or out of it, where letting go opens the tab in a window of its own. The window is
+ * the page's viewport, `width` by `height`; a pointer held captured reports points outside it.
+ */
+export function dragState(startX: number, startY: number, x: number, y: number, width: number, height: number): 'press' | 'inside' | 'out' {
+  if (Math.hypot(x - startX, y - startY) < dragThreshold) return 'press';
+  const out = x < -leaveMargin || y < -leaveMargin || x > width + leaveMargin || y > height + leaveMargin;
+  return out ? 'out' : 'inside';
+}

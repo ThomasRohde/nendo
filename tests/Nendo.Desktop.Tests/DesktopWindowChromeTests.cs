@@ -222,7 +222,7 @@ public sealed class DesktopWindowChromeTests
     [TestMethod]
     public void TheWindowCallsTheGuardedHelpers()
     {
-        var deliver = Between(Source("MainPage.xaml.cs"), "void DeliverResponse()", "App.CurrentWindow?.ApplyFileName");
+        var deliver = Between(Source("MainPage.xaml.cs"), "void DeliverResponse()", "Owner?.ApplyFileName");
         StringAssert.Contains(deliver, "DesktopShellSafety.TryPost(", "A response is posted to the browser unguarded (DSH-03).");
         Assert.DoesNotContain("_webView.CoreWebView2?.PostWebMessageAsJson", deliver, "A response is posted to the browser unguarded (DSH-03).");
 

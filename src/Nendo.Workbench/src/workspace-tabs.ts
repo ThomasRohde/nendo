@@ -8,8 +8,10 @@ import { fileViewById, viewIcon } from './file-view-model';
 import { typeGlyph } from './type-icons';
 import { revisitCurrent } from './navigation-actions';
 import { navigationTrail, type Place } from './navigation-trail';
-import { closeTabAt, ownerIndex, switchTab, trailForNewTab, type Tab, type TabSet } from './tab-set';
-import { announce, refreshChrome, requiredElement, rerender } from './shell';
+import { closeTabAt, dragState, ownerIndex, putTabBack, readTabTrail, switchTab, trailForNewTab, trailOfTab, type Tab, type TabSet } from './tab-set';
+import { announce, refreshChrome, requiredElement, rerender, showError } from './shell';
+import { client } from './client';
+import { messageFor } from './format';
 
 /**
  * The places a person keeps open, as tabs in the title bar (G, Mica with tabs).
@@ -247,7 +249,14 @@ function focusActiveTab(): void {
   strip.querySelector<HTMLButtonElement>(`[data-tab="${set.active}"]`)?.focus({ preventScroll: true });
 }
 
+/**
+ * A tab let go outside the window has moved, and the click its release makes on the tab is not a
+ * press of it: the tab it names has gone, and another stands at its index.
+ */
+let swallowClick = false;
+
 strip.addEventListener('click', (event) => {
+  if (swallowClick) { swallowClick = false; event.preventDefault(); event.stopPropagation(); return; }
   const target = event.target instanceof Element ? event.target : null;
   const close = target?.closest<HTMLButtonElement>('[data-close-tab]');
   if (close) { void closeTab(Number(close.dataset.closeTab)); return; }
@@ -341,3 +350,110 @@ export function wireOpenInNewTab(rail: HTMLElement): void {
 export function tabCount(): number {
   return set.tabs.length;
 }
+
+/**
+ * Whether a tab can move to a window of its own (W-277): in the Desktop host, with a file open,
+ * the tabs on screen and more than one of them. A window keeps its last tab.
+ */
+export function tabsCanMove(): boolean {
+  return client.mode === 'desktop' && state.session.fileName !== null && set.tabs.length > 1 && tabsShown();
+}
+
+/**
+ * Move tab `index` to a window of its own (W-277, ADR-0002 2026-10-16). The tab leaves this
+ * window first, as a close would take it but without being closed: no listener hears it, so a
+ * launched agent's conversation keeps running in the window it went to. The host then opens the
+ * window on its trail, at the pointer when it was let go outside this one. A window that did not
+ * open puts the tab back where it stood.
+ */
+export async function moveTabToWindow(index: number, atPointer: boolean): Promise<void> {
+  if (!tabsCanMove() || index < 0 || index >= set.tabs.length) return;
+  const moving = set.tabs[index]!;
+  if (index === set.active && deferWhileBusy(() => { const at = set.tabs.indexOf(moving); if (at >= 0) void moveTabToWindow(at, atPointer); })) return;
+  if (index === set.active && refuseWhileDirty('moving the tab')) return;
+  const saved = trailOfTab(set, index, navigationTrail);
+  if (saved === null) return;
+  const owned = moving.id === ownerTab;
+  if (!(await closeTabAt(set, index, navigationTrail, revisitCurrent))) { refreshChrome(); return; }
+  if (owned) ownerTab = null;
+  refreshChrome();
+  try {
+    await client.request('window.detachTab', { trail: JSON.stringify(saved), atPointer });
+    announce('The tab moved to a new window.');
+  } catch (error) {
+    putTabBack(set, index, moving, saved);
+    if (owned) ownerTab = moving.id;
+    refreshChrome();
+    showError(messageFor(error));
+  }
+  focusActiveTab();
+}
+
+/** The tab on screen moves to a window of its own, as the command palette's Move tab to new window does. */
+export function moveActiveTabToWindow(): void {
+  void moveTabToWindow(set.active, false);
+}
+
+/**
+ * This window was opened for a tab moved out of another (W-277): its one tab takes that tab's
+ * trail, and shows the place it was on. A trail that cannot be read leaves the window where it
+ * opened, on the file's first screen.
+ */
+export async function adoptTab(text: string): Promise<void> {
+  const saved = readTabTrail(text);
+  if (saved === null) return;
+  set.tabs = [{ id: nextId++, saved: null }];
+  set.active = 0;
+  navigationTrail.load(saved);
+  if (!(await revisitCurrent())) navigationTrail.clear();
+  refreshChrome();
+}
+
+/**
+ * A tab dragged out of the strip and let go outside the window moves to a window of its own, where
+ * it was let go. The browser keeps sending a held mouse's moves and its release to the page after
+ * the pointer leaves the window, aimed at the document rather than the strip, so the drag listens
+ * on the window from the press until the release. A drag let go inside the window, or a press that
+ * never moved, is the click it always was.
+ */
+let drag: { index: number; pointerId: number; startX: number; startY: number; tab: HTMLElement; out: boolean } | null = null;
+
+strip.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0 || drag !== null || !tabsCanMove()) return;
+  const main = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tab]') : null;
+  const tab = main?.closest<HTMLElement>('[data-tab-index]');
+  if (!main || !tab) return;
+  drag = { index: Number(main.dataset.tab), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, tab, out: false };
+  window.addEventListener('pointermove', moveDrag, true);
+  window.addEventListener('pointerup', releaseDrag, true);
+  window.addEventListener('pointercancel', cancelDrag, true);
+});
+
+function moveDrag(event: PointerEvent): void {
+  if (drag === null || event.pointerId !== drag.pointerId) return;
+  const where = dragState(drag.startX, drag.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight);
+  if (where === 'press') return;
+  drag.tab.classList.add('is-dragging');
+  drag.out = where === 'out';
+  drag.tab.classList.toggle('is-leaving', drag.out);
+}
+
+function endDrag(event: PointerEvent, cancelled: boolean): void {
+  if (drag === null || event.pointerId !== drag.pointerId) return;
+  const ended = drag;
+  drag = null;
+  window.removeEventListener('pointermove', moveDrag, true);
+  window.removeEventListener('pointerup', releaseDrag, true);
+  window.removeEventListener('pointercancel', cancelDrag, true);
+  ended.tab.classList.remove('is-dragging', 'is-leaving');
+  // Where it was let go, not where it was last seen moving: a quick flick ends past the edge.
+  const out = !cancelled && dragState(ended.startX, ended.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight) === 'out';
+  if (!out) return;
+  swallowClick = true;
+  // The click a release makes comes straight after it, or not at all when the release was off the tab.
+  window.setTimeout(() => { swallowClick = false; }, 0);
+  void moveTabToWindow(ended.index, true);
+}
+
+function releaseDrag(event: PointerEvent): void { endDrag(event, false); }
+function cancelDrag(event: PointerEvent): void { endDrag(event, true); }

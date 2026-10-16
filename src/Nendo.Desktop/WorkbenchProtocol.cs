@@ -144,6 +144,12 @@ internal static class WorkbenchEvents
     /// changed after the revision it holds, with <c>agentSession.read</c>.
     /// </summary>
     internal const string AgentSessionChanged = "agentSessionChanged";
+
+    /// <summary>
+    /// The device's theme preference changed in another window of this file (W-277). Payload is the
+    /// preference, <c>system</c>, <c>light</c> or <c>dark</c>; the page draws it without saving it again.
+    /// </summary>
+    internal const string AppearanceChanged = "appearanceChanged";
 }
 
 internal sealed record ExtensionFramesFailedPayload(string FileSessionId, IReadOnlyList<string> Frames);
@@ -317,6 +323,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     $"{DesktopShellContract.BridgeProtocolVersion} only.");
             }
             responseProtocolVersion = protocolVersion;
+            RefuseOutsideTheMainWindow(method);
 
             // Stopping a request is bookkeeping about requests, so it is answered
             // here rather than travelling through the file-session binding and the
@@ -353,7 +360,7 @@ internal sealed partial class WorkbenchProtocolHandler
             // its gate, including after every interactive picker/confirmation wait.
             var independent = method is WorkbenchMethods.SessionGetSnapshot or WorkbenchMethods.AppearanceSet or WorkbenchMethods.AppearanceGet or WorkbenchMethods.SessionGetRecentFiles
                 or WorkbenchMethods.WindowSetTitleBarControls or WorkbenchMethods.DiagnosticsTitleBar or WorkbenchMethods.DiagnosticsResizeWindow
-                or WorkbenchMethods.DownloadsShow;
+                or WorkbenchMethods.DownloadsShow or WorkbenchMethods.WindowTakeTab;
             var expectedSession = independent ? null : RequiredString(root, "fileSessionId", 120);
             using var projection = _session.BindReadProjection(root.TryGetProperty("boundedRead", out var boundedRead) &&
                 boundedRead.ValueKind == JsonValueKind.True);
@@ -441,6 +448,9 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
                     WorkbenchMethods.WindowSetTitleBarControls => SetTitleBarControls(payload),
+                    WorkbenchMethods.WindowDetachTab => DetachTab(payload),
+                    WorkbenchMethods.WindowTakeTab => TabWindows().TakeTab(),
+                    WorkbenchMethods.DiagnosticsCloseWindow when DesktopRuntimeConfiguration.NativeDiagnostics => CloseWindow(),
                     WorkbenchMethods.DownloadsShow => ShowDownload(payload),
                     WorkbenchMethods.DiagnosticsTitleBar when DesktopRuntimeConfiguration.NativeDiagnostics => DiagnoseTitleBar(payload),
                     WorkbenchMethods.DiagnosticsResizeWindow when DesktopRuntimeConfiguration.NativeDiagnostics => ResizeWindow(payload),

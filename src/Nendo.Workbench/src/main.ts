@@ -60,7 +60,9 @@ import { storageKindName } from './extension-model';
 import { icon, type IconName } from './icons';
 import { openPalette } from './command-palette';
 import { matchShortcut, shortcut, shortcutForKeys, shortcutsShownFrom, shortcutsStorageKey, type ShortcutId } from './shortcuts';
-import { closeActiveTab, cycleTab, drawTabs, newTab, tabsShown, wireOpenInNewTab } from './workspace-tabs';
+import { adoptTab, closeActiveTab, cycleTab, drawTabs, newTab, tabsShown, wireOpenInNewTab } from './workspace-tabs';
+import { setWindowRole } from './window-role';
+import type { TabWindowStart } from './host-types';
 import { drawRailPlaces } from './rail-places';
 import { typeGlyph } from './type-icons';
 import './styles.css';
@@ -460,6 +462,15 @@ async function initialise(): Promise<void> {
     await refreshDerived();
     if (state.compilation?.isValid) state.view = 'use';
     render();
+    // A window opened for a tab moved out of another (W-277) shows that tab's place.
+    if (client.mode === 'desktop') {
+      const start = await client.request<TabWindowStart>('window.takeTab');
+      if (start.role === 'tab') {
+        setWindowRole('tab');
+        renderFileMenu();
+        if (start.trail !== null) await adoptTab(start.trail);
+      }
+    }
   } catch (error) {
     render();
     showError(messageFor(error));
@@ -890,6 +901,8 @@ dayWatch.wake();
 // The launched agent's conversation moved (ADR-0030). It is read whether or not its tab is on
 // screen, so switching to the tab shows it as it is.
 client.onAgentSessionChanged?.(() => { followAgentChat(); });
+// The theme set in another window of this file (W-277), drawn here without saving it again.
+client.onAppearanceChanged?.((preference) => { if (isThemePreference(preference)) applyTheme(preference); });
 
 // Drawn by the shell itself rather than through a render pass: it must appear while a
 // request is queued behind an agent's write, which is exactly when a render cannot run.

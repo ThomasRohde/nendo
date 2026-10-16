@@ -61,6 +61,9 @@ const notSettled = new Set([
   'reference-label-in-use', 'reference-label-unchanged', 'title-unchanged', 'ui-node-not-found', 'ui-property-absent', 'unknown-method',
   // A read-only session's reads of package files and view state (W-221); a read-only session journals no write.
   'read-only-file-changed',
+  // Tab windows (W-277): a file action a tab window leaves to the main window, a move with no file,
+  // and the journey's close of a window. None is a journaled write.
+  'main-window-only', 'no-file', 'main-window',
 ]);
 
 test('every refusal the Engine or the host raises is classified for the save journal', () => {

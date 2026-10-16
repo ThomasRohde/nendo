@@ -45,7 +45,7 @@ public sealed partial class MainPage
     {
         var expectedDefinitionRevision = (await _session.GetViewAsync()).Manifest?.DefinitionRevision;
         var entity = await PickCsvEntityAsync("Import CSV into a record type"); if (entity is null) return;
-        var window = App.CurrentWindow ?? throw new InvalidOperationException("The Nendo window is unavailable.");
+        var window = Owner ?? throw new InvalidOperationException("The Nendo window is unavailable.");
         var picker = new FileOpenPicker(window.AppWindow.Id) { CommitButtonText = "Select CSV", FileTypeFilter = { ".csv" } };
         var file = await picker.PickSingleFileAsync(); if (file is null) return;
         var document = await CsvWorkAsync("Read and validate CSV", async cancellationToken =>
