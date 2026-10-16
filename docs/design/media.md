@@ -183,6 +183,30 @@ The order is M2 first, with M1 alongside since it changes no code. M3 follows M2
 and M3. M5, M8 and M9 need only M2; M6 and M7 need M3; M10 comes last. The planner holds these as
 dependencies.
 
+## Images first
+
+On 2026-10-16 the owner asked for image support as an initiative of its own: I-012, W-263 to
+W-274. It builds the picture half of this plan on the same store, address and media origin, so
+sound and video (I-011) later add types and players, not plumbing. Its slices map onto the ones
+above, with Studio, thumbnails and the record page split apart:
+
+| Image item | Covers |
+| --- | --- |
+| W-263 Image canvas | M1, pictures only |
+| W-264 Engine | M2, picture types |
+| W-265 Serving | M3 |
+| W-266 Record page, W-267 Thumbnails and covers, W-268 Studio | M4 |
+| W-269 MCP | M5 |
+| W-270 View API | M6 |
+| W-271 Markdown | M7 |
+| W-272 CSV, new files, search | M8 |
+| W-273 Remove unused pictures | M9 |
+| W-274 Reference file and guide | M10 |
+
+The image items additionally ask for pasting a picture from the clipboard, reserving a picture's
+width and height so a page does not shift as it loads, and a measured gallery of 200 large
+pictures before any thumbnail cache is built.
+
 ## Open questions
 
 These are D-010's three, each with the recommendation.
