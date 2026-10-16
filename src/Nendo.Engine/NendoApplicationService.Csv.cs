@@ -225,6 +225,8 @@ public sealed partial class NendoApplicationService
                         if (resolve) versions.Add(field.FieldId, targetVersion);
                         continue;
                     }
+                    if (field.Presentation == NendoMedia.Presentation && value is string text)
+                        await RequireCsvPictureAsync(text, cancellationToken);
                     values.Add(field.FieldId, value);
                     if (resolve && value is string id && field.Reference is { } reference)
                     {
@@ -244,6 +246,19 @@ public sealed partial class NendoApplicationService
             rows.Add(new(document.SourceRowNumber(index), values, versions));
         }
         return rows;
+    }
+
+    /// <summary>
+    /// A media field's cell names a picture: an address, and for an embedded one a picture this
+    /// file holds (ADR-0031, W-272). Refused here, so the review names the row, rather than when
+    /// the batch is applied.
+    /// </summary>
+    private async Task RequireCsvPictureAsync(string text, CancellationToken cancellationToken)
+    {
+        if (!NendoMediaAddress.TryParse(text, out var address))
+            throw new NendoValidationException($"“{text}” is not a picture's address: media: and a SHA-256, an https: address, or a file path.");
+        if (address!.Sha256 is { } sha && await ReadMediaAsync(sha, cancellationToken) is null)
+            throw new NendoValidationException($"this file does not hold the picture {text}. Export with pictures, and import beside its Media folder.");
     }
 
     /// <summary>
@@ -285,16 +300,22 @@ public sealed partial class NendoApplicationService
     /// <see cref="NendoCsvProfile.FileEncoding"/>, so it starts with UTF-8's byte-order mark and a
     /// spreadsheet opened on it reads æ, ø and å (R2LAT-11). The stream stays open.
     /// </summary>
-    public async Task<int> ExportCsvFileAsync(string entityId, Stream destination, CancellationToken cancellationToken = default)
+    /// <para>
+    /// With <paramref name="pictureAddresses"/>, from <see cref="ExportCsvPicturesAsync"/>, a media
+    /// field names each embedded picture by where that call wrote it (W-272).
+    /// </para>
+    public async Task<int> ExportCsvFileAsync(string entityId, Stream destination, CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? pictureAddresses = null)
     {
         ArgumentNullException.ThrowIfNull(destination);
         await using var writer = new StreamWriter(destination, NendoCsvProfile.FileEncoding, leaveOpen: true);
-        var count = await ExportCsvAsync(entityId, writer, cancellationToken);
+        var count = await ExportCsvAsync(entityId, writer, cancellationToken, pictureAddresses);
         await writer.FlushAsync(cancellationToken);
         return count;
     }
 
-    public async Task<int> ExportCsvAsync(string entityId, TextWriter writer, CancellationToken cancellationToken = default)
+    public async Task<int> ExportCsvAsync(string entityId, TextWriter writer, CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? pictureAddresses = null)
     {
         var definition = await GetDefinitionSnapshotAsync(cancellationToken);
         var entity = definition.Entities.SingleOrDefault(entity => entity.EntityId == entityId && !entity.Retired)
@@ -310,7 +331,8 @@ public sealed partial class NendoApplicationService
                 throw new NendoPreconditionException("stale-csv-export", "The file changed during export. Retry from its current state.");
             foreach (var record in page.Items)
             {
-                await writer.WriteAsync((string.Join(',', fields.Select(field => NendoCsvProfile.Encode(record.Values.GetValueOrDefault(field.FieldId)))) + "\r\n").AsMemory(), cancellationToken);
+                await writer.WriteAsync((string.Join(',', fields.Select(field =>
+                    NendoCsvProfile.Encode(PictureAddressFor(field, record.Values.GetValueOrDefault(field.FieldId), pictureAddresses)))) + "\r\n").AsMemory(), cancellationToken);
                 count++;
             }
             cursor = page.NextCursor;

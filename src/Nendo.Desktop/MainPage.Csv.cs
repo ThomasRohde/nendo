@@ -28,12 +28,13 @@ public sealed partial class MainPage
         return await task;
     }
 
-    private async Task<NendoEntitySnapshot?> PickCsvEntityAsync(string title)
+    private async Task<NendoEntitySnapshot?> PickCsvEntityAsync(string title, bool withPictures = false)
     {
         var view = await _session.GetViewAsync();
         if (!view.Capabilities.Mutate) throw new NendoPreconditionException("csv-unavailable", "Open a healthy writable file for normal CSV operations.");
-        var entities = view.Entities.Where(entity => !entity.Retired).OrderBy(entity => entity.DisplayName, StringComparer.Ordinal).ToArray();
-        if (entities.Length == 0) throw new NendoValidationException("Create a record type first.");
+        var entities = view.Entities.Where(entity => !entity.Retired && (!withPictures || HasPictures(entity)))
+            .OrderBy(entity => entity.DisplayName, StringComparer.Ordinal).ToArray();
+        if (entities.Length == 0) throw new NendoValidationException(withPictures ? "No record type has a picture field." : "Create a record type first.");
         var selector = new ComboBox { Header = "Record type", ItemsSource = entities, DisplayMemberPath = "DisplayName", SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
         AutomationProperties.SetAutomationId(selector, "csv.entity");
         var dialog = NativeDialog(title, selector); dialog.PrimaryButtonText = "Continue"; dialog.CloseButtonText = "Cancel";
@@ -144,10 +145,19 @@ public sealed partial class MainPage
         }
     }
 
+    private static bool HasPictures(NendoEntitySnapshot entity) =>
+        entity.Fields.Any(field => !field.Retired && field.Presentation == NendoMedia.Presentation);
+
     private async Task ExportCsvNativeAsync()
     {
         var entity = await PickCsvEntityAsync("Export a record type as faithful CSV"); if (entity is null) return;
-        var review = NativeDialog("Faithful Nendo CSV", "Exports active fields and exact values, including formula-like text. Null is \\N; literal leading backslashes are escaped. Use the Nendo CSV profile to import it. This creates a new file and is not a backup.");
+        var panel = new StackPanel { Spacing = 12 };
+        panel.Children.Add(new TextBlock { Text = "Exports active fields and exact values, including formula-like text. Null is \\N; literal leading backslashes are escaped. Use the Nendo CSV profile to import it. This creates a new file and is not a backup.", TextWrapping = TextWrapping.Wrap });
+        // ADR-0031 point 14 (W-272): the pictures travel as files in a folder beside the CSV.
+        var pictures = new CheckBox { Content = "Export with pictures: write the pictures in this file to a Media folder beside the CSV, named there by their paths", IsChecked = HasPictures(entity) };
+        AutomationProperties.SetAutomationId(pictures, "csv.withPictures");
+        if (HasPictures(entity)) panel.Children.Add(pictures);
+        var review = NativeDialog("Faithful Nendo CSV", panel);
         review.PrimaryButtonText = "Choose destination"; review.CloseButtonText = "Cancel";
         if (await review.ShowAsync() != ContentDialogResult.Primary) return;
         var destination = await PickNewDestinationAsync("Export CSV", "nendo-data.csv", ".csv"); if (destination is null) return;
@@ -155,16 +165,39 @@ public sealed partial class MainPage
         var staging = destination + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            IReadOnlyDictionary<string, string>? written = null;
+            if (HasPictures(entity) && pictures.IsChecked == true)
+                written = await CsvWorkAsync("Write pictures", cancellationToken =>
+                    _session.ExportCsvPicturesAsync(entity.EntityId, Path.GetDirectoryName(Path.GetFullPath(destination))!, cancellationToken));
             var count = await CsvWorkAsync("Export faithful CSV", async cancellationToken =>
             {
                 // The Engine writes the file's encoding, byte-order mark first (R2LAT-11).
                 await using var file = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-                return await _session.ExportCsvFileAsync(entity.EntityId, file, cancellationToken);
+                return await _session.ExportCsvFileAsync(entity.EntityId, file, cancellationToken, written);
             });
             await _session.ValidateFileRequestAsync(CancellationToken.None);
             File.Move(staging, destination, false);
-            NativeNotice($"CSV export complete: {count} records. Use the Nendo CSV profile for faithful import.");
+            NativeNotice(written is null
+                ? $"CSV export complete: {count} records. Use the Nendo CSV profile for faithful import."
+                : $"CSV export complete: {count} records, and {written.Count} pictures in the {NendoApplicationService.CsvPictureFolder} folder beside it. Import it into a file in that folder with the Nendo CSV profile, then embed its linked pictures.");
         }
         finally { if (File.Exists(staging)) File.Delete(staging); }
+    }
+
+    /// <summary>
+    /// Copies a record type's linked picture files into this file (ADR-0031 point 14, W-272): each
+    /// picture its own change in History; web pictures stay links.
+    /// </summary>
+    private async Task EmbedLinkedPicturesNativeAsync()
+    {
+        var entity = await PickCsvEntityAsync("Embed linked pictures", withPictures: true); if (entity is null) return;
+        var review = NativeDialog("Embed linked pictures", $"Every picture of {entity.DisplayName} that is linked to a file on this computer is copied into this file, and its field then names the copy. Each picture is its own change in History. Pictures from the web stay links. A file that is not there, or is not a picture, is listed and left linked.");
+        review.PrimaryButtonText = "Embed"; review.CloseButtonText = "Cancel";
+        if (await review.ShowAsync() != ContentDialogResult.Primary) return;
+        var result = await CsvWorkAsync("Embed linked pictures", cancellationToken => _session.EmbedLinkedPicturesAsync(entity.EntityId, cancellationToken));
+        var left = result.Left.Count == 0 ? "" : $" {result.Left.Count} left linked: " +
+            string.Join("; ", result.Left.Take(3).Select(item => $"{item.Address} ({item.Reason.TrimEnd('.')})")) + (result.Left.Count > 3 ? "; …" : "") + ".";
+        NativeNotice($"Embedded {result.Embedded} linked pictures into this file.{left}",
+            result.Left.Count == 0 ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
     }
 }

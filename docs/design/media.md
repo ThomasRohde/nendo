@@ -184,7 +184,7 @@ failure text goes in a Finding (`AGENTS.md`).
 | **W-269** MCP | Vocabulary, chunked put, the picture as MCP image content, audited refusals, skill text | Protocol tests; surface count and description lint |
 | **W-270** View API | `media.urlFor`, `describe`, `put`, `read` | A view test round-trips a picture; `read` of a link refused; the contract updated |
 | **W-271** Markdown pictures | `markdown.ts` renders media addresses | SSR markup tests, including `javascript:` and `data:` staying inert |
-| **W-272** CSV, new files, search | Export with pictures, import, embed all linked, search on names | A round trip between two files compared by hash; a missing `media:` refused at review |
+| **W-272** CSV, new files, search | Export with pictures, import, embed all linked (built 2026-10-16); search on a picture's name is not built and has an item of its own | A round trip between two files compared by hash; a missing `media:` refused at review |
 | **W-273** Remove unused pictures | The host operation and Studio's totals | Named content never removed; backup first; size falls by what was removed |
 | **W-274** Reference file and guide | A built demo file with all three sources, the site guide and screenshots, the measurements as Checks | `Test-BinaryAssets.ps1`, `Test-Site.ps1` |
 

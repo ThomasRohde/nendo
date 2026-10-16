@@ -60,6 +60,23 @@ This contract gives the faithful Nendo CSV profile for import and export.
   describes the current active fields. Retired data stays under the recovery
   boundary until an explicit export choice is specified.
 
+## Pictures
+
+A media field (ADR-0031) exports and imports its address as text. A cell that is not a
+picture's address, or that names a `media:` picture the file does not hold, is refused when the
+batch is prepared, before review, by its row: `CSV row 3, Cover: this file does not hold the
+picture media:…` (W-272). `CsvPicturesTests.cs` asserts this section.
+
+The native export offers **Export with pictures** for a record type with a media field. It writes
+each embedded picture its rows name, once, into a `Media` folder beside the CSV, under the
+picture's own name (a different picture already holding that name gets the name and the start
+of its hash), and the CSV names it there as `.\Media\{file}`. A file opened in the folder that
+holds the CSV reads those addresses as linked pictures, and **File → Embed linked pictures…**
+copies a record type's linked picture files into the file, one revision each, setting each field
+to the embedded address. A file that is not there, or is not a picture, is listed and left
+linked; web pictures stay links. The same bytes arrive under the same `media:` address. The
+agent's export resource writes addresses as they are.
+
 ## External CSV
 
 The user explicitly selects External CSV or the Nendo profile. External text is

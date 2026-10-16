@@ -230,6 +230,9 @@ export function renderFileMenu(): void {
     <div class="file-menu-divider"></div><p class="file-menu-label">Data</p>
     ${item('file.importCsv', 'Import CSV…', 'Map fields and review batches of up to 100 new records', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
     ${item('file.exportCsv', 'Export CSV…', 'Faithful UTF-8 values from one record type', 'data', local && state.session.capabilities.mutate && state.session.entities.some(entity => !entity.retired))}
+    ${state.session.entities.some(entity => !entity.retired && entity.fields.some(field => !field.retired && field.presentation === 'media'))
+      ? item('file.embedLinkedPictures', 'Embed linked pictures…', 'Copy a record type’s linked picture files into this file', 'data', local && state.session.capabilities.mutate)
+      : ''}
     ${item('customViews', 'Custom views…', 'The packages in this file, and whether views run here', 'surfaces', state.session.hasFile && client.mode !== 'unavailable')}
     <div class="file-menu-divider"></div><p class="file-menu-label">Recovery</p>
     ${item('file.restore', 'Restore backup…', 'Replace from a backup; retain this version', 'history', local && offersReplacement(state.session))}

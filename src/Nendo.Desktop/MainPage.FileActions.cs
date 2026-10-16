@@ -59,6 +59,7 @@ public sealed partial class MainPage
                 case WorkbenchFileAction.Export: await ExportNativeDataAsync(); break;
                 case WorkbenchFileAction.ImportCsv: await ImportCsvNativeAsync(); break;
                 case WorkbenchFileAction.ExportCsv: await ExportCsvNativeAsync(); break;
+                case WorkbenchFileAction.EmbedLinkedPictures: await EmbedLinkedPicturesNativeAsync(); break;
                 case WorkbenchFileAction.ResolveRecovery: await ResolveNativeRecoveryAsync(); break;
                 default: throw new NendoValidationException("The file action is not supported.");
             }

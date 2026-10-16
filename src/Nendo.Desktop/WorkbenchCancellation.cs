@@ -97,6 +97,14 @@ internal static partial class WorkbenchMethods
         AgentSessionAuthenticate,
         AgentSessionEnd,
         AgentSessionSetOption,
+        // Pictures (ADR-0031): a copy of a link, a view's reads and puts, and showing a file in
+        // its folder touch no window.
+        MediaEmbedCopy,
+        MediaReveal,
+        MediaDescribe,
+        MediaReadWindow,
+        MediaStage,
+        MediaCommit,
     };
 
     /// <summary>
@@ -111,6 +119,10 @@ internal static partial class WorkbenchMethods
     {
         SessionCreateFile,
         SessionOpenFile,
+        // A picture picked, pasted or dropped, a file linked, or a copy saved: a picker or the clipboard.
+        MediaEmbed,
+        MediaLink,
+        MediaSaveCopy,
         FileOpenRecent,
         FileOpenDropped,
         FileClose,
@@ -126,6 +138,7 @@ internal static partial class WorkbenchMethods
         FileResolveRecovery,
         "file.importCsv",
         "file.exportCsv",
+        "file.embedLinkedPictures",
         AppearanceSet,
         AppearanceGet,
         WindowSetTitleBarControls,
