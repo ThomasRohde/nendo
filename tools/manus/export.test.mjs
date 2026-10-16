@@ -62,3 +62,41 @@ test('Word: a picture that could not be read stands as its description and is na
   const xml = await (await lib.JSZip.loadAsync(await lib.Packer.toBuffer(document))).file('word/document.xml').async('string');
   assert.match(xml, /\[Picture: The harbour at dawn\]/);
 });
+
+test('paper layout: bold headings kept, front matter centred, abstract and references set apart, pictures side by side', async () => {
+  const paper = { title: 'A Paper', nodes: [
+    { id: 'a', kind: 'Paragraph', text: '[Authors]' },
+    { id: 'h0', kind: 'Chapter', text: 'Abstract' },
+    { id: 'b', kind: 'Paragraph', text: 'We describe it.' },
+    { id: 'h1', kind: 'Chapter', text: '1 Introduction' },
+    { id: 'c', kind: 'Paragraph', text: 'First.' },
+    { id: 'd', kind: 'Paragraph', text: 'Second.' },
+    { id: 'p1', kind: 'Paragraph', text: `![One](${address})` },
+    { id: 'p2', kind: 'Paragraph', text: `![Two](${address})` },
+    { id: 'f', kind: 'Paragraph', text: '*Figure 1.* Two panels: (a) one; (b) two.' },
+    { id: 'h2', kind: 'Chapter', text: 'References' },
+    { id: 'r', kind: 'Paragraph', text: '[1] Someone. 2020. A Work.' },
+  ] };
+  const pictures = new Map([[address, { data: png, mediaType: 'image/png', width: 1600, height: 1000 }]]);
+  const { document } = toDocx(exportPlan(paper), pictures, lib, Lexer, 'paper');
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(document));
+  const xml = await zip.file('word/document.xml').async('string'), styles = await zip.file('word/styles.xml').async('string');
+  assert.doesNotMatch(xml, /<w:b w:val="false"\/>/, 'a run switches bold off, which overrides a bold heading style');
+  assert.match(styles, /w:styleId="Heading1"[\s\S]*?<w:b\/>/);
+  const paragraph = text => xml.split('<w:p>').find(p => p.includes(text)) ?? '';
+  assert.match(paragraph('[Authors]'), /<w:jc w:val="center"\/>/);
+  assert.match(paragraph('We describe it.'), /<w:ind w:left="720" w:right="720"/);
+  assert.doesNotMatch(paragraph('First.'), /w:firstLine="360"/, 'the first paragraph of a section is not indented');
+  assert.match(paragraph('Second.'), /w:firstLine="360"/);
+  assert.equal((paragraph('</w:drawing>').match(/<w:drawing>/g) ?? []).length, 2, 'two pictures next to each other share one row');
+  assert.match(paragraph('Two panels'), /Figure 1: /);
+  assert.match(paragraph('Someone. 2020'), /w:hanging="360"/);
+  assert.match(await zip.file('word/document.xml').async('string'), /<w:pgSz w:w="12240" w:h="15840"/);
+});
+
+test('book layout: a 6 by 9 inch page with chapters on new pages', async () => {
+  const { document } = toDocx(exportPlan(manuscript), new Map(), lib, Lexer, 'book');
+  const xml = await (await lib.JSZip.loadAsync(await lib.Packer.toBuffer(document))).file('word/document.xml').async('string');
+  assert.match(xml, /<w:pgSz w:w="8640" w:h="12960"/);
+  assert.match(xml, /<w:pageBreakBefore\/>[\s\S]*?Part One/);
+});

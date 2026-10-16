@@ -75,7 +75,7 @@ async page => {
     return bytes;
   };
   const exportMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'export');
-  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word', `Export menu: ${JSON.stringify(exportMenu)}`);
+  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word,export-word-paper', `Export menu: ${JSON.stringify(exportMenu)}`);
   // The probe's sandbox has no TextDecoder; the page decodes the bytes.
   const markdownBytes = await exported('export-markdown', 'Low Water.md');
   const markdown = await page.evaluate(bytes => new TextDecoder().decode(new Uint8Array(bytes)), Array.from(markdownBytes));
@@ -85,7 +85,9 @@ async page => {
   const word = await exported('export-word', 'Low Water.docx');
   assert(word[0] === 0x50 && word[1] === 0x4b && word.length > 4000, `Word export is not a .docx package: ${word.length} bytes`);
   const report = await frame.evaluate(() => window.manuscript.lastExport);
-  assert(report.format === 'word' && report.missing.length === 1 && report.pictures === 1, `Export report: ${JSON.stringify(report)}`);
+  assert(report.format === 'word' && report.layout === 'book' && report.missing.length === 1 && report.pictures === 1, `Export report: ${JSON.stringify(report)}`);
+  const paper = await exported('export-word-paper', 'Low Water.docx');
+  assert(paper[0] === 0x50 && paper[1] === 0x4b && (await frame.evaluate(() => window.manuscript.lastExport.layout)) === 'paper', 'The paper layout did not export.');
   checks.push('Markdown and Word export');
 
   // Typing saves after a pause, as one batch that writes only that paragraph's text.

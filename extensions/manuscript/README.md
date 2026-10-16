@@ -34,8 +34,14 @@ same records; the view keeps no copy of the manuscript in the file.
 - **Export** in Nendo's toolbar saves what is on the page, reads the manuscript as the file holds
   it, and downloads it: *Markdown* as a `.md`, or a `.zip` with the `.md` and a `media/` folder
   when it has pictures; *Word document* as a `.docx` with a Title, Heading 1 to 3, bold, italic,
-  strikethrough and code runs, and each picture at the text's width with its description as
-  alternative text. Cuttings, notes and links stay out. A picture that cannot go in stands as
+  strikethrough and code runs, and pictures with their descriptions as alternative text, in one
+  of two layouts. The *book layout* is a 6 by 9 inch page in Georgia with a title page and each
+  part or chapter on a new page. The *paper layout* is a one-column article on Letter paper in
+  Times: a centred title block from the paragraphs before the first heading, a section headed
+  Abstract set narrower, justified text indented after the first paragraph, bold numbered
+  headings, pictures next to each other set side by side, a paragraph after a picture that
+  starts "Figure n." set as its caption, a References section with hanging indents, and page
+  numbers. Cuttings, notes and links stay out. A picture that cannot go in stands as
   its description and the view names it.
 - Selecting words in a paragraph shows a bar: Link, Note, Keep as cutting, Copy for the agent.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the

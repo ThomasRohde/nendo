@@ -333,7 +333,7 @@ function download(blob, name) {
 }
 
 /** Exports the manuscript as saved in the file, after saving what is on the page. */
-async function exportAs(format) {
+async function exportAs(format, layout = 'book') {
   await flush();
   setStatus('Exporting…');
   const items = await nendo.records.treeAll({ entityId: BLOCK, depth: 32 }, { max: 10000 });
@@ -363,14 +363,14 @@ async function exportAs(format) {
     } else { blob = new Blob([text], { type: 'text/markdown' }); file = `${name}.md`; }
     missing = plan.items.filter(i => i.type === 'picture' && i.address.startsWith('media:') && !files.has(i.address)).map(i => i.alt || i.address);
   } else {
-    const built = toDocx(plan, pictures, lib, Lexer);
+    const built = toDocx(plan, pictures, lib, Lexer, layout);
     blob = await lib.Packer.toBlob(built.document);
     file = `${name}.docx`;
     missing = built.missing.map(m => m.alt || m.address);
   }
   download(blob, file);
   const counts = { blocks: plan.items.length, pictures: plan.items.filter(i => i.type === 'picture').length };
-  state.lastExport = { format, file, bytes: blob.size, missing, ...counts };
+  state.lastExport = { format, layout: format === 'word' ? layout : null, file, bytes: blob.size, missing, ...counts };
   setStatus(`Exported ${file}`);
   toast(`Exported ${file} to your Downloads folder.`);
   if (missing.length) {
@@ -437,7 +437,8 @@ function declare() {
     { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
     { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
       { id: 'export-markdown', label: 'Markdown', detail: 'A .zip with the text and its pictures' },
-      { id: 'export-word', label: 'Word document', detail: 'A .docx with headings, styles and pictures' },
+      { id: 'export-word', label: 'Word document, book layout', detail: 'A 6 by 9 inch book: title page, chapters on new pages' },
+      { id: 'export-word-paper', label: 'Word document, paper layout', detail: 'An article: title block, abstract, numbered sections, figures' },
     ] },
     { kind: 'menu', id: 'appearance', label: 'Appearance', icon: 'settings', iconOnly: true, items: [
       { kind: 'label', label: 'Typeface' }, radio('font', 'serif', 'Serif', a.font), radio('font', 'sans', 'Sans serif', a.font),
@@ -456,7 +457,8 @@ function declare() {
 }
 
 function command({ id, value }) {
-  if (id === 'export-markdown' || id === 'export-word') { exportAs(id === 'export-word' ? 'word' : 'markdown').catch(fail); return; }
+  if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
+  if (id === 'export-word' || id === 'export-word-paper') { exportAs('word', id === 'export-word-paper' ? 'paper' : 'book').catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); declare(); }
