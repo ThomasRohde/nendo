@@ -103,12 +103,14 @@ mode, bounded calculations and local actions, custom views that carry their own
 code in the file, with the full typed API
 ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)), and launching
 the person's own installed agent from the Agent page, in a tab
-([ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md)).
+([ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md)), and media fields:
+pictures, sound and video embedded in the file or linked by address
+([ADR-0031](decisions/0031-media-in-user-data.md), pictures first).
 
 **Out:** general scripting in formulas, extension code that runs without a view
 (a skill's script runs in the agent's client, never in Nendo:
 [ADR-0029](decisions/0029-a-skill-may-carry-scripts-its-client-runs.md)),
-an embedded agent (a model client in the host), scalar multi-choice, binary and asset fields, collaboration,
+an embedded agent (a model client in the host), scalar multi-choice, binary and asset fields other than media, collaboration,
 cloud sync, background agents, other database engines, cross-platform parity.
 
 The scope list covers what is shipped and what an accepted ADR has decided.

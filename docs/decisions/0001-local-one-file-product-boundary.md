@@ -104,7 +104,10 @@ layout or source tree of the disposable prototype.
 
 ### Negative
 
-- Asset fields and multi-file application bundles are excluded. A custom-view
+- Multi-file application bundles are excluded. Media (pictures, sound and video)
+  may be user data, embedded in the file or linked
+  ([ADR-0031](0031-media-in-user-data.md)); other binary and asset fields stay
+  excluded. A custom-view
   package, with its code and assets, is the one payload that Nendo runs, and only in
   its view (ADR-0013). A skill package may also carry scripts, which the connected
   agent's client runs on its own machine under its own approval and Nendo never runs
@@ -124,7 +127,7 @@ single-user MVP is proved.
 
 ## Revisit triggers
 
-- Binary or asset fields become a product requirement.
+- Binary or asset fields beyond ADR-0031's media become a product requirement.
 - Extension code needs to run outside a view, or across files.
 - Cloud sync or collaboration becomes explicit scope.
 - SQLite can no longer meet the tested local durability and inspectability
@@ -142,3 +145,6 @@ single-user MVP is proved.
   file may carry since ADR-0029 (accepted 2026-10-08): a skill package's scripts, which the
   agent's client runs and Nendo never runs. The boundary does not move: Nendo still runs
   only view code, in the view (R2AAV-10, W-222).
+- 2026-10-16 — the revisit trigger *binary or asset fields become a product requirement* fired:
+  [ADR-0031](0031-media-in-user-data.md) admits media as user data, embedded in the file once
+  per content or linked by address. The file stays one file; other binary fields stay out.

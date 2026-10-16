@@ -147,9 +147,12 @@ reserved protected metadata namespace for Nendo state.
   them on any other storage kind. A file where an earlier host stored one on a
   number, a yes/no, a date or a reference reads it as no presentation, so the field
   draws its own input again; the stored row is left as it was.)
-- Scalar multi-choice, JSON-as-a-user-type and binary/asset fields are deferred.
-  A package file's content is stored as a BLOB, but it is protected metadata, not
-  a user field.
+- Scalar multi-choice, JSON-as-a-user-type and binary or asset fields other than
+  media are deferred. A package file's content is stored as a BLOB, but it is
+  protected metadata, not a user field. Media is a Text field with the presentation
+  `media` holding an address; embedded content lives once per distinct content in
+  protected tables outside history ([ADR-0031](0031-media-in-user-data.md)), so no
+  user column holds bytes.
 - Relationships use explicit relational metadata and foreign-key/join
   structures. They do not use encoded scalar lists.
 - Note, 2026-10-14 (W-232, the ESS-09 follow-up): a bound reference's label field can
@@ -222,3 +225,5 @@ operation-level change tracking.
   host 1.33.0.
 - 2026-10-14 — `schema.setReferenceLabel` changes the field a bound reference shows its
   records by; no stored value moves (note under *Decision*; W-232). Host 1.51.0.
+- 2026-10-16 — media fields decided by [ADR-0031](0031-media-in-user-data.md): a Text
+  presentation holding an address, with embedded content in protected tables. Not yet built.

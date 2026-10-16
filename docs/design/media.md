@@ -1,7 +1,7 @@
 # Media in Nendo files
 
-Status: **planned**; nothing is built as of 2026-10-15. [ADR-0031](../decisions/0031-media-in-user-data.md)
-is Proposed, and decision D-010 in the planner asks the owner its three questions.
+Status: **planned**; nothing is built as of 2026-10-16. [ADR-0031](../decisions/0031-media-in-user-data.md)
+was accepted on 2026-10-16, when the owner decided D-010 as recommended.
 
 The owner asked on 2026-10-15 for Nendo applications to hold media, such as pictures and sound:
 embedded in the `.nendo` file, linked to a web address, or linked to a file on the computer. On
@@ -191,9 +191,9 @@ W-271 need W-265; W-274 comes last. The planner holds these as dependencies.
 Sound and video would add their types to the accept set and their players to the record page, on
 the same store, address and origin; nothing in these slices is picture-only plumbing.
 
-## Open questions
+## Decided questions
 
-These are D-010's three, each with the recommendation.
+The owner decided D-010's three on 2026-10-16, each as recommended: A, 1 and i.
 
 1. **Storage: an address in a Text field (A), a new storage kind, a host Media type, or links
    only?** A: no new type for any client to learn, and history stays free of bytes.

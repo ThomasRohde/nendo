@@ -41,7 +41,8 @@ make a task easier.
   services. A skill's script runs only in the client that loads it, never in Nendo
   ([ADR-0029](docs/decisions/0029-a-skill-may-carry-scripts-its-client-runs.md)).
   Out of scope without an accepted ADR: expressions beyond ADR-0008's
-  formula language, binary and asset fields in user data, scalar multi-choice.
+  formula language, binary and asset fields in user data beyond ADR-0031's media,
+  scalar multi-choice.
 
 ## Working style
 

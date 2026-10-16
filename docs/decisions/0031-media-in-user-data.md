@@ -1,7 +1,8 @@
 # ADR-0031: Media in user data
 
-- **Status:** Proposed
-- **Date:** 2026-10-15
+- **Status:** Accepted
+- **Date:** 2026-10-16
+- **Decided by:** the owner, D-010 in the planner (A, 1 and i, as recommended); proposed 2026-10-15
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The survey of the code at a89b63f in Context; the plan in
@@ -12,7 +13,7 @@
   UI, ADR-0005 one coordinator, ADR-0006 revisions and compensation, ADR-0012 format ladder and
   the 1.x promise, ADR-0013 custom views and their asset server, ADR-0021 folding, ADR-0022 new
   files, ADR-0028 search
-- **Amends on acceptance:** ADR-0001 (Negative consequences and the revisit trigger), ADR-0003
+- **Amends:** ADR-0001 (Negative consequences and the revisit trigger), ADR-0003
   (the deferred binary and asset fields), ADR-0012 (the open bound counts everything except
   embedded media content), [`../vision.md`](../vision.md) (moves *binary and asset fields* from
   Out to In, for media) and `AGENTS.md` (the out-of-scope line)
@@ -246,3 +247,12 @@ stage. The plan holds the slices.
 - Recording sound or taking a picture inside Nendo.
 - Help pages that need pictures (ADR-0027's trigger), if the media origin should serve package
   files too.
+
+## History
+
+- 2026-10-15 — proposed, with the plan in [`../design/media.md`](../design/media.md).
+- 2026-10-16 — accepted by the owner, as recommended at each of D-010's three points: an address
+  in a Text field (A), 64 MiB per item and 2 GiB per file outside the open bound (1), and web
+  media loaded when shown with a device setting to turn it off (i). Images are built first (I-012,
+  W-263 to W-274). The amendments it names are made in ADR-0001, ADR-0003, ADR-0012, the vision
+  and `AGENTS.md`. Nothing is built yet.
