@@ -18,7 +18,7 @@ There is no Save button. A pause in your typing saves what changed, and the line
 
 ## Pictures
 
-A paragraph that is a single picture, written as `![description](address)` in Studio or by an agent, shows as the picture. Click it to select it; Delete removes it, and Enter adds a paragraph after it.
+A paragraph that is a single picture, written as `![description](address)` in Studio or by an agent, shows as a small picture with its description beside it, so the writing stays in front; choose **Full width** under Pictures in the settings button to see pictures at the width of the text. Click a picture to select it; Delete removes it, and Enter adds a paragraph after it.
 
 ## Notes, links and cuttings
 

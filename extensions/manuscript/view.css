@@ -54,10 +54,16 @@ button { cursor: pointer; }
 .sheet-text code { font-family: var(--mono); font-size: 0.85em; background: var(--soft); border-radius: 3px; padding: 0 3px; }
 .sheet-text p.is-empty:first-child::before, .sheet-text .is-empty::before { content: attr(data-placeholder); color: var(--muted); opacity: 0.6; float: left; height: 0; pointer-events: none; }
 .sheet-text ::selection { background: var(--accent-soft); }
-.sheet-text figure.picture { margin: 22px 0 18px; padding: 0 14px; }
-.sheet-text figure.picture img { display: block; width: 100%; height: auto; border-radius: 8px; }
+/* A picture steps back while writing: a thumbnail with its description beside it. Full width
+   is the person's choice under Appearance, kept per device. */
+.sheet-text figure.picture { margin: 10px 0 14px; padding: 0 14px; display: flex; align-items: center; gap: 14px; }
+.sheet-text figure.picture img, .picture-missing { flex: none; width: 168px; aspect-ratio: 3 / 2; object-fit: cover; border-radius: 6px; display: block; }
+.sheet-text figure.picture figcaption { font: 13px/1.45 var(--ui); color: var(--muted); }
+:root[data-pictures='full'] .sheet-text figure.picture { display: block; margin: 22px 0 18px; }
+:root[data-pictures='full'] .sheet-text figure.picture img, :root[data-pictures='full'] .picture-missing { width: 100%; border-radius: 8px; }
+:root[data-pictures='full'] .sheet-text figure.picture figcaption { display: none; }
 .sheet-text figure.picture.ProseMirror-selectednode img, .sheet-text figure.picture.ProseMirror-selectednode .picture-missing { outline: 2px solid var(--accent); outline-offset: 3px; }
-.picture-missing { font: 13px/1.4 var(--ui); color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 8px; padding: 28px 16px; text-align: center; }
+.picture-missing { box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 8px; font: 12px/1.4 var(--ui); color: var(--muted); border: 1px dashed var(--line-strong); text-align: center; }
 
 .overlays { position: absolute; inset: 0; pointer-events: none; }
 .overlays > * { pointer-events: auto; }

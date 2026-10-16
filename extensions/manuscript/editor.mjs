@@ -116,7 +116,9 @@ function pictureNode(resolve) {
             img.decoding = 'async';
             img.addEventListener('error', missing, { once: true });
             img.src = url;
-            figure.replaceChildren(img);
+            const caption = document.createElement('figcaption');
+            caption.textContent = attrs.alt ?? '';
+            figure.replaceChildren(img, caption);
           }, missing);
         };
         show(node.attrs);

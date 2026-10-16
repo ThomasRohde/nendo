@@ -45,12 +45,22 @@ async page => {
     .catch(async () => { throw Error(`No picture is drawn for a block that is one picture: ${await frame.evaluate(() => document.querySelector('[data-block="b-0502"]')?.outerHTML ?? 'no block b-0502')}`); });
   const picture = await frame.evaluate(() => document.querySelector('figure.picture[data-block="b-0502"]').textContent);
   assert(picture === 'Picture not found: The causeway at low water', `Picture block: ${picture}`);
+  // While writing a picture is a thumbnail; Full width under Appearance gives it the column.
+  const pictureBox = () => frame.evaluate(() => { const r = document.querySelector('figure.picture[data-block="b-0502"] .picture-missing').getBoundingClientRect(); return { width: Math.round(r.width), height: Math.round(r.height) }; });
+  const thumbnail = await pictureBox();
+  assert(thumbnail.width === 168 && thumbnail.height === 112, `A picture must open as a 168 by 112 thumbnail, not ${JSON.stringify(thumbnail)}`);
+  await page.evaluate(() => window.broker.command('pictures', 'full'));
+  await frame.waitForFunction(() => document.documentElement.dataset.pictures === 'full');
+  const full = await pictureBox();
+  assert(full.width > 500 && Math.abs(full.height - full.width * 2 / 3) <= 2, `Full width: ${JSON.stringify(full)}`);
+  await page.evaluate(() => window.broker.command('pictures', 'small'));
+  await frame.waitForFunction(() => document.documentElement.dataset.pictures === 'small');
   assert(opened.marks['b-0415'] === '2' && opened.marks['b-0501'] === '1', `Gutter counts must match the notes and links: ${JSON.stringify(opened.marks)}`);
   assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'Nendo refused the toolbar: ' + JSON.stringify(await page.evaluate(() => window.broker.chromeRefusals)));
   const toolbar = await page.evaluate(() => window.broker.toolbars.at(-1));
   assert(toolbar.items.some(i => i.id === 'style') && toolbar.items.some(i => i.id === 'outline') && toolbar.items.some(i => i.kind === 'text'), `Toolbar: ${JSON.stringify(toolbar)}`);
   assert((await batches()).length === 0, 'Opening the sheet wrote to the file.');
-  checks.push('opens as one page', 'picture blocks', 'gutter counts', 'toolbar in Nendo');
+  checks.push('opens as one page', 'picture blocks', 'pictures as thumbnails', 'gutter counts', 'toolbar in Nendo');
 
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
   await select('b-0414', 'end');

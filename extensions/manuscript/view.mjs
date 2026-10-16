@@ -18,14 +18,16 @@ window.manuscript = state;   // for the browser lane
 // ---------- Appearance, per device ----------
 
 function readAppearance() {
-  try { return { font: 'serif', size: 'medium', width: 'medium', ...JSON.parse(localStorage.getItem('manuscript.appearance') ?? '{}') }; }
-  catch { return { font: 'serif', size: 'medium', width: 'medium' }; }
+  const plain = { font: 'serif', size: 'medium', width: 'medium', pictures: 'small' };
+  try { return { ...plain, ...JSON.parse(localStorage.getItem('manuscript.appearance') ?? '{}') }; }
+  catch { return plain; }
 }
 function applyAppearance() {
   const a = state.appearance;
   document.documentElement.dataset.font = a.font;
   document.documentElement.dataset.size = a.size;
   document.documentElement.dataset.width = a.width;
+  document.documentElement.dataset.pictures = a.pictures;
   try { localStorage.setItem('manuscript.appearance', JSON.stringify(a)); } catch { /* a private window keeps it for now */ }
   placeOverlays();
 }
@@ -375,6 +377,8 @@ function declare() {
       radio('size', 'small', 'Small', a.size), radio('size', 'medium', 'Medium', a.size), radio('size', 'large', 'Large', a.size),
       { kind: 'separator' }, { kind: 'label', label: 'Line length' },
       radio('width', 'narrow', 'Narrow', a.width), radio('width', 'medium', 'Medium', a.width), radio('width', 'wide', 'Wide', a.width),
+      { kind: 'separator' }, { kind: 'label', label: 'Pictures' },
+      radio('pictures', 'small', 'Thumbnails', a.pictures), radio('pictures', 'full', 'Full width', a.pictures),
     ] },
   ];
   const text = JSON.stringify(items);
@@ -386,7 +390,7 @@ function declare() {
 function command({ id, value }) {
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
-  if (id === 'font' || id === 'size' || id === 'width') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); declare(); }
+  if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); declare(); }
 }
 
 function renderOwnToolbar() {

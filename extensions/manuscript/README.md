@@ -28,7 +28,8 @@ same records; the view keeps no copy of the manuscript in the file.
   starts again if nothing it touched has changed since.
 - A block whose whole text is one picture, `![alt](media:…)` or a web address, is drawn as
   that picture, from the open file's media origin, and selected or deleted whole; one that does
-  not load says *Picture not found* with its description.
+  not load says *Picture not found* with its description. While writing it is a 168 by 112
+  thumbnail with its description beside it; *Full width* under Appearance is the device's choice.
 - Selecting words in a paragraph shows a bar: Link, Note, Keep as cutting, Copy for the agent.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the
   appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
