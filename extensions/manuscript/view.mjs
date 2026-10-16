@@ -61,7 +61,7 @@ window.manuscriptSheet = sheet;
 // save is kept in the view's own storage (one origin per file and package) until it is saved.
 const DRAFT_CHARACTERS = 2000000;
 let draftTimer = null;
-const draftKey = () => `manuscript.draft.v1.${nendo.context?.viewId ?? 'sheet'}`;
+const draftKey = () => `manuscript.draft.v1.${nendo.context?.viewId ?? 'sheet'}.${state.root ?? 'none'}`;
 function keepDraft() {
   clearTimeout(draftTimer);
   draftTimer = setTimeout(() => {
@@ -119,27 +119,37 @@ function selected(where) {
 
 // ---------- Reading ----------
 
+// Blocks are read flat, a cursor page at a time, and the tree is built here: a hierarchy walk
+// re-reads its whole subtree for every page and is bounded at 10,000 records, a flat read is
+// neither. READ_MAX is only a guard against reading without end.
+const READ_MAX = 1000000;
+async function readBlocks() { return nendo.records.queryAll({ entityId: BLOCK }, { max: READ_MAX }); }
+
 async function readAll() {
-  const items = await nendo.records.treeAll({ entityId: BLOCK, depth: 32 }, { max: 10000 });
-  const [notes, links] = await Promise.all([
-    nendo.records.queryAll({ entityId: NOTE }, { max: 10000 }),
-    nendo.records.queryAll({ entityId: LINK }, { max: 10000 }),
+  const [blocks, notes, links] = await Promise.all([
+    readBlocks(),
+    nendo.records.queryAll({ entityId: NOTE }, { max: READ_MAX }),
+    nendo.records.queryAll({ entityId: LINK }, { max: READ_MAX }),
   ]);
-  return { manuscript: readManuscript(items), notes, links };
+  return { manuscript: readManuscript(blocks, state.wanted ?? state.root), notes, links };
 }
 
 async function load() {
   const { manuscript, notes, links } = await readAll();
-  state.root = manuscript.root; state.cuttings = manuscript.cuttings;
+  const switched = manuscript.root !== state.root;
+  state.root = manuscript.root; state.cuttings = manuscript.cuttings; state.manuscripts = manuscript.manuscripts; state.wanted = null;
   state.saved = manuscript.saved; state.notes = notes; state.links = links;
   state.title = state.savedTitle = manuscript.title;
   $('title').value = manuscript.title;
   $('empty').hidden = state.root !== null;
   $('page').hidden = state.root === null;
   if (state.root !== null) {
-    const keep = sheet.where();
+    const keep = switched ? null : sheet.where();
     sheet.load(manuscript.nodes);
     if (keep?.id && sheet.locate(keep.id)) sheet.editor.commands.setTextSelection(sheet.locate(keep.id).pos + 1);
+    // A switch the person made is a step in Back and Forward; one Back or Forward made is not.
+    if (switched) placeHere(state.placeStep !== false);
+    state.placeStep = null;
   }
   sheet.editor.setEditable(!state.readOnly && state.root !== null);
   state.external = false;
@@ -337,8 +347,7 @@ function download(blob, name) {
 async function exportAs(format, layout = 'book') {
   await flush();
   setStatus('Exporting…');
-  const items = await nendo.records.treeAll({ entityId: BLOCK, depth: 32 }, { max: 10000 });
-  const plan = exportPlan(readManuscript(items));
+  const plan = exportPlan(readManuscript(await readBlocks(), state.root));
   const lib = await import('./vendor/export.js');
   const pictures = new Map(), unread = [];
   for (const item of plan.items) {
@@ -430,6 +439,9 @@ function declare() {
   const a = state.appearance;
   const radio = (id, value, label, current) => ({ kind: 'radio', id, value, label, checked: current === value });
   const items = [
+    ...(state.root !== null ? [{ kind: 'select', id: 'manuscript', label: 'Manuscript', hideLabel: true, value: state.root,
+      options: [...(state.manuscripts ?? []).slice(0, 63).map(m => ({ value: m.id, label: (m.id === state.root ? state.title || 'Untitled manuscript' : m.title || 'Untitled manuscript').slice(0, 80) })),
+        { value: 'new', label: 'New manuscript\u2026' }] }] : []),
     { kind: 'select', id: 'style', label: 'Style', value: style, options: STYLES.map(s => ({ value: s, label: s })) },
     ...(state.roles ? [{ kind: 'select', id: 'role', label: 'Role', value: (state.root !== null && sheet.roleHere()) || 'none', options: [{ value: 'none', label: 'No role' }, ...ROLES.map(r => ({ value: r, label: r }))] }] : []),
     { kind: 'text', text: `${state.status} · ${summary()}` },
@@ -461,6 +473,7 @@ function declare() {
 function command({ id, value }) {
   if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
   if (id === 'export-word' || id === 'export-word-paper') { exportAs('word', id === 'export-word-paper' ? 'paper' : 'book').catch(fail); return; }
+  if (id === 'manuscript') { (value === 'new' ? startManuscript() : openManuscript(value)).catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
@@ -688,7 +701,10 @@ async function start(context) {
   $('scroller').addEventListener('scroll', () => { if (state.popover) return; placeOverlays(); }, { passive: true });
   addEventListener('keydown', e => { if (e.key === 'Escape' && (state.popover || state.pinned)) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); } });
   addEventListener('pagehide', () => { if (pending()) save(); });
+  state.wanted = context.place?.manuscript ?? null;
+  if (nendo.has('ui.setPlace')) nendo.on('place', place => { if (place?.manuscript) openManuscript(place.manuscript, false).catch(fail); });
   await load();
+  placeHere(false);
   if (state.root !== null) offerDraft();
   if (state.root !== null && !state.problem) {
     const first = sheet.read().find(n => n.kind === 'Paragraph');
@@ -697,13 +713,35 @@ async function start(context) {
 }
 
 async function startManuscript() {
+  if (state.root !== null) await flush();
   const root = `b-root-${freshId().slice(2, 8)}`, chapter = freshId(), paragraph = freshId(), cuttings = `b-cuttings-${freshId().slice(2, 8)}`;
+  const last = Math.max(0, ...(state.manuscripts ?? []).map(m => m.order ?? 0));
   await nendo.records.batch([
-    { op: 'create', entityId: BLOCK, recordId: root, values: { [F.kind]: 'Manuscript', [F.text]: 'Untitled manuscript', [F.order]: GAP } },
+    { op: 'create', entityId: BLOCK, recordId: root, values: { [F.kind]: 'Manuscript', [F.text]: 'Untitled manuscript', [F.order]: last + GAP } },
     { op: 'create', entityId: BLOCK, recordId: chapter, values: { [F.kind]: 'Chapter', [F.text]: 'Chapter one', [F.parent]: root, [F.order]: GAP } },
     { op: 'create', entityId: BLOCK, recordId: paragraph, values: { [F.kind]: 'Paragraph', [F.text]: null, [F.parent]: chapter, [F.order]: GAP } },
     { op: 'create', entityId: BLOCK, recordId: cuttings, values: { [F.kind]: 'Cuttings', [F.text]: 'Cuttings', [F.parent]: root, [F.order]: 1073741824 } },
   ], { label: 'Start a manuscript' });
+  state.wanted = root;
+  await load();
+  sheet.focusBlock(paragraph);
+}
+
+// ---------- Several manuscripts in one file ----------
+
+/** Tells Nendo which manuscript is open, so Back and Forward go between them. */
+function placeHere(step) {
+  if (!nendo.has?.('ui.setPlace') || state.root === null) return;
+  const title = (state.title || 'Untitled manuscript').slice(0, 80);
+  nendo.ui.setPlace({ manuscript: state.root }, { label: title, replace: !step }).catch(() => {});
+}
+
+/** Opens another manuscript of the file, after saving what is on the page. */
+async function openManuscript(id, step = true) {
+  if (id === state.root) return;
+  await flush();
+  state.wanted = id; state.placeStep = step;
+  state.selected = null; state.pinned = false; closePopover();
   await load();
 }
 

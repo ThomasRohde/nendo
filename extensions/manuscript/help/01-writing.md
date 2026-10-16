@@ -2,6 +2,10 @@
 
 The **Manuscript** screen is one quiet page: the whole manuscript, from its first heading to its last paragraph. Write as you would in any editor. Nendo keeps it paragraph by paragraph.
 
+## More than one manuscript
+
+A file can hold several manuscripts. The first box in the toolbar names the one you are in: choose another to open it, or **New manuscript…** to start one. Back and Forward go between the manuscripts you have opened.
+
 ## Saving
 
 There is no Save button. A pause in your typing saves what changed, and the line in Nendo's toolbar says **Saving…**, then **Saved** with the time. **Not saved** means Nendo refused the write; your text stays on the page and the message above it says why.

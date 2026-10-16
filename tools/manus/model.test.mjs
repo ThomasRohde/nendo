@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
 
 const item = (id, kind, parent, order, depth, text = '', version = 1) =>
   ({ record: { entityId: BLOCK, recordId: id, version, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } }, parentRecordId: parent, depth });
@@ -102,4 +102,40 @@ test('a role is written when it changes, with nothing else, and a new block keep
     [{ op: 'update', entityId: BLOCK, recordId: 'p1', version: 1, values: { [F.role]: 'Quotation' }, refs: {} }]);
   const added = [...m.nodes.map(n => ({ ...n, changed: false, role: null })), { id: 'v1', kind: 'Paragraph', text: 'A line', role: 'Verse', changed: true }];
   assert.equal(planWrites({ saved: m.saved, current: added, root: m.root })[0].values[F.role], 'Verse');
+});
+
+const flat = (id, kind, parent, order, text = '') => ({ entityId: BLOCK, recordId: id, version: 1, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } });
+
+test('several manuscripts in one file: each reads apart, with its own Cuttings, and the first opens by default', () => {
+  const records = [
+    flat('m2', 'Manuscript', null, 2048, 'Field Notes'), flat('m1', 'Manuscript', null, 1024, 'Low Water'),
+    flat('c1', 'Chapter', 'm1', 1024, 'One'), flat('p1', 'Paragraph', 'c1', 1024, 'Agnes.'), flat('x1', 'Cuttings', 'm1', 1073741824, 'Cuttings'),
+    flat('c2', 'Chapter', 'm2', 1024, 'Spring'), flat('p2', 'Paragraph', 'c2', 1024, 'Swallows.'), flat('x2', 'Cuttings', 'm2', 1073741824, 'Cuttings'),
+  ];
+  assert.deepEqual(manuscriptsOf(records).map(m => m.title), ['Low Water', 'Field Notes']);
+  const first = readManuscript(records);
+  assert.equal(first.root, 'm1'); assert.equal(first.cuttings, 'x1'); assert.deepEqual(first.nodes.map(n => n.id), ['c1', 'p1']);
+  const second = readManuscript(records, 'm2');
+  assert.equal(second.title, 'Field Notes'); assert.equal(second.cuttings, 'x2'); assert.deepEqual(second.nodes.map(n => n.id), ['c2', 'p2']);
+  assert.equal(second.saved.get('p1').visible, false, 'a block of another manuscript is not on this sheet');
+  assert.equal(readManuscript(records, 'gone').root, 'm1');
+});
+
+test('a manuscript of 20,000 blocks reads from a flat read, past the 10,000 a hierarchy walk allows', () => {
+  const records = [flat('m', 'Manuscript', null, 1024, 'Long'), flat('c', 'Chapter', 'm', 1024, 'All of it')];
+  for (let i = 0; i < 20000; i++) records.push(flat(`p${i}`, 'Paragraph', 'c', (i + 1) * GAP, `Paragraph ${i}.`));
+  records.reverse();
+  const started = performance.now();
+  const m = readManuscript(records);
+  const ms = performance.now() - started;
+  assert.equal(m.nodes.length, 20001);
+  assert.equal(m.nodes[1].id, 'p0'); assert.equal(m.nodes.at(-1).id, 'p19999');
+  assert.ok(ms < 1000, `reading 20,000 blocks took ${Math.round(ms)} ms`);
+});
+
+test('the view reads blocks flat, never through the bounded hierarchy walk', async () => {
+  const fs = await import('node:fs');
+  const source = fs.readFileSync(new URL('../../extensions/manuscript/view.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /records\.tree(All)?\(/, 'view.mjs reads blocks through records.tree, which refuses past 10,000 under a root');
+  assert.match(source, /records\.queryAll\(\{ entityId: BLOCK \}/);
 });

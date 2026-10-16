@@ -9,7 +9,7 @@ async page => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('__BROKER_URL__');
   const manusFixture = '__MANUS_FIXTURE__';
-  await page.evaluate(fixture => { window.broker.offerWrites(true); window.broker.offerChrome(true); window.broker.setFixture(fixture); }, manusFixture);
+  await page.evaluate(fixture => { window.broker.offerWrites(true); window.broker.offerChrome(true); window.broker.offerPlaces(true); window.broker.setFixture(fixture); }, manusFixture);
   const origin = await page.evaluate(() => window.broker.viewOrigin);
   let frame = null;
   for (let i = 0; i < 200 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/')) ?? null; if (frame === null) await page.waitForTimeout(50); }
@@ -64,6 +64,26 @@ async page => {
   assert((await batches()).length === 0, 'Opening the sheet wrote to the file.');
   checks.push('opens as one page', 'picture blocks', 'pictures as thumbnails', 'gutter counts', 'toolbar in Nendo');
 
+  // Several manuscripts in one file: the picker opens another as a step in Back and Forward, Back
+  // returns without a new step, and New manuscript starts a third and opens it.
+  const picker = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'manuscript');
+  assert(picker && picker.options.map(o => o.value).join() === 'b-root,b-root-2,new' && picker.options[1].label === 'Field Notes', `Manuscript picker: ${JSON.stringify(picker)}`);
+  await page.evaluate(() => window.broker.command('manuscript', 'b-root-2'));
+  await frame.waitForFunction(() => document.querySelector('.sheet-text [data-block="b-fn-2"]') && !document.querySelector('.sheet-text [data-block="b-0413"]') && document.getElementById('title').value === 'Field Notes', null, { timeout: 5000 });
+  const stepped = await page.evaluate(() => window.broker.places.at(-1));
+  assert(stepped.place.manuscript === 'b-root-2' && stepped.replace === false && stepped.label === 'Field Notes', `The switch was not a step: ${JSON.stringify(stepped)}`);
+  const placesBefore = await page.evaluate(() => window.broker.places.length);
+  await page.evaluate(() => window.broker.pushPlace({ manuscript: 'b-root' }));
+  await frame.waitForFunction(() => document.querySelector('.sheet-text [data-block="b-0413"]') && document.getElementById('title').value === 'Low Water', null, { timeout: 5000 });
+  assert(await page.evaluate(n => window.broker.places.slice(n).every(p => p.replace), placesBefore), 'Back made a new step: ' + JSON.stringify(await page.evaluate(n => window.broker.places.slice(n), placesBefore)));
+  await page.evaluate(() => window.broker.command('manuscript', 'new'));
+  await frame.waitForFunction(() => window.manuscript.manuscripts?.length === 3 && document.getElementById('title').value === 'Untitled manuscript', null, { timeout: 5000 });
+  const roots = (await records(BLOCK)).filter(r => r.values[K] === 'Manuscript' && !r.values[P]);
+  assert(roots.length === 3 && roots.some(r => r.values[T] === 'Untitled manuscript'), `Roots: ${JSON.stringify(roots.map(r => r.recordId))}`);
+  await page.evaluate(() => window.broker.pushPlace({ manuscript: 'b-root' }));
+  await frame.waitForFunction(() => document.querySelector('.sheet-text [data-block="b-0413"]'), null, { timeout: 5000 });
+  checks.push('several manuscripts, Back and Forward');
+
   // Export reads the saved manuscript and downloads it; a picture it cannot read is named, not dropped.
   const exported = async (command, name) => {
     const waiting = page.waitForEvent('download', { timeout: 15000 });
@@ -93,10 +113,11 @@ async page => {
   checks.push('Markdown and Word export');
 
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
+  const typedFrom = (await batches()).length;
   await select('b-0414', 'end');
   await page.keyboard.type(' Then she opened it.');
   await saved();
-  let all = await batches();
+  let all = (await batches()).slice(typedFrom);
   assert(all.length === 1 && all[0].writes.length === 1 && all[0].writes[0].recordId === 'b-0414' && JSON.stringify(Object.keys(all[0].writes[0].values)) === JSON.stringify([T]),
     `Typing must write one paragraph's text in one batch: ${JSON.stringify(all)}`);
   assert((await record(BLOCK, 'b-0414')).values[T].endsWith('Then she opened it.'), 'The typed text was not stored.');

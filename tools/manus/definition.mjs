@@ -92,13 +92,17 @@ const sample = [
   ['b-0501', 'Paragraph', 'b-ch-4', 'The causeway was dry by five.'],
   ['b-0502', 'Paragraph', 'b-ch-4', `![The causeway at low water](media:${'ab'.repeat(32)})`],
   ['b-cuttings', 'Cuttings', 'b-root', 'Cuttings'],
+  ['b-root-2', 'Manuscript', null, 'Field Notes'],
+  ['b-fn-1', 'Chapter', 'b-root-2', 'Spring'],
+  ['b-fn-2', 'Paragraph', 'b-fn-1', 'The first swallows came back on the ninth.'],
 ];
 
 export function fixture() {
   const orders = new Map();
   const blocks = sample.map(([recordId, kind, parent, text]) => {
-    const order = parent === null ? GAP : kind === 'Cuttings' ? 1073741824 : (orders.get(parent) ?? 0) + GAP;
-    if (parent !== null && kind !== 'Cuttings') orders.set(parent, order);
+    const key = parent ?? 'top';
+    const order = kind === 'Cuttings' ? 1073741824 : (orders.get(key) ?? 0) + GAP;
+    if (kind !== 'Cuttings') orders.set(key, order);
     return { entityId: BLOCK, recordId, version: 1, labels: {}, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } };
   });
   const notes = [{ entityId: NOTE, recordId: 'n-1', version: 1, labels: {}, values: { [F.noteBlock]: 'b-0415', [F.noteKind]: 'Question', [F.noteText]: 'Whose hand wrote the pencil line?', [F.noteDone]: false } }];

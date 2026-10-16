@@ -20,6 +20,10 @@ same records; the view keeps no copy of the manuscript in the file.
 
 ## The view
 
+- A file may hold several manuscripts, each a top-level block of kind Manuscript with its own
+  chapters and Cuttings. The picker in Nendo's toolbar opens another or starts a *New
+  manuscript*; each switch is a step in Nendo's Back and Forward, and unsaved text is kept per
+  manuscript.
 - One Tiptap editor shows the blocks under the root, Cuttings left out. A heading's level is its
   kind: Part, Chapter, Section. A heading holds the paragraphs after it until the next heading
   at its level or above.
@@ -58,8 +62,10 @@ same records; the view keeps no copy of the manuscript in the file.
 
 ## Limits
 
-- A declared hierarchy holds at most 10,000 descendants, so a manuscript holds at most about
-  10,000 blocks, near the 500,000-word stress size of the design.
+- The view reads blocks flat, a cursor page at a time, and builds the tree itself, so the
+  10,000-record bound of Nendo's hierarchy walk does not cap a manuscript in the view. That bound
+  still applies to Nendo's own Outline screen, a `descendantOf` filter and a move among more than
+  10,000 siblings: the walk re-reads the whole subtree for every page, which is why it is bounded.
 - Every save writes one History row per block it changes; the file stops taking writes near
   100,000 rows until the person folds old history.
 - Lists, quotations, tables and inline links are not editable here yet, and a picture can be

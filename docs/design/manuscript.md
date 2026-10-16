@@ -24,7 +24,9 @@ and a custom view, `extensions/manuscript/`, with no host change (W-276). That a
 its recommendation; Q-05 was taken as recommended, Markdown per block, and stays open to the
 owner. Markdown and Word export (C-11) followed the same day, with the open-source docx and JSZip packages, which keeps Q-03's recommendation; a Word export of the sample book opened in Microsoft Word with its nine pictures. What the slice does and does not do is in the package's README; the measured lane is
 `tools/Review-Manus.ps1`, part of Test-Production. Building it found one more host bound, a
-hierarchy's 10,000 descendants (sections 10 and 13).
+hierarchy's 10,000 descendants (sections 10 and 13). That bound turned out to be the hierarchy
+walk's, which re-reads the whole subtree for every page, so the view now reads blocks flat and
+builds the tree itself; a file may also hold several manuscripts (Manuscript 0.6.0).
 
 ### Revision 0.2: what the repository review changed
 
@@ -587,9 +589,9 @@ Each is a candidate, to be confirmed by the foundation proof before any ADR is w
 | `changes` names no records | After an agent writes, the view must work out which blocks changed | Record-level change events for views (the 2026-10-05 outside review asked the same for MCP) |
 | History rows per write | Long writing hits 100,000 rows; folding is manual | A larger bound, coalescing of one actor's rapid edits to one record, or a fold prompt |
 | Grammar is application-enforced | Studio and agents can place a block where the grammar forbids | A declared parent-kind rule on the hierarchy |
-| `queryAll` default of 10,000 | A large manuscript's blocks may pass it | Hierarchy-ordered windows, like the row windows lazy data views added for Studio's table |
+| `queryAll` default of 10,000 | A large manuscript's blocks may pass it | Done: the view asks for up to 1,000,000; windowed editing is still to come |
 | No milestone that survives a fold | Named states are lost to folding | A host-kept label exempt from folding, or Backup as the answer |
-| A hierarchy holds at most 10,000 descendants | At about 50 words a paragraph, the 500,000-word stress manuscript is at the bound, so C-09's stress target cannot be met in one hierarchy | A larger bound for this record type, or one hierarchy per part with the manuscript as their parent record |
+| A hierarchy walk reads at most 10,000 records under a root | Each page of a tree read re-walks and re-sorts the whole subtree, so reading N blocks costs about N squared; the bound keeps that in check | Done for the view (0.6.0): it reads blocks flat by cursor and builds the tree. Nendo's Outline screen and `descendantOf` keep the bound until the walk pages by key |
 
 ## 14. Acceptance scenarios
 

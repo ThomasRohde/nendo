@@ -32,39 +32,59 @@ export function levelOf(kind) { return LEVEL[kind] ?? 0; }
 /** The container kind a heading level stands for. */
 export function kindOf(level) { return level === 1 ? 'Part' : level === 2 ? 'Chapter' : level === 3 ? 'Section' : 'Paragraph'; }
 
+/** Siblings in the hierarchy's order: by order number, a block without one last, then by ID. */
+function bySiblingOrder(a, b) {
+  const oa = a.order ?? null, ob = b.order ?? null;
+  if (oa === null && ob !== null) return 1;
+  if (ob === null && oa !== null) return -1;
+  if (oa !== ob) return oa - ob;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** Every manuscript in the file, in order: each top-level block of kind Manuscript. */
+export function manuscriptsOf(records) {
+  return records.map(r => r.record ?? r)
+    .filter(r => r.values[F.kind] === 'Manuscript' && !r.values[F.parent])
+    .map(r => ({ id: r.recordId, title: r.values[F.text] ?? '', order: r.values[F.order] ?? null }))
+    .sort(bySiblingOrder);
+}
+
 /**
- * Reads the blocks as `records.treeAll` gave them (depth first, siblings in order) into the
- * manuscript: its root, its Cuttings, the run of blocks the sheet shows (everything under the
- * root except the Cuttings), and every block as saved, keyed by ID.
+ * Reads the file's blocks into one manuscript: its root (the one named, or the first), its
+ * Cuttings, the run of blocks the sheet shows (everything under the root except the Cuttings,
+ * depth first, siblings in order), every block as saved, keyed by ID, and the list of
+ * manuscripts. Takes records as a flat read gives them (`records.queryAll`), so the tree is
+ * built here and no hierarchy walk bounds how large a manuscript may be; items of a tree read
+ * are taken too.
  */
-export function readManuscript(items) {
-  const saved = new Map();
-  for (const item of items) {
-    const r = item.record, v = r.values;
-    saved.set(r.recordId, { id: r.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null,
-      order: v[F.order] ?? null, role: v[F.role] ?? null, version: r.version, visible: false });
+export function readManuscript(input, rootId = null) {
+  const records = input.map(x => x.record ?? x);
+  const saved = new Map(), children = new Map();
+  for (const r of records) {
+    const v = r.values;
+    const block = { id: r.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null,
+      order: v[F.order] ?? null, role: v[F.role] ?? null, version: r.version, visible: false };
+    saved.set(r.recordId, block);
+    if (!children.has(block.parent)) children.set(block.parent, []);
+    children.get(block.parent).push(block);
   }
-  const root = items.find(i => i.record.values[F.kind] === 'Manuscript' && !i.record.values[F.parent])?.record.recordId ?? null;
+  for (const list of children.values()) list.sort(bySiblingOrder);
+  const manuscripts = manuscriptsOf(records);
+  const root = rootId !== null && manuscripts.some(m => m.id === rootId) ? rootId : manuscripts[0]?.id ?? null;
   const nodes = [];
   let cuttings = null;
-  if (root !== null) {
-    let hidden = null;          // the depth of the Cuttings while walking under it
-    let inside = false, rootDepth = null;
-    for (const item of items) {
-      const id = item.record.recordId;
-      if (id === root) { inside = true; rootDepth = item.depth; continue; }
-      if (!inside) continue;
-      if (item.depth <= rootDepth) { inside = false; continue; }
-      if (hidden !== null && item.depth > hidden) continue;
-      hidden = null;
-      const block = saved.get(id);
-      if (block.kind === 'Cuttings') { if (cuttings === null && block.parent === root) cuttings = id; hidden = item.depth; continue; }
+  const walk = (parent, depth) => {
+    if (depth > 64) return;           // the Engine refuses cycles; this keeps a damaged file from looping
+    for (const block of children.get(parent) ?? []) {
+      if (block.kind === 'Cuttings') { if (cuttings === null && parent === root) cuttings = block.id; continue; }
       const kind = block.kind === 'Manuscript' ? 'Paragraph' : block.kind;
       block.visible = true;
-      nodes.push({ id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text, role: block.role });
+      nodes.push({ id: block.id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text, role: block.role });
+      walk(block.id, depth + 1);
     }
-  }
-  return { root, cuttings, title: root ? saved.get(root).text : '', nodes, saved };
+  };
+  if (root !== null) walk(root, 1);
+  return { root, cuttings, title: root ? saved.get(root).text : '', nodes, saved, manuscripts };
 }
 
 /**
