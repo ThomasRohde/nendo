@@ -2,7 +2,8 @@
 
 A manuscript written as one quiet continuous page and kept paragraph by paragraph (W-276,
 design A of the [manuscript workbench](../../docs/design/manuscript.md)). It is built into
-`workspace/Manus.nendo`.
+`workspace/Manus.nendo`, and `workspace/Manuscript.nendo` is a clean new file of it (ADR-0022)
+holding a draft paper.
 
 ## Records
 

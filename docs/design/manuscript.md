@@ -8,8 +8,10 @@
   decisions in section 2 are requirements. Everything else is a working model, open to
   refinement. Nothing in this document is an accepted ADR or permission to change `src/`.
 - **Platform:** Nendo (this repository), with Tiptap as the editing framework.
-- **Build file:** `workspace/Manus.nendo`, created empty by the owner on 2026-10-16. The
-  application is built in it through the host, as Garden was built in `Garden.nendo`.
+- **Build file:** `workspace/Manus.nendo`, created empty by the owner on 2026-10-16, where the
+  application was built through the host, as Garden was built in `Garden.nendo`. The owner then
+  started a clean file of the application from it, `workspace/Manuscript.nendo` (ADR-0022's New:
+  no history, no blocks), which now holds a draft paper on malleable software.
 - **Deliverable scope:** a reusable manuscript foundation and a focused authoring application
   built on it. This document does not authorise repository changes or purchases.
 
