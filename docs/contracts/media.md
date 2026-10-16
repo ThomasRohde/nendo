@@ -101,6 +101,25 @@ Measured on 2026-10-16 (W-264), cold, at SQLite level, on a 201 MiB file and the
 (+8.7%; 12 and 11 runs, spread 7.9-12.7 s); the full check, as an open did it before, 14.6 s
 against 8.2 s. `tools/media-open/Measure-MediaOpen.ps1` repeats it.
 
+## Removing unused pictures
+
+A picture stays in the file while anything the file keeps names it (ADR-0031 point 8, W-273): a
+value of a media field, retired fields included; a deleted record that can be brought back; a
+kept value of a view; or a retained operation, in its encoding or its undo evidence, matched by
+the picture's hash. A put names its picture, so a picture leaves only after folding history lets
+go of every change that named it.
+
+`ReadMediaUsageAsync` (`media.usage`) answers the count and bytes, the unused count and bytes, and
+the 2 GiB budget; History shows them under the fold. `RemoveUnusedMediaAsync(backupPlanId)`
+(`media.removeUnused`, started from History) follows the fold's rules: a backup of the file as it
+stands, made in the session first, or `media-removal-needs-backup` / `media-removal-backup-stale`;
+`media-removal-nothing` when nothing is unused, asked before the host makes its backup. The
+removal is one write transaction that records no revision and moves no counter; the file is then
+compacted and inspected as if opened. The answer gives the count and bytes removed, the file's
+paged size before and after, the backup's name and whether compaction ran. Measured on 2026-10-16
+by `MediaRemovalTests`: removing one 2 MiB picture took the file from 3,047,424 to 950,272 bytes,
+down by exactly the 2,097,152 bytes removed.
+
 ## Serving
 
 Each open file instance has one media origin, `https://media-{16 hex}.example`, answered by
@@ -160,3 +179,5 @@ back. `tests/Nendo.LocalMcp.Tests/McpMediaTests.cs`: a chunked 5 MiB put that se
 retried final call, an unfinished put leaving nothing, the image read and the refusals' words.
 `src/Nendo.Workbench/scripts/media-model.test.mjs` and `media-markup.test.mjs`: the address grammar
 the Workbench mirrors and the markup of every state. `GallerySurfaceTests`: the cover and `NUI459`.
+`MediaRemovalTests`, `DesktopMediaRemovalTests` and `media-usage.test.mjs`: what removal keeps, the
+backup first, the size measured, and History's section. `CsvPicturesTests`: CSV with pictures.

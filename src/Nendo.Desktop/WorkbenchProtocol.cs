@@ -436,6 +436,8 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.HistoryCompensate => await CompensateRevisionAsync(payload, cancellationToken),
                     WorkbenchMethods.HistoryFoldPreview => await _session.PreviewHistoryFoldAsync(cancellationToken),
                     WorkbenchMethods.HistoryFold => await _session.FoldHistoryAsync(cancellationToken),
+                    WorkbenchMethods.MediaUsage => await _session.ReadMediaUsageAsync(cancellationToken),
+                    WorkbenchMethods.MediaRemoveUnused => await _session.RemoveUnusedMediaAsync(cancellationToken),
                     WorkbenchMethods.AppearanceSet => ApplyAppearance(payload),
                     WorkbenchMethods.AppearanceGet => _getAppearance?.Invoke() ?? new DesktopAppearanceView("system", "light", false, "Native appearance is unavailable."),
                     WorkbenchMethods.WindowSetTitleBarControls => SetTitleBarControls(payload),

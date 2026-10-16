@@ -144,6 +144,14 @@ public sealed partial class NendoApplicationService
         return new(put.Address, result);
     }
 
+    /// <summary>What the file's embedded pictures weigh against the budget, and how much of that nothing names (W-273).</summary>
+    public Task<NendoMediaUsage> ReadMediaUsageAsync(CancellationToken cancellationToken = default) =>
+        _coordinator.ReadMediaUsageAsync(cancellationToken);
+
+    /// <summary>Removes the pictures nothing names, after the backup the plan names, and compacts the file (W-273).</summary>
+    public Task<NendoMediaRemovalResult> RemoveUnusedMediaAsync(string backupPlanId, CancellationToken cancellationToken = default) =>
+        _coordinator.RemoveUnusedMediaAsync(backupPlanId, cancellationToken);
+
     /// <summary>One file of a custom-view package carried in the file, with its bytes; null when there is none.</summary>
     public Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default) =>
         _coordinator.ReadExtensionFileAsync(packageId, path, cancellationToken);

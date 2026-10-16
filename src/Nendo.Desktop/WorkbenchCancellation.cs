@@ -105,6 +105,8 @@ internal static partial class WorkbenchMethods
         MediaReadWindow,
         MediaStage,
         MediaCommit,
+        MediaUsage,
+        MediaRemoveUnused,
     };
 
     /// <summary>

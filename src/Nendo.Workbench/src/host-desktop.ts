@@ -92,7 +92,7 @@ export function hostTimeoutMs(method: string): number | null {
   if (method === 'session.createFile' || method === 'session.openFile' || method.startsWith('file.') || method.startsWith('extension.')) return null;
   // The integrity check reads every page of the file, so it is as long as the file too (WCS-21).
   // Each of these offers Stop on the busy bar while it runs, which is the person's way out.
-  if (method === 'history.fold' || method === 'data.buildSearchIndex' || method === 'health.verify') return null;
+  if (method === 'history.fold' || method === 'media.removeUnused' || method === 'data.buildSearchIndex' || method === 'health.verify') return null;
   return 15_000;
 }
 

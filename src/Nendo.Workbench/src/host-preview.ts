@@ -235,6 +235,9 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         result = { canFold: false, reason: 'The preview host keeps no history to fold.', keep: 0, revisions: 0, operations: 0,
           throughChangeSequence: null, firstAt: null, lastAt: null, operationRows: this.history.length, operationCeiling: 99_000, lastFoldedAt: null };
         break;
+      case 'media.usage':
+        result = { count: 0, bytes: 0, unusedCount: 0, unusedBytes: 0, budgetBytes: 2 * 1024 * 1024 * 1024 };
+        break;
       case 'history.query':
         result = this.previewPage([...this.history].sort((left, right) => right.changeSequence - left.changeSequence)
           .map(row => ({ ...row, operations: undefined, operationCount: row.operations.length, canRequestCompensation: false })), payload, 'history');

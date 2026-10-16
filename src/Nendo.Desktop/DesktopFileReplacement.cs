@@ -48,6 +48,33 @@ internal sealed partial class DesktopSessionController
         return await QueryAsync(service => service.FoldHistoryAsync(plan.PlanId, cancellationToken), cancellationToken);
     }
 
+    internal Task<NendoMediaUsage> ReadMediaUsageAsync(CancellationToken cancellationToken = default) =>
+        QueryAsync(service => service.ReadMediaUsageAsync(cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// Removes the open file's unused pictures (ADR-0031 point 8, W-273): first a backup beside the
+    /// file, named for the day, which keeps every picture; then the removal and the compaction,
+    /// which only a backup of the file as it stands allows. Asked for on History.
+    /// </summary>
+    internal async Task<NendoMediaRemovalResult> RemoveUnusedMediaAsync(CancellationToken cancellationToken = default)
+    {
+        using var bound = _fileRequest.Value is null ? BindFileRequest(_fileSessionId) : null;
+        var path = _currentPath ?? throw new NendoPreconditionException("media-removal-unavailable", "No file is open.");
+        RequireWritableLocation(path);
+        // Asked first, so a removal with nothing to take leaves no backup behind it.
+        var usage = await ReadMediaUsageAsync(cancellationToken);
+        if (usage.UnusedCount == 0) throw new NendoPreconditionException("media-removal-nothing", "Every picture in the file is named by a record or by its history, so none was removed.");
+        var folder = Path.GetDirectoryName(path)!;
+        var name = Path.GetFileNameWithoutExtension(path);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd HHmm", System.Globalization.CultureInfo.InvariantCulture);
+        var destination = Path.Combine(folder, $"{name} before removing pictures {stamp}.nendo");
+        for (var attempt = 2; File.Exists(destination); attempt++)
+            destination = Path.Combine(folder, $"{name} before removing pictures {stamp} ({attempt}).nendo");
+        var plan = await PrepareFoldBackupAsync(path, destination, cancellationToken);
+        await CreateBackupAsync(plan.PlanId, cancellationToken);
+        return await QueryAsync(service => service.RemoveUnusedMediaAsync(plan.PlanId, cancellationToken), cancellationToken);
+    }
+
     /// <summary>
     /// The fold's backup, at the path the host chose beside the open file.
     /// <para>

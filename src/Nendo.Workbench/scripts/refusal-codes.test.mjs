@@ -39,7 +39,7 @@ const calculationCodes = [...readFileSync(join(repository, 'src', 'Nendo.Engine'
 // schema authoring, reads. A journaled write is data.createRecord/deleteRecord/moveRecord/
 // setKeptInNewFiles/setField/setFields/executeCommand, history.compensate or proposal.promote.
 const otherFamilies = ['agent-', 'aggregate-', 'backup-', 'copy-', 'csv-', 'export-', 'extension-', 'field-presentation-',
-  'field-sequence-', 'field-unique-', 'history-fold-', 'identity-', 'link-rule-', 'new-file-', 'recent-file-', 'recovery-',
+  'field-sequence-', 'field-unique-', 'history-fold-', 'identity-', 'link-rule-', 'media-removal-', 'new-file-', 'recent-file-', 'recovery-',
   'reference-conversion-', 'replacement-', 'restore-', 'search-', 'semantic-definition-', 'stale-csv-', 'upgrade-'];
 // Single codes outside those families that the journal must not settle on, or that no
 // journaled write raises.

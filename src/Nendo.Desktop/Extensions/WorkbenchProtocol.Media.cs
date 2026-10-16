@@ -29,6 +29,13 @@ internal static partial class WorkbenchMethods
     internal const string MediaReadWindow = "media.readWindow";
     internal const string MediaStage = "media.stage";
     internal const string MediaCommit = "media.commit";
+
+    /// <summary>
+    /// What the file's pictures weigh and how much nothing names; and removing those, behind a
+    /// backup beside the file, then compacting it (ADR-0031 point 8, W-273). Started on History.
+    /// </summary>
+    internal const string MediaUsage = "media.usage";
+    internal const string MediaRemoveUnused = "media.removeUnused";
 }
 
 /// <summary>The window's half of the picture actions: its pickers and the clipboard.</summary>

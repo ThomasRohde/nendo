@@ -6,6 +6,7 @@ import { confirmDialog } from './confirm-dialog';
 import { announce, clearError, content, refreshChrome, requiredElement, rerender, setBusy, showError, showKeptAlert, showOutcome, showRetainedNotice } from './shell';
 import { blockedConditionsNotice, escapeHtml, foldDate, isProposalPreviewable, messageFor, mutationKey, valueDisplay } from './format';
 import { undoMayAsk, undoQuestion } from './history-markup';
+import { byteSize, mediaUsageState, removeUnusedQuestion, type MediaRemovalResult } from './media-usage';
 import { proposalRefusal } from './proposal-markup';
 import { decideWriteFailure, errorCode, nameHolder, nameTarget, namingFieldId, referenceRefusalCodes, referenceTargetOf } from './write-failure';
 import { refuseWhileDirty } from './draft-guard';
@@ -546,6 +547,8 @@ export async function foldHistory(): Promise<void> {
     const result = await client.request<HistoryFoldResult>('history.fold', {});
     state.session = await client.request<DesktopSessionView>('session.getSnapshot');
     state.historyFold = null;
+    // A fold can leave pictures only folded history named.
+    mediaUsageState.key = null;
     await refreshDerived();
     rerender();
     showOutcome(`Folded ${result.revisions.toLocaleString()} older changes into one checkpoint. ${result.operationRowsAfter.toLocaleString()} of ${preview.operationCeiling.toLocaleString()} changes are now recorded. The full history is in ${result.backupLabel}, beside the file.`);
@@ -576,6 +579,34 @@ export async function buildSearchIndex(): Promise<boolean> {
   } catch (error) {
     showError(messageFor(error));
     return false;
+  } finally {
+    state.actionInFlight = false;
+    setBusy(false);
+  }
+}
+
+/**
+ * Removes the pictures nothing names any more, then compacts the file (ADR-0031 point 8, W-273),
+ * after the person has read what that does. The host makes the backup first; the answer names it.
+ */
+export async function removeUnusedPictures(): Promise<void> {
+  const usage = mediaUsageState.usage;
+  if (state.actionInFlight || usage === null || usage.unusedCount === 0) return;
+  if (!(await confirmDialog(removeUnusedQuestion(usage)))) return;
+  state.actionInFlight = true;
+  setBusy(true);
+  clearError();
+  try {
+    const result = await client.request<MediaRemovalResult>('media.removeUnused', {});
+    state.session = await client.request<DesktopSessionView>('session.getSnapshot');
+    mediaUsageState.key = null;
+    await refreshDerived();
+    rerender();
+    showOutcome(`Removed ${result.removed.toLocaleString()} unused ${result.removed === 1 ? 'picture' : 'pictures'}, ${byteSize(result.removedBytes)}. ${result.spaceReclaimed
+      ? `The file went from ${byteSize(result.fileBytesBefore)} to ${byteSize(result.fileBytesAfter)}.`
+      : 'The file could not be made smaller now; it will be when there is room on the disk.'} Every picture is in ${result.backupLabel}, beside the file.`);
+  } catch (error) {
+    showError(messageFor(error));
   } finally {
     state.actionInFlight = false;
     setBusy(false);

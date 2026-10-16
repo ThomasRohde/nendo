@@ -1,4 +1,5 @@
-import { compensateRevision, foldHistory, handlePageFailure } from './actions';
+import { compensateRevision, foldHistory, handlePageFailure, removeUnusedPictures } from './actions';
+import { mediaUsageMarkup, mediaUsageState, type MediaUsage } from './media-usage';
 import { fileScopedClearable, state } from './app-state';
 import { client } from './client';
 import { canCompensate, counted, escapeAttribute, escapeHtml, foldDate, formatDateTime, laneLabel, messageFor, originLabel, shortId } from './format';
@@ -15,12 +16,15 @@ export function renderHistory(): void {
   const ordered = [...state.history].sort((left, right) => right.changeSequence - left.changeSequence);
   content.innerHTML = `<div class="studio-page history-page"><header class="page-heading"><span class="record-total">${counted(state.history.length, 'revision')} shown</span></header><div class="message-slot" role="alert" hidden></div>
     ${foldMarkup()}
+    ${mediaUsageMarkup(mediaUsageState.usage, state.session.capabilities.mutate)}
     <div class="page-controls" aria-label="History pages"><span>Page ${(state.historyWindow?.index ?? 0) + 1}</span><button class="text-button" data-history-page="-1" type="button" ${!state.historyWindow || state.historyWindow.index === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" data-history-page="1" type="button" ${!state.historyWindow?.page.nextCursor ? 'disabled' : ''}>Next</button></div>
     ${ordered.length === 0 ? `<div class="quiet-empty"><span class="quiet-empty-glyph" aria-hidden="true">${icon('history')}</span><h3>No revisions yet</h3><p>Every definition and data change you save appears here in one ordered sequence.</p></div>` : ''}
     <div class="history-list" ${ordered.length === 0 ? 'hidden' : ''}>${ordered.map((revision) => `<article class="history-entry"><div class="history-sequence">${revision.changeSequence}</div><div><div class="history-meta"><span class="lane-chip ${laneLabel(revision.lane).toLowerCase()}">${laneLabel(revision.lane)}</span><time>${escapeHtml(formatDateTime(revision.createdAt))}</time><span class="history-origin">by ${escapeHtml(originLabel(revision.origin, state.session.extensions?.packages ?? []))}</span>${revision.compensationOfRevisionId ? '<span>Undo</span>' : ''}</div><h3>${escapeHtml(revision.description)}</h3><p>${counted(revision.operationCount, 'change')} · <button class="text-button" data-history-detail="${escapeAttribute(revision.revisionId)}" type="button">View changes</button></p><div data-operation-detail="${escapeAttribute(revision.revisionId)}"></div><code>${escapeHtml(shortId(revision.revisionId))}</code></div><div class="history-action">${canCompensate(revision, state.history) ? `<span>Checked against the file when you press it</span><button class="secondary-button" data-compensate="${escapeAttribute(revision.revisionId)}" data-action type="button">Undo</button>` : '<span>Cannot be undone here</span>'}</div></article>`).join('')}</div>
   </div>`;
   content.querySelector<HTMLButtonElement>('[data-fold-history]')?.addEventListener('click', () => void foldHistory());
   void loadFoldPreview();
+  content.querySelector<HTMLButtonElement>('[data-remove-unused-media]')?.addEventListener('click', () => void removeUnusedPictures());
+  void loadMediaUsage();
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-compensate]')) {
     button.addEventListener('click', () => void compensateRevision(button.dataset.compensate!));
   }
@@ -88,6 +92,23 @@ async function loadFoldPreview(): Promise<void> {
     if (state.view === 'history') showError(messageFor(error));
   } finally {
     foldLoading = false;
+  }
+}
+
+let usageLoading = false;
+/** What the file's pictures weigh, read again whenever the file has moved on (W-273). */
+async function loadMediaUsage(): Promise<void> {
+  const key = `${state.session.fileSessionId ?? ''}:${state.session.manifest?.changeSequence ?? -1}`;
+  if (usageLoading || !state.session.hasFile || mediaUsageState.key === key) return;
+  usageLoading = true;
+  try {
+    mediaUsageState.usage = await client.request<MediaUsage>('media.usage', {});
+    mediaUsageState.key = key;
+    if (state.view === 'history') rerender();
+  } catch (error) {
+    if (state.view === 'history') showError(messageFor(error));
+  } finally {
+    usageLoading = false;
   }
 }
 

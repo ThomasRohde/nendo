@@ -478,6 +478,19 @@ public sealed record NendoPutMediaRequest(
 /// <summary>The media field a put also sets, at the record's expected version.</summary>
 public sealed record NendoMediaTarget(string EntityId, string RecordId, string FieldId, long ExpectedRecordVersion);
 
+/// <summary>
+/// The file's embedded pictures: how many and how many bytes, how many of those nothing names any
+/// more, and the budget a file holds (ADR-0031).
+/// </summary>
+public sealed record NendoMediaUsage(long Count, long Bytes, long UnusedCount, long UnusedBytes, long BudgetBytes);
+
+/// <summary>
+/// What removing unused pictures did: how many and how many bytes it removed, the file's size by
+/// its pages before and after compaction, the backup it made first, and whether compaction ran.
+/// </summary>
+public sealed record NendoMediaRemovalResult(long Removed, long RemovedBytes, long FileBytesBefore, long FileBytesAfter,
+    string BackupLabel, bool SpaceReclaimed);
+
 /// <summary>What a put stored: the address a field names it by, and the revision it made.</summary>
 public sealed record NendoPutMediaResult(string Address, NendoApplyResult Result);
 

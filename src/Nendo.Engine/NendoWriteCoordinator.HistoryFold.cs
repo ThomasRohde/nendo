@@ -106,7 +106,8 @@ public sealed partial class NendoWriteCoordinator
         }
     }
 
-    private static async Task<FileStream> PinHistoryFoldBackupAsync(BackupContext backup, CancellationToken cancellationToken)
+    private static async Task<FileStream> PinHistoryFoldBackupAsync(BackupContext backup, CancellationToken cancellationToken,
+        string nothingDone = "Nothing was folded.")
     {
         FileStream? pin = null;
         try
@@ -123,6 +124,6 @@ public sealed partial class NendoWriteCoordinator
         catch { pin?.Dispose(); throw; }
         pin?.Dispose();
         throw new NendoPreconditionException("history-fold-backup-changed",
-            "The required backup is missing, changed or unavailable. Make a new backup first. Nothing was folded.");
+            "The required backup is missing, changed or unavailable. Make a new backup first. " + nothingDone);
     }
 }
