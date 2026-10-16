@@ -39,6 +39,10 @@ same records; the view keeps no copy of the manuscript in the file.
   that picture, from the open file's media origin, and selected or deleted whole; one that does
   not load says *Picture not found* with its description. While writing it is a 168 by 112
   thumbnail with its description beside it; *Full width* under Appearance is the device's choice.
+- **Write / Book / Paper** in Nendo's toolbar switches between writing and a preview: the page as
+  the Word layout sets it, on sheets of its paper (6 by 9 inches, or Letter), with its fonts, roles,
+  figure rows, page breaks and page numbers. It reads what is on the page, saved or not, and draws
+  it block by block, so a paragraph is never split across sheets as Word may split it.
 - **Role** in Nendo's toolbar sets the role of the block the caret is in; the sheet names it above
   the block and indents a quotation, a verse or an epigraph as a layout would. A file built before
   0.5.0 has no Role field and shows no control until the field is added.

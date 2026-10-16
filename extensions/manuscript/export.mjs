@@ -39,7 +39,7 @@ export function exportPlan(manuscript) {
       const role = n.role ?? namedRole(n.text) ?? open.at(-1)?.role ?? null;
       open.push({ level, role });
       front = false;
-      items.push(previous = { type: 'heading', level: level - top + 1, text: n.text ?? '', id: n.id, role });
+      items.push(previous = { type: 'heading', level: level - top + 1, kind: n.kind, text: n.text ?? '', id: n.id, role });
       continue;
     }
     const picture = pictureOf(n.text);
@@ -117,7 +117,7 @@ export const LAYOUTS = {
   },
 };
 
-const FIGURE = /^\*?(Figure|Fig\.|Table)\s+(\d+)[.:]\*?\s*/i;
+export const FIGURE = /^\*?(Figure|Fig\.|Table)\s+(\d+)[.:]\*?\s*/i;
 
 /**
  * The manuscript as a Word document in a layout, `paper` or `book`: a Title, Heading 1 to 3,
@@ -170,7 +170,9 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
       const level = Math.min(item.level, 3), h = L.headings[level - 1];
       const part = PARTS.has(item.role) && level === 1;
       const centred = h.center || (part && (!paper || item.role === 'Abstract'));
-      const breakBefore = level === 1 && (L.chapterBreaks || (paper && item.role === 'Appendix' && firstAppendix));
+      // A book starts every part and chapter on a new page; an article only its first appendix.
+      const opensPage = item.kind ? item.kind === 'Part' || item.kind === 'Chapter' : level === 1;
+      const breakBefore = (L.chapterBreaks && opensPage) || (level === 1 && paper && item.role === 'Appendix' && firstAppendix);
       if (item.role === 'Appendix' && level === 1) firstAppendix = false;
       children.push(new lib.Paragraph({ heading: headingLevels[level - 1], alignment: centred ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore,
         children: text(item.text, paper && item.role === 'Abstract' ? L.abstract.size : undefined) }));

@@ -51,6 +51,10 @@ A paragraph with notes or links shows how many in the margin; choose the number 
 
 Notes, links and cuttings are not exported. If a picture cannot be included, its description stands in its place and the message above the page says which.
 
+## Preview
+
+**Book** and **Paper** at the left of the toolbar show the manuscript as a reader would see it: on pages of a 6 by 9 inch book or of a Letter-sized article, laid out as the Word export lays it out. **Write** takes you back to writing. The preview is close to what Word produces, not identical: Word may break a paragraph across two pages where the preview moves it whole.
+
 ## Appearance
 
-The settings button in the toolbar chooses the typeface, the size and the line length. They are this computer's, not the manuscript's: they change how the page looks to you, and nothing in the file.
+The settings button in the toolbar chooses the typeface, the size and the line length: Narrow, Medium, Wide, or Full, which gives the text all the width of the window. They are this computer's, not the manuscript's: they change how the page looks to you, and nothing in the file.

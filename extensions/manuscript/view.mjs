@@ -2,6 +2,8 @@
 import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx } from './export.mjs';
+import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
+import { markdownToInline } from './inline.mjs';
 import { Lexer } from './vendor/editor.js';
 
 const nendo = window.nendo;
@@ -13,7 +15,7 @@ const state = {
   root: null, cuttings: null, title: '', savedTitle: '', saved: new Map(), notes: [], links: [],
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
-  appearance: readAppearance(), popover: null, roles: false,
+  appearance: readAppearance(), popover: null, roles: false, mode: 'write',
 };
 window.manuscript = state;   // for the browser lane
 
@@ -142,7 +144,7 @@ async function load() {
   state.title = state.savedTitle = manuscript.title;
   $('title').value = manuscript.title;
   $('empty').hidden = state.root !== null;
-  $('page').hidden = state.root === null;
+  $('page').hidden = state.root === null || state.mode !== 'write';
   if (state.root !== null) {
     const keep = switched ? null : sheet.where();
     sheet.load(manuscript.nodes);
@@ -255,7 +257,7 @@ function changed() {
         [...state.saved.keys()].some(id => !manuscript.saved.has(id));
       state.notes = notes; state.links = links;
       if (!differs) { render(); return; }
-      if (!pending()) { await load(); return; }
+      if (!pending()) { await load(); if (state.mode !== 'write') renderPreview(); return; }
       state.external = true;
       render();
     } catch (error) { state.problem = { text: refusalText(error), reload: true }; render(); }
@@ -389,6 +391,92 @@ async function exportAs(format, layout = 'book') {
   render();
 }
 
+// ---------- Preview ----------
+
+/** Inline Markdown as DOM: bold, italic, strikethrough, code and line breaks. */
+function inlineNodes(markdown) {
+  const out = document.createDocumentFragment();
+  for (const node of markdownToInline(markdown, Lexer)) {
+    if (node.type === 'hardBreak') { out.append(document.createElement('br')); continue; }
+    let element = document.createTextNode(node.text);
+    for (const mark of node.marks ?? []) {
+      const tag = { bold: 'strong', italic: 'em', strike: 's', code: 'code' }[mark.type];
+      if (!tag) continue;
+      const wrap = document.createElement(tag); wrap.append(element); element = wrap;
+    }
+    out.append(element);
+  }
+  return out;
+}
+
+function blockElement(block, layout) {
+  const slug = role => `role-${String(role).toLowerCase().replace(/\s+/g, '-')}`;
+  if (block.kind === 'title') return el('h1', { class: `pv-title${block.titlePage ? ' title-page' : ''}` }, inlineNodes(block.text));
+  if (block.kind === 'heading') return el(`h${block.level + 1}`, { class: `pv-h${block.level}${block.centred ? ' centred' : ''}${block.role ? ` ${slug(block.role)}` : ''}` }, inlineNodes(block.text));
+  if (block.kind === 'caption') return el('p', { class: 'pv-caption' }, block.label ? el(layout === 'book' ? 'em' : 'strong', { text: `${block.label} ` }) : null, inlineNodes(block.text));
+  if (block.kind === 'figure') {
+    const widths = figureWidths(block, layout);
+    return el('div', { class: 'pv-figure' }, block.pictures.map((picture, i) => {
+      const box = el('span', { class: 'pv-picture', style: `width:${widths[i]}px` });
+      Promise.resolve(resolvePicture(picture.address)).then(url => {
+        if (url) box.append(el('img', { src: url, alt: picture.alt || '', style: `width:${widths[i]}px` }));
+        else box.append(el('span', { class: 'pv-missing', text: `Picture: ${picture.alt || 'no description'}` }));
+      });
+      return box;
+    }));
+  }
+  const classes = ['pv-p', block.indent ? 'indent' : '', block.front ? 'front' : '', block.role ? slug(block.role) : ''].filter(Boolean).join(' ');
+  if (block.role === 'Scene break' && !block.text.trim()) return el('p', { class: classes, text: '* * *' });
+  return el('p', { class: classes }, inlineNodes(block.text));
+}
+
+/**
+ * Draws the page on page-sized sheets as the chosen layout sets it, a block at a time: a block
+ * that must start a page, or would run past the sheet, starts the next one. An approximation
+ * of Word's pagination: a paragraph is never split across sheets.
+ */
+function renderPreview() {
+  const layout = state.mode, page = PAGES[layout];
+  const plan = exportPlan({ title: state.title, nodes: sheet.read() });
+  const host = $('preview');
+  host.dataset.layout = layout;
+  host.style.removeProperty('--zoom');
+  host.replaceChildren();
+  const limit = page.height - 2 * page.margin;
+  let body = null;
+  const newSheet = () => {
+    const sheetPage = el('section', { class: 'sheet-page', 'aria-label': `Page ${host.childElementCount + 1}` });
+    body = el('div', { class: 'sheet-body' });
+    sheetPage.append(body, el('div', { class: 'folio', text: String(host.childElementCount + 1) }));
+    host.append(sheetPage);
+  };
+  newSheet();
+  for (const block of previewBlocks(plan, layout)) {
+    if (block.breakBefore && body.childElementCount) newSheet();
+    const element = blockElement(block, layout);
+    body.append(element);
+    if (body.scrollHeight > limit && body.childElementCount > 1) { element.remove(); newSheet(); body.append(element); }
+  }
+  // A frame narrower than a sheet sees the sheets scaled down, never cut.
+  const room = host.clientWidth - 32;
+  if (room > 0 && room < page.width) host.style.setProperty('--zoom', String(room / page.width));
+  state.previewPages = host.childElementCount;
+}
+
+async function setMode(mode) {
+  if (!['write', 'book', 'paper'].includes(mode) || mode === state.mode) return;
+  if (state.mode === 'write' && pending()) await save();
+  state.mode = mode;
+  document.documentElement.dataset.mode = mode;
+  closePopover(); state.pinned = false;
+  if (mode !== 'write') state.drawer = null;
+  $('page').hidden = mode !== 'write' || state.root === null;
+  $('preview').hidden = mode === 'write';
+  if (mode === 'write') sheet.editor.commands.focus();
+  else { $('scroller').scrollTop = 0; renderPreview(); }
+  render();
+}
+
 // ---------- Drawing ----------
 
 function clock(date) { return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -439,16 +527,20 @@ function declare() {
   const a = state.appearance;
   const radio = (id, value, label, current) => ({ kind: 'radio', id, value, label, checked: current === value });
   const items = [
+    ...(state.root !== null ? [{ kind: 'choice', id: 'mode', label: 'View', hideLabel: true, value: state.mode,
+      options: [{ value: 'write', label: 'Write' }, { value: 'book', label: 'Book' }, { value: 'paper', label: 'Paper' }] }] : []),
     ...(state.root !== null ? [{ kind: 'select', id: 'manuscript', label: 'Manuscript', hideLabel: true, value: state.root,
       options: [...(state.manuscripts ?? []).slice(0, 63).map(m => ({ value: m.id, label: (m.id === state.root ? state.title || 'Untitled manuscript' : m.title || 'Untitled manuscript').slice(0, 80) })),
         { value: 'new', label: 'New manuscript\u2026' }] }] : []),
-    { kind: 'select', id: 'style', label: 'Style', value: style, options: STYLES.map(s => ({ value: s, label: s })) },
-    ...(state.roles ? [{ kind: 'select', id: 'role', label: 'Role', value: (state.root !== null && sheet.roleHere()) || 'none', options: [{ value: 'none', label: 'No role' }, ...ROLES.map(r => ({ value: r, label: r }))] }] : []),
+    ...(state.mode !== 'write' ? [] : [{ kind: 'select', id: 'style', label: 'Style', value: style, options: STYLES.map(s => ({ value: s, label: s })) }]),
+    ...(state.roles && state.mode === 'write' ? [{ kind: 'select', id: 'role', label: 'Role', value: (state.root !== null && sheet.roleHere()) || 'none', options: [{ value: 'none', label: 'No role' }, ...ROLES.map(r => ({ value: r, label: r }))] }] : []),
     { kind: 'text', text: `${state.status} · ${summary()}` },
     { kind: 'spacer' },
-    { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
-    { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
-    { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+    ...(state.mode !== 'write' ? [] : [
+      { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
+      { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
+      { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+    ]),
     { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
       { id: 'export-markdown', label: 'Markdown', detail: 'A .zip with the text and its pictures' },
       { id: 'export-word', label: 'Word document, book layout', detail: 'A 6 by 9 inch book: title page, chapters on new pages' },
@@ -459,7 +551,7 @@ function declare() {
       { kind: 'separator' }, { kind: 'label', label: 'Size' },
       radio('size', 'small', 'Small', a.size), radio('size', 'medium', 'Medium', a.size), radio('size', 'large', 'Large', a.size),
       { kind: 'separator' }, { kind: 'label', label: 'Line length' },
-      radio('width', 'narrow', 'Narrow', a.width), radio('width', 'medium', 'Medium', a.width), radio('width', 'wide', 'Wide', a.width),
+      radio('width', 'narrow', 'Narrow', a.width), radio('width', 'medium', 'Medium', a.width), radio('width', 'wide', 'Wide', a.width), radio('width', 'full', 'Full', a.width),
       { kind: 'separator' }, { kind: 'label', label: 'Pictures' },
       radio('pictures', 'small', 'Thumbnails', a.pictures), radio('pictures', 'full', 'Full width', a.pictures),
     ] },
@@ -473,6 +565,7 @@ function declare() {
 function command({ id, value }) {
   if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
   if (id === 'export-word' || id === 'export-word-paper') { exportAs('word', id === 'export-word-paper' ? 'paper' : 'book').catch(fail); return; }
+  if (id === 'mode') { setMode(value).catch(fail); return; }
   if (id === 'manuscript') { (value === 'new' ? startManuscript() : openManuscript(value)).catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }

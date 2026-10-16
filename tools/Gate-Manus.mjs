@@ -112,6 +112,30 @@ async page => {
   assert(paper[0] === 0x50 && paper[1] === 0x4b && (await frame.evaluate(() => window.manuscript.lastExport.layout)) === 'paper', 'The paper layout did not export.');
   checks.push('Markdown and Word export');
 
+  // Preview: Book and Paper draw the manuscript on sheets of their layout; Write comes back to the editor.
+  const mode = m => page.evaluate(v => window.broker.command('mode', v), m);
+  await mode('book');
+  await frame.waitForFunction(() => !document.getElementById('preview').hidden && document.getElementById('page').hidden && document.querySelectorAll('.sheet-page').length > 1, null, { timeout: 5000 });
+  const book = await frame.evaluate(() => ({ pages: document.querySelectorAll('.sheet-page').length, width: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width),
+    chapterTop: [...document.querySelectorAll('.sheet-page')].findIndex(p => p.querySelector('.pv-h1')?.textContent === 'Part One') }));
+  assert(book.width === 576 && book.pages >= 3 && book.chapterTop >= 1, `Book preview: ${JSON.stringify(book)}`);
+  assert(!(await page.evaluate(() => window.broker.toolbars.at(-1))).items.some(i => i.id === 'style'), 'Writing controls stayed in the toolbar during preview.');
+  await page.screenshot({ path: '__OUTPUT__/preview-book.png' });
+  await mode('paper');
+  await frame.waitForFunction(() => document.getElementById('preview').dataset.layout === 'paper');
+  const paperPreview = await frame.evaluate(() => ({ width: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), caption: !!document.querySelector('.pv-figure') }));
+  assert(paperPreview.width === 816, `Paper preview: ${JSON.stringify(paperPreview)}`);
+  await page.screenshot({ path: '__OUTPUT__/preview-paper.png' });
+  await mode('write');
+  await frame.waitForFunction(() => document.getElementById('preview').hidden && !document.getElementById('page').hidden);
+  // Full line length: the text takes the frame's width, less the page's margins.
+  await page.evaluate(() => window.broker.command('width', 'full'));
+  await frame.waitForFunction(() => document.documentElement.dataset.width === 'full');
+  const fullLine = await frame.evaluate(() => ({ text: Math.round(document.querySelector('.sheet-text').getBoundingClientRect().width), frame: innerWidth }));
+  assert(fullLine.text > fullLine.frame - 160, `Full width: ${JSON.stringify(fullLine)}`);
+  await page.evaluate(() => window.broker.command('width', 'medium'));
+  checks.push('Book and Paper preview', 'full line length');
+
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
   const typedFrom = (await batches()).length;
   await select('b-0414', 'end');
