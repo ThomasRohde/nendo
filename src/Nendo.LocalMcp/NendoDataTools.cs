@@ -369,6 +369,40 @@ internal sealed class NendoDataTools(
             () => mutations.SetKeptInNewFilesAsync(applicationHandle, leaseId, entityId, recordId, records, kept, idempotencyKey, cancellationToken),
             [entityId, .. records?.Select(record => record?.EntityId) ?? []]);
 
+    // Pictures for agents (ADR-0031 point 12, W-269). An agent embeds a picture it holds, in
+    // chunks that each fit one request, and gets its address. No tool reads a local file or
+    // fetches a web address: an agent writes such an address as text with set_field.
+    [McpServerTool(Name = "nendo.data.put_media", Title = "Embed a picture", Destructive = true, Idempotent = true,
+        OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
+    [Description("Embed a picture (PNG, JPEG, GIF, WebP, AVIF or SVG; one too large is refused as media-too-large) in the file and get its address, media: and its SHA-256, which a media field holds. Send the bytes as base64 in chunks: each call carries the next chunk at offset, under one idempotencyKey, and the call with final true commits; a chunk over limits.requestBodyBytes is refused, so keep each near 150 KiB. The type is read from the bytes. Name entityId, recordId, fieldId and expectedRecordVersion on the final call to set that media field to the address in the same revision. Content the file already holds is not stored twice. A link needs no bytes: set the field to an https: address or a path with nendo.data.set_field.")]
+    public Task<NendoMediaPutResult> PutMediaAsync(RequestContext<CallToolRequestParams> context,
+        [Description(NendoParameterDescriptions.ApplicationHandle)] string applicationHandle,
+        [Description(NendoParameterDescriptions.LeaseId)] string leaseId,
+        [Description("One key for every chunk of this picture and for the commit; a retry of a chunk or of the commit sends it again.")] string idempotencyKey,
+        [Description("This chunk's bytes as base64.")] string base64,
+        [Description("Where this chunk starts in the picture, in bytes: 0 for the first.")] long offset = 0,
+        [Description("true on the last chunk: the picture is embedded and its address returned.")] bool final = true,
+        [Description("The name the picture was added under, such as front.jpg.")] string? name = null,
+        [Description("Optional: the media type the bytes are, checked against them.")] string? mediaType = null,
+        [Description("Optional, with recordId, fieldId and expectedRecordVersion: the media field to set to the address.")] string? entityId = null,
+        [Description("The record whose media field to set.")] string? recordId = null,
+        [Description("The media field to set.")] string? fieldId = null,
+        [Description("The record's exact current version.")] long? expectedRecordVersion = null,
+        CancellationToken cancellationToken = default) => NendoToolCall.RunAsync(
+            context, activity, "mutation", "nendo.data.put_media",
+            () => mutations.PutMediaAsync(applicationHandle, leaseId, idempotencyKey, base64, offset, final, name, mediaType,
+                entityId is null && recordId is null && fieldId is null && expectedRecordVersion is null
+                    ? null
+                    : new NendoMediaTarget(
+                        entityId ?? throw new NendoValidationException("Name the record type with entityId."),
+                        recordId ?? throw new NendoValidationException("Name the record with recordId."),
+                        fieldId ?? throw new NendoValidationException("Name the media field with fieldId."),
+                        expectedRecordVersion ?? throw new NendoValidationException("Give the record's expectedRecordVersion.")),
+                cancellationToken),
+            result => result.Committed ? "committed" : "staged",
+            revisionId: result => result.Write?.RevisionId,
+            cause: () => proposals.PendingCause(host.Mode >= AgentAccessMode.Unattended, entityId));
+
     [McpServerTool(Name = "nendo.data.delete_record", Title = "Delete a record", Destructive = true, Idempotent = true,
         OpenWorld = false, ReadOnly = false, UseStructuredContent = true)]
     [Description("Delete one record at its exact current version. Incoming references block deletion. Values and the reserved ID are retained for guarded restoration through host History. recordVersion is null in the result because a deleted record holds no current version; the version it was deleted at is the expectedRecordVersion you sent.")]

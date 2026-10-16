@@ -674,6 +674,9 @@ Workbench suite, pins the table name by name.
 | `state.keys` | `scope` | `extension.state.read` | `[{key, version}]` |
 | `state.set` | `key`, `value`, `expectedVersion`, `scope` | `extension.state.set` | `{key, value, version}` |
 | `state.delete` | `key`, `expectedVersion`, `scope` | `extension.state.set` with a null value | null |
+| `media.describe` | `address` | `media.describe` (ADR-0031, W-270) | `{address, source, url, mediaType, byteLength, name, width, height}`: `source` is `embedded`, `web` or `local`; `url` is where an `img` shows the picture, or null when the file holds no such picture; the rest only for an embedded one. `nendo.media.urlFor(address)` answers the `url` alone |
+| `media.read` | `address` (an embedded picture's) | `media.readWindow`, a window of at most 160 KiB at a time | `{bytes, mediaType}`; `nendo.media.read` makes a Blob of it. A local or web address is `invalid-params` |
+| `media.put` | `bytes` (an ArrayBuffer or Uint8Array), `name`, `mediaType`, and `entityId`, `recordId`, `version`, `fieldId` to set a media field | `media.stage` per 150 KiB chunk, then `media.commit`, both in the package's name | `{address}` |
 | `ui.openRecord` | `entityId`, `recordId` | Workbench navigation | `{opened}` |
 | `ui.openScreen` | `surfaceId` | Workbench navigation | `{opened}` |
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |

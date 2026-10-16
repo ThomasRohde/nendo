@@ -18,6 +18,17 @@ internal static partial class WorkbenchMethods
     internal const string MediaEmbedCopy = "media.embedCopy";
     internal const string MediaSaveCopy = "media.saveCopy";
     internal const string MediaReveal = "media.reveal";
+
+    /// <summary>
+    /// What a custom view reads and writes of pictures (ADR-0031 point 12, W-270): a picture's
+    /// description and page address, a window of an embedded picture's bytes, and a picture it
+    /// holds, staged in chunks and committed in its package's name. No view reads a local file
+    /// or the web through these: describe names a link's page address, which shows it and no more.
+    /// </summary>
+    internal const string MediaDescribe = "media.describe";
+    internal const string MediaReadWindow = "media.readWindow";
+    internal const string MediaStage = "media.stage";
+    internal const string MediaCommit = "media.commit";
 }
 
 /// <summary>The window's half of the picture actions: its pickers and the clipboard.</summary>
@@ -33,12 +44,26 @@ internal interface IWorkbenchMediaHost
     Task<(byte[] Content, string Name)?> ReadClipboardPictureAsync();
 }
 
+/// <summary>A picture as a view reads it: where it comes from, its page address, and what the file knows of it.</summary>
+internal sealed record DesktopMediaDescription(string Address, string Source, string? Url, string? MediaType, long? ByteLength,
+    string? Name, int? Width, int? Height);
+
+/// <summary>A window of an embedded picture's bytes; nextOffset is null on the last.</summary>
+internal sealed record DesktopMediaWindow(string Base64, long ByteLength, string MediaType, long? NextOffset);
+
+/// <summary>How many bytes of a view's picture are staged.</summary>
+internal sealed record DesktopMediaStaged(long Bytes);
+
 /// <summary>What a picture action did: the address the field now holds, and the write, or that the person cancelled.</summary>
 internal sealed record DesktopMediaActionView(bool Cancelled, string? Address = null, DesktopMutationView? Write = null);
 
 internal sealed partial class WorkbenchProtocolHandler
 {
     private IWorkbenchMediaHost? _mediaHost;
+    private readonly NendoMediaUploads<DesktopMediaActionView> _viewUploads = new();
+
+    /// <summary>The most of a picture one window carries: base64 of it stays inside one message.</summary>
+    internal const int MediaWindowBytes = 160 * 1024;
     private static readonly HttpClient WebPictures = new() { Timeout = TimeSpan.FromSeconds(30) };
 
     internal IWorkbenchMediaHost? MediaHost { set => _mediaHost = value; }
@@ -154,6 +179,78 @@ internal sealed partial class WorkbenchProtocolHandler
             throw new NendoPreconditionException("media-missing", "The linked file is not there.");
         Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = true });
         return new DesktopMediaActionView(false, address!.Value);
+    }
+
+    private async Task<object> DescribeMediaAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        if (!NendoMediaAddress.TryParse(RequiredString(payload, "address", NendoMedia.MaximumAddressCharacters), out var address))
+            throw new NendoPreconditionException("media-address-invalid", "That is not a picture's address.");
+        var origin = (await _session.GetViewAsync(cancellationToken)).MediaOrigin;
+        var path = DesktopMediaOrigins.PathFor(address!);
+        var url = address!.Source == NendoMediaSource.Web ? address.Value : origin is null || path is null ? null : origin + path;
+        if (address.Source != NendoMediaSource.Embedded)
+            return new DesktopMediaDescription(address.Value, SourceWord(address.Source), url, null, null, null, null, null);
+        var item = await _session.ResolveMediaAsync("m/" + address.Sha256, "", cancellationToken);
+        if (item.Status != 200) return new DesktopMediaDescription(address.Value, "embedded", null, null, null, null, null, null);
+        var metadata = await _session.ReadMediaItemAsync(address.Sha256!, cancellationToken);
+        return new DesktopMediaDescription(address.Value, "embedded", url, item.MediaType, item.Length, metadata?.Name, metadata?.Width, metadata?.Height);
+    }
+
+    private static string SourceWord(NendoMediaSource source) => source switch
+    {
+        NendoMediaSource.Embedded => "embedded",
+        NendoMediaSource.Web => "web",
+        _ => "local",
+    };
+
+    private async Task<object> ReadMediaWindowAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        var sha = RequiredString(payload, "sha256", 64);
+        var offset = payload.TryGetProperty("offset", out var given) && given.TryGetInt64(out var at) && at >= 0 ? at : 0;
+        var answer = await _session.ResolveMediaAsync("m/" + sha, "", cancellationToken);
+        if (answer.Status != 200) throw new NendoPreconditionException("media-missing", "The file does not hold that picture.");
+        var count = (int)Math.Min(MediaWindowBytes, Math.Max(0, answer.Length - offset));
+        var buffer = new byte[count];
+        var read = 0;
+        await using (var stream = answer.Open!(offset, count))
+            while (read < count && await stream.ReadAsync(buffer.AsMemory(read)) is var got and > 0) read += got;
+        var next = offset + read;
+        return new DesktopMediaWindow(Convert.ToBase64String(buffer, 0, read), answer.Length, answer.MediaType!, next >= answer.Length ? null : next);
+    }
+
+    private object StageViewMedia(JsonElement payload, string? writer)
+    {
+        if (writer is null) throw new NendoPreconditionException("actor-not-allowed", "Only a custom view stages a picture this way.");
+        var key = writer + "\n" + RequiredString(payload, "uploadKey", 200);
+        var offset = payload.TryGetProperty("offset", out var given) && given.TryGetInt64(out var at) ? at : 0;
+        byte[] chunk;
+        try { chunk = Convert.FromBase64String(RequiredString(payload, "base64", MaximumMessageCharacters)); }
+        catch (FormatException) { throw new NendoValidationException("base64 is not valid base64."); }
+        return new DesktopMediaStaged(_viewUploads.Stage(key, offset, chunk));
+    }
+
+    private async Task<object> CommitViewMediaAsync(JsonElement payload, string? writer, CancellationToken cancellationToken)
+    {
+        if (writer is null) throw new NendoPreconditionException("actor-not-allowed", "Only a custom view commits a picture this way.");
+        var uploadKey = RequiredString(payload, "uploadKey", 200);
+        var key = writer + "\n" + uploadKey;
+        if (_viewUploads.Committed(key) is { } done) return done;
+        var content = _viewUploads.Take(key);
+        if (content.Length == 0) throw new NendoValidationException("Nothing was staged under that uploadKey.");
+        var name = payload.TryGetProperty("name", out var given) && given.ValueKind == JsonValueKind.String ? given.GetString() : null;
+        var mediaType = payload.TryGetProperty("mediaType", out var stated) && stated.ValueKind == JsonValueKind.String ? stated.GetString() : null;
+        var target = payload.TryGetProperty("entityId", out _) ? MediaTarget(payload) : null;
+        string? address = null;
+        var write = await _session.MutateAsync(async service =>
+        {
+            var put = await service.PutMediaAsync(new NendoPutMediaRequest(content, mediaType, name,
+                new NendoRequestContext("desktop.p2.5", "view-media-" + uploadKey, writer), target), cancellationToken);
+            address = put.Address;
+            return put.Result;
+        }, cancellationToken, writer);
+        var result = new DesktopMediaActionView(false, address, write);
+        _viewUploads.Remember(key, result);
+        return result;
     }
 
     private async Task<object> PutPictureAsync(byte[] content, string name, NendoMediaTarget target, CancellationToken cancellationToken)

@@ -48,6 +48,8 @@ internal static partial class WorkbenchMethods
     {
         DataCreateRecord, DataSetFields, DataDeleteRecord, DataExecuteCommand, DataMoveRecord, DataWriteRecords, DataUndoRecordWrites,
         ProposalPrepareChangeSet, ProposalGet, ExtensionStateRead, ExtensionStateSet,
+        // ADR-0031: a picture a view holds, staged and embedded in its package's name.
+        MediaStage, MediaCommit,
     };
 }
 

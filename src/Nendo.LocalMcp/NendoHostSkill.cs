@@ -160,6 +160,11 @@ internal static class NendoHostSkill
         text.Append("Give each `nendo.data.apply_writes` a short `label`: History names the revision by it, and History is how the person reviews your work. ");
         text.Append("Mark records a new file should keep as you create them, with `keptInNewFiles` on the create or on each write of a batch, ");
         text.Append("rather than one call and one revision per record afterwards; `nendo.data.set_kept_in_new_files` takes several `records` at once.\n\n");
+        text.Append("## Pictures\n\n");
+        text.Append("A field added with `presentation: \"media\"` on Text storage holds a picture's address, never its bytes: `media:` and a SHA-256 for one embedded in the file, an `https:` address, or a local path, absolute or beside the file. ");
+        text.Append("Link a picture by setting the field to its address with `nendo.data.set_field`. ");
+        text.Append("Embed one you hold with `nendo.data.put_media`: base64 in chunks of about 150 KiB under one `idempotencyKey`, `final: true` on the last, and the target field on that call to set it in the same revision. ");
+        text.Append("Read an embedded picture at `nendo://application/media/{sha256}`, and as an image with `?content=true`. Nendo reads no local file and fetches no web address for you.\n\n");
         text.Append("## The operations a change set takes\n\n");
         foreach (var lane in NendoAuthoringOperations.All.GroupBy(operation => operation.Lane))
         {

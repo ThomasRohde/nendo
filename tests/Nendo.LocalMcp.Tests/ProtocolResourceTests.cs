@@ -139,6 +139,8 @@ public sealed class ProtocolResourceTests
                 "nendo.host.skill.file",
                 // A file of a skill the open file carries (ADR-0024, W-160).
                 "nendo.application.skill.file",
+                // A picture the file embeds (ADR-0031, W-269).
+                "nendo.application.media",
             },
             templates.Select(template => template.Name).ToArray());
 

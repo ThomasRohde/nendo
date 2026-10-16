@@ -21,6 +21,8 @@ public sealed class SurfaceMetadataTests
     [
         "nendo.data.set_field", "nendo.data.move_record", "nendo.data.execute_command", "nendo.data.delete_record",
         "nendo.data.set_kept_in_new_files", "nendo.data.update_record", "nendo.data.apply_writes", "nendo.data.undo_revision",
+        // It sets a media field when the final chunk names one (ADR-0031).
+        "nendo.data.put_media",
         "nendo.change_set.amend", "nendo.change_set.reject", "nendo.change_set.accept", "nendo.change_set.revalidate",
     ];
 
@@ -36,13 +38,13 @@ public sealed class SurfaceMetadataTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(27, tools);
+        Assert.HasCount(28, tools);
         var untitled = tools.Where(tool => string.IsNullOrWhiteSpace(tool.ProtocolTool.Title)).Select(tool => tool.Name).ToList();
         var resources = await client.ListResourcesAsync();
         var templates = await client.ListResourceTemplatesAsync();
         untitled.AddRange(resources.Where(resource => string.IsNullOrWhiteSpace(resource.ProtocolResource.Title)).Select(resource => resource.Name));
         untitled.AddRange(templates.Where(template => string.IsNullOrWhiteSpace(template.ProtocolResourceTemplate.Title)).Select(template => template.Name));
-        Assert.AreEqual(25, resources.Count + templates.Count);
+        Assert.AreEqual(26, resources.Count + templates.Count);
         Assert.IsEmpty(untitled, "Untitled: " + string.Join(", ", untitled));
 
         var undescribed = new List<string>();

@@ -305,6 +305,7 @@ export function activityLabel(activity: AgentActivity): string {
     'nendo.data.delete_record': 'Deleted a record',
     'nendo.data.move_record': 'Moved a record',
     'nendo.data.set_kept_in_new_files': 'Said whether a new file keeps a record',
+    'nendo.data.put_media': 'Embedded a picture',
     'nendo.health.verify_integrity': 'Checked file integrity',
     'nendo.change_set.amend': 'Amended an app proposal',
     'nendo.change_set.accept': 'Accepted its own app proposal',

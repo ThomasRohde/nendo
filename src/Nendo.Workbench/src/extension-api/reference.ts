@@ -25,6 +25,24 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     answer: '{purpose, changeSequence, entities, screens, commands}. An entity is {entityId, displayName, fields, hierarchy, linkRule}; a field {fieldId, displayName, storageKind, required, presentation, calculated, expression, choices, reference, scale}, where a choice is {id, displayName, retired, tone} and reference is {targetEntityId, labelFieldId}. hierarchy is {parentFieldId, orderFieldId} or null. linkRule is {sourceFieldId, targetFieldId, kindFieldId, sourceKindFieldId, targetKindFieldId, tableEntityId, tableSourceFieldId, tableTargetFieldId, tableKindFieldId} or null: a write that leaves a link whose kinds no record of tableEntityId holds is refused with link-not-allowed. A screen is {id, surfaceId, kind, title, entityId}; a command {id, entityId, label, steps}, each step {fieldId, valueKind, value}.',
     note: 'Retired record types and fields are left out. storageKind is text, integer, decimal, boolean, date, dateTime, uuid or reference.',
   },
+  'media.describe': {
+    call: 'nendo.media.describe(address)',
+    params: 'A media field\'s value: media: and a SHA-256, an https: address, or a local path.',
+    answer: '{address, source, url, mediaType, byteLength, name, width, height}: source is embedded, web or local; url is the address an img or a CSS background shows it at, or null when the file holds no such picture. The rest is known for an embedded picture only.',
+    note: 'nendo.media.urlFor(address) answers the url alone. A url shows the picture and nothing more: no script reads a local or web picture\'s bytes.',
+  },
+  'media.read': {
+    call: 'nendo.media.read(address)',
+    params: 'An embedded picture\'s address, media: and its SHA-256.',
+    answer: 'A Blob of the picture, typed with its media type.',
+    note: 'A local or web address is refused with invalid-params: describe it and show its url instead.',
+  },
+  'media.put': {
+    call: 'nendo.media.put(data, options?)',
+    params: 'A Blob, a File, an ArrayBuffer or a Uint8Array of a PNG, JPEG, GIF, WebP, AVIF or SVG, and {name?, mediaType?, record?, fieldId?}: with record and fieldId, that media field is set to the picture in the same revision.',
+    answer: '{address}: the picture\'s address, which a media field holds.',
+    note: 'Written in the view\'s package\'s name. The type is read from the bytes; a picture larger than the bound is refused as media-too-large. Content the file already holds is not stored twice.',
+  },
   'records.query': {
     call: 'nendo.records.query(query)',
     params: '{entityId, limit?, cursor?, filters?, sortFieldId?, descending?}. limit is 1 to 200, 100 by default; cursor is the previous page\'s nextCursor; filters as under filters.',
@@ -216,6 +234,7 @@ const helperLines: readonly Omit<MethodLine, 'params'>[] = [
   { call: 'nendo.changes.subscribe(listener)', answer: 'The same as nendo.on(\'changes\', listener).' },
   { call: 'nendo.records.queryAll(query, options?)', answer: 'Every record of records.query, a page of 200 at a time, up to options.max (10,000 by default). When the file changes between pages it reads again from the top, at most three times, then fails with stale-cursor.' },
   { call: 'nendo.records.treeAll(query, options?)', answer: 'Every node of records.tree the same way.' },
+  { call: 'nendo.media.urlFor(address)', answer: 'The url of media.describe alone: where an img shows the picture, or null.' },
   { call: 'nendo.view.loadRecords()', answer: 'The records the view is about: its record type under its authored filters, with today and now resolved as it reads; on a record page, that page\'s one record.' },
   { call: 'nendo.view.loadGraph()', answer: '{nodes, edges, fields, hiddenEdges}. A node is {id, label, status, values, record}, an edge {id, source, target, values, record}; values holds the fields the view binds. An edge whose ends are not both among the nodes is left out and counted in hiddenEdges. fields names each bound field with its record type, display name and storage kind.' },
   { call: 'nendo.ui.theme', answer: 'The latest {mode, tokens}.' },

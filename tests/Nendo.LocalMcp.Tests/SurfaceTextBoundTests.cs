@@ -89,7 +89,7 @@ public sealed class SurfaceTextBoundTests
 
         var findings = new List<string>();
         var tools = await client.ListToolsAsync();
-        Assert.HasCount(27, tools, "Unattended serves every tool, so every description is measured.");
+        Assert.HasCount(28, tools, "Unattended serves every tool, so every description is measured.");
         foreach (var tool in tools)
         {
             Measure(findings, tool.Name, tool.Description);
@@ -105,7 +105,7 @@ public sealed class SurfaceTextBoundTests
         foreach (var resource in resources) Measure(findings, resource.Name, resource.Description);
         var templates = await client.ListResourceTemplatesAsync();
         foreach (var template in templates) Measure(findings, template.Name, template.Description);
-        Assert.AreEqual(25, resources.Count + templates.Count, "Every resource is measured.");
+        Assert.AreEqual(26, resources.Count + templates.Count, "Every resource is measured.");
         Assert.IsEmpty(findings, "A client stops reading at 2,048 characters:\n" + string.Join('\n', findings));
 
         // The rules that no longer fit in add_operations are one read away, and the

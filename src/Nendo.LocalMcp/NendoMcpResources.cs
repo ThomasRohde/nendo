@@ -413,6 +413,42 @@ internal sealed class NendoMcpResources(
         CancellationToken cancellationToken = default) =>
         TranslateAsync(() => projection.GetExtensionFileAsync(packageId, path, ByteNumber(offset, 0), ByteNumber(length, NendoResourceProjection.ExtensionFilePageBytes), cancellationToken));
 
+    /// <summary>The most of a picture's bytes one read returns; a larger one is described, not sent.</summary>
+    internal const long MediaReadBytes = 4L * 1024 * 1024;
+
+    [McpServerResource(
+        Name = "nendo.application.media",
+        Title = "Embedded picture",
+        UriTemplate = "nendo://application/media/{sha256}{?content}",
+        MimeType = "application/json")]
+    [Description("One picture the file embeds, by the SHA-256 in its media: address: its media type, size, the name it was added under, and its width and height where known. With content=true, the picture itself, as an image, when it is at most 4 MiB. A linked picture, a local path or a web address, is not read here: Nendo reads neither for an agent.")]
+    public Task<ResourceContents> GetMediaAsync(string sha256, string? content = null, CancellationToken cancellationToken = default) =>
+        TranslateContentsAsync(async () =>
+        {
+            var item = await application.ReadMediaAsync(sha256, cancellationToken)
+                ?? throw new NendoValidationException($"This file embeds no picture media:{sha256}.");
+            var uri = $"nendo://application/media/{sha256}";
+            if (content is "true")
+            {
+                if (item.ByteLength > MediaReadBytes)
+                    throw new NendoValidationException(
+                        $"The picture is {item.ByteLength / (1024 * 1024)} MiB, and a read returns at most {MediaReadBytes / (1024 * 1024)} MiB of one; its description is at {uri}.");
+                var bytes = await application.ReadMediaContentAsync(sha256, cancellationToken)
+                    ?? throw new NendoValidationException($"This file embeds no picture media:{sha256}.");
+                return BlobResourceContents.FromBytes(bytes, uri + "?content=true", item.MediaType);
+            }
+            return new TextResourceContents
+            {
+                Uri = uri,
+                MimeType = "application/json",
+                Text = JsonSerializer.Serialize(new
+                {
+                    address = item.Address, mediaType = item.MediaType, byteLength = item.ByteLength, name = item.Name,
+                    width = item.Width, height = item.Height,
+                }, NendoMcpJson.Options),
+            };
+        });
+
     /// <summary>A byte position as a template variable delivers it: text, classified here like a page limit.</summary>
     private static long ByteNumber(string? value, long fallback) => value switch
     {

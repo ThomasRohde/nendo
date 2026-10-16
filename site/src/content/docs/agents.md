@@ -51,8 +51,8 @@ You set the level on the Agent page. Each level includes everything that the lev
 | Level | What the agent may do | What it gets |
 | --- | --- | --- |
 | Off | Nothing. Nendo does not listen, and every lease ends. | No connection. |
-| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 25 resources, and 2 read-only tools that reach them: `nendo.read.resource` and `nendo.read.list`. |
-| Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 17 tools: `nendo.lease.*` (4), `nendo.data.*` (12) and `nendo.health.verify_integrity`. |
+| Inspect | Read the whole file: structure, records, screens, history, health and waiting proposals. | The 26 resources, and 2 read-only tools that reach them: `nendo.read.resource` and `nendo.read.list`. |
+| Edit data | Create, change, delete, import, move and undo records, and run a screen's command. Writes go straight into the file and appear in History. | Adds 18 tools: `nendo.lease.*` (4), `nendo.data.*` (13) and `nendo.health.verify_integrity`. |
 | Shape app | Propose changes to record types, fields, screens, calculations and automatic actions. Proposals wait for you. | Adds 7 tools: `nendo.change_set.begin`, `add_operations`, `amend`, `validate`, `revalidate`, `preview` and `reject`. |
 | Unattended | Accept its own proposals, and let the automatic actions they install run. | Adds 1 tool: `nendo.change_set.accept`. |
 
@@ -121,6 +121,7 @@ At Edit data and above, the agent changes records with these tools:
 | `nendo.data.undo_revision` | Undoes one record revision the agent's own session committed, as the compensation History makes: a new linked revision, nothing rewound. Undoing the compensation is redo. |
 | `nendo.data.move_record` | Moves a record in a record type that is kept as a tree: under another parent, to the top level, or before a sibling. When the siblings leave no room, the few around the new place are renumbered, and the answer names every record written. |
 | `nendo.data.set_kept_in_new_files` | Says whether a new file of the application keeps a record, leaves it out, or follows its record type: one record, or up to 200 of any types as one revision. |
+| `nendo.data.put_media` | Embeds a picture the agent holds, sent in chunks, and answers its address; the last chunk may set a picture field to it in the same revision. A link to a picture on the web or on this computer needs no tool: the agent sets the field to its address. Nendo reads no local file and fetches nothing from the web for an agent. |
 | `nendo.data.delete_record` | Deletes one record. Refused while other records refer to it. |
 | `nendo.data.execute_command` | Runs a command that a screen defines. |
 | `nendo.data.get_receipt` | Reads the outcome of an earlier write, an import batch by batch, or an acceptance by its proposal. |

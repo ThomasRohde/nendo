@@ -12,6 +12,7 @@ internal sealed class NendoDataMutationService(
     NendoImportService imports)
 {
     private static readonly int MaximumValueMapEntries = NendoAuthoringLimits.Current.ValuesPerRecord;
+    private readonly NendoMediaUploads<NendoMediaPutResult> _uploads = new();
     private static readonly int MaximumValueMapBytes = NendoAuthoringLimits.Current.RecordValuesBytes;
     private static readonly int MaximumValueBytes = NendoAuthoringLimits.Current.RecordValueBytes;
 
@@ -652,6 +653,43 @@ internal sealed class NendoDataMutationService(
                     await application.SetRecordsKeptInNewFilesAsync(named, kept, Context(applicationHandle, idempotencyKey), cancellationToken),
                     types.Length == 1 ? types[0] : null, [.. named.Select(record => record.RecordId)],
                     null);
+            },
+            cancellationToken);
+
+    /// <summary>
+    /// One chunk of a picture an agent embeds (ADR-0031 point 12): staged in memory under the
+    /// handle and key, and on the final chunk put into the file, with the target field set in the
+    /// same revision when one is named. A retried final call answers with the original commit.
+    /// </summary>
+    internal Task<NendoMediaPutResult> PutMediaAsync(string applicationHandle, string leaseId, string idempotencyKey, string base64,
+        long offset, bool final, string? name, string? mediaType, NendoMediaTarget? target, CancellationToken cancellationToken) =>
+        AdmitAsync(leaseId, applicationHandle,
+            async _ =>
+            {
+                NendoText.RequireText(idempotencyKey, "idempotency key", NendoAuthoringLimits.Current.IdempotencyKeyCharacters);
+                idempotencyKey = idempotencyKey.Trim();
+                var key = applicationHandle + "\n" + idempotencyKey;
+                if (_uploads.Committed(key) is { } done) return done;
+                byte[] chunk;
+                try { chunk = Convert.FromBase64String(base64); }
+                catch (FormatException) { throw new NendoValidationException("base64 is not valid base64."); }
+                var staged = _uploads.Stage(key, offset, chunk);
+                if (!final) return new NendoMediaPutResult(false, staged, null, null);
+                var content = _uploads.Take(key);
+                try
+                {
+                    var put = await application.PutMediaAsync(new NendoPutMediaRequest(content, mediaType, name,
+                        Context(applicationHandle, idempotencyKey), target), cancellationToken);
+                    var result = new NendoMediaPutResult(true, content.LongLength, put.Address,
+                        Touched(put.Result, target?.EntityId, target is null ? [] : [target.RecordId], target is null ? null : target.ExpectedRecordVersion + 1));
+                    _uploads.Remember(key, result);
+                    return result;
+                }
+                catch (NendoException)
+                {
+                    _uploads.Forget(key);
+                    throw;
+                }
             },
             cancellationToken);
 

@@ -1,8 +1,8 @@
 # Media in user data
 
-The Engine half of [ADR-0031](../decisions/0031-media-in-user-data.md), pictures first (W-264).
-How the bytes reach a page, how the Workbench and Studio show them, and what agents and views
-call are later slices of the [plan](../design/media.md); this contract grows with them.
+[ADR-0031](../decisions/0031-media-in-user-data.md), pictures first: the Engine (W-264), the
+media origin (W-265), the Workbench and Studio (W-266 to W-268), agents (W-269) and views (W-270).
+The [plan](../design/media.md) has the slices still to come.
 
 ## A media field
 
@@ -101,6 +101,42 @@ Measured on 2026-10-16 (W-264), cold, at SQLite level, on a 201 MiB file and the
 (+8.7%; 12 and 11 runs, spread 7.9-12.7 s); the full check, as an open did it before, 14.6 s
 against 8.2 s. `tools/media-open/Measure-MediaOpen.ps1` repeats it.
 
+## Serving
+
+Each open file instance has one media origin, `https://media-{16 hex}.example`, answered by
+`ExtensionAssetServer` through the view origins' `WebResourceRequested` filter
+(`DesktopMedia.cs`, `DesktopSessionController.Media.cs`); the Workbench reads it as the session's
+`mediaOrigin`. `/m/{sha256}` streams an embedded picture from the file a buffer at a time through
+SQLite's incremental blob reader, with one byte range, `private, max-age=31536000, immutable`
+and `nosniff`. `/f/?a={address}` serves a local file only when it is a file, its extension is a
+picture type's and its first bytes begin as that type, with `no-store`; anything else is 404. No
+answer carries a CORS header, so an `img` shows a picture and no script on another origin reads
+it. An SVG carries `Content-Security-Policy: sandbox`. The Workbench's own policy allows `https:`
+in `img-src`; a device setting, *Load pictures from the internet*, on unless turned off from a
+web picture's menu, keeps web pictures from loading and shows their address instead.
+
+## In the Workbench and Studio
+
+The image canvas's direction A ([`image-canvas/`](../design/image-canvas/README.md)). On a record
+page a picture field takes the document column: the picture fitted to it, opening larger on a
+click; a line with its source (In file, Linked file, Web), its name and a menu; a dashed drop zone
+when empty; a quiet *Picture not found* row with the address when it does not load. The menu
+embeds a picked or pasted picture, links a file, takes a web address, saves a copy, embeds a copy
+of a link, shows a linked file in its folder and removes the picture; each writes at once, and is
+refused while the record has unsaved typing. Every file, the clipboard and the web are read by
+the host (`media.embed`, `media.link`, `media.embedCopy`, `media.saveCopy`, `media.reveal`), so no
+picture crosses the bridge, and a dropped picture's path comes from WebView2's own file object.
+Lists, boards and outlines show a thumbnail; a gallery's `coverFieldId` tops each card with the
+picture (ADR-0004, 2026-10-16). Studio's cell shows a small preview beside the address, edits the
+address, and Structure adds a field of type Picture.
+
+## For agents and views
+
+An agent embeds with `nendo.data.put_media` and reads with `nendo://application/media/{sha256}`
+([MCP contract](mcp-interface.md)). A view calls `nendo.media.describe`, `urlFor`, `read` and `put`
+([custom-view contract](custom-views.md)); its puts are staged and committed in its package's
+name through `media.stage` and `media.commit`, the two picture methods a view's actor may reach.
+
 ## Where the assertions live
 
 `tests/Nendo.Engine.Tests/MediaTests.cs`: the address grammar; type and size from the first bytes;
@@ -109,4 +145,11 @@ grow with the picture; a file that never embeds keeping its layout; `media-missi
 set, a form save and a batch, with nothing written, and a set before its put in one mutation;
 `media-address-invalid` on a media field only; switching a text field into media; undo keeping the
 picture; the per-change bound; a 300 MiB file of pictures that opens, writes and verifies; and the
-explicit check finding a changed picture.
+explicit check finding a changed picture; a new file carrying only named pictures; search
+leaving addresses out. `tests/Nendo.Desktop.Tests/DesktopMediaServingTests.cs`: the origin, a range,
+a 60 MiB picture streamed without allocating it whole, the local file rules and the headers.
+`DesktopExtensionWriterTests`: a view's picture staged, committed in its name, described and read
+back. `tests/Nendo.LocalMcp.Tests/McpMediaTests.cs`: a chunked 5 MiB put that sets its field, a
+retried final call, an unfinished put leaving nothing, the image read and the refusals' words.
+`src/Nendo.Workbench/scripts/media-model.test.mjs` and `media-markup.test.mjs`: the address grammar
+the Workbench mirrors and the markup of every state. `GallerySurfaceTests`: the cover and `NUI459`.

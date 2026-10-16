@@ -21,6 +21,10 @@ internal sealed partial class DesktopSessionController
         return "https://" + host;
     }
 
+    /// <summary>One embedded picture's metadata, for a view's description.</summary>
+    internal async Task<NendoMediaItem?> ReadMediaItemAsync(string sha256, CancellationToken cancellationToken) =>
+        _service is { } service ? await service.ReadMediaAsync(sha256, cancellationToken) : null;
+
     private void StopMediaForFile()
     {
         _mediaHost = null;

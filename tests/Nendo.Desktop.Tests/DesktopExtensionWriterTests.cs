@@ -46,6 +46,54 @@ public sealed class DesktopExtensionWriterTests
         Assert.IsFalse(history.Any(revision => revision.Origin.StartsWith("extension:", StringComparison.Ordinal) && revision.Origin != Actor));
     }
 
+    // W-270 (ADR-0031): a picture a view holds, staged in chunks and embedded in its package's
+    // name, then described and read back; and no stage or commit without the view's actor.
+    [TestMethod]
+    public async Task AViewEmbedsAPictureInItsPackagesNameAndReadsItBack()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await DesktopExtensionViewJourneyTests.SeedAsync(workspace.FilePath);
+        var (session, handler, fileSessionId) = await OpenAsync(workspace);
+        await using var _ = session;
+
+        var picture = new byte[400_000];
+        new Random(270).NextBytes(picture);
+        new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }.CopyTo(picture, 0);
+        const int Chunk = 150 * 1024;
+        for (var offset = 0; offset < picture.Length; offset += Chunk)
+        {
+            var staged = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.MediaStage, new
+            {
+                uploadKey = "u1", offset, base64 = Convert.ToBase64String(picture, offset, Math.Min(Chunk, picture.Length - offset)), actor = Actor,
+            }));
+            Assert.IsTrue(staged.Ok, staged.Error?.Message);
+        }
+        var committed = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.MediaCommit, new { uploadKey = "u1", name = "map.png", actor = Actor }));
+        Assert.IsTrue(committed.Ok, committed.Error?.Message);
+        var address = "media:" + NendoExtensionContent.Sha256(picture);
+        Assert.AreEqual(address, ((DesktopMediaActionView)committed.Result!).Address);
+        Assert.AreEqual(Actor, (await session.GetHistoryAsync()).First(revision => revision.Origin == Actor).Origin);
+
+        var described = (DesktopMediaDescription)(await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.MediaDescribe, new { address }))).Result!;
+        Assert.AreEqual(("embedded", "image/png", (long?)picture.Length, "map.png"), (described.Source, described.MediaType, described.ByteLength, described.Name));
+        StringAssert.EndsWith(described.Url, "/m/" + NendoExtensionContent.Sha256(picture));
+
+        using var read = new MemoryStream();
+        long? next = 0;
+        while (next is { } at)
+        {
+            var window = (DesktopMediaWindow)(await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.MediaReadWindow,
+                new { sha256 = address[6..], offset = at }))).Result!;
+            read.Write(Convert.FromBase64String(window.Base64));
+            next = window.NextOffset;
+        }
+        CollectionAssert.AreEqual(picture, read.ToArray());
+
+        var person = await handler.HandleAsync(Request(fileSessionId, WorkbenchMethods.MediaStage, new { uploadKey = "u2", offset = 0, base64 = "AAAA" }));
+        Assert.IsFalse(person.Ok);
+        Assert.AreEqual("actor-not-allowed", person.Error!.Code);
+    }
+
     // W-102: several writes as one revision, through the same admission as a single write.
     [TestMethod]
     public async Task AViewsBatchIsOneRevisionInItsPackagesNameAndAnswersEachVersion()
@@ -152,7 +200,7 @@ public sealed class DesktopExtensionWriterTests
         var before = (await session.GetViewAsync()).Manifest!.ChangeSequence;
 
         var writers = WorkbenchMethods.ExtensionWriterMethods.OrderBy(method => method, StringComparer.Ordinal).ToArray();
-        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.DataUndoRecordWrites, WorkbenchMethods.DataWriteRecords, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
+        CollectionAssert.AreEqual(new[] { WorkbenchMethods.DataCreateRecord, WorkbenchMethods.DataDeleteRecord, WorkbenchMethods.DataExecuteCommand, WorkbenchMethods.DataMoveRecord, WorkbenchMethods.DataSetFields, WorkbenchMethods.DataUndoRecordWrites, WorkbenchMethods.DataWriteRecords, WorkbenchMethods.ExtensionStateRead, WorkbenchMethods.ExtensionStateSet, WorkbenchMethods.MediaCommit, WorkbenchMethods.MediaStage, WorkbenchMethods.ProposalGet, WorkbenchMethods.ProposalPrepareChangeSet },
             writers, "The methods a view's actor may reach changed; the ADR, the contract and the broker's table must change with them.");
 
         var methods = typeof(WorkbenchMethods)

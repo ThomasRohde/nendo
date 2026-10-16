@@ -279,6 +279,13 @@ public sealed class OutputSchemaContractTests
             ["idempotencyKey"] = "contract-keep",
         }));
         Assert.IsNull(marked.RecordVersion);
+        // A picture an agent holds, embedded in one chunk (ADR-0031, W-269).
+        var picture = Result<NendoMediaPutResult>(await CallAsync("nendo.data.put_media", new(owned)
+        {
+            ["idempotencyKey"] = "contract-picture",
+            ["base64"] = Convert.ToBase64String([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 1, 0, 1, 0, 0, 0, 0]),
+        }));
+        Assert.IsTrue(picture.Committed);
         await CallAsync("nendo.data.delete_record", new(owned)
         {
             ["entityId"] = CrmAuthoringFixture.DealEntityId,

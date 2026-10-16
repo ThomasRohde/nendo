@@ -88,11 +88,11 @@ function close(h) {
 }
 
 // proposal.get reads a proposal the view's own package prepared, and nothing else.
-const readMethods = ['data.queryRecords', 'data.searchRecords', 'data.treeRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
+const readMethods = ['media.describe', 'media.readWindow', 'data.queryRecords', 'data.searchRecords', 'data.treeRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
 // The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
 // W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
-const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.undoRecordWrites', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set'];
+const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.undoRecordWrites', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set', 'media.commit'];
 
 // WXS-01: the client takes the next file's session before the old file's frames are released.
 // Until then a view of the old file was answered from the next one: its schema locally, its
@@ -237,6 +237,10 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['state.keys', 'extension.state.read'],
     ['state.set', 'extension.state.set'],
     ['state.delete', 'extension.state.set'],
+    // Pictures (ADR-0031, W-270): describe and read, and a picture embedded in the package's name.
+    ['media.describe', 'media.describe'],
+    ['media.read', 'media.readWindow'],
+    ['media.put', 'media.commit'],
     ['ui.openRecord', null],
     ['ui.openScreen', null],
     ['ui.openStudio', null],

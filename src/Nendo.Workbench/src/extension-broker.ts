@@ -771,6 +771,59 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   // A move of the person's page. At most one a second from one view (WXS-04): each holds the
   // Workbench busy while it redraws, and a view that asked in a loop kept it busy enough to drop
   // the person's own clicks, the switch that turns views off among them.
+  // Pictures (ADR-0031, W-270). describe names a picture's source and its page address, which an
+  // img shows; read returns an embedded picture's bytes; put embeds a picture the view holds in its
+  // package's name, sent in chunks the host stages, and may set a media field in the same revision.
+  // No view reads a local file or the web through these.
+  'media.describe': read('media.describe', (p) => ({ address: textParam(p, 'address', 2048) })),
+  'media.read': {
+    host: 'media.readWindow',
+    run: async ({ params, deps }) => {
+      const address = textParam(params, 'address', 2048);
+      const sha = /^media:([0-9a-f]{64})$/.exec(address)?.[1];
+      if (sha === undefined) throw invalid('Only a picture in the file is read this way; show a linked one by its describe url.');
+      const parts: Uint8Array[] = [];
+      let offset: number | null = 0;
+      let mediaType = 'application/octet-stream';
+      while (offset !== null) {
+        const window = await deps.request('media.readWindow', { sha256: sha, offset }) as { base64: string; mediaType: string; nextOffset: number | null };
+        parts.push(Uint8Array.from(atob(window.base64), (character) => character.charCodeAt(0)));
+        mediaType = window.mediaType;
+        offset = window.nextOffset;
+      }
+      const bytes = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+      let at = 0;
+      for (const part of parts) { bytes.set(part, at); at += part.length; }
+      return { bytes: bytes.buffer, mediaType };
+    },
+  },
+  'media.put': {
+    host: 'media.commit',
+    writes: true,
+    run: async ({ params, mount, deps }) => {
+      const context = deps.context(mount);
+      if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
+      const data = params.bytes;
+      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data instanceof Uint8Array ? data : null;
+      if (bytes === null || bytes.length === 0) throw invalid('bytes must be the picture as an ArrayBuffer or a Uint8Array.');
+      const actor = `extension:${context.packageId}`;
+      const uploadKey = crypto.randomUUID();
+      const chunk = 150 * 1024;
+      for (let offset = 0; offset < bytes.length; offset += chunk) {
+        let text = '';
+        for (const byte of bytes.subarray(offset, Math.min(offset + chunk, bytes.length))) text += String.fromCharCode(byte);
+        await deps.request('media.stage', { uploadKey, offset, base64: btoa(text), actor });
+      }
+      const target = params.entityId === undefined ? {} : {
+        entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId'), fieldId: textParam(params, 'fieldId'),
+        expectedRecordVersion: versionParam(params),
+      };
+      const answer = await deps.request('media.commit', {
+        uploadKey, actor, name: optionalText(params, 'name', 240), mediaType: optionalText(params, 'mediaType', 100), ...target,
+      }) as { address: string | null };
+      return { address: answer.address };
+    },
+  },
   'ui.openRecord': navigation(({ mount, params, deps }) =>
     deps.ui.openRecord(mount, { entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId') })),
   'ui.openScreen': navigation(({ mount, params, deps }) => deps.ui.openScreen(mount, { surfaceId: textParam(params, 'surfaceId') })),

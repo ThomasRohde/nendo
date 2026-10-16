@@ -493,6 +493,23 @@ function install(host: Window & { nendo?: unknown }): void {
     schema: Object.freeze({
       describe: (): Promise<SchemaDescription> => call<SchemaDescription>('schema.describe'),
     }),
+    /** Pictures (ADR-0031): a media field's address described, an embedded picture read, a picture embedded. */
+    media: Object.freeze({
+      describe: (address: string): Promise<unknown> => call('media.describe', { address }),
+      urlFor: async (address: string): Promise<string | null> =>
+        ((await call<{ url?: string | null }>('media.describe', { address })).url ?? null),
+      read: async (address: string): Promise<Blob> => {
+        const answer = await call<{ bytes: ArrayBuffer; mediaType: string }>('media.read', { address });
+        return new Blob([answer.bytes], { type: answer.mediaType });
+      },
+      put: async (data: Blob | ArrayBuffer | Uint8Array, options: { name?: string; mediaType?: string; record?: { entityId: string; recordId: string; version: number }; fieldId?: string } = {}): Promise<{ address: string | null }> => {
+        const bytes = data instanceof Blob ? await data.arrayBuffer() : data;
+        const name = options.name ?? (typeof File !== 'undefined' && data instanceof File ? data.name : undefined);
+        const target = options.record === undefined || options.fieldId === undefined ? {}
+          : { entityId: options.record.entityId, recordId: options.record.recordId, version: options.record.version, fieldId: options.fieldId };
+        return call<{ address: string | null }>('media.put', { bytes, name, mediaType: options.mediaType, ...target });
+      },
+    }),
     records: Object.freeze({
       query: (query: Query): Promise<ViewPage> => call<ViewPage>('records.query', query),
       get: (entityId: string, recordId: string): Promise<ViewRecord | null> => call<ViewRecord | null>('records.get', { entityId, recordId }),
