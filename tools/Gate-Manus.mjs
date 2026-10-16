@@ -127,7 +127,18 @@ async page => {
   await mode('paper');
   await frame.waitForFunction(() => document.getElementById('preview').dataset.layout === 'paper');
   const paperPreview = await frame.evaluate(() => ({ width: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), caption: !!document.querySelector('.pv-figure') }));
-  assert(Math.abs(paperPreview.width - Math.round(816 * 760 / 624)) <= 2, `Paper preview: ${JSON.stringify(paperPreview)}`);
+  assert(Math.abs(paperPreview.width - Math.round(816 * 760 / 672)) <= 2, `Paper preview: ${JSON.stringify(paperPreview)}`);
+  // An article as arXiv carries one (AASTeX): the body in two columns side by side under the title
+  // block, the draft line at the top of the first page, headings numbered in capitals.
+  const article = await frame.evaluate(() => {
+    const columns = [...document.querySelectorAll('.sheet-page')[0].querySelectorAll('.pv-columns > .pv-column')];
+    const box = e => e.getBoundingClientRect();
+    return { columns: columns.length, sideBySide: columns.length === 2 && Math.abs(box(columns[0]).top - box(columns[1]).top) < 1 && box(columns[1]).left > box(columns[0]).right,
+      bodyInColumn: Boolean(columns[0]?.querySelector('h2, .pv-p')), running: document.querySelector('.sheet-page .running')?.textContent ?? null,
+      heading: columns[0]?.querySelector('h2')?.textContent ?? null };
+  });
+  assert(article.columns === 2 && article.sideBySide && article.bodyInColumn && /^Draft version /.test(article.running ?? '') && /^\d+\. [A-Z ]+$/.test(article.heading ?? ''),
+    `Paper preview is not two columns as AASTeX sets them: ${JSON.stringify(article)}`);
   await page.screenshot({ path: '__OUTPUT__/preview-paper.png' });
   // Line length scales the sheets: Narrow shows the text column at 620 pixels, Full fits the frame.
   await page.evaluate(() => window.broker.command('width', 'narrow'));
@@ -142,7 +153,7 @@ async page => {
     `Preview text size: ${JSON.stringify({ narrowSheet, ...sized })}`);
   await page.evaluate(() => window.broker.command('width', 'full'));
   const fullSheet = await frame.evaluate(() => ({ sheet: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), frame: innerWidth }));
-  assert(Math.abs(narrowSheet - Math.round(816 * 620 / 624)) <= 2 && fullSheet.sheet >= fullSheet.frame - 60 && fullSheet.sheet <= fullSheet.frame, `Preview line length: narrow ${narrowSheet}, full ${JSON.stringify(fullSheet)}`);
+  assert(Math.abs(narrowSheet - Math.round(816 * 620 / 672)) <= 2 && fullSheet.sheet >= fullSheet.frame - 60 && fullSheet.sheet <= fullSheet.frame, `Preview line length: narrow ${narrowSheet}, full ${JSON.stringify(fullSheet)}`);
   await page.evaluate(() => window.broker.command('width', 'medium'));
   await mode('write');
   await frame.waitForFunction(() => document.getElementById('preview').hidden && !document.getElementById('page').hidden);
@@ -152,7 +163,7 @@ async page => {
   const fullLine = await frame.evaluate(() => ({ text: Math.round(document.querySelector('.sheet-text').getBoundingClientRect().width), frame: innerWidth }));
   assert(fullLine.text > fullLine.frame - 160, `Full width: ${JSON.stringify(fullLine)}`);
   await page.evaluate(() => window.broker.command('width', 'medium'));
-  checks.push('Book and Paper preview', 'full line length', 'preview text size');
+  checks.push('Book and Paper preview', 'paper in two columns', 'full line length', 'preview text size');
 
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
   const typedFrom = (await batches()).length;

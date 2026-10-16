@@ -145,36 +145,46 @@ button.quiet:hover { background: var(--soft); }
 .preview[hidden] { display: none; }
 .sheet-page { position: relative; box-sizing: border-box; background: #ffffff; color: #1b1b1b; box-shadow: var(--shadow); zoom: var(--zoom, 1); flex: none; }
 .preview[data-layout='book'] .sheet-page { width: 576px; height: 864px; padding: 72px; font: 14.7px/1.25 Georgia, 'Sitka Text', serif; }
-.preview[data-layout='paper'] .sheet-page { width: 816px; height: 1056px; padding: 96px; font: 14.7px/1.15 'Times New Roman', Times, serif; }
+.preview[data-layout='paper'] .sheet-page { width: 816px; height: 1056px; padding: 96px 72px; font: 13.3px/1.2 'Times New Roman', Times, serif; }
 .sheet-body { overflow: hidden; height: 100%; }
 .folio { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-size: 12px; }
+/* An article: the draft line at the top left of its first page, numbers at the top right after it,
+   and its body in two columns under what runs across the page. */
+.running { position: absolute; top: 48px; left: 72px; right: 72px; font-size: 12px; font-variant: small-caps; }
+.running.number { text-align: right; font-variant: normal; }
+.pv-columns { display: flex; gap: 32px; align-items: flex-start; }
+.pv-column { flex: 0 0 320px; min-width: 0; }
+.pv-column > :first-child { margin-top: 0; }
 .sheet-body p { margin: 0; text-align: justify; hyphens: auto; }
 .sheet-body p.indent { text-indent: 24px; }
 .sheet-body code { font-family: Consolas, monospace; font-size: 0.88em; }
 .pv-title { margin: 0 0 14px; text-align: center; font-weight: 400; }
 .preview[data-layout='book'] .pv-title { font-size: 32px; }
 .preview[data-layout='book'] .pv-title.title-page { margin-top: 200px; }
-.preview[data-layout='paper'] .pv-title { font-size: 22.7px; font-weight: 700; }
+.preview[data-layout='paper'] .pv-title { font-size: 16px; font-weight: 700; margin: 34px 0 14px; }
 .sheet-body h2, .sheet-body h3, .sheet-body h4 { margin: 0; font-weight: 700; break-after: avoid; }
-.preview[data-layout='paper'] .pv-h1 { font-size: 16px; margin: 20px 0 8px; }
-.preview[data-layout='paper'] .pv-h2 { font-size: 14.7px; margin: 15px 0 5px; }
-.preview[data-layout='paper'] .pv-h3 { font-size: 14.7px; font-style: italic; margin: 11px 0 4px; }
+.preview[data-layout='paper'] .sheet-body :is(h2, h3, h4) { font-size: 13.3px; font-weight: 400; }
+.preview[data-layout='paper'] .pv-h1 { margin: 16px 0 8px; }
+.preview[data-layout='paper'] .pv-h2 { font-style: italic; margin: 13px 0 7px; }
+.preview[data-layout='paper'] .pv-h3 { font-style: italic; margin: 11px 0 4px; }
 .preview[data-layout='book'] .pv-h1 { font-size: 21.3px; margin: 80px 0 32px; }
 .preview[data-layout='book'] .pv-h2 { font-size: 17.3px; margin: 24px 0 11px; }
 .preview[data-layout='book'] .pv-h3 { font-size: 14.7px; font-style: italic; margin: 16px 0 8px; }
 .sheet-body .centred { text-align: center; }
-.preview[data-layout='paper'] .pv-h1.role-abstract { font-size: 13.3px; }
 .sheet-body p.front { text-align: center; margin-bottom: 4px; }
 .sheet-body p.role-subtitle { text-align: center; font-size: 19px; margin-bottom: 13px; }
 .sheet-body p.role-author { text-align: center; margin-bottom: 4px; }
+.preview[data-layout='paper'] .sheet-body p.role-author { font-variant: small-caps; font-size: 14.7px; }
+.preview[data-layout='paper'] .sheet-body p.role-subtitle { font-size: 13.3px; }
 .sheet-body p.role-dedication { text-align: center; font-style: italic; margin-top: 160px; }
 .sheet-body p.role-epigraph { text-align: left; font-style: italic; font-size: 0.95em; margin: 8px 0 16px 30%; }
 .sheet-body p.role-quotation { margin: 8px 48px; font-size: 0.95em; }
 .sheet-body p.role-aside { margin: 8px 48px; font-size: 0.9em; }
 .sheet-body p.role-verse { text-align: left; margin: 0 0 10px 48px; }
 .sheet-body p.role-scene-break { text-align: center; margin: 16px 0; }
-.preview[data-layout='paper'] .sheet-body p.role-abstract { margin: 0 48px; font-size: 13.3px; }
-.sheet-body p.role-keywords { text-align: left; margin: 8px 48px 0; font-size: 13.3px; }
+.preview[data-layout='paper'] .sheet-body p.role-abstract { margin: 0 45px; }
+.sheet-body p.role-keywords { text-align: left; margin: 13px 45px 8px; padding-left: 63px; text-indent: -63px; }
+.preview[data-layout='paper'] .sheet-body p.across:last-child { margin-bottom: 16px; }
 .sheet-body p.role-references, .sheet-body p.role-glossary { text-align: left; font-size: 12px; padding-left: 24px; text-indent: -24px; margin-bottom: 4px; }
 .sheet-body p.role-colophon { text-align: center; font-size: 0.85em; margin-bottom: 8px; }
 .pv-figure { text-align: center; margin: 13px 0 5px; display: flex; justify-content: center; gap: 24px; }
@@ -182,6 +192,7 @@ button.quiet:hover { background: var(--soft); }
 .pv-picture img { display: block; height: auto; }
 .pv-missing { display: block; border: 1px dashed #999999; padding: 24px 8px; font: 12px/1.4 'Segoe UI', sans-serif; color: #555555; }
 .pv-caption { text-align: center !important; font-size: 12px; margin: 5px 24px 16px !important; }
+.preview[data-layout='paper'] .pv-caption { text-align: justify !important; margin: 5px 0 16px !important; }
 :root[data-mode='book'] .drawer, :root[data-mode='paper'] .drawer { display: none; }
 
 @media (max-width: 720px) {

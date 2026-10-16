@@ -1,7 +1,7 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
 import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx } from './export.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
 import { markdownToInline } from './inline.mjs';
 import { Lexer } from './vendor/editor.js';
@@ -425,15 +425,17 @@ function blockElement(block, layout) {
       return box;
     }));
   }
-  const classes = ['pv-p', block.indent ? 'indent' : '', block.front ? 'front' : '', block.role ? slug(block.role) : ''].filter(Boolean).join(' ');
+  const classes = ['pv-p', block.indent ? 'indent' : '', block.front ? 'front' : '', block.across ? 'across' : '', block.role ? slug(block.role) : ''].filter(Boolean).join(' ');
   if (block.role === 'Scene break' && !block.text.trim()) return el('p', { class: classes, text: '* * *' });
-  return el('p', { class: classes }, inlineNodes(block.text));
+  return el('p', { class: classes }, block.label ? el('em', { text: `${block.label} ` }) : null, inlineNodes(block.text));
 }
 
 /**
  * Draws the page on page-sized sheets as the chosen layout sets it, a block at a time: a block
- * that must start a page, or would run past the sheet, starts the next one. An approximation
- * of Word's pagination: a paragraph is never split across sheets.
+ * that must start a page, or would run past the sheet, starts the next one. An article's body
+ * fills its left column, then its right, then the next sheet's, under the blocks that run
+ * across the first page. An approximation of Word's pagination: a paragraph is never split
+ * across columns or sheets.
  */
 function renderPreview() {
   const layout = state.mode, page = PAGES[layout];
@@ -442,20 +444,43 @@ function renderPreview() {
   host.dataset.layout = layout;
   host.style.removeProperty('--zoom');
   host.replaceChildren();
-  const limit = page.height - 2 * page.margin;
-  let body = null;
+  const limit = page.height - 2 * page.top;
+  let body = null, columns = null, column = 0;
   const newSheet = () => {
-    const sheetPage = el('section', { class: 'sheet-page', 'aria-label': `Page ${host.childElementCount + 1}` });
+    const number = host.childElementCount + 1;
+    const sheetPage = el('section', { class: 'sheet-page', 'aria-label': `Page ${number}` });
     body = el('div', { class: 'sheet-body' });
-    sheetPage.append(body, el('div', { class: 'folio', text: String(host.childElementCount + 1) }));
+    // An article's first page carries the draft line; every later one its number at the top.
+    const folio = !page.columns ? el('div', { class: 'folio', text: String(number) })
+      : number === 1 ? el('div', { class: 'running', text: draftLine() }) : el('div', { class: 'running number', text: String(number) });
+    sheetPage.append(body, folio);
     host.append(sheetPage);
+    columns = null;
   };
+  const newColumns = () => {
+    columns = Array.from({ length: page.columns }, () => el('div', { class: 'pv-column' }));
+    body.append(el('div', { class: 'pv-columns' }, columns));
+    column = 0;
+  };
+  const past = target => target.getBoundingClientRect().bottom - body.getBoundingClientRect().top > limit + 0.5;
   newSheet();
   for (const block of previewBlocks(plan, layout)) {
-    if (block.breakBefore && body.childElementCount) newSheet();
     const element = blockElement(block, layout);
-    body.append(element);
-    if (body.scrollHeight > limit && body.childElementCount > 1) { element.remove(); newSheet(); body.append(element); }
+    if (!page.columns || block.across) {
+      if (block.breakBefore && body.childElementCount) newSheet();
+      body.append(element);
+      if (body.scrollHeight > limit && body.childElementCount > 1) { element.remove(); newSheet(); body.append(element); }
+      continue;
+    }
+    if (block.breakBefore && (columns ? columns.some(c => c.childElementCount) : body.childElementCount)) newSheet();
+    if (!columns) newColumns();
+    columns[column].append(element);
+    if (past(columns[column]) && columns[column].childElementCount > 1) {
+      element.remove();
+      if (column + 1 < columns.length) column++;
+      else { newSheet(); newColumns(); }
+      columns[column].append(element);
+    }
   }
   previewZoom();
   state.previewPages = host.childElementCount;

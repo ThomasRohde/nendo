@@ -97,14 +97,20 @@ function runs(markdown, lib, Lexer, size, base = 22, italic = false) {
 
 // Sizes are half-points and distances twentieths of a point (twips), as Word stores them.
 export const LAYOUTS = {
-  /** An arXiv-style article: one column, Times, justified, a centred title block. */
+  /**
+   * An article as arXiv carries one in the AASTeX two-column style: Times at 10 points on Letter,
+   * the title block, abstract and keywords across the page, the body in two justified columns,
+   * headings centred and numbered ("1. INTRODUCTION", "2.1. Documents as applications"), a
+   * running head on the first page and page numbers at the top right after it.
+   */
   paper: {
-    font: 'Times New Roman', size: 22, line: 240, firstLine: 360, after: 0,
-    page: { width: 12240, height: 15840, margin: 1440 },
-    title: { size: 34, before: 0, after: 200 }, front: { size: 22, after: 60 },
-    headings: [{ size: 24, before: 300, after: 120 }, { size: 22, before: 220, after: 80 }, { size: 22, before: 160, after: 60, italics: true }],
-    abstract: { size: 20, indent: 720 }, caption: { size: 18 }, references: { size: 18, hanging: 360 },
-    figureWidth: 400, textWidth: 624, pageNumbers: true, chapterBreaks: false, titlePage: false,
+    font: 'Times New Roman', size: 20, line: 240, firstLine: 288, after: 0,
+    page: { width: 12240, height: 15840, margin: 1440, side: 1080 }, columns: { count: 2, space: 475 },
+    title: { size: 24, before: 360, after: 200 }, front: { size: 20, after: 40 },
+    headings: [{ size: 20, before: 240, after: 120, center: true, bold: false }, { size: 20, before: 200, after: 100, center: true, bold: false, italics: true },
+      { size: 20, before: 160, after: 60, bold: false, italics: true }],
+    abstract: { size: 20, indent: 680 }, caption: { size: 18 }, references: { size: 18, hanging: 216 },
+    figureWidth: 320, textWidth: 320, pageNumbers: 'header', chapterBreaks: false, titlePage: false,
   },
   /** A book: a title page, chapters on new pages, a 6 by 9 inch page. */
   book: {
@@ -119,18 +125,67 @@ export const LAYOUTS = {
 
 export const FIGURE = /^\*?(Figure|Fig\.|Table)\s+(\d+)[.:]\*?\s*/i;
 
+/** The parts a book or an article sets apart: a heading with one of these roles starts it. */
+export const PARTS = new Set(['Foreword', 'Preface', 'Acknowledgements', 'Abstract', 'Appendix', 'Afterword', 'Glossary', 'References', 'About the author', 'Colophon']);
+const NUMBER = /^(\d+(?:\.\d+)*)\.?\s+(?=\S)/;
+
+/**
+ * The paper layout's heading labels, keyed by plan item, as AASTeX sets them: a section is
+ * numbered and in capitals ("1. INTRODUCTION"), a subsection numbered ("2.1. Documents as
+ * applications"), and a part such as the Abstract or References in capitals without a number,
+ * at whatever depth it stands; the headings inside a part keep their words. A heading's own
+ * number is kept and the count goes on from it; a heading without one gets the next. `parts`
+ * holds the part headings, which an article sets as its sections are set.
+ */
+export function paperHeadings(plan) {
+  const labels = new Map(), parts = new Set(), count = [0, 0, 0];
+  let part = null;
+  for (const item of plan.items) {
+    if (item.type !== 'heading') continue;
+    const level = Math.min(item.level, 3), own = NUMBER.exec(item.text);
+    const words = own ? item.text.slice(own[0].length) : item.text;
+    // A heading under a part takes the part's role, so the first with the role is the part's.
+    if (part && item.role === part.role && level > part.level) { labels.set(item, words); continue; }
+    part = PARTS.has(item.role) ? { role: item.role, level } : null;
+    if (part) { labels.set(item, words.toUpperCase()); parts.add(item); continue; }
+    if (own) own[1].split('.').map(Number).forEach((n, i) => { if (i < 3) count[i] = n; });
+    else count[level - 1]++;
+    for (let i = level; i < 3; i++) count[i] = 0;
+    const number = count.slice(0, level).join('.');
+    labels.set(item, `${number}. ${level === 1 ? words.toUpperCase() : words}`);
+  }
+  return { labels, parts };
+}
+
+/**
+ * Where the paper's two columns start: at the first heading that is not the abstract's. The
+ * title, the front matter, the abstract and the keywords before it run across the page.
+ */
+export function columnsStart(plan) {
+  const at = plan.items.findIndex(item => item.type === 'heading' && item.role !== 'Abstract');
+  return at < 0 ? plan.items.length : at;
+}
+
+/** "Draft version October 16, 2026", the running head of an article's first page. */
+export function draftLine(date = new Date()) {
+  return `Draft version ${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`;
+}
+
+const KEYWORDS = /^\*{0,2}keywords?\*{0,2}\s*[:.]\s*/i;
+
 /**
  * The manuscript as a Word document in a layout, `paper` or `book`: a Title, Heading 1 to 3,
  * justified paragraphs with a first-line indent (none after a heading or a figure), bold,
  * italic, strikethrough and code runs, and pictures centred with their description as
  * alternative text. In the paper layout the paragraphs before the first heading are the
- * centred front matter, a section headed Abstract is set narrower and smaller, a paragraph
- * after a picture that starts "Figure n." is its caption, and a section headed References is
- * set small with hanging indents. `pictures` maps an address to {data, mediaType, width,
- * height}. A picture Word cannot take, or one that could not be read, stands as its
- * description in brackets and is named in `missing`.
+ * centred front matter, a section headed Abstract is set narrower, a paragraph after a picture
+ * that starts "Figure n." is its caption, and a section headed References is set small with
+ * hanging indents; from the first heading after the abstract the body runs in two columns.
+ * `pictures` maps an address to {data, mediaType, width, height}. A picture Word cannot take,
+ * or one that could not be read, stands as its description in brackets and is named in
+ * `missing`. `options.date` is the paper's draft date, today unless given.
  */
-export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
+export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options = {}) {
   const L = LAYOUTS[layoutName] ?? LAYOUTS.book;
   const A = lib.AlignmentType;
   const headingLevels = [lib.HeadingLevel.HEADING_1, lib.HeadingLevel.HEADING_2, lib.HeadingLevel.HEADING_3];
@@ -158,16 +213,22 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
     children.push(new lib.Paragraph({ alignment: A.CENTER, keepNext: true, spacing: { before: 200, after: 80 }, children: runsOfRow }));
     indentNext = false; previous = row.at(-1); row = [];
   };
-  // The parts a book or an article sets apart: a heading with one of these roles starts it.
-  const PARTS = new Set(['Foreword', 'Preface', 'Acknowledgements', 'Abstract', 'Appendix', 'Afterword', 'Glossary', 'References', 'About the author', 'Colophon']);
   const paper = layoutName === 'paper';
+  const { labels, parts } = paper ? paperHeadings(plan) : { labels: new Map(), parts: new Set() };
+  const columnsAt = paper ? columnsStart(plan) : -1;
+  let columnsChild = children.length;
   const text = (markdown, size) => runs(markdown, lib, Lexer, size, L.size);
   const para = (options, markdown, size) => new lib.Paragraph({ ...options, children: text(markdown, size) });
   let firstAppendix = true;
-  for (const item of plan.items) {
-    if (item.type !== 'picture') flushRow();
+  for (const [index, item] of plan.items.entries()) {
+    if (item.type !== 'picture' || index === columnsAt) flushRow();
+    if (index === columnsAt) {
+      // A little room between the abstract and the columns, as an article leaves.
+      children.push(new lib.Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
+      columnsChild = children.length;
+    }
     if (item.type === 'heading') {
-      const level = Math.min(item.level, 3), h = L.headings[level - 1];
+      const level = parts.has(item) ? 1 : Math.min(item.level, 3), h = L.headings[level - 1];
       const part = PARTS.has(item.role) && level === 1;
       const centred = h.center || (part && (!paper || item.role === 'Abstract'));
       // A book starts every part and chapter on a new page; an article only its first appendix.
@@ -175,7 +236,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
       const breakBefore = (L.chapterBreaks && opensPage) || (level === 1 && paper && item.role === 'Appendix' && firstAppendix);
       if (item.role === 'Appendix' && level === 1) firstAppendix = false;
       children.push(new lib.Paragraph({ heading: headingLevels[level - 1], alignment: centred ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore,
-        children: text(item.text, paper && item.role === 'Abstract' ? L.abstract.size : undefined) }));
+        children: text(labels.get(item) ?? item.text, paper && item.role === 'Abstract' ? L.abstract.size : undefined) }));
       indentNext = false; previous = item;
       continue;
     }
@@ -185,17 +246,20 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
     switch (role) {
       case 'Caption': {
         const caption = FIGURE.exec(item.text);
-        const label = caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}:` : null;
-        block = new lib.Paragraph({ alignment: A.CENTER, spacing: { after: 240 }, indent: { left: 360, right: 360 }, children: [
-          ...(label ? [new lib.TextRun({ text: `${label} `, bold: !L.caption.italics || undefined, italics: L.caption.italics || undefined, size: L.caption.size })] : []),
+        const label = caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}${paper ? '.' : ':'}` : null;
+        block = new lib.Paragraph({ alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: 240 }, indent: paper ? {} : { left: 360, right: 360 }, children: [
+          ...(label ? [new lib.TextRun({ text: `${label} `, bold: (!L.caption.italics && !paper) || undefined, italics: L.caption.italics || undefined, size: L.caption.size })] : []),
           ...text(caption ? item.text.slice(caption[0].length) : item.text, L.caption.size)] });
         break;
       }
       case 'Subtitle':
-        block = para({ alignment: A.CENTER, spacing: { after: 200 } }, item.text, Math.round(L.title.size * 0.6));
+        block = para({ alignment: A.CENTER, spacing: { after: 200 } }, item.text, paper ? L.size : Math.round(L.title.size * 0.6));
         break;
       case 'Author':
-        block = para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size);
+        // An article's authors are in small capitals, as AASTeX sets them.
+        block = paper
+          ? new lib.Paragraph({ alignment: A.CENTER, spacing: { after: L.front.after }, children: markdownToInline(item.text, Lexer).map(n => new lib.TextRun({ text: n.text ?? '', break: n.type === 'hardBreak' ? 1 : undefined, smallCaps: true, size: L.front.size + 2 })) })
+          : para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size);
         break;
       case 'Dedication':
         // Word drops the space before a paragraph at the top of a page, so a dedication on its own
@@ -221,12 +285,16 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
         break;
       case 'Abstract':
         block = paper
-          ? para({ alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: indentNext ? L.firstLine : 0 } }, item.text, L.abstract.size)
+          ? para({ alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: L.firstLine } }, item.text, L.abstract.size)
           : para({ alignment: A.JUSTIFIED, indent: { firstLine: indentNext ? L.firstLine : 0 } }, item.text);
         continues = true;
         break;
       case 'Keywords':
-        block = para({ alignment: A.LEFT, spacing: { before: 120 }, indent: paper ? { left: L.abstract.indent, right: L.abstract.indent } : {} }, item.text, paper ? L.abstract.size : undefined);
+        // "Keywords:" in italics, the list hanging under it.
+        block = paper
+          ? new lib.Paragraph({ alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: L.abstract.indent + 950, right: L.abstract.indent, hanging: 950 },
+            children: [new lib.TextRun({ text: 'Keywords: ', italics: true }), ...text(item.text.replace(KEYWORDS, ''), L.abstract.size)] })
+          : para({ alignment: A.LEFT, spacing: { before: 120 } }, item.text);
         break;
       case 'References':
       case 'Glossary':
@@ -244,7 +312,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
     indentNext = continues; previous = item;
   }
   flushRow();
-  const heading = h => ({ run: { font: L.font, size: h.size, bold: true, italics: !!h.italics, color: '000000' },
+  const heading = h => ({ run: { font: L.font, size: h.size, bold: h.bold !== false, italics: !!h.italics, color: '000000' },
     paragraph: { spacing: { before: h.before, after: h.after }, keepNext: true, keepLines: true } });
   const document = new lib.Document({
     creator: 'Nendo Manuscript', title: plan.title,
@@ -257,12 +325,35 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
         heading1: heading(L.headings[0]), heading2: heading(L.headings[1]), heading3: heading(L.headings[2]),
       },
     },
-    sections: [{
-      properties: { page: { size: { width: L.page.width, height: L.page.height },
-        margin: { top: L.page.margin, right: L.page.margin, bottom: L.page.margin, left: L.page.margin, header: 720, footer: 720 } } },
+    sections: paper ? paperSections(lib, L, children, columnsChild, options.date) : [{
+      properties: pageProperties(L),
       footers: L.pageNumbers ? { default: new lib.Footer({ children: [new lib.Paragraph({ alignment: A.CENTER, children: [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: 20 })] })] }) } : undefined,
-      children: L.titlePage ? [children[0], new lib.Paragraph({ children: [], pageBreakBefore: false }), ...children.slice(1).map((c, i) => i === 0 && !L.chapterBreaks ? c : c)] : children,
+      children: L.titlePage ? [children[0], new lib.Paragraph({ children: [], pageBreakBefore: false }), ...children.slice(1)] : children,
     }],
   });
   return { document, missing };
+}
+
+function pageProperties(L) {
+  const side = L.page.side ?? L.page.margin;
+  return { page: { size: { width: L.page.width, height: L.page.height },
+    margin: { top: L.page.margin, right: side, bottom: L.page.margin, left: side, header: 720, footer: 720 } } };
+}
+
+/**
+ * An article's two sections: the title block across the page, then the body in two columns,
+ * continuing on the same page. The first page carries the draft line at the top left, every
+ * later one its number at the top right; both sections carry the pair, so whichever Word
+ * reads for a page says the same.
+ */
+function paperSections(lib, L, children, at, date) {
+  const A = lib.AlignmentType;
+  const headers = () => ({
+    first: new lib.Header({ children: [new lib.Paragraph({ alignment: A.LEFT, children: [new lib.TextRun({ text: draftLine(date), smallCaps: true, size: 18 })] })] }),
+    default: new lib.Header({ children: [new lib.Paragraph({ alignment: A.RIGHT, children: [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: 18 })] })] }),
+  });
+  const across = { properties: { ...pageProperties(L), titlePage: true }, headers: headers(), children: children.slice(0, at) };
+  if (at >= children.length) return [across];
+  return [across, { properties: { ...pageProperties(L), titlePage: true, type: lib.SectionType.CONTINUOUS, column: { count: L.columns.count, space: L.columns.space } },
+    headers: headers(), children: children.slice(at) }];
 }

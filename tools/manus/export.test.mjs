@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Lexer } from '../../extensions/manuscript/vendor/editor.js';
 import * as lib from '../../extensions/manuscript/vendor/export.js';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx } from '../../extensions/manuscript/export.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, paperHeadings, columnsStart, draftLine } from '../../extensions/manuscript/export.mjs';
 
 const address = `media:${'cd'.repeat(32)}`;
 const manuscript = { title: 'Low Water', nodes: [
@@ -63,7 +63,7 @@ test('Word: a picture that could not be read stands as its description and is na
   assert.match(xml, /\[Picture: The harbour at dawn\]/);
 });
 
-test('paper layout: bold headings kept, front matter centred, abstract and references set apart, pictures side by side', async () => {
+test('paper layout: AASTeX two columns, front matter centred, abstract and references set apart, pictures side by side', async () => {
   const paper = { title: 'A Paper', nodes: [
     { id: 'a', kind: 'Paragraph', text: '[Authors]' },
     { id: 'h0', kind: 'Chapter', text: 'Abstract' },
@@ -78,20 +78,46 @@ test('paper layout: bold headings kept, front matter centred, abstract and refer
     { id: 'r', kind: 'Paragraph', text: '[1] Someone. 2020. A Work.' },
   ] };
   const pictures = new Map([[address, { data: png, mediaType: 'image/png', width: 1600, height: 1000 }]]);
-  const { document } = toDocx(exportPlan(paper), pictures, lib, Lexer, 'paper');
+  const { document } = toDocx(exportPlan(paper), pictures, lib, Lexer, 'paper', { date: new Date(2026, 9, 16) });
   const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(document));
   const xml = await zip.file('word/document.xml').async('string'), styles = await zip.file('word/styles.xml').async('string');
   assert.doesNotMatch(xml, /<w:b w:val="false"\/>/, 'a run switches bold off, which overrides a bold heading style');
-  assert.match(styles, /w:styleId="Heading1"[\s\S]*?<w:b\/>/);
   const paragraph = text => xml.split('<w:p>').find(p => p.includes(text)) ?? '';
   assert.match(paragraph('[Authors]'), /<w:jc w:val="center"\/>/);
-  assert.match(paragraph('We describe it.'), /<w:ind w:left="720" w:right="720"/);
-  assert.doesNotMatch(paragraph('First.'), /w:firstLine="360"/, 'the first paragraph of a section is not indented');
-  assert.match(paragraph('Second.'), /w:firstLine="360"/);
+  assert.match(paragraph('We describe it.'), /<w:ind w:left="680" w:right="680" w:firstLine="288"/, 'the abstract is narrower, every paragraph indented');
+  assert.doesNotMatch(paragraph('First.'), /w:firstLine="288"/, 'the first paragraph of a section is not indented');
+  assert.match(paragraph('Second.'), /w:firstLine="288"/);
   assert.equal((paragraph('</w:drawing>').match(/<w:drawing>/g) ?? []).length, 2, 'two pictures next to each other share one row');
-  assert.match(paragraph('Two panels'), /Figure 1: /);
-  assert.match(paragraph('Someone. 2020'), /w:hanging="360"/);
-  assert.match(await zip.file('word/document.xml').async('string'), /<w:pgSz w:w="12240" w:h="15840"/);
+  assert.match(paragraph('Two panels'), /Figure 1\. /);
+  assert.match(paragraph('Someone. 2020'), /w:hanging="216"/);
+  assert.match(xml, /<w:pgSz w:w="12240" w:h="15840"/);
+  // Headings as AASTeX sets them: numbered sections and parts in capitals, centred, not bold.
+  assert.ok(xml.includes('>1. INTRODUCTION<') && xml.includes('>ABSTRACT<') && xml.includes('>REFERENCES<'));
+  assert.doesNotMatch(styles.split('w:styleId="Heading1"')[1].split('</w:style>')[0], /<w:b\/>/);
+  // The abstract runs across the page; the body after it in two columns on the same page.
+  const sections = xml.split('<w:sectPr');
+  assert.equal(sections.length, 3, 'two sections');
+  assert.match(sections[2], /<w:type w:val="continuous"\/>/);
+  assert.match(sections[2], /<w:cols[^>]*w:num="2"/);
+  assert.ok(xml.indexOf('We describe it.') < xml.indexOf('<w:sectPr') && xml.indexOf('1. INTRODUCTION') > xml.indexOf('<w:sectPr'));
+  const headers = await Promise.all(Object.keys(zip.files).filter(name => /^word\/header\d+\.xml$/.test(name)).map(name => zip.file(name).async('string')));
+  assert.ok(headers.some(h => h.includes('Draft version October 16, 2026') && h.includes('<w:smallCaps/>')), 'the first page carries the draft line');
+});
+
+test('paper headings: numbered as AASTeX numbers them, a heading\'s own number kept, parts at any depth in capitals', () => {
+  const plan = exportPlan({ title: 'T', nodes: [
+    { id: 'a', kind: 'Section', text: 'Abstract' }, { id: 'p', kind: 'Paragraph', text: 'Text.' },
+    { id: 'c1', kind: 'Chapter', text: 'Introduction' }, { id: 's1', kind: 'Section', text: 'Scope' },
+    { id: 'c2', kind: 'Chapter', text: '4 System' }, { id: 's2', kind: 'Section', text: '4.2 Studio' }, { id: 's3', kind: 'Section', text: 'Next' },
+    { id: 'c3', kind: 'Chapter', text: 'Conclusion' }, { id: 'r', kind: 'Chapter', text: 'References' }, { id: 'rs', kind: 'Section', text: 'Software' },
+  ] });
+  const { labels, parts } = paperHeadings(plan);
+  const heading = id => plan.items.find(i => i.id === id);
+  assert.deepEqual(['a', 'c1', 's1', 'c2', 's2', 's3', 'c3', 'r', 'rs'].map(id => labels.get(heading(id))),
+    ['ABSTRACT', '1. INTRODUCTION', '1.1. Scope', '4. SYSTEM', '4.2. Studio', '4.3. Next', '5. CONCLUSION', 'REFERENCES', 'Software']);
+  assert.ok(parts.has(heading('a')) && parts.has(heading('r')) && !parts.has(heading('rs')));
+  assert.equal(columnsStart(plan), 2, 'the columns start at the first heading after the abstract');
+  assert.equal(draftLine(new Date(2026, 9, 16)), 'Draft version October 16, 2026');
 });
 
 test('book layout: a 6 by 9 inch page with chapters on new pages', async () => {

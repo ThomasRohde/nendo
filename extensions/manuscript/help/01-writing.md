@@ -47,7 +47,7 @@ A paragraph with notes or links shows how many in the margin; choose the number 
 
 - **Markdown**: the text with its headings and emphasis. With pictures it is a `.zip` holding the `.md` file and a `media` folder.
 - **Word document, book layout**: a 6 by 9 inch book with a title page, each part or chapter on a new page.
-- **Word document, paper layout**: an article. The lines before the first heading become the centred author block, a section called *Abstract* is set narrower, pictures placed one after another sit side by side, a line after a picture that starts *Figure 1.* becomes its caption, and a section called *References* gets hanging indents.
+- **Word document, paper layout**: an article in the two-column style arXiv papers use. The lines before the first heading become the centred author block, a section called *Abstract* runs across the page and narrower, the rest is set in two columns with numbered headings in capitals (*1. INTRODUCTION*), pictures placed one after another sit side by side, a line after a picture that starts *Figure 1.* becomes its caption, and a section called *References* gets hanging indents.
 
 Notes, links and cuttings are not exported. If a picture cannot be included, its description stands in its place and the message above the page says which.
 

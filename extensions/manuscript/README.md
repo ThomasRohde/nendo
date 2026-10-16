@@ -56,12 +56,15 @@ same records; the view keeps no copy of the manuscript in the file.
   of two layouts, each setting blocks by their role. A block without one is set by what its
   heading says (Abstract, References, Appendix …), and a paragraph after a picture that starts
   "Figure n." is its caption. The *book layout* is a 6 by 9 inch page in Georgia with a title page and each
-  part or chapter on a new page. The *paper layout* is a one-column article on Letter paper in
-  Times: a centred title block from the paragraphs before the first heading, a section headed
-  Abstract set narrower, justified text indented after the first paragraph, bold numbered
-  headings, pictures next to each other set side by side, a paragraph after a picture that
-  starts "Figure n." set as its caption, a References section with hanging indents, and page
-  numbers. Cuttings, notes and links stay out. A picture that cannot go in stands as
+  part or chapter on a new page. The *paper layout* is an article as arXiv carries one in the
+  AASTeX two-column style, on Letter paper in Times at 10 points: the draft line at the top of
+  the first page, a centred title block from the paragraphs before the first heading (authors
+  in small capitals), the abstract across the page and narrower, then the body in two
+  justified columns, indented after the first paragraph, with headings centred and numbered
+  ("1. INTRODUCTION", "2.1. Documents as applications"; a heading's own number is kept), a
+  part such as the Abstract or References in capitals, pictures at the column's width and side
+  by side within it, a paragraph after a picture that starts "Figure n." set as its caption, a
+  References section with hanging indents, and page numbers at the top right. Cuttings, notes and links stay out. A picture that cannot go in stands as
   its description and the view names it.
 - Selecting words in a paragraph shows a bar: Link, Note, Keep as cutting, Copy for the agent.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the

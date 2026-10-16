@@ -29,14 +29,17 @@ test('paper preview: front matter centred, abstract and references set apart, pi
   ] }), 'paper');
   const by = text => blocks.find(b => b.text === text);
   assert.ok(by('[Authors]').front);
-  assert.equal(by('Abstract').centred, true);
+  assert.equal(by('ABSTRACT').centred, true);
+  assert.ok(by('[Authors]').across && by('We describe it.').across && !by('First.').across, 'the abstract runs across the page, the body in columns');
+  assert.equal(by('1. INTRODUCTION').level, 1);
+  assert.equal(by('We describe it.').indent, true, 'an article indents its abstract');
   assert.equal(by('We describe it.').role, 'Abstract');
   assert.equal(by('First.').indent, false); assert.equal(by('Second.').indent, true);
   const figure = blocks.find(b => b.kind === 'figure');
   assert.equal(figure.pictures.length, 2);
-  assert.deepEqual(figureWidths(figure, 'paper'), [300, 300]);
+  assert.deepEqual(figureWidths(figure, 'paper'), [148, 148], 'two pictures share one column');
   const caption = blocks.find(b => b.kind === 'caption');
-  assert.equal(caption.label, 'Figure 1:'); assert.equal(caption.text, 'Two panels.');
+  assert.equal(caption.label, 'Figure 1.'); assert.equal(caption.text, 'Two panels.');
   assert.equal(by('[1] A work.').indent, false);
   assert.ok(!blocks.some(b => b.breakBefore), 'an article runs on without page breaks');
 });
@@ -44,6 +47,8 @@ test('paper preview: front matter centred, abstract and references set apart, pi
 test('page sizes are the Word layouts’: 6 by 9 inches and Letter', () => {
   assert.deepEqual([PAGES.book.width, PAGES.book.height], [576, 864]);
   assert.deepEqual([PAGES.paper.width, PAGES.paper.height], [816, 1056]);
+  // Letter with 0.75-inch sides: two 320-pixel columns and a 32-pixel gap fill the 672-pixel text.
+  assert.equal(PAGES.paper.columns * PAGES.paper.column + PAGES.paper.gap, PAGES.paper.width - 2 * PAGES.paper.margin);
 });
 
 test('book preview: with parts, each part and each chapter starts a page, sections do not', () => {
