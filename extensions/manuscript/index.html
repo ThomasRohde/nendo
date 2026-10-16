@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Manuscript</title>
+  <link rel="stylesheet" href="view.css">
+</head>
+<body>
+  <div id="own-toolbar" class="own-toolbar" hidden>
+    <span id="own-status" class="own-status"></span>
+    <button type="button" data-drawer="outline" aria-pressed="false">Outline</button>
+    <button type="button" data-drawer="notes" aria-pressed="false">Notes</button>
+    <button type="button" data-drawer="related" aria-pressed="false">Related</button>
+  </div>
+  <div id="problem" class="problem" role="alert" hidden></div>
+  <div id="scroller" class="scroller">
+    <section id="empty" class="empty" hidden>
+      <h1>No manuscript yet</h1>
+      <p>Start one, and the file holds it as blocks: a chapter, its paragraphs, and a place for cuttings. Studio shows every one of them.</p>
+      <button id="start" type="button" class="primary">Start a manuscript</button>
+    </section>
+    <article id="page" class="page" hidden>
+      <label class="title-label" for="title">Manuscript</label>
+      <input id="title" class="title" autocomplete="off" spellcheck="true">
+      <div id="sheet-text" class="sheet"></div>
+      <div id="overlays" class="overlays"></div>
+    </article>
+  </div>
+  <aside id="drawer" class="drawer" aria-label="Manuscript panel" hidden></aside>
+  <script src="/_nendo/api.js"></script>
+  <script type="module" src="view.mjs"></script>
+</body>
+</html>

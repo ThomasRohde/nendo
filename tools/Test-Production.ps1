@@ -84,6 +84,7 @@ $plannedSteps = @(
     , @('view.archi', 'Archi workbench')
     , @('view.swarm', 'Swarm')
     , @('view.garden', 'Garden')
+    , @('view.manuscript', 'Manuscript')
     , @('agent-chat', 'Agent conversation')
     , @('workbench-shell', 'Workbench shell')
     , @('repository', 'Repository')
@@ -471,6 +472,8 @@ try {
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Swarm.ps1')) 'Swarm behaviour, simulation and replay'
     Enter-GateStep 'view.garden'
     Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Garden.ps1')) 'Garden notes, sync and backlinks'
+    Enter-GateStep 'view.manuscript'
+    Invoke-Checked 'pwsh' @('-NoProfile', '-File', (Join-Path $PSScriptRoot 'Review-Manus.ps1')) 'Manuscript sheet, autosave and block identity'
 
     Write-Host '== Launched agent conversation =='
     Enter-GateStep 'agent-chat'
