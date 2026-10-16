@@ -132,6 +132,14 @@ async page => {
   // Line length scales the sheets: Narrow shows the text column at 620 pixels, Full fits the frame.
   await page.evaluate(() => window.broker.command('width', 'narrow'));
   const narrowSheet = await frame.evaluate(() => Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width));
+  // Text size scales them again, as it scales the writing sheet's type: 17, 19 or 22 pixels.
+  const sized = {};
+  for (const size of ['small', 'large', 'medium']) {
+    await page.evaluate(value => window.broker.command('size', value), size);
+    sized[size] = await frame.evaluate(() => Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width));
+  }
+  assert(Math.abs(sized.small - Math.round(narrowSheet * 17 / 19)) <= 2 && Math.abs(sized.large - Math.round(narrowSheet * 22 / 19)) <= 2 && sized.medium === narrowSheet,
+    `Preview text size: ${JSON.stringify({ narrowSheet, ...sized })}`);
   await page.evaluate(() => window.broker.command('width', 'full'));
   const fullSheet = await frame.evaluate(() => ({ sheet: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), frame: innerWidth }));
   assert(Math.abs(narrowSheet - Math.round(816 * 620 / 624)) <= 2 && fullSheet.sheet >= fullSheet.frame - 60 && fullSheet.sheet <= fullSheet.frame, `Preview line length: narrow ${narrowSheet}, full ${JSON.stringify(fullSheet)}`);
@@ -144,7 +152,7 @@ async page => {
   const fullLine = await frame.evaluate(() => ({ text: Math.round(document.querySelector('.sheet-text').getBoundingClientRect().width), frame: innerWidth }));
   assert(fullLine.text > fullLine.frame - 160, `Full width: ${JSON.stringify(fullLine)}`);
   await page.evaluate(() => window.broker.command('width', 'medium'));
-  checks.push('Book and Paper preview', 'full line length');
+  checks.push('Book and Paper preview', 'full line length', 'preview text size');
 
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
   const typedFrom = (await batches()).length;

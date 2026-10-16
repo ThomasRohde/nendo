@@ -462,15 +462,18 @@ function renderPreview() {
 }
 
 // The line length chosen under Appearance is how wide a sheet's text column appears on screen:
-// the sheets are scaled to it, and Full scales them to the frame. A sheet is never wider than
-// the frame. Pagination is measured at the sheet's real size first, so a scale changes nothing.
+// the sheets are scaled to it, and Full scales them to the frame. The text size scales them
+// again, by what it does to the writing sheet's type (17, 19 or 22 pixels), since a page's own
+// type is the layout's. A sheet is never wider than the frame. Pagination is measured at the
+// sheet's real size first, so a scale changes nothing.
 const MEASURE = { narrow: 620, medium: 760, wide: 960 };
+const SIZE = { small: 17 / 19, medium: 1, large: 22 / 19 };
 function previewZoom() {
   if (state.mode === 'write') return;
   const host = $('preview'), page = PAGES[state.mode];
   const room = host.clientWidth - 32, text = page.width - 2 * page.margin;
   const measure = MEASURE[state.appearance.width];
-  let zoom = measure ? measure / text : room / page.width;
+  let zoom = (measure ? measure / text : room / page.width) * (SIZE[state.appearance.size] ?? 1);
   if (room > 0) zoom = Math.min(zoom, room / page.width);
   host.style.setProperty('--zoom', String(Math.max(0.25, zoom)));
   state.previewZoom = zoom;
