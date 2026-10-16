@@ -7,12 +7,20 @@ export const BLOCK = 'mn.block';
 export const NOTE = 'mn.note';
 export const LINK = 'mn.link';
 export const F = {
-  text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order',
+  text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role',
   noteBlock: 'mn.note.block', noteKind: 'mn.note.kind', noteText: 'mn.note.text', noteDone: 'mn.note.done',
   linkFrom: 'mn.link.from', linkTo: 'mn.link.to', linkKind: 'mn.link.kind', linkNote: 'mn.link.note', linkReview: 'mn.link.review',
 };
 export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings'];
 export const NOTE_KINDS = ['Comment', 'Question', 'Task', 'Issue'];
+// What a block is for, apart from its kind: the part a layout gives it. A role on a heading
+// applies to everything under it; a role on a paragraph to that paragraph.
+export const ROLE_GROUPS = [
+  ['Front matter', ['Subtitle', 'Author', 'Dedication', 'Epigraph', 'Foreword', 'Preface', 'Acknowledgements', 'Abstract', 'Keywords']],
+  ['Body', ['Quotation', 'Verse', 'Scene break', 'Caption', 'Aside']],
+  ['Back matter', ['Appendix', 'Afterword', 'Glossary', 'References', 'About the author', 'Colophon']],
+];
+export const ROLES = ROLE_GROUPS.flatMap(([, roles]) => roles);
 export const LINK_KINDS = ['Elaborates', 'Supports', 'Contradicts', 'Foreshadows', 'Resolves', 'See also'];
 export const REVIEW = { current: 'Current', needsReview: 'Needs review' };
 // Siblings are numbered this far apart, as Nendo numbers them (limits.hierarchy.orderGap).
@@ -34,7 +42,7 @@ export function readManuscript(items) {
   for (const item of items) {
     const r = item.record, v = r.values;
     saved.set(r.recordId, { id: r.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null,
-      order: v[F.order] ?? null, version: r.version, visible: false });
+      order: v[F.order] ?? null, role: v[F.role] ?? null, version: r.version, visible: false });
   }
   const root = items.find(i => i.record.values[F.kind] === 'Manuscript' && !i.record.values[F.parent])?.record.recordId ?? null;
   const nodes = [];
@@ -53,7 +61,7 @@ export function readManuscript(items) {
       if (block.kind === 'Cuttings') { if (cuttings === null && block.parent === root) cuttings = id; hidden = item.depth; continue; }
       const kind = block.kind === 'Manuscript' ? 'Paragraph' : block.kind;
       block.visible = true;
-      nodes.push({ id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text });
+      nodes.push({ id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text, role: block.role });
     }
   }
   return { root, cuttings, title: root ? saved.get(root).text : '', nodes, saved };
@@ -142,12 +150,15 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
   for (const n of current) {
     const s = saved.get(n.id), p = parent.get(n.id), o = order.get(n.id), text = n.text === '' ? null : n.text;
     if (!s) {
-      creates.push({ op: 'create', entityId: BLOCK, recordId: n.id, values: { [F.text]: text, [F.kind]: n.kind, [F.parent]: p, [F.order]: o }, refs: { [F.parent]: p } });
+      const values = { [F.text]: text, [F.kind]: n.kind, [F.parent]: p, [F.order]: o };
+      if (n.role) values[F.role] = n.role;
+      creates.push({ op: 'create', entityId: BLOCK, recordId: n.id, values, refs: { [F.parent]: p } });
       continue;
     }
     const values = {}, refs = {};
     if (n.changed && (s.text ?? '') !== (n.text ?? '')) values[F.text] = text;
     if (s.kind !== n.kind) values[F.kind] = n.kind;
+    if ('role' in n && (s.role ?? null) !== (n.role ?? null)) values[F.role] = n.role ?? null;
     if (s.parent !== p) { values[F.parent] = p; refs[F.parent] = p; }
     if (s.order !== o) values[F.order] = o;
     if (Object.keys(values).length) updates.push({ op: 'update', entityId: BLOCK, recordId: n.id, version: s.version, values, refs });

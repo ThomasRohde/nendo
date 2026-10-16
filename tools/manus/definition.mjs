@@ -1,6 +1,6 @@
 // The Manuscript app (W-276): its schema, screens and starting records, as canonical operations
 // for Build-Manus.mjs, and the fixture the browser lane runs the view against.
-import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES } from '../../extensions/manuscript/model.mjs';
 
 export const PACKAGE_ID = 'org.nendo.manuscript';
 export const VIEW_NODE = 'mn.screen.sheet';
@@ -15,6 +15,7 @@ export const entities = [
     [F.kind, 'Kind', 'Text', true, 'singleChoice', KINDS],
     [F.parent, 'Inside', 'Reference'],
     [F.order, 'Order', 'Integer'],
+    [F.role, 'Role', 'Text', false, 'singleChoice', ROLES],
   ], refs: [[F.parent, BLOCK, F.text]] },
   { id: NOTE, name: 'Notes', fields: [
     [F.noteText, 'Note', 'Text', true, 'longText'],
@@ -42,6 +43,12 @@ export function definitionOperations() {
   }
   ops.push(op('schema.declareHierarchy', { entityId: BLOCK, parentFieldId: F.parent, orderFieldId: F.order }));
   return ops;
+}
+
+/** The Role field alone, for a file built before roles (Manuscript 0.5.0). */
+export function roleFieldOperations() {
+  const [fieldId, name, kind, required, presentation, options] = entities[0].fields.find(f => f[0] === F.role);
+  return [addField(BLOCK, fieldId, name, kind, required, presentation, options)];
 }
 
 export function screenOperations() {

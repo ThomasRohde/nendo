@@ -27,6 +27,13 @@ const BlockIds = Extension.create({
           parseHTML: () => null,
           renderHTML: attributes => attributes.blockId ? { 'data-block': attributes.blockId } : {},
         },
+        // A verse or a quotation goes on when Enter splits it.
+        role: {
+          default: null,
+          keepOnSplit: true,
+          parseHTML: element => element.getAttribute('data-role') || null,
+          renderHTML: attributes => attributes.role ? { 'data-role': attributes.role } : {},
+        },
       },
     }];
   },
@@ -67,12 +74,13 @@ const BlockIds = Extension.create({
 
 function nodeJSON(n) {
   const picture = levelOf(n.kind) ? null : pictureOf(n.text);
-  if (picture) return { type: 'picture', attrs: { blockId: n.id, address: picture.address, alt: picture.alt } };
+  const role = n.role ?? null;
+  if (picture) return { type: 'picture', attrs: { blockId: n.id, address: picture.address, alt: picture.alt, role } };
   const content = markdownToInline(n.text, Lexer);
   const level = levelOf(n.kind);
   return level
-    ? { type: 'heading', attrs: { level, blockId: n.id }, content }
-    : { type: 'paragraph', attrs: { blockId: n.id }, content };
+    ? { type: 'heading', attrs: { level, blockId: n.id, role }, content }
+    : { type: 'paragraph', attrs: { blockId: n.id, role }, content };
 }
 
 /**
@@ -168,7 +176,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
   editor.on('selectionUpdate', () => onSelect?.(where()));
   editor.on('focus', () => onSelect?.(where()));
 
-  function signature(node) { return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`; }
+  function signature(node) { return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.role ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`; }
 
   function where() {
     const { selection } = editor.state;
@@ -193,7 +201,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       editor.state.doc.forEach(node => {
         const id = node.attrs.blockId;
         const text = node.type.name === 'picture' ? pictureMarkdown(node.attrs.alt, node.attrs.address) : inlineToMarkdown(node.toJSON().content ?? []);
-        nodes.push({ id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph', text, changed: base.get(id) !== signature(node), signature: signature(node) });
+        nodes.push({ id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph', text, role: node.attrs.role ?? null, changed: base.get(id) !== signature(node), signature: signature(node) });
       });
       return nodes;
     },
@@ -238,6 +246,20 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const level = levelOf(kind);
       if (level) editor.chain().focus().setNode('heading', { level }).run();
       else editor.chain().focus().setNode('paragraph').run();
+    },
+    /** Gives the block the selection is in a role, or none. */
+    setRole(role) {
+      const at = where();
+      if (!at) return;
+      const node = editor.state.doc.nodeAt(at.pos);
+      if (!node) return;
+      const tr = editor.state.tr.setNodeMarkup(at.pos, undefined, { ...node.attrs, role: role || null });
+      editor.view.dispatch(tr);
+      editor.commands.focus();
+    },
+    roleHere() {
+      const at = where();
+      return at ? editor.state.doc.nodeAt(at.pos)?.attrs.role ?? '' : '';
     },
     styleHere() {
       const { $from } = editor.state.selection;

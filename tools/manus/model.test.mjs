@@ -94,3 +94,12 @@ test('words are counted as a writer counts them', () => {
   assert.equal(countWords('She didn’t take the well-worn ledger.'), 6);
   assert.equal(countWords(''), 0);
 });
+
+test('a role is written when it changes, with nothing else, and a new block keeps its role', () => {
+  const m = readManuscript(items);
+  const current = m.nodes.map(n => ({ ...n, changed: n.id === 'p1', role: n.id === 'p1' ? 'Quotation' : n.role ?? null }));
+  assert.deepEqual(planWrites({ saved: m.saved, current, root: m.root }),
+    [{ op: 'update', entityId: BLOCK, recordId: 'p1', version: 1, values: { [F.role]: 'Quotation' }, refs: {} }]);
+  const added = [...m.nodes.map(n => ({ ...n, changed: false, role: null })), { id: 'v1', kind: 'Paragraph', text: 'A line', role: 'Verse', changed: true }];
+  assert.equal(planWrites({ saved: m.saved, current: added, root: m.root })[0].values[F.role], 'Verse');
+});

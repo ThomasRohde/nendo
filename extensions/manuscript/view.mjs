@@ -1,5 +1,5 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
-import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx } from './export.mjs';
 import { Lexer } from './vendor/editor.js';
@@ -13,7 +13,7 @@ const state = {
   root: null, cuttings: null, title: '', savedTitle: '', saved: new Map(), notes: [], links: [],
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
-  appearance: readAppearance(), popover: null,
+  appearance: readAppearance(), popover: null, roles: false,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -219,6 +219,7 @@ function applyWrite(write, version) {
     if (F.kind in v) next.kind = v[F.kind];
     if (F.parent in v) next.parent = v[F.parent];
     if (F.order in v) next.order = v[F.order];
+    if (F.role in v) next.role = v[F.role];
     next.visible = write.recordId !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
     state.saved.set(write.recordId, next);
     return;
@@ -430,6 +431,7 @@ function declare() {
   const radio = (id, value, label, current) => ({ kind: 'radio', id, value, label, checked: current === value });
   const items = [
     { kind: 'select', id: 'style', label: 'Style', value: style, options: STYLES.map(s => ({ value: s, label: s })) },
+    ...(state.roles ? [{ kind: 'select', id: 'role', label: 'Role', value: (state.root !== null && sheet.roleHere()) || 'none', options: [{ value: 'none', label: 'No role' }, ...ROLES.map(r => ({ value: r, label: r }))] }] : []),
     { kind: 'text', text: `${state.status} · ${summary()}` },
     { kind: 'spacer' },
     { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
@@ -460,6 +462,7 @@ function command({ id, value }) {
   if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
   if (id === 'export-word' || id === 'export-word-paper') { exportAs('word', id === 'export-word-paper' ? 'paper' : 'book').catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
+  if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); declare(); }
 }
@@ -549,9 +552,13 @@ function placeOverlays() {
       el('span', { class: 'divider' }),
       action('Copy for the agent', 'agent', () => copyReference(), { class: 'accent' }),
       el('span', { class: 'mono' }, `${state.selected} · ${b ? `v${b.version}` : 'not saved yet'}`));
-    if (state.popover) pop = popover(bottom + 8);
+    // The box is built once and only moved after: a redraw while the person types into it (a
+    // save finishing, somebody else's change) must not take their words or their focus.
+    if (state.popover) { pop = state.popoverEl ??= popover(bottom + 8); pop.style.top = `${bottom + 8}px`; }
   }
-  layer.replaceChildren(...marks, ...(bar ? [bar] : []), ...(pop ? [pop] : []));
+  layer.replaceChildren(...marks, ...(bar ? [bar] : []));
+  const popLayer = $('popover-layer');
+  if (pop ? popLayer.firstChild !== pop : popLayer.firstChild) popLayer.replaceChildren(...(pop ? [pop] : []));
   // Centred on its anchor, kept inside the page.
   const width = $('page').clientWidth;
   for (const box of [bar, pop]) {
@@ -564,8 +571,8 @@ function placeOverlays() {
 
 function fail(error) { state.problem = { text: refusalText(error), reload: true }; render(); }
 
-function openPopover(kind, data = {}) { state.popover = { kind, ...data, query: '', linkKind: LINK_KINDS[0], noteKind: NOTE_KINDS[0] }; state.pinned = true; placeOverlays(); setTimeout(() => document.querySelector('.popover input, .popover textarea, .popover select')?.focus(), 0); }
-function closePopover() { state.popover = null; state.pinned = false; }
+function openPopover(kind, data = {}) { state.popover = { kind, ...data, query: '', linkKind: LINK_KINDS[0], noteKind: NOTE_KINDS[0] }; state.popoverEl = null; state.pinned = true; placeOverlays(); setTimeout(() => document.querySelector('.popover input, .popover textarea, .popover select')?.focus(), 0); }
+function closePopover() { state.popover = null; state.popoverEl = null; state.pinned = false; }
 
 function popover(top) {
   const p = state.popover;
@@ -660,6 +667,11 @@ function renderDrawer() {
 async function start(context) {
   state.readOnly = context.readOnly === true;
   state.chrome = nendo.has('ui.setToolbar');
+  // A file built before roles has no Role field; the control waits for one.
+  try {
+    const schema = await nendo.schema.describe();
+    state.roles = (schema.entities ?? []).some(e => e.entityId === BLOCK && (e.fields ?? []).some(f => f.fieldId === F.role));
+  } catch { state.roles = false; }
   applyAppearance();
   try {
     const kit = await import('./kit/nendo-view-kit.js');

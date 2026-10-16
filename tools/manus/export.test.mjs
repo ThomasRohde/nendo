@@ -100,3 +100,42 @@ test('book layout: a 6 by 9 inch page with chapters on new pages', async () => {
   assert.match(xml, /<w:pgSz w:w="8640" w:h="12960"/);
   assert.match(xml, /<w:pageBreakBefore\/>[\s\S]*?Part One/);
 });
+
+test('roles: a heading role reaches the paragraphs under it, and a block role wins over a guess', () => {
+  const plan = exportPlan({ title: 'T', nodes: [
+    { id: 'h', kind: 'Chapter', text: 'Summary', role: 'Abstract' },
+    { id: 'a', kind: 'Paragraph', text: 'Inside the summary.' },
+    { id: 'c', kind: 'Chapter', text: 'References', role: null },
+    { id: 'r', kind: 'Paragraph', text: '[1] A work.' },
+    { id: 'q', kind: 'Paragraph', text: 'Quoted.', role: 'Quotation' },
+  ] });
+  assert.deepEqual(plan.items.map(i => i.role), ['Abstract', 'Abstract', 'References', 'References', 'Quotation']);
+});
+
+test('roles beyond papers: epigraph, dedication, verse, quotation and scene break in Word and Markdown', async () => {
+  const book = { title: 'Low Water', nodes: [
+    { id: 'd', kind: 'Paragraph', text: 'For my grandfather', role: 'Dedication' },
+    { id: 'c', kind: 'Chapter', text: 'One' },
+    { id: 'e', kind: 'Paragraph', text: 'The sea has many voices.', role: 'Epigraph' },
+    { id: 'p', kind: 'Paragraph', text: 'It rained.' },
+    { id: 's', kind: 'Paragraph', text: '', role: 'Scene break' },
+    { id: 'v', kind: 'Paragraph', text: 'Low water, slow water\\nthe bar keeps its own', role: 'Verse' },
+    { id: 'q', kind: 'Paragraph', text: 'Boat seen beyond the bar.', role: 'Quotation' },
+  ] };
+  const plan = exportPlan(book);
+  const markdown = toMarkdown(plan);
+  assert.match(markdown, /\n\n\* \* \*\n\n/);
+  assert.match(markdown, /\n\n> Boat seen beyond the bar\.\n/);
+  assert.match(markdown, /\n\n> The sea has many voices\.\n/);
+  const xml = await (await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document))).file('word/document.xml').async('string');
+  const paragraph = text => xml.split('<w:p>').find(p => p.includes(text)) ?? '';
+  assert.match(paragraph('For my grandfather'), /<w:jc w:val="center"\/>/);
+  assert.match(paragraph('For my grandfather'), /<w:i\/>/);
+  assert.match(paragraph('many voices'), /<w:i\/>/);
+  assert.match(paragraph('many voices'), /<w:ind w:left="2592"\/>/);
+  assert.match(paragraph('* * *'), /<w:jc w:val="center"\/>/);
+  assert.match(paragraph('slow water'), /<w:ind w:left="720"\/>/);
+  assert.match(paragraph('slow water'), /<w:jc w:val="left"\/>/);
+  assert.match(paragraph('beyond the bar'), /<w:ind w:left="720" w:right="720"\/>/);
+  assert.doesNotMatch(paragraph('It rained.'), /w:firstLine="360"/, 'the first paragraph after an epigraph is not indented');
+});

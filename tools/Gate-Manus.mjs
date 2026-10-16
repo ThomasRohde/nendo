@@ -1,4 +1,7 @@
 async page => {
+  // Every failure names the checks that passed before it, so a bare timeout says where it was.
+  const checks = [];
+  try { return await (async () => {
   // The Manuscript view (W-276) against the fixture broker: the real view API, Nendo's toolbar
   // rules, and writes checked as the Engine checks them. Run by Review-Manus.ps1.
   const assert = (ok, message) => { if (!ok) throw Error(message); };
@@ -12,7 +15,6 @@ async page => {
   for (let i = 0; i < 200 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/')) ?? null; if (frame === null) await page.waitForTimeout(50); }
   assert(frame !== null, 'The Manuscript frame did not mount.');
   await frame.waitForFunction(() => window.manuscript?.root === 'b-root' && document.querySelector('.sheet-text [data-block="b-0415"]'), null, { timeout: 15000 });
-  const checks = [];
   const BLOCK = 'mn.block', T = 'mn.block.text', K = 'mn.block.kind', P = 'mn.block.parent', O = 'mn.block.order';
   const record = (entity, id) => page.evaluate(({ entity, id }) => window.broker.record(entity, id), { entity, id });
   const records = entity => page.evaluate(entity => window.broker.records(entity), entity);
@@ -130,13 +132,33 @@ async page => {
   assert((await record(BLOCK, 'b-0415')).values[K] === 'Paragraph' && (await record(BLOCK, 'b-0416')).values[P] === 'b-ch-3', 'Making it a paragraph again did not give its paragraphs back to the chapter.');
   checks.push('headings hold what follows them');
 
+  // A role set from Nendo's toolbar is saved as the block's Role, alone, and drawn on the sheet.
+  assert((await page.evaluate(() => window.broker.toolbars.at(-1))).items.some(i => i.id === 'role' && i.options.some(o => o.value === 'Epigraph')), 'No Role control in the toolbar.');
+  await select('b-0414', 3);
+  const roleBefore = (await batches()).length;
+  await page.evaluate(() => window.broker.command('role', 'Quotation'));
+  await saved();
+  const roleWrites = (await batches()).slice(roleBefore).flatMap(b => b.writes);
+  assert(roleWrites.length === 1 && roleWrites[0].recordId === 'b-0414' && JSON.stringify(roleWrites[0].values) === JSON.stringify({ 'mn.block.role': 'Quotation' }), `Role write: ${JSON.stringify(roleWrites)}`);
+  assert(await frame.evaluate(() => document.querySelector('[data-block="b-0414"]').dataset.role === 'Quotation'), 'The role is not drawn on the sheet.');
+  await page.evaluate(() => window.broker.command('role', 'none'));
+  await saved();
+  assert((await record(BLOCK, 'b-0414')).values['mn.block.role'] === null, 'Clearing the role did not store null.');
+  checks.push('roles from the toolbar');
+
   // The selected-paragraph bar: a note, then a link.
   await select('b-0414', 'ledger', 'shelf');
   await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
   await frame.getByRole('button', { name: 'Note', exact: true }).click();
   await frame.getByLabel('Note', { exact: true }).fill('Count the hands again.');
+  // A redraw while the person types (somebody else's change arriving) keeps their words and focus.
+  await page.evaluate(() => window.broker.pushChanges());
+  await page.waitForTimeout(700);
+  const typing = await frame.evaluate(() => ({ value: document.getElementById('note-text')?.value, focused: document.activeElement?.id }));
+  assert(typing.value === 'Count the hands again.' && typing.focused === 'note-text', `A redraw took the note being typed: ${JSON.stringify(typing)}`);
   await frame.getByRole('button', { name: 'Add note' }).click();
-  await frame.waitForFunction(() => window.manuscript.notes.length === 2);
+  await frame.waitForFunction(() => window.manuscript.notes.length === 2, null, { timeout: 8000 })
+    .catch(async () => { throw Error(`No note was created: ${JSON.stringify(await frame.evaluate(() => ({ selected: window.manuscript.selected, status: window.manuscript.status, problem: window.manuscript.problem, saveError: window.manuscript.saveError, popover: window.manuscript.popover })))}`); });
   const note = (await records('mn.note')).find(n => n.recordId !== 'n-1');
   assert(note.values['mn.note.block'] === 'b-0414' && note.values['mn.note.text'] === 'Count the hands again.', `Note: ${JSON.stringify(note)}`);
   await select('b-0413', 'tide', 'table');
@@ -219,4 +241,5 @@ async page => {
   assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, colours, narrow, errors };
+  })(); } catch (error) { throw Error(`After [${checks.join(', ')}]: ${error.message}`); }
 }

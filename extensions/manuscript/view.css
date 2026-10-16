@@ -54,6 +54,14 @@ button { cursor: pointer; }
 .sheet-text code { font-family: var(--mono); font-size: 0.85em; background: var(--soft); border-radius: 3px; padding: 0 3px; }
 .sheet-text p.is-empty:first-child::before, .sheet-text .is-empty::before { content: attr(data-placeholder); color: var(--muted); opacity: 0.6; float: left; height: 0; pointer-events: none; }
 .sheet-text ::selection { background: var(--accent-soft); }
+/* A block's role, named quietly above it, and drawn the way a layout would set it. */
+.sheet-text [data-role]::before { content: attr(data-role); display: block; font: 11px/1.4 var(--ui); letter-spacing: 0.04em; color: var(--muted); margin-bottom: 2px; }
+.sheet-text p[data-role='Quotation'], .sheet-text p[data-role='Aside'] { margin-left: 36px; margin-right: 36px; }
+.sheet-text p[data-role='Aside'] { font-size: 0.9em; }
+.sheet-text p[data-role='Verse'] { margin-left: 36px; }
+.sheet-text p[data-role='Epigraph'], .sheet-text p[data-role='Dedication'] { font-style: italic; margin-left: 30%; }
+.sheet-text p[data-role='Scene break'], .sheet-text p[data-role='Subtitle'], .sheet-text p[data-role='Author'] { text-align: center; }
+.sheet-text p[data-role='Caption'] { font: 13px/1.45 var(--ui); color: var(--muted); }
 /* A picture steps back while writing: a thumbnail with its description beside it. Full width
    is the person's choice under Appearance, kept per device. */
 .sheet-text figure.picture { margin: 10px 0 14px; padding: 0 14px; display: flex; align-items: center; gap: 14px; }

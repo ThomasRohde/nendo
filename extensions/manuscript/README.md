@@ -10,7 +10,11 @@ holding a draft paper.
 Every part, chapter, section and paragraph is a **Block** (`mn.block`): its text as Markdown
 of one paragraph's inline content, its kind, and its place in one declared hierarchy (parent
 and order). The root block is the manuscript and its text is the title; a **Cuttings** block
-under it holds what was kept out of the manuscript. **Notes** (`mn.note`) and named **Links**
+under it holds what was kept out of the manuscript. A block may carry a **Role**, what it is for
+apart from its kind: front matter (Subtitle, Author, Dedication, Epigraph, Foreword, Preface,
+Acknowledgements, Abstract, Keywords), body (Quotation, Verse, Scene break, Caption, Aside) or back
+matter (Appendix, Afterword, Glossary, References, About the author, Colophon); a role on a heading
+applies to everything under it. **Notes** (`mn.note`) and named **Links**
 (`mn.link`) point at blocks. Studio, the **Outline** screen and an agent over MCP reach the
 same records; the view keeps no copy of the manuscript in the file.
 
@@ -31,11 +35,16 @@ same records; the view keeps no copy of the manuscript in the file.
   that picture, from the open file's media origin, and selected or deleted whole; one that does
   not load says *Picture not found* with its description. While writing it is a 168 by 112
   thumbnail with its description beside it; *Full width* under Appearance is the device's choice.
+- **Role** in Nendo's toolbar sets the role of the block the caret is in; the sheet names it above
+  the block and indents a quotation, a verse or an epigraph as a layout would. A file built before
+  0.5.0 has no Role field and shows no control until the field is added.
 - **Export** in Nendo's toolbar saves what is on the page, reads the manuscript as the file holds
   it, and downloads it: *Markdown* as a `.md`, or a `.zip` with the `.md` and a `media/` folder
   when it has pictures; *Word document* as a `.docx` with a Title, Heading 1 to 3, bold, italic,
   strikethrough and code runs, and pictures with their descriptions as alternative text, in one
-  of two layouts. The *book layout* is a 6 by 9 inch page in Georgia with a title page and each
+  of two layouts, each setting blocks by their role. A block without one is set by what its
+  heading says (Abstract, References, Appendix …), and a paragraph after a picture that starts
+  "Figure n." is its caption. The *book layout* is a 6 by 9 inch page in Georgia with a title page and each
   part or chapter on a new page. The *paper layout* is a one-column article on Letter paper in
   Times: a centred title block from the paragraphs before the first heading, a section headed
   Abstract set narrower, justified text indented after the first paragraph, bold numbered

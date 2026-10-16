@@ -12,6 +12,10 @@ There is no Save button. A pause in your typing saves what changed, and the line
 
 **Outline** opens the headings beside the page; choose one to go there.
 
+## Roles
+
+**Role** in the toolbar says what the line you are on is for, apart from being a paragraph or a heading: a **Dedication**, an **Epigraph**, a **Quotation**, a **Verse**, a **Scene break**, a **Caption**, an **Abstract**, the **References** and more. Give a heading a role and everything under it has it: make the chapter called *Summary* an Abstract and its paragraphs are the abstract. Exports set each role the way books and papers do: an epigraph to the right in italics, verse with its line breaks, a scene break centred, references with hanging indents.
+
 ## Bold, italic and code
 
 `Ctrl` `B`, `Ctrl` `I` and `Ctrl` `E` mark the selected words bold, italic or as code. Each paragraph is kept as Markdown, which Studio shows formatted.

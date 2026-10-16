@@ -8,20 +8,46 @@ const EXTENSION = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif',
 // The picture types a Word document holds without a fallback image.
 const WORD_TYPE = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif' };
 
+// What a heading's words say it is, for a block that names no role: the guess an older file needs.
+const NAMED = [
+  [/^abstract$/, 'Abstract'], [/^(references|bibliography|works cited)$/, 'References'], [/^acknowledge?ments?$/, 'Acknowledgements'],
+  [/^(appendix|appendices)\b/, 'Appendix'], [/^preface$/, 'Preface'], [/^foreword$/, 'Foreword'], [/^afterword$/, 'Afterword'],
+  [/^glossary$/, 'Glossary'], [/^dedication$/, 'Dedication'], [/^about the author$/, 'About the author'], [/^colophon$/, 'Colophon'],
+];
+function namedRole(text) {
+  const name = (text ?? '').replace(/^[\dA-Z]?[\d.\s]*\s/, '').replace(/[*_`]/g, '').trim().toLowerCase();
+  return NAMED.find(([pattern]) => pattern.test(name))?.[1] ?? null;
+}
+
 /**
  * What an export writes, in reading order: the title, then headings (the shallowest heading in
- * the manuscript is level 1), paragraphs and pictures. Empty paragraphs are left out.
+ * the manuscript is level 1), paragraphs and pictures, each with its role. A block's own role
+ * comes first; a heading without one takes the role its words name (Abstract, References, …);
+ * a paragraph without one takes the role of the heading it sits under, or is a caption when it
+ * follows a picture and starts "Figure n.". Paragraphs before the first heading are marked as
+ * front matter. Empty paragraphs are left out.
  */
 export function exportPlan(manuscript) {
   const levels = manuscript.nodes.map(n => levelOf(n.kind)).filter(Boolean);
   const top = levels.length ? Math.min(...levels) : 1;
-  const items = [];
+  const items = [], open = [];
+  let previous = null, front = true;
   for (const n of manuscript.nodes) {
     const level = levelOf(n.kind);
-    if (level) { items.push({ type: 'heading', level: level - top + 1, text: n.text ?? '', id: n.id }); continue; }
+    if (level) {
+      while (open.length && open.at(-1).level >= level) open.pop();
+      const role = n.role ?? namedRole(n.text) ?? open.at(-1)?.role ?? null;
+      open.push({ level, role });
+      front = false;
+      items.push(previous = { type: 'heading', level: level - top + 1, text: n.text ?? '', id: n.id, role });
+      continue;
+    }
     const picture = pictureOf(n.text);
-    if (picture) { items.push({ type: 'picture', alt: picture.alt, address: picture.address, id: n.id }); continue; }
-    if ((n.text ?? '').trim()) items.push({ type: 'paragraph', text: n.text, id: n.id });
+    if (picture) { items.push(previous = { type: 'picture', alt: picture.alt, address: picture.address, id: n.id, role: n.role ?? null }); continue; }
+    const text = n.text ?? '';
+    if (!text.trim() && n.role !== 'Scene break') continue;
+    const role = n.role ?? (previous?.type === 'picture' && FIGURE.test(text) ? 'Caption' : null) ?? open.at(-1)?.role ?? null;
+    items.push(previous = { type: 'paragraph', text, id: n.id, role, front: front && !n.role });
   }
   return { title: (manuscript.title ?? '').trim() || 'Untitled manuscript', items };
 }
@@ -46,21 +72,24 @@ export function pictureFiles(plan, pictures) {
 /** The manuscript as one Markdown document. Each block's text is already Markdown. */
 export function toMarkdown(plan, files = new Map()) {
   const parts = [`# ${plan.title}`];
+  const quoted = text => text.split('\n').map(line => `> ${line}`).join('\n');
   for (const item of plan.items) {
     if (item.type === 'heading') parts.push(`${'#'.repeat(Math.min(item.level + 1, 6))} ${item.text}`);
-    else if (item.type === 'paragraph') parts.push(item.text);
-    else parts.push(`![${item.alt.replace(/[\\[\]]/g, '\\$&')}](${files.get(item.address) ?? item.address})`);
+    else if (item.type === 'picture') parts.push(`![${item.alt.replace(/[\\[\]]/g, '\\$&')}](${files.get(item.address) ?? item.address})`);
+    else if (item.role === 'Scene break') parts.push('* * *');
+    else if (['Quotation', 'Epigraph', 'Aside'].includes(item.role)) parts.push(quoted(item.text));
+    else parts.push(item.text);
   }
   return parts.join('\n\n') + '\n';
 }
 
-function runs(markdown, lib, Lexer, size, base = 22) {
+function runs(markdown, lib, Lexer, size, base = 22, italic = false) {
   const out = [];
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.push(new lib.TextRun({ text: '', break: 1 })); continue; }
     const marks = new Set((node.marks ?? []).map(m => m.type));
     // Only marks that are on: a run that says bold false would override a bold heading style.
-    out.push(new lib.TextRun({ text: node.text, bold: marks.has('bold') || undefined, italics: marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
+    out.push(new lib.TextRun({ text: node.text, bold: marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
       font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size }));
   }
   return out;
@@ -107,7 +136,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
   const headingLevels = [lib.HeadingLevel.HEADING_1, lib.HeadingLevel.HEADING_2, lib.HeadingLevel.HEADING_3];
   const children = [new lib.Paragraph({ heading: lib.HeadingLevel.TITLE, alignment: A.CENTER, children: [new lib.TextRun({ text: plan.title })] })];
   const missing = [];
-  let section = null, indentNext = false, seenHeading = false, previous = null;
+  let indentNext = false, previous = null;
   // Pictures next to each other share one figure row, as subfigures do, each at its share of the
   // width; a single picture is set at the layout's figure width.
   let row = [];
@@ -129,49 +158,88 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book') {
     children.push(new lib.Paragraph({ alignment: A.CENTER, keepNext: true, spacing: { before: 200, after: 80 }, children: runsOfRow }));
     indentNext = false; previous = row.at(-1); row = [];
   };
+  // The parts a book or an article sets apart: a heading with one of these roles starts it.
+  const PARTS = new Set(['Foreword', 'Preface', 'Acknowledgements', 'Abstract', 'Appendix', 'Afterword', 'Glossary', 'References', 'About the author', 'Colophon']);
+  const paper = layoutName === 'paper';
+  const text = (markdown, size) => runs(markdown, lib, Lexer, size, L.size);
+  const para = (options, markdown, size) => new lib.Paragraph({ ...options, children: text(markdown, size) });
+  let firstAppendix = true;
   for (const item of plan.items) {
     if (item.type !== 'picture') flushRow();
     if (item.type === 'heading') {
-      seenHeading = true;
-      const name = item.text.replace(/^[\d.\s]+/, '').trim().toLowerCase();
-      section = item.level === 1 ? (name === 'abstract' ? 'abstract' : /^(references|bibliography)$/.test(name) ? 'references' : 'body') : section;
-      const h = L.headings[Math.min(item.level, 3) - 1];
-      const centred = h.center || section === 'abstract';
-      children.push(new lib.Paragraph({ heading: headingLevels[Math.min(item.level, 3) - 1], alignment: centred ? A.CENTER : A.LEFT,
-        pageBreakBefore: L.chapterBreaks && item.level === 1,
-        children: runs(item.text, lib, Lexer, section === 'abstract' ? L.abstract?.size : undefined) }));
+      const level = Math.min(item.level, 3), h = L.headings[level - 1];
+      const part = PARTS.has(item.role) && level === 1;
+      const centred = h.center || (part && (!paper || item.role === 'Abstract'));
+      const breakBefore = level === 1 && (L.chapterBreaks || (paper && item.role === 'Appendix' && firstAppendix));
+      if (item.role === 'Appendix' && level === 1) firstAppendix = false;
+      children.push(new lib.Paragraph({ heading: headingLevels[level - 1], alignment: centred ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore,
+        children: text(item.text, paper && item.role === 'Abstract' ? L.abstract.size : undefined) }));
       indentNext = false; previous = item;
       continue;
     }
     if (item.type === 'picture') { row.push(item); continue; }
-    flushRow();
-    const caption = previous?.type === 'picture' ? FIGURE.exec(item.text) : null;
-    if (caption) {
-      const label = `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}:`;
-      children.push(new lib.Paragraph({ alignment: A.CENTER, spacing: { after: 240 }, indent: { left: 360, right: 360 },
-        children: [new lib.TextRun({ text: `${label} `, bold: !L.caption.italics, italics: L.caption.italics, size: L.caption.size }),
-          ...runs(item.text.slice(caption[0].length), lib, Lexer, L.caption.size).map(r => r)] }));
-      indentNext = false; previous = item;
-      continue;
+    const role = item.role;
+    let block = null, continues = false;
+    switch (role) {
+      case 'Caption': {
+        const caption = FIGURE.exec(item.text);
+        const label = caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}:` : null;
+        block = new lib.Paragraph({ alignment: A.CENTER, spacing: { after: 240 }, indent: { left: 360, right: 360 }, children: [
+          ...(label ? [new lib.TextRun({ text: `${label} `, bold: !L.caption.italics || undefined, italics: L.caption.italics || undefined, size: L.caption.size })] : []),
+          ...text(caption ? item.text.slice(caption[0].length) : item.text, L.caption.size)] });
+        break;
+      }
+      case 'Subtitle':
+        block = para({ alignment: A.CENTER, spacing: { after: 200 } }, item.text, Math.round(L.title.size * 0.6));
+        break;
+      case 'Author':
+        block = para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size);
+        break;
+      case 'Dedication':
+        // Word drops the space before a paragraph at the top of a page, so a dedication on its own
+        // page is lowered by an empty paragraph's space after.
+        if (L.titlePage) children.push(new lib.Paragraph({ pageBreakBefore: true, spacing: { before: 0, after: 2400 }, children: [] }));
+        block = new lib.Paragraph({ alignment: A.CENTER, spacing: { before: L.titlePage ? 0 : 240, after: 240 }, children: runs(item.text, lib, Lexer, undefined, L.size, true) });
+        break;
+      case 'Epigraph':
+        block = new lib.Paragraph({ alignment: A.LEFT, spacing: { before: 120, after: 240 }, indent: { left: Math.round(L.page.width * 0.3) },
+          children: runs(item.text, lib, Lexer, Math.round(L.size * 0.95), L.size, true) });
+        break;
+      case 'Quotation':
+        block = para({ alignment: A.JUSTIFIED, spacing: { before: 120, after: 120 }, indent: { left: 720, right: 720 } }, item.text, Math.round(L.size * 0.95));
+        break;
+      case 'Verse':
+        block = para({ alignment: A.LEFT, spacing: { after: 160 }, indent: { left: 720 } }, item.text);
+        break;
+      case 'Aside':
+        block = para({ alignment: A.JUSTIFIED, spacing: { before: 120, after: 120 }, indent: { left: 720, right: 720 } }, item.text, Math.round(L.size * 0.9));
+        break;
+      case 'Scene break':
+        block = para({ alignment: A.CENTER, spacing: { before: 240, after: 240 } }, item.text.trim() || '\\* \\* \\*');
+        break;
+      case 'Abstract':
+        block = paper
+          ? para({ alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: indentNext ? L.firstLine : 0 } }, item.text, L.abstract.size)
+          : para({ alignment: A.JUSTIFIED, indent: { firstLine: indentNext ? L.firstLine : 0 } }, item.text);
+        continues = true;
+        break;
+      case 'Keywords':
+        block = para({ alignment: A.LEFT, spacing: { before: 120 }, indent: paper ? { left: L.abstract.indent, right: L.abstract.indent } : {} }, item.text, paper ? L.abstract.size : undefined);
+        break;
+      case 'References':
+      case 'Glossary':
+        block = para({ alignment: A.LEFT, spacing: { after: 60 }, indent: { left: L.references.hanging, hanging: L.references.hanging } }, item.text, L.references.size);
+        break;
+      case 'Colophon':
+        block = para({ alignment: A.CENTER, spacing: { after: 120 } }, item.text, Math.round(L.size * 0.85));
+        break;
+      default:
+        if (item.front && paper) { block = para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size); break; }
+        block = para({ alignment: A.JUSTIFIED, indent: { firstLine: indentNext ? L.firstLine : 0 } }, item.text);
+        continues = true;
     }
-    if (!seenHeading && layoutName === 'paper') {
-      children.push(new lib.Paragraph({ alignment: A.CENTER, spacing: { after: L.front.after }, children: runs(item.text, lib, Lexer, L.front.size) }));
-      previous = item;
-      continue;
-    }
-    if (section === 'references') {
-      children.push(new lib.Paragraph({ alignment: A.LEFT, spacing: { after: 60 }, indent: { left: L.references.hanging, hanging: L.references.hanging }, children: runs(item.text, lib, Lexer, L.references.size) }));
-      previous = item;
-      continue;
-    }
-    if (section === 'abstract' && L.abstract) {
-      children.push(new lib.Paragraph({ alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: indentNext ? L.firstLine : 0 },
-        children: runs(item.text, lib, Lexer, L.abstract.size) }));
-      indentNext = true; previous = item;
-      continue;
-    }
-    children.push(new lib.Paragraph({ alignment: A.JUSTIFIED, indent: { firstLine: indentNext ? L.firstLine : 0 }, children: runs(item.text, lib, Lexer) }));
-    indentNext = true; previous = item;
+    children.push(block);
+    indentNext = continues; previous = item;
   }
   flushRow();
   const heading = h => ({ run: { font: L.font, size: h.size, bold: true, italics: !!h.italics, color: '000000' },
