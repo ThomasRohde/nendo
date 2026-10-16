@@ -154,10 +154,12 @@ of its record type's declared hierarchy, and with `includeSelf: true` the record
 record or at anything under it: the applications that support a capability or any part of
 it. Both are installed only on a record type that declares a hierarchy, and while one is in
 place the hierarchy cannot be removed (`hierarchy-field-in-use`). They are bounded by the
-hierarchy's own limit of 10,000 records rather than the related-row budget, which one
-subtree would exceed; past it they are an error, never a partial total. Both count the
-descendants against that limit, as the tree read and `descendantOf` do, so a subtree of more
-than 10,000 records is refused by every read of it, whatever few records point into it;
+hierarchy's own limit of 10,000 records (`limits.hierarchy.maximumAggregatedDescendants`)
+rather than the related-row budget, which one subtree would exceed; past it they are an
+error, never a partial total. Both count the descendants against that limit, so a subtree of
+more than 10,000 records is an error in either, whatever few records point into it. The tree
+read and `descendantOf` no longer share the limit (ADR-0019, 2026-10-16 amendment): a
+calculation runs for every record a read returns, and the folds are what a page pays for;
 `acrossSubtree` also refuses past 10,000 related records (R2AAV-06, 2026-10-14). The keys appear in
 a stored definition only when true, so every definition written before them keeps its
 canonical bytes and digest.

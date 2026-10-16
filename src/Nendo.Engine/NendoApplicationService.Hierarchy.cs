@@ -71,7 +71,7 @@ public sealed partial class NendoApplicationService
 
         if (hierarchy.OrderFieldId is { } orderField)
         {
-            var siblings = await SiblingsAsync(entity, hierarchy, request.ParentRecordId, request.RecordId, cancellationToken);
+            var siblings = await SiblingsAsync(entity, request.ParentRecordId, request.RecordId, cancellationToken);
             var at = request.BeforeRecordId is null ? siblings.Count : siblings.FindIndex(sibling => sibling.RecordId == request.BeforeRecordId);
             if (at < 0)
                 throw new NendoPreconditionException("hierarchy-sibling-not-found",
@@ -218,32 +218,19 @@ public sealed partial class NendoApplicationService
 
     private sealed record Sibling(string RecordId, long Version, long? Order);
 
-    /// <summary>The records under a parent, or at the top level, in sibling order, without the moved one.</summary>
-    private async Task<List<Sibling>> SiblingsAsync(NendoEntitySnapshot entity, NendoHierarchy hierarchy, string? parent, string excluded,
-        CancellationToken cancellationToken)
-    {
-        var filter = parent is null
-            ? new NendoRecordFilter(hierarchy.ParentFieldId, "isNull")
-            : new NendoRecordFilter(hierarchy.ParentFieldId, "eq", JsonSerializer.SerializeToElement(parent));
-        // Every sibling from one change: a commit between pages starts the read again (ESQ-11).
-        var siblings = (await NendoWholeRead.AllAsync(
-                cursor => QueryRecordsAsync(new(entity.EntityId, 100, cursor) { SortFieldId = hierarchy.OrderFieldId, Filters = [filter] }, cancellationToken),
-                read =>
-                {
-                    if (read.Count > NendoHierarchyLimits.MaximumDescendants + 1)
-                        throw new NendoPreconditionException("hierarchy-too-wide",
-                            $"More than {NendoHierarchyLimits.MaximumDescendants} records share this parent, which is more than a move reads.");
-                }))
-            .Where(item => item.RecordId != excluded)
-            .Select(item => new Sibling(item.RecordId, item.RecordVersion, Integer(item.Values.GetValueOrDefault(hierarchy.OrderFieldId!))))
-            .ToList();
-        if (siblings.Count > NendoHierarchyLimits.MaximumDescendants)
-            throw new NendoPreconditionException("hierarchy-too-wide",
-                $"More than {NendoHierarchyLimits.MaximumDescendants} records share this parent, which is more than a move reads.");
+    /// <summary>
+    /// The records under a parent, or at the top level, in sibling order, without the moved one:
+    /// one read from one change. Until 2026-10-16 they were read 100 at a time, with every
+    /// record's calculations, and a move among more than 10,000 siblings was refused.
+    /// </summary>
+    private async Task<List<Sibling>> SiblingsAsync(NendoEntitySnapshot entity, string? parent, string excluded,
+        CancellationToken cancellationToken) =>
         // Unordered siblings sort last, then by record ID, as the tree read orders them.
-        return siblings.OrderBy(sibling => sibling.Order is null).ThenBy(sibling => sibling.Order)
+        (await _coordinator.HierarchySiblingsAsync(entity.EntityId, parent, cancellationToken))
+            .Where(sibling => sibling.RecordId != excluded)
+            .Select(sibling => new Sibling(sibling.RecordId, sibling.Version, sibling.Order))
+            .OrderBy(sibling => sibling.Order is null).ThenBy(sibling => sibling.Order)
             .ThenBy(sibling => sibling.RecordId, StringComparer.Ordinal).ToList();
-    }
 
     private static string? Text(JsonElement value) => value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 

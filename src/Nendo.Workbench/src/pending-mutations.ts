@@ -45,7 +45,7 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   'target-version-required', 'target-version-conflict', 'target-not-found', 'reference-unbound',
   'entity-not-found', 'field-not-found', 'record-not-found', 'command-unavailable', 'compensation-not-supported', 'proposal-not-found',
   'hierarchy-not-declared', 'hierarchy-order-not-declared', 'hierarchy-sibling-not-found',
-  'hierarchy-too-wide', 'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged',
+  'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged',
   // ADR-0026: the whole mutation was refused at its end, so nothing of it landed.
   'link-not-allowed', 'links-not-allowed',
   // ADR-0031: a picture's address, content or bounds, refused before the mutation committed.

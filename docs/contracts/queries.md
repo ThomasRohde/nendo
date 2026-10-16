@@ -16,8 +16,9 @@ up to eight AND predicates. The predicates are:
 - `descendantOf`, on the parent field of a declared hierarchy
   ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)): every record under the
   named record, down to 32 levels. It holds in the page, the count and every aggregate,
-  and it is refused as `hierarchy-too-wide` when more than 10,000 records sit under that
-  record, and as `hierarchy-not-declared` on any other field.
+  and it is refused as `hierarchy-not-declared` on any other field. Each statement walks the
+  subtree once, so its cost is the subtree's size; no size is refused (ADR-0019, 2026-10-16
+  amendment). To read a whole large subtree, the tree read is the one that pages by key.
 
 The sort field and any predicate may name a **calculated field** (2026-09-30, F-222). It is
 compared as a stored field of its result type is: `contains` only for a Text result, and
@@ -32,10 +33,13 @@ A **tree read** (`NendoTreeQuery`: a record type, an optional root, a depth of 1
 a page of 1 to 200) returns a declared hierarchy depth-first: the records under the root,
 or the whole tree from the top level, siblings in the order field's order, unordered ones
 last, then by record ID. Each item is the record with its parent, its depth below the root
-(1 for the top of the window) and its child count. The walk is refused as
-`hierarchy-too-wide` when it would cover more than 10,000 records. Pages are cut by
-position; the cursor binds the change sequence, so a write between pages makes it stale,
-as for any query.
+(1 for the top of the window) and its child count. A page resumes after the record the
+previous one ended on: each level asks for the children after one sibling, by an index of
+(parent, order, record ID), so a page costs its own records and the levels above it, and a
+whole read costs what it returns. No size is refused (ADR-0019, 2026-10-16 amendment; until
+then every page re-sorted the whole window and the read was refused past 10,000 records). The
+cursor names that record and binds the change sequence, so a write between pages makes it
+stale, as for any query.
 
 The field search in the UI uses contains. Contains is ordinal, case-insensitive
 and literal (no wildcard language). Text sort is ordinal. Integers and decimals

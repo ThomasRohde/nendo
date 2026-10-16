@@ -239,7 +239,7 @@ internal sealed class NendoMcpResources(
         Title = "Record tree",
         UriTemplate = "nendo://application/entity/{entityId}/tree{?root,depth,cursor,limit}",
         MimeType = "application/json")]
-    [Description("A window of a record type's declared hierarchy, depth-first in sibling order: the records under root, or the whole tree from the top level when root is omitted, down to depth levels (1 to 32, default 1). Each item is a record with its parentRecordId, its depth below the root and its childCount. Refused past limits.hierarchy.maximumDescendants records; read fewer levels or a lower root. changeSequence is the file revision the page was read at. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
+    [Description("A window of a record type's declared hierarchy, depth-first in sibling order: the records under root, or the whole tree from the top level when root is omitted, down to depth levels (1 to 32, default 1). Each item is a record with its parentRecordId, its depth below the root and its childCount. Any size is read: each page resumes after the last record of the one before. changeSequence is the file revision the page was read at. A file change invalidates continuation; restart on NENDO_STALE_CURSOR.")]
     public Task<string> GetTreeAsync(
         string entityId,
         string? root = null,

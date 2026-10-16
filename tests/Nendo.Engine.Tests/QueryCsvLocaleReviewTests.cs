@@ -332,9 +332,10 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// ESQ-11 (review), at the call sites: the CSV code resolver and a move's sibling scan read
-    /// through the whole read, so a commit between their pages starts the read again rather than
-    /// failing the import or the move.
+    /// ESQ-11 (review), at the call sites: the CSV code resolver reads through the whole read, so
+    /// a commit between its pages starts the read again rather than failing the import. A move's
+    /// sibling scan did too until 2026-10-16 (ADR-0019 amendment); it is one statement now, so no
+    /// commit can fall between its pages, and the move still lands with the hook in place.
     /// </summary>
     [TestMethod]
     public async Task AnImportAndAMoveSurviveACommitBetweenTheirPages()
@@ -379,7 +380,7 @@ public sealed class QueryCsvLocaleReviewTests
 
             commits = 0;
             var moved = await service.MoveRecordAsync(new("projects", "p149", 1, null, null, "p5", new("test", "move", "test")));
-            Assert.IsGreaterThan(0, commits, "A move did not read its siblings through the whole read, so a commit between their pages fails the move.");
+            Assert.AreEqual(0, commits, "A move read its siblings in pages again, where one statement reads them from one change.");
             Assert.IsNotNull(moved);
         }
         finally

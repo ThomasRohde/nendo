@@ -82,7 +82,11 @@ file that carries one needs host 1.35.0.
 each record with its parent, depth and child count ([queries](queries.md)); a view reads it
 with `records.tree` and an agent with `nendo://application/entity/{entityId}/tree`. The
 `descendantOf` filter on the parent field reads a record's whole subtree in any query,
-count or aggregate.
+count or aggregate. Neither refuses a large tree: the tree read pages by key, so a whole read
+of a 98,000-record tree costs what it returns, and `descendantOf` walks the subtree once per
+statement (ADR-0019, 2026-10-16 amendment). Only a subtree aggregate keeps a bound,
+`limits.hierarchy.maximumAggregatedDescendants` (10,000), because it runs for every record a
+read returns.
 
 Declaring and removing are definition-lane operations of class
 `ReversibleWithRetainedState`, and each compensates the other. A record with children is

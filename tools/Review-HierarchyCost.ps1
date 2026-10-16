@@ -1,11 +1,15 @@
 [CmdletBinding()]
 param(
     # A new, task-owned directory under artifacts/; the run writes its .nendo fixture and report there.
-    [Parameter(Mandatory)][string] $OutputRoot
+    [Parameter(Mandatory)][string] $OutputRoot,
+    # 10,000 is stage 1's tree; 98,000 is the 2026-10-16 amendment's, as near the file's own bound
+    # of 100,000 operation rows as leaves room to write, with a node of 20,000 children.
+    [ValidateSet(10000, 98000)][int] $Nodes = 10000
 )
 # ADR-0019 delivery stage 1: what a declared hierarchy costs at 10,000 records and depth 32,
-# measured before any product code. Loads the debug test assembly (build it first:
-# dotnet build tests/Nendo.Engine.Tests) and runs ReviewHierarchyCostFixture, as
+# measured before any product code; since the 2026-10-16 amendment also at 98,000 (about 20
+# minutes, most of it the old walk's whole read). Loads the debug test assembly (build it
+# first: dotnet build tests/Nendo.Engine.Tests) and runs ReviewHierarchyCostFixture, as
 # Review-Performance.ps1 runs its fixture.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -15,7 +19,7 @@ $evidenceRoot = [IO.Path]::GetFullPath($OutputRoot)
 if (-not $evidenceRoot.StartsWith($artifactsRoot, [StringComparison]::OrdinalIgnoreCase)) { throw 'Use an owned artifact directory.' }
 [void] (New-Item -ItemType Directory -Path $evidenceRoot -Force)
 $engineDirectory = Join-Path $repoRoot 'artifacts/bin/Nendo.Engine.Tests/debug'
-$filePath = Join-Path $evidenceRoot 'hierarchy-10000.nendo'
+$filePath = Join-Path $evidenceRoot "hierarchy-$Nodes.nendo"
 $reportPath = Join-Path $evidenceRoot 'hierarchy-cost.json'
 if (Test-Path -LiteralPath $reportPath) { throw 'This run already has a report; choose a new output directory.' }
 foreach ($assembly in @('SQLitePCLRaw.core.dll', 'SQLitePCLRaw.provider.e_sqlite3.dll',
@@ -38,7 +42,7 @@ $report = [ordered]@{
     status = 'not-completed'
 }
 try {
-    $result = [Nendo.Engine.Tests.ReviewHierarchyCostFixture]::RunAsync($filePath).GetAwaiter().GetResult()
+    $result = [Nendo.Engine.Tests.ReviewHierarchyCostFixture]::RunAsync($filePath, $Nodes).GetAwaiter().GetResult()
     $report.status = 'completed'
     $report.result = $result | ConvertFrom-Json
     Write-Host $result

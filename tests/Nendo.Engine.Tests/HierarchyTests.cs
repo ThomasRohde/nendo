@@ -500,14 +500,14 @@ public sealed class HierarchyTests
     }
 
     [TestMethod]
-    public async Task PastTheDescendantBoundEveryReadRefusesRatherThanAnswerInPart()
+    public async Task PastTheAggregateBoundTheAggregatesAreErrorsAndTheReadsAnswerWhole()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
         var service = new NendoApplicationService(coordinator);
         await SchemaAsync(coordinator);
         await CreateAsync(service, "root");
-        var children = Enumerable.Range(0, NendoHierarchyLimits.MaximumDescendants + 1).Select(index => (NendoOperation)new CreateRecordOperation(
+        var children = Enumerable.Range(0, NendoHierarchyLimits.MaximumAggregatedDescendants + 1).Select(index => (NendoOperation)new CreateRecordOperation(
             $"wide-{index}", Entity, $"w{index:D5}", new Dictionary<string, object?> { ["title"] = $"W{index}", ["parent"] = "root" },
             new Dictionary<string, long> { ["parent"] = 1 })).ToArray();
         await coordinator.ApplyAsync(new("test", "wide", "test", "One more child than a subtree read folds", children));
@@ -533,14 +533,19 @@ public sealed class HierarchyTests
         var calculations = (await RecordAsync(service, "root")).Calculations;
         var count = calculations.Single(calculation => calculation.FieldId == "inside");
         Assert.AreEqual(NendoCalculationState.Error, count.State);
-        StringAssert.Contains(count.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumDescendants} records");
+        StringAssert.Contains(count.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumAggregatedDescendants} records");
         var linked = calculations.Single(calculation => calculation.FieldId == "linked");
         Assert.AreEqual(NendoCalculationState.Error, linked.State,
-            $"A related count across a subtree of {NendoHierarchyLimits.MaximumDescendants + 1} records answered {linked.Value} while every other read of it was refused.");
-        StringAssert.Contains(linked.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumDescendants} records sit under this record");
-        Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.TreeRecordsAsync(new(Entity, "root")))).Code);
+            $"A related count across a subtree of {NendoHierarchyLimits.MaximumAggregatedDescendants + 1} records answered {linked.Value} while the subtree count of it was an error.");
+        StringAssert.Contains(linked.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumAggregatedDescendants} records sit under this record");
+
+        // Since the 2026-10-16 amendment the bound is the aggregates' alone: the tree read and the
+        // descendantOf filter read the whole subtree. Both were refused as hierarchy-too-wide.
+        var tree = await service.TreeRecordsAsync(new(Entity, "root", 1, 200));
+        Assert.HasCount(200, tree.Items);
+        Assert.IsNotNull(tree.NextCursor);
         var under = new NendoRecordFilter("parent", "descendantOf", System.Text.Json.JsonSerializer.SerializeToElement("root"));
-        Assert.AreEqual("hierarchy-too-wide", (await Refused(() => service.CountRecordsAsync(new(Entity) { Filters = [under] }))).Code);
+        Assert.AreEqual(NendoHierarchyLimits.MaximumAggregatedDescendants + 1, (await service.CountRecordsAsync(new(Entity) { Filters = [under] })).Count);
     }
 
     /// <summary>
@@ -556,7 +561,7 @@ public sealed class HierarchyTests
         var service = new NendoApplicationService(coordinator);
         await SchemaAsync(coordinator);
         await CreateAsync(service, "root");
-        var children = Enumerable.Range(0, NendoHierarchyLimits.MaximumDescendants + 1).Select(index => (NendoOperation)new CreateRecordOperation(
+        var children = Enumerable.Range(0, NendoHierarchyLimits.MaximumAggregatedDescendants + 1).Select(index => (NendoOperation)new CreateRecordOperation(
             $"wide-{index}", Entity, $"w{index:D5}", new Dictionary<string, object?> { ["title"] = $"W{index}", ["parent"] = "root" },
             new Dictionary<string, long> { ["parent"] = 1 })).ToArray();
         await coordinator.ApplyAsync(new("test", "wide", "test", "One more child than a subtree read folds", children));

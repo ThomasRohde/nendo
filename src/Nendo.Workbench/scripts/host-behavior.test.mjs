@@ -143,7 +143,7 @@ test('R02-013: a committed move is resolved by receipt after timeout and reload 
 
 test('R02-013: definitive hierarchy refusals release the retained request', { timeout: 2000 }, async () => {
   for (const code of ['hierarchy-not-declared', 'hierarchy-order-not-declared', 'hierarchy-sibling-not-found',
-    'hierarchy-too-wide', 'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged']) {
+    'hierarchy-cycle', 'hierarchy-too-deep', 'move-unchanged']) {
     const f = fixture(); const client = f.client(); await client.request('session.getSnapshot');
     const failed = client.request('data.moveRecord', { entityId: 'work', recordId: 'child', expectedRecordVersion: 7,
       parentRecordId: null, beforeRecordId: null, idempotencyKey: 'refused-move' }).catch(error => error);

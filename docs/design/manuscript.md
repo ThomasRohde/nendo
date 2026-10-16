@@ -480,7 +480,7 @@ The manuscript must fit Nendo's bounds with its working history, not only its te
 | Request parameters | 256 KiB | `docs/contracts/custom-views.md` |
 | Agent request body | 256 KiB | `docs/contracts/mcp-interface.md` |
 | Media | 64 MiB per item, 2 GiB per file | ADR-0031 |
-| Descendants of one hierarchy | 10,000; depth 32 | `nendo://application/vocabulary`, `limits.hierarchy` |
+| Descendants of one hierarchy | None since 2026-10-16 (was 10,000); depth 32; a subtree aggregate folds at most 10,000 | `nendo://application/vocabulary`, `limits.hierarchy` |
 
 **Bytes are not the problem.** 500,000 words is about 3 MB of text, about 8 MB on disk, and
 somewhere between 5,000 and 15,000 blocks depending on paragraph length.
@@ -591,7 +591,7 @@ Each is a candidate, to be confirmed by the foundation proof before any ADR is w
 | Grammar is application-enforced | Studio and agents can place a block where the grammar forbids | A declared parent-kind rule on the hierarchy |
 | `queryAll` default of 10,000 | A large manuscript's blocks may pass it | Done: the view asks for up to 1,000,000; windowed editing is still to come |
 | No milestone that survives a fold | Named states are lost to folding | A host-kept label exempt from folding, or Backup as the answer |
-| A hierarchy walk reads at most 10,000 records under a root | Each page of a tree read re-walks and re-sorts the whole subtree, so reading N blocks costs about N squared; the bound keeps that in check | Done for the view (0.6.0): it reads blocks flat by cursor and builds the tree. Nendo's Outline screen and `descendantOf` keep the bound until the walk pages by key |
+| A hierarchy walk reads at most 10,000 records under a root | Each page of a tree read re-walked and re-sorted the whole subtree, so reading N blocks cost about N squared; the bound kept that in check | Done: the view reads blocks flat by cursor and builds the tree (0.6.0), and since 2026-10-16 the host's tree read pages by key and has no bound (ADR-0019 amendment, W-278), so the Outline screen and `descendantOf` read any size too |
 
 ## 14. Acceptance scenarios
 

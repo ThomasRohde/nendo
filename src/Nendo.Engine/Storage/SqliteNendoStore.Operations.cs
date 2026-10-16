@@ -646,6 +646,14 @@ internal sealed partial class SqliteNendoStore
             if (ResolveLinkRule(declare.EntityId, declare.Rule, await ReadEntityMappingsAsync(transaction, cancellationToken)).Rule is { } rule)
                 await EnsureLinkIndexAsync(rule, transaction, cancellationToken);
 
+        // ADR-0019, 2026-10-16: a declared hierarchy gets its tree index here, where the columns
+        // of a table or order field added in this same mutation exist.
+        foreach (var declare in operations.OfType<DeclareHierarchyOperation>())
+        {
+            var entity = await GetEntityMappingAsync(declare.EntityId, transaction, cancellationToken);
+            if (entity.Hierarchy is { } hierarchy) await EnsureTreeIndexAsync(entity, hierarchy, transaction, cancellationToken);
+        }
+
         // ADR-0003 note, 2026-09-09: a covering index for the inverse read a
         // related list performs. Created here because the reference column may
         // be added by this same change set, and only for a reference that was

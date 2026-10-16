@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-09-27
-- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates), 5 (the Studio outline), 6 (the outline surface, at host 1.36.0) and 7 (the Capability Atlas on the declaration) done 2026-09-27. Proposed and accepted the same day, after the owner settled the open questions
+- **Delivery:** Stages 1 (the cost experiment), 2 (declaration, cycle rule, move, MCP), 3 (tree read, `descendantOf`, `records.tree`), 4 (subtree aggregates), 5 (the Studio outline), 6 (the outline surface, at host 1.36.0) and 7 (the Capability Atlas on the declaration) done 2026-09-27. Proposed and accepted the same day, after the owner settled the open questions. Amended 2026-10-16: the tree read pages by key, and only subtree aggregates keep the 10,000 bound
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
 - **Evidence:** The code survey in Context (2026-09-27) and the Capability Atlas review (W-072, planner findings F-154 to F-162). The costs were measured after acceptance as delivery stage 1, and every target was met; see the Stage 1 note
@@ -143,14 +143,16 @@ contract if measurement ever calls for it.
    a depth limit, and per node its parent, depth, sibling position and child
    count, paged like other reads. It backs Studio, the view API
    (`records.tree`) and an MCP resource. `records.query` gains a
-   `descendantOf` filter over the same bound.
+   `descendantOf` filter over the same bound. (Amended 2026-10-16: neither has a bound; the
+   tree read pages by key.)
 7. **Subtree aggregates.** ADR-0008 gains a `SubtreeAggregate` binding (Count,
    FilteredCount, Sum). It folds the record's **descendants only** by default
    ("12 capabilities inside"); `includeSelf: true` adds the record itself, for a
    total of a node and everything under it. `RelatedAggregate` gains an option to
    fold the records related to any node of the subtree (for example, the
    applications supporting a capability or anything under it). Both are bounded
-   at **10,000 descendants** and refuse past it by name, like `RelatedRows`.
+   at **10,000 descendants** and refuse past it by name, like `RelatedRows`. (The 2026-10-16
+   amendment keeps this bound for the aggregates alone.)
 8. **Studio.** A declared hierarchy shows as an outline in the data view: an
    indented, expandable label column with move up, move down, indent and outdent,
    built on AG Grid Community with the tree read and a custom cell renderer (no
@@ -488,6 +490,99 @@ level is open on that side and always fits. The whole level is renumbered only w
 smaller run fits, which is the dense level this stage first measured. The move's
 `recordIds` still name every record written, so a client sees the run.
 
+## Amendment — 2026-10-16: the tree read pages by key, and only aggregates keep the bound
+
+**Why.** The Manuscript application (W-276) reached the 10,000-descendant bound with one
+long book, and the owner called the number arbitrary. It was not arbitrary, but it guarded
+the wrong thing. The stage 3 walk built a sort path for every record under the root, sorted
+all of them and cut each page by `OFFSET`, so every page cost the whole subtree and a whole
+read of N records cost about N squared. The bound kept that square small. Stage 1 measured
+single reads at the bound and never a whole read, which is where the cost was.
+
+**Measured first** (W-278), with `tools/Review-HierarchyCost.ps1 -Nodes 98000`, the stage 1
+driver extended. **98,000 is the largest tree a file holds**, not a choice: a file opens with
+at most 100,000 rows in a table and 100,000 records in all, refuses a write from 99,000
+operation rows (`SqliteNendoStore.WriteCeilingRows`), and every create is a row. So 98,000
+nodes and 500 links leave room for the writes measured afterwards; a first attempt at 100,000
+records was refused by that ceiling. The tree has one root over 97,948 records, a spine to
+depth 32 and a node with 20,000 children. The old walk was timed as SQL, so that it reads past
+the old bound; the new reads go through the service. One run each on the development machine
+(Windows x64); figures in milliseconds, p50 / p95.
+
+| Measure | 10,000 records | 98,000 records |
+| --- | ---: | ---: |
+| Old walk, first page of 200 | 34 / 40 | 1,723 / 1,788 |
+| Old walk, last page of 200 | 60 / 75 | 2,583 / 2,600 |
+| Old walk, whole read in pages of 200 | 2,335 | 1,107,252 (18.5 min, one sample) |
+| Old tree read through the service, whole read | 3,348 / 3,693 | refused (`hierarchy-too-wide`) |
+| **New tree read, first page of 200** | 6.2 / 17.1 | 5.3 / 6.5 |
+| **New tree read, last page of 200** | 6.9 / 7.3 | 8.4 / 10.4 |
+| **New tree read, whole read** (9,948 / 97,948 nodes) | 316 / 331 | 3,424 / 3,588 |
+| New tree read, one level of 1,006 / 20,011 children, whole | 10.7 / 11.9 | 205 / 218 |
+| `descendantOf` page of 100 under the root | 13.9 / 15.3 | 175 / 193 |
+| `descendantOf` count under the root | 15.3 / 18.3 | 207 / 209 |
+| Move among 1,007 / 20,012 siblings (one record written) | 12.9 / 16.0 | 53.3 / 53.9 |
+| Subtree Count, Sum and FilteredCount at the root, cut at 10,001 | 13.0 / 17.2 | 17.4 / 18.2 |
+| The same, uncut | 17.1 / 20.4 | 246 / 254 |
+| A page of 100 records, each counting its subtree (cut) | 39.7 / 46.7 | 355 / 385 |
+
+A whole read now costs what it returns: ten times the records took 10.8 times as long, where
+the old walk took 474 times as long. Every whole read came back depth-first, in sibling order,
+each node once and one level below its parent (the driver checks it), with the count the
+driver built.
+
+**Decided** (the owner pre-accepted ADR changes on 2026-09-24):
+
+1. **The tree read pages by key.** The cursor names the record the previous page ended on,
+   signed and bound to the change it was read at as before. The next page reads that record's
+   ancestors below the root (one indexed step a level) and resumes the depth-first walk there:
+   each level asks for the children of one parent after one sibling, in sibling order, 16 at a
+   time and doubling to 256 while a level keeps filling its batches
+   (`Engine/HierarchyTreeWalk.cs`). A page costs its own records and the levels above it.
+2. **An index orders the siblings.** Declaring a hierarchy with an order field creates
+   `nendo_tree_{table}` on (parent, order, record ID), outside the protected namespace as the
+   reference and link indexes are, so the ordered children after a sibling are one range and
+   the unordered ones a second. Removing the hierarchy drops it. A hierarchy without an order
+   field reads the reference index (parent, record ID) it already has. A file declared before
+   this amendment has no tree index until the hierarchy is declared again: its reads are
+   correct and are never refused, but each seek of an ordered level sorts that level, so a very
+   wide ordered level is slower there. As for reference indexes, Nendo does not add one on
+   open.
+3. **No bound on the tree read, `descendantOf` or a move.** The file is the bound.
+   `descendantOf` still walks the subtree once per statement, so a page or a count costs the
+   subtree's size, which at 98,000 is above the 150 ms bounded-read target; reading a whole
+   large subtree page by page through `descendantOf` repeats that walk per page, and the tree
+   read is the read for it. A move reads its level's IDs, versions and orders in one statement,
+   where it read whole records with their calculations 100 at a time, so its cost is the
+   level's width and not its records' weight.
+4. **Subtree aggregates keep 10,000**, as `maximumAggregatedDescendants` under
+   `limits.hierarchy` (it was `maximumDescendants`). A calculation runs for every record a read
+   returns: one uncut fold at the root costs 250 ms at 98,000, and a page of 100 records whose
+   upper levels each fold their subtree costs 355 ms even with every fold cut at 10,001. That
+   is ADR-0008's bounded work, measured, so past it the result stays an error and never a
+   partial total. `acrossSubtree` counts the descendants against the same limit.
+5. **`hierarchy-too-wide` is retired.** Nothing refuses with it; the MCP whitelist and the
+   Workbench's definitive-refusal list no longer name it.
+6. **A read-only file** walks its snapshot with the same `NendoTreeWalk`, seeking in sibling
+   lists built once per snapshot and record type, and its `descendantOf` has no bound either.
+
+Evidence: `HierarchyTreePagingTests` (four Engine tests) and the bound test in
+`HierarchyTests`, renamed for what it now says. Every page size from 1 to 200, from the top
+and under three roots at depths 1 to 32, reads the tree a reference walk builds from the same
+records — negative, equal and missing orders, a level of 45 under one parent, a branch deeper
+than asked — and so does the read-only walk. A whole read of 3,000 records under one root in
+pages of 50 seeks 4,363 rows; a walk that restarts at the first record each page and skips
+what it has shown (the old shape) failed it with `A whole read of 3000 records in 60 pages
+sought 158323 rows`. Putting back the refusals failed the move among 10,002 siblings
+(`FALSIFY: more than 10000 records share this parent.`) and the whole-subtree count of 10,002
+(`FALSIFY: more than 10000 records sit under the root.`), and removing the index from the
+declaring mutation failed `Expected:<parent_id,ord,__nendo_record_id>. Actual:<>`.
+
+Also seen in the run, and not changed here: a `HierarchyPath` page of 100 on the 98,000 tree
+took 149 / 286 ms, because a path counts the siblings before the record at each level and the
+spine's levels are wide; and a whole-file snapshot with a subtree Count on every record was
+left out at 98,000, as a run of its own.
+
 ## Consequences
 
 ### Positive
@@ -525,7 +620,9 @@ smaller run fits, which is the dense level this stage first measured. The move's
 
 ## Revisit triggers
 
-- The cost experiment misses its targets at 10,000 records or depth 32.
+- The cost experiment misses its targets at 10,000 records or depth 32, or a whole tree read
+  at 98,000 stops growing in line with what it returns.
+- The file's own row bound moves (ADR-0012), so a tree can grow past 98,000 records.
 - A real application needs two hierarchies on one entity, or several parents.
 - Unique generated codes (W-074) need something this decision does not provide.
 - Authors need a filtered outline, or an outline across two record types.

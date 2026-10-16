@@ -145,6 +145,7 @@ internal sealed partial class SqliteNendoStore
             delete.Parameters.AddWithValue("@entity", entity.EntityId);
             await delete.ExecuteNonQueryAsync(ct);
         }
+        await NonQueryAsync($"DROP INDEX IF EXISTS {Quote(TreeIndexName(entity))};", transaction, ct);
         return new OperationEvidence(operation, Evidence(new
         {
             previousParentFieldId = removed.ParentFieldId,
@@ -154,6 +155,32 @@ internal sealed partial class SqliteNendoStore
         {
             RequiredHostVersion = NendoFormat.HierarchyMinimumHostVersion,
         };
+    }
+
+    private static string TreeIndexName(EntityMapping entity) => $"nendo_tree_{entity.PhysicalTableName}";
+
+    /// <summary>
+    /// The index a tree read seeks siblings by (ADR-0019, 2026-10-16 amendment): parent, order,
+    /// record ID, so the children after one sibling are one range. Outside the protected
+    /// namespace, as reference and link indexes are, and dropped with the declaration. A
+    /// hierarchy without an order field needs none: the reference index is (parent, record ID).
+    /// Created when the declaring mutation materializes, so a table or field added in the same
+    /// mutation has its columns by then. A file declared before the amendment has none until it is
+    /// declared again, and its ordered levels are sorted per seek, never refused.
+    /// </summary>
+    private async Task EnsureTreeIndexAsync(EntityMapping entity, NendoHierarchy hierarchy, SqliteTransaction transaction, CancellationToken ct)
+    {
+        if (hierarchy.OrderFieldId is not { } orderId) return;
+        var table = entity.PhysicalTableName;
+        var parent = entity.Fields.Single(field => field.FieldId == hierarchy.ParentFieldId);
+        var order = entity.Fields.Single(field => field.FieldId == orderId);
+        if (!await TableExistsAsync(table, transaction, ct) ||
+            !await ColumnExistsAsync(table, parent.PhysicalColumnName, transaction, ct) ||
+            !await ColumnExistsAsync(table, order.PhysicalColumnName, transaction, ct)) return;
+        await NonQueryAsync(
+            $"CREATE INDEX IF NOT EXISTS {Quote(TreeIndexName(entity))} ON {Quote(table)}" +
+            $"({Quote(parent.PhysicalColumnName)}, {Quote(order.PhysicalColumnName)}, {Quote("__nendo_record_id")});",
+            transaction, ct);
     }
 
     private static RemoveHierarchyOperation CreateDeclareHierarchyInverse(string canonicalJson, string evidenceJson, string key)

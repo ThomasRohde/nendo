@@ -376,7 +376,7 @@ internal sealed partial class SqliteNendoStore
                 $"WHERE {Quote(parent.PhysicalColumnName)} = @recordId UNION ALL " +
                 $"SELECT n.{Quote("__nendo_record_id")}, sub.d + 1 FROM {Quote(owner.PhysicalTableName)} n " +
                 $"JOIN sub ON n.{Quote(parent.PhysicalColumnName)} = sub.id WHERE sub.d < {NendoHierarchyLimits.MaximumDepth}) ";
-            var bound = NendoHierarchyLimits.MaximumDescendants;
+            var bound = NendoHierarchyLimits.MaximumAggregatedDescendants;
             string sql;
             FieldMapping? member;
             if (binding.Kind == NendoBindingKind.SubtreeAggregate)
@@ -396,10 +396,10 @@ internal sealed partial class SqliteNendoStore
                 member = memberId is null ? null : Locate(binding.RelatedEntityId!, memberId).Field;
                 RequireCalculator(binding);
                 var selection = member is null ? "1" : $"r.{Quote(member.PhysicalColumnName)}";
-                // The descendants are bounded too, as the subtree form, the tree read and
-                // descendantOf bound them (ADR-0019 point 7): the limit counts only the related
-                // rows, so a subtree of 20,000 records with three links was answered while every
-                // other read of it was refused (R2AAV-06). The count joins the same walk, one
+                // The descendants are bounded too, as the subtree form bounds them (ADR-0019
+                // point 7): the limit counted only the related rows, so a subtree of 20,000 records
+                // with three links was answered while every other aggregate of it was an error
+                // (R2AAV-06). The count joins the same walk, one
                 // statement and one materialised subtree, and comes back on every row; with no
                 // related row, or past the bound, it comes back alone on a row with no record.
                 sql = $"{subtree}, bound(n) AS (SELECT COUNT(*) FROM (SELECT 1 FROM sub LIMIT @descendants)) " +
@@ -418,7 +418,7 @@ internal sealed partial class SqliteNendoStore
             await using var command = store.Command(sql, transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             command.Parameters.AddWithValue("@limit", (long)bound + 1);
-            var descendantBound = binding.Kind == NendoBindingKind.SubtreeAggregate ? (int?)null : NendoHierarchyLimits.MaximumDescendants;
+            var descendantBound = binding.Kind == NendoBindingKind.SubtreeAggregate ? (int?)null : NendoHierarchyLimits.MaximumAggregatedDescendants;
             if (descendantBound is { } maximum)
             {
                 command.Parameters.AddWithValue("@descendants", (long)maximum + 1);

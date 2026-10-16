@@ -45,6 +45,7 @@ internal sealed class NendoQueryCursor
             throw new NendoPreconditionException("invalid-limit", "A page must request between 1 and 200 items.");
     }
 
-    private static NendoPreconditionException Invalid() => new("invalid-cursor", "The continuation does not belong to this open file and query.");
+    /// <summary>The refusal of a continuation this open file and query did not issue; a tree read that cannot resume one says the same.</summary>
+    internal static NendoPreconditionException Invalid() => new("invalid-cursor", "The continuation does not belong to this open file and query.");
     private sealed record Position(string ApplicationId, string InstanceId, long ChangeSequence, string Scope, string After);
 }

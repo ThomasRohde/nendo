@@ -12,8 +12,18 @@ namespace Nendo.Engine.Tests;
 // writes go through the coordinator, so they carry versions, history and inverse evidence.
 public static class ReviewHierarchyCostFixture
 {
-    private const int NodeCount = 10_000, LinkCount = 5_000, MaxDepth = 32, WideChildren = 1_000;
-    private const int Warmups = 3, Samples = 30;
+    private const int MaxDepth = 32;
+    private const int Warmups = 3;
+
+    // Stage 1 ran at 10,000 records with a node of 1,000 children. The 2026-10-16 amendment also
+    // runs it at the file's own bound: a file holds at most 100,000 operation rows and refuses a
+    // write from 99,000 (SqliteNendoStore.WriteCeilingRows), and every create is a row, so 98,000
+    // nodes and 500 links leave room for the writes measured afterwards. There the wide node
+    // holds 20,000 children, more than the old bound let a move read; the whole-level renumber
+    // (20,000 rows a round) does not fit and is measured at 10,000 only, and the walks that
+    // re-sort the whole subtree take fewer samples.
+    private const int LargeNodeCount = 98_000;
+    private static int NodeCount = 10_000, LinkCount = 5_000, WideChildren = 1_000, Samples = 30, SlowSamples = 30;
 
     // Pre-registered targets (ADR-0019, Evidence and validation obligations): every read within
     // the 150 ms bounded-read target of ADR-0003; the cycle check adds at most 2 ms to a save of
@@ -29,10 +39,26 @@ public static class ReviewHierarchyCostFixture
         ["calculatedPage"] = 150, ["calculatedTreeWindow"] = 150, ["calculatedSnapshot"] = 10_000,
         // ADR-0020 stage 3: a HierarchyPath column instead of the subtree Count.
         ["pathPage"] = 150, ["pathDeepestRecord"] = 150,
+        // 2026-10-16 amendment. The walk as stage 3 built it, run as SQL so it reads past the old
+        // bound: every page re-walks and re-sorts the subtree, then cuts by OFFSET. The figures
+        // without a target of their own are recorded against the bounded-read target or, for a
+        // whole read, against the one-second declaration scan target.
+        ["positionWalkPageFirst"] = 150, ["positionWalkPageLast"] = 150, ["positionWalkFullRead"] = 1_000,
+        ["descendantPageRootUnbounded"] = 150, ["subtreeAggregateRootUnbounded"] = 150,
+        // The same reads through the service, as the host serves them.
+        ["treeFirstPage"] = 150, ["treeLastPage"] = 150, ["treeFullRead"] = 1_000, ["treeWideSiblingsFullRead"] = 1_000,
+        ["descendantOfPageRoot"] = 150, ["descendantOfCountRoot"] = 150, ["moveAmongWideSiblings"] = 150,
     };
 
-    public static async Task<string> RunAsync(string filePath)
+    public static Task<string> RunAsync(string filePath) => RunAsync(filePath, 10_000);
+
+    public static async Task<string> RunAsync(string filePath, int nodeCount)
     {
+        if (nodeCount is not (10_000 or LargeNodeCount)) throw new ArgumentOutOfRangeException(nameof(nodeCount), "Run at 10,000 or 98,000 records.");
+        NodeCount = nodeCount;
+        LinkCount = nodeCount == 10_000 ? 5_000 : 500;
+        WideChildren = nodeCount == 10_000 ? 1_000 : 20_000;
+        SlowSamples = nodeCount == 10_000 ? 30 : 3;
         var repo = ReviewOutcomeChildDriver.RepositoryRoot();
         var artifactRoot = Path.GetFullPath(Path.Combine(repo, "artifacts")) + Path.DirectorySeparatorChar;
         var path = Path.GetFullPath(filePath);
@@ -103,7 +129,8 @@ public static class ReviewHierarchyCostFixture
         var tree = new Tree();
         var random = new Random(19);
         var serial = 0;
-        string Next() => $"node-{serial++:D5}";
+        var width = NodeCount > 99_999 ? 6 : 5;
+        string Next() => $"node-{(serial++).ToString(new string('0', width), System.Globalization.CultureInfo.InvariantCulture)}";
 
         tree.RootA = Next(); tree.Add(tree.RootA, null);
         tree.RootB = Next(); tree.Add(tree.RootB, null);
@@ -151,10 +178,12 @@ public static class ReviewHierarchyCostFixture
         // Parents come before their children, so every reference names a record that exists at
         // version 1 when it is written.
         var creates = new List<NendoOperation>(NodeCount);
+        var positions = tree.Children.Values.SelectMany(children => children.Select((child, index) => (child, index)))
+            .ToDictionary(pair => pair.child, pair => pair.index);
         foreach (var id in tree.Order)
         {
             var parent = tree.Parent[id];
-            var position = parent is null ? 0 : tree.Children[parent].IndexOf(id);
+            var position = parent is null ? 0 : positions[id];
             var number = int.Parse(id[5..]);
             creates.Add(new CreateRecordOperation($"c-{id}", "node", id, new Dictionary<string, object?>
             {
@@ -171,10 +200,18 @@ public static class ReviewHierarchyCostFixture
                 new Dictionary<string, object?> { ["label"] = $"Link {i}", ["node"] = target },
                 new Dictionary<string, long> { ["node"] = 1 }));
         }
-        await coordinator.ApplyChangeSetAsync(new([
-            new("hierarchy-cost", "nodes", "experiment", "The tree", creates),
-            new("hierarchy-cost", "links", "experiment", "Links into the tree", links),
-        ]), $"proposal-{Guid.NewGuid():N}");
+        if (creates.Count <= 10_000)
+        {
+            await coordinator.ApplyChangeSetAsync(new([
+                new("hierarchy-cost", "nodes", "experiment", "The tree", creates),
+                new("hierarchy-cost", "links", "experiment", "Links into the tree", links),
+            ]), $"proposal-{Guid.NewGuid():N}");
+            return;
+        }
+        for (var start = 0; start < creates.Count; start += 10_000)
+            await coordinator.ApplyAsync(new("hierarchy-cost", $"nodes-{start}", "experiment", "The tree",
+                creates.Skip(start).Take(10_000).ToList()));
+        await coordinator.ApplyAsync(new("hierarchy-cost", "links", "experiment", "Links into the tree", links));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -252,6 +289,156 @@ public static class ReviewHierarchyCostFixture
               SELECT n.__nendo_record_id, down.d + 1 FROM node n JOIN down ON n.parent_id = down.id WHERE down.d < 33)
             SELECT (SELECT count(*) FROM node) - count(*), max(d) FROM down;
             """, samples: 10);
+
+        // The same folds without the 10,001-row cut, to see what lifting the bound would cost.
+        results["descendantPageRootUnbounded"] = Time(connection, subtree + """
+            SELECT n.__nendo_record_id, n.title FROM sub JOIN node n ON n.__nendo_record_id = sub.id
+            ORDER BY n.__nendo_record_id LIMIT 100;
+            """, SlowSamples, ("@root", tree.RootA));
+        results["subtreeAggregateRootUnbounded"] = Time(connection, subtree + """
+            SELECT count(*), sum(n.cost), sum(n.flag) FROM sub JOIN node n ON n.__nendo_record_id = sub.id;
+            """, SlowSamples, ("@root", tree.RootA));
+
+        // The tree read as stage 3 built it (SqliteNendoStore.HierarchyReads until 2026-10-16):
+        // a path per row, the whole subtree sorted by it, and the page cut by OFFSET.
+        const string segment = """
+            CASE WHEN {0}.ord IS NULL THEN 'z'
+                 WHEN {0}.ord < 0 THEN 'a' || printf('%019d', 9223372036854775807 + {0}.ord)
+                 ELSE 'b' || printf('%019d', {0}.ord) END || char(2) || {0}.__nendo_record_id || char(1)
+            """;
+        var positionWalk = $"""
+            WITH RECURSIVE walk(id, d, path) AS (
+              SELECT t.__nendo_record_id, 1, {string.Format(segment, "t")} FROM node t WHERE t.parent_id = @root
+              UNION ALL
+              SELECT n.__nendo_record_id, walk.d + 1, walk.path || {string.Format(segment, "n")} FROM node n JOIN walk ON n.parent_id = walk.id WHERE walk.d < 32)
+            SELECT source_record.__nendo_record_id, source_record.title, source_record.ord, source_record.cost, source_record.flag, walk.d,
+                   (SELECT count(*) FROM node child WHERE child.parent_id = source_record.__nendo_record_id)
+            FROM walk JOIN node source_record ON source_record.__nendo_record_id = walk.id
+            ORDER BY walk.path LIMIT 201 OFFSET @offset;
+            """;
+        var under = tree.Descendants(tree.RootA).Count;
+        results["positionWalkPageFirst"] = Time(connection, positionWalk, SlowSamples, ("@root", tree.RootA), ("@offset", 0));
+        results["positionWalkPageLast"] = Time(connection, positionWalk, SlowSamples, ("@root", tree.RootA), ("@offset", Math.Max(0, under - 200)));
+        var full = new List<double>();
+        var read = 0;
+        for (var sample = 0; sample < (NodeCount == 10_000 ? 5 : 1); sample++)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = positionWalk;
+            command.Parameters.AddWithValue("@root", tree.RootA);
+            var offset = command.Parameters.AddWithValue("@offset", 0);
+            var watch = Stopwatch.StartNew();
+            read = 0;
+            for (var start = 0; ; start += 200)
+            {
+                offset.Value = start;
+                var rows = 0;
+                using (var reader = command.ExecuteReader()) while (reader.Read()) rows++;
+                read += Math.Min(rows, 200);
+                if (rows <= 200) break;
+            }
+            full.Add(watch.Elapsed.TotalMilliseconds);
+        }
+        results["positionWalkFullRead"] = Summarise(full, $"{read} rows in pages of 200");
+        return results;
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Reads through the service, as Studio, the view API and MCP reach them. A refusal is an
+    // answer: before the 2026-10-16 amendment each of these was refused past 10,000 records.
+
+    private static async Task<Dictionary<string, Measure>> MeasureServiceReadsAsync(NendoApplicationService service, Tree tree)
+    {
+        var results = new Dictionary<string, Measure>();
+        async Task<Measure> TimeAsync(Func<Task<string>> read, int samples, int warmups = Warmups)
+        {
+            var taken = new List<double>();
+            var answer = "";
+            for (var i = 0; i < warmups + samples; i++)
+            {
+                var watch = Stopwatch.StartNew();
+                try { answer = await read(); }
+                catch (NendoPreconditionException refused) { answer = $"refused: {refused.Code}"; }
+                watch.Stop();
+                if (i >= warmups) taken.Add(watch.Elapsed.TotalMilliseconds);
+            }
+            return Summarise(taken, answer);
+        }
+
+        // A whole read, page by page, with the time of its last page and a check of the order:
+        // every node once, after its parent, one level below it, and siblings in (order, ID) order.
+        var lastPages = new List<double>();
+        async Task<string> ReadAllAsync(string root, int depth, bool keepLast)
+        {
+            var seen = new Dictionary<string, (int Depth, string? Parent)>(StringComparer.Ordinal);
+            var lastChild = new Dictionary<string, (long? Order, string Id)>(StringComparer.Ordinal);
+            var ordered = true;
+            string? cursor = null;
+            var pages = 0;
+            double last = 0;
+            do
+            {
+                var watch = Stopwatch.StartNew();
+                var page = await service.TreeRecordsAsync(new("node", root, depth, 200, cursor));
+                last = watch.Elapsed.TotalMilliseconds;
+                pages++;
+                foreach (var node in page.Items)
+                {
+                    var parent = node.ParentRecordId ?? "";
+                    var expectedDepth = parent == root ? 1 : seen.TryGetValue(parent, out var up) ? up.Depth + 1 : -1;
+                    long? order = node.Record.Values.GetValueOrDefault("order") is { ValueKind: JsonValueKind.Number } value ? value.GetInt64() : null;
+                    if (lastChild.TryGetValue(parent, out var previous) &&
+                        (previous.Order is null ? order is not null || string.CompareOrdinal(previous.Id, node.Record.RecordId) >= 0
+                            : order is not null && (order < previous.Order || (order == previous.Order && string.CompareOrdinal(previous.Id, node.Record.RecordId) >= 0))))
+                        ordered = false;
+                    if (expectedDepth != node.Depth || !seen.TryAdd(node.Record.RecordId, (node.Depth, node.ParentRecordId))) ordered = false;
+                    lastChild[parent] = (order, node.Record.RecordId);
+                }
+                cursor = page.NextCursor;
+            } while (cursor is not null);
+            if (keepLast) lastPages.Add(last);
+            return $"{seen.Count} nodes in {pages} pages; depth-first and in sibling order: {ordered}";
+        }
+
+        var under = tree.Descendants(tree.RootA).Count;
+        results["treeFirstPage"] = await TimeAsync(async () =>
+        {
+            var page = await service.TreeRecordsAsync(new("node", tree.RootA, MaxDepth, 200));
+            return $"{page.Items.Count} nodes; first {page.Items[0].Record.RecordId}";
+        }, Samples);
+        results["treeFullRead"] = await TimeAsync(() => ReadAllAsync(tree.RootA, MaxDepth, keepLast: true),
+            NodeCount == 10_000 ? 5 : 3, warmups: 1);
+        results["treeFullRead"] = results["treeFullRead"] with
+        {
+            Answer = results["treeFullRead"].Answer + $" (expected {under})",
+        };
+        results["treeLastPage"] = lastPages.Count == 0 ? new Measure(0, 0, 0, results["treeFullRead"].Answer)
+            : Summarise(lastPages.Skip(1).ToList() is { Count: > 0 } kept ? kept : lastPages, "the last page of each whole read");
+        results["treeWideSiblingsFullRead"] = await TimeAsync(() => ReadAllAsync(tree.Wide, 1, keepLast: false),
+            NodeCount == 10_000 ? 5 : 3, warmups: 1);
+
+        var descendant = new NendoRecordFilter("parent", "descendantOf", JsonSerializer.SerializeToElement(tree.RootA));
+        results["descendantOfPageRoot"] = await TimeAsync(async () =>
+        {
+            var page = await service.QueryRecordsAsync(new("node", 100) { Filters = [descendant] });
+            return $"{page.Items.Count} records; first {page.Items[0].RecordId}";
+        }, SlowSamples);
+        results["descendantOfCountRoot"] = await TimeAsync(async () =>
+            $"{(await service.CountRecordsAsync(new("node") { Filters = [descendant] })).Count} under the root (expected {under})", SlowSamples);
+
+        // Move one of the wide node's children back and forth among its siblings.
+        var wide = tree.Children[tree.Wide];
+        var moving = wide[10];
+        var version = (await service.QueryRecordsAsync(new("node", 1) { RecordId = moving })).Items.Single().RecordVersion;
+        var round = 0;
+        results["moveAmongWideSiblings"] = await TimeAsync(async () =>
+        {
+            var before = round % 2 == 0 ? wide[wide.Count / 2] : wide[11];
+            var moved = await service.MoveRecordAsync(new("node", moving, version, tree.Wide, 1, before,
+                new("hierarchy-cost", $"move-wide-{round++}", "experiment")));
+            version = moved.RecordVersion ?? version;
+            return $"{wide.Count} siblings; wrote {moved.TouchedRecordIds.Count} record(s)";
+        }, SlowSamples);
         return results;
     }
 
@@ -319,7 +506,7 @@ public static class ReviewHierarchyCostFixture
         var siblings = tree.Children[tree.Wide].Where(id => id != leaf).ToList();
         var versions = siblings.ToDictionary(id => id, _ => 1L);
         timings = [];
-        for (var round = 0; round < 5; round++)
+        for (var round = 0; round < (NodeCount == 10_000 ? 5 : 0); round++)
         {
             var operations = siblings.Select((id, index) => (NendoOperation)new SetFieldOperation(
                 $"r-{round}-{index}", "node", id, "order", versions[id], (long)((index + 1) * 1024 + round))).ToList();
@@ -329,7 +516,7 @@ public static class ReviewHierarchyCostFixture
             foreach (var id in siblings) versions[id]++;
             timings.Add(watch.Elapsed.TotalMilliseconds);
         }
-        results["renumberWideSiblings"] = Summarise(timings, $"{siblings.Count} siblings per revision, 5 rounds");
+        if (timings.Count > 0) results["renumberWideSiblings"] = Summarise(timings, $"{siblings.Count} siblings per revision, 5 rounds");
 
         // Declared, with a calculation that counts each record's whole subtree: every read that
         // returns records now walks one subtree per record.
@@ -337,6 +524,7 @@ public static class ReviewHierarchyCostFixture
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await coordinator.ApplyAsync(new("hierarchy-cost", "declare", "experiment", "Declare",
             [new DeclareHierarchyOperation("declare-node", "node", "parent", "order", revision)]));
+        foreach (var (key, value) in await MeasureServiceReadsAsync(service, tree)) results[key] = value;
         await coordinator.ApplyAsync(new("hierarchy-cost", "inside", "experiment", "Count each subtree",
             [new SetBehaviourDefinitionOperation("inside-node", new NendoCalculationDefinition("node.inside", "node", "inside", "Inside",
                 NendoBehaviourScalar.Integer, false, "v", [NendoBehaviourBinding.Subtree("v", "node", NendoAggregateFunction.Count)]), revision + 1)]));
@@ -365,7 +553,8 @@ public static class ReviewHierarchyCostFixture
             var page = await service.TreeRecordsAsync(new("node", tree.RootA, 2, 100));
             return $"{page.Items.Count} nodes; first inside {Inside(page.Items[0].Record)}";
         }, Samples);
-        results["calculatedSnapshot"] = await TimeAsync(async () =>
+        // A whole-file snapshot counts every record's subtree; at 100,000 records that is a run of its own.
+        if (NodeCount == 10_000) results["calculatedSnapshot"] = await TimeAsync(async () =>
         {
             var snapshot = await service.GetSnapshotAsync();
             return $"{snapshot.Records.Count} records; root inside {Inside(snapshot.Records.Single(record => record.RecordId == tree.RootA))}";

@@ -14,8 +14,13 @@ public static class NendoHierarchyLimits
     /// <summary>The deepest a record may sit: a top-level record is at depth 1.</summary>
     public const int MaximumDepth = 32;
 
-    /// <summary>The most descendants a subtree read or aggregate folds before it refuses.</summary>
-    public const int MaximumDescendants = 10_000;
+    /// <summary>
+    /// The most descendants a subtree aggregate folds before it is an error rather than a partial
+    /// total. A calculation runs for every record a read returns, so this bounds a page's work.
+    /// Until the 2026-10-16 amendment the tree read, <c>descendantOf</c> and a move's sibling
+    /// list were refused past the same number; they have no bound of their own now.
+    /// </summary>
+    public const int MaximumAggregatedDescendants = 10_000;
 
     /// <summary>The spacing a move leaves between sibling order values, so most moves write one record.</summary>
     public const long OrderGap = 1024;

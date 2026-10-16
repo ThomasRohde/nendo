@@ -10,6 +10,9 @@ public sealed partial class NendoWriteCoordinator
     /// <summary>How many rows filtered reads asked a filter function about (PERF-02); a test reads it.</summary>
     internal long FilterCallbacks => _store?.FilterCallbacks ?? 0;
 
+    /// <summary>How many sibling rows tree reads' seeks returned (ADR-0019, 2026-10-16); a test reads it.</summary>
+    internal long TreeRowsSought => _store?.TreeRowsSought ?? 0;
+
     /// <summary>How many tables the commit checks counted (PERF-08); a test reads it.</summary>
     internal long CommitTableCounts => _store?.CommitTableCounts ?? 0;
 

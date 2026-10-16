@@ -1020,7 +1020,7 @@ public sealed record NendoAuthoringLimits(
             NendoExtensionLimits.PathCharacters,
             NendoExtensionLimits.PackageIdCharacters,
             PutFilePayloadBytes: 96 * 1024),
-        Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumDescendants, NendoHierarchyLimits.OrderGap),
+        Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumAggregatedDescendants, NendoHierarchyLimits.OrderGap),
         Import = new(RowsPerCall: 500, RowsPerBatch: NendoApplicationService.MaximumBatchRecords),
         // As large as the request body (R2AP-03): the person's forms, Studio, a view and the
         // native import store values of any size, and an agent that read one back must be able
@@ -1090,10 +1090,11 @@ public sealed record NendoImportAuthoringLimits(int RowsPerCall, int RowsPerBatc
 
 /// <summary>
 /// The bounds a declared hierarchy keeps, as <see cref="NendoHierarchyLimits"/> enforces them: the
-/// deepest a record may sit (a top-level record is at depth 1), the most records one subtree read
-/// or one parent's sibling list holds, and the spacing a move leaves between sibling order values.
+/// deepest a record may sit (a top-level record is at depth 1), the most descendants one subtree
+/// aggregate folds, and the spacing a move leaves between sibling order values. A tree read,
+/// <c>descendantOf</c> and a move have no size bound of their own.
 /// </summary>
-public sealed record NendoHierarchyAuthoringLimits(int MaximumDepth, int MaximumDescendants, long OrderGap);
+public sealed record NendoHierarchyAuthoringLimits(int MaximumDepth, int MaximumAggregatedDescendants, long OrderGap);
 
 /// <summary>
 /// The bounds a custom-view package keeps, as <see cref="NendoExtensionLimits"/> enforces them:
