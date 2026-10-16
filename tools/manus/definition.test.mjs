@@ -38,5 +38,5 @@ test('the fixture reads as a manuscript with its Cuttings left out of the sheet'
   const m = readManuscript(items);
   assert.equal(m.root, 'b-root');
   assert.equal(m.cuttings, 'b-cuttings');
-  assert.equal(m.nodes.length, 8);
+  assert.equal(m.nodes.length, 9);
 });

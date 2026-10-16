@@ -54,6 +54,10 @@ button { cursor: pointer; }
 .sheet-text code { font-family: var(--mono); font-size: 0.85em; background: var(--soft); border-radius: 3px; padding: 0 3px; }
 .sheet-text p.is-empty:first-child::before, .sheet-text .is-empty::before { content: attr(data-placeholder); color: var(--muted); opacity: 0.6; float: left; height: 0; pointer-events: none; }
 .sheet-text ::selection { background: var(--accent-soft); }
+.sheet-text figure.picture { margin: 22px 0 18px; padding: 0 14px; }
+.sheet-text figure.picture img { display: block; width: 100%; height: auto; border-radius: 8px; }
+.sheet-text figure.picture.ProseMirror-selectednode img, .sheet-text figure.picture.ProseMirror-selectednode .picture-missing { outline: 2px solid var(--accent); outline-offset: 3px; }
+.picture-missing { font: 13px/1.4 var(--ui); color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 8px; padding: 28px 16px; text-align: center; }
 
 .overlays { position: absolute; inset: 0; pointer-events: none; }
 .overlays > * { pointer-events: auto; }

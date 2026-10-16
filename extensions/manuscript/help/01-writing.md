@@ -16,6 +16,10 @@ There is no Save button. A pause in your typing saves what changed, and the line
 
 `Ctrl` `B`, `Ctrl` `I` and `Ctrl` `E` mark the selected words bold, italic or as code. Each paragraph is kept as Markdown, which Studio shows formatted.
 
+## Pictures
+
+A paragraph that is a single picture, written as `![description](address)` in Studio or by an agent, shows as the picture. Click it to select it; Delete removes it, and Enter adds a paragraph after it.
+
 ## Notes, links and cuttings
 
 Select a few words in a paragraph and a small bar appears over them:

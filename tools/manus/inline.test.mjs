@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Lexer } from '../../extensions/manuscript/vendor/editor.js';
-import { inlineToMarkdown, markdownToInline } from '../../extensions/manuscript/inline.mjs';
+import { inlineToMarkdown, markdownToInline, pictureOf, pictureMarkdown } from '../../extensions/manuscript/inline.mjs';
 
 const t = (text, ...marks) => marks.length ? { type: 'text', text, marks: marks.map(type => ({ type })) } : { type: 'text', text };
 const roundTrip = content => markdownToInline(inlineToMarkdown(content), Lexer);
@@ -37,4 +37,13 @@ test('Markdown written elsewhere keeps its characters when it is not inline synt
   assert.deepEqual(markdownToInline('one\n\ntwo', Lexer), [t('one'), { type: 'hardBreak' }, t('two')]);
   assert.deepEqual(markdownToInline('soft\nwrap', Lexer), [t('soft wrap')]);
   assert.deepEqual(markdownToInline('', Lexer), []);
+});
+
+test('a block that is one picture reads as that picture, and writes back as it was named', () => {
+  const address = `media:${'0f'.repeat(32)}`;
+  assert.deepEqual(pictureOf(`![Milo at the window](${address})`), { alt: 'Milo at the window', address });
+  assert.deepEqual(pictureOf(pictureMarkdown('a [bracketed] alt', address)), { alt: 'a [bracketed] alt', address });
+  assert.equal(pictureOf(`See ![x](${address}) here`), null);
+  assert.equal(pictureOf('plain words'), null);
+  assert.deepEqual(pictureOf('![](https://example.org/a.png)'), { alt: '', address: 'https://example.org/a.png' });
 });

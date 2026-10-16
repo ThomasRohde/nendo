@@ -3,11 +3,11 @@
 // part before the caret and gives the rest a new one; joining two keeps the first; turning a
 // paragraph into a heading keeps its ID; pasted text arrives as new blocks, never as a second
 // copy of an existing one.
-import { Editor, Extension, StarterKit, Placeholder, Plugin, PluginKey, Lexer } from './vendor/editor.js';
+import { Editor, Extension, Node, StarterKit, Placeholder, Plugin, PluginKey, Lexer } from './vendor/editor.js';
 import { levelOf, kindOf, newBlockId } from './model.mjs';
-import { inlineToMarkdown, markdownToInline } from './inline.mjs';
+import { inlineToMarkdown, markdownToInline, pictureOf, pictureMarkdown } from './inline.mjs';
 
-const TYPES = ['paragraph', 'heading'];
+const TYPES = ['paragraph', 'heading', 'picture'];
 const random = () => {
   const bytes = new Uint8Array(1);
   crypto.getRandomValues(bytes);
@@ -66,6 +66,8 @@ const BlockIds = Extension.create({
 });
 
 function nodeJSON(n) {
+  const picture = levelOf(n.kind) ? null : pictureOf(n.text);
+  if (picture) return { type: 'picture', attrs: { blockId: n.id, address: picture.address, alt: picture.alt } };
   const content = markdownToInline(n.text, Lexer);
   const level = levelOf(n.kind);
   return level
@@ -74,10 +76,71 @@ function nodeJSON(n) {
 }
 
 /**
+ * A block whose text is one picture. It is an atom: selected whole, deleted whole, never typed
+ * into. `resolve(address)` answers where an img can load it, or null.
+ */
+function pictureNode(resolve) {
+  return Node.create({
+    name: 'picture',
+    group: 'block',
+    atom: true,
+    selectable: true,
+    draggable: false,
+    addAttributes() {
+      return {
+        address: { default: null, parseHTML: element => element.getAttribute('data-address') },
+        alt: { default: '', parseHTML: element => element.getAttribute('data-alt') ?? '' },
+      };
+    },
+    parseHTML() { return [{ tag: 'figure[data-address]' }]; },
+    renderHTML({ node }) { return ['figure', { 'data-address': node.attrs.address, 'data-alt': node.attrs.alt, class: 'picture' }]; },
+    addNodeView() {
+      return ({ node }) => {
+        const figure = document.createElement('figure');
+        figure.className = 'picture';
+        figure.dataset.block = node.attrs.blockId ?? '';
+        figure.contentEditable = 'false';
+        const show = attrs => {
+          figure.dataset.block = attrs.blockId ?? '';
+          figure.replaceChildren();
+          const missing = () => {
+            const note = document.createElement('div');
+            note.className = 'picture-missing';
+            note.textContent = `Picture not found${attrs.alt ? `: ${attrs.alt}` : ''}`;
+            figure.replaceChildren(note);
+          };
+          Promise.resolve(resolve(attrs.address)).then(url => {
+            if (!url) { missing(); return; }
+            const img = document.createElement('img');
+            img.alt = attrs.alt ?? '';
+            img.decoding = 'async';
+            img.addEventListener('error', missing, { once: true });
+            img.src = url;
+            figure.replaceChildren(img);
+          }, missing);
+        };
+        show(node.attrs);
+        let current = node;
+        return {
+          dom: figure,
+          update(next) {
+            if (next.type.name !== 'picture') return false;
+            if (next.attrs.address !== current.attrs.address || next.attrs.alt !== current.attrs.alt) show(next.attrs);
+            else figure.dataset.block = next.attrs.blockId ?? '';
+            current = next;
+            return true;
+          },
+        };
+      };
+    },
+  });
+}
+
+/**
  * Makes the sheet in `element`. `onChange` hears every edit; `onSelect` hears where the
  * selection is: {id, index, empty, single} for the block it starts in.
  */
-export function createSheet({ element, editable, onChange, onSelect, placeholder }) {
+export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null }) {
   const editor = new Editor({
     element,
     editable,
@@ -86,8 +149,11 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
         heading: { levels: [1, 2, 3] },
         blockquote: false, bulletList: false, orderedList: false, listItem: false, listKeymap: false,
         codeBlock: false, horizontalRule: false, link: false, underline: false,
+        // A trailing empty paragraph after a closing picture would be a new block written on open.
+        trailingNode: false,
       }),
       Placeholder.configure({ placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : placeholder, showOnlyCurrent: true }),
+      pictureNode(resolvePicture),
       BlockIds,
     ],
     content: { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: freshId() } }] },
@@ -100,11 +166,12 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
   editor.on('selectionUpdate', () => onSelect?.(where()));
   editor.on('focus', () => onSelect?.(where()));
 
-  function signature(node) { return `${node.type.name}:${node.attrs.level ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`; }
+  function signature(node) { return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`; }
 
   function where() {
     const { selection } = editor.state;
     const { $from, $to } = selection;
+    if (selection.node && TYPES.includes(selection.node.type.name)) return { id: selection.node.attrs.blockId, index: $from.index(0), empty: false, single: true, pos: selection.from };
     if ($from.depth < 1) return null;
     const node = $from.node(1);
     return { id: node.attrs.blockId, index: $from.index(0), empty: selection.empty, single: $from.index(0) === $to.index(0), pos: $from.before(1) };
@@ -123,8 +190,8 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const nodes = [];
       editor.state.doc.forEach(node => {
         const id = node.attrs.blockId;
-        nodes.push({ id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph',
-          text: inlineToMarkdown(node.toJSON().content ?? []), changed: base.get(id) !== signature(node), signature: signature(node) });
+        const text = node.type.name === 'picture' ? pictureMarkdown(node.attrs.alt, node.attrs.address) : inlineToMarkdown(node.toJSON().content ?? []);
+        nodes.push({ id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph', text, changed: base.get(id) !== signature(node), signature: signature(node) });
       });
       return nodes;
     },

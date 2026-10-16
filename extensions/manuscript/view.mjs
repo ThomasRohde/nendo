@@ -38,7 +38,18 @@ const sheet = createSheet({
   placeholder: 'Write…',
   onChange: () => edited(),
   onSelect: where => selected(where),
+  resolvePicture,
 });
+
+// Where a picture's address loads from: the open file's media origin for an embedded one.
+const pictureUrls = new Map();
+function resolvePicture(address) {
+  if (!address) return null;
+  if (!pictureUrls.has(address)) {
+    pictureUrls.set(address, nendo.ready.then(() => nendo.has?.('media.describe') ? nendo.media.urlFor(address) : null).catch(() => null));
+  }
+  return pictureUrls.get(address);
+}
 window.manuscriptSheet = sheet;
 
 // ---------- Drafts, on this device ----------
@@ -240,7 +251,9 @@ async function flush() { await save(); if (state.problem) throw Error(state.prob
 
 function block(id) { return state.saved.get(id); }
 function preview(id, length = 70) {
-  const text = (sheet.locate(id)?.node.textContent ?? block(id)?.text ?? '').trim();
+  const node = sheet.locate(id)?.node;
+  if (node?.type.name === 'picture') return `Picture: ${node.attrs.alt || 'no description'}`;
+  const text = (node?.textContent ?? block(id)?.text ?? '').trim();
   return text.length > length ? `${text.slice(0, length - 1)}…` : text || '(empty)';
 }
 

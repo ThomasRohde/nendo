@@ -5,6 +5,20 @@
 // the characters they were written with, so nothing a block holds is lost when it is edited.
 
 const RANK = ['bold', 'italic', 'strike'];
+
+// A block whose whole text is one picture, `![alt](address)`, is a picture on the sheet.
+const PICTURE = /^!\[((?:[^\]\\]|\\.)*)\]\(\s*<?([^\s<>()]+)>?\s*\)$/;
+
+/** The picture a block's text is, or null: `{alt, address}`. */
+export function pictureOf(markdown) {
+  const match = PICTURE.exec((markdown ?? '').trim());
+  return match ? { alt: match[1].replace(/\\(.)/g, '$1'), address: match[2] } : null;
+}
+
+/** A picture as a block's text. */
+export function pictureMarkdown(alt, address) {
+  return `![${(alt ?? '').replace(/[\\[\]]/g, '\\$&')}](${address})`;
+}
 const DELIMITER = { bold: '**', italic: '*', strike: '~~' };
 
 /** Escapes what Markdown would otherwise read as syntax, inline or at the start of a block. */

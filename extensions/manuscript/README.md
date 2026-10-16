@@ -26,6 +26,9 @@ same records; the view keeps no copy of the manuscript in the file.
   Somebody else's change reloads the page when nothing is waiting to be saved.
 - Text not yet saved is kept in the view's own storage until it is, and put back when the view
   starts again if nothing it touched has changed since.
+- A block whose whole text is one picture, `![alt](media:…)` or a web address, is drawn as
+  that picture, from the open file's media origin, and selected or deleted whole; one that does
+  not load says *Picture not found* with its description.
 - Selecting words in a paragraph shows a bar: Link, Note, Keep as cutting, Copy for the agent.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the
   appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
@@ -36,8 +39,9 @@ same records; the view keeps no copy of the manuscript in the file.
   10,000 blocks, near the 500,000-word stress size of the design.
 - Every save writes one History row per block it changes; the file stops taking writes near
   100,000 rows until the person folds old history.
-- Lists, quotations, tables, pictures and inline links are not editable here yet; a block that
-  holds them from elsewhere keeps their characters.
+- Lists, quotations, tables and inline links are not editable here yet, and a picture can be
+  added only by writing its block elsewhere (Studio, an agent); a block that holds them keeps
+  their characters.
 - A cut and paste is a delete and a new paragraph, not a move. Undo after a save brings a
   deleted paragraph back under a new ID.
 

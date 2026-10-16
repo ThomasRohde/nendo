@@ -39,13 +39,18 @@ async page => {
   }));
   assert(opened.h1 === 'Part One' && JSON.stringify(opened.h2) === JSON.stringify(['The Tide Table', 'What the Bar Keeps']), `Headings by kind: ${JSON.stringify(opened)}`);
   assert(opened.em === 'Boat seen beyond the bar. No lights. Did not report.', `Inline Markdown did not render: ${JSON.stringify(opened)}`);
-  assert(!opened.blocks.includes('b-cuttings') && opened.blocks.length === 8 && opened.title === 'Low Water' && opened.overflow <= 1, `Opening sheet: ${JSON.stringify(opened)}`);
+  assert(!opened.blocks.includes('b-cuttings') && opened.blocks.length === 9 && opened.title === 'Low Water' && opened.overflow <= 1, `Opening sheet: ${JSON.stringify(opened)}`);
+  // A block that is one picture is drawn as a picture; without Nendo's media methods it says it cannot be found.
+  await frame.waitForFunction(() => document.querySelector('figure.picture[data-block="b-0502"] .picture-missing, figure.picture[data-block="b-0502"] img'), null, { timeout: 5000 })
+    .catch(async () => { throw Error(`No picture is drawn for a block that is one picture: ${await frame.evaluate(() => document.querySelector('[data-block="b-0502"]')?.outerHTML ?? 'no block b-0502')}`); });
+  const picture = await frame.evaluate(() => document.querySelector('figure.picture[data-block="b-0502"]').textContent);
+  assert(picture === 'Picture not found: The causeway at low water', `Picture block: ${picture}`);
   assert(opened.marks['b-0415'] === '2' && opened.marks['b-0501'] === '1', `Gutter counts must match the notes and links: ${JSON.stringify(opened.marks)}`);
   assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'Nendo refused the toolbar: ' + JSON.stringify(await page.evaluate(() => window.broker.chromeRefusals)));
   const toolbar = await page.evaluate(() => window.broker.toolbars.at(-1));
   assert(toolbar.items.some(i => i.id === 'style') && toolbar.items.some(i => i.id === 'outline') && toolbar.items.some(i => i.kind === 'text'), `Toolbar: ${JSON.stringify(toolbar)}`);
   assert((await batches()).length === 0, 'Opening the sheet wrote to the file.');
-  checks.push('opens as one page', 'gutter counts', 'toolbar in Nendo');
+  checks.push('opens as one page', 'picture blocks', 'gutter counts', 'toolbar in Nendo');
 
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
   await select('b-0414', 'end');
@@ -173,6 +178,7 @@ async page => {
   const narrow = await frame.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, bar: document.querySelector('.bar')?.getBoundingClientRect().right, width: innerWidth }));
   assert(narrow.overflow <= 1 && (narrow.bar === undefined || narrow.bar <= narrow.width + 1), `Narrow: ${JSON.stringify(narrow)}`);
   checks.push('Light/Dark', 'narrow layout');
+  assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, colours, narrow, errors };
 }

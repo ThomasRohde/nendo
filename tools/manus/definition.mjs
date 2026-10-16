@@ -83,6 +83,7 @@ const sample = [
   ['b-0416', 'Paragraph', 'b-ch-3', 'Agnes read it three times. Her grandfather had kept the light for twenty-two years and reported everything.'],
   ['b-ch-4', 'Chapter', 'b-part-1', 'What the Bar Keeps'],
   ['b-0501', 'Paragraph', 'b-ch-4', 'The causeway was dry by five.'],
+  ['b-0502', 'Paragraph', 'b-ch-4', `![The causeway at low water](media:${'ab'.repeat(32)})`],
   ['b-cuttings', 'Cuttings', 'b-root', 'Cuttings'],
 ];
 
