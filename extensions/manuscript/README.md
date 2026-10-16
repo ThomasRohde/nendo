@@ -30,6 +30,12 @@ same records; the view keeps no copy of the manuscript in the file.
   that picture, from the open file's media origin, and selected or deleted whole; one that does
   not load says *Picture not found* with its description. While writing it is a 168 by 112
   thumbnail with its description beside it; *Full width* under Appearance is the device's choice.
+- **Export** in Nendo's toolbar saves what is on the page, reads the manuscript as the file holds
+  it, and downloads it: *Markdown* as a `.md`, or a `.zip` with the `.md` and a `media/` folder
+  when it has pictures; *Word document* as a `.docx` with a Title, Heading 1 to 3, bold, italic,
+  strikethrough and code runs, and each picture at the text's width with its description as
+  alternative text. Cuttings, notes and links stay out. A picture that cannot go in stands as
+  its description and the view names it.
 - Selecting words in a paragraph shows a bar: Link, Note, Keep as cutting, Copy for the agent.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the
   appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
@@ -60,7 +66,8 @@ pwsh ./tools/Review-Manus.ps1
 `Build-Manus.mjs` builds only into an empty, newly created file and accepts only with
 `--accept` at Unattended. `Put-NendoPackage.mjs` updates the view in a file that has it. The
 package carries Tiptap 3.31.4 and marked 17.0.6, bundled by esbuild 0.28.2 into
-`vendor/editor.js`, with their licences in `vendor/THIRD-PARTY-NOTICES.txt`;
+`vendor/editor.js`, and docx 9.8.1 and JSZip 3.10.2 into `vendor/export.js`, loaded only when
+exporting, with every bundled package's licence in `vendor/THIRD-PARTY-NOTICES.txt`;
 `tools/manus/package-lock.json` pins the rebuild. No remote script or font is loaded.
 
 `Review-Manus.ps1` runs the unit tests (`tools/manus/*.test.mjs`) and the browser lane

@@ -5,8 +5,8 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output = Join-Path $repoRoot 'artifacts/manus'
 [void][IO.Directory]::CreateDirectory($output)
-& node --test tools/manus/model.test.mjs tools/manus/inline.test.mjs tools/manus/definition.test.mjs
-if ($LASTEXITCODE -ne 0) { throw 'Manuscript model, inline and definition checks failed.' }
+& node --test tools/manus/model.test.mjs tools/manus/inline.test.mjs tools/manus/definition.test.mjs tools/manus/export.test.mjs
+if ($LASTEXITCODE -ne 0) { throw 'Manuscript model, inline, definition and export checks failed.' }
 $runId = [Guid]::NewGuid().ToString('N')
 $infoPath = Join-Path $output "review-server-$runId.json"
 $server = Start-Process node -ArgumentList @('tools/Graph-FixtureServer.mjs', $infoPath, '../extensions/manuscript') -WindowStyle Hidden -PassThru

@@ -20,7 +20,7 @@ The owner chose design A, the **Quiet sheet**, from a canvas of six directions o
 to be built. It is built as section 3.1 recommends: an application in `workspace/Manus.nendo`
 and a custom view, `extensions/manuscript/`, with no host change (W-276). That answers Q-04 with
 its recommendation; Q-05 was taken as recommended, Markdown per block, and stays open to the
-owner. What the slice does and does not do is in the package's README; the measured lane is
+owner. Markdown and Word export (C-11) followed the same day, with the open-source docx and JSZip packages, which keeps Q-03's recommendation; a Word export of the sample book opened in Microsoft Word with its nine pictures. What the slice does and does not do is in the package's README; the measured lane is
 `tools/Review-Manus.ps1`, part of Test-Production. Building it found one more host bound, a
 hierarchy's 10,000 descendants (sections 10 and 13).
 

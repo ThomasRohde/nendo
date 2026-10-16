@@ -1,6 +1,8 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
 import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx } from './export.mjs';
+import { Lexer } from './vendor/editor.js';
 
 const nendo = window.nendo;
 const $ = id => document.getElementById(id);
@@ -167,6 +169,7 @@ async function save() {
       const root = state.saved.get(state.root);
       if (state.title !== state.savedTitle && root) plan.unshift({ op: 'update', entityId: BLOCK, recordId: state.root, version: root.version, values: { [F.text]: state.title || null }, refs: {} });
       state.firstEdit = 0;
+      state.saveError = null;
       if (!plan.length) { setStatus(state.savedAt ? `Saved ${clock(state.savedAt)}` : 'Up to date'); return; }
       setStatus('Saving…');
       for (const batch of chunkWrites(plan)) await send(batch);
@@ -176,7 +179,8 @@ async function save() {
       setStatus(`Saved ${clock(state.savedAt)}`);
       if (!pending()) dropDraft();
     } catch (error) {
-      state.problem = { text: refusalText(error), reload: true };
+      state.saveError = refusalText(error);
+      state.problem = { text: state.saveError, reload: true };
       setStatus('Not saved');
     } finally {
       if (state.saving === run) state.saving = null;
@@ -249,7 +253,8 @@ function changed() {
 
 // ---------- Acting on the selected paragraph ----------
 
-async function flush() { await save(); if (state.problem) throw Error(state.problem.text); }
+// What stops an action is this save failing, never a notice left on the page by something else.
+async function flush() { await save(); if (state.saveError) throw Error(state.saveError); }
 
 function block(id) { return state.saved.get(id); }
 function preview(id, length = 70) {
@@ -315,6 +320,65 @@ async function deleteRecord(record, label) {
 
 function toast(text) { if (nendo.has?.('ui.toast')) nendo.ui.toast(text).catch(() => {}); }
 
+// ---------- Export (Markdown and Word) ----------
+
+function download(blob, name) {
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = name;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+}
+
+/** Exports the manuscript as saved in the file, after saving what is on the page. */
+async function exportAs(format) {
+  await flush();
+  setStatus('Exporting…');
+  const items = await nendo.records.treeAll({ entityId: BLOCK, depth: 32 }, { max: 10000 });
+  const plan = exportPlan(readManuscript(items));
+  const lib = await import('./vendor/export.js');
+  const pictures = new Map(), unread = [];
+  for (const item of plan.items) {
+    if (item.type !== 'picture' || pictures.has(item.address) || !item.address.startsWith('media:')) continue;
+    try {
+      if (!nendo.has('media.read')) throw Error('This Nendo does not let views read pictures.');
+      const info = await nendo.media.describe(item.address);
+      const blob = await nendo.media.read(item.address);
+      pictures.set(item.address, { data: new Uint8Array(await blob.arrayBuffer()), mediaType: info.mediaType ?? blob.type, width: info.width, height: info.height });
+    } catch { unread.push(item.alt || item.address); }
+  }
+  const name = safeName(plan.title);
+  let file, blob, missing = [];
+  if (format === 'markdown') {
+    const files = pictureFiles(plan, pictures);
+    const text = toMarkdown(plan, files);
+    if (files.size) {
+      const zip = new lib.JSZip();
+      zip.file(`${name}.md`, text);
+      for (const [address, path] of files) zip.file(path, pictures.get(address).data);
+      blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/zip' });
+      file = `${name}.zip`;
+    } else { blob = new Blob([text], { type: 'text/markdown' }); file = `${name}.md`; }
+    missing = plan.items.filter(i => i.type === 'picture' && i.address.startsWith('media:') && !files.has(i.address)).map(i => i.alt || i.address);
+  } else {
+    const built = toDocx(plan, pictures, lib, Lexer);
+    blob = await lib.Packer.toBlob(built.document);
+    file = `${name}.docx`;
+    missing = built.missing.map(m => m.alt || m.address);
+  }
+  download(blob, file);
+  const counts = { blocks: plan.items.length, pictures: plan.items.filter(i => i.type === 'picture').length };
+  state.lastExport = { format, file, bytes: blob.size, missing, ...counts };
+  setStatus(`Exported ${file}`);
+  toast(`Exported ${file} to your Downloads folder.`);
+  if (missing.length) {
+    state.problem = { text: `Exported ${file}, but ${missing.length} picture${missing.length === 1 ? '' : 's'} could not go in and stand${missing.length === 1 ? 's' : ''} as ${missing.length === 1 ? 'its description' : 'their descriptions'}: ${missing.join('; ')}.` };
+  }
+  render();
+}
+
 // ---------- Drawing ----------
 
 function clock(date) { return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
@@ -371,6 +435,10 @@ function declare() {
     { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
     { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
     { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+    { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
+      { id: 'export-markdown', label: 'Markdown', detail: 'A .zip with the text and its pictures' },
+      { id: 'export-word', label: 'Word document', detail: 'A .docx with headings, styles and pictures' },
+    ] },
     { kind: 'menu', id: 'appearance', label: 'Appearance', icon: 'settings', iconOnly: true, items: [
       { kind: 'label', label: 'Typeface' }, radio('font', 'serif', 'Serif', a.font), radio('font', 'sans', 'Sans serif', a.font),
       { kind: 'separator' }, { kind: 'label', label: 'Size' },
@@ -388,6 +456,7 @@ function declare() {
 }
 
 function command({ id, value }) {
+  if (id === 'export-markdown' || id === 'export-word') { exportAs(id === 'export-word' ? 'word' : 'markdown').catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); declare(); }
@@ -600,6 +669,7 @@ async function start(context) {
   $('title').addEventListener('input', e => { state.title = e.target.value; edited(); });
   $('start').addEventListener('click', () => startManuscript().catch(fail));
   for (const b of document.querySelectorAll('#own-toolbar [data-drawer]')) b.addEventListener('click', () => command({ id: b.dataset.drawer }));
+  for (const b of document.querySelectorAll('#own-toolbar [data-command]')) b.addEventListener('click', () => command({ id: b.dataset.command }));
   addEventListener('resize', () => placeOverlays());
   $('scroller').addEventListener('scroll', () => { if (state.popover) return; placeOverlays(); }, { passive: true });
   addEventListener('keydown', e => { if (e.key === 'Escape' && (state.popover || state.pinned)) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); } });

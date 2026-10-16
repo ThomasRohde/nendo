@@ -62,6 +62,32 @@ async page => {
   assert((await batches()).length === 0, 'Opening the sheet wrote to the file.');
   checks.push('opens as one page', 'picture blocks', 'pictures as thumbnails', 'gutter counts', 'toolbar in Nendo');
 
+  // Export reads the saved manuscript and downloads it; a picture it cannot read is named, not dropped.
+  const exported = async (command, name) => {
+    const waiting = page.waitForEvent('download', { timeout: 15000 });
+    await page.evaluate(id => window.broker.command(id), command);
+    const download = await waiting.catch(async () => { throw Error(`No download for ${command}: ${JSON.stringify(await frame.evaluate(() => ({ status: window.manuscript.status, problem: window.manuscript.problem, last: window.manuscript.lastExport })))}`); });
+    const chunks = [];
+    for await (const chunk of await download.createReadStream()) chunks.push(chunk);
+    const bytes = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+    chunks.reduce((at, c) => { bytes.set(c, at); return at + c.length; }, 0);
+    assert(download.suggestedFilename() === name, `Export ${command} saved ${download.suggestedFilename()}, not ${name}`);
+    return bytes;
+  };
+  const exportMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'export');
+  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word', `Export menu: ${JSON.stringify(exportMenu)}`);
+  // The probe's sandbox has no TextDecoder; the page decodes the bytes.
+  const markdownBytes = await exported('export-markdown', 'Low Water.md');
+  const markdown = await page.evaluate(bytes => new TextDecoder().decode(new Uint8Array(bytes)), Array.from(markdownBytes));
+  assert(markdown.startsWith(['# Low Water', '## Part One', '### The Tide Table', ''].join('\n\n')) && markdown.includes('*Boat seen beyond the bar. No lights. Did not report.*')
+    && markdown.includes('![The causeway at low water](media:') && !markdown.includes('Cuttings'), `Markdown export: ${markdown.slice(0, 400)}`);
+  await frame.waitForFunction(() => /could not go in/.test(document.getElementById('problem').textContent));
+  const word = await exported('export-word', 'Low Water.docx');
+  assert(word[0] === 0x50 && word[1] === 0x4b && word.length > 4000, `Word export is not a .docx package: ${word.length} bytes`);
+  const report = await frame.evaluate(() => window.manuscript.lastExport);
+  assert(report.format === 'word' && report.missing.length === 1 && report.pictures === 1, `Export report: ${JSON.stringify(report)}`);
+  checks.push('Markdown and Word export');
+
   // Typing saves after a pause, as one batch that writes only that paragraph's text.
   await select('b-0414', 'end');
   await page.keyboard.type(' Then she opened it.');
