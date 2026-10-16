@@ -49,13 +49,13 @@ const field = (presentation, extra = {}) => ({ semanticId: 'notes', displayName:
 test('a markdown field shows its text formatted with its source a control of the form', () => {
   const markup = fieldControlMarkup(field('markdown'), '## Plan\n\n- **ship** it');
   assert.match(markup, /<div class="markdown-body"><h4>Plan<\/h4><ul><li><strong>ship<\/strong> it<\/li><\/ul><\/div>/);
-  assert.match(markup, /<details class="markdown-source"><summary>Edit Notes as Markdown<\/summary><textarea name="notes" rows="8"/);
+  // The drawn text sits where the editor takes its place (markdown-editor.ts).
+  assert.match(markup, /<div class="markdown-editor" data-markdown-editor><div class="markdown-body"><h4>Plan/);
+  assert.match(markup, /<details class="markdown-source"><summary>Markdown<\/summary><textarea name="notes" rows="8"/);
   assert.match(markup, />\n## Plan\n\n- \*\*ship\*\* it<\/textarea>/);
-  // Nothing to read yet: the source is open, so a required field is never hidden from the browser.
+  // A required field keeps a required source; the editor opens it on the browser's refusal.
   const empty = fieldControlMarkup(field('markdown', { required: true }), '');
-  assert.doesNotMatch(empty, /markdown-body/);
-  assert.match(empty, /<details class="markdown-source" open><summary>Write Notes as Markdown/);
-  assert.match(empty, /required/);
+  assert.match(empty, /<textarea name="notes" rows="8" aria-label="Notes" required>/);
 });
 
 test('a record sheet treats a markdown field as long text', () => {

@@ -127,6 +127,7 @@ whole.
 - Start with framework-free TypeScript modules and Vite, as in the DS1/DS2
   evidence. Do not add React only because an archived design mentioned it.
 - Use `ag-grid-community` only. Use no Enterprise package, licence key or CDN.
+  *(Amended 2026-10-16, below: the Markdown field's editor adds Tiptap and `marked`.)*
 - Use one committed npm lockfile and local/offline production assets.
 - A later component framework is a reversible workbench decision. It is
   permitted only if measured complexity justifies its package and adapter cost.
@@ -198,6 +199,24 @@ rejected. Each of them encodes a structure that nobody chose, or weakens the
 testable authority boundaries. React is not rejected in general. It is not
 selected without evidence that it improves the production workbench enough to
 justify another dependency.
+
+## Amendment 2026-10-16: an editor for Markdown fields
+
+The owner asked for the Markdown field's editor to be Tiptap (W-275). The Workbench's
+production dependencies are now `ag-grid-community` and, for that editor alone,
+`@tiptap/core`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/markdown`,
+`@tiptap/extension-image`, `@tiptap/extension-table` and `marked`, each pinned to one
+version (3.31.4 and 17.0.6, chosen at least two weeks after release), with their licences in
+the notices the build writes. `scripts/verify-dependencies.mjs` holds the list and refuses a
+range. The rest of this section stands: no React, no Enterprise package, no CDN.
+
+The editor changes nothing durable. The field still stores Markdown, `markdown.ts` still draws
+it wherever it is read, and no Tiptap document, HTML or configuration reaches the file
+(ADR-0004's rule for toolkit state). The editor reads the stored text and writes Markdown back
+only when the person changes it; raw HTML is read as text, and text is written without HTML
+entities, so what it writes draws as `markdown.ts` drew it (`markdown-editor.test.mjs`,
+Gate-WorkbenchShell's editor check). It is loaded only on a page with a Markdown field. A
+change of editor is a Workbench decision under this ADR and needs no other ADR.
 
 ## Revisit triggers
 

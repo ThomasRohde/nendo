@@ -9,7 +9,6 @@ import { foldSection } from './fold-state';
 import { escapeHtml, isDateTimeKind, messageFor, mutationKey, sameValue, storageLabel, stringValue, valueDisplay } from './format';
 import { errorCode } from './write-failure';
 import { recordPlanOf } from './plan-selection';
-import { markdownMarkup } from './markdown';
 import { wireMediaFields } from './media-field';
 import { mediaContext } from './media-markup';
 import { type ApplicationPlan, type FieldPlan, type ReadPage, type RecordPlan, type RecordSnapshot } from './host';
@@ -122,10 +121,10 @@ export function wireRecordForm(
     if (control === null) return;
     if (unset.checked) { control.dataset.unsetText = control.value; control.value = ''; }
     else if (control.dataset.unsetText !== undefined) { control.value = control.dataset.unsetText; delete control.dataset.unsetText; }
-    // Set from code, so no input event redraws the rendering above a Markdown box (UIS-14); it is
-    // drawn here rather than by an input event, which would untick Not set again.
-    const body = control.closest('.markdown-field')?.querySelector<HTMLElement>('.markdown-body');
-    if (body) body.innerHTML = markdownMarkup(control.value, { pictures: mediaContext() });
+    // Set from code, so the Markdown editor is told directly (UIS-14): an input event would
+    // untick Not set again.
+    if (control instanceof HTMLTextAreaElement && control.closest('[data-markdown-field]') !== null)
+      void import('./markdown-editor').then(editor => editor.showSourceInEditor(control));
   });
   recordForm.addEventListener('input', trackEdit);
   recordForm.addEventListener('change', trackEdit);
@@ -143,26 +142,10 @@ export function wireRecordForm(
       showOutcome('Your changes were discarded.');
     });
   }
-  // The rendering above a Markdown field shows its source as typed, not the stored text, so the
-  // page never shows two versions of one field (UIS-14).
-  const rendering = new Map<Element, number>();
-  recordForm.addEventListener('input', (event) => {
-    const source = event.target instanceof HTMLTextAreaElement ? event.target : null;
-    const field = source?.closest('.markdown-field');
-    if (source === null || field == null) return;
-    window.clearTimeout(rendering.get(field));
-    rendering.set(field, window.setTimeout(() => {
-      rendering.delete(field);
-      let body = field.querySelector<HTMLElement>('.markdown-body');
-      if (body === null) {
-        body = document.createElement('div');
-        body.className = 'markdown-body';
-        field.querySelector('.markdown-source')?.before(body);
-      }
-      body.innerHTML = markdownMarkup(source.value, { pictures: mediaContext() });
-      body.hidden = source.value.trim() === '';
-    }, 150));
-  });
+  // A Markdown field is written in its editor, loaded only on a page that has one. The editor and
+  // the source under it show one text, so the page never shows two versions of a field (UIS-14).
+  if (recordForm.querySelector('[data-markdown-field]') !== null)
+    void import('./markdown-editor').then(editor => { if (recordForm.isConnected) editor.mountMarkdownEditors(recordForm, mediaContext); });
   state.openDraft = { session: { fileSessionId: state.session.fileSessionId, canMutate: state.session.capabilities.mutate }, edited: editedFields };
   requiredElement<HTMLFormElement>('#record-form').addEventListener('submit', (event) => {
     event.preventDefault();

@@ -611,8 +611,9 @@ document.addEventListener('keydown', event => {
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
   if (document.querySelector('dialog[open]') !== null || fileDetails.open) return;
   const focused = document.activeElement;
+  // The Markdown editor is a field too: Alt and an arrow there moved the page Back mid-sentence.
   if (focused instanceof HTMLInputElement || focused instanceof HTMLSelectElement ||
-      focused instanceof HTMLTextAreaElement) return;
+      focused instanceof HTMLTextAreaElement || (focused instanceof HTMLElement && focused.isContentEditable)) return;
   event.preventDefault();
   if (event.key === 'ArrowLeft') void goBack(); else void goForward();
 });

@@ -460,7 +460,11 @@ async page => {
         const inspector = document.querySelector('.record-inspector');
         if (element === null || inspector === null || !inspector.contains(element)) return { inside: false };
         if (element.closest('.form-actions, .record-inspector > header')) return { inside: true, covered: 0 };
-        const box = element.getBoundingClientRect();
+        // A Markdown editor can be taller than the room between the bars, and focus brings its caret
+        // into view rather than the whole box: there it is the caret that must not be covered.
+        const caret = element.isContentEditable ? window.getSelection()?.getRangeAt(0) : null;
+        const caretBox = caret ? (caret.getClientRects()[0] ?? caret.startContainer.parentElement?.getBoundingClientRect()) : null;
+        const box = caretBox ?? element.getBoundingClientRect();
         const bar = inspector.querySelector('.form-actions')?.getBoundingClientRect();
         const head = inspector.querySelector(':scope > header')?.getBoundingClientRect();
         const under = (cover) => cover === undefined ? 0 : Math.max(0, Math.min(box.bottom, cover.bottom) - Math.max(box.top, cover.top));
@@ -504,6 +508,61 @@ async page => {
     await page.waitForTimeout(500);
     const shown = await page.evaluate(() => document.querySelector('.record-inspector .markdown-field .markdown-body')?.textContent?.trim() ?? null);
     assert(shown !== null && shown.includes('Reasons for the change'), `UIS-14: the formatted text shows ${JSON.stringify(shown)} while its source says "## Reasons for the change".`);
+  });
+
+  // The Markdown field's editor (Tiptap, 2026-10-16), typed into with the keyboard in both themes:
+  // what it writes back is the Markdown typed, HTML and & stay text, the field counts as edited,
+  // Alt and an arrow stay in the text, and the editor fits the record page.
+  for (const theme of ['light', 'dark']) await check(`Tiptap Markdown editor ${theme}`, 'decision', async () => {
+    await page.evaluate(async theme => { const { applyTheme } = await import('/src/shell.ts'); applyTheme(theme, false); }, theme);
+    // A place to go Back to, so a Back taken from inside the editor would show.
+    await page.click('#nav-history');
+    await until(() => document.querySelector('.history-page') !== null, null, 'History');
+    await page.click('#nav-use');
+    await until(() => document.querySelector('.record-row > button') !== null, null, 'the records again');
+    await openRecord();
+    const surface = '.record-inspector .markdown-field .markdown-editor-surface[contenteditable="true"]';
+    await until(selector => document.querySelector(selector) !== null, surface, 'the Markdown editor');
+    // Stored HTML and an ampersand, put in through the source, then one character typed in the
+    // editor: the editor writes back what was stored, plus the character.
+    await page.evaluate(() => {
+      const source = document.querySelector('.record-inspector .markdown-field textarea');
+      source.value = 'Keep <b>tags</b> & amps';
+      source.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await page.click(surface);
+    await page.keyboard.press('Control+End');
+    await page.keyboard.type('.');
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Control+b');
+    await page.keyboard.type('Bold words');
+    const pressed = await page.evaluate(() => document.querySelector('.record-inspector [data-markdown-command="bold"]')?.getAttribute('aria-pressed'));
+    await page.keyboard.press('Control+b');
+    await page.keyboard.type(' then plain');
+    const written = await page.evaluate(() => document.querySelector('.record-inspector .markdown-field textarea').value);
+    assert(written === 'Keep <b>tags</b> & amps.\n\n**Bold words** then plain',
+      `The editor wrote ${JSON.stringify(written)} for 'Keep <b>tags</b> & amps.' and a bold line.`);
+    assert(pressed === 'true', `Bold was ${pressed} on the toolbar while typing bold.`);
+    const edited = await page.evaluate(() => document.querySelector('.record-inspector #discard-changes')?.hidden === false);
+    assert(edited, 'Typing in the editor did not make the field edited: Discard changes stayed hidden.');
+    // Alt and an arrow belong to the text; the page must not take them as Back. With typing
+    // unsaved, a Back is refused out loud, so the page's answer is what is measured.
+    const alerts = () => page.evaluate(() => [...document.querySelectorAll('[role="alert"]')].map(alert => alert.textContent.trim()).filter(Boolean).join(' | '));
+    const before = await alerts();
+    await page.keyboard.press('Alt+ArrowLeft');
+    await page.waitForTimeout(400);
+    const after = await alerts();
+    assert(await page.evaluate(() => document.querySelector('.record-inspector') !== null && document.querySelector('.history-page') === null) && after === before,
+      `Alt+Left in the editor was taken as Back: ${JSON.stringify(after)}.`);
+    const box = await page.evaluate(selector => {
+      const editor = document.querySelector(selector);
+      const host = editor.closest('.markdown-editor').getBoundingClientRect();
+      const page = editor.closest('.record-inspector').getBoundingClientRect();
+      const toolbar = editor.closest('.markdown-editor').querySelector('.markdown-toolbar').getBoundingClientRect();
+      return { host: [host.left, host.right], page: [page.left, page.right], toolbar: toolbar.height, overflow: editor.scrollWidth - editor.clientWidth };
+    }, surface);
+    assert(box.host[0] >= box.page[0] - 0.5 && box.host[1] <= box.page[1] + 0.5 && box.overflow <= 1 && box.toolbar > 0,
+      `The editor does not fit the record page in ${theme}: ${JSON.stringify(box)}.`);
   });
 
   // UIS-20: the view's name in the breadcrumb says itself in full when it is cut.

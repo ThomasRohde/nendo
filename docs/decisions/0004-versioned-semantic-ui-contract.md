@@ -1740,7 +1740,9 @@ host-neutral render plan.
 - Render adapters derive stable accessibility/automation targets from semantic IDs. React
   and AG Grid configuration remains transient adapter state.
   *(Note 2026-09-22: the Workbench does not use React. Its one runtime dependency is
-  `ag-grid-community`, in `src/Nendo.Workbench/package.json`.)*
+  `ag-grid-community`, in `src/Nendo.Workbench/package.json`. Since 2026-10-16 the Markdown
+  field's editor adds Tiptap and `marked` (ADR-0017's amendment); its document is transient
+  too, and the file stores Markdown.)*
 - Declarative commands may invoke only a small named effect vocabulary through typed
   application services. General scripting is outside the MVP.
 - Agent-authored definition changes use the application proposal lane in ADR-0007.

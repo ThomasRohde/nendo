@@ -473,13 +473,13 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
     return textControl(`<label>${label}<textarea name="${name}" rows="4"${placeholder} ${required}>\n${escapeHtml(value)}</textarea></label>`);
   }
   if (field.presentation === 'markdown') {
-    // Read as formatted text, written as Markdown (W-173). The source sits in a disclosure under
-    // the rendering and is a control of the form like any other, open when there is nothing to
-    // read yet, so a required one is never a hidden control the browser cannot focus.
-    const empty = value.trim() === '';
-    return textControl(`<div class="markdown-field"><span class="markdown-field-label">${label}</span>`
-      + (empty ? '' : `<div class="markdown-body">${markdownMarkup(value, { pictures: mediaContext() })}</div>`)
-      + `<details class="markdown-source"${empty ? ' open' : ''}><summary>${empty ? 'Write' : 'Edit'} ${label} as Markdown</summary>`
+    // Written in place, formatted, and stored as Markdown (W-173; Tiptap since 2026-10-16). The
+    // drawn text is what the page shows until the editor takes its place (markdown-editor.ts). The
+    // source is the form's control, under Markdown for whoever would rather type it; the editor
+    // opens it when a required one is left empty, so the browser's refusal has a control to point at.
+    return textControl(`<div class="markdown-field" data-markdown-field><span class="markdown-field-label">${label}</span>`
+      + `<div class="markdown-editor" data-markdown-editor><div class="markdown-body">${markdownMarkup(value, { pictures: mediaContext() })}</div></div>`
+      + `<details class="markdown-source"><summary>Markdown</summary>`
       + `<textarea name="${name}" rows="8" aria-label="${escapeAttribute(field.displayName)}" ${required}>\n${escapeHtml(value)}</textarea></details></div>`);
   }
   if (field.presentation === 'singleChoice') {

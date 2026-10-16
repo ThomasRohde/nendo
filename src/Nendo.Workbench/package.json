@@ -15,7 +15,14 @@
     "verify:dependencies": "node scripts/verify-dependencies.mjs"
   },
   "dependencies": {
-    "ag-grid-community": "36.1.0"
+    "@tiptap/core": "3.31.4",
+    "@tiptap/extension-image": "3.31.4",
+    "@tiptap/extension-table": "3.31.4",
+    "@tiptap/markdown": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
+    "ag-grid-community": "36.1.0",
+    "marked": "17.0.6"
   },
   "devDependencies": {
     "typescript": "7.0.2",

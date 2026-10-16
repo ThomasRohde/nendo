@@ -21,7 +21,9 @@ test('every class a stylesheet styles is one the page can emit', () => {
     `(class="[^"]*|className\\s*\\+?=\\s*[^;\\n]*|classList\\.\\w+\\([^)]*)(?<![\\w-])${escape(name.slice(0, match.index + 1))}\\$\\{`).test(sources));
   // AG Grid draws its own DOM, and these are its class names.
   const grid = (name) => name.startsWith('ag-');
-  const unemitted = [...classes].filter((name) => !named(name) && !built(name) && !grid(name)).sort();
+  // The Markdown editor's ProseMirror draws these in its own DOM, as AG Grid draws its own.
+  const editor = (name) => name.startsWith('ProseMirror-') || name === 'tableWrapper';
+  const unemitted = [...classes].filter((name) => !named(name) && !built(name) && !grid(name) && !editor(name)).sort();
   assert.deepEqual(unemitted, [], 'The stylesheet styles classes that no .ts source or index.html emits, so those rules are dead');
 });
 

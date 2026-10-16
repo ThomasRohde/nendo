@@ -173,7 +173,7 @@ async function picturesFlow() {
     await showSurface(list.id);
     await clickFound('.use-surface [data-record-id="ginkgo"]');
     await ready();
-    await waitFor(() => evaluate(`${loaded('.media-field img[data-media-img]')}.length === 1 && ${loaded('.markdown-picture img')}.length === 1`), 'the ginkgo and its note picture', 15000);
+    await waitFor(() => evaluate(`${loaded('.media-field img[data-media-img]')}.length === 1 && ${loaded('.markdown-editor-surface img[data-media-address]')}.length === 1`), 'the ginkgo and its note picture in the Markdown editor', 15000);
   };
   for (const theme of ['light', 'dark']) {
     await clickFound(`[data-theme-option="${theme}"]`);
@@ -195,7 +195,7 @@ async function picturesFlow() {
       const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width, height: r.height }; };
       const picture = document.querySelector('.media-field img[data-media-img]');
       const column = picture.closest('.media-field');
-      const note = document.querySelector('.markdown-picture img');
+      const note = document.querySelector('.markdown-editor-surface img[data-media-address]');
       const body = note.closest('.markdown-body');
       return { picture: box(picture), column: box(column), note: box(note), body: box(body), natural: picture.naturalWidth };
     })()`);

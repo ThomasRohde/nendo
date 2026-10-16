@@ -53,6 +53,10 @@ ADR: among them ADR-0007's revalidate note (W-157), ADR-0010's amendment by ADR-
 ADR-0014's by ADR-0030. So do the dated notes, stages and amendments of ADR-0013 and of the
 ADRs from ADR-0018 on, whose rows in the table above say what each has delivered.
 
+- **ADR-0017, 2026-10-16 — Tiptap edits Markdown fields**: the Workbench's dependencies are
+  AG Grid Community and, for the Markdown field's editor, Tiptap 3.31.4 and `marked` 17.0.6,
+  pinned (W-275). The field still stores Markdown and `markdown.ts` still draws it; no editor
+  state reaches the file.
 - **ADR-0012, 2026-10-14 — a file Nendo 1.0 opens, every later 1.x opens**: a file that
   product 1.0.0 opens normally, including the files 0.x hosts wrote, opens *Normal writable*
   in every later 1.x with its definitions and data intact. A 1.x host may add rungs to the
