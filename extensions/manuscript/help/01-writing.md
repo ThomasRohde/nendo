@@ -57,4 +57,4 @@ Notes, links and cuttings are not exported. If a picture cannot be included, its
 
 ## Appearance
 
-The settings button in the toolbar chooses the typeface, the size and the line length: Narrow, Medium, Wide, or Full, which gives the text all the width of the window. They are this computer's, not the manuscript's: they change how the page looks to you, and nothing in the file.
+The settings button in the toolbar chooses the typeface, the size and the line length: Narrow, Medium, Wide, or Full, which gives the text all the width of the window. In Book and Paper the line length scales the pages, so their text runs about as wide as it does while you write; Full fits a whole page to the window. They are this computer's, not the manuscript's: they change how the page looks to you, and nothing in the file.

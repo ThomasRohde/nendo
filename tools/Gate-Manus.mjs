@@ -118,14 +118,24 @@ async page => {
   await frame.waitForFunction(() => !document.getElementById('preview').hidden && document.getElementById('page').hidden && document.querySelectorAll('.sheet-page').length > 1, null, { timeout: 5000 });
   const book = await frame.evaluate(() => ({ pages: document.querySelectorAll('.sheet-page').length, width: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width),
     chapterTop: [...document.querySelectorAll('.sheet-page')].findIndex(p => p.querySelector('.pv-h1')?.textContent === 'Part One') }));
-  assert(book.width === 576 && book.pages >= 3 && book.chapterTop >= 1, `Book preview: ${JSON.stringify(book)}`);
-  assert(!(await page.evaluate(() => window.broker.toolbars.at(-1))).items.some(i => i.id === 'style'), 'Writing controls stayed in the toolbar during preview.');
+  // At Medium the sheet is scaled so its 432-pixel text column shows at 760 pixels.
+  assert(Math.abs(book.width - Math.round(576 * 760 / 432)) <= 2 && book.pages >= 3 && book.chapterTop >= 1, `Book preview: ${JSON.stringify(book)}`);
+  // The API sends at most one declaration a tenth of a second, so the preview's arrives a moment later.
+  await page.waitForFunction(() => !window.broker.toolbars.at(-1).items.some(i => i.id === 'style'), null, { timeout: 3000 })
+    .catch(() => { throw Error('Writing controls stayed in the toolbar during preview.'); });
   await page.screenshot({ path: '__OUTPUT__/preview-book.png' });
   await mode('paper');
   await frame.waitForFunction(() => document.getElementById('preview').dataset.layout === 'paper');
   const paperPreview = await frame.evaluate(() => ({ width: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), caption: !!document.querySelector('.pv-figure') }));
-  assert(paperPreview.width === 816, `Paper preview: ${JSON.stringify(paperPreview)}`);
+  assert(Math.abs(paperPreview.width - Math.round(816 * 760 / 624)) <= 2, `Paper preview: ${JSON.stringify(paperPreview)}`);
   await page.screenshot({ path: '__OUTPUT__/preview-paper.png' });
+  // Line length scales the sheets: Narrow shows the text column at 620 pixels, Full fits the frame.
+  await page.evaluate(() => window.broker.command('width', 'narrow'));
+  const narrowSheet = await frame.evaluate(() => Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width));
+  await page.evaluate(() => window.broker.command('width', 'full'));
+  const fullSheet = await frame.evaluate(() => ({ sheet: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), frame: innerWidth }));
+  assert(Math.abs(narrowSheet - Math.round(816 * 620 / 624)) <= 2 && fullSheet.sheet >= fullSheet.frame - 60 && fullSheet.sheet <= fullSheet.frame, `Preview line length: narrow ${narrowSheet}, full ${JSON.stringify(fullSheet)}`);
+  await page.evaluate(() => window.broker.command('width', 'medium'));
   await mode('write');
   await frame.waitForFunction(() => document.getElementById('preview').hidden && !document.getElementById('page').hidden);
   // Full line length: the text takes the frame's width, less the page's margins.

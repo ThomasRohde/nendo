@@ -42,7 +42,9 @@ same records; the view keeps no copy of the manuscript in the file.
 - **Write / Book / Paper** in Nendo's toolbar switches between writing and a preview: the page as
   the Word layout sets it, on sheets of its paper (6 by 9 inches, or Letter), with its fonts, roles,
   figure rows, page breaks and page numbers. It reads what is on the page, saved or not, and draws
-  it block by block, so a paragraph is never split across sheets as Word may split it.
+  it block by block, so a paragraph is never split across sheets as Word may split it. The line
+  length under Appearance scales the sheets, so the page's text runs as wide as it does while
+  writing; Full fits a whole sheet to the window.
 - **Role** in Nendo's toolbar sets the role of the block the caret is in; the sheet names it above
   the block and indents a quotation, a verse or an epigraph as a layout would. A file built before
   0.5.0 has no Role field and shows no control until the field is added.

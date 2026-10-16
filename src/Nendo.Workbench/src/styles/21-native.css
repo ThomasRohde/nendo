@@ -449,6 +449,31 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 
 .workspace-header .header-controls { flex: none; margin-left: 8px; }
 
+/* One bar (one-bar.ts): where the window has room, the breadcrumb's box hugs what it
+   says and a Use screen's toolbar is laid over the address row's free middle, so the screen
+   starts right under the address row. The toolbar stays in the Use page; only its box moves. */
+.workspace-layer { position: relative; }
+.workspace-layer[data-one-bar] .workspace-identity,
+.workspace-layer[data-one-bar-measure] .workspace-identity { flex: 0 1 auto; }
+/* The command box keeps the row's right end while the box before it hugs its content. */
+.workspace-layer[data-one-bar] .workspace-header .header-controls,
+.workspace-layer[data-one-bar-measure] .workspace-header .header-controls { margin-left: auto; }
+/* Sharing the row, the command box takes its narrowest width, so the toolbar has more room. */
+.workspace-layer[data-one-bar] .palette-trigger,
+.workspace-layer[data-one-bar-measure] .palette-trigger { width: 240px; }
+.workspace-layer[data-one-bar] .use-page > .use-toolbar {
+  position: absolute;
+  z-index: 3;
+  top: var(--one-bar-top, 10px);
+  left: var(--one-bar-left);
+  right: var(--one-bar-right);
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
 .palette-trigger {
   width: clamp(220px, 24vw, 340px);
   height: 32px;

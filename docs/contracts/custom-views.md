@@ -410,7 +410,8 @@ A view is shown in one of two places:
   belongs to the file, as the front page does. The first picker of the Use
   breadcrumb lists the front page, then each view of the file in authored order,
   then the record types, and the view's frame fills the screen. The view's declared
-  controls share the row under the address row. Nendo's Add is there only when the view
+  controls share the Use toolbar, in the address row where the window has room (one bar) and in the
+  row under it otherwise. Nendo's Add is there only when the view
   names an `add`, because a view of the file has no record type of its own to add to.
   Back and Forward know it as a place, `ui.openScreen` opens it by its node ID, and
   Studio lists it under *Screens of the file*.
@@ -957,8 +958,11 @@ in Ctrl K, shows and runs their keys, and sends each press back as the event `co
   Nothing a view declares becomes markup, a class, a style or an attribute name. The icons
   are the Workbench's own outline icons, by name.
 - **Where it is drawn.** On a screen, the toolbar is drawn in the Workbench's markup in the
-  Use toolbar's one row under the address row, before Nendo's Add (W-092): the breadcrumb above
-  holds the record type and the view, so that row holds only what acts on the screen. A
+  Use toolbar, before Nendo's Add (W-092): the breadcrumb holds the record type and the view, so
+  the toolbar holds only what acts on the screen. Where the address row's middle holds what the
+  toolbar needs (every control, a view's included, so that joining the row never sends one into
+  More), the toolbar is laid over that middle, one bar (`one-bar.ts`); otherwise it is the
+  row under the address row. A
   page without that row draws the strip at the top of the view's placeholder, above the
   Development strip and the frame. It uses the view switcher's segments, the labelled
   select, bordered buttons, a search box and the File menu's panel for a menu, and a

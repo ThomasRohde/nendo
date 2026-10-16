@@ -457,10 +457,23 @@ function renderPreview() {
     body.append(element);
     if (body.scrollHeight > limit && body.childElementCount > 1) { element.remove(); newSheet(); body.append(element); }
   }
-  // A frame narrower than a sheet sees the sheets scaled down, never cut.
-  const room = host.clientWidth - 32;
-  if (room > 0 && room < page.width) host.style.setProperty('--zoom', String(room / page.width));
+  previewZoom();
   state.previewPages = host.childElementCount;
+}
+
+// The line length chosen under Appearance is how wide a sheet's text column appears on screen:
+// the sheets are scaled to it, and Full scales them to the frame. A sheet is never wider than
+// the frame. Pagination is measured at the sheet's real size first, so a scale changes nothing.
+const MEASURE = { narrow: 620, medium: 760, wide: 960 };
+function previewZoom() {
+  if (state.mode === 'write') return;
+  const host = $('preview'), page = PAGES[state.mode];
+  const room = host.clientWidth - 32, text = page.width - 2 * page.margin;
+  const measure = MEASURE[state.appearance.width];
+  let zoom = measure ? measure / text : room / page.width;
+  if (room > 0) zoom = Math.min(zoom, room / page.width);
+  host.style.setProperty('--zoom', String(Math.max(0.25, zoom)));
+  state.previewZoom = zoom;
 }
 
 async function setMode(mode) {
@@ -570,7 +583,7 @@ function command({ id, value }) {
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
-  if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); declare(); }
+  if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
 }
 
 function renderOwnToolbar() {
@@ -790,7 +803,7 @@ async function start(context) {
   $('start').addEventListener('click', () => startManuscript().catch(fail));
   for (const b of document.querySelectorAll('#own-toolbar [data-drawer]')) b.addEventListener('click', () => command({ id: b.dataset.drawer }));
   for (const b of document.querySelectorAll('#own-toolbar [data-command]')) b.addEventListener('click', () => command({ id: b.dataset.command }));
-  addEventListener('resize', () => placeOverlays());
+  addEventListener('resize', () => { placeOverlays(); previewZoom(); });
   $('scroller').addEventListener('scroll', () => { if (state.popover) return; placeOverlays(); }, { passive: true });
   addEventListener('keydown', e => { if (e.key === 'Escape' && (state.popover || state.pinned)) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); } });
   addEventListener('pagehide', () => { if (pending()) save(); });

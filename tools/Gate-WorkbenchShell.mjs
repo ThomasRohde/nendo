@@ -1363,6 +1363,37 @@ async page => {
     assert(line.past.length === 0 && !line.scrolls, `CSS-03: at 400px with both pills showing the status line runs past the window: ${line.past.map(item => `${item.item} ends at ${item.right}px`).join(', ')}${line.scrolls ? '; it scrolls' : ''}.`);
   }, 400, 700);
 
+  // One bar above a Use screen. Where the address row's middle holds what the Use toolbar
+  // needs (this list's pager makes it about 520 px, which a 1600 px window holds), the Use toolbar
+  // shares that row (its top is the breadcrumb's, it stands between the breadcrumb and the command
+  // box, and Add is pressable there), and the screen starts right under the address row; in a
+  // narrow window the toolbar keeps a row of its own.
+  for (const theme of ['light', 'dark']) await check(`One bar ${theme}`, 'decision', async () => {
+    await page.evaluate(async theme => { const { applyTheme } = await import('/src/shell.ts'); applyTheme(theme, false); }, theme);
+    await page.click('#nav-use');
+    await until(() => document.querySelector('.workspace-layer[data-one-bar]') !== null && document.querySelector('.use-page > .use-toolbar #new-record') !== null, null, 'one bar', 6000)
+      .catch(async error => { throw Error(`${error.message}: ${JSON.stringify(await page.evaluate(() => {
+        const r = s => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return [Math.round(b.left), Math.round(b.right), Math.round(b.width)]; };
+        return { layer: r('.workspace-layer'), identity: r('.workspace-identity'), controls: r('.header-controls'), toolbar: r('.use-page > .use-toolbar'), useToolbarAnywhere: !!document.querySelector('.use-toolbar'),
+          studio: !!document.getElementById('studio-content'), headerHidden: document.querySelector('.workspace-header')?.hidden, page: document.querySelector('#studio-content > *')?.className };
+      }))}`); });
+    const bar = await page.evaluate(() => {
+      const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top), bottom: Math.round(r.bottom) }; };
+      const add = document.querySelector('#new-record').getBoundingClientRect();
+      const hit = document.elementFromPoint(add.left + add.width / 2, add.top + add.height / 2);
+      const below = document.querySelector('.use-page > .use-layout') ?? document.querySelector('.use-page > :not(.use-toolbar)');
+      return { toolbar: rect('.use-page > .use-toolbar'), identity: rect('.workspace-identity'), palette: rect('#palette-open'), header: rect('.workspace-header'),
+        below: below ? Math.round(below.getBoundingClientRect().top) : null, addPressable: hit?.closest('#new-record') !== null };
+    });
+    assert(Math.abs(bar.toolbar.top - bar.identity.top) <= 2 && bar.toolbar.left >= bar.identity.right && bar.toolbar.right <= bar.palette.left && bar.addPressable,
+      `One bar: the Use toolbar does not share the address row: ${JSON.stringify(bar)}`);
+    assert(bar.below !== null && bar.below - bar.header.bottom <= 4, `One bar: a second row still stands under the address row: ${JSON.stringify(bar)}`);
+    await resized(700, 800);
+    await until(() => document.querySelector('.workspace-layer[data-one-bar]') === null, null, 'the toolbar back on its own row', 4000);
+    const narrow = await page.evaluate(() => ({ toolbar: Math.round(document.querySelector('.use-page > .use-toolbar').getBoundingClientRect().top), header: Math.round(document.querySelector('.workspace-header').getBoundingClientRect().bottom) }));
+    assert(narrow.toolbar >= narrow.header - 1, `One bar: in a narrow window the toolbar is not below the address row: ${JSON.stringify(narrow)}`);
+  }, 1600, 900);
+
   // CSS-05: the address row is one row at every width.
   await check('CSS-05 address row one row', 'decision', async () => {
     for (const width of [600, 400]) {

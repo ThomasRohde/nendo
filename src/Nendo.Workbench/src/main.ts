@@ -31,6 +31,7 @@ import { beginPlacePickers, endPlacePickers, placePickersDrawn } from './place-p
 import { fileViewById, viewIcon } from './file-view-model';
 import { viewTitle } from './view-frame-markup';
 import { startTitleBar } from './title-bar';
+import { startOneBar } from './one-bar';
 import { lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
 import { refreshExtensionSettings } from './extension-settings';
@@ -920,6 +921,7 @@ client.onDownloadSaved?.((saved) => {
 
 // Nendo's top bar is the window's title bar in the Desktop host (W-093).
 startTitleBar(client);
+startOneBar();
 
 client.onFileChanged?.((changeSequence) => {
   if (!state.session.hasFile) return;

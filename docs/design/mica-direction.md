@@ -126,7 +126,8 @@ a CSS variable. Change them together.
     the launched agent and everything it started (ADR-0030).
 - **Address row.** The first row of the layer: Back and Forward (Alt Left and Alt Right), the
   breadcrumb, and the command box (Ctrl K). On a Use screen the breadcrumb carries the record-type
-  and view pickers (W-092). The page names itself here and nowhere larger.
+  and view pickers (W-092), and where the window has room the Use toolbar sits in the row's middle,
+  one bar. The page names itself here and nowhere larger.
 - **Status line (28px).** On the ground, in the UI face: the file's icon and name on the left; the
   agent pill, the health pill, the theme (System, Light, Dark), the key hints toggle and the
   version on the right.
@@ -168,8 +169,11 @@ The app uses the Windows faces, Segoe UI Variable and Cascadia Mono. A bundled w
 
 ## A custom view's controls
 
-These are unchanged from Console (W-090, W-092; ADR-0013). Nendo draws a view's declared controls
-in the Use toolbar's one row, under the address row, before Add. On a record page they sit in the
+These are unchanged from Console (W-090, W-092; ADR-0013), but for where the row stands. Nendo draws
+a view's declared controls in the Use toolbar, before Add: where the window has room, that toolbar
+shares the address row, between the breadcrumb (which then hugs what it says) and the command box,
+which narrows to 240px (one bar, `one-bar.ts`); where the middle is narrower than the
+toolbar needs, it keeps its own row under the address row. On a record page they sit in the
 panel's header. A toolbar menu and a right-click menu are the File menu's panel.
 
 ## Studio's record page and the split pane
