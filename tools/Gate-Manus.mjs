@@ -312,6 +312,40 @@ async page => {
   const narrow = await frame.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, bar: document.querySelector('.bar')?.getBoundingClientRect().right, width: innerWidth }));
   assert(narrow.overflow <= 1 && (narrow.bar === undefined || narrow.bar <= narrow.width + 1), `Narrow: ${JSON.stringify(narrow)}`);
   checks.push('Light/Dark', 'narrow layout');
+
+  // A picture's height is known before a sheet is filled: laid out before it loaded, a figure took
+  // no room, then grew and pushed the lines under it past the sheet's edge, where they were cut off
+  // (owner, 2026-10-16). With a real picture offered, nothing in a column ends below its sheet's text.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const tallPicture = await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 400; c.height = 600; const g = c.getContext('2d'); g.fillStyle = '#4a7'; g.fillRect(0, 0, 400, 600); return c.toDataURL('image/png'); });
+  await page.evaluate(urls => window.broker.offerMedia(urls), { [`media:${'ab'.repeat(32)}`]: tallPicture });
+  // Text after the picture, enough to fill a column, so a figure that grows late has lines to push.
+  await page.evaluate(() => {
+    const words = 'The water went out further than anyone in the village could remember, and the posts of the old causeway stood up out of the sand one after another, each with its number cut into the top.';
+    for (let i = 1; i <= 8; i++) window.broker.put('mn.block', { entityId: 'mn.block', recordId: `b-after-${i}`, version: 1, labels: {},
+      values: { 'mn.block.kind': 'Paragraph', 'mn.block.parent': 'b-ch-4', 'mn.block.order': 1000000 + i, 'mn.block.text': `${words} ${words}` } });
+  });
+  const framePrevious = frame;
+  await page.evaluate(() => window.broker.remount());
+  frame = null;
+  for (let i = 0; i < 200 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/') && f !== framePrevious) ?? null; if (frame === null) await page.waitForTimeout(50); }
+  assert(frame !== null, 'The view did not start again with pictures offered.');
+  await frame.waitForFunction(() => window.manuscript?.status?.startsWith('Saved') || window.manuscript?.status?.startsWith('Up to date'), null, { timeout: 10000 }).catch(() => {});
+  await mode('paper');
+  await frame.waitForFunction(() => [...document.querySelectorAll('.pv-picture img')].some(img => img.complete && img.naturalHeight > 0), null, { timeout: 8000 })
+    .catch(async () => { throw Error(`The offered picture did not reach the preview: ${JSON.stringify(await frame.evaluate(() => document.querySelector('.pv-figure')?.outerHTML.slice(0, 300) ?? null))}`); });
+  await page.waitForTimeout(300);
+  const clipped = await frame.evaluate(() => [...document.querySelectorAll('.sheet-page')].flatMap((sheet, n) => {
+    const body = sheet.querySelector('.sheet-body').getBoundingClientRect();
+    return [...sheet.querySelectorAll('.pv-column > *, .sheet-body > :not(.pv-columns)')]
+      .filter(e => e.getBoundingClientRect().bottom > body.bottom + 1)
+      .map(e => ({ page: n + 1, block: e.className || e.tagName, text: e.textContent.slice(0, 40), over: Math.round(e.getBoundingClientRect().bottom - body.bottom) }));
+  }));
+  const figure = await frame.evaluate(() => { const box = document.querySelector('.pv-picture').getBoundingClientRect(); return { width: Math.round(box.width), height: Math.round(box.height) }; });
+  assert(clipped.length === 0 && figure.height > figure.width, `The preview cuts off what runs past a sheet: ${JSON.stringify({ clipped, figure })}`);
+  await page.screenshot({ path: '__OUTPUT__/preview-paper-picture.png' });
+  await mode('write');
+  checks.push('preview makes room for pictures');
   assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, colours, narrow, errors };

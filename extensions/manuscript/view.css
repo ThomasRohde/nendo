@@ -190,6 +190,7 @@ button.quiet:hover { background: var(--soft); }
 .pv-figure { text-align: center; margin: 13px 0 5px; display: flex; justify-content: center; gap: 24px; }
 .pv-picture { display: inline-block; }
 .pv-picture img { display: block; height: auto; }
+.pv-picture[style*='height'] img { height: 100%; object-fit: contain; }
 .pv-missing { display: block; border: 1px dashed #999999; padding: 24px 8px; font: 12px/1.4 'Segoe UI', sans-serif; color: #555555; }
 .pv-caption { text-align: center !important; font-size: 12px; margin: 5px 24px 16px !important; }
 .preview[data-layout='paper'] .pv-caption { text-align: justify !important; margin: 5px 0 16px !important; }

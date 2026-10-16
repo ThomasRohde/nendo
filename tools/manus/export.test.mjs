@@ -117,6 +117,9 @@ test('paper headings: numbered as AASTeX numbers them, a heading\'s own number k
     ['ABSTRACT', '1. INTRODUCTION', '1.1. Scope', '4. SYSTEM', '4.2. Studio', '4.3. Next', '5. CONCLUSION', 'REFERENCES', 'Software']);
   assert.ok(parts.has(heading('a')) && parts.has(heading('r')) && !parts.has(heading('rs')));
   assert.equal(columnsStart(plan), 2, 'the columns start at the first heading after the abstract');
+  // The editor saves a heading that starts "4.4" as "4\\.4", so Markdown does not read a list item.
+  const saved = exportPlan({ title: 'T', nodes: [{ id: 'c', kind: 'Chapter', text: '4 System' }, { id: 's', kind: 'Section', text: '4\\.4 History' }] });
+  assert.equal(paperHeadings(saved).labels.get(saved.items[1]), '4.4. History');
   assert.equal(draftLine(new Date(2026, 9, 16)), 'Draft version October 16, 2026');
 });
 

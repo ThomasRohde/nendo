@@ -127,7 +127,9 @@ export const FIGURE = /^\*?(Figure|Fig\.|Table)\s+(\d+)[.:]\*?\s*/i;
 
 /** The parts a book or an article sets apart: a heading with one of these roles starts it. */
 export const PARTS = new Set(['Foreword', 'Preface', 'Acknowledgements', 'Abstract', 'Appendix', 'Afterword', 'Glossary', 'References', 'About the author', 'Colophon']);
-const NUMBER = /^(\d+(?:\.\d+)*)\.?\s+(?=\S)/;
+// A heading's own number, as typed or as the editor saves it: "4.4 History" is kept as "4\.4 History",
+// the escape that stops Markdown reading a list item.
+const NUMBER = /^(\d+(?:\\?\.\d+)*)\\?\.?\s+(?=\S)/;
 
 /**
  * The paper layout's heading labels, keyed by plan item, as AASTeX sets them: a section is
@@ -148,7 +150,7 @@ export function paperHeadings(plan) {
     if (part && item.role === part.role && level > part.level) { labels.set(item, words); continue; }
     part = PARTS.has(item.role) ? { role: item.role, level } : null;
     if (part) { labels.set(item, words.toUpperCase()); parts.add(item); continue; }
-    if (own) own[1].split('.').map(Number).forEach((n, i) => { if (i < 3) count[i] = n; });
+    if (own) own[1].replace(/\\/g, '').split('.').map(Number).forEach((n, i) => { if (i < 3) count[i] = n; });
     else count[level - 1]++;
     for (let i = level; i < 3; i++) count[i] = 0;
     const number = count.slice(0, level).join('.');

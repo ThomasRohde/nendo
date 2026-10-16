@@ -409,7 +409,7 @@ function inlineNodes(markdown) {
   return out;
 }
 
-function blockElement(block, layout) {
+function blockElement(block, layout, sizes = new Map()) {
   const slug = role => `role-${String(role).toLowerCase().replace(/\s+/g, '-')}`;
   if (block.kind === 'title') return el('h1', { class: `pv-title${block.titlePage ? ' title-page' : ''}` }, inlineNodes(block.text));
   if (block.kind === 'heading') return el(`h${block.level + 1}`, { class: `pv-h${block.level}${block.centred ? ' centred' : ''}${block.role ? ` ${slug(block.role)}` : ''}` }, inlineNodes(block.text));
@@ -417,7 +417,9 @@ function blockElement(block, layout) {
   if (block.kind === 'figure') {
     const widths = figureWidths(block, layout);
     return el('div', { class: 'pv-figure' }, block.pictures.map((picture, i) => {
-      const box = el('span', { class: 'pv-picture', style: `width:${widths[i]}px` });
+      // Its height is known before it is laid out, so a sheet is filled with the room it takes.
+      const size = sizes.get(picture.address), height = size ? `;height:${Math.round(widths[i] * size.height / size.width)}px` : '';
+      const box = el('span', { class: 'pv-picture', style: `width:${widths[i]}px${height}` });
       Promise.resolve(resolvePicture(picture.address)).then(url => {
         if (url) box.append(el('img', { src: url, alt: picture.alt || '', style: `width:${widths[i]}px` }));
         else box.append(el('span', { class: 'pv-missing', text: `Picture: ${picture.alt || 'no description'}` }));
@@ -437,9 +439,29 @@ function blockElement(block, layout) {
  * across the first page. An approximation of Word's pagination: a paragraph is never split
  * across columns or sheets.
  */
-function renderPreview() {
-  const layout = state.mode, page = PAGES[layout];
+/** Each picture's natural size, by address, for the pictures the plan shows and that load. */
+async function pictureSizes(plan) {
+  const addresses = [...new Set(plan.items.filter(item => item.type === 'picture').map(item => item.address))];
+  const sizes = new Map();
+  await Promise.all(addresses.map(async address => {
+    const url = await resolvePicture(address);
+    if (!url) return;
+    const image = new Image();
+    image.src = url;
+    try { await image.decode(); } catch { return; }
+    if (image.naturalWidth && image.naturalHeight) sizes.set(address, { width: image.naturalWidth, height: image.naturalHeight });
+  }));
+  return sizes;
+}
+
+let previewRun = 0;
+async function renderPreview() {
+  const layout = state.mode, page = PAGES[layout], run = ++previewRun;
   const plan = exportPlan({ title: state.title, nodes: sheet.read() });
+  // Every picture's size first: a figure laid out before its picture loads takes no room, then
+  // grows, and pushes the lines under it past the sheet's edge, where they are cut off.
+  const sizes = await pictureSizes(plan);
+  if (run !== previewRun || state.mode !== layout) return;
   const host = $('preview');
   host.dataset.layout = layout;
   host.style.removeProperty('--zoom');
@@ -465,7 +487,7 @@ function renderPreview() {
   const past = target => target.getBoundingClientRect().bottom - body.getBoundingClientRect().top > limit + 0.5;
   newSheet();
   for (const block of previewBlocks(plan, layout)) {
-    const element = blockElement(block, layout);
+    const element = blockElement(block, layout, sizes);
     if (!page.columns || block.across) {
       if (block.breakBefore && body.childElementCount) newSheet();
       body.append(element);

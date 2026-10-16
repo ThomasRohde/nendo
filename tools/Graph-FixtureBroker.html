@@ -50,6 +50,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //   offerPlaces(on), places, pushPlace(place),   ui.setPlace from the next connect on (W-127): what
 //   startAt(place)                              the view declared, Back or Forward handing it a
 //                                               place, and the place the next connect starts at
+//   offerMedia(urls)                            offer media.describe from the next connect on (ADR-0031):
+//                                               each address in urls answers with that picture URL
 //   put(entityId, record), touch(entityId, id)  somebody else writes a record, or moves its version on
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
@@ -83,6 +85,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // that measure a view on a host without it keep measuring that.
   const SCREENS = ['ui.openScreen'];
   let screensOffered = false;
+  // Pictures (ADR-0031), offered only when a probe asks: an address the probe named answers with its URL.
+  const MEDIA = ['media.describe'];
+  let mediaUrls = null;
   let placesOffered = false, startPlace = null;
   const places = [];
   const toolbars = [], menus = [], chromeRefusals = [];
@@ -131,7 +136,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
       ...clone(context), theme: themeOf(context.theme ?? 'light'),
-      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : [])],
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : [])],
       ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
@@ -246,6 +251,10 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         }
         const end = Math.min(nodes.length, start + limit);
         return { items: nodes.slice(start, end), nextCursor: end < nodes.length ? `${fixture.changeSequence}:${end}` : null, changeSequence: fixture.changeSequence };
+      }
+      case 'media.describe': {
+        const url = mediaUrls?.[params.address] ?? null;
+        return { address: params.address, url, mediaType: url ? 'image/png' : null };
       }
       case 'records.get': {
         const entityId = text(params, 'entityId'), recordId = text(params, 'recordId');
@@ -688,6 +697,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     offerPlaces(on) { placesOffered = on === true; return placesOffered; },
     offerSearch(on) { searchOffered = on === true; return searchOffered; },
     offerScreens(on) { screensOffered = on === true; return screensOffered; },
+    offerMedia(urls) { mediaUrls = urls ? clone(urls) : null; return mediaUrls !== null; },
     screensOpened() { return requests.filter(request => request.m === 'ui.openScreen').map(request => request.p.surfaceId); },
     places,
     /** Back or Forward moved the person to this place of the view's. */
