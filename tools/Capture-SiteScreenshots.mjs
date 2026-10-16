@@ -5,7 +5,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-const [port, processId, output, widthArgument, heightArgument, scaleArgument] = process.argv.slice(2);
+const [port, processId, output, widthArgument, heightArgument, scaleArgument, setArgument] = process.argv.slice(2);
+// Two runs make the site's set: the site's screens of Nendo Station, and the pictures of the
+// pictures reference file (W-274), each of its own file. A name starting "pictures-" is the second's.
+const set = setArgument ?? 'site';
+if (!['site', 'pictures'].includes(set)) throw new Error(`Unknown capture set ${set}.`);
 if (!/^\d+$/.test(port) || !/^\d+$/.test(processId) || !output) throw new Error('Owned port, PID and output directory are required.');
 // The capture is the WebView2 surface, so at native scale it is only as large as the
 // window. Overriding the device metrics renders the same layout at a higher device
@@ -17,11 +21,13 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const assert = (value, message) => { if (!value) throw new Error(message); };
 // The names the site shows. A run captures each in both themes or fails: a partial
 // set copied over the site's captures would mix two builds of the application.
-const captureSet = JSON.parse(await fs.readFile(new URL('../site/src/capture-set.json', import.meta.url), 'utf8')).names;
+const captureSet = JSON.parse(await fs.readFile(new URL('../site/src/capture-set.json', import.meta.url), 'utf8')).names
+  .filter(name => name.startsWith('pictures-') === (set === 'pictures'));
 const expectedFiles = captureSet.flatMap(name => ['light', 'dark'].map(theme => `${name}-${theme}.png`));
 let socket;
 const pending = new Map();
 const pageErrors = [];
+const responses = [];
 let nextId = 0;
 
 async function waitFor(read, label, budget = 25000) {
@@ -49,6 +55,7 @@ async function connect() {
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data);
     if (message.method === 'Runtime.exceptionThrown') pageErrors.push(message.params.exceptionDetails.text);
+    if (message.method === 'Network.responseReceived') responses.push(message.params.response);
     const item = pending.get(message.id);
     if (!item) return;
     pending.delete(message.id);
@@ -140,6 +147,76 @@ async function showSurface(id) {
   await closePicker();
 }
 
+/**
+ * The pictures reference file (W-274): the shelf of covers and a record page, in both themes, and
+ * what the real host does with the pictures (W-265, W-266), measured on the page rather than seen
+ * in a shot: every source shows, a picture fits its column, the page cannot read a picture's
+ * bytes, and the media origin's answers carry no CORS header and sandbox an SVG.
+ */
+async function picturesFlow() {
+  const checks = [];
+  const check = (name, passed, detail) => checks.push({ name, passed: !!passed, detail });
+  await command('Network.enable');
+  await clickFound('#nav-use');
+  await ready();
+  await waitFor(() => evaluate(`[...document.querySelectorAll('#use-entity option')].some(o => o.value === 'hb.plant')`), 'the Plants record type', 20000);
+  await selectEntity('hb.plant');
+  const surfaces = await surfacesHere();
+  const shelf = surfaces.find(surface => surface.kind.toLowerCase().includes('gallery'));
+  const list = surfaces.find(surface => surface.id === 'hb.plant.all');
+  assert(shelf && list, `The pictures file has no shelf and list: ${JSON.stringify(surfaces)}`);
+  const loaded = selector => `[...document.querySelectorAll(${JSON.stringify(selector)})].filter(i => i.complete && i.naturalWidth > 0).map(i => i.currentSrc || i.src)`;
+  const openGinkgo = async () => {
+    await clickFound('#nav-use');
+    await ready();
+    await selectEntity('hb.plant');
+    await showSurface(list.id);
+    await clickFound('.use-surface [data-record-id="ginkgo"]');
+    await ready();
+    await waitFor(() => evaluate(`${loaded('.media-field img[data-media-img]')}.length === 1 && ${loaded('.markdown-picture img')}.length === 1`), 'the ginkgo and its note picture', 15000);
+  };
+  for (const theme of ['light', 'dark']) {
+    await clickFound(`[data-theme-option="${theme}"]`);
+    await ready();
+    await shot('pictures-gallery', theme, async () => {
+      await clickFound('#nav-use');
+      await ready();
+      await selectEntity('hb.plant');
+      await showSurface(shelf.id);
+      // Six covers: three in the file, two in the folder beside it, one from the web.
+      await waitFor(() => evaluate(`${loaded('.use-surface img')}.length >= 6`), 'six covers', 30000);
+    });
+    const covers = await evaluate(loaded('.use-surface img'));
+    check(`${theme}: every source shows on the shelf`, covers.filter(src => src.includes('/m/')).length === 3 &&
+      covers.filter(src => src.includes('/f/?a=')).length === 2 && covers.filter(src => src.startsWith('https://upload.wikimedia.org/')).length === 1,
+      covers);
+    await shot('pictures-record-page', theme, openGinkgo);
+    const geometry = await evaluate(`(() => {
+      const box = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, width: r.width, height: r.height }; };
+      const picture = document.querySelector('.media-field img[data-media-img]');
+      const column = picture.closest('.media-field');
+      const note = document.querySelector('.markdown-picture img');
+      const body = note.closest('.markdown-body');
+      return { picture: box(picture), column: box(column), note: box(note), body: box(body), natural: picture.naturalWidth };
+    })()`);
+    check(`${theme}: the picture fits its column`, geometry.picture.width > 0 && geometry.picture.left >= geometry.column.left - 0.5 &&
+      geometry.picture.right <= geometry.column.right + 0.5, geometry);
+    check(`${theme}: the note's picture fits the text`, geometry.note.width > 0 && geometry.note.right <= geometry.body.right + 0.5, geometry);
+  }
+  const embedded = await evaluate(`document.querySelector('.media-field img[data-media-img]').currentSrc`);
+  const read = await evaluate(`fetch(${JSON.stringify(embedded)}).then(r => 'read ' + r.status, e => 'refused: ' + e.message)`);
+  check('the page cannot read a picture it shows', read.startsWith('refused'), { embedded, read });
+  const media = responses.filter(response => /^https:\/\/media-[0-9a-f]{16}\.example\//.test(response.url));
+  const header = (response, name) => Object.entries(response.headers).find(([key]) => key.toLowerCase() === name)?.[1];
+  check('the media origin answered every picture of the file and its folder', media.filter(r => r.status === 200).length >= 5, media.map(r => `${r.status} ${r.url}`));
+  check('no media answer carries a CORS header', media.every(r => !Object.keys(r.headers).some(key => key.toLowerCase().startsWith('access-control-'))), media.map(r => Object.keys(r.headers)));
+  const svgs = media.filter(r => (header(r, 'content-type') ?? '').startsWith('image/svg+xml'));
+  check('an SVG is answered sandboxed', svgs.length >= 3 && svgs.every(r => (header(r, 'content-security-policy') ?? '').includes('sandbox')), svgs.map(r => `${r.url} ${header(r, 'content-security-policy')}`));
+  await fs.writeFile(path.join(output, 'pictures-checks.json'), JSON.stringify(checks, null, 2));
+  for (const item of checks) console.log(`  ${item.passed ? 'PASS' : 'FAIL'} ${item.name}`);
+  assert(checks.every(item => item.passed), `A pictures check failed: ${JSON.stringify(checks.filter(item => !item.passed))}`);
+}
+
 try {
   await connect();
   await command('Runtime.enable');
@@ -174,6 +251,8 @@ try {
     await waitFor(() => evaluate(`document.querySelector('[data-testid="behaviour-approval"]')?.dataset.approved === 'true'`), 'the approved behaviour', 15000);
   }
 
+  if (set === 'pictures') await picturesFlow();
+  else {
   // Find one surface of each kind worth showing, once, across every record type.
   await clickFound('#nav-use');
   await ready();
@@ -286,22 +365,24 @@ try {
     });
   }
 
+  }
+
   await clickFound(`[data-theme-option="${originalTheme}"]`);
   await ready();
   await command('Emulation.clearDeviceMetricsOverride');
 
-  await fs.writeFile(path.join(output, 'manifest.json'), JSON.stringify({ captured, skipped, pageErrors }, null, 2));
+  await fs.writeFile(path.join(output, set === 'site' ? 'manifest.json' : `manifest-${set}.json`), JSON.stringify({ captured, skipped, pageErrors }, null, 2));
   assert(pageErrors.length === 0, `Unhandled page errors: ${pageErrors.join(' | ')}`);
   for (const entry of skipped) console.log(`  skipped ${entry.file}: ${entry.reason}`);
   const missing = expectedFiles.filter(file => !captured.includes(file));
   const extra = captured.filter(file => !expectedFiles.includes(file));
   assert(skipped.length === 0 && missing.length === 0 && extra.length === 0,
     `The capture set is incomplete, so nothing may be copied to the site: missing ${JSON.stringify(missing)}, not in the set ${JSON.stringify(extra)}, skipped ${JSON.stringify(skipped)}.`);
-  console.log(`Captured all ${captured.length} screenshot(s) the site shows.`);
+  console.log(`Captured all ${captured.length} screenshot(s) of the ${set} set.`);
 } catch (error) {
   try {
-    await screenshot('failure.png');
-    await fs.writeFile(path.join(output, 'failure-page.json'), JSON.stringify({
+    await screenshot(`failure-${set}.png`);
+    await fs.writeFile(path.join(output, `failure-page-${set}.json`), JSON.stringify({
       message: error.message,
       captured,
       skipped,

@@ -186,7 +186,7 @@ failure text goes in a Finding (`AGENTS.md`).
 | **W-271** Markdown pictures | `markdown.ts` renders media addresses | SSR markup tests, including `javascript:` and `data:` staying inert |
 | **W-272** CSV, new files, search | Export with pictures, import, embed all linked (built 2026-10-16); search on a picture's name is not built and has an item of its own | A round trip between two files compared by hash; a missing `media:` refused at review |
 | **W-273** Remove unused pictures | The host operation, and the totals on Studio's History beside the fold, since a fold is what lets a picture go (built 2026-10-16) | Named content never removed; backup first; size falls by what was removed |
-| **W-274** Reference file and guide | A built demo file with all three sources, the site guide and screenshots, the measurements as Checks | `Test-BinaryAssets.ps1`, `Test-Site.ps1` |
+| **W-274** Reference file and guide | A built demo file with all three sources (`workspace/Herbarium.nendo`, built 2026-10-16 by a .NET script through the Engine rather than an `.mjs` over MCP, since a new file's agent access is the owner's), the site guide and screenshots, the measurements as Checks | `Test-BinaryAssets.ps1`, `Test-Site.ps1` |
 
 The order is W-264 first, with W-263 alongside since it changes no code. W-265 follows W-264;
 W-266, W-267 and W-268 need the canvas and W-265. W-269, W-272 and W-273 need only W-264; W-270 and

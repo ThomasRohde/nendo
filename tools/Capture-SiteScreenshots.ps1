@@ -6,6 +6,9 @@ param(
     # application and is rebuilt by tools/Build-NendoStation.mjs, so it is the
     # one demo file whose shape is reproducible.
     [string] $SourceFile = '',
+    # The pictures reference file (W-274), taken in a second run with the folder of
+    # pictures beside it; the names starting "pictures-" in the capture set are its.
+    [string] $PicturesFile = '',
     [string] $OutputDirectory = '',
     # The layout size the page is rendered at, and the device pixel ratio it is
     # rendered with. The image is Width x Scale by Height x Scale.
@@ -25,29 +28,36 @@ if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "No Nendo.Desktop
 $source = if ($SourceFile -ne '') { [IO.Path]::GetFullPath($SourceFile) } else { Join-Path $repoRoot 'workspace/Nendo Station.nendo' }
 if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "No .nendo file at $source." }
 $output = if ($OutputDirectory -ne '') { [IO.Path]::GetFullPath($OutputDirectory) } else { Join-Path $repoRoot 'artifacts/site-screenshots' }
+$pictures = if ($PicturesFile -ne '') { [IO.Path]::GetFullPath($PicturesFile) } else { Join-Path $repoRoot 'workspace/Herbarium.nendo' }
+if (-not (Test-Path -LiteralPath $pictures -PathType Leaf)) { throw "No .nendo file at $pictures." }
 
-$runRoot = Join-Path $repoRoot ('artifacts/site-screenshots-run-' + [Guid]::NewGuid().ToString('N'))
-[void] (New-Item -ItemType Directory -Path $runRoot)
 if (Test-Path -LiteralPath $output) { Remove-Item -LiteralPath $output -Recurse -Force }
 [void] (New-Item -ItemType Directory -Path $output)
-
-# The real file is write-owned by whatever Nendo has it open, and these shots are
-# not worth touching the owner's data for. Take them of a copy.
-$workingFile = Join-Path $runRoot ([IO.Path]::GetFileName($source))
-Copy-Item -LiteralPath $source -Destination $workingFile
-
-$portReservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
-$portReservation.Start()
-$port = $portReservation.LocalEndpoint.Port
-$portReservation.Stop()
 
 Add-Type -Namespace NendoCapture -Name Window -MemberDefinition @'
 [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
 [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int cmd);
 [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
 '@
-
 . (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
+
+function Invoke-Capture([string] $sourcePath, [string] $set) {
+$runRoot = Join-Path $repoRoot ('artifacts/site-screenshots-run-' + [Guid]::NewGuid().ToString('N'))
+[void] (New-Item -ItemType Directory -Path $runRoot)
+
+# The real file is write-owned by whatever Nendo has it open, and these shots are
+# not worth touching the owner's data for. Take them of a copy, with the folder of
+# pictures a file links beside it, as it is beside the original.
+$workingFile = Join-Path $runRoot ([IO.Path]::GetFileName($sourcePath))
+Copy-Item -LiteralPath $sourcePath -Destination $workingFile
+$linked = Join-Path (Split-Path $sourcePath) ([IO.Path]::GetFileNameWithoutExtension($sourcePath) + ' pictures')
+if (Test-Path -LiteralPath $linked -PathType Container) { Copy-Item -LiteralPath $linked -Destination $runRoot -Recurse }
+
+$portReservation = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+$portReservation.Start()
+$port = $portReservation.LocalEndpoint.Port
+$portReservation.Stop()
+
 $target = $null
 $succeeded = $false
 $env:NENDO_RUNTIME_EXPECTED_EXECUTABLE = $exe
@@ -84,7 +94,7 @@ try {
     [void] [NendoCapture.Window]::SetForegroundWindow($handle)
     Start-Sleep -Milliseconds 900
 
-    & node (Join-Path $PSScriptRoot 'Capture-SiteScreenshots.mjs') $port $target.Id $output $Width $Height $Scale
+    & node (Join-Path $PSScriptRoot 'Capture-SiteScreenshots.mjs') $port $target.Id $output $Width $Height $Scale $set
     if ($LASTEXITCODE -ne 0) { throw "Site screenshot capture failed with exit code $LASTEXITCODE. Output: $output" }
     $succeeded = $true
 }
@@ -94,6 +104,10 @@ finally {
     # state root. None of it is evidence; leaving it turns artifacts/ into ballast.
     if (Test-Path -LiteralPath $runRoot) { Remove-Item -LiteralPath $runRoot -Recurse -Force -ErrorAction SilentlyContinue }
 }
+}
+
+Invoke-Capture $source 'site'
+Invoke-Capture $pictures 'pictures'
 Write-Host "Captured $(@(Get-ChildItem -LiteralPath $output -Filter *.png).Count) screenshot(s) into $output"
 if ($UpdateSite) {
     $siteShots = Join-Path $repoRoot 'site/src/assets/screenshots'

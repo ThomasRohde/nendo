@@ -111,3 +111,13 @@ test('the inspector carries the close control and the record version',()=>{
  assert.match(markup,/<form id="record-form"/);
  assert.doesNotMatch(markup,/Record version|>v2</,'the concurrency counter is on a person-facing page (UX-13)');
 });
+
+test('a page that shows its picture and note first is still headed by the record’s name (W-274)',()=>{
+ const fields=[field('cover','media'),field('note','markdown'),field('name'),stage];
+ const withPicture={...record,values:{...record.values,cover:'media:'+'a'.repeat(64),note:'A long note about the deal.'}};
+ const heading=surfaces=>/<span id="inspector-heading"[^>]*>(.*?)<small>/.exec(inspectorMarkup({entity:{semanticId:'deal',displayName:'Deal',fields,derivedFields:[]},records:[],surfaces},withPicture))?.[1];
+ // Neither the picture's address nor the note is a name.
+ assert.equal(heading([node('page.deal','detailSurface',{},[binding('cover'),binding('note'),binding('name')])]),'Acme');
+ // A page that names its title field is headed by it.
+ assert.equal(heading([node('page.deal','detailSurface',{titleFieldId:'stage'},[binding('cover'),binding('note')])]),'won');
+});

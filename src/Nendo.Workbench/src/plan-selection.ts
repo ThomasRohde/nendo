@@ -342,6 +342,18 @@ export function listFieldIds(plan: ApplicationPlan, node: SurfaceNodePlan | null
   return plan.entity.fields.map((field) => field.semanticId);
 }
 
+/**
+ * The field that names a record among these: the first that is neither a picture nor long text.
+ * A picture's value is an address and a note is a paragraph, and neither is a name: a record page
+ * whose first fields were its picture and its note was headed by `media:` and sixty-four hex
+ * digits, then by the whole note (W-274). Falls back to the record type's first such field.
+ */
+export function titleFieldOf(plan: ApplicationPlan, fieldIds: readonly string[]): string {
+  const presentation = (fieldId: string) => plan.entity.fields.find((field) => field.semanticId === fieldId)?.presentation;
+  const naming = (fieldId: string) => !['media', 'longText', 'markdown'].includes(presentation(fieldId) ?? '');
+  return fieldIds.find(naming) ?? plan.entity.fields.map((field) => field.semanticId).find(naming) ?? fieldIds[0] ?? '';
+}
+
 /** The list a chart drills into: the record type's first list, or none. */
 export function drillTarget(plan: ApplicationPlan): SurfaceNodePlan | null {
   return useSurfaces(plan).find((node) => node.kind === 'recordList') ?? null;

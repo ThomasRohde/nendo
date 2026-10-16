@@ -101,6 +101,19 @@ Measured on 2026-10-16 (W-264), cold, at SQLite level, on a 201 MiB file and the
 (+8.7%; 12 and 11 runs, spread 7.9-12.7 s); the full check, as an open did it before, 14.6 s
 against 8.2 s. `tools/media-open/Measure-MediaOpen.ps1` repeats it.
 
+Measured on 2026-10-16 (W-274) through the Engine's own open, warm and once each, by
+`tools/Build-Herbarium.ps1 -Measure`: a file at the budget, 32 pictures of 64 MiB less a page,
+is 2,149,888,000 bytes for 2,147,352,576 bytes of pictures; it opened in 2.88 s against 0.075 s
+for the same file without them, and its backup took 27.0 s against 0.043 s. The backup copies
+every page, so it grows with the pictures; the open does not read them.
+
+The reference file is `workspace/Herbarium.nendo`, built by `tools/Build-Herbarium.ps1`, with the
+`Herbarium pictures` folder beside it: four pictures in the file, two linked from the folder and
+one from the web. `tools/Capture-SiteScreenshots.ps1` opens a copy of it in a real host and
+measures that every source shows, that a picture fits its column in both themes, that the page
+cannot read a picture's bytes, and that the media origin answers with no CORS header and an SVG
+sandboxed.
+
 ## Removing unused pictures
 
 A picture stays in the file while anything the file keeps names it (ADR-0031 point 8, W-273): a

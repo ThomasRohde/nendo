@@ -55,6 +55,69 @@ public sealed class DesktopMediaServingTests
         Assert.IsFalse(session.IsMediaHost(origin.Host));
     }
 
+    /// <summary>
+    /// WebView2 reads a picture's stream synchronously on the UI thread. A read whose async half
+    /// queued back to that thread waited on itself for ever: on the real host no embedded picture
+    /// loaded and every bridge request after one hung (W-274). Measured on a thread whose context,
+    /// like a blocked UI thread, never runs what is queued to it.
+    /// </summary>
+    [TestMethod]
+    public void ASynchronousReadOnABlockedUiThreadStillCompletes()
+    {
+        var content = Enumerable.Range(0, 4096).Select(index => (byte)index).ToArray();
+        var stream = new DesktopMediaContentStream(async (offset, buffer, token) =>
+        {
+            // Like the Engine's gate and SQLite reads: a continuation that wants the caller's context.
+            await Task.Delay(5, token);
+            var count = (int)Math.Min(buffer.Length, content.Length - offset);
+            content.AsMemory((int)offset, count).CopyTo(buffer);
+            return count;
+        }, 0, content.Length);
+        var read = -1;
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new NeverRunsContext());
+            read = stream.Read(new byte[1024], 0, 1024);
+        }) { IsBackground = true };
+        thread.Start();
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(10)), "The read deadlocked on the thread it was waiting on.");
+        Assert.AreEqual(1024, read);
+    }
+
+    /// <summary>
+    /// The same, for the asynchronous read WebView2's random-access adapter starts on the UI
+    /// thread and then waits for: begun there, the Engine's read resumed there and never finished,
+    /// and no embedded picture loaded (W-274).
+    /// </summary>
+    [TestMethod]
+    public void AnAsynchronousReadBegunOnABlockedUiThreadStillCompletes()
+    {
+        var content = Enumerable.Range(0, 4096).Select(index => (byte)index).ToArray();
+        var stream = new DesktopMediaContentStream(async (offset, buffer, token) =>
+        {
+            await Task.Delay(5, token);
+            var count = (int)Math.Min(buffer.Length, content.Length - offset);
+            content.AsMemory((int)offset, count).CopyTo(buffer);
+            return count;
+        }, 0, content.Length);
+        var read = -1;
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(new NeverRunsContext());
+            read = stream.ReadAsync(new byte[1024]).AsTask().GetAwaiter().GetResult();
+        }) { IsBackground = true };
+        thread.Start();
+        Assert.IsTrue(thread.Join(TimeSpan.FromSeconds(10)), "The read begun on the UI thread waited for that thread to resume it.");
+        Assert.AreEqual(1024, read);
+    }
+
+    /// <summary>A UI thread that is busy waiting: what is posted to it never runs.</summary>
+    private sealed class NeverRunsContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) { }
+        public override void Send(SendOrPostCallback callback, object? state) { }
+    }
+
     /// <summary>Alone, since the allocation it measures is the whole process's.</summary>
     [TestMethod]
     [DoNotParallelize]
@@ -108,6 +171,14 @@ public sealed class DesktopMediaServingTests
             CollectionAssert.AreEqual(cover, await ReadAllAsync(answer.Open!(0, answer.Length)), address);
             CollectionAssert.Contains(DesktopMediaResponses.Headers(answer, 200, 0, answer.Length - 1).ToList(), "Cache-Control: no-store");
         }
+        // WebView2 takes a body only as a random-access stream, which must seek: a window of a
+        // local file that could not was refused there, and every linked picture answered 500 (W-274).
+        var local = await session.ResolveMediaAsync("f/", "?a=" + Uri.EscapeDataString(@".\cover.png"));
+        var window = local.Open!(100, 200);
+        Assert.IsTrue(window.CanSeek, "A body that cannot seek is refused by WebView2, and the picture is answered as a server error.");
+        window.Position = 50;
+        CollectionAssert.AreEqual(cover[150..300], await ReadAllAsync(window), "a seek within the range reads from there");
+
         foreach (var address in new[] { @".\folder.png", @".\renamed.png", @".\notes.jpg", @".\cover.txt", @".\missing.png", "cover.png",
                      "https://example.org/cover.png", "media:" + new string('a', 64) })
             Assert.AreEqual(404, (await session.ResolveMediaAsync("f/", "?a=" + Uri.EscapeDataString(address))).Status, address);

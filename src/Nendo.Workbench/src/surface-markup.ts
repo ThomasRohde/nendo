@@ -17,7 +17,7 @@ import { accumulatedWindows, boardColumns, matrixCells, state, surfaceErrors, su
 import {
   activeDrill, activeSurfaceQuery, applicationPlans, boardOf, calendarKeyFor, calendarModeFor, calendarMonthFor, listFieldIds, narrowed,
   recordWindowFor, referenceColumnsOf, selectedSurfaceNode, surfaceAccentFieldId, timelineKeyFor, timelineModeFor,
-  timelineYearFor, todayCivil,
+  timelineYearFor, titleFieldOf, todayCivil,
 } from './plan-selection';
 import { accentDot, fieldValueMarkup, recordCardMarkup, recordFieldDisplay, summaryTileGroupMarkup } from './record-markup';
 import { viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
@@ -146,7 +146,7 @@ export function calendarMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
   const accumulated = accumulatedWindows.get(calendarKeyFor(node));
   const dateFieldId = typeof node.properties.dateFieldId === 'string' ? node.properties.dateFieldId : null;
   const complete = accumulated !== undefined && accumulated.cursor === null && !accumulated.loading;
-  const titleFieldId = nodeFieldIds(node)[0] ?? plan.entity.fields[0]?.semanticId ?? '';
+  const titleFieldId = titleFieldOf(plan, nodeFieldIds(node));
   const entries = plan.records;
 
   const controls = `<header class="calendar-toolbar">
@@ -210,7 +210,7 @@ export function timelineMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): st
   const complete = accumulated !== undefined && accumulated.cursor === null && !accumulated.loading;
   const titleFieldId = typeof node.properties.titleFieldId === 'string'
     ? node.properties.titleFieldId
-    : nodeFieldIds(node)[0] ?? plan.entity.fields[0]?.semanticId ?? '';
+    : titleFieldOf(plan, nodeFieldIds(node));
   const bodyFieldIds = nodeFieldIds(node).filter((fieldId) => fieldId !== titleFieldId);
   const accentFieldId = typeof node.properties.accentFieldId === 'string' ? node.properties.accentFieldId : null;
   const displayName = plan.entity.displayName;

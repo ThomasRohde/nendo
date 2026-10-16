@@ -115,7 +115,11 @@ internal sealed class DesktopMediaContentStream(Func<long, Memory<byte>, Cancell
         var remaining = count - _position;
         if (remaining <= 0 || buffer.Length == 0) return 0;
         var slice = buffer[..(int)Math.Min(buffer.Length, remaining)];
-        var got = await readRange(start + _position, slice, cancellationToken);
+        // WebView2 asks for the bytes on the UI thread and may wait there for them. The Engine's
+        // read resumes wherever it began, so it begins on the thread pool, and nothing it awaits
+        // needs the UI thread to finish.
+        var position = start + _position;
+        var got = await Task.Run(() => readRange(position, slice, cancellationToken), cancellationToken).ConfigureAwait(false);
         if (got < 0) throw new IOException("The picture is no longer in the file.");
         _position += got;
         return got;
@@ -124,8 +128,14 @@ internal sealed class DesktopMediaContentStream(Func<long, Memory<byte>, Cancell
     public override Task<int> ReadAsync(byte[] buffer, int offset, int length, CancellationToken cancellationToken) =>
         ReadAsync(buffer.AsMemory(offset, length), cancellationToken).AsTask();
 
+    /// <summary>
+    /// WebView2 reads a response's stream on the UI thread, synchronously. Waiting there on the
+    /// read itself deadlocked: the Engine's continuations queue to the UI thread this wait was
+    /// holding, so no picture loaded and every bridge request after it hung. The read runs on the
+    /// thread pool, which has no context to queue to, and only its result is waited for.
+    /// </summary>
     public override int Read(byte[] buffer, int offset, int length) =>
-        ReadAsync(buffer.AsMemory(offset, length)).AsTask().GetAwaiter().GetResult();
+        Task.Run(() => ReadAsync(buffer.AsMemory(offset, length)).AsTask()).GetAwaiter().GetResult();
 
     public override long Seek(long offset, SeekOrigin origin) => Position = origin switch
     {
@@ -139,43 +149,70 @@ internal sealed class DesktopMediaContentStream(Func<long, Memory<byte>, Cancell
     public override void Write(byte[] buffer, int offset, int length) => throw new NotSupportedException();
 }
 
-/// <summary>A window of another stream, so a range of a local file is served without reading the rest.</summary>
-internal sealed class DesktopStreamWindow(Stream inner, long count) : Stream
+/// <summary>
+/// A window of a seekable stream from where it stands, so a range of a local file is served
+/// without reading the rest. Seekable itself, since WebView2 takes a response body only as a
+/// random-access stream: a window that could not seek was refused, and every linked picture
+/// was answered as a server error.
+/// </summary>
+internal sealed class DesktopStreamWindow : Stream
 {
+    private readonly Stream _inner;
+    private readonly long _origin;
+    private readonly long _count;
     private long _position;
 
+    internal DesktopStreamWindow(Stream inner, long count)
+    {
+        if (!inner.CanSeek) throw new ArgumentException("The window needs a seekable stream.", nameof(inner));
+        _inner = inner;
+        _origin = inner.Position;
+        _count = count;
+    }
+
     public override bool CanRead => true;
-    public override bool CanSeek => false;
+    public override bool CanSeek => true;
     public override bool CanWrite => false;
-    public override long Length => count;
-    public override long Position { get => _position; set => throw new NotSupportedException(); }
+    public override long Length => _count;
+    public override long Position { get => _position; set => _position = Math.Clamp(value, 0, _count); }
 
     public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        var remaining = count - _position;
-        if (remaining <= 0) return 0;
-        var read = await inner.ReadAsync(buffer[..(int)Math.Min(buffer.Length, remaining)], cancellationToken);
+        var remaining = _count - _position;
+        if (remaining <= 0 || buffer.Length == 0) return 0;
+        _inner.Position = _origin + _position;
+        var read = await _inner.ReadAsync(buffer[..(int)Math.Min(buffer.Length, remaining)], cancellationToken).ConfigureAwait(false);
         _position += read;
         return read;
     }
+
+    public override Task<int> ReadAsync(byte[] buffer, int offset, int length, CancellationToken cancellationToken) =>
+        ReadAsync(buffer.AsMemory(offset, length), cancellationToken).AsTask();
 
     public override int Read(byte[] buffer, int offset, int length)
     {
-        var remaining = count - _position;
+        var remaining = _count - _position;
         if (remaining <= 0) return 0;
-        var read = inner.Read(buffer, offset, (int)Math.Min(length, remaining));
+        _inner.Position = _origin + _position;
+        var read = _inner.Read(buffer, offset, (int)Math.Min(length, remaining));
         _position += read;
         return read;
     }
 
+    public override long Seek(long offset, SeekOrigin origin) => Position = origin switch
+    {
+        SeekOrigin.Begin => offset,
+        SeekOrigin.Current => _position + offset,
+        _ => _count + offset,
+    };
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing) inner.Dispose();
+        if (disposing) _inner.Dispose();
         base.Dispose(disposing);
     }
 
     public override void Flush() { }
-    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
     public override void SetLength(long value) => throw new NotSupportedException();
     public override void Write(byte[] buffer, int offset, int length) => throw new NotSupportedException();
 }
