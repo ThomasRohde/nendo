@@ -485,23 +485,33 @@ async function renderPreview() {
     column = 0;
   };
   const past = target => target.getBoundingClientRect().bottom - body.getBoundingClientRect().top > limit + 0.5;
+  // What moves on when a block does not fit: the block, and the headings just above it, so a
+  // heading is never left at the foot of a column or a sheet without its text, as Word keeps a
+  // heading with the next paragraph. A container that would be left empty keeps them.
+  const carried = element => {
+    const moving = [element];
+    let before = element.previousElementSibling;
+    while (before && /^H[2-4]$/.test(before.tagName) && before.previousElementSibling) { moving.unshift(before); before = before.previousElementSibling; }
+    return moving;
+  };
   newSheet();
   for (const block of previewBlocks(plan, layout)) {
     const element = blockElement(block, layout, sizes);
     if (!page.columns || block.across) {
       if (block.breakBefore && body.childElementCount) newSheet();
       body.append(element);
-      if (body.scrollHeight > limit && body.childElementCount > 1) { element.remove(); newSheet(); body.append(element); }
+      if (body.scrollHeight > limit && body.childElementCount > 1) { const moving = carried(element); moving.forEach(e => e.remove()); newSheet(); body.append(...moving); }
       continue;
     }
     if (block.breakBefore && (columns ? columns.some(c => c.childElementCount) : body.childElementCount)) newSheet();
     if (!columns) newColumns();
     columns[column].append(element);
     if (past(columns[column]) && columns[column].childElementCount > 1) {
-      element.remove();
+      const moving = carried(element);
+      moving.forEach(e => e.remove());
       if (column + 1 < columns.length) column++;
       else { newSheet(); newColumns(); }
-      columns[column].append(element);
+      columns[column].append(...moving);
     }
   }
   previewZoom();

@@ -324,6 +324,14 @@ async page => {
     const words = 'The water went out further than anyone in the village could remember, and the posts of the old causeway stood up out of the sand one after another, each with its number cut into the top.';
     for (let i = 1; i <= 8; i++) window.broker.put('mn.block', { entityId: 'mn.block', recordId: `b-after-${i}`, version: 1, labels: {},
       values: { 'mn.block.kind': 'Paragraph', 'mn.block.parent': 'b-ch-4', 'mn.block.order': 1000000 + i, 'mn.block.text': `${words} ${words}` } });
+    // Sections whose text takes about half a column, so the next heading fits under one and its
+    // text does not: the place a heading is left behind unless it moves on with its text.
+    for (let i = 1; i <= 14; i++) {
+      window.broker.put('mn.block', { entityId: 'mn.block', recordId: `b-sec-${i}`, version: 1, labels: {},
+        values: { 'mn.block.kind': 'Section', 'mn.block.parent': 'b-ch-4', 'mn.block.order': 2000000 + i, 'mn.block.text': `Posts ${i}` } });
+      window.broker.put('mn.block', { entityId: 'mn.block', recordId: `b-sec-${i}-p`, version: 1, labels: {},
+        values: { 'mn.block.kind': 'Paragraph', 'mn.block.parent': `b-sec-${i}`, 'mn.block.order': 1024, 'mn.block.text': `${Array(5).fill(words).join(' ')} ${words.split(' ').slice(0, i * 3).join(' ')}` } });
+    }
   });
   const framePrevious = frame;
   await page.evaluate(() => window.broker.remount());
@@ -343,9 +351,19 @@ async page => {
   }));
   const figure = await frame.evaluate(() => { const box = document.querySelector('.pv-picture').getBoundingClientRect(); return { width: Math.round(box.width), height: Math.round(box.height) }; });
   assert(clipped.length === 0 && figure.height > figure.width, `The preview cuts off what runs past a sheet: ${JSON.stringify({ clipped, figure })}`);
+  // A heading stays with the text after it: no column or sheet ends on one (owner, 2026-10-17).
+  const stranded = await frame.evaluate(() => [...document.querySelectorAll('.sheet-page')].flatMap((sheet, n) =>
+    [...sheet.querySelectorAll('.pv-column, .sheet-body')].map(box => box.matches('.sheet-body') ? [...box.children].filter(e => !e.matches('.pv-columns')).at(-1) : box.lastElementChild)
+      .filter(last => last && /^H[2-4]$/.test(last.tagName) && last.nextElementSibling === null).map(last => ({ page: n + 1, heading: last.textContent }))));
+  // And the columns start below what runs across the first page, with room between.
+  const gap = await frame.evaluate(() => { const columns = document.querySelector('.sheet-page .sheet-body > .pv-columns'), before = columns?.previousElementSibling;
+    const zoom = columns ? columns.getBoundingClientRect().width / columns.offsetWidth : 1;
+    return before ? Math.round((columns.getBoundingClientRect().top - before.getBoundingClientRect().bottom) / zoom) : null; });
+  const headings = await frame.evaluate(() => [...document.querySelectorAll('.pv-column :is(h2, h3, h4)')].filter(h => /Posts \d+$/.test(h.textContent)).length);
+  assert(stranded.length === 0 && headings >= 14 && gap !== null && gap >= 18, `Paper preview: headings left without their text, or no room above the columns: ${JSON.stringify({ stranded, headings, gap })}`);
   await page.screenshot({ path: '__OUTPUT__/preview-paper-picture.png' });
   await mode('write');
-  checks.push('preview makes room for pictures');
+  checks.push('preview makes room for pictures', 'headings kept with their text', 'room above the columns');
   assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, colours, narrow, errors };

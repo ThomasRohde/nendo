@@ -184,7 +184,8 @@ button.quiet:hover { background: var(--soft); }
 .sheet-body p.role-scene-break { text-align: center; margin: 16px 0; }
 .preview[data-layout='paper'] .sheet-body p.role-abstract { margin: 0 45px; }
 .sheet-body p.role-keywords { text-align: left; margin: 13px 45px 8px; padding-left: 63px; text-indent: -63px; }
-.preview[data-layout='paper'] .sheet-body p.across:last-child { margin-bottom: 16px; }
+/* Room between what runs across the first page and the columns under it. */
+.sheet-body > * + .pv-columns { margin-top: 20px; }
 .sheet-body p.role-references, .sheet-body p.role-glossary { text-align: left; font-size: 12px; padding-left: 24px; text-indent: -24px; margin-bottom: 4px; }
 .sheet-body p.role-colophon { text-align: center; font-size: 0.85em; margin-bottom: 8px; }
 .pv-figure { text-align: center; margin: 13px 0 5px; display: flex; justify-content: center; gap: 24px; }

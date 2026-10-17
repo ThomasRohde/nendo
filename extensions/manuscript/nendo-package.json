@@ -1,7 +1,7 @@
 {
   "packageId": "org.nendo.manuscript",
   "title": "Manuscript",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "entryPoint": "index.html",
   "description": "Write a manuscript as one quiet continuous page, kept paragraph by paragraph as blocks with notes and named links."
 }
