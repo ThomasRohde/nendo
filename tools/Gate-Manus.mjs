@@ -110,6 +110,20 @@ async page => {
   assert(report.format === 'word' && report.layout === 'book' && report.missing.length === 1 && report.pictures === 1, `Export report: ${JSON.stringify(report)}`);
   const paper = await exported('export-word-paper', 'Low Water.docx');
   assert(paper[0] === 0x50 && paper[1] === 0x4b && (await frame.evaluate(() => window.manuscript.lastExport.layout)) === 'paper', 'The paper layout did not export.');
+  // A long title makes a long status ("Exported <title>.docx"): Nendo takes a toolbar text of at most
+  // 80 characters and refused all the view's controls for a longer one (owner, 2026-10-17).
+  const longTitle = 'Malleable Software in One File: Nendo as a Case Study of an Application Built by an Agent';
+  await frame.fill('#title', longTitle);
+  await saved();
+  const longName = `${longTitle.replace(/[\u0000-\u001f<>:"/\\|?*]/g, '').replace(/[. ]+$/, '').trim().slice(0, 80).trim()}.docx`;
+  await exported('export-word', longName);
+  await page.waitForTimeout(300);
+  const longStatus = { refusals: await page.evaluate(() => window.broker.chromeRefusals), text: (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.kind === 'text')?.text,
+    chrome: await frame.evaluate(() => window.manuscript.chrome) };
+  assert(longStatus.refusals.length === 0 && longStatus.chrome === true && longStatus.text.length <= 80 && longStatus.text.startsWith('Exported Malleable Software'),
+    `A long status: ${JSON.stringify(longStatus)}`);
+  await frame.fill('#title', 'Low Water');
+  await saved();
   checks.push('Markdown and Word export');
 
   // Preview: Book and Paper draw the manuscript on sheets of their layout; Write comes back to the editor.

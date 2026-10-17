@@ -613,6 +613,11 @@ function summary() {
   return `${name.length > 40 ? `${name.slice(0, 39)}…` : name}: ${chapterWords.toLocaleString()} of ${total}`;
 }
 
+// Nendo takes a toolbar text of at most 80 characters and refuses all the controls for a longer
+// one; a status that names a long file name would pass it.
+const TOOLBAR_TEXT = 80;
+const fit = (text, max) => text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
+
 let declared = null;
 function declare() {
   if (!state.chrome) { renderOwnToolbar(); return; }
@@ -627,7 +632,7 @@ function declare() {
         { value: 'new', label: 'New manuscript\u2026' }] }] : []),
     ...(state.mode !== 'write' ? [] : [{ kind: 'select', id: 'style', label: 'Style', value: style, options: STYLES.map(s => ({ value: s, label: s })) }]),
     ...(state.roles && state.mode === 'write' ? [{ kind: 'select', id: 'role', label: 'Role', value: (state.root !== null && sheet.roleHere()) || 'none', options: [{ value: 'none', label: 'No role' }, ...ROLES.map(r => ({ value: r, label: r }))] }] : []),
-    { kind: 'text', text: `${state.status} · ${summary()}` },
+    { kind: 'text', text: fit(`${state.status} · ${summary()}`, TOOLBAR_TEXT) },
     { kind: 'spacer' },
     ...(state.mode !== 'write' ? [] : [
       { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
