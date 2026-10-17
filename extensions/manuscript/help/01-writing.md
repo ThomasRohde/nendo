@@ -8,7 +8,7 @@ A file can hold several manuscripts. The first box in the toolbar names the one 
 
 ## Saving
 
-There is no Save button. A pause in your typing saves what changed, and the line in Nendo's toolbar says **Saving…**, then **Saved** with the time. **Not saved** means Nendo refused the write; your text stays on the page and the message above it says why.
+There is no Save button. A pause in your typing saves what changed, and the line in Nendo's toolbar says **Saving…**, then **Saved** with the time. **Not saved** means Nendo refused the write; your text stays on the page and the message above it says why. If Nendo closes before a save, what you changed is kept on this computer and saved when the manuscript opens again. If someone changed the same passage in the meantime, Manuscript asks: **Put mine back** or **Discard mine**.
 
 ## Parts, chapters and sections
 

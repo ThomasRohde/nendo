@@ -261,6 +261,85 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
   return [...creates, ...updates, ...attached, ...deletes];
 }
 
+const same = (a, b) => (a ?? null) === (b ?? null);
+
+/**
+ * The writes of `plan` that come from an edit, not from how the file was read. `asRead` is the
+ * plan the sheet made the moment it was loaded: a block out of place (a row outside a table, a
+ * paragraph inside one) is shown where it would go, and without this its kind, parent and order
+ * would be written on the next save though nobody touched it. A field whose value is what the
+ * read alone would write is dropped; a misplaced block keeps its kind, parent and order unless
+ * the person changed its kind or moved it. A create the read alone made (a row the sheet gave an
+ * empty table) is still written when a kept write refers to it.
+ */
+export function withoutAsRead(plan, asRead) {
+  if (!asRead?.length) return plan;
+  const read = new Map(asRead.filter(w => w.entityId === BLOCK).map(w => [w.recordId, w]));
+  const STRUCTURE = [F.kind, F.parent, F.order];
+  const out = plan.map(w => {
+    const r = read.get(w.recordId);
+    if (!r || r.op !== w.op || w.entityId !== BLOCK) return w;
+    if (w.op === 'create') return Object.keys(w.values).every(f => same(w.values[f], r.values[f])) ? null : w;
+    if (w.op !== 'update') return w;
+    const misplaced = F.kind in r.values || F.parent in r.values;
+    const reshaped = misplaced && [F.kind, F.parent].some(f => f in w.values && !(f in r.values && same(w.values[f], r.values[f])));
+    const values = {};
+    for (const [f, v] of Object.entries(w.values)) {
+      if (STRUCTURE.includes(f) && misplaced) { if (reshaped) values[f] = v; continue; }
+      if (!(f in r.values) || !same(v, r.values[f])) values[f] = v;
+    }
+    if (!Object.keys(values).length) return null;
+    const refs = Object.fromEntries(Object.entries(w.refs ?? {}).filter(([f]) => f in values));
+    return { ...w, values, refs };
+  });
+  // A dropped create something kept refers to goes back in, and so does whatever it refers to.
+  for (let added = true; added;) {
+    added = false;
+    const needed = new Set(out.filter(Boolean).flatMap(w => Object.values(w.refs ?? {})));
+    plan.forEach((w, i) => { if (!out[i] && w.op === 'create' && needed.has(w.recordId)) { out[i] = w; added = true; } });
+  }
+  return out.filter(Boolean);
+}
+
+/** A saved block's fields as a write names them, for comparing with a write. */
+export function valuesOf(block) {
+  if (!block) return null;
+  return { [F.text]: block.text === '' ? null : block.text ?? null, [F.kind]: block.kind, [F.parent]: block.parent ?? null, [F.order]: block.order ?? null,
+    [F.role]: block.role ?? null, [F.align]: block.align ?? null, [F.list]: block.list ?? null, [F.level]: block.level ?? null };
+}
+
+/**
+ * Sorts the writes of a draft kept from before against the file as it is now. `current(entityId,
+ * recordId)` answers {version, values} or null. A write the file already shows (it was saved
+ * before the view stopped) is dropped; one whose record is still at the version the draft
+ * started from is `fresh` and goes in as it is; any other is `stale`: the record changed or went
+ * since, and the person decides. Nothing outside the draft is ever written.
+ */
+export function sortDraft(writes, current) {
+  const fresh = [], stale = [];
+  for (const w of writes) {
+    const now = current(w.entityId, w.recordId);
+    if (w.op === 'delete') { if (now) (now.version === w.version ? fresh : stale).push(w); continue; }
+    if (now && Object.entries(w.values).every(([f, v]) => same(v, now.values[f]))) continue;
+    if (w.op === 'create') { (now ? stale : fresh).push(w); continue; }
+    (now && now.version === w.version ? fresh : stale).push(w);
+  }
+  return { fresh, stale };
+}
+
+/**
+ * Stale draft writes made to go in over what changed since: each at its record's current
+ * version, a create of a record that exists as an update of it. An update or delete of a record
+ * that is gone is left out; the passage was deleted elsewhere.
+ */
+export function forceDraft(stale, current) {
+  return stale.flatMap(w => {
+    const now = current(w.entityId, w.recordId);
+    if (w.op === 'create') return [now ? { op: 'update', entityId: w.entityId, recordId: w.recordId, version: now.version, values: w.values, refs: w.refs } : w];
+    return now ? [{ ...w, version: now.version }] : [];
+  });
+}
+
 /**
  * Cuts a plan into batches Nendo takes (at most 200 writes and 250,000 characters each) and
  * gives each write the versions of the records its references name. A reference to a record

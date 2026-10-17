@@ -1,5 +1,5 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
-import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
@@ -62,49 +62,100 @@ function resolvePicture(address) {
 window.manuscriptSheet = sheet;
 
 // ---------- Drafts, on this device ----------
-// Nendo stops a view that is off screen without asking, so text typed in the pause before a
-// save is kept in the view's own storage (one origin per file and package) until it is saved.
-const DRAFT_CHARACTERS = 2000000;
+// Nendo stops a view that is off screen without asking, so what was changed in the pause before
+// a save is kept in the view's own storage (one origin per file and package) until it is saved.
+// A draft is the writes the next save would make, each at the version it was based on, never a
+// copy of the whole manuscript: brought back, it can only touch what the person changed.
 let draftTimer = null;
-const draftKey = () => `manuscript.draft.v1.${nendo.context?.viewId ?? 'sheet'}.${state.root ?? 'none'}`;
-function keepDraft() {
+const draftKey = (kind = 'draft') => `manuscript.${kind}.v2.${nendo.context?.viewId ?? 'sheet'}.${state.root ?? 'none'}`;
+function keepDraft(now = false) {
   clearTimeout(draftTimer);
-  draftTimer = setTimeout(() => {
+  const keep = () => {
+    if (state.root === null) return;
+    const { plan } = planNow();
     try {
-      if (state.root === null || !pending()) { localStorage.removeItem(draftKey()); return; }
-      const nodes = sheet.read(), present = new Set(nodes.map(n => n.id)), touched = {};
-      for (const n of nodes) if (n.changed || !state.saved.has(n.id)) touched[n.id] = state.saved.get(n.id)?.version ?? null;
-      for (const s of state.saved.values()) if (s.visible && !present.has(s.id)) touched[s.id] = s.version;
-      const text = JSON.stringify({ root: state.root, title: state.title, titleVersion: state.saved.get(state.root)?.version ?? null, doc: sheet.json(), touched });
-      if (text.length <= DRAFT_CHARACTERS) localStorage.setItem(draftKey(), text); else localStorage.removeItem(draftKey());
-    } catch { /* storage refused: the next save is all there is */ }
-  }, 300);
-}
-function dropDraft() { clearTimeout(draftTimer); try { localStorage.removeItem(draftKey()); } catch { /* nothing kept */ } }
-function readDraft() { try { return JSON.parse(localStorage.getItem(draftKey()) ?? 'null'); } catch { return null; } }
-
-/** A draft from before goes back on the page if nothing it touched has changed since; else the person decides. */
-function offerDraft() {
-  const draft = readDraft();
-  if (!draft || draft.root !== state.root) { if (draft) dropDraft(); return; }
-  const stale = Object.entries(draft.touched ?? {}).filter(([id, version]) => (state.saved.get(id)?.version ?? null) !== version);
-  const titleStale = draft.title !== state.savedTitle && (state.saved.get(state.root)?.version ?? null) !== draft.titleVersion;
-  const restore = () => {
-    sheet.restore(draft.doc);
-    state.title = draft.title; $('title').value = draft.title;
-    state.problem = null;
-    setStatus('Unsaved text kept from before; saving it');
-    render();
-    save();
+      if (plan.length) localStorage.setItem(draftKey(), JSON.stringify({ root: state.root, writes: plan }));
+      else localStorage.removeItem(draftKey());
+      state.unkept = false;
+    } catch {
+      // Storage refused (full, or a private window): the next save is all there is, and the person is told.
+      state.unkept = plan.length > 0;
+      if (state.unkept && !state.saving) setStatus('Editing, not kept on this device until it saves');
+    }
   };
-  if (!stale.length && !titleStale) { restore(); return; }
-  state.problem = { text: `Text you had not saved is kept from before, but ${stale.length + (titleStale ? 1 : 0)} of the blocks it changes were changed since. Put yours back over them, or discard it.`,
-    actions: [{ label: 'Put mine back', run: restore }, { label: 'Discard mine', run: () => { dropDraft(); state.problem = null; render(); } }] };
+  if (now) keep(); else draftTimer = setTimeout(keep, 300);
+}
+function dropDraft() { clearTimeout(draftTimer); state.unkept = false; try { localStorage.removeItem(draftKey()); } catch { /* nothing kept */ } }
+function readKept(kind) { try { return JSON.parse(localStorage.getItem(draftKey(kind)) ?? 'null'); } catch { return null; } }
+
+/** The record as the file now has it, in the terms a write uses, or null. */
+function currentRecord(entityId, recordId) {
+  if (entityId === BLOCK) { const b = state.saved.get(recordId); return b ? { version: b.version, values: valuesOf(b) } : null; }
+  return (entityId === NOTE ? state.notes : state.links).find(r => r.recordId === recordId) ?? null;
+}
+
+/**
+ * Puts back what was changed and not saved before the view last stopped. A change whose record
+ * is as it was then is saved at once; one whose record changed or went since is held, the person
+ * told which passages, and theirs goes in only if they say so. Nothing else is written.
+ */
+async function offerDraft() {
+  try { for (const key of Object.keys(localStorage)) if (key.startsWith('manuscript.draft.v1.')) localStorage.removeItem(key); } catch { /* nothing kept */ }
+  const draft = readKept('draft'), held = readKept('held');
+  if (!draft && !held) return;
+  if (draft && (draft.root !== state.root || !Array.isArray(draft.writes))) { dropDraft(); return; }
+  sheet.editor.setEditable(false);
+  try {
+    const { fresh, stale } = sortDraft(draft?.writes ?? [], currentRecord);
+    if (fresh.length) {
+      for (const batch of chunkWrites(fresh)) await send(batch, 'Changes kept from before');
+      state.savedAt = new Date();
+      toast(`Saved ${fresh.length} change${fresh.length === 1 ? '' : 's'} kept from before Nendo last closed.`);
+    }
+    const holding = [...(held?.writes ?? []), ...stale];
+    if (stale.length) localStorage.setItem(draftKey('held'), JSON.stringify({ root: state.root, writes: holding }));
+    dropDraft();
+    if (fresh.length) await load();
+    if (holding.length) offerHeld(holding);
+  } catch (error) {
+    state.problem = { text: `Changes kept from before could not be saved: ${refusalText(error)}`, sticky: true,
+      actions: [{ label: 'Discard them', run: () => { dropDraft(); dropHeld(); state.problem = null; render(); } }] };
+  } finally {
+    sheet.editor.setEditable(!state.readOnly && state.root !== null);
+    render();
+  }
+}
+
+function dropHeld() { try { localStorage.removeItem(draftKey('held')); } catch { /* nothing kept */ } }
+
+function offerHeld(writes) {
+  const passages = [...new Set(writes.map(w => w.entityId === BLOCK ? w.values?.[F.text] ?? state.saved.get(w.recordId)?.text : null).filter(Boolean))];
+  const named = passages.slice(0, 3).map(t => `“${t.length > 40 ? `${t.slice(0, 39)}…` : t}”`).join(', ');
+  state.problem = {
+    sticky: true,
+    text: `${writes.length} change${writes.length === 1 ? '' : 's'} you made before Nendo last closed ${writes.length === 1 ? 'was' : 'were'} not saved, and the passage${writes.length === 1 ? ' was' : 's were'} changed elsewhere since${named ? `: ${named}${passages.length > 3 ? ' and more' : ''}` : ''}. Put yours back over them, or discard yours.`,
+    actions: [
+      { label: 'Put mine back', run: () => putHeldBack(writes).catch(fail) },
+      { label: 'Discard mine', run: () => { dropHeld(); state.problem = null; render(); } },
+    ],
+  };
   render();
 }
 
+async function putHeldBack(writes) {
+  await flush();
+  sheet.editor.setEditable(false);
+  try {
+    const forced = forceDraft(writes, currentRecord);
+    for (const batch of chunkWrites(forced)) await send(batch, 'Put back changes kept from before');
+    dropHeld();
+    state.problem = null;
+    await load();
+  } finally { sheet.editor.setEditable(!state.readOnly && state.root !== null); render(); }
+}
+
 function edited() {
-  state.problem = null;
+  if (!state.problem?.sticky) state.problem = null;
   keepDraft();
   setStatus('Editing');
   clearTimeout(state.timer);
@@ -125,9 +176,8 @@ function selected(where) {
 
 // ---------- Reading ----------
 
-// Blocks are read flat, a cursor page at a time, and the tree is built here: a hierarchy walk
-// re-reads its whole subtree for every page and is bounded at 10,000 records, a flat read is
-// neither. READ_MAX is only a guard against reading without end.
+// Blocks are read flat, a cursor page at a time, and the tree is built here. READ_MAX is only a
+// guard against reading without end.
 const READ_MAX = 1000000;
 async function readBlocks() { return nendo.records.queryAll({ entityId: BLOCK }, { max: READ_MAX }); }
 
@@ -152,6 +202,12 @@ async function load() {
   if (state.root !== null) {
     const keep = switched ? null : sheet.where();
     sheet.load(manuscript.nodes);
+    // What the page would write only because of how it read the file: a block out of place is
+    // shown where it would go, and left as it is stored until the person changes it.
+    state.asRead = planWrites({ saved: state.saved, current: sheet.read(), root: state.root });
+    const misplaced = state.asRead.filter(w => w.op === 'update' && (F.kind in w.values || F.parent in w.values)).length;
+    if (misplaced && misplaced !== state.misplaced) toast(`${misplaced} block${misplaced === 1 ? ' is' : 's are'} not where a manuscript keeps ${misplaced === 1 ? 'it' : 'them'}: shown where ${misplaced === 1 ? 'it' : 'they'} would go, and left as stored.`);
+    state.misplaced = misplaced;
     if (keep?.id && sheet.locate(keep.id)) sheet.editor.commands.setTextSelection(sheet.locate(keep.id).pos + 1);
     // A switch the person made is a step in Back and Forward; one Back or Forward made is not.
     if (switched) placeHere(state.placeStep !== false);
@@ -165,10 +221,22 @@ async function load() {
 
 // ---------- Saving ----------
 
-function pending() {
-  if (state.title !== state.savedTitle) return true;
-  return sheet.read().some(n => n.changed || !state.saved.has(n.id));
+/**
+ * The writes that would make the file what the page shows: text, kinds, settings, order,
+ * parents, new and deleted blocks, their notes and links, and the title. The one answer to
+ * whether anything is unsaved, for saving, the draft, and whether a change made elsewhere may
+ * reload the page.
+ */
+function planNow() {
+  for (const id of state.gone) if (sheet.locate(id)) sheet.renumber(id);
+  const current = sheet.read();
+  const plan = withoutAsRead(planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links }), state.asRead);
+  const root = state.saved.get(state.root);
+  if (state.title !== state.savedTitle && root) plan.unshift({ op: 'update', entityId: BLOCK, recordId: state.root, version: root.version, values: { [F.text]: state.title || null }, refs: {} });
+  return { plan, current };
 }
+
+function pending() { return state.root !== null && planNow().plan.length > 0; }
 
 async function save() {
   clearTimeout(state.timer);
@@ -179,21 +247,20 @@ async function save() {
   const run = (async () => {
     await null;
     try {
-      for (const id of state.gone) if (sheet.locate(id)) sheet.renumber(id);
-      const current = sheet.read();
-      const plan = planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links });
-      const root = state.saved.get(state.root);
-      if (state.title !== state.savedTitle && root) plan.unshift({ op: 'update', entityId: BLOCK, recordId: state.root, version: root.version, values: { [F.text]: state.title || null }, refs: {} });
+      const { plan, current } = planNow();
       state.firstEdit = 0;
       state.saveError = null;
       if (!plan.length) { setStatus(state.savedAt ? `Saved ${clock(state.savedAt)}` : 'Up to date'); return; }
+      // The title as it was planned: one typed while this save runs is the next save's.
+      const title = state.title;
       setStatus('Saving…');
       for (const batch of chunkWrites(plan)) await send(batch);
       sheet.saved(current);
-      state.savedTitle = state.title;
+      state.savedTitle = title;
       state.savedAt = new Date();
       setStatus(`Saved ${clock(state.savedAt)}`);
-      if (!pending()) dropDraft();
+      // What was typed while it saved is kept against the versions this save made.
+      keepDraft(true);
     } catch (error) {
       state.saveError = refusalText(error);
       state.problem = { text: state.saveError, reload: true };
@@ -354,9 +421,11 @@ function download(blob, name) {
 
 /** Exports the manuscript as saved in the file, after saving what is on the page. */
 async function exportAs(format, layout = 'book') {
+  // The manuscript the person asked for, even if another is opened while this one is read.
+  const root = state.root;
   await flush();
   setStatus('Exporting…');
-  const plan = exportPlan(readManuscript(await readBlocks(), state.root));
+  const plan = exportPlan(readManuscript(await readBlocks(), root));
   const lib = await import('./vendor/export.js');
   const pictures = new Map(), unread = [];
   for (const item of plan.items) {
@@ -1281,7 +1350,7 @@ async function start(context) {
   if (nendo.has('ui.setPlace')) nendo.on('place', place => { if (place?.manuscript) openManuscript(place.manuscript, false).catch(fail); });
   await load();
   placeHere(false);
-  if (state.root !== null) offerDraft();
+  if (state.root !== null) await offerDraft();
   if (state.root !== null && !state.problem) {
     const first = sheet.read().find(n => n.kind === 'Paragraph');
     if (first) sheet.focusBlock(first.id);
@@ -1319,6 +1388,7 @@ async function openManuscript(id, step = true) {
   state.wanted = id; state.placeStep = step;
   state.selected = null; state.pinned = false; closePopover();
   await load();
+  await offerDraft();
 }
 
 nendo.ready.then(start).catch(error => {

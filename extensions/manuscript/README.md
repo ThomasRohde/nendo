@@ -27,14 +27,20 @@ same records; the view keeps no copy of the manuscript in the file.
 - One Tiptap editor shows the blocks under the root, Cuttings left out. A heading's level is its
   kind: Part, Chapter, Section. A heading holds the paragraphs after it until the next heading
   at its level or above.
-- A pause in typing saves what changed as one version-checked `records.batch`: only the blocks
-  whose text, kind, parent or order changed. Splitting a paragraph keeps its ID on the first
+- A pause in typing saves what changed in version-checked `records.batch` writes: only the
+  blocks whose text, kind, parent or order changed, and deleted ones. A save of more than 200
+  writes or 250,000 characters goes as several batches, each committed on its own. A block out
+  of place (a row outside a table) is shown where it would go and left as stored until the
+  person changes it (0.13.0). Splitting a paragraph keeps its ID on the first
   part; joining keeps the first. A removed paragraph takes its notes and links with it, unless
   its text now sits in another block (a merge), which takes them over marked *Needs review*.
 - A refused write keeps the text on the page and says why; Reload takes the saved version.
   Somebody else's change reloads the page when nothing is waiting to be saved.
-- Text not yet saved is kept in the view's own storage until it is, and put back when the view
-  starts again if nothing it touched has changed since.
+- What is not yet saved is kept in the view's own storage as the writes the next save would
+  make, each at the version it started from, never as a copy of the whole manuscript (0.13.0).
+  When the view starts again, a write whose record is unchanged since is saved; one whose record
+  changed or went is held, and the person chooses *Put mine back* or *Discard mine*. Nothing
+  else is written. If the device refuses to keep it, the status line says so.
 - A block whose whole text is one picture, `![alt](media:…)` or a web address, is drawn as
   that picture, from the open file's media origin, and selected or deleted whole; one that does
   not load says *Picture not found* with its description. While writing it is a 168 by 112
@@ -100,10 +106,9 @@ same records; the view keeps no copy of the manuscript in the file.
 
 ## Limits
 
-- The view reads blocks flat, a cursor page at a time, and builds the tree itself, so the
-  10,000-record bound of Nendo's hierarchy walk does not cap a manuscript in the view. That bound
-  still applies to Nendo's own Outline screen, a `descendantOf` filter and a move among more than
-  10,000 siblings: the walk re-reads the whole subtree for every page, which is why it is bounded.
+- The view reads every block of the file flat, a cursor page at a time, and builds the tree
+  itself. Since ADR-0019's amendment of 2026-10-16 only subtree aggregates keep the 10,000-record
+  bound; Nendo's Outline, `records.tree` and `descendantOf` page by key.
 - Every save writes one History row per block it changes; the file stops taking writes near
   100,000 rows until the person folds old history.
 - Inline links are not editable here yet (a quotation is a role; lists and tables are blocks), and a picture can be

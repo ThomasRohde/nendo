@@ -581,7 +581,9 @@ async page => {
   await page.keyboard.type(' The posts were numbered.');
   await frame.waitForFunction(() => window.manuscript.status === 'Not saved', null, { timeout: 8000 });
   await page.waitForTimeout(400);
-  const beforeRemount = await frame.evaluate(() => ({ text: document.querySelector('[data-block="b-0501"]').textContent, draft: localStorage.getItem(`manuscript.draft.v1.${window.nendo.context.viewId}`)?.length, status: window.manuscript.status }));
+  const beforeRemount = await frame.evaluate(() => ({ text: document.querySelector('[data-block="b-0501"]').textContent, draft: localStorage.getItem(`manuscript.draft.v2.${window.nendo.context.viewId}.b-root`)?.length, status: window.manuscript.status }));
+  // Stopped without a chance to save, as Nendo stops a view off screen: only the draft carries the text.
+  await frame.evaluate(() => { window.manuscript.readOnly = true; });
   await page.evaluate(() => window.broker.remount());
   let restarted = null;
   for (let i = 0; i < 200 && restarted === null; i++) { restarted = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frame) ?? null; if (restarted === null) await page.waitForTimeout(50); }
@@ -591,6 +593,103 @@ async page => {
     .catch(async () => { throw Error(`The kept text was not saved after a restart: ${JSON.stringify(await frame.evaluate(() => ({ status: window.manuscript?.status, problem: window.manuscript?.problem })))}`); });
   assert((await record(BLOCK, 'b-0501')).values[T].endsWith('The posts were numbered.'), `Kept draft: ${JSON.stringify({ stored: await record(BLOCK, 'b-0501'), beforeRemount, batches: (await batches()).slice(-3) })}`);
   checks.push('unsaved text outlasts the view');
+
+  // Stage 1 of the plan (docs/design/manuscript-plan.md): nothing unsaved is lost, and a draft
+  // brought back writes only the person's own changes.
+  const restart = async () => {
+    const before = frame;
+    // Stopped without a chance to save, as Nendo stops a view off screen.
+    await before.evaluate(() => { window.manuscript.readOnly = true; }).catch(() => {});
+    await page.evaluate(() => window.broker.remount());
+    frame = null;
+    for (let i = 0; i < 200 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/') && f !== before) ?? null; if (frame === null) await page.waitForTimeout(50); }
+    assert(frame !== null, 'The view did not start again.');
+    await frame.waitForFunction(() => window.manuscript?.root === 'b-root' && !window.manuscript.saving && document.querySelector('.sheet-text [data-block]'), null, { timeout: 15000 });
+  };
+  const draftNow = () => frame.evaluate(() => JSON.parse(localStorage.getItem(`manuscript.draft.v2.${window.nendo.context.viewId}.b-root`) ?? 'null'));
+  const notSaved = () => frame.waitForFunction(() => window.manuscript.status === 'Not saved', null, { timeout: 8000 });
+  const chapterOf = (await record(BLOCK, 'b-0501')).values[P];
+  const plainParagraph = async (spare = ['b-0415', 'b-0501']) => {
+    const ids = await frame.evaluate(() => [...document.querySelectorAll('.sheet-text > p[data-block]')].filter(e => e.textContent.trim() && !e.dataset.list).map(e => e.dataset.block));
+    for (const id of ids) { if (spare.includes(id)) continue; const r = await record(BLOCK, id); if (r?.values[K] === 'Paragraph') return r; }
+    return null;
+  };
+
+  // A deleted paragraph is unsaved work: a change made elsewhere does not reload it back.
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }, 2));
+  const deleting = await plainParagraph();
+  assert(deleting, 'No paragraph to delete beside b-0501.');
+  await frame.evaluate(id => { const s = window.manuscriptSheet, at = s.locate(id); s.editor.chain().focus().deleteRange({ from: at.pos, to: at.pos + at.node.nodeSize }).run(); }, deleting.recordId);
+  await notSaved();
+  await page.waitForTimeout(400);
+  const deleteDraft = await draftNow();
+  const elsewhere = await record(BLOCK, 'b-0501');
+  await page.evaluate(r => { window.broker.put('mn.block', { ...r, version: r.version + 1, values: { ...r.values, 'mn.block.text': 'The posts were numbered in white.' } }); window.broker.pushChanges(); }, elsewhere);
+  await page.waitForTimeout(1200);
+  const afterChange = await frame.evaluate(id => ({ shown: !!document.querySelector(`.sheet-text [data-block="${id}"]`), external: window.manuscript.external }), deleting.recordId);
+  assert(!afterChange.shown && afterChange.external && deleteDraft?.writes?.some(w => w.op === 'delete' && w.recordId === deleting.recordId),
+    `A deleted paragraph counted as nothing to save: ${JSON.stringify({ afterChange, deleteDraft })}`);
+  checks.push('a delete stays unsaved, not reloaded away');
+
+  // Brought back after a restart, the delete is saved, and the change made elsewhere is kept.
+  await restart();
+  await frame.waitForFunction(id => !document.querySelector(`.sheet-text [data-block="${id}"]`), deleting.recordId, { timeout: 8000 }).catch(() => {});
+  const afterDelete = { deleted: await record(BLOCK, deleting.recordId), other: (await record(BLOCK, 'b-0501')).values[T] };
+  assert(afterDelete.deleted === null && afterDelete.other === 'The posts were numbered in white.', `The kept delete: ${JSON.stringify(afterDelete)}`);
+  checks.push('a kept delete is saved after a restart');
+
+  // A draft writes only its own changes: B changed and C added elsewhere since are kept.
+  const a = await plainParagraph(['b-0501']);
+  assert(a, 'No paragraph A to edit.');
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }, 2));
+  await select(a.recordId, 'end');
+  await page.keyboard.type(' Mine.');
+  await notSaved();
+  await page.waitForTimeout(400);
+  const b = await record(BLOCK, 'b-0501');
+  await page.evaluate(({ b, chapter }) => {
+    window.broker.put('mn.block', { ...b, version: b.version + 1, values: { ...b.values, 'mn.block.text': 'Changed elsewhere.' } });
+    window.broker.put('mn.block', { entityId: 'mn.block', recordId: 'b-elsewhere', version: 1, values: { 'mn.block.kind': 'Paragraph', 'mn.block.text': 'Added elsewhere.', 'mn.block.parent': chapter, 'mn.block.order': 999999 } });
+  }, { b, chapter: chapterOf });
+  await restart();
+  await frame.waitForFunction(() => window.manuscript.status.startsWith('Saved') || window.manuscript.problem, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const recovered = { a: (await record(BLOCK, a.recordId))?.values[T], b: (await record(BLOCK, 'b-0501'))?.values[T], c: (await record(BLOCK, 'b-elsewhere'))?.values[T],
+    shown: await frame.evaluate(() => ({ b: document.querySelector('[data-block="b-0501"]')?.textContent, c: document.querySelector('[data-block="b-elsewhere"]')?.textContent })) };
+  assert(recovered.a?.includes('Mine.') && recovered.b === 'Changed elsewhere.' && recovered.c === 'Added elsewhere.' && recovered.shown.b === 'Changed elsewhere.' && recovered.shown.c === 'Added elsewhere.',
+    `Recovery wrote over work done elsewhere: ${JSON.stringify(recovered)}`);
+  checks.push('recovery keeps changes made elsewhere');
+
+  // The same passage changed both here and elsewhere: nothing is written until the person says.
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }, 2));
+  await select('b-0501', 'end');
+  await page.keyboard.type(' Ours.');
+  await notSaved();
+  await page.waitForTimeout(400);
+  const same = await record(BLOCK, 'b-0501');
+  await page.evaluate(r => window.broker.put('mn.block', { ...r, version: r.version + 1, values: { ...r.values, 'mn.block.text': 'Theirs.' } }), same);
+  await restart();
+  await frame.waitForFunction(() => window.manuscript.problem?.sticky, null, { timeout: 8000 })
+    .catch(async () => { throw Error(`No choice was offered for a passage changed on both sides: ${JSON.stringify(await frame.evaluate(() => ({ status: window.manuscript.status, problem: window.manuscript.problem })))}`); });
+  const held = { stored: (await record(BLOCK, 'b-0501')).values[T], banner: await frame.evaluate(() => document.getElementById('problem').textContent) };
+  assert(held.stored === 'Theirs.' && /changed elsewhere since/.test(held.banner) && /Put mine back/.test(held.banner), `A conflict was not held for the person: ${JSON.stringify(held)}`);
+  await frame.getByRole('button', { name: 'Put mine back' }).click();
+  await frame.waitForFunction(() => !window.manuscript.problem, null, { timeout: 8000 });
+  const putBack = (await record(BLOCK, 'b-0501')).values[T];
+  assert(putBack.endsWith('Ours.'), `Put mine back: ${putBack}`);
+  checks.push('a conflict is the person\'s choice');
+
+  // A draft the device cannot keep is said, not silently given up.
+  await frame.evaluate(() => { window.__setItem = Storage.prototype.setItem; Storage.prototype.setItem = function () { throw new DOMException('Full', 'QuotaExceededError'); }; });
+  await page.evaluate(() => window.broker.hold('records.batch', 2500));
+  await select('b-0501', 'end');
+  await page.keyboard.type(' Unkept.');
+  await frame.waitForFunction(() => window.manuscript.unkept === true, null, { timeout: 3000 }).catch(() => {});
+  const unkept = await frame.evaluate(() => ({ unkept: window.manuscript.unkept, status: window.manuscript.status }));
+  await frame.evaluate(() => { Storage.prototype.setItem = window.__setItem; });
+  assert(unkept.unkept === true && /not kept on this device/.test(unkept.status), `A draft that could not be kept was not said: ${JSON.stringify(unkept)}`);
+  await saved();
+  checks.push('a draft that cannot be kept is said');
 
   // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
   // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;

@@ -133,7 +133,8 @@ export function toMarkdown(plan, files = new Map()) {
     if (item.type === 'table') { parts.push(pipeTable(item.rows)); continue; }
     if (item.type === 'heading') parts.push(`${'#'.repeat(Math.min(item.level + 1, 6))} ${item.text}`);
     else if (item.type === 'picture') parts.push(`![${item.alt.replace(/[\\[\]]/g, '\\$&')}](${files.get(item.address) ?? item.address})`);
-    else if (item.role === 'Scene break') parts.push('* * *');
+    // A scene break's own words ("Three years later") are kept; an empty one is the three stars.
+    else if (item.role === 'Scene break') parts.push(item.text.trim() || '* * *');
     else if (['Quotation', 'Epigraph', 'Aside'].includes(item.role)) parts.push(quoted(item.text));
     else parts.push(item.text);
   }

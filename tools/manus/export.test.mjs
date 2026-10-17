@@ -192,6 +192,32 @@ test('roles beyond papers: epigraph, dedication, verse, quotation and scene brea
   assert.doesNotMatch(paragraph('It rained.'), /w:firstLine="360"/, 'the first paragraph after an epigraph is not indented');
 });
 
+test('no author text is lost: every paragraph, heading and cell of the plan is in the Markdown and the Word document', async () => {
+  const book = { title: 'Low Water', nodes: [
+    { id: 'c', kind: 'Chapter', text: 'One' },
+    { id: 'p', kind: 'Paragraph', text: 'It rained.' },
+    { id: 's', kind: 'Paragraph', text: 'Three years later', role: 'Scene break' },
+    { id: 'e', kind: 'Paragraph', text: '', role: 'Scene break' },
+    // A heading with a role passes it to every paragraph under it.
+    { id: 'h', kind: 'Section', text: 'Interlude', role: 'Scene break' },
+    { id: 'u', kind: 'Paragraph', text: 'The bar was quiet.' },
+    { id: 'v', kind: 'Paragraph', text: 'Low water, slow water', role: 'Verse' },
+    { id: 'q', kind: 'Paragraph', text: 'Boat seen beyond the bar.', role: 'Quotation' },
+    { id: 'l', kind: 'Paragraph', text: 'Tide', list: 'Numbered', level: 0 },
+    { id: 't', kind: 'Table' }, { id: 'r', kind: 'Row' }, { id: 'x', kind: 'Cell', text: 'Harbour' },
+  ] };
+  const plan = exportPlan(book);
+  const words = plan.items.flatMap(i => i.type === 'table' ? i.rows.flat() : [i.text ?? '']).filter(t => t.trim());
+  assert.ok(words.includes('Three years later') && words.includes('The bar was quiet.'));
+  const markdown = toMarkdown(plan);
+  const xml = await (await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document))).file('word/document.xml').async('string');
+  for (const text of words) {
+    assert.ok(markdown.includes(text), `Markdown lost "${text}"`);
+    assert.ok(xml.includes(text), `Word lost "${text}"`);
+  }
+  assert.match(markdown, /\n\n\* \* \*\n\n/, 'an empty scene break is still the three stars');
+});
+
 test('lists: markers as the sheet numbers them, Markdown lists, and Word numbering that starts again for each list', async () => {
   const plan = exportPlan({ title: 'Lists', nodes: [
     { id: 'p', kind: 'Paragraph', text: 'Before.' },

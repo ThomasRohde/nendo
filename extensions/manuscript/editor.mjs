@@ -604,9 +604,6 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const node = $from.node(1);
       return node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph';
     },
-    /** Puts back a sheet kept as a draft, measured against what was last read, not as read. */
-    restore(json) { editor.commands.setContent(json, { emitUpdate: false }); },
-    json() { return editor.getJSON(); },
     plainText() { return editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', '\n'); },
   };
   setAlign = sheet.setAlign;

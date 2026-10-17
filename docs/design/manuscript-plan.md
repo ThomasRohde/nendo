@@ -59,7 +59,10 @@ that use, recorded as owner-reported, is the main evidence.
 
 ### Stage 1 — Never lose a word
 
-Fixes problems 1 to 5 and 9.
+Fixes problems 1 to 5 and 9. **Built 2026-10-17 as Manuscript 0.13.0.** One change from the
+list below: the batch is not persisted with its `writeKey`. Recovery instead drops a write the
+file already shows, so a save that committed before the view stopped is not repeated, and a
+later edit to the same passage is held for the person rather than guessed.
 
 - **One pending state.** Track pending edits as a set of semantic changes: text, metadata,
   deletes, moves, parent and order. The same set drives the draft, saving, and whether an

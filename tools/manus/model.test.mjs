@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
 
 const item = (id, kind, parent, order, depth, text = '', version = 1) =>
   ({ record: { entityId: BLOCK, recordId: id, version, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } }, parentRecordId: parent, depth });
@@ -202,4 +202,60 @@ test('a table owns its rows and a row its cells, each a block in order; misplace
   const fixed = planWrites({ saved: odd.saved, current: odd.nodes.map(n => ({ ...n, changed: false })), root: odd.root });
   assert.deepEqual(fixed.filter(w => w.recordId === 'stray' || w.recordId === 'loose').map(w => [w.recordId, w.values[F.parent] ?? null, w.values[F.kind] ?? null]),
     [['stray', 'ch1', null], ['loose', null, 'Paragraph']]);
+});
+
+test('a deleted or moved paragraph is a write to make, so it counts as unsaved', () => {
+  const m = readManuscript(items);
+  const unchanged = m.nodes.map(n => ({ ...n, changed: false }));
+  assert.deepEqual(planWrites({ saved: m.saved, current: unchanged, root: m.root }), []);
+  const deleted = unchanged.filter(n => n.id !== 'p1');
+  assert.deepEqual(planWrites({ saved: m.saved, current: deleted, root: m.root }).map(w => `${w.op}:${w.recordId}`), ['delete:p1']);
+  const moved = [unchanged[0], unchanged[2], unchanged[1]];
+  assert.deepEqual(planWrites({ saved: m.saved, current: moved, root: m.root }).map(w => `${w.op}:${w.recordId}`), ['update:p2']);
+});
+
+test('a block out of place is left as stored until the person changes it', () => {
+  const table = [item('t', 'Table', 'ch1', 4096, 2, ''), item('r1', 'Row', 't', 1024, 3), item('c11', 'Cell', 'r1', 1024, 4, 'Post')];
+  const odd = readManuscript([...items, ...table, item('stray', 'Paragraph', 'r1', 4096, 4, 'Lost'), item('loose', 'Cell', 'ch1', 9999, 2, 'Loose')]);
+  const asRead = planWrites({ saved: odd.saved, current: odd.nodes.map(n => ({ ...n, changed: false })), root: odd.root });
+  assert.ok(asRead.some(w => w.recordId === 'stray'), 'the read alone would move the stray paragraph');
+  // Nothing edited: nothing to write.
+  assert.deepEqual(withoutAsRead(asRead, asRead), []);
+  // The stray paragraph's words edited: its text is written, its place is not.
+  const typed = odd.nodes.map(n => ({ ...n, changed: n.id === 'stray', text: n.id === 'stray' ? 'Found' : n.text }));
+  const plan = withoutAsRead(planWrites({ saved: odd.saved, current: typed, root: odd.root }), asRead);
+  assert.deepEqual(plan.map(w => [w.recordId, Object.keys(w.values)]), [['stray', [F.text]]]);
+  // Made a heading, it is the person's change of kind, and its place goes with it.
+  const heading = odd.nodes.map(n => ({ ...n, changed: n.id === 'loose', kind: n.id === 'loose' ? 'Section' : n.kind }));
+  const moved = withoutAsRead(planWrites({ saved: odd.saved, current: heading, root: odd.root }), asRead).find(w => w.recordId === 'loose');
+  assert.deepEqual(moved.values, { [F.kind]: 'Section' });
+  // A row the read made for an empty table is written once something is typed into its cell.
+  const made = [{ op: 'create', entityId: BLOCK, recordId: 'rx', values: { [F.kind]: 'Row', [F.parent]: 't' } },
+    { op: 'create', entityId: BLOCK, recordId: 'cx', values: { [F.kind]: 'Cell', [F.parent]: 'rx', [F.text]: null }, refs: { [F.parent]: 'rx' } }];
+  const typedCell = [made[0], { ...made[1], values: { ...made[1].values, [F.text]: 'Tide' } }];
+  assert.deepEqual(withoutAsRead(made, made), []);
+  assert.deepEqual(withoutAsRead(typedCell, made).map(w => w.recordId), ['rx', 'cx']);
+});
+
+test('a draft from before writes only its own changes: done ones dropped, changed-since ones held', () => {
+  const m = readManuscript(items);
+  const current = (entityId, id) => { const b = m.saved.get(id); return b ? { version: b.version, values: valuesOf(b) } : null; };
+  // The draft edited p1 and created p9 at version 1; since then p2 changed elsewhere (it is not in the draft).
+  const draft = [
+    { op: 'update', entityId: BLOCK, recordId: 'p1', version: 1, values: { [F.text]: 'The tide table hung by the back door.' } },
+    { op: 'create', entityId: BLOCK, recordId: 'p9', values: { [F.text]: 'New.', [F.kind]: 'Paragraph', [F.parent]: 'ch1', [F.order]: 1536 } },
+    { op: 'update', entityId: BLOCK, recordId: 'ch1', version: 0, values: { [F.text]: 'Tides' } },
+    { op: 'update', entityId: BLOCK, recordId: 'p2', version: 0, values: { [F.text]: 'She took the ledger down.' } },
+    { op: 'delete', entityId: BLOCK, recordId: 'gone', version: 3 },
+  ];
+  const { fresh, stale } = sortDraft(draft, current);
+  assert.deepEqual(fresh.map(w => w.recordId), ['p1', 'p9']);
+  // ch1 changed since; p2 already reads as the draft says; 'gone' is gone.
+  assert.deepEqual(stale.map(w => w.recordId), ['ch1']);
+  assert.deepEqual(forceDraft(stale, current), [{ ...draft[2], version: 1 }]);
+  // A create that was saved before the view stopped, then typed on, goes in as an update.
+  const saved = (e, id) => id === 'p9' ? { version: 4, values: { [F.text]: 'New' } } : current(e, id);
+  const again = sortDraft([draft[1]], saved);
+  assert.deepEqual(again.stale.map(w => w.recordId), ['p9']);
+  assert.deepEqual(forceDraft(again.stale, saved).map(w => [w.op, w.version]), [['update', 4]]);
 });
