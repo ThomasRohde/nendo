@@ -349,6 +349,44 @@ async page => {
   assert(await frame.evaluate(() => !document.getElementById('more-menu') && document.activeElement?.closest('.ProseMirror') !== null), 'Escape did not close More and give the keyboard back to the writing.');
   checks.push('More, pin and unpin');
 
+  // The bar without a selection (owner, 2026-10-17: it was not discoverable). With only a caret,
+  // a handle stands in the margin beside the block and opens the bar over it, and closes it; the
+  // Format menu in Nendo's toolbar names every tool that applies there and runs it.
+  await select('b-0414', 'ledger');
+  await page.waitForTimeout(150);
+  const handleAt = await frame.evaluate(() => {
+    const h = document.querySelector('.format-handle'), b = document.querySelector('.sheet-text [data-block="b-0414"]');
+    if (!h) return null;
+    const r = h.getBoundingClientRect(), p = b.getBoundingClientRect();
+    return { visible: r.width > 0 && getComputedStyle(h).visibility !== 'hidden', beside: r.right <= p.left + 1 && r.top >= p.top - 1 && r.bottom <= p.bottom + 1, bar: !!document.querySelector('.bar'), label: h.getAttribute('aria-label') };
+  });
+  assert(handleAt && handleAt.visible && handleAt.beside && !handleAt.bar && handleAt.label === 'Format this paragraph', `Handle with a caret: ${JSON.stringify(handleAt)}`);
+  await page.screenshot({ path: '__OUTPUT__/format-handle.png' });
+  await frame.locator('.format-handle').click();
+  await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 })
+    .catch(async () => { throw Error(`The handle did not open the bar: ${JSON.stringify(await frame.evaluate(() => ({ pinned: window.manuscript.pinned, selected: window.manuscript.selected })))}`); });
+  const barOpened = { tools: await toolIds(), expanded: await frame.evaluate(() => document.querySelector('.format-handle')?.getAttribute('aria-expanded')),
+    caret: await frame.evaluate(() => window.manuscriptSheet.editor.state.selection.empty) };
+  assert(barOpened.tools.includes('bold') && barOpened.tools.includes('bulleted') && barOpened.expanded === 'true' && barOpened.caret, `Bar from the handle: ${JSON.stringify(barOpened)}`);
+  await frame.locator('.format-handle').click();
+  await page.waitForTimeout(150);
+  assert(await frame.evaluate(() => !document.querySelector('.bar')), 'The handle did not close the bar again.');
+  const formatMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'format');
+  const menuShape = formatMenu && { labels: formatMenu.items.filter(i => i.kind === 'label').map(i => i.label), bold: formatMenu.items.find(i => i.id === 'fmt-bold')?.kind,
+    centre: formatMenu.items.find(i => i.id === 'fmt-align' && i.value === 'Centre')?.kind, keys: formatMenu.items.filter(i => i.keys).length };
+  assert(menuShape && menuShape.labels.join() === 'Text,Alignment,Paragraph,Manuscript' && menuShape.bold === 'check' && menuShape.centre === 'radio' && menuShape.keys === 0,
+    `Format menu: ${JSON.stringify(menuShape ?? (await page.evaluate(() => window.broker.toolbars.at(-1))).items.map(i => i.id))}`);
+  const menuFrom = (await batches()).length;
+  await page.evaluate(() => window.broker.command('fmt-numbered', true));
+  await saved();
+  const fromMenu = { writes: (await batches()).slice(menuFrom).flatMap(b => b.writes).map(w => ({ id: w.recordId, values: w.values })),
+    checked: (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'format').items.find(i => i.id === 'fmt-numbered')?.checked };
+  assert(JSON.stringify(fromMenu.writes) === JSON.stringify([{ id: 'b-0414', values: { 'mn.block.list': 'Numbered' } }]) && fromMenu.checked === true, `Numbered list from Format: ${JSON.stringify(fromMenu)}`);
+  await page.evaluate(() => window.broker.command('fmt-numbered', false));
+  await saved();
+  assert((await record(BLOCK, 'b-0414')).values['mn.block.list'] === null, 'Format did not take the list off again.');
+  checks.push('handle and Format menu without a selection');
+
   // W-281: lists. "- " starts a bulleted item and Enter carries the list on; Tab takes an item a
   // level in; Enter on an empty item brings it out a level, then ends the list; "1. " starts a
   // numbered one. Each item is its own block, its List and Level saved.
@@ -393,6 +431,10 @@ async page => {
   await saved();
   const pastedList = (await underTide()).map(r => [r.values[T], r.values['mn.block.list'] ?? null, r.values['mn.block.level'] ?? null]).filter(([text]) => ['Alpha', 'Beta', 'One'].includes(text));
   assert(JSON.stringify(pastedList) === JSON.stringify([['Alpha', 'Bulleted', null], ['Beta', 'Bulleted', 1], ['One', 'Numbered', null]]), `Pasted list: ${JSON.stringify((await underTide()).map(r => [r.values[T], r.values['mn.block.list'] ?? null, r.values['mn.block.level'] ?? null]))}`);
+  // The sheet numbers as the exports do: a bulleted list between two numbered ones starts the
+  // second again at 1 (it showed 2 when CSS counters numbered the sheet).
+  const sheetMarkers = await frame.evaluate(() => [...document.querySelectorAll('.sheet-text > p[data-list]')].map(p => `${p.dataset.marker ?? '?'} ${p.textContent}`));
+  assert(JSON.stringify(sheetMarkers) === JSON.stringify(['\u2022 First post', '\u25E6 Second post', '\u2022 Count', '1. Again', '\u2022 Alpha', '\u25E6 Beta', '1. One']), `Sheet markers: ${JSON.stringify(sheetMarkers)}`);
   checks.push('lists as blocks, typed, pasted and from the bar');
 
   // W-281: tables. Insert table puts a 3 by 3 table, its first row the header, after the block; it

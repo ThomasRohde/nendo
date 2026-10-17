@@ -4,7 +4,8 @@
 // heading keeps its ID; pasted text arrives as new blocks, never as a second copy of an
 // existing one. A list item is a paragraph with a List and a Level; a table, each of its rows
 // and each of its cells carry IDs of their own, as the blocks they are.
-import { Editor, Extension, InputRule, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Slice, Lexer, Table, TableRow, TableCell, TableHeader } from './vendor/editor.js';
+import { Editor, Extension, InputRule, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Slice, Decoration, DecorationSet, Lexer, Table, TableRow, TableCell, TableHeader } from './vendor/editor.js';
+import { numberLists } from './export.mjs';
 import { levelOf, kindOf, newBlockId, LISTS, MAX_LEVEL } from './model.mjs';
 import { inlineToMarkdown, markdownToInline, pictureOf, pictureMarkdown } from './inline.mjs';
 
@@ -211,6 +212,31 @@ function flattenLists(html) {
   return doc.body.innerHTML;
 }
 
+/**
+ * Each list item's marker, as data-marker on its paragraph for CSS to draw: the numbers come
+ * from numberLists, the rule the exports number by, so the sheet and a document always agree.
+ */
+const ListMarkers = Extension.create({
+  name: 'listMarkers',
+  addProseMirrorPlugins() {
+    const markers = doc => {
+      const items = [], at = [];
+      doc.forEach((node, pos) => {
+        const listed = node.type.name === 'paragraph' && node.attrs.list;
+        items.push(listed ? { type: 'paragraph', list: node.attrs.list, listLevel: Math.min(MAX_LEVEL, node.attrs.level ?? 0) } : { type: node.type.name });
+        at.push(listed ? { pos, size: node.nodeSize } : null);
+      });
+      numberLists(items);
+      return DecorationSet.create(doc, items.flatMap((item, i) => at[i] ? [Decoration.node(at[i].pos, at[i].pos + at[i].size, { 'data-marker': item.marker })] : []));
+    };
+    return [new Plugin({
+      key: new PluginKey('listMarkers'),
+      state: { init: (_, state) => markers(state.doc), apply: (tr, set) => tr.docChanged ? markers(tr.doc) : set },
+      props: { decorations(state) { return this.getState(state); } },
+    })];
+  },
+});
+
 // A table cell holds paragraphs only; on the sheet its first row is the header row.
 const Cell = TableCell.extend({ content: 'paragraph+' });
 const HeaderCell = TableHeader.extend({ content: 'paragraph+' });
@@ -343,6 +369,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       Highlight,
       alignKeys(canAlign, value => setAlign(value)),
       listKeys(canList, () => sheet),
+      ListMarkers,
       Table.configure({ resizable: false, HTMLAttributes: { class: 'sheet-table' } }),
       TableRow, HeaderCell, Cell,
       pictureNode(resolvePicture),

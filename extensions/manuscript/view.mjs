@@ -116,6 +116,7 @@ function edited() {
 
 function selected(where) {
   if (!where) return;
+  if (state.pinned && !state.popover && where.id !== state.selected) { state.pinned = false; state.more = false; }
   state.selected = where.id;
   if (!state.pinned && where.empty) closePopover();
   render();
@@ -631,6 +632,7 @@ function declare() {
       options: [...(state.manuscripts ?? []).slice(0, 63).map(m => ({ value: m.id, label: (m.id === state.root ? state.title || 'Untitled manuscript' : m.title || 'Untitled manuscript').slice(0, 80) })),
         { value: 'new', label: 'New manuscript\u2026' }] }] : []),
     ...(state.mode !== 'write' ? [] : [{ kind: 'select', id: 'style', label: 'Style', value: style, options: STYLES.map(s => ({ value: s, label: s })) }]),
+    ...(state.mode === 'write' && state.root !== null && !state.readOnly ? [formatMenu()] : []),
     ...(state.roles && state.mode === 'write' ? [{ kind: 'select', id: 'role', label: 'Role', value: (state.root !== null && sheet.roleHere()) || 'none', options: [{ value: 'none', label: 'No role' }, ...ROLES.map(r => ({ value: r, label: r }))] }] : []),
     { kind: 'text', text: fit(`${state.status} · ${summary()}`, TOOLBAR_TEXT) },
     { kind: 'spacer' },
@@ -660,7 +662,46 @@ function declare() {
   nendo.ui.setToolbar({ items }).catch(error => { state.chrome = false; state.problem = { text: `Nendo did not take the view's controls: ${error.message}` }; render(); });
 }
 
+/**
+ * Every tool of the bar that applies where the caret is, by name, as a menu in Nendo's toolbar:
+ * the way to them without a selection, from the toolbar, Ctrl K and More. A mark, a list or a
+ * role is a check, an alignment or a style a radio. Their keys are the editor's own and are
+ * named in the tooltips, not declared here, since a declared key would run the tool twice.
+ */
+function formatMenu() {
+  const where = sheet.where();
+  const node = where ? sheet.editor.state.doc.nodeAt(where.pos) : null;
+  const here = node ? toolsFor(node) : [];
+  const item = t => {
+    const on = toolOn(t);
+    if (t.align) return { kind: 'radio', id: 'fmt-align', value: t.align, label: t.label, checked: on === true };
+    if (t.style) return { kind: 'radio', id: 'fmt-style', value: t.style, label: t.label, checked: on === true };
+    if (on !== null) return { kind: 'check', id: `fmt-${t.id}`, label: t.label, checked: on };
+    return { kind: 'item', id: `fmt-${t.id}`, label: t.label, detail: t.id === 'agent' && where ? `${where.id} · ${block(where.id) ? `v${block(where.id).version}` : 'not saved yet'}` : null };
+  };
+  const items = [];
+  for (const [group, name] of GROUPS) {
+    const tools = here.filter(t => t.group === group);
+    if (!tools.length) continue;
+    if (items.length) items.push({ kind: 'separator' });
+    items.push({ kind: 'label', label: name }, ...tools.map(item));
+  }
+  if (!items.length) items.push({ kind: 'label', label: 'Put the caret in a paragraph' });
+  return { kind: 'menu', id: 'format', label: 'Format', items };
+}
+
 function command({ id, value }) {
+  if (id === 'fmt-align' || id === 'fmt-style') {
+    const t = TOOLS.find(t => (id === 'fmt-align' ? t.align : t.style) === value);
+    // A radio chosen again is the alignment chosen again: back to the layout's own.
+    if (t) { state.selected = sheet.where()?.id ?? state.selected; runTool(t); }
+    return;
+  }
+  if (id.startsWith('fmt-')) {
+    const t = TOOLS.find(t => `fmt-${t.id}` === id);
+    if (t) { state.selected = sheet.where()?.id ?? state.selected; runTool(t); }
+    return;
+  }
   if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
   if (id === 'export-word' || id === 'export-word-paper') { exportAs('word', id === 'export-word-paper' ? 'paper' : 'book').catch(fail); return; }
   if (id === 'mode') { setMode(value).catch(fail); return; }
@@ -741,6 +782,7 @@ const ICON = {
   cut: '<circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/><path d="M6 10 12 3M10 10 4 3"/>',
   agent: '<path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z"/>',
   more: '<path d="M3.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0M7.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0M11.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0"/>',
+  format: '<path d="M3.5 11.5 8 2.5l4.5 9M5.2 8.2h5.6M2.5 14h11"/>',
   pin: '<path d="M9.5 2.5l4 4-2 1-2.5 2.5.5 2.5-1 1-6-6 1-1 2.5.5 2.5-2.5zM5.5 10.5 2.5 13.5"/>',
 };
 function svg(name) {
@@ -897,6 +939,19 @@ function placeOverlays() {
   });
   const where = sheet.where();
   const show = !state.readOnly && state.selected && sheet.locate(state.selected) && (state.pinned || state.popover || (where && !where.empty && where.single && where.id === state.selected));
+  // The handle in the margin beside the block the caret is in: the bar's way in without a
+  // selection (owner, 2026-10-17: the bar was not discoverable). It opens the bar over the block,
+  // and closes it again.
+  const caretAt = !state.readOnly && where && sheet.editor.isFocused !== false ? sheet.locate(where.id) : null;
+  if (caretAt?.dom?.getBoundingClientRect) {
+    const top = caretAt.dom.getBoundingClientRect().top - origin.top;
+    const open = show && state.pinned && state.selected === where.id;
+    marks.push(el('button', { type: 'button', class: `tool format-handle${open ? ' open' : ''}`, style: `top:${top + 3}px`, 'aria-label': 'Format this paragraph', 'aria-expanded': String(open),
+      on: { mousedown: hold, click: () => {
+        if (open) { closePopover(); render(); return; }
+        state.selected = where.id; state.pinned = true; state.more = false; render();
+      } } }, svg('format'), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: 'Format this paragraph' }))));
+  }
   let bar = null, pop = null, more = null, anchorTop = 0;
   if (show) {
     const at = sheet.locate(state.selected);

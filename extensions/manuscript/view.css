@@ -67,38 +67,15 @@ button { cursor: pointer; }
 .sheet-text p[data-role='Epigraph'], .sheet-text p[data-role='Dedication'] { font-style: italic; margin-left: 30%; }
 .sheet-text p[data-role='Scene break'], .sheet-text p[data-role='Subtitle'], .sheet-text p[data-role='Author'] { text-align: center; }
 .sheet-text p[data-role='Caption'] { font: 13px/1.45 var(--ui); color: var(--muted); }
-/* A list item is a paragraph drawn as one. Numbers are counters per level: an item resets the
-   levels below its own, a bulleted item its own as well, and any other block every level, so
-   numbering starts again wherever a list does, as the exports number it. */
-.sheet-text { counter-reset: l0 l1 l2 l3 l4; }
-.sheet-text > :not(p[data-list]) { counter-reset: l0 l1 l2 l3 l4; }
+/* A list item is a paragraph drawn as one, its marker the one the editor gives it in
+   data-marker, numbered by the rule the exports number by. */
 .sheet-text > p[data-list] { display: list-item; list-style-position: outside; margin-bottom: 0; padding-top: 2px; padding-bottom: 2px; padding-left: 8px; }
-.sheet-text > p[data-list]::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+.sheet-text > p[data-list]::marker { content: attr(data-marker) '  '; color: var(--muted); font-variant-numeric: tabular-nums; }
 .sheet-text > p[data-list][data-level='0'] { margin-left: calc(14px + 1.6em); }
-.sheet-text > p[data-list='Numbered'][data-level='0'] { counter-increment: l0; counter-reset: l1 l2 l3 l4; }
-.sheet-text > p[data-list='Numbered'][data-level='0']::marker { content: counter(l0) '. '; }
-.sheet-text > p[data-list='Bulleted'][data-level='0'] { counter-reset: l0 l1 l2 l3 l4; }
-.sheet-text > p[data-list='Bulleted'][data-level='0']::marker { content: '•  '; }
 .sheet-text > p[data-list][data-level='1'] { margin-left: calc(14px + 3.2em); }
-.sheet-text > p[data-list='Numbered'][data-level='1'] { counter-increment: l1; counter-reset: l2 l3 l4; }
-.sheet-text > p[data-list='Numbered'][data-level='1']::marker { content: counter(l1, lower-alpha) '. '; }
-.sheet-text > p[data-list='Bulleted'][data-level='1'] { counter-reset: l1 l2 l3 l4; }
-.sheet-text > p[data-list='Bulleted'][data-level='1']::marker { content: '◦  '; }
 .sheet-text > p[data-list][data-level='2'] { margin-left: calc(14px + 4.8em); }
-.sheet-text > p[data-list='Numbered'][data-level='2'] { counter-increment: l2; counter-reset: l3 l4; }
-.sheet-text > p[data-list='Numbered'][data-level='2']::marker { content: counter(l2, lower-roman) '. '; }
-.sheet-text > p[data-list='Bulleted'][data-level='2'] { counter-reset: l2 l3 l4; }
-.sheet-text > p[data-list='Bulleted'][data-level='2']::marker { content: '▪  '; }
 .sheet-text > p[data-list][data-level='3'] { margin-left: calc(14px + 6.4em); }
-.sheet-text > p[data-list='Numbered'][data-level='3'] { counter-increment: l3; counter-reset: l4; }
-.sheet-text > p[data-list='Numbered'][data-level='3']::marker { content: counter(l3) '. '; }
-.sheet-text > p[data-list='Bulleted'][data-level='3'] { counter-reset: l3 l4; }
-.sheet-text > p[data-list='Bulleted'][data-level='3']::marker { content: '•  '; }
 .sheet-text > p[data-list][data-level='4'] { margin-left: calc(14px + 8.0em); }
-.sheet-text > p[data-list='Numbered'][data-level='4'] { counter-increment: l4; counter-reset: none; }
-.sheet-text > p[data-list='Numbered'][data-level='4']::marker { content: counter(l4, lower-alpha) '. '; }
-.sheet-text > p[data-list='Bulleted'][data-level='4'] { counter-reset: l4; }
-.sheet-text > p[data-list='Bulleted'][data-level='4']::marker { content: '◦  '; }
 /* A table: its first row is the header; a cell holds its text and nothing else. */
 .sheet-text table { border-collapse: collapse; table-layout: fixed; width: calc(100% - 28px); margin: 10px 14px 16px; font-size: 0.92em; line-height: 1.5; }
 .sheet-text td, .sheet-text th { border: 1px solid var(--line-strong); padding: 5px 9px; vertical-align: top; text-align: left; min-width: 3em; }
@@ -132,6 +109,12 @@ button { cursor: pointer; }
 .tool:hover { background: var(--soft); }
 .tool[aria-pressed='true'], .tool.open { background: var(--accent-soft); color: var(--accent); }
 .tool.accent { color: var(--accent); }
+/* The handle beside the block the caret is in: the bar's way in without a selection. */
+.format-handle { position: absolute; left: 2px; width: 28px; height: 28px; color: var(--muted); border: 1px solid var(--line); background: var(--surface); border-radius: 6px; z-index: 1; }
+.format-handle svg { width: 18px; height: 18px; }
+.format-handle:hover { color: var(--accent); border-color: var(--accent); background: var(--surface); }
+.format-handle.open { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.format-handle .tip { bottom: auto; top: 50%; left: calc(100% + 8px); transform: translateY(-50%); }
 .bar .divider { flex: none; width: 1px; height: 20px; background: var(--line); margin: 0 3px; }
 /* A tooltip shows after a moment's hover, and at once on keyboard focus. */
 .tip { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; background: var(--ink); color: var(--surface); font: 12px/1.2 var(--ui); white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 0.1s, visibility 0s linear 0.1s; }
@@ -276,7 +259,8 @@ button.quiet:hover { background: var(--soft); }
   /* A narrow frame has no room beside the page: the panel lies over it instead. */
   :root[data-drawer='outline'] .scroller, :root[data-drawer='notes'] .scroller, :root[data-drawer='related'] .scroller { padding-right: 0; }
   .page { padding: 28px 16px 40vh 44px; }
-  .mark { left: 6px; }
+  .mark { left: 22px; }
+  .format-handle { left: 0; }
   .bar, .popover { right: 16px; max-width: calc(100% - 16px); }
 }
 @media (forced-colors: active) {
