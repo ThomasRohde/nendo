@@ -297,6 +297,29 @@ async page => {
   assert((await record(BLOCK, 'b-0501')).values[T].endsWith('The posts were numbered.'), `Kept draft: ${JSON.stringify({ stored: await record(BLOCK, 'b-0501'), beforeRemount, batches: (await batches()).slice(-3) })}`);
   checks.push('unsaved text outlasts the view');
 
+  // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
+  // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;
+  // the close button and Escape put it away, and the toggle is released.
+  const panel = () => frame.evaluate(() => { const d = document.getElementById('drawer'), r = d.getBoundingClientRect();
+    return { shown: r.width > 0 && getComputedStyle(d).display !== 'none', title: d.querySelector('.drawer-title')?.textContent ?? null }; });
+  const pressed = id => page.evaluate(id => window.broker.toolbars.at(-1).items.find(i => i.id === id)?.pressed ?? null, id);
+  const panels = { start: await panel() };
+  await page.evaluate(() => window.broker.command('notes'));
+  await page.waitForTimeout(200);
+  panels.open = { ...(await panel()), pressed: await pressed('notes') };
+  await frame.click('.drawer-close');
+  await page.waitForTimeout(250);
+  panels.closed = { ...(await panel()), pressed: await pressed('notes') };
+  await page.evaluate(() => window.broker.command('related'));
+  await page.waitForTimeout(200);
+  await frame.focus('.drawer-close');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  panels.escaped = { ...(await panel()), pressed: await pressed('related'), focusInEditor: await frame.evaluate(() => document.activeElement?.closest('.ProseMirror') !== null) };
+  assert(!panels.start.shown && panels.open.shown && panels.open.title === 'Notes' && panels.open.pressed === true && !panels.closed.shown && panels.closed.pressed === false
+    && !panels.escaped.shown && panels.escaped.pressed === false && panels.escaped.focusInEditor, `Side panel: ${JSON.stringify(panels)}`);
+  checks.push('side panel opens and closes');
+
   // Light and Dark, and a narrow frame.
   const colours = {};
   for (const mode of ['light', 'dark']) {

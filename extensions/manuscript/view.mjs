@@ -787,6 +787,18 @@ function popover(top) {
   return el('div', { class: 'popover', style: `top:${top}px` }, el('div', { class: 'row' }, el('strong', { text: 'Link this paragraph' }), kind), search, results, el('div', { class: 'row end' }, close));
 }
 
+/**
+ * Puts the side panel away: Nendo's toolbar is told, so its toggle is no longer pressed, and the
+ * keyboard goes back to the writing when it was in the panel, rather than to nowhere.
+ */
+function closeDrawer() {
+  if (state.drawer === null) return;
+  const hadFocus = $('drawer').contains(document.activeElement);
+  state.drawer = null;
+  render(); declare();
+  if (hadFocus) sheet.editor.commands.focus();
+}
+
 function renderDrawer() {
   const drawer = $('drawer');
   drawer.hidden = state.drawer === null;
@@ -836,8 +848,10 @@ function renderDrawer() {
       if (!mine.length) body.push(el('p', { class: 'muted', text: 'Nothing linked yet. Select some text in it and choose Link.' }));
     }
   }
-  drawer.replaceChildren(el('div', { class: 'drawer-head' }, el('strong', { text: title }),
-    el('button', { type: 'button', class: 'quiet', 'aria-label': `Close ${title}`, text: 'Close', on: { click: () => { state.drawer = null; render(); } } })),
+  drawer.setAttribute('aria-label', title);
+  const close = el('button', { type: 'button', class: 'drawer-close', 'aria-label': `Close ${title}`, title: 'Close (Esc)', on: { click: closeDrawer } });
+  close.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>';
+  drawer.replaceChildren(el('div', { class: 'drawer-head' }, el('h2', { class: 'drawer-title', text: title }), close),
   el('div', { class: 'drawer-body' }, body));
 }
 
@@ -865,7 +879,12 @@ async function start(context) {
   for (const b of document.querySelectorAll('#own-toolbar [data-command]')) b.addEventListener('click', () => command({ id: b.dataset.command }));
   addEventListener('resize', () => { placeOverlays(); previewZoom(); });
   $('scroller').addEventListener('scroll', () => { if (state.popover) return; placeOverlays(); }, { passive: true });
-  addEventListener('keydown', e => { if (e.key === 'Escape' && (state.popover || state.pinned)) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); } });
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (state.popover || state.pinned) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); return; }
+    // Escape inside the side panel puts it away, as it does any panel the person opened.
+    if (state.drawer !== null && $('drawer').contains(document.activeElement)) { e.preventDefault(); closeDrawer(); }
+  });
   addEventListener('pagehide', () => { if (pending()) save(); });
   state.wanted = context.place?.manuscript ?? null;
   if (nendo.has('ui.setPlace')) nendo.on('place', place => { if (place?.manuscript) openManuscript(place.manuscript, false).catch(fail); });
