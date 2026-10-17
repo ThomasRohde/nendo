@@ -662,7 +662,9 @@ scoped generation through the launched agent. Include whole-manuscript generatio
 qualification, not only single-paragraph completion.
 
 This is an order for reducing risk, not a milestone plan or an estimate. Work enters the
-Nendo Development planner as work items when the owner asks for it.
+Nendo Development planner as work items when the owner asks for it. The delivery plan that
+builds on this order, with its findings, stages and work packages, is
+[`manuscript-plan.md`](manuscript-plan.md).
 
 ## 16. Open decisions
 
