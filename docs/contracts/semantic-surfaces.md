@@ -724,6 +724,13 @@ tone keeps it; a rename that omits the tone clears it. The review line says whic
 against *… and give it no colour*. Compensation of either puts the previous
 label, availability and tone back together.
 
+A new option arrives with `schema.addChoice` (2026-10-17, W-280), which appends it to
+the end of the field's options with its label and, optionally, its tone. The review
+line names both: *Add the option Table to Kind on Block, after its other options, and
+colour it teal; records can choose it at once*. A board grouped by the field gains the
+column at its end. The undo takes the option away again and is refused while a record
+holds it.
+
 Where an option has a tone, everything that shows the option draws with it:
 
 - the board column and its dot

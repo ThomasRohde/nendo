@@ -732,15 +732,16 @@ that table serves two purposes. It is published at
 enforcement from it. Before, the payload specification was prose inside the
 `add_operations` tool description. That prose grew so long that a real client's
 tool listing truncated it mid-token. The rules that stayed behind went the same
-way on 2026-09-27 and are now `authoringRules`. The union permits thirty-eight of the Engine's
-forty-one canonical operations. `data.restoreDeletedRecord` and
+way on 2026-09-27 and are now `authoringRules`. The union permits thirty-nine of the Engine's
+forty-three canonical operations. `data.restoreDeletedRecord` and
 `identity.transition` are native-only: lifecycle identity operations remain host
-services and are not MCP authoring primitives. `extension.setState` is written only
+services and are not MCP authoring primitives. `schema.removeChoice` is the undo of an
+added option and only compensation makes it. `extension.setState` is written only
 by a custom view through `nendo.state`
 ([custom-view contract](custom-views.md#state)), never by a change set.
 
 `extension.setPackage`, `extension.putFile`, `extension.removeFile` and
-`extension.removePackage` are among the thirty-eight. An agent therefore writes a
+`extension.removePackage` are among the thirty-nine. An agent therefore writes a
 custom view's code into the file through ordinary proposals, and the person reviews
 it as code before accepting. Once accepted, the code runs in the Workbench whenever
 a view that names its package is shown, and reaches the file only through
@@ -763,7 +764,7 @@ The bounds of a declared hierarchy are under `limits.hierarchy`: `maximumDepth` 
 `orderGap` 1,024. The key was `maximumDescendants` until 2026-10-16, when the tree read,
 `descendantOf` and a move stopped being refused past it (ADR-0019 amendment) and
 `hierarchy-too-wide` was retired. `schema.declareHierarchy` and
-`schema.removeHierarchy` are among the thirty-eight, and a record type's schema read carries
+`schema.removeHierarchy` are among the thirty-nine, and a record type's schema read carries
 its `hierarchy` (`parentFieldId`, `orderFieldId`), or null.
 
 `schema.setFieldUnique` and `schema.setFieldSequence` are among them too
@@ -787,6 +788,20 @@ and it states host 1.51.0. An unchanged label is refused as `reference-label-unc
 unbound reference as `reference-unbound`. It is how the field a reference is labelled by is
 retired: `reference-label-in-use` names it.
 
+`schema.addChoice` `{entityId, fieldId, choiceId, displayName, tone}` (W-280, ADR-0003's
+2026-10-17 note) appends a new stable option to the end of an active single-choice field;
+`tone` is optional. A field's options were fixed when it was added, and
+`schema.setChoiceMetadata` only renames, colours or retires one that exists, so an
+application whose choices grow could not grow them. `choiceId` is new to the field, retired
+options included, and at most 120 characters; `displayName` is 1 to 200 characters and unique
+within the field, compared case-insensitively (`label-conflict`); a field holds at most 32
+options. Each refusal names the field. No record changes, and records can choose the option
+from the next write. It is reversible with retained state: its undo removes the option and, if
+the field had no option metadata before, that metadata with it. History refuses that undo
+while any record holds the option, or a deleted record keeps it for the undo of its deletion,
+and names that record. It states host 1.7.0, or 1.19.0
+with a tone, as `schema.setChoiceMetadata` does.
+
 `schema.declareLinkRule` and `schema.removeLinkRule` say which links a record type allows
 ([ADR-0026](../decisions/0026-allowed-links.md),
 [allowed links](relationships.md#allowed-links)). The schema read carries `linkRule` on the link
@@ -800,7 +815,7 @@ joined, is refused at validation as `NENDO_INVALID_REQUEST`, and nothing reaches
 the clone. A package precondition met on the clone, one of the `extension-*` codes,
 arrives as a validation diagnostic, `NPROP010`, with the Engine's sentence.
 
-`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-eight,
+`behaviour.setDefinition` and `behaviour.removeDefinition` are among the thirty-nine,
 so an agent authors calculations, reusable functions, actions and triggers through
 ordinary proposals. The vocabulary's `behaviour.bindings` publishes every binding
 shape with the keys that it takes, from the same table that the codec refuses

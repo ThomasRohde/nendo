@@ -190,8 +190,8 @@ public sealed record AddFieldOperation : NendoOperation
             {
                 throw new ArgumentException("A singleChoice field must be Text with at least one option.", nameof(Options));
             }
-            if (Options.Count > 32 || Options.Distinct(StringComparer.Ordinal).Count() != Options.Count ||
-                Options.Any(value => value.Length > 120))
+            if (Options.Count > NendoChoiceRules.MaximumOptions || Options.Distinct(StringComparer.Ordinal).Count() != Options.Count ||
+                Options.Any(value => value.Length > NendoChoiceRules.MaximumIdLength))
             {
                 throw new ArgumentException("Single-choice options must be unique, contain at most 32 values and use at most 120 characters each.", nameof(Options));
             }

@@ -685,7 +685,7 @@ internal sealed partial class SqliteNendoStore
                     (COUNT(o.operation_id) = 1
                         AND MIN(CASE WHEN o.operation_type IN (
                             'data.setField', 'data.deleteRecord', 'data.backfillRetiredField',
-                            'schema.setChoiceMetadata', 'schema.setRetired', 'schema.setFieldRequired',
+                            'schema.setChoiceMetadata', 'schema.addChoice', 'schema.setRetired', 'schema.setFieldRequired',
                             'schema.renameEntity', 'schema.renameField',
                             'schema.setFieldUnique', 'schema.setFieldPresentation', 'schema.setFieldSequence', 'schema.setReferenceLabel',
                             'behaviour.setDefinition', 'behaviour.removeDefinition',

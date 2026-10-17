@@ -170,6 +170,29 @@ reserved protected metadata namespace for Nendo state.
   retired. Only an active reference on an active record type holds its label: a retired
   one draws and groups nothing and cannot be relabelled, so it does not keep its label from
   retirement. A file that changed a label needs host 1.51.0.
+- Note, 2026-10-17 (W-280): a single-choice field's options can grow. Until now they were
+  fixed when `schema.addField` made the field, and `schema.setChoiceMetadata` only renames,
+  colours, retires or brings back an option that exists, so an application whose choices
+  grow (the Manuscript app's Table, Row and Cell kinds) had no way to add one, from an
+  agent or from Studio. `schema.addChoice` `{entityId, fieldId, choiceId, displayName,
+  tone?, expectedDefinitionRevision}` is a definition-lane operation that appends one new
+  stable option to the end of an active single-choice Text field on an active record type.
+  It holds the option to the rules `schema.addField` already applies: an ID of at most 120
+  characters, new to the field with retired options counted, and at most 32 options in all;
+  and to the label and tone rules of `schema.setChoiceMetadata`: a label of 1 to 200
+  characters, unique within the field case-insensitively (`label-conflict`), and a tone from
+  the closed set or none. It writes the options list on `__nendo_field` and a row for every
+  option in `__nendo_choice`, exactly as a first label edit does, so the two stay one list,
+  and a tone through the tone table; no protected table is altered and no rung is added. No
+  record is touched, and records can choose the option from the next write. It is reversible
+  with retained state: its evidence keeps whether the field had option metadata before, and
+  the undo, a compensation-only `schema.removeChoice` no client can send, takes the option,
+  its label and its tone away again while the addition is the file's latest definition
+  change. The undo is refused, naming the record, while any record holds the option, or a
+  deleted record keeps it for the undo of its deletion; retiring the option is the remedy
+  then. The operation states host 1.7.0, the rung of choice metadata, or 1.19.0 with a tone,
+  as `schema.setChoiceMetadata` does: it needs no storage a label edit does not, and a host
+  that predates it reads the field's options as they are and refuses to undo it by name.
 - Generated display-label recovery views are not part of format version 1.
   Stable physical names plus the semantic map are the inspectability baseline.
 
@@ -227,3 +250,6 @@ operation-level change tracking.
   records by; no stored value moves (note under *Decision*; W-232). Host 1.51.0.
 - 2026-10-16 — media fields decided by [ADR-0031](0031-media-in-user-data.md): a Text
   presentation holding an address, with embedded content in protected tables. Not yet built.
+- 2026-10-17 — `schema.addChoice` appends a new option to a single-choice field; its undo
+  removes it and is refused while a record holds it (note under *Decision*; W-280). Host 1.7.0,
+  or 1.19.0 with a tone.

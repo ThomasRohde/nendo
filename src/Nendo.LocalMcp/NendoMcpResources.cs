@@ -171,7 +171,7 @@ internal sealed class NendoMcpResources(
         Title = "Record type schema",
         UriTemplate = "nendo://application/entity/{entityId}/schema",
         MimeType = "application/json")]
-    [Description("The semantic field schema for one entity. storageKind reads back camelCase and is matched case-insensitively on write. options is the authoritative ordered set of stable choice IDs for a singleChoice field; choices carries display metadata only for the options given it by schema.setChoiceMetadata, so it is empty until one is; each entry names the option's tone, or null for no colour. scale carries a rating field's min and max, and is null for every other presentation.")]
+    [Description("The semantic field schema for one entity. storageKind reads back camelCase and is matched case-insensitively on write. options is the authoritative ordered set of stable choice IDs for a singleChoice field; choices carries display metadata only for the options given it by schema.setChoiceMetadata or added by schema.addChoice, so it is empty until one is; each entry names the option's tone, or null for no colour. scale carries a rating field's min and max, and is null for every other presentation.")]
     public Task<string> GetSchemaAsync(string entityId, CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetSchemaAsync(entityId, cancellationToken));
 

@@ -467,7 +467,8 @@ public static class NendoSemanticVocabulary
             "from its start date; an end before the start is stated on the entry as a data issue; and placement stays by dateFieldId, " +
             "so a span that began in an earlier year is on that year's spine.",
         ["tone"] = "On schema.setChoiceMetadata, one of choiceTones, or null for no colour. The operation sets the whole of an " +
-            "option's metadata, so read the schema first: a rename that omits the tone clears it. Never a hex value.",
+            "option's metadata, so read the schema first: a rename that omits the tone clears it. On schema.addChoice, the new " +
+            "option's colour, or null or absent for none. Never a hex value.",
         ["min"] = "On schema.addField with presentation rating, the lowest value of the scale, paired with max. Both are required " +
             "for a rating, refused on every other presentation, and set once: a scale is part of how the field is drawn, as a " +
             "presentation is, and neither changes after the field exists.",
@@ -818,7 +819,8 @@ public static class NendoSemanticVocabulary
                 "every row states its number."),
             ChoiceTones = new NendoChoiceToneDescription(
                 [.. ChoiceToneOrder],
-                "A choice option may carry one of these as its tone, set with schema.setChoiceMetadata. It colours the " +
+                "A choice option may carry one of these as its tone, set with schema.setChoiceMetadata, or given to a new option by " +
+                "schema.addChoice. It colours the " +
                 "option's board column, chips, list dots and any record page whose accentFieldId is the field. The " +
                 "renderer owns the Light and Dark colours behind each name; a hex value is refused."),
             EffectiveFilters = new NendoEffectiveFilterBudget(

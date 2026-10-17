@@ -172,6 +172,10 @@ internal static class SemanticDiff
                     value.Reversibility, value.EntityId, value.FieldId ?? value.EntityId),
                 DeleteRecordOperation value => Entry("deleteRecord", $"Delete record {HumanId(value.RecordId)}; retain values for guarded restoration.", value.Reversibility, value.EntityId, value.RecordId),
                 SetChoiceMetadataOperation value => Entry("setChoiceMetadata", $"{ChoiceNaming(names, value)}, mark it {(value.Retired ? "retired" : "available")} and {(value.Tone is null ? "give it no colour" : $"colour it {value.Tone}")}; preserve its stored ID.", value.Reversibility, value.EntityId, value.FieldId, value.ChoiceId),
+                AddChoiceOperation value => Entry("addChoice",
+                    $"Add the option {value.DisplayName} to {FieldName(names, value.FieldId)} on {EntityName(names, value.EntityId)}, after its other options, " +
+                    $"and {(value.Tone is null ? "give it no colour" : $"colour it {value.Tone}")}; records can choose it at once.",
+                    value.Reversibility, value.EntityId, value.FieldId, value.ChoiceId),
                 ConfigureReferenceOperation value => Entry("configureReference",
                     $"Point {FieldName(names, value.FieldId)} on {EntityName(names, value.EntityId)} at {EntityName(names, value.TargetEntityId)}, labelled by {FieldName(names, value.LabelFieldId)}.",
                     value.Reversibility, value.EntityId, value.FieldId, value.TargetEntityId, value.LabelFieldId),
@@ -609,6 +613,7 @@ internal static class SemanticDiff
                     break;
                 case ConfigureReferenceOperation value: referenceTargets[value.FieldId] = value.TargetEntityId; break;
                 case SetChoiceMetadataOperation value: choiceNames[(value.FieldId, value.ChoiceId)] = value.DisplayName; break;
+                case AddChoiceOperation value: choiceNames[(value.FieldId, value.ChoiceId)] = value.DisplayName; break;
                 case SetUiPropertyOperation { PropertyName: "title" or "label" } value
                     when value.Value.ValueKind == JsonValueKind.String && value.Value.GetString() is { Length: > 0 } named:
                     nodeLabels[value.NodeId] = named;

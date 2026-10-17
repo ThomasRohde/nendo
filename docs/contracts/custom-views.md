@@ -851,7 +851,7 @@ package's name, and the person decides it in the ordinary review.
   exactly as it validates the Workbench's own, diagnostics included.
 - **The definition revision is the host's to fill** (W-241, 2026-10-15). A view has no read
   that states the file's definition revision, so an operation that takes
-  `expectedDefinitionRevision` (`schema.setChoiceMetadata`, `schema.configureReference`,
+  `expectedDefinitionRevision` (`schema.setChoiceMetadata`, `schema.addChoice`, `schema.configureReference`,
   `schema.setRetired` and the rest the vocabulary lists) leaves it out, or sends null, and the
   host fills it in from the revision the proposal is prepared at, advancing once per preceding
   definition-lane mutation, as MCP does for an agent (`NendoDefinitionRevisions`). The

@@ -257,6 +257,7 @@ internal sealed partial class SqliteNendoStore
         NendoOperation inverse = original.Type switch
         {
             "schema.setChoiceMetadata" => CreateChoiceInverse(original.Canonical, original.Evidence, idempotencyKey),
+            "schema.addChoice" => CreateAddChoiceInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.setRetired" => CreateRetirementInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.setFieldRequired" => CreateRequiredInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.renameEntity" or "schema.renameField" => CreateRenameInverse(original.Canonical, original.Evidence, idempotencyKey),

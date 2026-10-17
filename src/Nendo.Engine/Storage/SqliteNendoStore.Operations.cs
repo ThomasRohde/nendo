@@ -16,6 +16,8 @@ internal sealed partial class SqliteNendoStore
             RemoveBehaviourDefinitionOperation behaviour => await ExecuteRemoveBehaviourDefinitionAsync(behaviour, transaction, cancellationToken),
             DeleteRecordOperation delete => await ExecuteDeleteRecordAsync(delete, transaction, cancellationToken),
             SetChoiceMetadataOperation choice => await ExecuteSetChoiceMetadataAsync(choice, transaction, cancellationToken),
+            AddChoiceOperation addChoice => await ExecuteAddChoiceAsync(addChoice, transaction, cancellationToken),
+            RemoveChoiceOperation removeChoice => await ExecuteRemoveChoiceAsync(removeChoice, transaction, cancellationToken),
             SetRetiredOperation retired => await ExecuteSetRetiredAsync(retired, transaction, cancellationToken),
             SetFieldRequiredOperation required => await ExecuteSetFieldRequiredAsync(required, transaction, cancellationToken),
             BackfillRetiredFieldOperation backfill => await ExecuteBackfillRetiredFieldAsync(backfill, transaction, cancellationToken),

@@ -14,7 +14,7 @@ export type ChangeMark = 'add' | 'remove' | 'change';
 
 const removals = new Set(['removeExtensionPackage', 'removeExtensionFile', 'removeUiNode', 'removeUiProperty', 'deleteRecord',
   'removeHierarchy', 'removeLinkRule', 'removeBehaviourDefinition']);
-const additions = new Set(['addEntity', 'addField', 'addUiNode', 'createRecord', 'declareHierarchy', 'declareLinkRule']);
+const additions = new Set(['addEntity', 'addField', 'addChoice', 'addUiNode', 'createRecord', 'declareHierarchy', 'declareLinkRule']);
 
 /**
  * Whether a line adds, takes away or changes. Every line wore a plus, so "Remove the package

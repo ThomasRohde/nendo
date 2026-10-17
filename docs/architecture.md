@@ -319,8 +319,8 @@ An edit to an unrelated record does not invalidate a UI-only proposal
 
 ### Typed operations
 
-Forty-one operation types are the primitive: every type that a revision can
-record, including the three that only host services create. Semantic diff, undo
+Forty-three operation types are the primitive: every type that a revision can
+record, including the four that only host services create. Semantic diff, undo
 evidence and replay all derive from the same operation stream.
 
 ```text
@@ -341,11 +341,14 @@ schema.setFieldPresentation extension.putFile              extension.removePacka
 schema.setKeptInNewFiles    extension.setState *
 schema.declareLinkRule
 schema.removeLinkRule
+schema.addChoice
+schema.removeChoice *
 ```
 
 `*` marks an operation that only host services create: a restore from deletion
-history, an identity transition, and a custom view's kept state (`nendo.state`,
-written through the application service). The other thirty-eight are the closed union that
+history, an identity transition, the undo of an added choice option, and a custom
+view's kept state (`nendo.state`, written through the application service). The
+other thirty-nine are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
