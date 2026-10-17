@@ -62,18 +62,23 @@ public sealed partial class MainWindow
     /// </summary>
     internal void OpenTabWindow(DesktopSessionController session, string trail, bool atPointer)
     {
-        var source = new RectInt32(AppWindow.Position.X, AppWindow.Position.Y, AppWindow.Size.Width, AppWindow.Size.Height);
+        // A window that fills the screen hands on the size it had before it did (reported 2026-10-17).
+        var fills = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized } ||
+            AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
+        var home = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+        var size = DesktopTabWindowRules.SizeToCarry(AppWindow.Size, fills,
+            _windowState is { } before ? new SizeInt32(before.Width, before.Height) : null, home);
         RectInt32 bounds;
         if (atPointer && GetCursorPos(out var cursor))
         {
             var pointer = new PointInt32(cursor.X, cursor.Y);
             var area = DisplayArea.GetFromPoint(pointer, DisplayAreaFallback.Nearest).WorkArea;
-            bounds = DesktopTabWindowRules.AtPointer(AppWindow.Size, Scale, pointer, area, DesktopWindowPolicy.ScaleOf(area));
+            bounds = DesktopTabWindowRules.AtPointer(size, Scale, pointer, area, DesktopWindowPolicy.ScaleOf(area));
         }
         else
         {
-            var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
-            bounds = DesktopTabWindowRules.Cascaded(source, area, Scale);
+            var origin = fills ? new PointInt32(home.X, home.Y) : AppWindow.Position;
+            bounds = DesktopTabWindowRules.Cascaded(new RectInt32(origin.X, origin.Y, size.Width, size.Height), home, Scale);
         }
         var window = new MainWindow(session, trail, bounds);
         TabWindowList.Add(window);

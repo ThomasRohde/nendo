@@ -2,7 +2,8 @@
 // isolated profile built by DesktopExtensionViewJourneyTests. Measured over the browser's debugging
 // port: the second window's page, its file session and place, the tab gone from the main window,
 // the file actions a tab window refuses, a write in one window reaching the other, the theme in
-// both, and the tab window closing while the file and the process stay. That a tab window closes
+// both, the tab window closing while the file and the process stay, and Exit ending the process
+// while a tab window is open. That a tab window closes
 // when its file changes needs a native confirmation pressed, which no lane can do: it was observed
 // with a real keyboard on 2026-10-16 (W-277). The move is made by the
 // command palette's Move tab to new window; a drag out of the strip ends in the same call, and a
@@ -161,6 +162,24 @@ try {
   check('T6 closing the tab window left the file open in the main window and the process running; the main window does not close from its page');
 
   assert(pageErrors.length === 0, 'Unhandled renderer exception: ' + pageErrors.join(' | '));
+
+  // T7: Exit, as the tray menu's Exit asks for it, ends the process while a tab window is open.
+  // Reported 2026-10-17: it closed the main window alone, and the tab window kept the process.
+  await click(main, '#tab-new');
+  await click(main, '#nav-history');
+  await waitFor(() => evaluateIn(main, `document.querySelector('#workspace-title')?.textContent?.includes('History')`), 'History in a new tab');
+  await idle(main);
+  await click(main, '#palette-open');
+  await click(main, '[data-command-id="tab:moveToWindow"]');
+  const pairAgain = await waitFor(async () => { const all = await workbenches(); return all.length === 2 ? all : null; }, 'a second tab window');
+  const third = await attach(pairAgain.find(t => t.targetId !== first.targetId).targetId);
+  await waitFor(async () => (await describe(third)).role === 'tab', 'the tab window');
+  const exiting = await bridge(third, 'diagnostics.exit');
+  assert(exiting.ok, `Exit was refused: ${JSON.stringify(exiting.error)}.`);
+  const alive = () => { try { process.kill(Number(processId), 0); return true; } catch { return false; } };
+  try { await waitFor(() => !alive(), 'the process to end on Exit', 20000); }
+  catch { throw new Error(`T7 Exit left the process running with ${(await workbenches()).length} Workbench window(s) open.`); }
+  check('T7 Exit ended the process with a tab window open');
   console.log('tab windows ok');
 } finally {
   socket.close();

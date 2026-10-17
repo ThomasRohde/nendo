@@ -464,7 +464,8 @@ their own, to put a place on another monitor (W-277). Until now one process had
 one window, one WebView2 and one file. That stays true for the process and the
 file, but no longer for the window.
 
-**What changes.** A tab dragged out of the tab strip and let go outside the window
+**What changes.** A tab dragged out of the tab strip and let go outside the window,
+or pulled down into the page (the way out of a maximised window, added 2026-10-17),
 opens in a new window of the same process, where it was let go. That window shows
 the same open file through the same `DesktopSessionController`: the same Engine,
 the same file session, the same agent host and the same launched agent. It has its

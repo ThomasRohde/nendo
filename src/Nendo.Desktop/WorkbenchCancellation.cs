@@ -123,6 +123,7 @@ internal static partial class WorkbenchMethods
         WindowDetachTab,
         WindowTakeTab,
         DiagnosticsCloseWindow,
+        DiagnosticsExit,
         SessionCreateFile,
         SessionOpenFile,
         // A picture picked, pasted or dropped, a file linked, or a copy saved: a picker or the clipboard.

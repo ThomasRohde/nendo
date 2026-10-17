@@ -227,7 +227,7 @@ public sealed class DesktopWindowChromeTests
         Assert.DoesNotContain("_webView.CoreWebView2?.PostWebMessageAsJson", deliver, "A response is posted to the browser unguarded (DSH-03).");
 
         var window = Source("MainWindow.xaml.cs");
-        var closing = Between(window, "private async void AppWindow_Closing", "finally");
+        var closing = Between(window, "private async Task ExitAsync()", "finally");
         StringAssert.Contains(closing, "await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync)",
             "The close handler awaits the session's shutdown where a failure escapes (DSH-19).");
         Assert.DoesNotContain("await page.ShutdownAsync()", closing, "The close handler awaits the session's shutdown where a failure escapes (DSH-19).");

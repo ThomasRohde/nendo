@@ -451,6 +451,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.WindowDetachTab => DetachTab(payload),
                     WorkbenchMethods.WindowTakeTab => TabWindows().TakeTab(),
                     WorkbenchMethods.DiagnosticsCloseWindow when DesktopRuntimeConfiguration.NativeDiagnostics => CloseWindow(),
+                    WorkbenchMethods.DiagnosticsExit when DesktopRuntimeConfiguration.NativeDiagnostics => Exit(),
                     WorkbenchMethods.DownloadsShow => ShowDownload(payload),
                     WorkbenchMethods.DiagnosticsTitleBar when DesktopRuntimeConfiguration.NativeDiagnostics => DiagnoseTitleBar(payload),
                     WorkbenchMethods.DiagnosticsResizeWindow when DesktopRuntimeConfiguration.NativeDiagnostics => ResizeWindow(payload),

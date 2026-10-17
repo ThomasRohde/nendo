@@ -21,6 +21,9 @@ internal static partial class WorkbenchMethods
 
     /// <summary>Close this page's tab window as its close button does. Answered only when NENDO_NATIVE_DIAGNOSTICS=1.</summary>
     internal const string DiagnosticsCloseWindow = "diagnostics.closeWindow";
+
+    /// <summary>End the process as the tray's Exit does. Answered only when NENDO_NATIVE_DIAGNOSTICS=1.</summary>
+    internal const string DiagnosticsExit = "diagnostics.exit";
 }
 
 /// <summary>What a page learns about its window: <c>main</c> or <c>tab</c>, and a tab window's trail once.</summary>
@@ -40,6 +43,9 @@ internal interface IWorkbenchTabWindowHost
 
     /// <summary>Close this tab window as its close button does; refused in the main window. Diagnostics only.</summary>
     void CloseWindow();
+
+    /// <summary>End the process as the tray's Exit does, from any window. Diagnostics only.</summary>
+    void Exit();
 }
 
 /// <summary>
@@ -101,6 +107,19 @@ internal static class DesktopTabWindowRules
         return DesktopWindowPolicy.FitSavedTo(place, workArea, scale);
     }
 
+    /// <summary>
+    /// The size a new window takes from the one it came from: its own, or, when that window fills
+    /// the screen (maximised or full screen), the size it had before, so the new window does not
+    /// cover the screen in turn. With no smaller size known, three quarters of the screen. Physical
+    /// pixels of the source's screen.
+    /// </summary>
+    internal static SizeInt32 SizeToCarry(SizeInt32 current, bool fillsScreen, SizeInt32? restored, RectInt32 workArea)
+    {
+        if (!fillsScreen) return current;
+        if (restored is { } before && before.Width < workArea.Width && before.Height < workArea.Height) return before;
+        return new SizeInt32(workArea.Width * 3 / 4, workArea.Height * 3 / 4);
+    }
+
     /// <summary>A window opened by the command: the source's place, one step down and to the right, on its work area.</summary>
     internal static RectInt32 Cascaded(RectInt32 source, RectInt32 workArea, double scale)
     {
@@ -133,6 +152,12 @@ internal sealed partial class WorkbenchProtocolHandler
     {
         TabWindows().CloseWindow();
         return new { closing = true };
+    }
+
+    private object Exit()
+    {
+        TabWindows().Exit();
+        return new { exiting = true };
     }
 
     private object DetachTab(JsonElement payload)

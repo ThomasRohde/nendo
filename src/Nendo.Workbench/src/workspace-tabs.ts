@@ -410,20 +410,21 @@ export async function adoptTab(text: string): Promise<void> {
 }
 
 /**
- * A tab dragged out of the strip and let go outside the window moves to a window of its own, where
- * it was let go. The browser keeps sending a held mouse's moves and its release to the page after
+ * A tab dragged out of the strip, past the window's edge or pulled down into the page, and let go
+ * moves to a window of its own, where it was let go. The browser keeps sending a held mouse's moves and its release to the page after
  * the pointer leaves the window, aimed at the document rather than the strip, so the drag listens
  * on the window from the press until the release. A drag let go inside the window, or a press that
  * never moved, is the click it always was.
  */
-let drag: { index: number; pointerId: number; startX: number; startY: number; tab: HTMLElement; out: boolean } | null = null;
+let drag: { index: number; pointerId: number; startX: number; startY: number; stripBottom: number; tab: HTMLElement; out: boolean } | null = null;
 
 strip.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || drag !== null || !tabsCanMove()) return;
   const main = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-tab]') : null;
   const tab = main?.closest<HTMLElement>('[data-tab-index]');
   if (!main || !tab) return;
-  drag = { index: Number(main.dataset.tab), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, tab, out: false };
+  drag = { index: Number(main.dataset.tab), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+    stripBottom: strip.getBoundingClientRect().bottom, tab, out: false };
   window.addEventListener('pointermove', moveDrag, true);
   window.addEventListener('pointerup', releaseDrag, true);
   window.addEventListener('pointercancel', cancelDrag, true);
@@ -431,7 +432,7 @@ strip.addEventListener('pointerdown', (event) => {
 
 function moveDrag(event: PointerEvent): void {
   if (drag === null || event.pointerId !== drag.pointerId) return;
-  const where = dragState(drag.startX, drag.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight);
+  const where = dragState(drag.startX, drag.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight, drag.stripBottom);
   if (where === 'press') return;
   drag.tab.classList.add('is-dragging');
   drag.out = where === 'out';
@@ -447,7 +448,7 @@ function endDrag(event: PointerEvent, cancelled: boolean): void {
   window.removeEventListener('pointercancel', cancelDrag, true);
   ended.tab.classList.remove('is-dragging', 'is-leaving');
   // Where it was let go, not where it was last seen moving: a quick flick ends past the edge.
-  const out = !cancelled && dragState(ended.startX, ended.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight) === 'out';
+  const out = !cancelled && dragState(ended.startX, ended.startY, event.clientX, event.clientY, window.innerWidth, window.innerHeight, ended.stripBottom) === 'out';
   if (!out) return;
   swallowClick = true;
   // The click a release makes comes straight after it, or not at all when the release was off the tab.

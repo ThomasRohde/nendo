@@ -119,6 +119,20 @@ public sealed class DesktopTabWindowTests
     }
 
     [TestMethod]
+    public void AWindowThatFillsTheScreenHandsOnTheSizeItHadBefore()
+    {
+        // Reported 2026-10-17: from a maximised window the new one covered the whole screen in turn.
+        var area = new RectInt32(0, 0, 2560, 1392);
+        var screen = new SizeInt32(2582, 1414);
+        Assert.AreEqual(new SizeInt32(1600, 960), DesktopTabWindowRules.SizeToCarry(new SizeInt32(1600, 960), false, null, area));
+        Assert.AreEqual(new SizeInt32(1600, 960), DesktopTabWindowRules.SizeToCarry(screen, true, new SizeInt32(1600, 960), area),
+            "A maximised window handed on the screen's size rather than the size it was restored from.");
+        // No smaller size known: three quarters of the screen, never all of it.
+        Assert.AreEqual(new SizeInt32(1920, 1044), DesktopTabWindowRules.SizeToCarry(screen, true, null, area));
+        Assert.AreEqual(new SizeInt32(1920, 1044), DesktopTabWindowRules.SizeToCarry(screen, true, new SizeInt32(2560, 1392), area));
+    }
+
+    [TestMethod]
     public void ATabMovedByTheCommandOpensOneStepFromItsWindow()
     {
         var area = new RectInt32(0, 0, 1920, 1040);
@@ -145,6 +159,8 @@ public sealed class DesktopTabWindowTests
         public void DetachTab(string trail, bool atPointer) => Detached.Add((trail, atPointer));
 
         public void CloseWindow() { }
+
+        public void Exit() { }
 
         public TabWindowStart TakeTab()
         {

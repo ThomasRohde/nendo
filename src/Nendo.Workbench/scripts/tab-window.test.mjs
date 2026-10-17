@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // W-277 (ADR-0002, 2026-10-16): a tab dragged out of the strip moves to a window of its own. The
 // moves on the tabs are held here; the host's half is held by DesktopTabWindowTests, and the
 // second window by the tab-window journey.
-const { dragState, dragThreshold, leaveMargin, putTabBack, readTabTrail, trailOfTab } = await bundleOf('src/tab-set.ts');
+const { dragState, dragThreshold, leaveMargin, pullDistance, putTabBack, readTabTrail, trailOfTab } = await bundleOf('src/tab-set.ts');
 const { createTrail } = await bundleOf('src/navigation-trail.ts');
 const source = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -14,13 +14,21 @@ const place = (title) => ({ view: 'use', eyebrow: 'Use · Work', title, applicat
   fileView: null, surfaceId: title, recordId: null, returnTo: null, drill: null, tabs: [], calendar: null, timeline: null, helpTopicId: '',
   proposalId: null, agentProposalId: null, proposalReturnView: null, viewPlaces: [] });
 
-test('a press is a press until it moves, a drag inside the window stays, and one let go past its edge leaves', () => {
-  assert.equal(dragState(100, 20, 100 + dragThreshold - 1, 20, 1600, 900), 'press', 'a press that wobbled became a drag');
-  assert.equal(dragState(100, 20, 400, 30, 1600, 900), 'inside');
+test('a press is a press until it moves, a drag along the strip stays, and one let go past the edge or pulled down leaves', () => {
+  const strip = 48;
+  assert.equal(dragState(100, 20, 100 + dragThreshold - 1, 20, 1600, 900, strip), 'press', 'a press that wobbled became a drag');
+  assert.equal(dragState(100, 20, 400, 30, 1600, 900, strip), 'inside');
   // Past the edge by less than the margin is still the window: the band's own edge is not a drop.
-  assert.equal(dragState(100, 20, 100, -leaveMargin, 1600, 900), 'inside');
+  assert.equal(dragState(100, 20, 100, -leaveMargin, 1600, 900, strip), 'inside');
   for (const [x, y] of [[100, -leaveMargin - 1], [-leaveMargin - 1, 20], [1600 + leaveMargin + 1, 20], [100, 900 + leaveMargin + 1], [-300, -200]])
-    assert.equal(dragState(100, 20, x, y, 1600, 900), 'out', `let go at ${x}, ${y} did not leave the window`);
+    assert.equal(dragState(100, 20, x, y, 1600, 900, strip), 'out', `let go at ${x}, ${y} did not leave the window`);
+  // Reported 2026-10-17: a window that fills the screen has no edge to drag past. A tab pulled down
+  // into the page leaves; one dragged along the strip, or a little below it, stays.
+  const screen = [2560, 1392];
+  assert.equal(dragState(770, 30, 770, strip + pullDistance, ...screen, strip), 'inside', 'a tab just below the strip left the window');
+  assert.equal(dragState(770, 30, 970, strip + pullDistance + 1, ...screen, strip), 'out', 'a tab pulled down in a full-screen window stayed in it');
+  assert.equal(dragState(770, 30, 970, 430, ...screen, strip), 'out', 'a tab pulled down in a full-screen window stayed in it');
+  assert.equal(dragState(770, 30, 1900, 40, ...screen, strip), 'inside', 'a tab dragged along the strip left the window');
 });
 
 test('the trail that moves is the window trail for the tab on screen and the saved one for another, and a lone tab stays', () => {

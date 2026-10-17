@@ -20,6 +20,11 @@ public sealed partial class MainPage : IWorkbenchTabWindowHost
     void IWorkbenchTabWindowHost.CloseWindow() =>
         (Owner ?? throw new Nendo.Engine.NendoPreconditionException("window-unavailable", "The window is not available.")).CloseTabWindowForDiagnostics();
 
+    // The tray's Exit, which no journey can press: RequestExit is what its menu entry calls. Queued,
+    // so this request is answered first.
+    void IWorkbenchTabWindowHost.Exit() =>
+        DispatcherQueue.TryEnqueue(() => App.CurrentWindow?.RequestExit());
+
     TabWindowStart IWorkbenchTabWindowHost.TakeTab()
     {
         var trail = _pendingTab;

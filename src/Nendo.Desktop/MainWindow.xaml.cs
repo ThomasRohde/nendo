@@ -474,7 +474,10 @@ public sealed partial class MainWindow : Window
     internal void RequestExit()
     {
         _exitRequested = true;
-        Close();
+        // The way out runs here, not through Close: Window.Close raises no AppWindow.Closing, so
+        // the tray's Exit closed this window alone, and a tab window kept the process and its file
+        // open without the notification-area icon (W-277, reported 2026-10-17).
+        _ = ExitAsync();
     }
 
     /// <summary>
@@ -525,6 +528,15 @@ public sealed partial class MainWindow : Window
             return;
         }
 
+        await ExitAsync();
+    }
+
+    /// <summary>
+    /// Ends the process: the tab windows, then the session, then the shell's own parts, then this
+    /// window and the application. Every way out comes here, the close button and the tray's Exit.
+    /// </summary>
+    private async Task ExitAsync()
+    {
         if (_closing)
         {
             return;

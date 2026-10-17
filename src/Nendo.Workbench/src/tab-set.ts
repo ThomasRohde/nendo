@@ -117,13 +117,19 @@ export const dragThreshold = 6;
 /** How far past the window's edge a tab must be let go to leave it, in the page's pixels. */
 export const leaveMargin = 8;
 
+/** How far below the tab strip a tab must be pulled to leave, in the page's pixels. */
+export const pullDistance = 40;
+
 /**
- * Where a tab dragged from (`startX`, `startY`) to (`x`, `y`) stands: still a press, a drag inside
- * the window, or out of it, where letting go opens the tab in a window of its own. The window is
- * the page's viewport, `width` by `height`; a pointer held captured reports points outside it.
+ * Where a tab dragged from (`startX`, `startY`) to (`x`, `y`) stands: still a press, a drag along
+ * the strip, or out, where letting go opens the tab in a window of its own. A tab is out past the
+ * window's edge, the page's viewport `width` by `height`, or pulled down more than `pullDistance`
+ * below the strip's bottom edge at `stripBottom`: a window that fills the screen has no edge to
+ * drag past, so pulling the tab down into the page is the way out there, as in a browser
+ * (reported 2026-10-17).
  */
-export function dragState(startX: number, startY: number, x: number, y: number, width: number, height: number): 'press' | 'inside' | 'out' {
+export function dragState(startX: number, startY: number, x: number, y: number, width: number, height: number, stripBottom: number): 'press' | 'inside' | 'out' {
   if (Math.hypot(x - startX, y - startY) < dragThreshold) return 'press';
-  const out = x < -leaveMargin || y < -leaveMargin || x > width + leaveMargin || y > height + leaveMargin;
+  const out = x < -leaveMargin || y < -leaveMargin || x > width + leaveMargin || y > height + leaveMargin || y > stripBottom + pullDistance;
   return out ? 'out' : 'inside';
 }

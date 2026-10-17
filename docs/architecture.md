@@ -634,12 +634,12 @@ then puts its current place back as a step back does (`revisitCurrent` in
 the window's, are never written to the file, and are cleared with the file, like the trail.
 
 A tab can move to a window of its own (W-277, ADR-0002's 2026-10-16 amendment). Dragged out of
-the strip and let go past the window's edge, or moved by *Move tab to new window* in the command
-palette, it leaves the strip as a close would take it, without the closed-tab listeners hearing
+the strip and let go past the window's edge or more than 40 pixels below the strip (a maximised
+window has no edge to drag past), or moved by *Move tab to new window* in the command palette, it leaves the strip as a close would take it, without the closed-tab listeners hearing
 it, so a launched agent's conversation keeps running. The page hands its trail to
 `window.detachTab` as an opaque string. The host opens another `MainWindow` in the same process
-(`MainWindow.TabWindows.cs`), at the pointer with the size of the window it came from, or one
-step down and to the right of it, and gives it a `MainPage` on the same `DesktopSessionController`.
+(`MainWindow.TabWindows.cs`), at the pointer with the size of the window it came from (the size
+it had before, when that window is maximised), or one step down and to the right of it, and gives it a `MainPage` on the same `DesktopSessionController`.
 That page's Workbench takes the trail once with `window.takeTab` and shows its place. A browser
 keeps sending a held mouse's moves to the page past the window's edge, aimed at the document,
 which is why the drag listens on the window rather than the strip.
@@ -648,7 +648,9 @@ The first window stays the main window: it alone has the notification-area icon,
 badge, notifications, the Jump List and the file's saved place, and it owns and ends the session.
 A tab window subscribes its page to the session's events (`fileChanged`, `agentActivity`,
 `agentSessionChanged`, the extension events), draws the theme set in any window
-(`appearanceChanged`), hides and shows with the main window and closes with the process. It
+(`appearanceChanged`), hides and shows with the main window and closes with the process. Every
+way out of the process goes through `MainWindow.ExitAsync`, which closes the tab windows first:
+`Window.Close` raises no `AppWindow.Closing`, so the tray's Exit had closed the main window alone. It
 closes when its file session changes, and its Workbench offers, and its bridge runs, none of the
 file actions that open, close or replace the file (`DesktopTabWindowRules.MainWindowOnly`,
 `window-role.ts`): they answer `main-window-only`. Every window of the file shares the browser
