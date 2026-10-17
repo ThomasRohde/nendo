@@ -1,6 +1,6 @@
 // The Manuscript app (W-276): its schema, screens and starting records, as canonical operations
 // for Build-Manus.mjs, and the fixture the browser lane runs the view against.
-import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES, ALIGNMENTS } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES, ALIGNMENTS, LISTS, TABLE_KINDS } from '../../extensions/manuscript/model.mjs';
 
 export const PACKAGE_ID = 'org.nendo.manuscript';
 export const VIEW_NODE = 'mn.screen.sheet';
@@ -17,6 +17,8 @@ export const entities = [
     [F.order, 'Order', 'Integer'],
     [F.role, 'Role', 'Text', false, 'singleChoice', ROLES],
     [F.align, 'Align', 'Text', false, 'singleChoice', ALIGNMENTS],
+    [F.list, 'List', 'Text', false, 'singleChoice', LISTS],
+    [F.level, 'Level', 'Integer'],
   ], refs: [[F.parent, BLOCK, F.text]] },
   { id: NOTE, name: 'Notes', fields: [
     [F.noteText, 'Note', 'Text', true, 'longText'],
@@ -51,6 +53,14 @@ export function roleFieldOperations() { return fieldOperations(F.role); }
 
 /** The Align field alone, for a file built before alignment (Manuscript 0.9.0). */
 export function alignFieldOperations() { return fieldOperations(F.align); }
+
+/** The List and Level fields, for a file built before lists (Manuscript 0.10.0). */
+export function listFieldOperations() { return [...fieldOperations(F.list), ...fieldOperations(F.level)]; }
+
+/** Table, Row and Cell added to an older file's Kind, which needs a Nendo with schema.addChoice. */
+export function tableKindOperations() {
+  return TABLE_KINDS.map(choiceId => op('schema.addChoice', { entityId: BLOCK, fieldId: F.kind, choiceId, displayName: choiceId }));
+}
 
 function fieldOperations(id) {
   const [fieldId, name, kind, required, presentation, options] = entities[0].fields.find(f => f[0] === id);

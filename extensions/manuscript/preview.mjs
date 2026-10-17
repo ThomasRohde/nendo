@@ -49,6 +49,11 @@ export function previewBlocks(plan, layout) {
       indentNext = false; afterTitle = false; previous = item;
       continue;
     }
+    if (item.type === 'table') {
+      blocks.push({ kind: 'table', rows: item.rows, breakBefore: false, indent: false, across });
+      indentNext = false; afterTitle = false; previous = item;
+      continue;
+    }
     const role = item.role;
     if (role === 'Caption') {
       const caption = FIGURE.exec(item.text);
@@ -64,8 +69,10 @@ export function previewBlocks(plan, layout) {
     const keywords = !book && role === 'Keywords';
     blocks.push({ kind: 'paragraph', role, text: keywords ? item.text.replace(/^\*{0,2}keywords?\*{0,2}\s*[:.]\s*/i, '') : item.text, label: keywords ? 'Keywords:' : undefined,
       front: !book && item.front, titlePage, breakBefore, across, align: item.align ?? null,
-      indent: (!book && role === 'Abstract') || (indentNext && !APART.has(role) && !(item.front && !book) && role !== 'References' && role !== 'Glossary') });
-    indentNext = !APART.has(role) && !(item.front && !book) && role !== 'References' && role !== 'Glossary';
+      list: item.list ?? null, listLevel: item.listLevel ?? 0, marker: item.marker ?? null,
+      indent: !item.list && ((!book && role === 'Abstract') || (indentNext && !APART.has(role) && !(item.front && !book) && role !== 'References' && role !== 'Glossary')) });
+    // A list is set apart: the paragraph after it starts flush, as one after a heading does.
+    indentNext = !item.list && !APART.has(role) && !(item.front && !book) && role !== 'References' && role !== 'Glossary';
     if (role === 'Dedication') indentNext = false;
     previous = item;
   }

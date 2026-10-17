@@ -15,7 +15,7 @@ const state = {
   root: null, cuttings: null, title: '', savedTitle: '', saved: new Map(), notes: [], links: [],
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
-  appearance: readAppearance(), popover: null, roles: false, aligns: false, mode: 'write', pins: [], more: false,
+  appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -46,6 +46,7 @@ const sheet = createSheet({
   onSelect: where => selected(where),
   resolvePicture,
   canAlign: () => state.aligns && !state.readOnly,
+  canList: () => state.lists && !state.readOnly,
 });
 
 // Where a picture's address loads from: the open file's media origin for an embedded one.
@@ -234,6 +235,8 @@ function applyWrite(write, version) {
     if (F.order in v) next.order = v[F.order];
     if (F.role in v) next.role = v[F.role];
     if (F.align in v) next.align = v[F.align];
+    if (F.list in v) next.list = v[F.list];
+    if (F.level in v) next.level = v[F.level];
     next.visible = write.recordId !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
     state.saved.set(write.recordId, next);
     return;
@@ -437,6 +440,12 @@ function blockBody(block, layout, sizes) {
       });
       return box;
     }));
+  }
+  if (block.kind === 'table') {
+    return el('table', { class: 'pv-table' }, el('tbody', {}, block.rows.map((cells, r) => el('tr', {}, cells.map(text => el(r === 0 ? 'th' : 'td', {}, inlineNodes(text)))))));
+  }
+  if (block.list) {
+    return el('p', { class: `pv-p pv-li level-${block.listLevel}`, style: `padding-left:${22 * (block.listLevel + 1)}px` }, el('span', { class: 'pv-marker', text: block.marker ?? '' }), inlineNodes(block.text));
   }
   const classes = ['pv-p', block.indent ? 'indent' : '', block.front ? 'front' : '', block.across ? 'across' : '', block.role ? slug(block.role) : ''].filter(Boolean).join(' ');
   if (block.role === 'Scene break' && !block.text.trim()) return el('p', { class: classes, text: '* * *' });
@@ -712,6 +721,16 @@ const ICON = {
   chapter: '<path d="M2.5 3.5v9M8.5 3.5v9M2.5 8h6M11.3 9.3c.2-.6.7-.9 1.3-.9.7 0 1.2.5 1.2 1.1 0 1.1-2.5 1.8-2.5 3h2.6"/>',
   section: '<path d="M2.5 3.5v9M8.5 3.5v9M2.5 8h6M11.3 8.7c.3-.4.7-.6 1.2-.6.7 0 1.2.4 1.2 1s-.5 1-1.2 1c.8 0 1.4.4 1.4 1.1s-.6 1.2-1.4 1.2c-.6 0-1.1-.3-1.3-.7"/>',
   quotation: '<path d="M3 3.5v9M6 4.5h7.5M6 8h7.5M6 11.5h5"/>',
+  bulleted: '<path d="M6.5 4h7M6.5 8h7M6.5 12h7M2.4 4a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0M2.4 8a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0M2.4 12a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0"/>',
+  numbered: '<path d="M6.5 4h7M6.5 8h7M6.5 12h7M2.5 2.8l1-.5v3.2M2.4 9.6c.1-.6.5-1 1.1-1 .6 0 1 .4 1 .9 0 .9-2.1 1.5-2.1 2.8h2.2"/>',
+  indent: '<path d="M7 4h6.5M7 8h6.5M7 12h6.5M2.5 5.5 5 8l-2.5 2.5"/>',
+  outdent: '<path d="M7 4h6.5M7 8h6.5M7 12h6.5M5 5.5 2.5 8 5 10.5"/>',
+  table: '<path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M2.5 9.5h11M6.2 3.5v9M9.8 3.5v9"/>',
+  'row-after': '<path d="M2.5 2.5h11v6h-11zM2.5 5.5h11M8 10.5v4M6 12.5h4"/>',
+  'column-after': '<path d="M2.5 2.5h6v11h-6zM5.5 2.5v11M10.5 8h4M12.5 6v4"/>',
+  'row-delete': '<path d="M2.5 2.5h11v6h-11zM2.5 5.5h11M6 11.5l4 3M10 11.5l-4 3"/>',
+  'column-delete': '<path d="M2.5 2.5h6v11h-6zM5.5 2.5v11M10.5 6l3 4M13.5 6l-3 4"/>',
+  'table-delete': '<path d="M2.5 3.5h7v6h-7zM2.5 6.5h7M6 3.5v6M10.5 10.5l3 3M13.5 10.5l-3 3"/>',
   link: '<path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1"/>',
   note: '<path d="M3 3h10v7l-3 3H3z"/><path d="M10 13v-3h3"/>',
   cut: '<circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/><path d="M6 10 12 3M10 10 4 3"/>',
@@ -744,13 +763,23 @@ const TOOLS = [
   { id: 'chapter', label: 'Chapter heading', keys: '##', group: 'paragraph', style: 'Chapter' },
   { id: 'section', label: 'Section heading', keys: '###', group: 'paragraph', style: 'Section' },
   { id: 'quotation', label: 'Quotation', keys: '', group: 'paragraph', role: 'Quotation' },
+  { id: 'bulleted', label: 'Bulleted list', keys: 'Ctrl+Shift+8', group: 'paragraph', list: 'Bulleted' },
+  { id: 'numbered', label: 'Numbered list', keys: 'Ctrl+Shift+7', group: 'paragraph', list: 'Numbered' },
+  { id: 'indent', label: 'Indent list item', keys: 'Tab', group: 'paragraph', step: 1 },
+  { id: 'outdent', label: 'Outdent list item', keys: 'Shift+Tab', group: 'paragraph', step: -1 },
+  { id: 'table', label: 'Insert table', keys: '', group: 'paragraph' },
+  { id: 'row-after', label: 'Add row below', keys: '', group: 'table', command: 'addRowAfter' },
+  { id: 'column-after', label: 'Add column right', keys: '', group: 'table', command: 'addColumnAfter' },
+  { id: 'row-delete', label: 'Delete row', keys: '', group: 'table', command: 'deleteRow' },
+  { id: 'column-delete', label: 'Delete column', keys: '', group: 'table', command: 'deleteColumn' },
+  { id: 'table-delete', label: 'Delete table', keys: '', group: 'table', command: 'deleteTable' },
   { id: 'link', label: 'Link to a passage', keys: '', group: 'manuscript' },
   { id: 'note', label: 'Add a note', keys: '', group: 'manuscript' },
   { id: 'cut', label: 'Keep as cutting', keys: '', group: 'manuscript' },
   { id: 'agent', label: 'Copy for the agent', keys: '', group: 'manuscript', accent: true },
 ];
-const GROUPS = [['text', 'Text'], ['align', 'Alignment'], ['paragraph', 'Paragraph'], ['manuscript', 'Manuscript']];
-const PINNED = ['bold', 'italic', 'underline', 'align-left', 'align-centre', 'align-right', 'link', 'note', 'cut', 'agent'];
+const GROUPS = [['text', 'Text'], ['align', 'Alignment'], ['paragraph', 'Paragraph'], ['table', 'Table'], ['manuscript', 'Manuscript']];
+const PINNED = ['bold', 'italic', 'underline', 'align-left', 'align-centre', 'align-right', 'bulleted', 'numbered', 'row-after', 'column-after', 'link', 'note', 'cut', 'agent'];
 
 function readPins() {
   try {
@@ -767,13 +796,23 @@ function pin(id, on, keyboard) {
   if (keyboard) $('more-tools')?.focus();
 }
 
-/** The tools that apply here: none of the text tools on a picture, alignment and roles only where the file has their fields. */
+/**
+ * The tools that apply here: none of the text tools on a picture; in a table its own tools and
+ * the marks, not the paragraph's; lists on paragraphs; alignment, roles, lists and tables only
+ * where the file has their fields and kinds.
+ */
 function toolsFor(node) {
+  const kind = node.type.name;
   return TOOLS.filter(t => {
-    if (node.type.name === 'picture') return t.group === 'manuscript';
+    if (kind === 'picture') return t.group === 'manuscript';
+    if (t.group === 'table') return kind === 'table';
+    if (kind === 'table') return t.group === 'text' || t.group === 'manuscript';
     if (t.align) return state.aligns;
     if (t.role) return state.roles;
-    if (t.id === 'cut') return node.type.name !== 'heading';
+    if (t.list) return state.lists && kind === 'paragraph';
+    if (t.step) return state.lists && kind === 'paragraph' && !!node.attrs.list;
+    if (t.id === 'table') return state.tables;
+    if (t.id === 'cut') return kind !== 'heading';
     return true;
   });
 }
@@ -784,6 +823,7 @@ function toolOn(t) {
   if (t.align) { const a = sheet.alignHere(); return t.align === 'Left' ? a === null || a === 'Left' : a === t.align; }
   if (t.style) return sheet.styleHere() === t.style;
   if (t.role) return sheet.roleHere() === t.role;
+  if (t.list) return sheet.listHere() === t.list;
   return null;
 }
 
@@ -796,6 +836,10 @@ function runTool(t) {
   else if (t.align) sheet.setAlign(sheet.alignHere() === t.align ? null : t.align);
   else if (t.style) sheet.setStyle(t.style);
   else if (t.role) sheet.setRole(sheet.roleHere() === t.role ? null : t.role);
+  else if (t.list) sheet.setList(sheet.listHere() === t.list ? null : t.list);
+  else if (t.step) sheet.indent(t.step);
+  else if (t.id === 'table') sheet.insertTable();
+  else if (t.command) editor.chain().focus()[t.command]().run();
   else if (t.id === 'link') openPopover('link');
   else if (t.id === 'note') openPopover('note');
   else if (t.id === 'cut') keepAsCutting().catch(fail);
@@ -1023,9 +1067,13 @@ async function start(context) {
   // A file built before roles or alignment has no Role or Align field; their controls wait for one.
   try {
     const schema = await nendo.schema.describe();
-    const has = field => (schema.entities ?? []).some(e => e.entityId === BLOCK && (e.fields ?? []).some(f => f.fieldId === field));
-    state.roles = has(F.role); state.aligns = has(F.align);
-  } catch { state.roles = false; state.aligns = false; }
+    const field = id => (schema.entities ?? []).find(e => e.entityId === BLOCK)?.fields?.find(f => f.fieldId === id) ?? null;
+    const has = id => field(id) !== null;
+    // Tables need Table, Row and Cell among Kind's choices, which a file made before 0.10.0 lacks.
+    const kinds = (field(F.kind)?.choices ?? []).filter(c => !c.retired).map(c => c.id ?? c);
+    state.roles = has(F.role); state.aligns = has(F.align); state.lists = has(F.list) && has(F.level);
+    state.tables = ['Table', 'Row', 'Cell'].every(kind => kinds.includes(kind));
+  } catch { state.roles = false; state.aligns = false; state.lists = false; state.tables = false; }
   state.pins = readPins();
   applyAppearance();
   try {

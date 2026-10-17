@@ -1,7 +1,7 @@
 // The manuscript as Markdown and as a Word document (C-11), from the blocks as saved in the
 // file. Pure functions: the libraries and marked's Lexer are passed in, so Node tests drive the
 // same code the view runs (tools/manus/export.test.mjs).
-import { levelOf } from './model.mjs';
+import { levelOf, MAX_LEVEL } from './model.mjs';
 import { pictureOf, markdownToInline } from './inline.mjs';
 
 const EXTENSION = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif', 'image/svg+xml': 'svg' };
@@ -25,14 +25,19 @@ function namedRole(text) {
  * comes first; a heading without one takes the role its words name (Abstract, References, …);
  * a paragraph without one takes the role of the heading it sits under, or is a caption when it
  * follows a picture and starts "Figure n.". Paragraphs before the first heading are marked as
- * front matter. Empty paragraphs are left out.
+ * front matter. Empty paragraphs are left out. A list item carries its list, level and marker
+ * (numberLists); a table is one item holding its rows of cell text, the first row its header.
  */
 export function exportPlan(manuscript) {
   const levels = manuscript.nodes.map(n => levelOf(n.kind)).filter(Boolean);
   const top = levels.length ? Math.min(...levels) : 1;
   const items = [], open = [];
-  let previous = null, front = true;
+  let previous = null, front = true, table = null;
   for (const n of manuscript.nodes) {
+    if (n.kind === 'Table') { items.push(previous = table = { type: 'table', id: n.id, rows: [] }); front = false; continue; }
+    if (n.kind === 'Row') { table?.rows.push([]); continue; }
+    if (n.kind === 'Cell') { table?.rows.at(-1)?.push(n.text ?? ''); continue; }
+    table = null;
     const level = levelOf(n.kind);
     if (level) {
       while (open.length && open.at(-1).level >= level) open.pop();
@@ -47,9 +52,40 @@ export function exportPlan(manuscript) {
     const text = n.text ?? '';
     if (!text.trim() && n.role !== 'Scene break') continue;
     const role = n.role ?? (previous?.type === 'picture' && FIGURE.test(text) ? 'Caption' : null) ?? open.at(-1)?.role ?? null;
-    items.push(previous = { type: 'paragraph', text, id: n.id, role, front: front && !n.role, align: n.align ?? null });
+    items.push(previous = { type: 'paragraph', text, id: n.id, role, front: front && !n.role, align: n.align ?? null,
+      list: n.list ?? null, listLevel: n.list ? Math.min(MAX_LEVEL, n.level ?? 0) : 0 });
   }
-  return { title: (manuscript.title ?? '').trim() || 'Untitled manuscript', items };
+  return { title: (manuscript.title ?? '').trim() || 'Untitled manuscript', items: numberLists(items) };
+}
+
+const BULLETS = ['\u2022', '\u25E6', '\u25AA', '\u2022', '\u25E6'];
+const roman = n => [[10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']].reduce((out, [v, s]) => { while (n >= v) { out += s; n -= v; } return out; }, '');
+const letter = n => n <= 26 ? String.fromCharCode(96 + n) : letter(Math.floor((n - 1) / 26)) + letter(((n - 1) % 26) + 1);
+const NUMBERS = [n => String(n), letter, roman, n => String(n), letter];
+
+/**
+ * Gives each list item the marker the sheet draws: per level, a numbered item counts on from
+ * the item before at its level, an item resets the levels below it, a bulleted item its own as
+ * well, and anything else every level. `run` numbers each numbered list from its start, so Word
+ * starts it again at 1.
+ */
+export function numberLists(items) {
+  const counts = new Array(MAX_LEVEL + 1).fill(0);
+  let run = 0, open = false;
+  for (const item of items) {
+    if (item.type !== 'paragraph' || !item.list) { counts.fill(0); open = false; continue; }
+    const n = item.listLevel;
+    for (let k = n + 1; k <= MAX_LEVEL; k++) counts[k] = 0;
+    if (item.list === 'Bulleted') { counts[n] = 0; item.marker = BULLETS[n]; if (n === 0) open = false; }
+    else {
+      if (!open && n === 0) run++;
+      if (n === 0) open = true;
+      counts[n]++;
+      item.marker = `${NUMBERS[n](counts[n])}.`;
+    }
+    item.run = run;
+  }
+  return items;
 }
 
 /** A file name Windows takes, from the manuscript's title. */
@@ -69,11 +105,32 @@ export function pictureFiles(plan, pictures) {
   return files;
 }
 
-/** The manuscript as one Markdown document. Each block's text is already Markdown. */
+/** A table as GitHub's pipe table: the first row the header, a line break as <br>. */
+export function pipeTable(rows) {
+  const width = Math.max(1, ...rows.map(r => r.length));
+  const line = cells => `| ${Array.from({ length: width }, (_, i) => (cells[i] ?? '').replace(/\\\n/g, '<br>').replace(/\n/g, ' ').replace(/\|/g, '\\|')).join(' | ')} |`;
+  const [head = [], ...body] = rows;
+  return [line(head), `| ${Array(width).fill('---').join(' | ')} |`, ...body.map(line)].join('\n');
+}
+
+/**
+ * The manuscript as one Markdown document. Each block's text is already Markdown; list items
+ * are written as Markdown's lists, an item of the same list on the next line.
+ */
 export function toMarkdown(plan, files = new Map()) {
   const parts = [`# ${plan.title}`];
   const quoted = text => text.split('\n').map(line => `> ${line}`).join('\n');
+  let previous = null;
   for (const item of plan.items) {
+    const listed = item.type === 'paragraph' && item.list;
+    if (listed) {
+      const line = `${'    '.repeat(item.listLevel)}${item.list === 'Numbered' ? '1.' : '-'} ${item.text}`;
+      if (previous?.list) parts[parts.length - 1] += `\n${line}`; else parts.push(line);
+      previous = item;
+      continue;
+    }
+    previous = item;
+    if (item.type === 'table') { parts.push(pipeTable(item.rows)); continue; }
     if (item.type === 'heading') parts.push(`${'#'.repeat(Math.min(item.level + 1, 6))} ${item.text}`);
     else if (item.type === 'picture') parts.push(`![${item.alt.replace(/[\\[\]]/g, '\\$&')}](${files.get(item.address) ?? item.address})`);
     else if (item.role === 'Scene break') parts.push('* * *');
@@ -83,13 +140,13 @@ export function toMarkdown(plan, files = new Map()) {
   return parts.join('\n\n') + '\n';
 }
 
-function runs(markdown, lib, Lexer, size, base = 22, italic = false) {
+function runs(markdown, lib, Lexer, size, base = 22, italic = false, bold = false) {
   const out = [];
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.push(new lib.TextRun({ text: '', break: 1 })); continue; }
     const marks = new Set((node.marks ?? []).map(m => m.type));
     // Only marks that are on: a run that says bold false would override a bold heading style.
-    out.push(new lib.TextRun({ text: node.text, bold: marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
+    out.push(new lib.TextRun({ text: node.text, bold: bold || marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
       underline: marks.has('underline') ? {} : undefined, highlight: marks.has('highlight') ? 'yellow' : undefined,
       font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size }));
   }
@@ -250,6 +307,23 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
       continue;
     }
     if (item.type === 'picture') { row.push(item); continue; }
+    if (item.type === 'table') {
+      // Across the text, the header row repeated on each page it runs to.
+      const width = Math.max(1, ...item.rows.map(r => r.length));
+      children.push(new lib.Table({ width: { size: 100, type: lib.WidthType.PERCENTAGE },
+        rows: item.rows.map((cells, r) => new lib.TableRow({ tableHeader: r === 0 || undefined, children: Array.from({ length: width }, (_, c) =>
+          new lib.TableCell({ children: [new lib.Paragraph({ spacing: { before: 40, after: 40, line: 240 }, children: runs(cells[c] ?? '', lib, Lexer, Math.round(L.size * 0.9), L.size, false, r === 0) })] })) })) }));
+      children.push(new lib.Paragraph({ spacing: { after: 120 }, children: [] }));
+      indentNext = false; previous = item;
+      continue;
+    }
+    if (item.list) {
+      // A list item: Word's own numbering, each numbered list starting at 1.
+      children.push(para({ alignment: A.LEFT, spacing: { after: 60 }, numbering: item.list === 'Numbered'
+        ? { reference: 'mn-numbered', level: item.listLevel, instance: item.run } : { reference: 'mn-bulleted', level: item.listLevel } }, item.text));
+      indentNext = false; previous = item;
+      continue;
+    }
     const role = item.role;
     let block = null, continues = false;
     switch (role) {
@@ -323,8 +397,15 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
   flushRow();
   const heading = h => ({ run: { font: L.font, size: h.size, bold: h.bold !== false, italics: !!h.italics, color: '000000' },
     paragraph: { spacing: { before: h.before, after: h.after }, keepNext: true, keepLines: true } });
+  const listLevels = (format, text) => Array.from({ length: MAX_LEVEL + 1 }, (_, level) => ({ level, format, text: text(level), alignment: A.LEFT,
+    style: { paragraph: { indent: { left: 360 * (level + 1) + 360, hanging: 360 } } } }));
+  const NUMBER_FORMATS = [lib.LevelFormat.DECIMAL, lib.LevelFormat.LOWER_LETTER, lib.LevelFormat.LOWER_ROMAN, lib.LevelFormat.DECIMAL, lib.LevelFormat.LOWER_LETTER];
   const document = new lib.Document({
     creator: 'Nendo Manuscript', title: plan.title,
+    numbering: { config: [
+      { reference: 'mn-bulleted', levels: listLevels(lib.LevelFormat.BULLET, level => BULLETS[level]) },
+      { reference: 'mn-numbered', levels: listLevels(lib.LevelFormat.DECIMAL, level => `%${level + 1}.`).map((l, i) => ({ ...l, format: NUMBER_FORMATS[i] })) },
+    ] },
     styles: {
       // docx writes its own Title and Heading styles; these are what it writes them as.
       default: {

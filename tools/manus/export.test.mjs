@@ -191,3 +191,54 @@ test('roles beyond papers: epigraph, dedication, verse, quotation and scene brea
   assert.match(paragraph('beyond the bar'), /<w:ind w:left="720" w:right="720"\/>/);
   assert.doesNotMatch(paragraph('It rained.'), /w:firstLine="360"/, 'the first paragraph after an epigraph is not indented');
 });
+
+test('lists: markers as the sheet numbers them, Markdown lists, and Word numbering that starts again for each list', async () => {
+  const plan = exportPlan({ title: 'Lists', nodes: [
+    { id: 'p', kind: 'Paragraph', text: 'Before.' },
+    { id: 'a', kind: 'Paragraph', text: 'Tide', list: 'Numbered', level: 0 },
+    { id: 'b', kind: 'Paragraph', text: 'Low', list: 'Numbered', level: 1 },
+    { id: 'c', kind: 'Paragraph', text: 'High', list: 'Numbered', level: 1 },
+    { id: 'd', kind: 'Paragraph', text: 'Wind', list: 'Bulleted', level: 2 },
+    { id: 'e', kind: 'Paragraph', text: 'Ledger', list: 'Numbered', level: 0 },
+    { id: 'q', kind: 'Paragraph', text: 'Between.' },
+    { id: 'f', kind: 'Paragraph', text: 'Again', list: 'Numbered', level: 0 },
+    { id: 'g', kind: 'Paragraph', text: 'Dot', list: 'Bulleted', level: 0 },
+  ] });
+  assert.deepEqual(plan.items.map(i => i.marker ?? null), [null, '1.', 'a.', 'b.', '▪', '2.', null, '1.', '•']);
+  assert.deepEqual(plan.items.filter(i => i.list === 'Numbered').map(i => i.run), [1, 1, 1, 1, 2]);
+  assert.equal(toMarkdown(plan), ['# Lists', 'Before.', '1. Tide\n    1. Low\n    1. High\n        - Wind\n1. Ledger', 'Between.', '1. Again\n- Dot'].join('\n\n') + '\n');
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document));
+  const xml = await zip.file('word/document.xml').async('string'), numbering = await zip.file('word/numbering.xml').async('string');
+  const numOf = words => /<w:numId w:val="(\d+)"\/>/.exec(xml.split('<w:p>').find(p => p.includes(words)) ?? '')?.[1];
+  const ilvlOf = words => /<w:ilvl w:val="(\d+)"\/>/.exec(xml.split('<w:p>').find(p => p.includes(words)) ?? '')?.[1];
+  assert.ok(numOf('Tide') && numOf('Tide') === numOf('Ledger') && numOf('Again') !== numOf('Tide'), `numbering instances: ${[numOf('Tide'), numOf('Ledger'), numOf('Again')]}`);
+  assert.deepEqual([ilvlOf('Tide'), ilvlOf('Low'), ilvlOf('Wind')], ['0', '1', '2']);
+  assert.ok(numOf('Wind') && numOf('Wind') !== numOf('Tide'), 'a bulleted item uses the bullet list');
+  assert.match(numbering, /<w:numFmt w:val="lowerLetter"\/>/);
+  assert.match(numbering, /<w:numFmt w:val="bullet"\/>/);
+  assert.equal(numOf('Before.'), undefined);
+});
+
+test('tables: one plan item of rows, a pipe table in Markdown, and a Word table with its header row', async () => {
+  const plan = exportPlan({ title: 'Tables', nodes: [
+    { id: 'h', kind: 'Chapter', text: 'Posts' },
+    { id: 't', kind: 'Table', text: '' },
+    { id: 'r1', kind: 'Row', text: '' }, { id: 'c1', kind: 'Cell', text: 'Post' }, { id: 'c2', kind: 'Cell', text: 'Depth' },
+    { id: 'r2', kind: 'Row', text: '' }, { id: 'c3', kind: 'Cell', text: '*4*' }, { id: 'c4', kind: 'Cell', text: 'a | b\\\nc' },
+    { id: 'r3', kind: 'Row', text: '' }, { id: 'c5', kind: 'Cell', text: '9' },
+    { id: 'p', kind: 'Paragraph', text: 'After.' },
+  ] });
+  assert.deepEqual(plan.items.map(i => i.type), ['heading', 'table', 'paragraph']);
+  assert.deepEqual(plan.items[1].rows, [['Post', 'Depth'], ['*4*', 'a | b\\\nc'], ['9']]);
+  assert.equal(toMarkdown(plan), ['# Tables', '## Posts', '| Post | Depth |\n| --- | --- |\n| *4* | a \\| b<br>c |\n| 9 |  |', 'After.'].join('\n\n') + '\n');
+  for (const layout of ['book', 'paper']) {
+    const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, layout).document));
+    const xml = await zip.file('word/document.xml').async('string');
+    assert.equal((xml.match(/<w:tbl>/g) ?? []).length, 1, layout);
+    assert.equal((xml.match(/<w:tr>|<w:tr /g) ?? []).length, 3, layout);
+    assert.equal((xml.match(/<w:tc>/g) ?? []).length, 6, `${layout}: a short row is filled out`);
+    assert.match(xml, /<w:tblHeader\/>/, layout);
+    assert.match(xml, /<w:b\/>[\s\S]*?Post/, layout);
+    assert.match(xml, /<w:i\/>[\s\S]*?>4</, layout);
+  }
+});

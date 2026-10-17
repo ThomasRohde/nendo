@@ -31,6 +31,14 @@ Manuscript 0.9.0 (W-279) follows Q-05's recommendation for formatting: underline
 join the inline subset as `<u>` and `<mark>`, the HTML Markdown allows inline, and alignment is
 a paragraph-level field, `mn.block.align`. The selection bar became icons with tooltips, the
 owner's choice A from a second canvas (<https://claude.ai/artifact/6GQMYGLKMDsuYUZFC5MxB9>).
+Manuscript 0.10.0 (W-281) adds lists and tables in this ontology's terms. A table is a Table
+block owning Row blocks owning Cell blocks, each cell's text inline Markdown, as section 4.2
+says. A list item is a paragraph block with List and Level fields rather than a List block owning
+List item blocks: every item is still its own block, which is what section 4.2 requires, and
+consecutive items make the list, as Word keeps lists as paragraph properties, so an item keeps
+its place under its chapter and a list needs no container to split or merge as it is edited.
+Adding Table, Row and Cell to an existing file's Kind needed a host operation, `schema.addChoice`
+(W-280): a single-choice field's options were fixed when it was added.
 
 ### Revision 0.2: what the repository review changed
 

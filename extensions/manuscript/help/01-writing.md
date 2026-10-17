@@ -31,11 +31,27 @@ Select a few words and a bar of icons appears over them. Point at an icon, or mo
 | **Align left**, **Centre**, **Align right**, **Justify** | Set the paragraph's lines. Choose the same one again and the paragraph goes back to its layout's setting. | `Ctrl` `Shift` `L`, `E`, `R`, `J` |
 | **Paragraph**, **Part heading**, **Chapter heading**, **Section heading** | Make the line a paragraph or a heading, as **Style** in the toolbar does. | |
 | **Quotation** | Give the paragraph the Quotation role, or take it away. | |
+| **Bulleted list**, **Numbered list** | Make the paragraph a list item, or a paragraph again. | `Ctrl` `Shift` `8`, `Ctrl` `Shift` `7` |
+| **Indent list item**, **Outdent list item** | Move a list item a level in or out. | `Tab`, `Shift` `Tab` |
+| **Insert table** | Put a table of three rows and three columns after the paragraph. | |
+| **Add row below**, **Add column right**, **Delete row**, **Delete column**, **Delete table** | Shown while you are in a table. | |
 | **Link to a passage**, **Add a note**, **Keep as cutting**, **Copy for the agent** | See *Notes, links and cuttings* below. | |
 
 To keep a tool on the bar, open **More** and choose the pin beside it. To put one back under More, right-click it on the bar (or press the menu key while it has the keyboard). The bar you make is this computer's, like the appearance settings.
 
-Each paragraph is kept as Markdown, which Studio shows formatted: underlined words are written `<u>…</u>` and highlighted ones `<mark>…</mark>`. Alignment is the paragraph's **Align** field. A Word export keeps the marks and the alignment; a Markdown export keeps the marks. A file made before alignment has no Align field, and the bar does not offer it there.
+Each paragraph is kept as Markdown, which Studio shows formatted: underlined words are written `<u>…</u>` and highlighted ones `<mark>…</mark>`. Alignment is the paragraph's **Align** field. A Word export keeps the marks and the alignment; a Markdown export keeps the marks. A file made before alignment, lists or tables lacks their fields, and the bar does not offer them there.
+
+## Lists
+
+Start a line with `- ` or `* ` for a bulleted list, or `1. ` for a numbered one, or use the bar. **Enter** starts the next item, **Tab** and **Shift** **Tab** move an item in and out (up to five levels), **Enter** on an empty item moves it out a level and then ends the list, and **Backspace** at the start of an item makes it a paragraph again. Numbering starts again wherever a list does.
+
+Each item is a paragraph of its own: a note or a link can attach to it, Studio shows it with its **List** and **Level**, and it moves with its chapter. A pasted list keeps its items and levels.
+
+## Tables
+
+**Insert table** in the bar (under **More** until you pin it) puts a table after the paragraph you are in, its first row the header. **Tab** goes to the next cell, and a **Tab** in the last cell adds a row. While you are in a table the bar offers **Add row below**, **Add column right**, **Delete row**, **Delete column** and **Delete table**, with the marks for the words in a cell.
+
+A table is a block that holds its rows, and each row holds its cells, so Studio shows a table as **Table**, **Row** and **Cell** blocks, and a cell's text is kept as Markdown, like a paragraph's. Word export writes a real table with its header row repeated on each page; Markdown export writes a pipe table.
 
 ## Pictures
 

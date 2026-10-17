@@ -7,11 +7,14 @@ export const BLOCK = 'mn.block';
 export const NOTE = 'mn.note';
 export const LINK = 'mn.link';
 export const F = {
-  text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role', align: 'mn.block.align',
+  text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role', align: 'mn.block.align', list: 'mn.block.list', level: 'mn.block.level',
   noteBlock: 'mn.note.block', noteKind: 'mn.note.kind', noteText: 'mn.note.text', noteDone: 'mn.note.done',
   linkFrom: 'mn.link.from', linkTo: 'mn.link.to', linkKind: 'mn.link.kind', linkNote: 'mn.link.note', linkReview: 'mn.link.review',
 };
-export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings'];
+export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings', 'Table', 'Row', 'Cell'];
+// A table is a block that owns its rows, and a row its cells: each cell is a block whose text
+// is inline Markdown, as a paragraph's is. The first row is the table's header.
+export const TABLE_KINDS = ['Table', 'Row', 'Cell'];
 export const NOTE_KINDS = ['Comment', 'Question', 'Task', 'Issue'];
 // What a block is for, apart from its kind: the part a layout gives it. A role on a heading
 // applies to everything under it; a role on a paragraph to that paragraph.
@@ -25,6 +28,12 @@ export const ROLES = ROLE_GROUPS.flatMap(([, roles]) => roles);
 // the sheet, justified body text in a Word export.
 export const ALIGNMENTS = ['Left', 'Centre', 'Right', 'Justify'];
 const alignOf = value => ALIGNMENTS.includes(value) ? value : null;
+// A list item is a paragraph with a List and a Level: consecutive items make a list, as Word
+// keeps a list as a property of its paragraphs. Level 0 is the outermost and is stored as none.
+export const LISTS = ['Bulleted', 'Numbered'];
+export const MAX_LEVEL = 4;
+const listOf = value => LISTS.includes(value) ? value : null;
+const levelFor = (list, level) => list && Number.isInteger(level) && level > 0 ? Math.min(level, MAX_LEVEL) : null;
 export const LINK_KINDS = ['Elaborates', 'Supports', 'Contradicts', 'Foreshadows', 'Resolves', 'See also'];
 export const REVIEW = { current: 'Current', needsReview: 'Needs review' };
 // Siblings are numbered this far apart, as Nendo numbers them (limits.hierarchy.orderGap).
@@ -67,7 +76,8 @@ export function readManuscript(input, rootId = null) {
   for (const r of records) {
     const v = r.values;
     const block = { id: r.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null,
-      order: v[F.order] ?? null, role: v[F.role] ?? null, align: alignOf(v[F.align]), version: r.version, visible: false };
+      order: v[F.order] ?? null, role: v[F.role] ?? null, align: alignOf(v[F.align]), list: listOf(v[F.list]),
+      level: levelFor(listOf(v[F.list]), v[F.level]), version: r.version, visible: false };
     saved.set(r.recordId, block);
     if (!children.has(block.parent)) children.set(block.parent, []);
     children.get(block.parent).push(block);
@@ -77,29 +87,62 @@ export function readManuscript(input, rootId = null) {
   const root = rootId !== null && manuscripts.some(m => m.id === rootId) ? rootId : manuscripts[0]?.id ?? null;
   const nodes = [];
   let cuttings = null;
-  const walk = (parent, depth) => {
+  // A table holds rows and a row holds cells, in that order. A row anywhere else, a cell
+  // anywhere else, and any other block Studio or an agent put inside a table are read as
+  // paragraphs after the table, and the next save puts them there.
+  const walk = (parent, depth, parentKind, spill) => {
     if (depth > 64) return;           // the Engine refuses cycles; this keeps a damaged file from looping
     for (const block of children.get(parent) ?? []) {
       if (block.kind === 'Cuttings') { if (cuttings === null && parent === root) cuttings = block.id; continue; }
-      const kind = block.kind === 'Manuscript' ? 'Paragraph' : block.kind;
+      let kind = block.kind === 'Manuscript' ? 'Paragraph' : block.kind;
+      const inTable = parentKind === 'Table' || parentKind === 'Row' || parentKind === 'Cell';
+      if (inTable && kind !== (parentKind === 'Table' ? 'Row' : parentKind === 'Row' ? 'Cell' : null)) { spill.push(block); continue; }
+      if (!inTable && (kind === 'Row' || kind === 'Cell')) kind = 'Paragraph';
+      if (!levelOf(kind) && !TABLE_KINDS.includes(kind)) kind = 'Paragraph';
       block.visible = true;
-      nodes.push({ id: block.id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text, role: block.role, align: block.align });
-      walk(block.id, depth + 1);
+      nodes.push({ id: block.id, kind, text: block.text, role: block.role, align: block.align, list: block.list, level: block.level });
+      if (kind === 'Cell') { walk(block.id, depth + 1, 'Cell', spill); continue; }
+      if (kind !== 'Table' && kind !== 'Row') { walk(block.id, depth + 1, kind, spill); continue; }
+      if (kind === 'Row') { walk(block.id, depth + 1, 'Row', spill); continue; }
+      const later = [];
+      walk(block.id, depth + 1, 'Table', later);
+      for (const stray of later) {
+        const strayKind = levelOf(stray.kind) ? stray.kind : 'Paragraph';
+        stray.visible = true;
+        nodes.push({ id: stray.id, kind: strayKind, text: stray.text, role: stray.role, align: stray.align, list: stray.list, level: stray.level });
+        walk(stray.id, depth + 1, strayKind, spill);
+      }
     }
   };
-  if (root !== null) walk(root, 1);
+  if (root !== null) walk(root, 1, 'Manuscript', []);
   return { root, cuttings, title: root ? saved.get(root).text : '', nodes, saved, manuscripts };
 }
 
 /**
  * Where each block of a flat run belongs: a heading closes every heading at its level or
- * deeper and opens itself; a paragraph belongs to the nearest open heading, or the root.
+ * deeper and opens itself; a paragraph or a table belongs to the nearest open heading, or the
+ * root; a row belongs to the table before it, and a cell to the row before it.
  */
 export function deriveTree(nodes, root) {
   const parent = new Map(), children = new Map([[root, []]]);
   const stack = [{ id: root, level: 0 }];
+  let table = null, row = null;
   for (const n of nodes) {
     const level = levelOf(n.kind);
+    const owner = n.kind === 'Row' ? table : n.kind === 'Cell' ? row : undefined;
+    if (owner !== undefined) {
+      if (owner === null) throw Error(`A ${n.kind.toLowerCase()} must follow its ${n.kind === 'Row' ? 'table' : 'row'}: ${n.id}.`);
+      parent.set(n.id, owner); children.get(owner).push(n.id);
+      if (n.kind === 'Row') { row = n.id; children.set(n.id, []); }
+      continue;
+    }
+    table = row = null;
+    if (n.kind === 'Table') {
+      const p = stack[stack.length - 1].id;
+      parent.set(n.id, p); children.get(p).push(n.id); children.set(n.id, []);
+      table = n.id;
+      continue;
+    }
     if (level === 0) {
       const p = stack[stack.length - 1].id;
       parent.set(n.id, p); children.get(p).push(n.id);
@@ -177,6 +220,8 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
       const values = { [F.text]: text, [F.kind]: n.kind, [F.parent]: p, [F.order]: o };
       if (n.role) values[F.role] = n.role;
       if (n.align) values[F.align] = n.align;
+      if (n.list) values[F.list] = n.list;
+      if (levelFor(n.list, n.level)) values[F.level] = levelFor(n.list, n.level);
       creates.push({ op: 'create', entityId: BLOCK, recordId: n.id, values, refs: { [F.parent]: p } });
       continue;
     }
@@ -185,6 +230,8 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
     if (s.kind !== n.kind) values[F.kind] = n.kind;
     if ('role' in n && (s.role ?? null) !== (n.role ?? null)) values[F.role] = n.role ?? null;
     if ('align' in n && (s.align ?? null) !== (n.align ?? null)) values[F.align] = n.align ?? null;
+    if ('list' in n && (s.list ?? null) !== (n.list ?? null)) values[F.list] = n.list ?? null;
+    if ('list' in n && (s.level ?? null) !== levelFor(n.list, n.level)) values[F.level] = levelFor(n.list, n.level);
     if (s.parent !== p) { values[F.parent] = p; refs[F.parent] = p; }
     if (s.order !== o) values[F.order] = o;
     if (Object.keys(values).length) updates.push({ op: 'update', entityId: BLOCK, recordId: n.id, version: s.version, values, refs });

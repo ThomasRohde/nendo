@@ -159,3 +159,47 @@ test('the view reads blocks flat, never through the bounded hierarchy walk', asy
   assert.doesNotMatch(source, /records\.tree(All)?\(/, 'view.mjs reads blocks through records.tree, which refuses past 10,000 under a root');
   assert.match(source, /records\.queryAll\(\{ entityId: BLOCK \}/);
 });
+
+test('a list item is a paragraph with List and Level: written alone when they change, level 0 stored as none', () => {
+  const m = readManuscript(items);
+  const listed = m.nodes.map(n => ({ ...n, changed: false, list: n.id === 'p1' || n.id === 'p2' ? 'Numbered' : null, level: n.id === 'p2' ? 1 : 0 }));
+  assert.deepEqual(planWrites({ saved: m.saved, current: listed, root: m.root }), [
+    { op: 'update', entityId: BLOCK, recordId: 'p1', version: 1, values: { [F.list]: 'Numbered' }, refs: {} },
+    { op: 'update', entityId: BLOCK, recordId: 'p2', version: 1, values: { [F.list]: 'Numbered', [F.level]: 1 }, refs: {} },
+  ]);
+  // Read back as saved, nothing more is written; a level without a list is no level.
+  const saved = readManuscript(items.map(i => i.record.recordId === 'p2' ? { ...i, record: { ...i.record, values: { ...i.record.values, [F.list]: 'Bulleted', [F.level]: 2 } } }
+    : i.record.recordId === 'p1' ? { ...i, record: { ...i.record, values: { ...i.record.values, [F.level]: 3 } } } : i));
+  assert.deepEqual([saved.saved.get('p1').level, saved.saved.get('p2').list, saved.saved.get('p2').level], [null, 'Bulleted', 2]);
+  assert.deepEqual(planWrites({ saved: saved.saved, current: saved.nodes.map(n => ({ ...n, changed: false })), root: saved.root }), []);
+  // Taken out of the list: both cleared.
+  assert.deepEqual(planWrites({ saved: saved.saved, current: saved.nodes.map(n => ({ ...n, changed: false, list: null, level: 0 })), root: saved.root })[0].values,
+    { [F.list]: null, [F.level]: null });
+});
+
+test('a table owns its rows and a row its cells, each a block in order; misplaced ones are read as paragraphs after the table', () => {
+  const table = [
+    item('t', 'Table', 'ch1', 4096, 2, ''),
+    item('r1', 'Row', 't', 1024, 3), item('c11', 'Cell', 'r1', 1024, 4, 'Post'), item('c12', 'Cell', 'r1', 2048, 4, 'Depth'),
+    item('r2', 'Row', 't', 2048, 3), item('c21', 'Cell', 'r2', 1024, 4, '*4*'), item('c22', 'Cell', 'r2', 2048, 4, '2 m'),
+  ];
+  const m = readManuscript([...items, ...table]);
+  assert.deepEqual(m.nodes.map(n => `${n.kind}:${n.id}`), ['Chapter:ch1', 'Paragraph:p1', 'Paragraph:p2', 'Table:t', 'Row:r1', 'Cell:c11', 'Cell:c12', 'Row:r2', 'Cell:c21', 'Cell:c22']);
+  assert.deepEqual(planWrites({ saved: m.saved, current: m.nodes.map(n => ({ ...n, changed: false })), root: m.root }), []);
+  // A new row with two cells, after the first: rows and cells are created under their table and row.
+  const added = [...m.nodes.slice(0, 7), { id: 'rn', kind: 'Row', text: '', changed: true }, { id: 'cn1', kind: 'Cell', text: 'New', changed: true }, { id: 'cn2', kind: 'Cell', text: '', changed: true }, ...m.nodes.slice(7)]
+    .map(n => ({ changed: false, ...n }));
+  const writes = planWrites({ saved: m.saved, current: added, root: m.root });
+  assert.deepEqual(writes.map(w => [w.op, w.recordId, w.values[F.parent], w.values[F.kind], w.values[F.order]]),
+    [['create', 'rn', 't', 'Row', 1536], ['create', 'cn1', 'rn', 'Cell', 1024], ['create', 'cn2', 'rn', 'Cell', 2048]]);
+  assert.equal(writes[1].values[F.text], 'New');
+  // The whole table removed: cells first, then rows, then the table.
+  const gone = planWrites({ saved: m.saved, current: m.nodes.slice(0, 3).map(n => ({ ...n, changed: false })), root: m.root });
+  assert.deepEqual(gone.map(w => `${w.op}:${w.recordId}`), ['delete:c11', 'delete:c12', 'delete:c21', 'delete:c22', 'delete:r1', 'delete:r2', 'delete:t']);
+  // A paragraph Studio put inside a row, and a cell straight under a chapter, come after the table as paragraphs.
+  const odd = readManuscript([...items, ...table, item('stray', 'Paragraph', 'r1', 4096, 4, 'Lost'), item('loose', 'Cell', 'ch1', 9999, 2, 'Loose')]);
+  assert.deepEqual(odd.nodes.map(n => `${n.kind}:${n.id}`).slice(3), ['Table:t', 'Row:r1', 'Cell:c11', 'Cell:c12', 'Row:r2', 'Cell:c21', 'Cell:c22', 'Paragraph:stray', 'Paragraph:loose']);
+  const fixed = planWrites({ saved: odd.saved, current: odd.nodes.map(n => ({ ...n, changed: false })), root: odd.root });
+  assert.deepEqual(fixed.filter(w => w.recordId === 'stray' || w.recordId === 'loose').map(w => [w.recordId, w.values[F.parent] ?? null, w.values[F.kind] ?? null]),
+    [['stray', 'ch1', null], ['loose', null, 'Paragraph']]);
+});

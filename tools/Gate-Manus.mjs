@@ -256,8 +256,8 @@ async page => {
       dividers: bar.querySelectorAll('.divider').length, height: Math.round(bar.getBoundingClientRect().height) };
   });
   const firstBar = await toolIds();
-  assert(JSON.stringify(firstBar) === JSON.stringify(['bold', 'italic', 'underline', 'align-left', 'align-centre', 'align-right', 'link', 'note', 'cut', 'agent', 'more-tools'])
-    && drawn.widest <= 32 && drawn.words.length === 0 && drawn.tipsShown === 0 && drawn.dividers === 3 && drawn.height <= 42, `Icon bar: ${JSON.stringify({ firstBar, drawn })}`);
+  assert(JSON.stringify(firstBar) === JSON.stringify(['bold', 'italic', 'underline', 'align-left', 'align-centre', 'align-right', 'bulleted', 'numbered', 'link', 'note', 'cut', 'agent', 'more-tools'])
+    && drawn.widest <= 32 && drawn.words.length === 0 && drawn.tipsShown === 0 && drawn.dividers === 4 && drawn.height <= 42, `Icon bar: ${JSON.stringify({ firstBar, drawn })}`);
   // Pointed at, a tool names itself and its keys, inside the frame; Copy for the agent names the block and its version.
   await frame.locator('.bar [data-tool="bold"]').hover();
   await page.waitForTimeout(700);
@@ -311,7 +311,7 @@ async page => {
       strike: [...(m.querySelector('[data-tool="strike"]')?.querySelectorAll('.more-label, kbd') ?? [])].map(e => e.textContent).join(' | '),
       inside: r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1, box: [Math.round(r.top), Math.round(r.bottom), innerHeight],
       expanded: document.getElementById('more-tools').getAttribute('aria-expanded') }; });
-  assert(menu && JSON.stringify(menu.tools) === JSON.stringify(['strike', 'code', 'highlight', 'clear', 'align-justify', 'paragraph', 'part', 'chapter', 'section', 'quotation'])
+  assert(menu && JSON.stringify(menu.tools) === JSON.stringify(['strike', 'code', 'highlight', 'clear', 'align-justify', 'paragraph', 'part', 'chapter', 'section', 'quotation', 'table'])
     && menu.heads.join() === 'Text,Alignment,Paragraph' && menu.strike === 'Strikethrough | Ctrl+Shift+S' && menu.inside && menu.expanded === 'true', `More: ${JSON.stringify(menu)}`);
   await page.screenshot({ path: '__OUTPUT__/bar-more.png' });
   await frame.locator('#more-menu [data-pin="highlight"]').click();
@@ -334,6 +334,93 @@ async page => {
   await page.waitForTimeout(150);
   assert(await frame.evaluate(() => !document.getElementById('more-menu') && document.activeElement?.closest('.ProseMirror') !== null), 'Escape did not close More and give the keyboard back to the writing.');
   checks.push('More, pin and unpin');
+
+  // W-281: lists. "- " starts a bulleted item and Enter carries the list on; Tab takes an item a
+  // level in; Enter on an empty item brings it out a level, then ends the list; "1. " starts a
+  // numbered one. Each item is its own block, its List and Level saved.
+  const underTide = async () => (await records(BLOCK)).filter(r => r.values[P] === 'b-ch-4').sort((a, b) => a.values[O] - b.values[O]);
+  await select('b-0501', 'end');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('- First post');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Second post');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('1. Count');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Again');
+  await saved();
+  const listed = (await underTide()).map(r => [r.values[T], r.values['mn.block.list'] ?? null, r.values['mn.block.level'] ?? null]);
+  assert(JSON.stringify(listed.slice(1, 5)) === JSON.stringify([['First post', 'Bulleted', null], ['Second post', 'Bulleted', 1], ['Count', 'Numbered', null], ['Again', 'Numbered', null]]),
+    `Lists as blocks: ${JSON.stringify(listed)}`);
+  const sheetList = await frame.evaluate(() => [...document.querySelectorAll('.sheet-text > p[data-list]')].map(p => ({ text: p.textContent, display: getComputedStyle(p).display, left: parseFloat(getComputedStyle(p).marginLeft) })));
+  assert(sheetList.length === 4 && sheetList.every(i => i.display === 'list-item') && sheetList[1].left > sheetList[0].left && sheetList[2].left === sheetList[0].left,
+    `Lists on the sheet: ${JSON.stringify(sheetList)}`);
+  await mode('book');
+  await frame.waitForFunction(() => document.querySelectorAll('.sheet-body .pv-li').length === 4, null, { timeout: 8000 })
+    .catch(async () => { throw Error(`The preview has no list: ${await frame.evaluate(() => document.querySelectorAll('.sheet-body .pv-li').length)}`); });
+  const markers = await frame.evaluate(() => [...document.querySelectorAll('.sheet-body .pv-li .pv-marker')].map(m => m.textContent));
+  await mode('write');
+  assert(JSON.stringify(markers) === JSON.stringify(['\u2022', '\u25E6', '1.', '2.']), `Preview markers: ${JSON.stringify(markers)}`);
+  // The bar shows the list the item is in, and turns it into the other kind.
+  await select((await underTide())[3].recordId, 'Count', 'end');
+  await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
+  assert((await pressedNow(['numbered', 'bulleted'])).join() === 'true,false', `List tools: ${await pressedNow(['numbered', 'bulleted'])}`);
+  await frame.locator('.bar [data-tool="bulleted"]').click();
+  await saved();
+  assert((await underTide())[3].values['mn.block.list'] === 'Bulleted', 'Bulleted list from the bar was not saved.');
+  // A list pasted from Word or a web page arrives as items, each its own block, levels kept.
+  await select((await underTide())[4].recordId, 'end');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await frame.evaluate(() => window.manuscriptSheet.editor.view.pasteHTML('<ul><li>Alpha<ul><li><p>Beta</p></li></ul></li></ul><ol><li><p>One</p></li></ol>'));
+  await saved();
+  const pastedList = (await underTide()).map(r => [r.values[T], r.values['mn.block.list'] ?? null, r.values['mn.block.level'] ?? null]).filter(([text]) => ['Alpha', 'Beta', 'One'].includes(text));
+  assert(JSON.stringify(pastedList) === JSON.stringify([['Alpha', 'Bulleted', null], ['Beta', 'Bulleted', 1], ['One', 'Numbered', null]]), `Pasted list: ${JSON.stringify((await underTide()).map(r => [r.values[T], r.values['mn.block.list'] ?? null, r.values['mn.block.level'] ?? null]))}`);
+  checks.push('lists as blocks, typed, pasted and from the bar');
+
+  // W-281: tables. Insert table puts a 3 by 3 table, its first row the header, after the block; it
+  // is a Table block owning three Row blocks, each owning three Cell blocks, the text in the cells.
+  await select((await underTide())[4].recordId, 'Again', 'end');
+  await frame.locator('#more-tools').click();
+  await frame.locator('#more-menu [data-tool="table"]').click();
+  await frame.waitForFunction(() => document.querySelectorAll('.sheet-text table th').length === 3, null, { timeout: 3000 });
+  for (const [i, word] of ['Post', 'Depth', 'Note', '4'].entries()) { if (i) await page.keyboard.press('Tab'); await page.keyboard.type(word); }
+  await saved();
+  const blocksNow = await records(BLOCK);
+  const tableBlock = blocksNow.find(r => r.values[K] === 'Table');
+  const rowsOf = id => blocksNow.filter(r => r.values[P] === id).sort((a, b) => a.values[O] - b.values[O]);
+  const tableShape = tableBlock && { parent: tableBlock.values[P], after: (await underTide()).map(r => r.recordId).indexOf(tableBlock.recordId),
+    rows: rowsOf(tableBlock.recordId).map(r => [r.values[K], ...rowsOf(r.recordId).map(c => `${c.values[K]}:${c.values[T] ?? ''}`)]) };
+  assert(tableShape && tableShape.parent === 'b-ch-4' && tableShape.after === 5 && JSON.stringify(tableShape.rows) === JSON.stringify([
+    ['Row', 'Cell:Post', 'Cell:Depth', 'Cell:Note'], ['Row', 'Cell:4', 'Cell:', 'Cell:'], ['Row', 'Cell:', 'Cell:', 'Cell:']]), `Table as blocks: ${JSON.stringify(tableShape ?? blocksNow.map(b => b.values[K]))}`);
+  // In a table the bar offers the table's tools and the marks, not lists or alignment; Add row below adds a row of cells.
+  await frame.evaluate(() => { const s = window.manuscriptSheet; let at = null;
+    s.editor.state.doc.descendants((node, pos) => { if (!at && node.type.name === 'tableCell' && node.textContent === '4') at = pos; });
+    s.editor.chain().focus().setTextSelection({ from: at + 2, to: at + 3 }).run(); });
+  await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
+  const inTable = await toolIds();
+  assert(inTable.includes('row-after') && inTable.includes('column-after') && inTable.includes('bold') && !inTable.includes('align-left') && !inTable.includes('bulleted'), `Bar in a table: ${JSON.stringify(inTable)}`);
+  await frame.locator('.bar [data-tool="row-after"]').click();
+  await saved();
+  assert(rowsOf(tableBlock.recordId).length === 3 && (await records(BLOCK)).filter(r => r.values[P] === tableBlock.recordId).length === 4, 'Add row below did not add a Row block.');
+  await mode('book');
+  await frame.waitForFunction(() => document.querySelector('.sheet-body table.pv-table th')?.textContent === 'Post', null, { timeout: 8000 })
+    .catch(async () => { throw Error(`The preview has no table: ${await frame.evaluate(() => document.querySelector('.sheet-body table')?.outerHTML?.slice(0, 200) ?? 'none')}`); });
+  await page.screenshot({ path: '__OUTPUT__/lists-and-table-preview.png' });
+  await mode('write');
+  await page.screenshot({ path: '__OUTPUT__/lists-and-table.png' });
+  // Delete table takes the table, its rows and its cells out of the file.
+  await frame.evaluate(() => { const s = window.manuscriptSheet; let at = null;
+    s.editor.state.doc.descendants((node, pos) => { if (!at && node.type.name === 'tableHeader' && node.textContent === 'Post') at = pos; });
+    s.editor.chain().focus().setTextSelection({ from: at + 2, to: at + 6 }).run(); });
+  await frame.locator('#more-tools').click();
+  await frame.locator('#more-menu [data-tool="table-delete"]').click();
+  await saved();
+  assert(!(await records(BLOCK)).some(r => ['Table', 'Row', 'Cell'].includes(r.values[K])), 'Delete table left Table, Row or Cell blocks in the file.');
+  checks.push('tables as blocks, rows added, deleted whole');
 
   // Keep as cutting: the paragraph leaves the page for the Cuttings, links and all.
   await select('b-0413', 'tide', 'table');
@@ -487,7 +574,10 @@ async page => {
   // A file built before alignment has no Align field: the bar and More offer no alignment, and
   // its keys write nothing.
   const older = JSON.parse(JSON.stringify(manusFixture));
-  for (const e of older.schema.entities) e.fields = e.fields.filter(f => f.fieldId !== 'mn.block.align');
+  for (const e of older.schema.entities) {
+    e.fields = e.fields.filter(f => !['mn.block.align', 'mn.block.list', 'mn.block.level'].includes(f.fieldId));
+    for (const f of e.fields) if (f.fieldId === 'mn.block.kind') f.choices = f.choices.filter(c => !['Table', 'Row', 'Cell'].includes(c.id));
+  }
   const frameBeforeOlder = frame;
   await page.evaluate(f => { window.broker.setFixture(f); window.broker.remount(); }, older);
   frame = null;
@@ -504,7 +594,17 @@ async page => {
     writes: (await batches()).slice(olderBefore).flatMap(b => b.writes), drawn: await frame.evaluate(() => document.querySelector('.sheet-text [data-block="b-0416"]').dataset.align ?? null) };
   assert(!withoutAlign.bar.some(id => id.startsWith('align-')) && !withoutAlign.more.some(id => id.startsWith('align-')) && withoutAlign.more.includes('code')
     && withoutAlign.writes.length === 0 && withoutAlign.drawn === null, `A file without the Align field: ${JSON.stringify(withoutAlign)}`);
-  checks.push('no alignment without the Align field');
+  // Nor lists or tables without their fields and kinds: no tools, and "- " typed stays text.
+  assert(!withoutAlign.bar.includes('bulleted') && !withoutAlign.bar.includes('numbered') && !withoutAlign.more.includes('table'), `A file without lists or tables: ${JSON.stringify(withoutAlign)}`);
+  await page.keyboard.press('Escape');
+  await select('b-0416', 'end');
+  const plainFrom = (await batches()).length;
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('- not a list');
+  await saved();
+  const plainDash = (await batches()).slice(plainFrom).flatMap(b => b.writes);
+  assert(plainDash.length === 1 && plainDash[0].op === 'create' && plainDash[0].values[T] === '\\- not a list' && !('mn.block.list' in plainDash[0].values), `"- " without the List field: ${JSON.stringify(plainDash)}`);
+  checks.push('no alignment, lists or tables without their fields');
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, colours, narrow, errors };
   })(); } catch (error) { throw Error(`After [${checks.join(', ')}]: ${error.message}`); }

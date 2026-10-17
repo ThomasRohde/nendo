@@ -76,6 +76,19 @@ same records; the view keeps no copy of the manuscript in the file.
   Underline and highlight are kept in a block's Markdown as `<u>` and `<mark>`, outside the
   emphasis delimiters; alignment is the block's `mn.block.align` choice (Left, Centre, Right,
   Justify; none takes the layout's setting), offered only in a file that has the field.
+- Lists (0.10.0): a list item is a paragraph block with `mn.block.list` (Bulleted, Numbered) and
+  `mn.block.level` (none for the outermost, 1 to 4 deeper); consecutive items make a list, as
+  Word keeps a list as paragraph properties. "- ", "* " and "1. " start one, Tab and Shift+Tab
+  change the level, Enter on an empty item steps out and then ends the list, a pasted HTML list
+  arrives as items. The sheet numbers items with CSS counters per level; the exports use the same
+  rule (`numberLists`), Word with its own numbering, one instance per list so each starts at 1.
+- Tables (0.10.0): a Table block owns Row blocks, each owning Cell blocks whose text is inline
+  Markdown, as section 4.2 of the design describes; the first row is the header. The sheet uses
+  Tiptap's table nodes with each table, row and cell carrying its block ID; the bar offers add and
+  delete row or column and delete table. Word export writes a table with a repeated header row,
+  Markdown a pipe table, the preview an HTML table. Kind needs Table, Row and Cell among its
+  choices: a file made before 0.10.0 gets them with `schema.addChoice` (Nendo with W-280); until
+  then the view offers no tables there.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the
   appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
 
@@ -87,7 +100,7 @@ same records; the view keeps no copy of the manuscript in the file.
   10,000 siblings: the walk re-reads the whole subtree for every page, which is why it is bounded.
 - Every save writes one History row per block it changes; the file stops taking writes near
   100,000 rows until the person folds old history.
-- Lists, tables and inline links are not editable here yet (a quotation is a role), and a picture can be
+- Inline links are not editable here yet (a quotation is a role; lists and tables are blocks), and a picture can be
   added only by writing its block elsewhere (Studio, an agent); a block that holds them keeps
   their characters.
 - A cut and paste is a delete and a new paragraph, not a move. Undo after a save brings a
