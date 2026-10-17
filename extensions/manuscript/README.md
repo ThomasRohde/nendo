@@ -89,8 +89,10 @@ same records; the view keeps no copy of the manuscript in the file.
   Markdown a pipe table, the preview an HTML table. Kind needs Table, Row and Cell among its
   choices: a file made before 0.10.0 gets them with `schema.addChoice` (Nendo with W-280); until
   then the view offers no tables there.
-  Without a selection (0.11.0), a handle in the margin beside the caret's block opens the bar for
-  that block, and a Format menu in Nendo's toolbar names every tool that applies at the caret:
+  Without a selection (0.12.0, canvas design A), a plus and a grip appear faintly in the margin
+  beside the block under the pointer: the plus adds a paragraph, a list item, a table or a heading
+  below it, the grip opens the block's menu (turn into, align, the table's own actions, link,
+  note, cut, copy for the agent). A Format menu in Nendo's toolbar names every tool that applies at the caret:
   marks, lists and roles as checks, alignment and style as radios, the rest as items. The menu
   declares no keys, since the editor runs them and a declared key would run the tool twice.
   The margin counts each paragraph's notes and links. Outline, Notes, Related and the

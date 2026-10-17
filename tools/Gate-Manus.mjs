@@ -349,28 +349,75 @@ async page => {
   assert(await frame.evaluate(() => !document.getElementById('more-menu') && document.activeElement?.closest('.ProseMirror') !== null), 'Escape did not close More and give the keyboard back to the writing.');
   checks.push('More, pin and unpin');
 
-  // The bar without a selection (owner, 2026-10-17: it was not discoverable). With only a caret,
-  // a handle stands in the margin beside the block and opens the bar over it, and closes it; the
-  // Format menu in Nendo's toolbar names every tool that applies there and runs it.
+  // The tools without a selection (owner, 2026-10-17: the bar was not discoverable, and then the
+  // handle beside the caret's block was obtrusive; design A of the second canvas). Nothing stands
+  // in the margin with only a caret; pointing at a block shows a faint plus and grip beside it;
+  // the grip opens the block's menu, which turns the block into a list and back; the plus adds a
+  // list item below it. The Format menu in Nendo's toolbar names every tool and runs it.
   await select('b-0414', 'ledger');
-  await page.waitForTimeout(150);
-  const handleAt = await frame.evaluate(() => {
-    const h = document.querySelector('.format-handle'), b = document.querySelector('.sheet-text [data-block="b-0414"]');
-    if (!h) return null;
-    const r = h.getBoundingClientRect(), p = b.getBoundingClientRect();
-    return { visible: r.width > 0 && getComputedStyle(h).visibility !== 'hidden', beside: r.right <= p.left + 1 && r.top >= p.top - 1 && r.bottom <= p.bottom + 1, bar: !!document.querySelector('.bar'), label: h.getAttribute('aria-label') };
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(200);
+  assert(await frame.evaluate(() => document.querySelectorAll('.gutter').length) === 0, `With only a caret, something stands in the margin: ${await frame.evaluate(() => document.querySelector('.gutter')?.outerHTML ?? '')}`);
+  const pointAt = async id => { await frame.locator(`.sheet-text [data-block="${id}"]`).hover({ position: { x: 40, y: 8 } }); await page.waitForTimeout(150); };
+  await pointAt('b-0414');
+  const gutter = await frame.evaluate(() => {
+    const g = document.querySelector('.gutter'), b = document.querySelector('.sheet-text [data-block="b-0414"]');
+    if (!g) return null;
+    const r = g.getBoundingClientRect(), p = b.getBoundingClientRect(), text = b.firstChild ? (() => { const range = document.createRange(); range.selectNodeContents(b); return range.getBoundingClientRect().left; })() : p.left;
+    return { for: g.dataset.for, buttons: [...g.querySelectorAll('button')].map(x => x.getAttribute('aria-label')), beside: r.right <= text + 1 && r.top >= p.top - 2 && r.top <= p.top + 12,
+      faint: parseFloat(getComputedStyle(g.querySelector('.gut')).opacity) < 0.8, mark: (m => m ? getComputedStyle(m).display : null)(document.querySelector('.mark[data-id="b-0414"]')), height: Math.round(r.height) };
   });
-  assert(handleAt && handleAt.visible && handleAt.beside && !handleAt.bar && handleAt.label === 'Format this paragraph', `Handle with a caret: ${JSON.stringify(handleAt)}`);
-  await page.screenshot({ path: '__OUTPUT__/format-handle.png' });
-  await frame.locator('.format-handle').click();
-  await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 })
-    .catch(async () => { throw Error(`The handle did not open the bar: ${JSON.stringify(await frame.evaluate(() => ({ pinned: window.manuscript.pinned, selected: window.manuscript.selected })))}`); });
-  const barOpened = { tools: await toolIds(), expanded: await frame.evaluate(() => document.querySelector('.format-handle')?.getAttribute('aria-expanded')),
-    caret: await frame.evaluate(() => window.manuscriptSheet.editor.state.selection.empty) };
-  assert(barOpened.tools.includes('bold') && barOpened.tools.includes('bulleted') && barOpened.expanded === 'true' && barOpened.caret, `Bar from the handle: ${JSON.stringify(barOpened)}`);
-  await frame.locator('.format-handle').click();
+  assert(gutter && gutter.for === 'b-0414' && gutter.buttons.join() === 'Add a block below,This block\u2019s tools' && gutter.beside && gutter.faint && gutter.mark === 'none' && gutter.height <= 28,
+    `Gutter on hover: ${JSON.stringify(gutter)}`);
+  await page.screenshot({ path: '__OUTPUT__/block-gutter.png' });
+  await frame.locator('.gutter .grip').click();
+  await frame.waitForSelector('.block-menu', { timeout: 3000 });
+  const menuOpen = await frame.evaluate(() => ({ heads: [...document.querySelectorAll('.block-menu .block-head')].map(h => h.textContent),
+    checked: [...document.querySelectorAll('.block-menu [aria-checked="true"]')].map(b => b.textContent), inside: document.querySelector('.block-menu').getBoundingClientRect().bottom <= innerHeight + 1 }));
+  assert(menuOpen.heads.join() === 'Turn into,Align,Manuscript' && menuOpen.checked.join() === 'Paragraph' && menuOpen.inside, `Block menu: ${JSON.stringify(menuOpen)}`);
+  await page.screenshot({ path: '__OUTPUT__/block-menu.png' });
+  let blockFrom = (await batches()).length;
+  await frame.getByRole('menuitemradio', { name: 'Bulleted list' }).click();
+  await saved();
+  const turned = { writes: (await batches()).slice(blockFrom).flatMap(b => b.writes).map(w => ({ id: w.recordId, values: w.values })), menu: await frame.evaluate(() => !!document.querySelector('.block-menu')) };
+  assert(JSON.stringify(turned.writes) === JSON.stringify([{ id: 'b-0414', values: { 'mn.block.list': 'Bulleted' } }]) && !turned.menu, `Turn into a bulleted list: ${JSON.stringify(turned)}`);
+  await pointAt('b-0414');
+  await frame.locator('.gutter .grip').click();
+  await frame.getByRole('menuitemradio', { name: 'Paragraph' }).click();
+  await saved();
+  assert((await record(BLOCK, 'b-0414')).values['mn.block.list'] === null, 'Turn into Paragraph did not take the list off.');
+  // Escape closes the menu.
+  await pointAt('b-0414');
+  await frame.locator('.gutter .grip').click();
+  await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
-  assert(await frame.evaluate(() => !document.querySelector('.bar')), 'The handle did not close the bar again.');
+  assert(await frame.evaluate(() => !document.querySelector('.block-menu')), 'Escape did not close the block menu.');
+  // The plus adds a bulleted item below the block, the caret in it.
+  await pointAt('b-0414');
+  await frame.locator('.gutter .add').click();
+  await frame.getByRole('menuitem', { name: 'Bulleted list' }).click();
+  await page.keyboard.type('Added below');
+  await saved();
+  const added = (await records(BLOCK)).find(r => r.values[T] === 'Added below');
+  const order = async id => (await records(BLOCK)).find(r => r.recordId === id)?.values[O];
+  assert(added && added.values['mn.block.list'] === 'Bulleted' && added.values[P] === 'b-ch-3' && added.values[O] > await order('b-0414') && added.values[O] < await order('b-0415'),
+    `Added below: ${JSON.stringify(added)}`);
+  await frame.evaluate(id => { const s = window.manuscriptSheet, at = s.locate(id); s.editor.chain().focus().deleteRange({ from: at.pos, to: at.pos + at.node.nodeSize }).run(); }, added.recordId);
+  await saved();
+  // A heading turned back into a paragraph keeps no list depth: b-0415 was a Section earlier, and
+  // made a list it was saved at depth 3, the heading's level, under one attribute name.
+  await pointAt('b-0415');
+  await frame.locator('.gutter .grip').click();
+  blockFrom = (await batches()).length;
+  await frame.getByRole('menuitemradio', { name: 'Bulleted list' }).click();
+  await saved();
+  const fromHeading = (await batches()).slice(blockFrom).flatMap(b => b.writes).map(w => ({ id: w.recordId, values: w.values }));
+  assert(JSON.stringify(fromHeading) === JSON.stringify([{ id: 'b-0415', values: { 'mn.block.list': 'Bulleted' } }]), `A former heading made a list: ${JSON.stringify(fromHeading)}`);
+  await pointAt('b-0415');
+  await frame.locator('.gutter .grip').click();
+  await frame.getByRole('menuitemradio', { name: 'Paragraph' }).click();
+  await saved();
+  await select('b-0414', 'ledger');
   const formatMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'format');
   const menuShape = formatMenu && { labels: formatMenu.items.filter(i => i.kind === 'label').map(i => i.label), bold: formatMenu.items.find(i => i.id === 'fmt-bold')?.kind,
     centre: formatMenu.items.find(i => i.id === 'fmt-align' && i.value === 'Centre')?.kind, keys: formatMenu.items.filter(i => i.keys).length };
@@ -385,7 +432,7 @@ async page => {
   await page.evaluate(() => window.broker.command('fmt-numbered', false));
   await saved();
   assert((await record(BLOCK, 'b-0414')).values['mn.block.list'] === null, 'Format did not take the list off again.');
-  checks.push('handle and Format menu without a selection');
+  checks.push('grip, block menu, plus and Format menu without a selection');
 
   // W-281: lists. "- " starts a bulleted item and Enter carries the list on; Tab takes an item a
   // level in; Enter on an empty item brings it out a level, then ends the list; "1. " starts a

@@ -22,7 +22,7 @@ There is no Save button. A pause in your typing saves what changed, and the line
 
 ## The bar over your selection
 
-Select a few words and a bar of icons appears over them. Without a selection, the small **Aa** button in the margin beside the paragraph you are in opens the same bar, and **Format** in Nendo's toolbar lists every tool by name, with a tick by what is on where the caret is; **Ctrl** **K** finds them too. Point at an icon, or move to it with the keyboard, and its name and keys appear. The icons on the bar are the tools you use most; **More** (the three dots) holds the rest:
+Select a few words and a bar of icons appears over them. Point at a paragraph and two faint controls appear in the margin beside it: **+** adds a paragraph, a list, a table or a heading below it, and the grip (six dots) opens the paragraph's menu, to turn it into a heading, a list or a quotation, set its alignment, or link, note, cut or copy it. **Format** in Nendo's toolbar lists every tool by name, with a tick by what is on where the caret is; **Ctrl** **K** finds them too. Point at an icon, or move to it with the keyboard, and its name and keys appear. The icons on the bar are the tools you use most; **More** (the three dots) holds the rest:
 
 | Tools | What they do | Keys |
 | --- | --- | --- |

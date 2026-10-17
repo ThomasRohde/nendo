@@ -60,9 +60,11 @@ const BlockIds = Extension.create({
           default: null,
           keepOnSplit: true,
           parseHTML: element => LISTS.includes(element.getAttribute('data-list')) ? element.getAttribute('data-list') : null,
-          renderHTML: attributes => attributes.list ? { 'data-list': attributes.list, 'data-level': String(attributes.level ?? 0) } : {},
+          renderHTML: attributes => attributes.list ? { 'data-list': attributes.list, 'data-level': String(attributes.depth ?? 0) } : {},
         },
-        level: {
+        // Named depth, not level: a heading's level is an attribute of the same block when it
+        // turns into a paragraph, and would come along as the list's depth.
+        depth: {
           default: 0,
           keepOnSplit: true,
           parseHTML: element => Math.max(0, Math.min(MAX_LEVEL, Number(element.getAttribute('data-level')) || 0)),
@@ -164,10 +166,10 @@ function listKeys(canList, sheet) {
       return {
         'Mod-Shift-8': toggle('Bulleted'),
         'Mod-Shift-7': toggle('Numbered'),
-        Tab: () => { const it = item(); return it && canList() ? set(it, { level: Math.min(MAX_LEVEL, (it.node.attrs.level ?? 0) + 1) }) : false; },
-        'Shift-Tab': () => { const it = item(); if (!it || !canList()) return false; return set(it, it.node.attrs.level ? { level: it.node.attrs.level - 1 } : { list: null, level: 0 }); },
-        Enter: () => { const it = item(); if (!it || !it.empty || it.node.content.size) return false; return set(it, it.node.attrs.level ? { level: it.node.attrs.level - 1 } : { list: null, level: 0 }); },
-        Backspace: () => { const it = item(); return it && it.atStart ? set(it, { list: null, level: 0 }) : false; },
+        Tab: () => { const it = item(); return it && canList() ? set(it, { depth: Math.min(MAX_LEVEL, (it.node.attrs.depth ?? 0) + 1) }) : false; },
+        'Shift-Tab': () => { const it = item(); if (!it || !canList()) return false; return set(it, it.node.attrs.depth ? { depth: it.node.attrs.depth - 1 } : { list: null, depth: 0 }); },
+        Enter: () => { const it = item(); if (!it || !it.empty || it.node.content.size) return false; return set(it, it.node.attrs.depth ? { depth: it.node.attrs.depth - 1 } : { list: null, depth: 0 }); },
+        Backspace: () => { const it = item(); return it && it.atStart ? set(it, { list: null, depth: 0 }) : false; },
       };
     },
     addInputRules() {
@@ -176,7 +178,7 @@ function listKeys(canList, sheet) {
         handler: ({ state, range }) => {
           const { $from } = state.selection;
           if (!canList() || $from.depth !== 1 || $from.parent.type.name !== 'paragraph' || $from.parent.attrs.list) return null;
-          state.tr.delete(range.from, range.to).setNodeMarkup($from.before(1), undefined, { ...$from.parent.attrs, list, level: 0 });
+          state.tr.delete(range.from, range.to).setNodeMarkup($from.before(1), undefined, { ...$from.parent.attrs, list, depth: 0 });
         },
       });
       return [rule(/^\s*[-*]\s$/, 'Bulleted'), rule(/^\s*1[.)]\s$/, 'Numbered')];
@@ -223,7 +225,7 @@ const ListMarkers = Extension.create({
       const items = [], at = [];
       doc.forEach((node, pos) => {
         const listed = node.type.name === 'paragraph' && node.attrs.list;
-        items.push(listed ? { type: 'paragraph', list: node.attrs.list, listLevel: Math.min(MAX_LEVEL, node.attrs.level ?? 0) } : { type: node.type.name });
+        items.push(listed ? { type: 'paragraph', list: node.attrs.list, listLevel: Math.min(MAX_LEVEL, node.attrs.depth ?? 0) } : { type: node.type.name });
         at.push(listed ? { pos, size: node.nodeSize } : null);
       });
       numberLists(items);
@@ -249,7 +251,7 @@ function nodeJSON(n) {
   const level = levelOf(n.kind);
   return level
     ? { type: 'heading', attrs: { level, blockId: n.id, role, align }, content }
-    : { type: 'paragraph', attrs: { blockId: n.id, role, align, list: n.list ?? null, level: n.list ? n.level ?? 0 : 0 }, content };
+    : { type: 'paragraph', attrs: { blockId: n.id, role, align, list: n.list ?? null, depth: n.list ? n.level ?? 0 : 0 }, content };
 }
 
 /** The blocks as the editor's document: a table gathers the rows and cells that follow it. */
@@ -393,7 +395,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
   editor.on('focus', () => onSelect?.(where()));
 
   function signature(node) {
-    return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.role ?? ''}:${node.attrs.align ?? ''}:${node.attrs.list ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`;
+    return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.role ?? ''}:${node.attrs.align ?? ''}:${node.attrs.list ?? ''}:${node.attrs.depth ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`;
   }
 
   /** Every block the sheet holds, in reading order: a table, then its rows, each followed by its cells. */
@@ -420,7 +422,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const text = node.type.name === 'picture' ? pictureMarkdown(node.attrs.alt, node.attrs.address) : inlineToMarkdown(node.toJSON().content ?? []);
       const list = node.type.name === 'paragraph' ? node.attrs.list ?? null : null;
       yield { id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph', text, role: node.attrs.role ?? null, align: node.attrs.align ?? null,
-        list, level: list ? node.attrs.level ?? 0 : 0, signature: signature(node) };
+        list, level: list ? node.attrs.depth ?? 0 : 0, signature: signature(node) };
     }
   }
 
@@ -431,6 +433,14 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
     if ($from.depth < 1) return null;
     const node = $from.node(1);
     return { id: node.attrs.blockId, index: $from.index(0), empty: selection.empty, single: $from.index(0) === $to.index(0), pos: $from.before(1) };
+  }
+
+  /** A table of `rows` by `columns` at `pos`, its first row the header, the caret in its first cell. */
+  function insertTableAt(pos, rows, columns) {
+    const cell = type => ({ type, content: [{ type: 'paragraph' }] });
+    const table = { type: 'table', content: Array.from({ length: rows }, (_, r) => ({ type: 'tableRow', content: Array.from({ length: columns }, () => cell(r === 0 ? 'tableHeader' : 'tableCell')) })) };
+    // Into the table's first cell: table, row, cell, then the cell's paragraph.
+    editor.chain().focus().insertContentAt(pos, table).setTextSelection(pos + 4).run();
   }
 
   /** The top-level paragraphs the selection touches. */
@@ -534,7 +544,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const found = paragraphsInSelection();
       if (!found.length) return;
       const tr = editor.state.tr;
-      for (const { node, pos } of found) tr.setNodeMarkup(pos, undefined, { ...node.attrs, list: list || null, level: list ? node.attrs.level ?? 0 : 0 });
+      for (const { node, pos } of found) tr.setNodeMarkup(pos, undefined, { ...node.attrs, list: list || null, depth: list ? node.attrs.depth ?? 0 : 0 });
       editor.view.dispatch(tr);
       editor.commands.focus();
     },
@@ -549,8 +559,8 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       if (!found.length) return;
       const tr = editor.state.tr;
       for (const { node, pos } of found) {
-        const level = (node.attrs.level ?? 0) + step;
-        tr.setNodeMarkup(pos, undefined, level < 0 ? { ...node.attrs, list: null, level: 0 } : { ...node.attrs, level: Math.min(MAX_LEVEL, level) });
+        const depth = (node.attrs.depth ?? 0) + step;
+        tr.setNodeMarkup(pos, undefined, depth < 0 ? { ...node.attrs, list: null, depth: 0 } : { ...node.attrs, depth: Math.min(MAX_LEVEL, depth) });
       }
       editor.view.dispatch(tr);
       editor.commands.focus();
@@ -559,12 +569,29 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
     insertTable(rows = 3, columns = 3) {
       const at = where();
       const node = at ? editor.state.doc.nodeAt(at.pos) : null;
-      if (!node) return;
-      const after = at.pos + node.nodeSize;
-      const cell = type => ({ type, content: [{ type: 'paragraph' }] });
-      const table = { type: 'table', content: Array.from({ length: rows }, (_, r) => ({ type: 'tableRow', content: Array.from({ length: columns }, () => cell(r === 0 ? 'tableHeader' : 'tableCell')) })) };
-      // Into the table's first cell: table, row, cell, then the cell's paragraph.
-      editor.chain().focus().insertContentAt(after, table).setTextSelection(after + 4).run();
+      if (node) insertTableAt(at.pos + node.nodeSize, rows, columns);
+    },
+    /**
+     * Puts a new block after the block `id` and the caret in it: a Paragraph, a list item of a
+     * Bulleted or Numbered list, a Part, Chapter or Section heading, or a Table.
+     */
+    insertAfter(id, kind) {
+      const at = this.locate(id);
+      if (!at || !TYPES.includes(at.node.type.name)) return;
+      const after = at.pos + at.node.nodeSize;
+      if (kind === 'Table') { insertTableAt(after, 3, 3); return; }
+      const level = levelOf(kind);
+      const block = level ? { type: 'heading', attrs: { level } } : { type: 'paragraph', attrs: { list: LISTS.includes(kind) ? kind : null, depth: 0 } };
+      editor.chain().focus().insertContentAt(after, block).setTextSelection(after + 1).run();
+    },
+    /** Adds a row at the end of a table, or a column at its right, or deletes it, from the table as a whole. */
+    tableAction(id, action) {
+      const at = this.locate(id);
+      if (!at || at.node.type.name !== 'table') return;
+      let last = null;
+      at.node.descendants((child, pos) => { if (child.type.name === 'tableCell' || child.type.name === 'tableHeader') last = at.pos + 1 + pos; return child.type.name === 'tableRow'; });
+      if (last === null) return;
+      editor.chain().focus().setTextSelection(last + 2)[action]().run();
     },
     inTable() {
       const { $from } = editor.state.selection;

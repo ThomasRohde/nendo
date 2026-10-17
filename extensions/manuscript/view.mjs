@@ -16,6 +16,7 @@ const state = {
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
+  hover: null, blockMenu: null,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -782,7 +783,8 @@ const ICON = {
   cut: '<circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/><path d="M6 10 12 3M10 10 4 3"/>',
   agent: '<path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z"/>',
   more: '<path d="M3.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0M7.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0M11.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0"/>',
-  format: '<path d="M3.5 11.5 8 2.5l4.5 9M5.2 8.2h5.6M2.5 14h11"/>',
+  grip: '<path class="dots" d="M5.5 3.5a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M10.5 3.5a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M5.5 6.9a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M10.5 6.9a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M5.5 10.3a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M10.5 10.3a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2"/>',
+  add: '<path d="M8 3.5v9M3.5 8h9"/>',
   pin: '<path d="M9.5 2.5l4 4-2 1-2.5 2.5.5 2.5-1 1-6-6 1-1 2.5.5 2.5-2.5zM5.5 10.5 2.5 13.5"/>',
 };
 function svg(name) {
@@ -939,18 +941,22 @@ function placeOverlays() {
   });
   const where = sheet.where();
   const show = !state.readOnly && state.selected && sheet.locate(state.selected) && (state.pinned || state.popover || (where && !where.empty && where.single && where.id === state.selected));
-  // The handle in the margin beside the block the caret is in: the bar's way in without a
-  // selection (owner, 2026-10-17: the bar was not discoverable). It opens the bar over the block,
-  // and closes it again.
-  const caretAt = !state.readOnly && where && sheet.editor.isFocused !== false ? sheet.locate(where.id) : null;
-  if (caretAt?.dom?.getBoundingClientRect) {
-    const top = caretAt.dom.getBoundingClientRect().top - origin.top;
-    const open = show && state.pinned && state.selected === where.id;
-    marks.push(el('button', { type: 'button', class: `tool format-handle${open ? ' open' : ''}`, style: `top:${top + 3}px`, 'aria-label': 'Format this paragraph', 'aria-expanded': String(open),
-      on: { mousedown: hold, click: () => {
-        if (open) { closePopover(); render(); return; }
-        state.selected = where.id; state.pinned = true; state.more = false; render();
-      } } }, svg('format'), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: 'Format this paragraph' }))));
+  // Beside the block under the pointer, faintly: a plus that adds a block below it and a grip
+  // that opens the block's menu (owner, 2026-10-17, design A of the canvas). Nothing is drawn
+  // for a block the pointer is not over, so the writing stands alone.
+  const gutterId = state.readOnly ? null : state.blockMenu?.id ?? state.hover;
+  const gutterAt = gutterId ? sheet.locate(gutterId) : null;
+  let menuBox = null;
+  if (gutterAt?.dom?.getBoundingClientRect && TYPES_AT_TOP.has(gutterAt.node.type.name)) {
+    const top = gutterAt.dom.getBoundingClientRect().top - origin.top;
+    const kind = state.blockMenu?.kind;
+    for (const m of marks) if (m.dataset.id === gutterId) m.hidden = true;
+    marks.push(el('span', { class: 'gutter', style: `top:${top + 2}px`, 'data-for': gutterId },
+      el('button', { type: 'button', class: `gut add${kind === 'add' ? ' open' : ''}`, 'aria-label': 'Add a block below', 'aria-expanded': String(kind === 'add'),
+        on: { mousedown: hold, click: () => toggleBlockMenu(gutterId, 'add') } }, svg('add'), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: 'Add a block below' }))),
+      el('button', { type: 'button', class: `gut grip${kind === 'block' ? ' open' : ''}`, 'aria-label': 'This block\u2019s tools', 'aria-expanded': String(kind === 'block'),
+        on: { mousedown: hold, click: () => toggleBlockMenu(gutterId, 'block') } }, svg('grip'), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: 'Click for this block\u2019s tools' })))));
+    if (kind) { menuBox = kind === 'add' ? addMenu(gutterAt.node) : blockMenu(gutterAt.node); menuBox.style.top = `${top + 32}px`; }
   }
   let bar = null, pop = null, more = null, anchorTop = 0;
   if (show) {
@@ -986,7 +992,12 @@ function placeOverlays() {
     // save finishing, somebody else's change) must not take their words or their focus.
     if (state.popover) { pop = state.popoverEl ??= popover(bottom + 8); pop.style.top = `${bottom + 8}px`; }
   }
-  layer.replaceChildren(...marks, ...(bar ? [bar] : []), ...(more ? [more] : []));
+  layer.replaceChildren(...marks, ...(menuBox ? [menuBox] : []), ...(bar ? [bar] : []), ...(more ? [more] : []));
+  if (menuBox) {
+    // Kept inside the window: above the block's line when there is no room below it.
+    const box = menuBox.getBoundingClientRect();
+    if (box.bottom > innerHeight - 8 && box.top - box.height - 40 > 0) menuBox.style.top = `${parseFloat(menuBox.style.top) - box.height - 38}px`;
+  }
   const popLayer = $('popover-layer');
   if (pop ? popLayer.firstChild !== pop : popLayer.firstChild) popLayer.replaceChildren(...(pop ? [pop] : []));
   if (!bar) return;
@@ -1015,7 +1026,103 @@ function placeOverlays() {
 function fail(error) { state.problem = { text: refusalText(error), reload: true }; render(); }
 
 function openPopover(kind, data = {}) { state.popover = { kind, ...data, query: '', linkKind: LINK_KINDS[0], noteKind: NOTE_KINDS[0] }; state.popoverEl = null; state.pinned = true; placeOverlays(); setTimeout(() => document.querySelector('.popover input, .popover textarea, .popover select')?.focus(), 0); }
-function closePopover() { state.popover = null; state.popoverEl = null; state.pinned = false; state.more = false; }
+function closePopover() { state.popover = null; state.popoverEl = null; state.pinned = false; state.more = false; state.blockMenu = null; }
+
+// ---------- The block menu and the add menu ----------
+const TYPES_AT_TOP = new Set(['paragraph', 'heading', 'picture', 'table']);
+
+/** The top-level block under the pointer's height, by its ID, or null. */
+function blockAt(y) {
+  for (const child of sheet.editor.view.dom.children) {
+    const r = child.getBoundingClientRect();
+    if (y < r.top - 6 || y > r.bottom + 6) continue;
+    return child.dataset.block || child.querySelector(':scope > table[data-block], :scope table[data-block]')?.dataset.block || null;
+  }
+  return null;
+}
+
+function toggleBlockMenu(id, kind) {
+  if (state.blockMenu?.id === id && state.blockMenu.kind === kind) { state.blockMenu = null; placeOverlays(); return; }
+  closePopover();
+  // The menu acts on its block: the caret goes there unless it already is.
+  if (sheet.where()?.id !== id) sheet.focusBlock(id);
+  state.selected = id; state.blockMenu = { id, kind };
+  render();
+}
+
+function closeBlockMenu() { if (!state.blockMenu) return; state.blockMenu = null; placeOverlays(); }
+
+function menuItem({ label, icon, checked = null, keys = '', role = 'menuitem', run }) {
+  return el('button', { type: 'button', class: `block-item${checked ? ' on' : ''}`, role, 'aria-checked': checked === null ? null : String(checked),
+    on: { mousedown: hold, click: () => { state.blockMenu = null; run(); placeOverlays(); declare(); } } },
+  svg(icon), el('span', { class: 'block-label', text: label }), keys ? el('kbd', { text: keys }) : null);
+}
+
+/** What a block can become, how it is set, and what can be done with it. */
+function blockMenu(node) {
+  const id = node.attrs.blockId, kind = node.type.name, sections = [];
+  const section = (name, ...items) => { const real = items.flat().filter(Boolean); if (real.length) sections.push(el('div', { class: 'block-head', text: name }), ...real); };
+  if (kind === 'paragraph' || kind === 'heading') {
+    const list = kind === 'paragraph' ? node.attrs.list : null, style = sheet.styleHere();
+    const turn = (label, icon, keys, target, isOn) => menuItem({ label, icon, keys, role: 'menuitemradio', checked: isOn, run: () => turnInto(target) });
+    section('Turn into',
+      turn('Paragraph', 'paragraph', '', 'Paragraph', !list && style === 'Paragraph'),
+      turn('Part heading', 'part', '#', 'Part', style === 'Part'),
+      turn('Chapter heading', 'chapter', '##', 'Chapter', style === 'Chapter'),
+      turn('Section heading', 'section', '###', 'Section', style === 'Section'),
+      state.lists && turn('Bulleted list', 'bulleted', '- ', 'Bulleted', list === 'Bulleted'),
+      state.lists && turn('Numbered list', 'numbered', '1. ', 'Numbered', list === 'Numbered'),
+      state.roles && menuItem({ label: 'Quotation', icon: 'quotation', role: 'menuitemcheckbox', checked: sheet.roleHere() === 'Quotation', run: () => runTool(TOOLS.find(t => t.id === 'quotation')) }),
+      list && menuItem({ label: 'Indent list item', icon: 'indent', keys: 'Tab', run: () => sheet.indent(1) }),
+      list && menuItem({ label: 'Outdent list item', icon: 'outdent', keys: 'Shift+Tab', run: () => sheet.indent(-1) }));
+    if (state.aligns) {
+      const row = el('div', { class: 'block-icons', role: 'group', 'aria-label': 'Align' },
+        TOOLS.filter(t => t.align).map(t => {
+          const on = toolOn(t);
+          return el('button', { type: 'button', class: `tool${on ? ' on' : ''}`, 'aria-label': t.label, 'aria-pressed': String(on),
+            on: { mousedown: hold, click: () => { state.blockMenu = null; runTool(t); } } }, svg(t.id), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: t.label }), el('kbd', { text: t.keys })));
+        }));
+      section('Align', row);
+    }
+  }
+  if (kind === 'table') {
+    section('Table',
+      menuItem({ label: 'Add a row at the end', icon: 'row-after', run: () => sheet.tableAction(id, 'addRowAfter') }),
+      menuItem({ label: 'Add a column at the right', icon: 'column-after', run: () => sheet.tableAction(id, 'addColumnAfter') }),
+      menuItem({ label: 'Delete table', icon: 'table-delete', run: () => sheet.tableAction(id, 'deleteTable') }));
+  }
+  section('Manuscript',
+    menuItem({ label: 'Link to a passage', icon: 'link', run: () => runTool(TOOLS.find(t => t.id === 'link')) }),
+    menuItem({ label: 'Add a note', icon: 'note', run: () => runTool(TOOLS.find(t => t.id === 'note')) }),
+    kind !== 'heading' && menuItem({ label: 'Keep as cutting', icon: 'cut', run: () => runTool(TOOLS.find(t => t.id === 'cut')) }),
+    menuItem({ label: 'Copy for the agent', icon: 'agent', keys: block(id) ? `v${block(id).version}` : '', run: () => runTool(TOOLS.find(t => t.id === 'agent')) }));
+  return el('div', { class: 'block-menu', role: 'menu', 'aria-label': 'This block' }, sections);
+}
+
+/** A paragraph, a heading of a kind, or a list item of a kind: the one the block becomes. */
+function turnInto(target) {
+  if (target === 'Bulleted' || target === 'Numbered') {
+    if (sheet.styleHere() !== 'Paragraph') sheet.setStyle('Paragraph');
+    sheet.setList(target);
+  } else {
+    if (sheet.listHere()) sheet.setList(null);
+    sheet.setStyle(target);
+  }
+}
+
+/** What can be added below a block. */
+function addMenu(node) {
+  const id = node.attrs.blockId;
+  const add = (label, icon, keys, kind) => menuItem({ label, icon, keys, run: () => sheet.insertAfter(id, kind) });
+  return el('div', { class: 'block-menu', role: 'menu', 'aria-label': 'Add below' },
+    el('div', { class: 'block-head', text: 'Add below' }),
+    [add('Paragraph', 'paragraph', '', 'Paragraph'),
+      state.lists && add('Bulleted list', 'bulleted', '- ', 'Bulleted'),
+      state.lists && add('Numbered list', 'numbered', '1. ', 'Numbered'),
+      state.tables && add('Table', 'table', '', 'Table'),
+      add('Section heading', 'section', '###', 'Section'),
+      add('Chapter heading', 'chapter', '##', 'Chapter')].filter(Boolean));
+}
 
 function popover(top) {
   const p = state.popover;
@@ -1151,12 +1258,22 @@ async function start(context) {
   $('scroller').addEventListener('scroll', () => { if (state.popover) return; placeOverlays(); }, { passive: true });
   addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (state.blockMenu) { closeBlockMenu(); sheet.editor.commands.focus(); return; }
     if (state.more) { state.more = false; placeOverlays(); sheet.editor.commands.focus(); return; }
     if (state.popover || state.pinned) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); return; }
     // Escape inside the side panel puts it away, as it does any panel the person opened.
     if (state.drawer !== null && $('drawer').contains(document.activeElement)) { e.preventDefault(); closeDrawer(); }
   });
   addEventListener('pagehide', () => { if (pending()) save(); });
+  // The gutter follows the pointer, block by block; while a block menu is open it stays put, so
+  // the menu is not drawn again under the pointer on its way to an item.
+  $('page').addEventListener('mousemove', e => {
+    if (state.blockMenu || state.mode !== 'write') return;
+    const id = blockAt(e.clientY);
+    if (id !== state.hover) { state.hover = id; placeOverlays(); }
+  }, { passive: true });
+  $('page').addEventListener('mouseleave', () => { if (!state.blockMenu && state.hover) { state.hover = null; placeOverlays(); } });
+  addEventListener('mousedown', e => { if (state.blockMenu && !e.target.closest?.('.block-menu, .gutter')) closeBlockMenu(); }, true);
   state.wanted = context.place?.manuscript ?? null;
   if (nendo.has('ui.setPlace')) nendo.on('place', place => { if (place?.manuscript) openManuscript(place.manuscript, false).catch(fail); });
   await load();
