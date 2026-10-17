@@ -184,6 +184,16 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 ## Validation and handoff
 
 - Run the narrowest applicable build and tests, plus `pwsh ./tools/Test-Repository.ps1`.
+- **Which gate a change needs** (owner, 2026-10-17):
+  - An app-only change, one that touches nothing but a view package under
+    `extensions/`, its `tools/<app>/` folder and its own lane (`Review-<App>.ps1`,
+    `Gate-<App>.mjs`), needs that app's lane, with every new guard falsified, plus
+    `Test-Repository.ps1`. That is enough to commit and push it. No host code changed,
+    so the Engine, MCP, desktop and other apps' lanes cannot see it, and the
+    installer does not need rebuilding: the change reaches a file as a proposal.
+  - A host change, anything under `src/` or `tests/`, a contract, an ADR or a
+    shared tool, needs the full gate below, and the installer is rebuilt.
+  - Run the full gate now and then across a run of app-only changes, not for each.
 - For full validation use `pwsh ./tools/Test-Production.ps1`, which already
   includes the repository gate — do not run it twice. Use `-SkipRestore` only
   with unchanged dependencies. While it runs it writes where it has got to in
