@@ -27,6 +27,10 @@ owner. Markdown and Word export (C-11) followed the same day, with the open-sour
 hierarchy's 10,000 descendants (sections 10 and 13). That bound turned out to be the hierarchy
 walk's, which re-reads the whole subtree for every page, so the view now reads blocks flat and
 builds the tree itself; a file may also hold several manuscripts (Manuscript 0.6.0).
+Manuscript 0.9.0 (W-279) follows Q-05's recommendation for formatting: underline and highlight
+join the inline subset as `<u>` and `<mark>`, the HTML Markdown allows inline, and alignment is
+a paragraph-level field, `mn.block.align`. The selection bar became icons with tooltips, the
+owner's choice A from a second canvas (<https://claude.ai/artifact/6GQMYGLKMDsuYUZFC5MxB9>).
 
 ### Revision 0.2: what the repository review changed
 

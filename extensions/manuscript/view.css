@@ -12,6 +12,7 @@
   --accent: var(--nendo-cobalt, #005fb8);
   --accent-soft: var(--nendo-cobalt-soft, #e5eff9);
   --warning: var(--nendo-warning, #9c6400);
+  --highlight: var(--nendo-tone-amber, #a37608);
   --shadow: var(--nendo-shadow, 0 1px 2px rgba(20, 23, 28, 0.05), 0 12px 32px -16px rgba(20, 23, 28, 0.18));
   --prose: 'Sitka Text', 'Iowan Old Style', Cambria, Georgia, serif;
   --display: 'Sitka Heading', 'Sitka Text', Cambria, Georgia, serif;
@@ -54,6 +55,8 @@ button { cursor: pointer; }
 .sheet-text h3 { font-size: calc(var(--size) * 1.2); margin: 32px 0 14px; }
 .sheet-text > :first-child { margin-top: 0; }
 .sheet-text code { font-family: var(--mono); font-size: 0.85em; background: var(--soft); border-radius: 3px; padding: 0 3px; }
+/* Highlighted words: the amber tone, thinned so the text keeps its own colour in both themes. */
+.sheet-text mark, .sheet-body mark { background: color-mix(in srgb, var(--highlight) 30%, transparent); color: inherit; border-radius: 2px; }
 .sheet-text p.is-empty:first-child::before, .sheet-text .is-empty::before { content: attr(data-placeholder); color: var(--muted); opacity: 0.6; float: left; height: 0; pointer-events: none; }
 .sheet-text ::selection { background: var(--accent-soft); }
 /* A block's role, named quietly above it, and drawn the way a layout would set it. */
@@ -78,17 +81,38 @@ button { cursor: pointer; }
 .overlays { position: absolute; inset: 0; pointer-events: none; }
 .overlays > * { pointer-events: auto; }
 .mark { position: absolute; left: 30px; height: 22px; padding: 0 5px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 3px; font-size: 11px; }
-.mark svg, .bar svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.mark svg, .bar svg, .more svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.bar svg path.heavy, .more svg path.heavy { stroke-width: 2; }
 .mark.on { color: var(--accent); }
 .mark:hover { background: var(--soft); }
 
-.bar { position: absolute; right: 32px; z-index: 2; display: flex; align-items: center; gap: 2px; padding: 4px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; white-space: nowrap; max-width: calc(100% - 64px); overflow-x: auto; }
-.bar button { border: 0; background: transparent; height: 30px; padding: 0 9px; border-radius: 4px; display: flex; align-items: center; gap: 6px; }
-.bar button svg { width: 15px; height: 15px; }
-.bar button:hover { background: var(--soft); }
-.bar .accent { color: var(--accent); }
-.bar .divider { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
-.mono { font-family: var(--mono); font-size: 11px; color: var(--muted); padding: 0 8px 0 6px; }
+.bar { position: absolute; right: 32px; z-index: 2; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 4px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font: 13px var(--ui); max-width: calc(100% - 16px); }
+/* Icons only: a tool's name and keys are in its tooltip. */
+.tool { position: relative; flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; }
+.tool svg { width: 16px; height: 16px; }
+.tool:hover { background: var(--soft); }
+.tool[aria-pressed='true'], .tool.open { background: var(--accent-soft); color: var(--accent); }
+.tool.accent { color: var(--accent); }
+.bar .divider { flex: none; width: 1px; height: 20px; background: var(--line); margin: 0 3px; }
+/* A tooltip shows after a moment's hover, and at once on keyboard focus. */
+.tip { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 4; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; background: var(--ink); color: var(--surface); font: 12px/1.2 var(--ui); white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity 0.1s, visibility 0s linear 0.1s; }
+.tip kbd { font: 11px var(--mono); opacity: 0.75; }
+.bar.tips-below .tip { bottom: auto; top: calc(100% + 10px); }
+.tool:hover .tip { opacity: 1; visibility: visible; transition: opacity 0.1s 0.35s, visibility 0s linear 0.35s; }
+.tool:focus-visible .tip { opacity: 1; visibility: visible; transition: none; }
+/* More: the tools not on the bar, each with its name, its keys and a pin. */
+.more { position: absolute; z-index: 3; box-sizing: border-box; width: min(296px, calc(100% - 16px)); max-height: min(480px, 80vh); overflow: auto; padding: 6px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font: 13px var(--ui); }
+.more-head { padding: 8px 8px 4px; font-size: 11px; color: var(--muted); }
+.more-row { display: flex; align-items: center; gap: 2px; }
+.more-tool { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 8px; border: 0; border-radius: 4px; background: transparent; color: var(--ink); font: inherit; text-align: left; }
+.more-tool svg, .pin svg { width: 16px; height: 16px; }
+.more-tool[aria-pressed='true'] { color: var(--accent); }
+.more-label { flex: 1; }
+.more-tool kbd { font: 11px var(--mono); color: var(--muted); }
+.pin { flex: none; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
+.more-tool:hover, .pin:hover { background: var(--soft); }
+.pin:hover { color: var(--accent); }
+.more-foot { margin: 6px -6px -6px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.4; color: var(--muted); }
 
 .popover { position: absolute; right: 32px; z-index: 3; width: min(420px, calc(100% - 64px)); display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; }
 .popover input, .popover select, .popover textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); padding: 5px 8px; min-height: 30px; }
@@ -208,9 +232,11 @@ button.quiet:hover { background: var(--soft); }
   :root[data-drawer='outline'] .scroller, :root[data-drawer='notes'] .scroller, :root[data-drawer='related'] .scroller { padding-right: 0; }
   .page { padding: 28px 16px 40vh 44px; }
   .mark { left: 6px; }
-  .bar, .popover { right: 16px; max-width: calc(100% - 32px); }
+  .bar, .popover { right: 16px; max-width: calc(100% - 16px); }
 }
 @media (forced-colors: active) {
-  .bar, .popover, .drawer, .card { border-color: CanvasText; }
+  .bar, .popover, .more, .drawer, .card { border-color: CanvasText; }
+  .tip { border: 1px solid CanvasText; }
+  .tool[aria-pressed='true'], .tool.open { outline: 2px solid Highlight; }
   .mark.on { outline: 2px solid Highlight; }
 }

@@ -56,6 +56,29 @@ test('Word: a real document with Title and Heading styles, styled runs and the p
   assert.ok(Object.keys(zip.files).some(name => name.startsWith('word/media/')), 'the picture is not in the package');
 });
 
+test('Word and the plan: underline and highlight runs, and a block\'s own alignment over its layout\'s', async () => {
+  const plan = exportPlan({ title: 'Marks', nodes: [
+    { id: 'h', kind: 'Chapter', text: 'Signed off', align: 'Right' },
+    { id: 'u', kind: 'Paragraph', text: 'An <u>underlined</u> word and a <mark>lit</mark> one.', align: null },
+    { id: 'c', kind: 'Paragraph', text: 'Set in the middle.', align: 'Centre' },
+    { id: 'l', kind: 'Paragraph', text: 'Ragged on the right.', align: 'Left' },
+  ] });
+  assert.deepEqual(plan.items.map(i => i.align), ['Right', null, 'Centre', 'Left']);
+  for (const layout of ['book', 'paper']) {
+    const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, layout).document));
+    const xml = await zip.file('word/document.xml').async('string');
+    // A paper sets a heading in capitals, with its number.
+    const paragraph = words => xml.split('<w:p>').find(p => p.toLowerCase().includes(words.toLowerCase())) ?? '';
+    assert.match(xml, /<w:u w:val="single"\/>[\s\S]*?underlined/, layout);
+    assert.match(xml, /<w:highlight w:val="yellow"\/>[\s\S]*?lit/, layout);
+    assert.match(paragraph('Set in the middle.'), /<w:jc w:val="center"\/>/, layout);
+    assert.match(paragraph('Ragged on the right.'), /<w:jc w:val="left"\/>/, layout);
+    assert.match(paragraph('Signed off'), /<w:jc w:val="right"\/>/, layout);
+    // A block with no alignment of its own keeps its layout's: body text justified.
+    assert.match(paragraph('underlined'), /<w:jc w:val="both"\/>/, layout);
+  }
+});
+
 test('Word: a picture that could not be read stands as its description and is named', async () => {
   const { document, missing } = toDocx(exportPlan(manuscript), new Map(), lib, Lexer);
   assert.deepEqual(missing.map(m => [m.alt, m.why]), [['The harbour at dawn', 'not read']]);

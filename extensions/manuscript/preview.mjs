@@ -45,7 +45,7 @@ export function previewBlocks(plan, layout) {
       const breakBefore = (book && opensPage) || (level === 1 && item.role === 'Appendix' && firstAppendix);
       if (item.role === 'Appendix' && level === 1) firstAppendix = false;
       blocks.push({ kind: 'heading', level, text: labels.get(item) ?? item.text, role: item.role, breakBefore, across,
-        centred: book ? level === 1 : level <= 2, indent: false });
+        centred: book ? level === 1 : level <= 2, indent: false, align: item.align ?? null });
       indentNext = false; afterTitle = false; previous = item;
       continue;
     }
@@ -53,7 +53,7 @@ export function previewBlocks(plan, layout) {
     if (role === 'Caption') {
       const caption = FIGURE.exec(item.text);
       blocks.push({ kind: 'caption', role, label: caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}${book ? ':' : '.'}` : null,
-        text: caption ? item.text.slice(caption[0].length) : item.text, breakBefore: false, indent: false, across });
+        text: caption ? item.text.slice(caption[0].length) : item.text, breakBefore: false, indent: false, across, align: item.align ?? null });
       indentNext = false; previous = item;
       continue;
     }
@@ -63,7 +63,7 @@ export function previewBlocks(plan, layout) {
     // An article's abstract indents every paragraph, and its keywords hang under their label.
     const keywords = !book && role === 'Keywords';
     blocks.push({ kind: 'paragraph', role, text: keywords ? item.text.replace(/^\*{0,2}keywords?\*{0,2}\s*[:.]\s*/i, '') : item.text, label: keywords ? 'Keywords:' : undefined,
-      front: !book && item.front, titlePage, breakBefore, across,
+      front: !book && item.front, titlePage, breakBefore, across, align: item.align ?? null,
       indent: (!book && role === 'Abstract') || (indentNext && !APART.has(role) && !(item.front && !book) && role !== 'References' && role !== 'Glossary') });
     indentNext = !APART.has(role) && !(item.front && !book) && role !== 'References' && role !== 'Glossary';
     if (role === 'Dedication') indentNext = false;

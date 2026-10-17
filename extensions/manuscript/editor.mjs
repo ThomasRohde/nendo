@@ -3,7 +3,7 @@
 // part before the caret and gives the rest a new one; joining two keeps the first; turning a
 // paragraph into a heading keeps its ID; pasted text arrives as new blocks, never as a second
 // copy of an existing one.
-import { Editor, Extension, Node, StarterKit, Placeholder, Plugin, PluginKey, Lexer } from './vendor/editor.js';
+import { Editor, Extension, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Lexer } from './vendor/editor.js';
 import { levelOf, kindOf, newBlockId } from './model.mjs';
 import { inlineToMarkdown, markdownToInline, pictureOf, pictureMarkdown } from './inline.mjs';
 
@@ -26,6 +26,15 @@ const BlockIds = Extension.create({
           keepOnSplit: false,
           parseHTML: () => null,
           renderHTML: attributes => attributes.blockId ? { 'data-block': attributes.blockId } : {},
+        },
+        // How the block's lines are set: the Align field's value, or null for the layout's own
+        // setting. Enter carries it on, as a word processor does. Pasted text keeps a centred,
+        // right or justified setting; a left one is what it would have anyway.
+        align: {
+          default: null,
+          keepOnSplit: true,
+          parseHTML: element => ALIGN_CSS[element.style?.textAlign] ?? null,
+          renderHTML: attributes => attributes.align && CSS_ALIGN[attributes.align] ? { 'data-align': attributes.align, style: `text-align: ${CSS_ALIGN[attributes.align]}` } : {},
         },
         // A verse or a quotation goes on when Enter splits it.
         role: {
@@ -72,15 +81,38 @@ const BlockIds = Extension.create({
   },
 });
 
+// The Align field's values as CSS, and back.
+const CSS_ALIGN = { Left: 'left', Centre: 'center', Right: 'right', Justify: 'justify' };
+const ALIGN_CSS = { center: 'Centre', right: 'Right', justify: 'Justify' };
+
+/** Highlighted words, kept in a block's text as <mark>. */
+const Highlight = Mark.create({
+  name: 'highlight',
+  parseHTML() { return [{ tag: 'mark' }]; },
+  renderHTML() { return ['mark', 0]; },
+  addKeyboardShortcuts() { return { 'Mod-Shift-h': () => this.editor.commands.toggleMark(this.name) }; },
+});
+
+/** Alignment keys, as Word and Tiptap set them; they do nothing in a file without the Align field. */
+function alignKeys(canAlign, setAlign) {
+  return Extension.create({
+    name: 'alignKeys',
+    addKeyboardShortcuts() {
+      const to = value => () => { if (!canAlign()) return false; setAlign(value); return true; };
+      return { 'Mod-Shift-l': to('Left'), 'Mod-Shift-e': to('Centre'), 'Mod-Shift-r': to('Right'), 'Mod-Shift-j': to('Justify') };
+    },
+  });
+}
+
 function nodeJSON(n) {
   const picture = levelOf(n.kind) ? null : pictureOf(n.text);
-  const role = n.role ?? null;
+  const role = n.role ?? null, align = n.align ?? null;
   if (picture) return { type: 'picture', attrs: { blockId: n.id, address: picture.address, alt: picture.alt, role } };
   const content = markdownToInline(n.text, Lexer);
   const level = levelOf(n.kind);
   return level
-    ? { type: 'heading', attrs: { level, blockId: n.id, role }, content }
-    : { type: 'paragraph', attrs: { blockId: n.id, role }, content };
+    ? { type: 'heading', attrs: { level, blockId: n.id, role, align }, content }
+    : { type: 'paragraph', attrs: { blockId: n.id, role, align }, content };
 }
 
 /**
@@ -150,7 +182,8 @@ function pictureNode(resolve) {
  * Makes the sheet in `element`. `onChange` hears every edit; `onSelect` hears where the
  * selection is: {id, index, empty, single} for the block it starts in.
  */
-export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null }) {
+export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false }) {
+  let setAlign = () => {};
   const editor = new Editor({
     element,
     editable,
@@ -158,11 +191,13 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         blockquote: false, bulletList: false, orderedList: false, listItem: false, listKeymap: false,
-        codeBlock: false, horizontalRule: false, link: false, underline: false,
+        codeBlock: false, horizontalRule: false, link: false,
         // A trailing empty paragraph after a closing picture would be a new block written on open.
         trailingNode: false,
       }),
       Placeholder.configure({ placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : placeholder, showOnlyCurrent: true }),
+      Highlight,
+      alignKeys(canAlign, value => setAlign(value)),
       pictureNode(resolvePicture),
       BlockIds,
     ],
@@ -176,7 +211,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
   editor.on('selectionUpdate', () => onSelect?.(where()));
   editor.on('focus', () => onSelect?.(where()));
 
-  function signature(node) { return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.role ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`; }
+  function signature(node) { return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.role ?? ''}:${node.attrs.align ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`; }
 
   function where() {
     const { selection } = editor.state;
@@ -187,7 +222,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
     return { id: node.attrs.blockId, index: $from.index(0), empty: selection.empty, single: $from.index(0) === $to.index(0), pos: $from.before(1) };
   }
 
-  return {
+  const sheet = {
     editor,
     /** Replaces the whole sheet with these blocks, without counting it as an edit. */
     load(nodes) {
@@ -201,7 +236,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       editor.state.doc.forEach(node => {
         const id = node.attrs.blockId;
         const text = node.type.name === 'picture' ? pictureMarkdown(node.attrs.alt, node.attrs.address) : inlineToMarkdown(node.toJSON().content ?? []);
-        nodes.push({ id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph', text, role: node.attrs.role ?? null, changed: base.get(id) !== signature(node), signature: signature(node) });
+        nodes.push({ id, kind: node.type.name === 'heading' ? kindOf(node.attrs.level) : 'Paragraph', text, role: node.attrs.role ?? null, align: node.attrs.align ?? null, changed: base.get(id) !== signature(node), signature: signature(node) });
       });
       return nodes;
     },
@@ -261,6 +296,18 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const at = where();
       return at ? editor.state.doc.nodeAt(at.pos)?.attrs.role ?? '' : '';
     },
+    /** Sets how the block the selection is in is aligned: Left, Centre, Right, Justify, or null for its layout's setting. */
+    setAlign(align) {
+      const at = where();
+      const node = at ? editor.state.doc.nodeAt(at.pos) : null;
+      if (!node || node.type.name === 'picture') return;
+      editor.view.dispatch(editor.state.tr.setNodeMarkup(at.pos, undefined, { ...node.attrs, align: align || null }));
+      editor.commands.focus();
+    },
+    alignHere() {
+      const at = where();
+      return at ? editor.state.doc.nodeAt(at.pos)?.attrs.align ?? null : null;
+    },
     styleHere() {
       const { $from } = editor.state.selection;
       if ($from.depth < 1) return 'Paragraph';
@@ -272,4 +319,6 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
     json() { return editor.getJSON(); },
     plainText() { return editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n', '\n'); },
   };
+  setAlign = sheet.setAlign;
+  return sheet;
 }

@@ -39,7 +39,7 @@ export function exportPlan(manuscript) {
       const role = n.role ?? namedRole(n.text) ?? open.at(-1)?.role ?? null;
       open.push({ level, role });
       front = false;
-      items.push(previous = { type: 'heading', level: level - top + 1, kind: n.kind, text: n.text ?? '', id: n.id, role });
+      items.push(previous = { type: 'heading', level: level - top + 1, kind: n.kind, text: n.text ?? '', id: n.id, role, align: n.align ?? null });
       continue;
     }
     const picture = pictureOf(n.text);
@@ -47,7 +47,7 @@ export function exportPlan(manuscript) {
     const text = n.text ?? '';
     if (!text.trim() && n.role !== 'Scene break') continue;
     const role = n.role ?? (previous?.type === 'picture' && FIGURE.test(text) ? 'Caption' : null) ?? open.at(-1)?.role ?? null;
-    items.push(previous = { type: 'paragraph', text, id: n.id, role, front: front && !n.role });
+    items.push(previous = { type: 'paragraph', text, id: n.id, role, front: front && !n.role, align: n.align ?? null });
   }
   return { title: (manuscript.title ?? '').trim() || 'Untitled manuscript', items };
 }
@@ -90,6 +90,7 @@ function runs(markdown, lib, Lexer, size, base = 22, italic = false) {
     const marks = new Set((node.marks ?? []).map(m => m.type));
     // Only marks that are on: a run that says bold false would override a bold heading style.
     out.push(new lib.TextRun({ text: node.text, bold: marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
+      underline: marks.has('underline') ? {} : undefined, highlight: marks.has('highlight') ? 'yellow' : undefined,
       font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size }));
   }
   return out;
@@ -178,7 +179,8 @@ const KEYWORDS = /^\*{0,2}keywords?\*{0,2}\s*[:.]\s*/i;
 /**
  * The manuscript as a Word document in a layout, `paper` or `book`: a Title, Heading 1 to 3,
  * justified paragraphs with a first-line indent (none after a heading or a figure), bold,
- * italic, strikethrough and code runs, and pictures centred with their description as
+ * italic, underlined, strikethrough, highlighted and code runs, a block's own alignment over
+ * the layout's, and pictures centred with their description as
  * alternative text. In the paper layout the paragraphs before the first heading are the
  * centred front matter, a section headed Abstract is set narrower, a paragraph after a picture
  * that starts "Figure n." is its caption, and a section headed References is set small with
@@ -219,8 +221,12 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
   const { labels, parts } = paper ? paperHeadings(plan) : { labels: new Map(), parts: new Set() };
   const columnsAt = paper ? columnsStart(plan) : -1;
   let columnsChild = children.length;
+  // A block's own alignment wins over the one its layout or role gives it.
+  const ALIGN = { Left: A.LEFT, Centre: A.CENTER, Right: A.RIGHT, Justify: A.JUSTIFIED };
+  let own = null;
+  const P = options => new lib.Paragraph(own ? { ...options, alignment: own } : options);
   const text = (markdown, size) => runs(markdown, lib, Lexer, size, L.size);
-  const para = (options, markdown, size) => new lib.Paragraph({ ...options, children: text(markdown, size) });
+  const para = (options, markdown, size) => P({ ...options, children: text(markdown, size) });
   let firstAppendix = true;
   for (const [index, item] of plan.items.entries()) {
     if (item.type !== 'picture' || index === columnsAt) flushRow();
@@ -229,6 +235,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
       children.push(new lib.Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
       columnsChild = children.length;
     }
+    own = ALIGN[item.align] ?? null;
     if (item.type === 'heading') {
       const level = parts.has(item) ? 1 : Math.min(item.level, 3), h = L.headings[level - 1];
       const part = PARTS.has(item.role) && level === 1;
@@ -237,7 +244,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
       const opensPage = item.kind ? item.kind === 'Part' || item.kind === 'Chapter' : level === 1;
       const breakBefore = (L.chapterBreaks && opensPage) || (level === 1 && paper && item.role === 'Appendix' && firstAppendix);
       if (item.role === 'Appendix' && level === 1) firstAppendix = false;
-      children.push(new lib.Paragraph({ heading: headingLevels[level - 1], alignment: centred ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore,
+      children.push(P({ heading: headingLevels[level - 1], alignment: centred ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore,
         children: text(labels.get(item) ?? item.text, paper && item.role === 'Abstract' ? L.abstract.size : undefined) }));
       indentNext = false; previous = item;
       continue;
@@ -249,7 +256,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
       case 'Caption': {
         const caption = FIGURE.exec(item.text);
         const label = caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}${paper ? '.' : ':'}` : null;
-        block = new lib.Paragraph({ alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: 240 }, indent: paper ? {} : { left: 360, right: 360 }, children: [
+        block = P({ alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: 240 }, indent: paper ? {} : { left: 360, right: 360 }, children: [
           ...(label ? [new lib.TextRun({ text: `${label} `, bold: (!L.caption.italics && !paper) || undefined, italics: L.caption.italics || undefined, size: L.caption.size })] : []),
           ...text(caption ? item.text.slice(caption[0].length) : item.text, L.caption.size)] });
         break;
@@ -260,17 +267,17 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
       case 'Author':
         // An article's authors are in small capitals, as AASTeX sets them.
         block = paper
-          ? new lib.Paragraph({ alignment: A.CENTER, spacing: { after: L.front.after }, children: markdownToInline(item.text, Lexer).map(n => new lib.TextRun({ text: n.text ?? '', break: n.type === 'hardBreak' ? 1 : undefined, smallCaps: true, size: L.front.size + 2 })) })
+          ? P({ alignment: A.CENTER, spacing: { after: L.front.after }, children: markdownToInline(item.text, Lexer).map(n => new lib.TextRun({ text: n.text ?? '', break: n.type === 'hardBreak' ? 1 : undefined, smallCaps: true, size: L.front.size + 2 })) })
           : para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size);
         break;
       case 'Dedication':
         // Word drops the space before a paragraph at the top of a page, so a dedication on its own
         // page is lowered by an empty paragraph's space after.
         if (L.titlePage) children.push(new lib.Paragraph({ pageBreakBefore: true, spacing: { before: 0, after: 2400 }, children: [] }));
-        block = new lib.Paragraph({ alignment: A.CENTER, spacing: { before: L.titlePage ? 0 : 240, after: 240 }, children: runs(item.text, lib, Lexer, undefined, L.size, true) });
+        block = P({ alignment: A.CENTER, spacing: { before: L.titlePage ? 0 : 240, after: 240 }, children: runs(item.text, lib, Lexer, undefined, L.size, true) });
         break;
       case 'Epigraph':
-        block = new lib.Paragraph({ alignment: A.LEFT, spacing: { before: 120, after: 240 }, indent: { left: Math.round(L.page.width * 0.3) },
+        block = P({ alignment: A.LEFT, spacing: { before: 120, after: 240 }, indent: { left: Math.round(L.page.width * 0.3) },
           children: runs(item.text, lib, Lexer, Math.round(L.size * 0.95), L.size, true) });
         break;
       case 'Quotation':
@@ -294,7 +301,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
       case 'Keywords':
         // "Keywords:" in italics, the list hanging under it.
         block = paper
-          ? new lib.Paragraph({ alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: L.abstract.indent + 950, right: L.abstract.indent, hanging: 950 },
+          ? P({ alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: L.abstract.indent + 950, right: L.abstract.indent, hanging: 950 },
             children: [new lib.TextRun({ text: 'Keywords: ', italics: true }), ...text(item.text.replace(KEYWORDS, ''), L.abstract.size)] })
           : para({ alignment: A.LEFT, spacing: { before: 120 } }, item.text);
         break;

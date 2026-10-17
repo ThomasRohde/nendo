@@ -47,3 +47,22 @@ test('a block that is one picture reads as that picture, and writes back as it w
   assert.equal(pictureOf('plain words'), null);
   assert.deepEqual(pictureOf('![](https://example.org/a.png)'), { alt: '', address: 'https://example.org/a.png' });
 });
+
+test('underline and highlight are kept as <u> and <mark>, outside the delimiters, and come back', () => {
+  const cases = [
+    [t('a '), t('line', 'underline'), t(' under')],
+    [t('lit', 'highlight'), t(' up')],
+    [t('mid'), t('word', 'underline', 'bold'), t('end')],
+    [t('both', 'underline', 'highlight', 'italic')],
+    [t('under ', 'underline'), t('and bold', 'underline', 'bold'), t(' then not')],
+  ];
+  for (const content of cases) assert.deepEqual(roundTrip(content), content, inlineToMarkdown(content));
+  assert.equal(inlineToMarkdown([t('mid'), t('word', 'bold', 'underline'), t('end')]), 'mid<u>**word**</u>end');
+  assert.equal(inlineToMarkdown([t('lit ', 'highlight'), t('up')]), '<mark>lit</mark> up');
+});
+
+test('a tag typed as text stays text, and one written elsewhere without its closing tag stays as written', () => {
+  assert.deepEqual(roundTrip([t('type <u> and <mark> here')]), [t('type <u> and <mark> here')]);
+  assert.deepEqual(markdownToInline('open <u>never closed', Lexer), [t('open <u>never closed')]);
+  assert.deepEqual(markdownToInline('<U>upper</U> and <mark>**bold**</mark>', Lexer), [t('upper', 'underline'), t(' and '), t('bold', 'highlight', 'bold')]);
+});

@@ -1,10 +1,13 @@
 // A block's text is Markdown of one paragraph's inline content: bold, italic, strikethrough,
-// code and hard line breaks. This module turns it into the editor's inline content and back.
+// code and hard line breaks, with underline and highlight as the HTML Markdown allows inline,
+// <u> and <mark>. This module turns it into the editor's inline content and back.
 // Only inline syntax is read: a block never holds a heading, a list or a second paragraph,
 // because the hierarchy is what holds structure. Links, pictures and raw HTML are kept as
 // the characters they were written with, so nothing a block holds is lost when it is edited.
 
-const RANK = ['bold', 'italic', 'strike'];
+// Tags open outside Markdown's delimiters: `<u>**word**</u>` reads as bold inside a word, where
+// `**<u>word</u>**` would not, because a delimiter next to `<` inside a word cannot open.
+const RANK = ['underline', 'highlight', 'bold', 'italic', 'strike'];
 
 // A block whose whole text is one picture, `![alt](address)`, is a picture on the sheet.
 const PICTURE = /^!\[((?:[^\]\\]|\\.)*)\]\(\s*<?([^\s<>()]+)>?\s*\)$/;
@@ -19,7 +22,9 @@ export function pictureOf(markdown) {
 export function pictureMarkdown(alt, address) {
   return `![${(alt ?? '').replace(/[\\[\]]/g, '\\$&')}](${address})`;
 }
-const DELIMITER = { bold: '**', italic: '*', strike: '~~' };
+const OPEN = { bold: '**', italic: '*', strike: '~~', underline: '<u>', highlight: '<mark>' };
+const CLOSE = { ...OPEN, underline: '</u>', highlight: '</mark>' };
+const TAG = { u: 'underline', mark: 'highlight' };
 
 /** Escapes what Markdown would otherwise read as syntax, inline or at the start of a block. */
 export function escapeText(text, atStart) {
@@ -46,7 +51,7 @@ export function inlineToMarkdown(content = []) {
   const close = upTo => {
     const trailing = /\s*$/.exec(out)[0];
     out = out.slice(0, out.length - trailing.length);
-    while (open.length > upTo) out += DELIMITER[open.pop()];
+    while (open.length > upTo) out += CLOSE[open.pop()];
     out += trailing;
   };
   for (const node of content) {
@@ -60,7 +65,7 @@ export function inlineToMarkdown(content = []) {
     let text = node.text;
     const lead = /^\s*/.exec(text)[0];
     if (open.length < wanted.length && lead) { out += lead; text = text.slice(lead.length); }
-    for (const m of wanted.slice(open.length)) { out += DELIMITER[m]; open.push(m); }
+    for (const m of wanted.slice(open.length)) { out += OPEN[m]; open.push(m); }
     out += marks.has('code') ? codeSpan(text) : escapeText(text, out.length === 0 || out.endsWith('\n'));
   }
   close(0);
@@ -78,8 +83,29 @@ function textNodes(text, marks) {
   return nodes;
 }
 
+/** An inline <u>, </u>, <mark> or </mark> token as {mark, close}, or null. */
+function tagOf(token) {
+  if (token?.type !== 'html') return null;
+  const match = /^<(\/?)(u|mark)>$/i.exec(token.raw ?? '');
+  return match ? { mark: TAG[match[2].toLowerCase()], close: match[1] === '/' } : null;
+}
+
 function fromTokens(tokens, marks, out) {
-  for (const t of tokens ?? []) {
+  const list = tokens ?? [];
+  for (let i = 0; i < list.length; i++) {
+    const t = list[i], tag = tagOf(t);
+    // An opening tag marks everything up to its own closing tag at this level; one left open is
+    // kept as the characters it was written with.
+    if (tag && !tag.close) {
+      let depth = 0, j = i + 1;
+      for (; j < list.length; j++) {
+        const next = tagOf(list[j]);
+        if (!next || next.mark !== tag.mark) continue;
+        if (!next.close) depth++;
+        else if (depth-- === 0) break;
+      }
+      if (j < list.length) { fromTokens(list.slice(i + 1, j), marks.includes(tag.mark) ? marks : [...marks, tag.mark], out); i = j; continue; }
+    }
     switch (t.type) {
       case 'strong': fromTokens(t.tokens, [...marks, 'bold'], out); break;
       case 'em': fromTokens(t.tokens, [...marks, 'italic'], out); break;

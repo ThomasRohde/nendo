@@ -104,6 +104,26 @@ test('a role is written when it changes, with nothing else, and a new block keep
   assert.equal(planWrites({ saved: m.saved, current: added, root: m.root })[0].values[F.role], 'Verse');
 });
 
+test('alignment is written when it changes, alone; a value the field does not offer reads as none, and a block without one writes none', () => {
+  const m = readManuscript(items);
+  assert.ok(m.nodes.every(n => n.align === null));
+  const centred = m.nodes.map(n => ({ ...n, changed: false, align: n.id === 'p2' ? 'Centre' : null }));
+  assert.deepEqual(planWrites({ saved: m.saved, current: centred, root: m.root }),
+    [{ op: 'update', entityId: BLOCK, recordId: 'p2', version: 1, values: { [F.align]: 'Centre' }, refs: {} }]);
+  // Left is kept as chosen; a value the field does not offer reads as none and writes nothing.
+  const left = readManuscript([...items.slice(0, 3), { ...items[3], record: { ...items[3].record, values: { ...items[3].record.values, [F.align]: 'Left' } } }, ...items.slice(4)]);
+  assert.equal(left.saved.get('p2').align, 'Left');
+  assert.deepEqual(planWrites({ saved: left.saved, current: left.nodes.map(n => ({ ...n, changed: false })), root: left.root }), []);
+  const odd = readManuscript([...items.slice(0, 3), { ...items[3], record: { ...items[3].record, values: { ...items[3].record.values, [F.align]: 'Diagonal' } } }, ...items.slice(4)]);
+  assert.equal(odd.saved.get('p2').align, null);
+  assert.deepEqual(planWrites({ saved: odd.saved, current: odd.nodes.map(n => ({ ...n, changed: false })), root: odd.root }), []);
+  const back = readManuscript([...items.slice(0, 3), { ...items[3], record: { ...items[3].record, values: { ...items[3].record.values, [F.align]: 'Justify' } } }, ...items.slice(4)]);
+  assert.deepEqual(planWrites({ saved: back.saved, current: back.nodes.map(n => ({ ...n, changed: false, align: null })), root: back.root })[0].values, { [F.align]: null });
+  const added = [...m.nodes.map(n => ({ ...n, changed: false })), { id: 'r1', kind: 'Paragraph', text: 'Signed', role: null, align: 'Right', changed: true }];
+  assert.equal(planWrites({ saved: m.saved, current: added, root: m.root })[0].values[F.align], 'Right');
+  assert.ok(!(F.align in planWrites({ saved: m.saved, current: [...m.nodes.map(n => ({ ...n, changed: false })), { id: 'r2', kind: 'Paragraph', text: 'Plain', changed: true }], root: m.root })[0].values));
+});
+
 const flat = (id, kind, parent, order, text = '') => ({ entityId: BLOCK, recordId: id, version: 1, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } });
 
 test('several manuscripts in one file: each reads apart, with its own Cuttings, and the first opens by default', () => {

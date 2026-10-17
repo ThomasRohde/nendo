@@ -7,7 +7,7 @@ export const BLOCK = 'mn.block';
 export const NOTE = 'mn.note';
 export const LINK = 'mn.link';
 export const F = {
-  text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role',
+  text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role', align: 'mn.block.align',
   noteBlock: 'mn.note.block', noteKind: 'mn.note.kind', noteText: 'mn.note.text', noteDone: 'mn.note.done',
   linkFrom: 'mn.link.from', linkTo: 'mn.link.to', linkKind: 'mn.link.kind', linkNote: 'mn.link.note', linkReview: 'mn.link.review',
 };
@@ -21,6 +21,10 @@ export const ROLE_GROUPS = [
   ['Back matter', ['Appendix', 'Afterword', 'Glossary', 'References', 'About the author', 'Colophon']],
 ];
 export const ROLES = ROLE_GROUPS.flatMap(([, roles]) => roles);
+// How a paragraph or heading is set. A block with no value takes its layout's setting: left on
+// the sheet, justified body text in a Word export.
+export const ALIGNMENTS = ['Left', 'Centre', 'Right', 'Justify'];
+const alignOf = value => ALIGNMENTS.includes(value) ? value : null;
 export const LINK_KINDS = ['Elaborates', 'Supports', 'Contradicts', 'Foreshadows', 'Resolves', 'See also'];
 export const REVIEW = { current: 'Current', needsReview: 'Needs review' };
 // Siblings are numbered this far apart, as Nendo numbers them (limits.hierarchy.orderGap).
@@ -63,7 +67,7 @@ export function readManuscript(input, rootId = null) {
   for (const r of records) {
     const v = r.values;
     const block = { id: r.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null,
-      order: v[F.order] ?? null, role: v[F.role] ?? null, version: r.version, visible: false };
+      order: v[F.order] ?? null, role: v[F.role] ?? null, align: alignOf(v[F.align]), version: r.version, visible: false };
     saved.set(r.recordId, block);
     if (!children.has(block.parent)) children.set(block.parent, []);
     children.get(block.parent).push(block);
@@ -79,7 +83,7 @@ export function readManuscript(input, rootId = null) {
       if (block.kind === 'Cuttings') { if (cuttings === null && parent === root) cuttings = block.id; continue; }
       const kind = block.kind === 'Manuscript' ? 'Paragraph' : block.kind;
       block.visible = true;
-      nodes.push({ id: block.id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text, role: block.role });
+      nodes.push({ id: block.id, kind: levelOf(kind) ? kind : 'Paragraph', text: block.text, role: block.role, align: block.align });
       walk(block.id, depth + 1);
     }
   };
@@ -172,6 +176,7 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
     if (!s) {
       const values = { [F.text]: text, [F.kind]: n.kind, [F.parent]: p, [F.order]: o };
       if (n.role) values[F.role] = n.role;
+      if (n.align) values[F.align] = n.align;
       creates.push({ op: 'create', entityId: BLOCK, recordId: n.id, values, refs: { [F.parent]: p } });
       continue;
     }
@@ -179,6 +184,7 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
     if (n.changed && (s.text ?? '') !== (n.text ?? '')) values[F.text] = text;
     if (s.kind !== n.kind) values[F.kind] = n.kind;
     if ('role' in n && (s.role ?? null) !== (n.role ?? null)) values[F.role] = n.role ?? null;
+    if ('align' in n && (s.align ?? null) !== (n.align ?? null)) values[F.align] = n.align ?? null;
     if (s.parent !== p) { values[F.parent] = p; refs[F.parent] = p; }
     if (s.order !== o) values[F.order] = o;
     if (Object.keys(values).length) updates.push({ op: 'update', entityId: BLOCK, recordId: n.id, version: s.version, values, refs });

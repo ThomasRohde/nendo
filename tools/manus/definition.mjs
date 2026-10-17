@@ -1,6 +1,6 @@
 // The Manuscript app (W-276): its schema, screens and starting records, as canonical operations
 // for Build-Manus.mjs, and the fixture the browser lane runs the view against.
-import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES, ALIGNMENTS } from '../../extensions/manuscript/model.mjs';
 
 export const PACKAGE_ID = 'org.nendo.manuscript';
 export const VIEW_NODE = 'mn.screen.sheet';
@@ -16,6 +16,7 @@ export const entities = [
     [F.parent, 'Inside', 'Reference'],
     [F.order, 'Order', 'Integer'],
     [F.role, 'Role', 'Text', false, 'singleChoice', ROLES],
+    [F.align, 'Align', 'Text', false, 'singleChoice', ALIGNMENTS],
   ], refs: [[F.parent, BLOCK, F.text]] },
   { id: NOTE, name: 'Notes', fields: [
     [F.noteText, 'Note', 'Text', true, 'longText'],
@@ -46,8 +47,13 @@ export function definitionOperations() {
 }
 
 /** The Role field alone, for a file built before roles (Manuscript 0.5.0). */
-export function roleFieldOperations() {
-  const [fieldId, name, kind, required, presentation, options] = entities[0].fields.find(f => f[0] === F.role);
+export function roleFieldOperations() { return fieldOperations(F.role); }
+
+/** The Align field alone, for a file built before alignment (Manuscript 0.9.0). */
+export function alignFieldOperations() { return fieldOperations(F.align); }
+
+function fieldOperations(id) {
+  const [fieldId, name, kind, required, presentation, options] = entities[0].fields.find(f => f[0] === id);
   return [addField(BLOCK, fieldId, name, kind, required, presentation, options)];
 }
 

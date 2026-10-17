@@ -15,7 +15,7 @@ const state = {
   root: null, cuttings: null, title: '', savedTitle: '', saved: new Map(), notes: [], links: [],
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
-  appearance: readAppearance(), popover: null, roles: false, mode: 'write',
+  appearance: readAppearance(), popover: null, roles: false, aligns: false, mode: 'write', pins: [], more: false,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -45,6 +45,7 @@ const sheet = createSheet({
   onChange: () => edited(),
   onSelect: where => selected(where),
   resolvePicture,
+  canAlign: () => state.aligns && !state.readOnly,
 });
 
 // Where a picture's address loads from: the open file's media origin for an embedded one.
@@ -232,6 +233,7 @@ function applyWrite(write, version) {
     if (F.parent in v) next.parent = v[F.parent];
     if (F.order in v) next.order = v[F.order];
     if (F.role in v) next.role = v[F.role];
+    if (F.align in v) next.align = v[F.align];
     next.visible = write.recordId !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
     state.saved.set(write.recordId, next);
     return;
@@ -393,14 +395,14 @@ async function exportAs(format, layout = 'book') {
 
 // ---------- Preview ----------
 
-/** Inline Markdown as DOM: bold, italic, strikethrough, code and line breaks. */
+/** Inline Markdown as DOM: bold, italic, underline, strikethrough, highlight, code and line breaks. */
 function inlineNodes(markdown) {
   const out = document.createDocumentFragment();
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.append(document.createElement('br')); continue; }
     let element = document.createTextNode(node.text);
     for (const mark of node.marks ?? []) {
-      const tag = { bold: 'strong', italic: 'em', strike: 's', code: 'code' }[mark.type];
+      const tag = { bold: 'strong', italic: 'em', underline: 'u', strike: 's', highlight: 'mark', code: 'code' }[mark.type];
       if (!tag) continue;
       const wrap = document.createElement(tag); wrap.append(element); element = wrap;
     }
@@ -409,7 +411,16 @@ function inlineNodes(markdown) {
   return out;
 }
 
+const PREVIEW_ALIGN = { Left: 'left', Centre: 'center', Right: 'right', Justify: 'justify' };
+
+/** A block drawn for the preview, set as its own alignment says when it has one. */
 function blockElement(block, layout, sizes = new Map()) {
+  const element = blockBody(block, layout, sizes);
+  if (block.align && PREVIEW_ALIGN[block.align]) element.style.textAlign = PREVIEW_ALIGN[block.align];
+  return element;
+}
+
+function blockBody(block, layout, sizes) {
   const slug = role => `role-${String(role).toLowerCase().replace(/\s+/g, '-')}`;
   if (block.kind === 'title') return el('h1', { class: `pv-title${block.titlePage ? ' title-page' : ''}` }, inlineNodes(block.text));
   if (block.kind === 'heading') return el(`h${block.level + 1}`, { class: `pv-h${block.level}${block.centred ? ' centred' : ''}${block.role ? ` ${slug(block.role)}` : ''}` }, inlineNodes(block.text));
@@ -678,16 +689,144 @@ function render() {
   declare();
 }
 
-const icon = {
+// ---------- The selection bar ----------
+// One row of icons over the selected words, in groups. Each tool's name and keys are in its
+// tooltip. The tools not on the bar wait under More, where any of them can be pinned to it;
+// right-click on a tool on the bar (or the context-menu key) puts it back. The choice is kept
+// on this device, like Appearance.
+
+const ICON = {
+  bold: '<path class="heavy" d="M4.5 2.5h4a2.75 2.75 0 0 1 0 5.5h-4zM4.5 8h4.75a2.75 2.75 0 0 1 0 5.5H4.5z"/>',
+  italic: '<path d="M7 2.5h5M4 13.5h5M10 2.5 6 13.5"/>',
+  underline: '<path d="M4.5 2.5v5a3.5 3.5 0 0 0 7 0v-5M3.5 14h9"/>',
+  strike: '<path d="M2.5 8h11M11.2 4.6C10.8 3.4 9.6 2.5 8 2.5 6.1 2.5 5 3.5 5 4.8c0 1 .6 1.7 1.6 2.1M10.6 9.6c.3.4.4.8.4 1.2 0 1.5-1.3 2.7-3.2 2.7-1.7 0-3-.9-3.4-2.1"/>',
+  code: '<path d="M5.5 4.5 2 8l3.5 3.5M10.5 4.5 14 8l-3.5 3.5"/>',
+  highlight: '<path d="M9.5 3 13 6.5 7 12.5H3.5V9zM8 4.5l3.5 3.5M2.5 14.5h11"/>',
+  clear: '<path d="M4 3.5h8M8 3.5 6.5 12.5M10 10l3.5 3.5M13.5 10 10 13.5"/>',
+  'align-left': '<path d="M2.5 3.5h11M2.5 6.5h7M2.5 9.5h11M2.5 12.5h7"/>',
+  'align-centre': '<path d="M2.5 3.5h11M4.5 6.5h7M2.5 9.5h11M4.5 12.5h7"/>',
+  'align-right': '<path d="M2.5 3.5h11M6.5 6.5h7M2.5 9.5h11M6.5 12.5h7"/>',
+  'align-justify': '<path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h11M2.5 12.5h11"/>',
+  paragraph: '<path d="M10 3v10M12.5 3v10M13.5 3H7.5a2.75 2.75 0 0 0 0 5.5H10"/>',
+  part: '<path d="M2.5 3.5v9M8.5 3.5v9M2.5 8h6M11.5 9.5l1.75-1.25v4.25"/>',
+  chapter: '<path d="M2.5 3.5v9M8.5 3.5v9M2.5 8h6M11.3 9.3c.2-.6.7-.9 1.3-.9.7 0 1.2.5 1.2 1.1 0 1.1-2.5 1.8-2.5 3h2.6"/>',
+  section: '<path d="M2.5 3.5v9M8.5 3.5v9M2.5 8h6M11.3 8.7c.3-.4.7-.6 1.2-.6.7 0 1.2.4 1.2 1s-.5 1-1.2 1c.8 0 1.4.4 1.4 1.1s-.6 1.2-1.4 1.2c-.6 0-1.1-.3-1.3-.7"/>',
+  quotation: '<path d="M3 3.5v9M6 4.5h7.5M6 8h7.5M6 11.5h5"/>',
   link: '<path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 0 1 4.5 9l1-1"/>',
   note: '<path d="M3 3h10v7l-3 3H3z"/><path d="M10 13v-3h3"/>',
   cut: '<circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/><path d="M6 10 12 3M10 10 4 3"/>',
   agent: '<path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z"/>',
+  more: '<path d="M3.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0M7.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0M11.2 8a.8.8 0 1 0 1.6 0a.8.8 0 1 0-1.6 0"/>',
+  pin: '<path d="M9.5 2.5l4 4-2 1-2.5 2.5.5 2.5-1 1-6-6 1-1 2.5.5 2.5-2.5zM5.5 10.5 2.5 13.5"/>',
 };
 function svg(name) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = icon[name];
+  s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('aria-hidden', 'true'); s.innerHTML = ICON[name];
   return s;
+}
+
+// In bar order. A tool names what it does: a mark it toggles, an alignment, a style or a role it
+// sets, or an action of its own. The keys are the editor's own.
+const TOOLS = [
+  { id: 'bold', label: 'Bold', keys: 'Ctrl+B', group: 'text', mark: 'bold' },
+  { id: 'italic', label: 'Italic', keys: 'Ctrl+I', group: 'text', mark: 'italic' },
+  { id: 'underline', label: 'Underline', keys: 'Ctrl+U', group: 'text', mark: 'underline' },
+  { id: 'strike', label: 'Strikethrough', keys: 'Ctrl+Shift+S', group: 'text', mark: 'strike' },
+  { id: 'code', label: 'Inline code', keys: 'Ctrl+E', group: 'text', mark: 'code' },
+  { id: 'highlight', label: 'Highlight', keys: 'Ctrl+Shift+H', group: 'text', mark: 'highlight' },
+  { id: 'clear', label: 'Clear formatting', keys: '', group: 'text' },
+  { id: 'align-left', label: 'Align left', keys: 'Ctrl+Shift+L', group: 'align', align: 'Left' },
+  { id: 'align-centre', label: 'Centre', keys: 'Ctrl+Shift+E', group: 'align', align: 'Centre' },
+  { id: 'align-right', label: 'Align right', keys: 'Ctrl+Shift+R', group: 'align', align: 'Right' },
+  { id: 'align-justify', label: 'Justify', keys: 'Ctrl+Shift+J', group: 'align', align: 'Justify' },
+  { id: 'paragraph', label: 'Paragraph', keys: '', group: 'paragraph', style: 'Paragraph' },
+  { id: 'part', label: 'Part heading', keys: '#', group: 'paragraph', style: 'Part' },
+  { id: 'chapter', label: 'Chapter heading', keys: '##', group: 'paragraph', style: 'Chapter' },
+  { id: 'section', label: 'Section heading', keys: '###', group: 'paragraph', style: 'Section' },
+  { id: 'quotation', label: 'Quotation', keys: '', group: 'paragraph', role: 'Quotation' },
+  { id: 'link', label: 'Link to a passage', keys: '', group: 'manuscript' },
+  { id: 'note', label: 'Add a note', keys: '', group: 'manuscript' },
+  { id: 'cut', label: 'Keep as cutting', keys: '', group: 'manuscript' },
+  { id: 'agent', label: 'Copy for the agent', keys: '', group: 'manuscript', accent: true },
+];
+const GROUPS = [['text', 'Text'], ['align', 'Alignment'], ['paragraph', 'Paragraph'], ['manuscript', 'Manuscript']];
+const PINNED = ['bold', 'italic', 'underline', 'align-left', 'align-centre', 'align-right', 'link', 'note', 'cut', 'agent'];
+
+function readPins() {
+  try {
+    const kept = JSON.parse(localStorage.getItem('manuscript.bar') ?? 'null');
+    if (Array.isArray(kept?.pinned)) return kept.pinned.filter(id => TOOLS.some(t => t.id === id));
+  } catch { /* nothing kept: the bar as it comes */ }
+  return [...PINNED];
+}
+function pin(id, on, keyboard) {
+  state.pins = [...state.pins.filter(x => x !== id), ...(on ? [id] : [])];
+  try { localStorage.setItem('manuscript.bar', JSON.stringify({ pinned: state.pins })); } catch { /* kept for this session */ }
+  placeOverlays();
+  // The bar was drawn again; the keyboard goes on from More rather than from nowhere.
+  if (keyboard) $('more-tools')?.focus();
+}
+
+/** The tools that apply here: none of the text tools on a picture, alignment and roles only where the file has their fields. */
+function toolsFor(node) {
+  return TOOLS.filter(t => {
+    if (node.type.name === 'picture') return t.group === 'manuscript';
+    if (t.align) return state.aligns;
+    if (t.role) return state.roles;
+    if (t.id === 'cut') return node.type.name !== 'heading';
+    return true;
+  });
+}
+
+/** Whether a tool's setting holds where the selection is, or null for a tool that is an action. */
+function toolOn(t) {
+  if (t.mark) return sheet.editor.isActive(t.mark);
+  if (t.align) { const a = sheet.alignHere(); return t.align === 'Left' ? a === null || a === 'Left' : a === t.align; }
+  if (t.style) return sheet.styleHere() === t.style;
+  if (t.role) return sheet.roleHere() === t.role;
+  return null;
+}
+
+function runTool(t) {
+  state.more = false;
+  const editor = sheet.editor;
+  if (t.mark) editor.chain().focus().toggleMark(t.mark).run();
+  else if (t.id === 'clear') { editor.chain().focus().unsetAllMarks().run(); if (state.aligns && sheet.alignHere() !== null) sheet.setAlign(null); }
+  // An alignment chosen again goes back to the layout's own.
+  else if (t.align) sheet.setAlign(sheet.alignHere() === t.align ? null : t.align);
+  else if (t.style) sheet.setStyle(t.style);
+  else if (t.role) sheet.setRole(sheet.roleHere() === t.role ? null : t.role);
+  else if (t.id === 'link') openPopover('link');
+  else if (t.id === 'note') openPopover('note');
+  else if (t.id === 'cut') keepAsCutting().catch(fail);
+  else if (t.id === 'agent') copyReference();
+  placeOverlays(); declare();
+}
+
+const ariaKeys = keys => /^Ctrl/.test(keys) ? keys.replace('Ctrl', 'Control') : null;
+const hold = e => e.preventDefault();   // a press on a tool leaves the selection where it is
+
+function toolButton(t, version) {
+  const on = toolOn(t);
+  const keys = t.id === 'agent' ? `${state.selected} · ${version}` : t.keys;
+  return el('button', { type: 'button', class: `tool${t.accent ? ' accent' : ''}`, 'data-tool': t.id, 'aria-label': t.label,
+    'aria-pressed': on === null ? null : String(on), 'aria-keyshortcuts': ariaKeys(t.keys),
+    on: { mousedown: hold, click: () => runTool(t), contextmenu: e => { e.preventDefault(); pin(t.id, false, e.button !== 2); } } },
+  svg(t.id), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: t.label }), keys ? el('kbd', { text: keys }) : null));
+}
+
+function moreMenu(rest, version) {
+  const row = t => {
+    const on = toolOn(t), keys = t.id === 'agent' ? version : t.keys;
+    return el('div', { class: 'more-row' },
+      el('button', { type: 'button', class: 'more-tool', 'data-tool': t.id, 'aria-pressed': on === null ? null : String(on), 'aria-keyshortcuts': ariaKeys(t.keys),
+        on: { mousedown: hold, click: () => runTool(t) } }, svg(t.id), el('span', { class: 'more-label', text: t.label }), keys ? el('kbd', { text: keys }) : null),
+      el('button', { type: 'button', class: 'pin', 'data-pin': t.id, 'aria-label': `Pin ${t.label} to the bar`,
+        on: { mousedown: hold, click: e => pin(t.id, true, e.detail === 0) } }, svg('pin')));
+  };
+  return el('div', { class: 'more', id: 'more-menu', role: 'group', 'aria-label': 'More tools' },
+    GROUPS.flatMap(([group, name]) => { const tools = rest.filter(t => t.group === group); return tools.length ? [el('div', { class: 'more-head', text: name }), ...tools.map(row)] : []; }),
+    el('p', { class: 'more-foot', text: 'Pin a tool to keep it on the bar. Right-click a tool on the bar to put it back here.' }));
 }
 
 /** Gutter marks beside paragraphs that carry notes or links, and the bar over the selected one. */
@@ -709,7 +848,7 @@ function placeOverlays() {
   });
   const where = sheet.where();
   const show = !state.readOnly && state.selected && sheet.locate(state.selected) && (state.pinned || state.popover || (where && !where.empty && where.single && where.id === state.selected));
-  let bar = null, pop = null;
+  let bar = null, pop = null, more = null, anchorTop = 0;
   if (show) {
     const at = sheet.locate(state.selected);
     const rect = at.dom.getBoundingClientRect();
@@ -721,37 +860,58 @@ function placeOverlays() {
       top = a.top - origin.top; bottom = z.bottom - origin.top;
       centre = (a.top === z.top ? (a.left + z.left) / 2 : a.left) - origin.left;
     }
-    const b = block(state.selected);
-    const isHeading = at.node.type.name === 'heading';
-    const action = (label, name, handler, extra = {}) => el('button', { type: 'button', ...extra, on: { mousedown: e => e.preventDefault(), click: handler } }, svg(name), label);
-    bar = el('div', { class: 'bar', role: 'toolbar', 'aria-label': 'This paragraph', style: `top:${Math.max(0, top - 48)}px`, 'data-centre': String(centre) },
-      action('Link', 'link', () => openPopover('link')),
-      action('Note', 'note', () => openPopover('note')),
-      isHeading ? null : action('Keep as cutting', 'cut', () => keepAsCutting().catch(fail)),
-      el('span', { class: 'divider' }),
-      action('Copy for the agent', 'agent', () => copyReference(), { class: 'accent' }),
-      el('span', { class: 'mono' }, `${state.selected} · ${b ? `v${b.version}` : 'not saved yet'}`));
+    anchorTop = top;
+    const b = block(state.selected), version = b ? `v${b.version}` : 'not saved yet';
+    const here = toolsFor(at.node);
+    const rest = here.filter(t => !state.pins.includes(t.id));
+    const items = [];
+    for (const [group] of GROUPS) {
+      const tools = here.filter(t => t.group === group && state.pins.includes(t.id));
+      if (!tools.length) continue;
+      if (items.length) items.push(el('span', { class: 'divider' }));
+      items.push(...tools.map(t => toolButton(t, version)));
+    }
+    if (rest.length) {
+      if (items.length) items.push(el('span', { class: 'divider' }));
+      items.push(el('button', { type: 'button', class: `tool${state.more ? ' open' : ''}`, id: 'more-tools', 'aria-label': 'More tools', 'aria-expanded': String(state.more), 'aria-controls': 'more-menu',
+        on: { mousedown: hold, click: () => { state.more = !state.more; placeOverlays(); } } }, svg('more'), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: 'More tools' }))));
+    } else state.more = false;
+    bar = el('div', { class: 'bar', role: 'toolbar', 'aria-label': 'This paragraph', 'data-centre': String(centre) }, items);
+    if (state.more) more = moreMenu(rest, version);
     // The box is built once and only moved after: a redraw while the person types into it (a
     // save finishing, somebody else's change) must not take their words or their focus.
     if (state.popover) { pop = state.popoverEl ??= popover(bottom + 8); pop.style.top = `${bottom + 8}px`; }
   }
-  layer.replaceChildren(...marks, ...(bar ? [bar] : []));
+  layer.replaceChildren(...marks, ...(bar ? [bar] : []), ...(more ? [more] : []));
   const popLayer = $('popover-layer');
   if (pop ? popLayer.firstChild !== pop : popLayer.firstChild) popLayer.replaceChildren(...(pop ? [pop] : []));
-  // Centred on its anchor, kept inside the page.
-  const width = $('page').clientWidth;
-  for (const box of [bar, pop]) {
-    if (!box) continue;
-    const centre = Number(bar.dataset.centre), w = box.offsetWidth;
-    box.style.left = `${Math.max(8, Math.min(width - w - 8, centre - w / 2))}px`;
-    box.style.right = 'auto';
+  if (!bar) return;
+  // The bar sits just above the words, as tall as it has wrapped; its tooltips drop below it when
+  // there is no room above. Centred on its anchor, kept inside the page.
+  const barTop = Math.max(0, anchorTop - bar.offsetHeight - 10);
+  bar.style.top = `${barTop}px`;
+  bar.classList.toggle('tips-below', barTop < 40);
+  const width = $('page').clientWidth, centre = Number(bar.dataset.centre);
+  const place = (box, at) => { box.style.left = `${Math.max(8, Math.min(width - box.offsetWidth - 8, at - box.offsetWidth / 2))}px`; box.style.right = 'auto'; };
+  place(bar, centre);
+  if (pop) place(pop, centre);
+  if (more) {
+    // Under More, its right edge on the button's.
+    const button = $('more-tools').getBoundingClientRect();
+    place(more, button.right - origin.left - more.offsetWidth / 2);
+    // Below the bar while it fits in the window; else above it when there is more room there,
+    // scrolling inside itself when neither holds it all.
+    const barBox = bar.getBoundingClientRect(), below = innerHeight - barBox.bottom - 14, above = barBox.top - 14;
+    const up = more.offsetHeight > below && above > below;
+    more.style.maxHeight = `${Math.max(120, Math.min(more.offsetHeight, up ? above : below))}px`;
+    more.style.top = `${up ? barTop - more.offsetHeight - 6 : barTop + bar.offsetHeight + 6}px`;
   }
 }
 
 function fail(error) { state.problem = { text: refusalText(error), reload: true }; render(); }
 
 function openPopover(kind, data = {}) { state.popover = { kind, ...data, query: '', linkKind: LINK_KINDS[0], noteKind: NOTE_KINDS[0] }; state.popoverEl = null; state.pinned = true; placeOverlays(); setTimeout(() => document.querySelector('.popover input, .popover textarea, .popover select')?.focus(), 0); }
-function closePopover() { state.popover = null; state.popoverEl = null; state.pinned = false; }
+function closePopover() { state.popover = null; state.popoverEl = null; state.pinned = false; state.more = false; }
 
 function popover(top) {
   const p = state.popover;
@@ -860,11 +1020,13 @@ function renderDrawer() {
 async function start(context) {
   state.readOnly = context.readOnly === true;
   state.chrome = nendo.has('ui.setToolbar');
-  // A file built before roles has no Role field; the control waits for one.
+  // A file built before roles or alignment has no Role or Align field; their controls wait for one.
   try {
     const schema = await nendo.schema.describe();
-    state.roles = (schema.entities ?? []).some(e => e.entityId === BLOCK && (e.fields ?? []).some(f => f.fieldId === F.role));
-  } catch { state.roles = false; }
+    const has = field => (schema.entities ?? []).some(e => e.entityId === BLOCK && (e.fields ?? []).some(f => f.fieldId === field));
+    state.roles = has(F.role); state.aligns = has(F.align);
+  } catch { state.roles = false; state.aligns = false; }
+  state.pins = readPins();
   applyAppearance();
   try {
     const kit = await import('./kit/nendo-view-kit.js');
@@ -881,6 +1043,7 @@ async function start(context) {
   $('scroller').addEventListener('scroll', () => { if (state.popover) return; placeOverlays(); }, { passive: true });
   addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
+    if (state.more) { state.more = false; placeOverlays(); sheet.editor.commands.focus(); return; }
     if (state.popover || state.pinned) { closePopover(); placeOverlays(); sheet.editor.commands.focus(); return; }
     // Escape inside the side panel puts it away, as it does any panel the person opened.
     if (state.drawer !== null && $('drawer').contains(document.activeElement)) { e.preventDefault(); closeDrawer(); }

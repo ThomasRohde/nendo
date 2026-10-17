@@ -223,7 +223,7 @@ async page => {
   // The selected-paragraph bar: a note, then a link.
   await select('b-0414', 'ledger', 'shelf');
   await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
-  await frame.getByRole('button', { name: 'Note', exact: true }).click();
+  await frame.getByRole('button', { name: 'Add a note', exact: true }).click();
   await frame.getByLabel('Note', { exact: true }).fill('Count the hands again.');
   // A redraw while the person types (somebody else's change arriving) keeps their words and focus.
   await page.evaluate(() => window.broker.pushChanges());
@@ -236,13 +236,104 @@ async page => {
   const note = (await records('mn.note')).find(n => n.recordId !== 'n-1');
   assert(note.values['mn.note.block'] === 'b-0414' && note.values['mn.note.text'] === 'Count the hands again.', `Note: ${JSON.stringify(note)}`);
   await select('b-0413', 'tide', 'table');
-  await frame.getByRole('button', { name: 'Link', exact: true }).click();
+  await frame.getByRole('button', { name: 'Link to a passage', exact: true }).click();
   await frame.getByLabel('Find a passage').fill('causeway');
   await frame.getByRole('listitem').filter({ hasText: 'The causeway was dry' }).click();
   await frame.waitForFunction(() => window.manuscript.links.length === 2);
   const link = (await records('mn.link')).find(l => l.recordId !== 'l-1');
   assert(link.values['mn.link.from'] === 'b-0413' && link.values['mn.link.to'] === 'b-0501', `Link: ${JSON.stringify(link)}`);
   checks.push('note and link from the bar');
+
+  // W-279: the bar is icons in groups, with More last; no tool shows a word until it is pointed at.
+  await select('b-0416', 'Agnes', 'three');
+  await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
+  const toolIds = () => frame.evaluate(() => [...document.querySelectorAll('.bar .tool')].map(t => t.dataset.tool ?? t.id));
+  const drawn = await frame.evaluate(() => {
+    const bar = document.querySelector('.bar'), tools = [...bar.querySelectorAll('.tool')];
+    return { widest: Math.max(...tools.map(t => Math.round(t.getBoundingClientRect().width))),
+      words: tools.map(t => [...t.childNodes].filter(n => !n.classList?.contains('tip')).map(n => n.textContent).join('').trim()).filter(Boolean),
+      tipsShown: tools.filter(t => getComputedStyle(t.querySelector('.tip')).visibility !== 'hidden').length,
+      dividers: bar.querySelectorAll('.divider').length, height: Math.round(bar.getBoundingClientRect().height) };
+  });
+  const firstBar = await toolIds();
+  assert(JSON.stringify(firstBar) === JSON.stringify(['bold', 'italic', 'underline', 'align-left', 'align-centre', 'align-right', 'link', 'note', 'cut', 'agent', 'more-tools'])
+    && drawn.widest <= 32 && drawn.words.length === 0 && drawn.tipsShown === 0 && drawn.dividers === 3 && drawn.height <= 42, `Icon bar: ${JSON.stringify({ firstBar, drawn })}`);
+  // Pointed at, a tool names itself and its keys, inside the frame; Copy for the agent names the block and its version.
+  await frame.locator('.bar [data-tool="bold"]').hover();
+  await page.waitForTimeout(700);
+  const tip = await frame.evaluate(() => { const t = document.querySelector('.bar [data-tool="bold"] .tip'), r = t.getBoundingClientRect(), s = getComputedStyle(t);
+    return { text: [...t.children].map(c => c.textContent).join(' | '), visibility: s.visibility, opacity: s.opacity, inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.width > 40 }; });
+  await page.screenshot({ path: '__OUTPUT__/bar-tooltip.png' });
+  const ref = await frame.evaluate(() => [...document.querySelector('.bar [data-tool="agent"] .tip').children].map(c => c.textContent).join(' | '));
+  const version0416 = (await record(BLOCK, 'b-0416')).version;
+  assert(tip.text === 'Bold | Ctrl+B' && tip.visibility === 'visible' && tip.opacity === '1' && tip.inside && ref === `Copy for the agent | b-0416 · v${version0416}`, `Tooltip: ${JSON.stringify({ tip, ref })}`);
+  checks.push('icon bar with tooltips');
+
+  // Bold and underline go on the selected words, show as pressed, and are saved as Markdown, alone.
+  let formatFrom = (await batches()).length;
+  await frame.locator('.bar [data-tool="bold"]').click();
+  await frame.locator('.bar [data-tool="underline"]').click();
+  await saved();
+  const pressedNow = ids => frame.evaluate(ids => ids.map(id => document.querySelector(`.bar [data-tool="${id}"]`)?.getAttribute('aria-pressed') ?? 'absent'), ids);
+  const marked = { text: (await record(BLOCK, 'b-0416')).values[T], pressed: await pressedNow(['bold', 'underline', 'italic']),
+    writes: (await batches()).slice(formatFrom).flatMap(b => b.writes).map(w => `${w.recordId}:${Object.keys(w.values ?? {}).join('+')}`) };
+  assert(marked.text.startsWith('<u>**Agnes read it**</u> three times.') && marked.pressed.join() === 'true,true,false' && marked.writes.every(w => w === 'b-0416:mn.block.text'),
+    `Bold and underline: ${JSON.stringify(marked)}`);
+  checks.push('marks from the bar, saved as Markdown');
+
+  // Centre sets the block's Align, alone, and draws it; Centre again gives it back to the layout.
+  formatFrom = (await batches()).length;
+  await frame.locator('.bar [data-tool="align-centre"]').click();
+  await saved();
+  const centred = { writes: (await batches()).slice(formatFrom).flatMap(b => b.writes).map(w => ({ id: w.recordId, values: w.values })), pressed: await pressedNow(['align-centre', 'align-left']),
+    drawn: await frame.evaluate(() => getComputedStyle(document.querySelector('.sheet-text [data-block="b-0416"]')).textAlign) };
+  assert(JSON.stringify(centred.writes) === JSON.stringify([{ id: 'b-0416', values: { 'mn.block.align': 'Centre' } }]) && centred.pressed.join() === 'true,false' && centred.drawn === 'center',
+    `Centre: ${JSON.stringify(centred)}`);
+  await frame.locator('.bar [data-tool="align-centre"]').click();
+  await saved();
+  assert((await record(BLOCK, 'b-0416')).values['mn.block.align'] === null && (await pressedNow(['align-left'])).join() === 'true', 'Centre chosen again did not give the block back to its layout.');
+  // Right, kept, and the preview sets the paragraph so.
+  await frame.locator('.bar [data-tool="align-right"]').click();
+  await saved();
+  await mode('book');
+  await frame.waitForFunction(() => [...document.querySelectorAll('.sheet-body p')].some(e => e.textContent.includes('three times')), null, { timeout: 8000 });
+  const previewAlign = await frame.evaluate(() => { const p = [...document.querySelectorAll('.sheet-body p')].find(e => e.textContent.includes('three times')); return p ? getComputedStyle(p).textAlign : null; });
+  await mode('write');
+  assert((await record(BLOCK, 'b-0416')).values['mn.block.align'] === 'Right' && previewAlign === 'right', `Right in the preview: ${previewAlign}`);
+  checks.push('alignment saved and previewed');
+
+  // More holds every tool not on the bar, by name and keys; a pin puts one on the bar, kept on this
+  // device; right-click on it puts it back; Escape closes More.
+  await select('b-0416', 'Agnes', 'three');
+  await frame.locator('#more-tools').click();
+  const menu = await frame.evaluate(() => { const m = document.getElementById('more-menu'); if (!m) return null; const r = m.getBoundingClientRect();
+    return { tools: [...m.querySelectorAll('.more-tool')].map(b => b.dataset.tool), heads: [...m.querySelectorAll('.more-head')].map(h => h.textContent),
+      strike: [...(m.querySelector('[data-tool="strike"]')?.querySelectorAll('.more-label, kbd') ?? [])].map(e => e.textContent).join(' | '),
+      inside: r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1, box: [Math.round(r.top), Math.round(r.bottom), innerHeight],
+      expanded: document.getElementById('more-tools').getAttribute('aria-expanded') }; });
+  assert(menu && JSON.stringify(menu.tools) === JSON.stringify(['strike', 'code', 'highlight', 'clear', 'align-justify', 'paragraph', 'part', 'chapter', 'section', 'quotation'])
+    && menu.heads.join() === 'Text,Alignment,Paragraph' && menu.strike === 'Strikethrough | Ctrl+Shift+S' && menu.inside && menu.expanded === 'true', `More: ${JSON.stringify(menu)}`);
+  await page.screenshot({ path: '__OUTPUT__/bar-more.png' });
+  await frame.locator('#more-menu [data-pin="highlight"]').click();
+  const pinnedHighlight = { bar: await toolIds(), kept: await frame.evaluate(() => JSON.parse(localStorage.getItem('manuscript.bar') ?? 'null')?.pinned ?? null),
+    inMore: await frame.evaluate(() => !!document.querySelector('#more-menu [data-tool="highlight"]')) };
+  assert(pinnedHighlight.bar[3] === 'highlight' && pinnedHighlight.kept?.includes('highlight') && !pinnedHighlight.inMore, `Pin: ${JSON.stringify(pinnedHighlight)}`);
+  await frame.locator('.bar [data-tool="highlight"]').click();
+  await saved();
+  assert((await record(BLOCK, 'b-0416')).values[T].startsWith('<u><mark>**Agnes read it**</mark></u> three'), `Highlight from a pinned tool: ${(await record(BLOCK, 'b-0416')).values[T]}`);
+  await frame.locator('.bar [data-tool="highlight"]').click({ button: 'right' });
+  await page.waitForTimeout(150);
+  // Using a tool closed More; opened again, it holds the tool put back.
+  await frame.locator('#more-tools').click();
+  const unpinned = { bar: await toolIds(), kept: await frame.evaluate(() => JSON.parse(localStorage.getItem('manuscript.bar')).pinned),
+    inMore: await frame.evaluate(() => !!document.querySelector('#more-menu [data-tool="highlight"]')), selection: await frame.evaluate(() => window.manuscriptSheet.editor.state.selection.empty) };
+  assert(!unpinned.bar.includes('highlight') && !unpinned.kept.includes('highlight') && unpinned.inMore && unpinned.selection === false, `Unpin: ${JSON.stringify(unpinned)}`);
+  // Strikethrough stays pinned, for the restart below to find.
+  await frame.locator('#more-menu [data-pin="strike"]').click();
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
+  assert(await frame.evaluate(() => !document.getElementById('more-menu') && document.activeElement?.closest('.ProseMirror') !== null), 'Escape did not close More and give the keyboard back to the writing.');
+  checks.push('More, pin and unpin');
 
   // Keep as cutting: the paragraph leaves the page for the Cuttings, links and all.
   await select('b-0413', 'tide', 'table');
@@ -328,9 +419,13 @@ async page => {
     colours[mode] = await frame.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, ink: getComputedStyle(document.querySelector('.sheet-text')).color }));
     await select('b-0415', 'pencil', 'line');
     await page.waitForTimeout(100);
+    // The view was stopped and started since Strikethrough was pinned: the bar still has it.
+    assert((await toolIds()).includes('strike'), `A pin did not outlast the view: ${JSON.stringify(await toolIds())}`);
+    colours[mode].tip = await frame.evaluate(() => { const t = document.querySelector('.bar .tip'), s = getComputedStyle(t); return { background: s.backgroundColor, ink: s.color }; });
     await page.screenshot({ path: '__OUTPUT__/' + mode + '.png' });
   }
-  assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink, `Theme: ${JSON.stringify(colours)}`);
+  assert(colours.light.background !== colours.dark.background && colours.light.ink !== colours.dark.ink && colours.light.tip.background !== colours.dark.tip.background
+    && colours.light.tip.background !== colours.light.tip.ink, `Theme: ${JSON.stringify(colours)}`);
   await page.setViewportSize({ width: 620, height: 900 }); await page.waitForTimeout(150);
   const narrow = await frame.evaluate(() => ({ overflow: document.documentElement.scrollWidth - innerWidth, bar: document.querySelector('.bar')?.getBoundingClientRect().right, width: innerWidth }));
   assert(narrow.overflow <= 1 && (narrow.bar === undefined || narrow.bar <= narrow.width + 1), `Narrow: ${JSON.stringify(narrow)}`);
@@ -388,6 +483,28 @@ async page => {
   await mode('write');
   checks.push('preview makes room for pictures', 'headings kept with their text', 'room above the columns');
   assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
+
+  // A file built before alignment has no Align field: the bar and More offer no alignment, and
+  // its keys write nothing.
+  const older = JSON.parse(JSON.stringify(manusFixture));
+  for (const e of older.schema.entities) e.fields = e.fields.filter(f => f.fieldId !== 'mn.block.align');
+  const frameBeforeOlder = frame;
+  await page.evaluate(f => { window.broker.setFixture(f); window.broker.remount(); }, older);
+  frame = null;
+  for (let i = 0; i < 200 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/') && f !== frameBeforeOlder) ?? null; if (frame === null) await page.waitForTimeout(50); }
+  assert(frame !== null, 'The view did not start on a file without the Align field.');
+  await frame.waitForFunction(() => window.manuscript?.root === 'b-root' && document.querySelector('.sheet-text [data-block="b-0416"]'), null, { timeout: 15000 });
+  await select('b-0416', 'Agnes', 'three');
+  await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
+  await frame.locator('#more-tools').click();
+  const olderBefore = (await batches()).length;
+  await page.keyboard.press('Control+Shift+E');
+  await page.waitForTimeout(1800);
+  const withoutAlign = { bar: await toolIds(), more: await frame.evaluate(() => [...document.querySelectorAll('#more-menu .more-tool')].map(b => b.dataset.tool)),
+    writes: (await batches()).slice(olderBefore).flatMap(b => b.writes), drawn: await frame.evaluate(() => document.querySelector('.sheet-text [data-block="b-0416"]').dataset.align ?? null) };
+  assert(!withoutAlign.bar.some(id => id.startsWith('align-')) && !withoutAlign.more.some(id => id.startsWith('align-')) && withoutAlign.more.includes('code')
+    && withoutAlign.writes.length === 0 && withoutAlign.drawn === null, `A file without the Align field: ${JSON.stringify(withoutAlign)}`);
+  checks.push('no alignment without the Align field');
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, colours, narrow, errors };
   })(); } catch (error) { throw Error(`After [${checks.join(', ')}]: ${error.message}`); }
