@@ -37,7 +37,7 @@ async page => {
     h1: document.querySelector('.sheet-text h1')?.textContent, h2: [...document.querySelectorAll('.sheet-text h2')].map(e => e.textContent),
     em: document.querySelector('[data-block="b-0415"] em')?.textContent, blocks: [...document.querySelectorAll('.sheet-text [data-block]')].map(e => e.dataset.block),
     title: document.getElementById('title').value, overflow: document.documentElement.scrollWidth - innerWidth,
-    marks: Object.fromEntries([...document.querySelectorAll('.mark')].map(m => [m.dataset.id, m.textContent])),
+    marks: Object.fromEntries([...document.querySelectorAll('.mark')].map(m => [m.dataset.id, `${m.dataset.notes} notes, ${m.dataset.links} links`])),
   }));
   assert(opened.h1 === 'Part One' && JSON.stringify(opened.h2) === JSON.stringify(['The Tide Table', 'What the Bar Keeps']), `Headings by kind: ${JSON.stringify(opened)}`);
   assert(opened.em === 'Boat seen beyond the bar. No lights. Did not report.', `Inline Markdown did not render: ${JSON.stringify(opened)}`);
@@ -57,7 +57,18 @@ async page => {
   assert(full.width > 500 && Math.abs(full.height - full.width * 2 / 3) <= 2, `Full width: ${JSON.stringify(full)}`);
   await page.evaluate(() => window.broker.command('pictures', 'small'));
   await frame.waitForFunction(() => document.documentElement.dataset.pictures === 'small');
-  assert(opened.marks['b-0415'] === '2' && opened.marks['b-0501'] === '1', `Gutter counts must match the notes and links: ${JSON.stringify(opened.marks)}`);
+  assert(opened.marks['b-0415'] === '1 notes, 1 links' && opened.marks['b-0501'] === '0 notes, 1 links', `Gutter counts must match the notes and links: ${JSON.stringify(opened.marks)}`);
+  // The count says which is which, and pressed it shows them (owner, 2026-10-17: a note's count
+  // was drawn with a link icon and only selected the paragraph, so the note stayed out of sight).
+  const countIcons = await frame.evaluate(() => [...document.querySelectorAll('.mark[data-id="b-0415"] svg path')].map(p => p.getAttribute('d').slice(0, 10)));
+  await frame.locator('.mark[data-id="b-0415"]').click();
+  await frame.waitForFunction(() => document.querySelector('#drawer .drawer-title')?.textContent === 'Notes', null, { timeout: 3000 }).catch(() => {});
+  const countOpens = await frame.evaluate(() => ({ title: document.querySelector('#drawer .drawer-title')?.textContent ?? null, shown: !document.getElementById('drawer').hidden,
+    note: [...document.querySelectorAll('#drawer .card p')].map(p => p.textContent) }));
+  assert(countIcons.length === 3 && countIcons[0].startsWith('M3 3h10v7') && countOpens.title === 'Notes' && countOpens.shown && countOpens.note.includes('Whose hand wrote the pencil line?'),
+    `The count did not show the paragraph's note: ${JSON.stringify({ countIcons, countOpens })}`);
+  await page.evaluate(() => window.broker.command('notes'));
+  await frame.waitForFunction(() => document.getElementById('drawer').hidden, null, { timeout: 3000 });
   assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'Nendo refused the toolbar: ' + JSON.stringify(await page.evaluate(() => window.broker.chromeRefusals)));
   const toolbar = await page.evaluate(() => window.broker.toolbars.at(-1));
   assert(toolbar.items.some(i => i.id === 'style') && toolbar.items.some(i => i.id === 'outline') && toolbar.items.some(i => i.kind === 'text'), `Toolbar: ${JSON.stringify(toolbar)}`);
@@ -335,6 +346,9 @@ async page => {
   await frame.locator('.bar [data-tool="highlight"]').click();
   await saved();
   assert((await record(BLOCK, 'b-0416')).values[T].startsWith('<u><mark>**Agnes read it**</mark></u> three'), `Highlight from a pinned tool: ${(await record(BLOCK, 'b-0416')).values[T]}`);
+  // Pointed at, highlighted words say they are highlighted and how to take it off.
+  const markTitle = await frame.evaluate(() => document.querySelector('.sheet-text [data-block="b-0416"] mark')?.title ?? null);
+  assert(/^Highlighted\. .*takes it off\.$/.test(markTitle ?? ''), `Highlighted words do not say so: ${markTitle}`);
   await frame.locator('.bar [data-tool="highlight"]').click({ button: 'right' });
   await page.waitForTimeout(150);
   // Using a tool closed More; opened again, it holds the tool put back.
@@ -365,9 +379,9 @@ async page => {
     if (!g) return null;
     const r = g.getBoundingClientRect(), p = b.getBoundingClientRect(), text = b.firstChild ? (() => { const range = document.createRange(); range.selectNodeContents(b); return range.getBoundingClientRect().left; })() : p.left;
     return { for: g.dataset.for, buttons: [...g.querySelectorAll('button')].map(x => x.getAttribute('aria-label')), beside: r.right <= text + 1 && r.top >= p.top - 2 && r.top <= p.top + 12,
-      faint: parseFloat(getComputedStyle(g.querySelector('.gut')).opacity) < 0.8, mark: (m => m ? getComputedStyle(m).display : null)(document.querySelector('.mark[data-id="b-0414"]')), height: Math.round(r.height) };
+      faint: parseFloat(getComputedStyle(g.querySelector('.gut')).opacity) < 0.8, mark: (m => { if (!m) return null; const c = m.getBoundingClientRect(); return getComputedStyle(m).display !== 'none' && c.left >= p.right - 1 ? 'right margin' : JSON.stringify(c); })(document.querySelector('.mark[data-id="b-0414"]')), height: Math.round(r.height) };
   });
-  assert(gutter && gutter.for === 'b-0414' && gutter.buttons.join() === 'Add a block below,This block\u2019s tools' && gutter.beside && gutter.faint && gutter.mark === 'none' && gutter.height <= 28,
+  assert(gutter && gutter.for === 'b-0414' && gutter.buttons.join() === 'Add a block below,This block\u2019s tools' && gutter.beside && gutter.faint && gutter.mark === 'right margin' && gutter.height <= 28,
     `Gutter on hover: ${JSON.stringify(gutter)}`);
   await page.screenshot({ path: '__OUTPUT__/block-gutter.png' });
   await frame.locator('.gutter .grip').click();

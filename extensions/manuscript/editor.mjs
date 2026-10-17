@@ -131,7 +131,8 @@ const ALIGN_CSS = { center: 'Centre', right: 'Right', justify: 'Justify' };
 const Highlight = Mark.create({
   name: 'highlight',
   parseHTML() { return [{ tag: 'mark' }]; },
-  renderHTML() { return ['mark', 0]; },
+  // Pointed at, highlighted words say what they are and how to take it off.
+  renderHTML() { return ['mark', { title: 'Highlighted. Ctrl+Shift+H, or Highlight in the bar, takes it off.' }, 0]; },
   addKeyboardShortcuts() { return { 'Mod-Shift-h': () => this.editor.commands.toggleMark(this.name) }; },
 });
 

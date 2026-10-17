@@ -929,15 +929,19 @@ function placeOverlays() {
   const origin = $('page').getBoundingClientRect();
   const { notes, links } = counts();
   const marks = [];
+  // Beside a paragraph with notes or links, how many of each, each by its own icon; pressed, the
+  // side panel shows them: its notes when it has any, else what it is linked to.
   sheet.editor.state.doc.forEach((node, offset) => {
-    const id = node.attrs.blockId, n = (notes.get(id) ?? 0) + (links.get(id) ?? 0);
-    if (!n) return;
+    const id = node.attrs.blockId, nc = notes.get(id) ?? 0, lc = links.get(id) ?? 0;
+    if (!nc && !lc) return;
     const dom = sheet.editor.view.nodeDOM(offset);
     if (!dom?.getBoundingClientRect) return;
     const top = dom.getBoundingClientRect().top - origin.top;
-    marks.push(el('button', { type: 'button', class: `mark${id === state.selected ? ' on' : ''}`, style: `top:${top + 6}px`, 'data-id': id,
-      'aria-label': `${notes.get(id) ?? 0} notes and ${links.get(id) ?? 0} links on this paragraph`,
-      on: { mousedown: e => e.preventDefault(), click: () => { sheet.focusBlock(id); state.selected = id; state.pinned = true; render(); } } }, svg('link'), String(n)));
+    const said = [nc ? `${nc} note${nc === 1 ? '' : 's'}` : '', lc ? `${lc} link${lc === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
+    marks.push(el('button', { type: 'button', class: `mark${id === state.selected ? ' on' : ''}`, style: `top:${top + 6}px`, 'data-id': id, 'data-notes': String(nc), 'data-links': String(lc),
+      'aria-label': `${said} on this paragraph: show ${nc ? 'its notes' : 'what it is linked to'}`, title: `${said}: show ${nc ? 'them' : 'it'}`,
+      on: { mousedown: e => e.preventDefault(), click: () => { sheet.focusBlock(id); state.selected = id; state.drawer = nc ? 'notes' : 'related'; render(); declare(); } } },
+    nc ? [svg('note'), el('span', { text: String(nc) })] : null, lc ? [svg('link'), el('span', { text: String(lc) })] : null));
   });
   const where = sheet.where();
   const show = !state.readOnly && state.selected && sheet.locate(state.selected) && (state.pinned || state.popover || (where && !where.empty && where.single && where.id === state.selected));
@@ -950,7 +954,6 @@ function placeOverlays() {
   if (gutterAt?.dom?.getBoundingClientRect && TYPES_AT_TOP.has(gutterAt.node.type.name)) {
     const top = gutterAt.dom.getBoundingClientRect().top - origin.top;
     const kind = state.blockMenu?.kind;
-    for (const m of marks) if (m.dataset.id === gutterId) m.hidden = true;
     marks.push(el('span', { class: 'gutter', style: `top:${top + 2}px`, 'data-for': gutterId },
       el('button', { type: 'button', class: `gut add${kind === 'add' ? ' open' : ''}`, 'aria-label': 'Add a block below', 'aria-expanded': String(kind === 'add'),
         on: { mousedown: hold, click: () => toggleBlockMenu(gutterId, 'add') } }, svg('add'), el('span', { class: 'tip', role: 'tooltip' }, el('span', { text: 'Add a block below' }))),

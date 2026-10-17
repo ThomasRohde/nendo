@@ -37,7 +37,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 
 .scroller { flex: 1; min-height: 0; overflow: auto; }
-.page { position: relative; max-width: calc(var(--measure) + 112px); margin: 0 auto; padding: 48px 32px 40vh 72px; }
+/* The left margin holds the block's own tools, the right its notes and links. */
+.page { position: relative; max-width: calc(var(--measure) + 152px); margin: 0 auto; padding: 48px 72px 40vh 72px; }
 @media (min-width: 900px) {
   :root[data-drawer='outline'] .scroller, :root[data-drawer='notes'] .scroller, :root[data-drawer='related'] .scroller { padding-right: 340px; }
 }
@@ -96,7 +97,8 @@ button { cursor: pointer; }
 
 .overlays { position: absolute; inset: 0; pointer-events: none; }
 .overlays > * { pointer-events: auto; }
-.mark { position: absolute; left: 30px; height: 22px; padding: 0 5px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 3px; font-size: 11px; }
+.mark { position: absolute; right: 8px; height: 22px; padding: 0 5px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); display: flex; align-items: center; gap: 3px; font-size: 11px; }
+.mark span + svg { margin-left: 4px; }
 .mark svg, .bar svg, .more svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .bar svg path.heavy, .more svg path.heavy { stroke-width: 2; }
 .mark.on { color: var(--accent); }
@@ -273,8 +275,8 @@ button.quiet:hover { background: var(--soft); }
 @media (max-width: 720px) {
   /* A narrow frame has no room beside the page: the panel lies over it instead. */
   :root[data-drawer='outline'] .scroller, :root[data-drawer='notes'] .scroller, :root[data-drawer='related'] .scroller { padding-right: 0; }
-  .page { padding: 28px 16px 40vh 44px; }
-  .mark { left: 22px; }
+  .page { padding: 28px 52px 40vh 44px; }
+  .mark { right: 0; }
   .gutter, .block-menu { left: 0; }
   .bar, .popover { right: 16px; max-width: calc(100% - 16px); }
 }

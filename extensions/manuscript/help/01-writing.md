@@ -68,7 +68,7 @@ The last group on the bar acts on the whole paragraph:
 | **Keep as cutting** | Take the paragraph out of the manuscript and keep it under **Cuttings**, where Studio and the Outline screen still show it. |
 | **Copy for the agent** | Copy a reference to this paragraph to paste into the Agent tab. Its tooltip names the paragraph and its version. |
 
-A paragraph with notes or links shows how many in the margin; choose the number to select it. **Notes** and **Related** in the toolbar show them in full.
+A paragraph with notes or links shows how many of each in the right margin, a note icon for notes and a link icon for links; choose them to open its notes, or what it is linked to, beside the page. **Notes** and **Related** in the toolbar show them in full.
 
 ## Export
 
