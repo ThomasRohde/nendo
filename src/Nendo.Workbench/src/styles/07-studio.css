@@ -289,7 +289,6 @@ code {
   opacity: 0.62;
 }
 
-.message-slot,
 .inline-alert {
   width: min(620px, 100%);
   margin: 16px auto 24px;
@@ -302,30 +301,127 @@ code {
   line-height: 1.45;
 }
 
-.message-slot[hidden] {
+/* Notices (W-283): a stack over the bottom right of the layer, above the status line, newest
+   at the bottom. It floats over the page and never takes a row in it, so nothing on the page
+   moves when a notice comes or goes; the stack itself lets the pointer through to the page. */
+.notice-stack {
+  position: absolute;
+  z-index: 25;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(400px, calc(100% - 2 * var(--space-4)));
+  pointer-events: none;
+}
+
+@keyframes notice-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.notice {
+  position: relative;
+  box-sizing: border-box;
+  padding: 11px 44px 11px 40px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line-strong));
+  border-radius: var(--radius-panel);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--danger) 7%, var(--surface-raised));
+  box-shadow: var(--shadow-raised);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  animation: notice-rise 160ms ease-out;
+}
+
+.notice[hidden] {
   display: none;
 }
 
-/* Its close button, at the end of the box, whatever the sentence's length. */
-.message-slot:has(> .outcome-close) {
-  position: relative;
-  padding-right: 44px;
+/* Something that worked. A finished action drawn in the colour of a failure reads as one,
+   which is what the outcome notice looked like before it had a tone of its own. */
+.notice.is-done {
+  border-color: var(--line-strong);
+  background: var(--surface-raised);
 }
 
-.message-slot > .outcome-close {
+/* Something finished, and something about it stays wrong: an automatic action the save did not run. */
+.notice.is-kept {
+  border-color: color-mix(in srgb, var(--warning) 50%, var(--line-strong));
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface-raised));
+}
+
+.notice-icon {
   position: absolute;
-  top: 50%;
-  right: 6px;
-  transform: translateY(-50%);
-  color: inherit;
+  top: 12px;
+  left: 13px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  color: var(--danger);
 }
 
-/* The same slot, for something that worked. A finished action drawn in the colour of a
-   failure reads as one, which is what the outcome notice looked like before this. */
-.message-slot.is-done {
-  border-color: color-mix(in srgb, var(--healthy) 45%, var(--line));
+.notice.is-done .notice-icon { color: var(--healthy); }
+.notice.is-kept .notice-icon { color: var(--warning); }
+.notice-icon svg { width: 18px; height: 18px; }
+
+.notice-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.notice-actions .secondary-button {
+  min-height: 28px;
+}
+
+/* Its close button, at the end of the box, whatever the sentence's length. */
+.notice > .outcome-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
   color: var(--ink);
-  background: color-mix(in srgb, var(--healthy) 8%, var(--surface));
+}
+
+/* A success's time, run down along its foot. It stops while the pointer or the keyboard is on
+   the notice, and the notice goes when it ends (shell.ts, animationend). */
+@keyframes notice-time {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.notice-timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--healthy);
+  transform-origin: left center;
+  animation: notice-time var(--notice-time, 5000ms) linear forwards;
+}
+
+/* The keyboard on one of its buttons holds it too; the notice itself taking the focus does not,
+   since a refusal hands its focus to the success that replaces it in the same slot. */
+.notice:hover > .notice-timer,
+.notice:has(button:focus-visible) > .notice-timer {
+  animation-play-state: paused;
+}
+
+/* Without motion the time still runs, unseen: the bar stays whole and the notice still goes. */
+@keyframes notice-wait {
+  from { opacity: 1; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice { animation: none; }
+  .notice-timer { animation-name: notice-wait; }
 }
 
 .file-empty {
@@ -398,7 +494,6 @@ code {
 
 .data-panel > .data-toolbar { grid-row: 1; }
 .data-panel > .studio-query { grid-row: 2; }
-.data-panel > .data-message { grid-row: 3; }
 .data-panel > .record-grid, .data-panel > .first-record-state { grid-row: 4; }
 .data-panel > .data-footer { grid-row: 5; }
 
@@ -427,11 +522,6 @@ code {
   gap: 24px;
   padding: 16px 19px;
   border-bottom: 1px solid var(--line);
-}
-
-.data-message {
-  width: auto;
-  margin: 10px 18px 0;
 }
 
 .first-record-state {

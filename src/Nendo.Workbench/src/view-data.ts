@@ -446,7 +446,6 @@ export function renderData(): void {
       <p>Create a record type and add your first record.</p>${state.session.entities.some(entity => entity.retired) ? '<button id="show-retired-empty" class="secondary-button" type="button">Show retired data</button>' : ''}
       <div class="action-row"><button id="new-entity" class="primary-button" data-action type="button">Create record type</button>
       ${recipe === null ? '' : `<button id="start-application" class="secondary-button" data-action type="button">${icon('plus')} ${escapeHtml(recipe.actionLabel)}</button>`}</div>
-      <div class="message-slot" role="alert" hidden></div>
     </section>`;
     wireNewEntity();
     content.querySelector('#show-retired-empty')?.addEventListener('click', () => { state.showRetiredData = true; void selectDataEntity(state.session.entities[0].entityId); });
@@ -485,7 +484,6 @@ export function renderData(): void {
       </header>
       ${layout === 'outline' ? outlineToolbarMarkup() : studioQueryMarkup(entity)}
       ${layout === 'outline' && outlineError !== undefined ? `<p class="query-status" role="alert">${escapeHtml(outlineError)} <button class="secondary-button" type="button" data-studio-outline-retry>Try reading again</button></p>` : ''}
-      <div class="message-slot data-message" role="alert" hidden></div>
       ${layout === 'table' || outlineRows.length > 0
         ? `<div id="record-grid" class="record-grid${layout === 'outline' ? ' outline-grid' : ''}" data-testid="record-grid" aria-label="${escapeAttribute(entity.displayName)} ${layout === 'outline' ? 'outline' : 'records'}"></div>`
         : emptyGrid}
@@ -670,7 +668,7 @@ export function wireNewEntity(): void {
       <header><button id="cancel-entity" class="text-button" type="button" data-dismiss>Back to Data</button><h2>Create record type</h2><p>Start with a required text field. Review the change before adding it to this file.</p></header>
       <form id="entity-form" class="record-form"><label>Record type<input id="entity-name" name="entityName" required maxlength="120" autocomplete="off" /></label>
       <label>First field<input id="entity-field-name" name="fieldName" required maxlength="120" value="Name" autocomplete="off" /></label>
-      <div class="message-slot" role="alert" hidden></div><div class="form-actions"><button class="primary-button" data-action type="submit">Preview record type</button></div></form>
+      <div class="form-actions"><button class="primary-button" data-action type="submit">Preview record type</button></div></form>
     </section></div>`;
     requiredElement<HTMLButtonElement>('#cancel-entity').addEventListener('click', () => { state.view = 'data'; rerender(); });
     requiredElement<HTMLFormElement>('#entity-form').addEventListener('submit', event => {

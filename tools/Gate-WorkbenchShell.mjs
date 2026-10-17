@@ -1419,6 +1419,62 @@ async page => {
     assert(after.hidden && after.kept === null, `Closing the message left it: ${JSON.stringify(after)}`);
   }, 1600, 900);
 
+  // W-283: a notice floats over the bottom right of the layer and never moves the page. It sat in
+  // the page between the toolbar and the content, so every notice pushed the board down by its
+  // height (owner, 2026-10-17). A success goes by itself unless the pointer holds it, a second one
+  // stacks above the first, three at most, and an alert waits to be dealt with.
+  await check('W-283 notices float over the page', 'tree', async () => {
+    const shellCall = (name, ...args) => page.evaluate(async ([name, args]) => { (await import('/src/shell.ts'))[name](...args); }, [name, args]);
+    const pageTop = () => page.evaluate(() => document.querySelector('.use-surface, .use-layout').getBoundingClientRect().top);
+    const shown = () => page.evaluate(() => [...document.querySelectorAll('#notice-stack .notice:not([hidden]) .notice-text')].map(text => text.textContent));
+    await page.click('#nav-use');
+    await until(() => document.querySelector('.use-surface, .use-layout') !== null, null, 'the Use screen', 6000);
+    const before = await pageTop();
+    await shellCall('showOutcome', 'One.');
+    const after = await pageTop();
+    const place = await page.evaluate(() => {
+      const slot = document.querySelector('.message-slot:not([hidden])'), layer = document.querySelector('.workspace-layer'), status = document.querySelector('#session-status');
+      const s = slot.getBoundingClientRect(), l = layer.getBoundingClientRect();
+      return { inPage: document.querySelector('#studio-content').contains(slot), right: Math.round(l.right - s.right), bottom: Math.round(l.bottom - s.bottom),
+        aboveStatus: status.hidden || s.bottom <= status.getBoundingClientRect().top, position: getComputedStyle(slot.parentElement).position };
+    });
+    assert(after === before, `A notice moved the page: its top was ${before} and is ${after}.`);
+    assert(!place.inPage && place.position === 'absolute' && place.right >= 8 && place.right <= 32 && place.bottom >= 8 && place.bottom <= 32 && place.aboveStatus,
+      `The notice is not floating at the bottom right of the layer: ${JSON.stringify(place)}`);
+    await shellCall('clearError');
+    await shellCall('showOutcome', 'Two.');
+    assert(JSON.stringify(await shown()) === '["One.","Two."]', `A second success did not stack above the first: ${JSON.stringify(await shown())}`);
+    const slotBox = await page.locator('#outcome-slot').boundingBox();
+    await page.mouse.move(slotBox.x + slotBox.width / 2, slotBox.y + slotBox.height / 2);
+    await page.waitForTimeout(6500);
+    assert(JSON.stringify(await shown()) === '["Two."]', `After 6.5 s the held success should stay and the other go: ${JSON.stringify(await shown())}`);
+    await page.mouse.move(5, 5);
+    await until(() => document.querySelector('#outcome-slot').hidden, null, 'the success to go once the pointer left', 7000);
+    const kept = await page.evaluate(async () => (await import('/src/app-state.ts')).state.lastOutcome);
+    assert(kept === null, `A success that went still counts as said: ${JSON.stringify(kept)}`);
+    for (const word of ['A.', 'B.', 'C.', 'D.']) { await shellCall('clearError'); await shellCall('showOutcome', word); }
+    assert(JSON.stringify(await shown()) === '["B.","C.","D."]', `More than three notices, or the wrong three: ${JSON.stringify(await shown())}`);
+    await shellCall('clearError');
+    await page.evaluate(() => document.querySelectorAll('#notice-stack .notice-earlier').forEach(notice => notice.remove()));
+    await shellCall('showError', 'Refused.');
+    await page.waitForTimeout(6000);
+    assert(JSON.stringify(await shown()) === '["Refused."]', `An alert went by itself: ${JSON.stringify(await shown())}`);
+  });
+
+  // W-283: a notice never covers the page's own action shelf. A refusal sat over the record form's
+  // Save until it was closed, and the next save could not be pressed (WDV-08, 2026-10-17).
+  await check('W-283 notices never cover Save', 'decision', async () => {
+    await openRecord();
+    await page.evaluate(async () => (await import('/src/shell.ts')).showError('The record changed while you edited it, and this sentence is long enough to take two lines.'));
+    await page.waitForTimeout(300);
+    const free = await page.evaluate(() => {
+      const save = document.querySelector('#record-form button[type="submit"]'), b = save.getBoundingClientRect(), n = document.querySelector('#outcome-slot').getBoundingClientRect();
+      const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+      return { pressable: hit === save || save.contains(hit), save: [b.left, b.top, b.right, b.bottom].map(Math.round), notice: [n.left, n.top, n.right, n.bottom].map(Math.round), visible: !document.querySelector('#outcome-slot').hidden };
+    });
+    assert(free.visible && free.pressable, `A notice covers the form's Save: ${JSON.stringify(free)}`);
+  });
+
   // CSS-05: the address row is one row at every width.
   await check('CSS-05 address row one row', 'decision', async () => {
     for (const width of [600, 400]) {

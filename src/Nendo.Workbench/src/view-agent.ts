@@ -248,7 +248,6 @@ export function renderAgent(): void {
       <p class="connection-note">These settings are for this computer. On a shared computer, choose Off when no agent is working, and turn on Edit access expires so access lapses unless the agent keeps renewing it.${status.settingsPersisted ? '' : ' Settings could not be saved for the next launch.'}</p>
     </div>`;
   content.innerHTML = `<div class="agent-page" data-testid="agent-access">
-    <div class="message-slot" role="alert" hidden></div>
     <header class="agent-heading">
       <div><div class="agent-title-row"><h2>${escapeHtml(heading.title)}</h2><span class="agent-ready ${status.state}"><span aria-hidden="true"></span>${escapeHtml(heading.chip)}</span></div><p>${escapeHtml(heading.detail)}</p></div>
       <p class="agent-help-entry"><button id="agent-help" class="text-button" type="button">Learn how to connect with MCP</button><button id="agent-help-access" class="text-button" type="button">What an agent can see and do</button></p>
@@ -359,7 +358,6 @@ export function renderAgentProposal(): void {
   const consent = proposalConsent(preview.preview.behaviour, state.session.behaviourTrust);
   content.innerHTML = `<div class="proposal-page agent-proposal-page" data-testid="agent-proposal-review">
     <header class="proposal-heading"><button id="close-agent-proposal" class="text-button" type="button" data-dismiss>Back to Agent</button><span class="proposal-state">${escapeHtml(proposalStateLabel(preview.state))}</span><h2 id="agent-proposal-heading" tabindex="-1">${escapeHtml(preview.title)}</h2><p>An agent prepared these changes. Your active file is unchanged until you accept.</p></header>
-    <div class="message-slot" role="alert" hidden></div>
     <div class="proposal-layout">
       <section class="proposal-changes"><h3>What changes</h3>${proposalChangesMarkup(preview)}${preview.diagnostics.map((item) => `<article class="proposal-diagnostic"><span class="change-mark" aria-hidden="true">!</span><div><strong>${escapeHtml(item.message)}</strong><p>${escapeHtml(item.hint)}</p></div></article>`).join('')}${packageChangesMarkup(preview.preview.packageChanges)}</section>
       <aside class="proposal-summary"><h3>What this builds</h3>${proposalConsentMarkup(consent)}${agentPreviewMarkup(preview.preview, preview.operationCount)}
@@ -662,7 +660,7 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
     else if (result.promotion.applied) showOutcome(outcomeMessage);
     else showOutcome(outcomeMessage);
     // The review is gone; focus goes to what it left, its outcome (UIK-04).
-    const outcome = content.querySelector<HTMLElement>('.message-slot:not([hidden])');
+    const outcome = document.querySelector<HTMLElement>('.message-slot:not([hidden])');
     if (outcome !== null) { outcome.tabIndex = -1; focusWithoutInteraction(outcome); }
   } catch (error) {
     rerender();

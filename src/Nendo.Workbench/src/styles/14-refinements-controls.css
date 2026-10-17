@@ -28,7 +28,6 @@
 }
 
 .use-page > .use-toolbar,
-.use-page > .use-message { flex: 0 0 auto; }
 .use-page > .use-layout { flex: 1 1 auto; min-height: 0; }
 
 /* The legacy ghost-button rule outranks the row treatment, so restate it at the
@@ -335,14 +334,10 @@
   line-height: 1.55;
 }
 
-.record-form-card > .message-slot { margin: var(--space-4) var(--space-5) 0; width: auto; }
-
 /* A lone submit action still belongs on the action shelf, right-aligned like
    every other dialog, not stretched across the card. */
 .record-form-card .form-actions > .primary-button,
 .record-form-card .form-actions > .secondary-button { flex: 0 0 auto; }
-
-.record-form-card .record-form > .message-slot { width: auto; margin: 0; }
 
 /* Choice editor and conversion tables sit inside the same card. */
 .conversion-record,

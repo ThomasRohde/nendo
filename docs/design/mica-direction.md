@@ -131,6 +131,19 @@ a CSS variable. Change them together.
 - **Status line (28px).** On the ground, in the UI face: the file's icon and name on the left; the
   agent pill, the health pill, the theme (System, Light, Dark), the key hints toggle and the
   version on the right.
+- **Notices.** What happened is said in a stack over the bottom right of the layer, just above the
+  status line, and never in the page, so nothing on the page moves when a notice comes or goes
+  (W-283, `#notice-stack` in `shell.ts`; the owner chose "Corner toasts" from a canvas on
+  2026-10-17). A notice is a raised card on `surface-raised` with `shadow-raised`, a tone icon
+  (`healthy` check, `danger` alert, `warning` alert for something that stays wrong), its sentence,
+  its button and a close button. A success goes by itself after five seconds or more, longer for
+  a long sentence or one with a button, with its time running down a 2px bar along its foot; the
+  pointer on it, or the keyboard on one of its buttons, holds it. A success the next action
+  replaces stays above the new notice for the rest of its time, three notices at most. An alert
+  keeps its rules: a refusal goes at the next press, a kept alert and a Refresh view notice stay
+  until dealt with. A notice still belongs to the screen it was said on. The stack rises above
+  the page's own action shelf whenever it would cover one: a form's Save and Cancel, the agent
+  conversation's message box, a list's Previous and Next.
 - **A narrow window.** Below 841px, at every height, the navigation is the bar across the top and
   the title bar, keeping the width of Windows' buttons free. Once the bar is wider than the window
   it scrolls sideways, and a thin scrollbar shows that it does. Tabs wait for a wider window, and

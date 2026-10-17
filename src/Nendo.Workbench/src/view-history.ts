@@ -14,7 +14,7 @@ import { content, rerender, setBusy, showError } from './shell';
 
 export function renderHistory(): void {
   const ordered = [...state.history].sort((left, right) => right.changeSequence - left.changeSequence);
-  content.innerHTML = `<div class="studio-page history-page"><header class="page-heading"><span class="record-total">${counted(state.history.length, 'revision')} shown</span></header><div class="message-slot" role="alert" hidden></div>
+  content.innerHTML = `<div class="studio-page history-page"><header class="page-heading"><span class="record-total">${counted(state.history.length, 'revision')} shown</span></header>
     ${foldMarkup()}
     ${mediaUsageMarkup(mediaUsageState.usage, state.session.capabilities.mutate)}
     <div class="page-controls" aria-label="History pages"><span>Page ${(state.historyWindow?.index ?? 0) + 1}</span><button class="text-button" data-history-page="-1" type="button" ${!state.historyWindow || state.historyWindow.index === 0 ? 'disabled' : ''}>Previous</button><button class="text-button" data-history-page="1" type="button" ${!state.historyWindow?.page.nextCursor ? 'disabled' : ''}>Next</button></div>

@@ -109,24 +109,62 @@ function focusKey(): string | null {
   return null;
 }
 
-/** What is on screen, so a redraw can tell a repaint from a move to somewhere else. */
 /**
- * Puts the last outcome back after a redraw. A view builds its own markup, so the slot
- * the message was written into no longer exists; without this an outcome lasted exactly
- * as long as the next automatic read.
+ * Keeps the notices true to the screen after a redraw (W-283).
+ *
+ * A notice used to be written into a slot in the view's own markup, so every redraw took it
+ * away and this put it back; without that an outcome lasted exactly as long as the next
+ * automatic read. The notices are the frame's now and a redraw leaves them where they are.
+ * What a redraw still has to do is let go of a sentence about something the screen no longer
+ * shows, which the view's markup used to do by replacing it.
  */
 export function restoreOutcome(): void {
-  if (state.lastOutcome === null) return;
+  const here = outcomeScreen();
+  for (const earlier of noticeStack.querySelectorAll<HTMLElement>('.notice-earlier'))
+    if (earlier.dataset.screen !== here) earlier.remove();
+  const outcome = state.lastOutcome;
+  if (outcome !== null && !saidHere(outcome, here)) state.lastOutcome = null;
+  placeStack();
+  if (state.lastOutcome === null) { emptySlot(); return; }
+  if (outcomeSlot.hidden) drawOutcome(outcomeSlot, state.lastOutcome);
+}
+
+/**
+ * The page's own action shelves, which a notice must never cover: a form's Save and Cancel, the
+ * agent conversation's message box, a list's Previous and Next. They are right-aligned, which is
+ * where the stack sits, and a refusal that covered Save until it was closed stood between the
+ * person and the one button they needed (the shell lane's WDV-08, 2026-10-17).
+ */
+const actionShelves = '.form-actions, .chat-composer, .page-controls';
+
+/**
+ * Lifts the stack above any action shelf it would cover at its own place, the bottom right of
+ * the layer, and puts it back there when nothing is under it. Called whenever a notice is drawn
+ * and whenever the page under it is redrawn, scrolled, typed into or resized.
+ */
+function placeStack(): void {
+  const layer = noticeStack.parentElement;
+  noticeStack.style.removeProperty('bottom');
+  if (layer === null || noticeStack.querySelector('.notice:not([hidden])') === null) return;
+  const stack = noticeStack.getBoundingClientRect();
+  const foot = layer.getBoundingClientRect().bottom;
+  let lift = 0;
+  for (const shelf of content.querySelectorAll<HTMLElement>(actionShelves)) {
+    const box = shelf.getBoundingClientRect();
+    const covered = box.width > 0 && box.right > stack.left && box.left < stack.right && box.bottom > stack.top && box.top < stack.bottom;
+    if (covered) lift = Math.max(lift, foot - box.top);
+  }
+  if (lift > 0) noticeStack.style.bottom = `${Math.round(lift) + 8}px`;
+}
+
+function saidHere(outcome: OutcomeNotice, here: string): boolean {
   // It belongs to the page it happened on. A message that followed somebody to the next
   // screen would be reporting an action they had already left behind.
-  if (state.lastOutcome.view !== state.view) { state.lastOutcome = null; return; }
-  if (state.lastOutcome.screen !== undefined && state.lastOutcome.screen !== outcomeScreen()) { state.lastOutcome = null; return; }
+  if (outcome.view !== state.view) return false;
+  if (outcome.screen !== undefined && outcome.screen !== here) return false;
   // It was about the file at one change, and a redraw at another has already read it again.
-  const sequence = state.lastOutcome.changeSequence;
-  if (sequence !== undefined && sequence !== (state.session.manifest?.changeSequence ?? null)) { state.lastOutcome = null; return; }
-  const slot = content.querySelector<HTMLElement>('.message-slot');
-  if (slot === null || !slot.hidden) return;
-  drawOutcome(slot, state.lastOutcome);
+  const sequence = outcome.changeSequence;
+  return sequence === undefined || sequence === (state.session.manifest?.changeSequence ?? null);
 }
 
 /**
@@ -141,41 +179,125 @@ export function outcomeScreen(): string {
 
 /** The slot in the shape the outcome asks for, with its Refresh view button when it has one. */
 function drawOutcome(slot: HTMLElement, outcome: OutcomeNotice): void {
-  slot.classList.toggle('is-done', outcome.tone === 'done');
   slot.setAttribute('role', outcome.tone === 'done' ? 'status' : 'alert');
-  slot.textContent = outcome.message;
+  drawNotice(slot, outcome, true, () => closeOutcome());
+  shownOutcome = outcome;
   slot.hidden = false;
+  placeStack();
+}
+
+/**
+ * One notice, in the slot or above it. The ids are the slot's alone, because the buttons are
+ * found by them; a notice kept above the slot carries the same buttons without them.
+ */
+function drawNotice(notice: HTMLElement, outcome: OutcomeNotice, ids: boolean, close: () => void, elapsed = 0): void {
+  notice.classList.toggle('is-done', outcome.tone === 'done');
+  notice.classList.toggle('is-kept', outcome.tone === 'alert' && outcome.kept === true);
+  notice.replaceChildren();
+  const mark = document.createElement('span');
+  mark.className = 'notice-icon';
+  mark.setAttribute('aria-hidden', 'true');
+  mark.innerHTML = icon(outcome.tone === 'done' ? 'check' : 'alert');
+  const text = document.createElement('span');
+  text.className = 'notice-text';
+  text.textContent = outcome.message;
+  notice.append(mark, text);
   const action = outcome.action;
-  if (action !== undefined) {
-    const button = document.createElement('button');
-    button.id = 'outcome-action';
-    button.type = 'button';
-    button.className = 'secondary-button';
-    button.textContent = action.label;
-    button.addEventListener('click', () => { void action.run().catch((error: unknown) => showError(error instanceof Error ? error.message : String(error))); });
-    slot.append(' ', button);
-  }
   const refresh = outcome.refresh;
-  if (refresh !== undefined) {
-    const button = document.createElement('button');
-    button.id = 'refresh-outcome-view';
-    button.type = 'button';
-    button.className = 'secondary-button';
-    button.textContent = 'Refresh view';
-    button.addEventListener('click', () => void refresh(button));
-    slot.append(' ', button);
+  if (action !== undefined || refresh !== undefined) {
+    const actions = document.createElement('span');
+    actions.className = 'notice-actions';
+    if (action !== undefined) {
+      const button = document.createElement('button');
+      if (ids) button.id = 'outcome-action';
+      button.type = 'button';
+      button.className = 'secondary-button';
+      button.textContent = action.label;
+      button.addEventListener('click', () => { void action.run().catch((error: unknown) => showError(error instanceof Error ? error.message : String(error))); });
+      actions.append(button);
+    }
+    if (refresh !== undefined) {
+      const button = document.createElement('button');
+      if (ids) button.id = 'refresh-outcome-view';
+      button.type = 'button';
+      button.className = 'secondary-button';
+      button.textContent = 'Refresh view';
+      button.addEventListener('click', () => void refresh(button));
+      actions.append(button);
+    }
+    notice.append(' ', actions);
   }
   // Every sentence can be put away (owner, 2026-10-16: "add a x to remove the message"). A
   // saved download's stayed until the person left the screen, since a success is kept.
-  const close = document.createElement('button');
-  close.type = 'button';
-  close.className = 'icon-button outcome-close';
-  close.dataset.outcomeClose = '';
-  close.setAttribute('aria-label', 'Close message');
-  close.title = 'Close';
-  close.innerHTML = icon('close');
-  close.addEventListener('click', () => { clearError(); });
-  slot.append(close);
+  const closer = document.createElement('button');
+  closer.type = 'button';
+  closer.className = 'icon-button outcome-close';
+  closer.dataset.outcomeClose = '';
+  closer.setAttribute('aria-label', 'Close message');
+  closer.title = 'Close';
+  closer.innerHTML = icon('close');
+  closer.addEventListener('click', close);
+  notice.append(closer);
+  // A success says its piece and goes (W-283). It was kept until the next action, which was
+  // harmless while it sat in the page and is not once it floats over the work. The time runs
+  // as the bar along its foot, and the bar stops while the pointer or the keyboard is on the
+  // notice (07-studio.css), so a sentence being read, or a button about to be pressed, stays.
+  // An alert has no timer: a refusal goes at the next press, the rest when they are dealt with.
+  if (outcome.tone === 'done') {
+    const timer = document.createElement('span');
+    timer.className = 'notice-timer';
+    timer.setAttribute('aria-hidden', 'true');
+    timer.style.setProperty('--notice-time', `${noticeMilliseconds(outcome)}ms`);
+    if (elapsed > 0) timer.style.animationDelay = `-${Math.round(elapsed)}ms`;
+    timer.addEventListener('animationend', close, { once: true });
+    notice.append(timer);
+  }
+}
+
+/** How long a success stays: long enough to read it, and longer when it offers a step. */
+export function noticeMilliseconds(outcome: Pick<OutcomeNotice, 'message' | 'action'>): number {
+  const reading = Math.min(7_000, Math.max(0, outcome.message.length - 40) * 60);
+  return 5_000 + reading + (outcome.action === undefined ? 0 : 3_000);
+}
+
+/** What the slot shows, which is not always state.lastOutcome: a new one is set before it is drawn. */
+let shownOutcome: OutcomeNotice | null = null;
+
+/** The most notices on screen at once, the one in the slot included. */
+const noticesShown = 3;
+
+/**
+ * A success the next action would have wiped stays above the slot for the rest of its time
+ * (W-283), so two things done in a row are both said. An alert is about the thing just tried,
+ * and the next thing replaces it, as it always has.
+ */
+function keepAsEarlier(): void {
+  const outcome = shownOutcome;
+  if (outcome === null || outcome.tone !== 'done' || outcomeSlot.hidden) return;
+  const timer = outcomeSlot.querySelector<HTMLElement>('.notice-timer');
+  const elapsed = Number(timer?.getAnimations()[0]?.currentTime ?? 0);
+  const earlier = document.createElement('div');
+  earlier.className = 'notice notice-earlier';
+  earlier.dataset.screen = outcome.screen ?? outcomeScreen();
+  drawNotice(earlier, outcome, false, () => earlier.remove(), elapsed);
+  outcomeSlot.before(earlier);
+  const kept = noticeStack.querySelectorAll('.notice-earlier');
+  for (let index = 0; index < kept.length - (noticesShown - 1); index += 1) kept[index].remove();
+}
+
+/** The slot, empty and out of sight. */
+function emptySlot(): void {
+  shownOutcome = null;
+  outcomeSlot.hidden = true;
+  outcomeSlot.replaceChildren();
+  outcomeSlot.classList.remove('is-done', 'is-kept');
+  placeStack();
+}
+
+/** The person put the sentence away, or its time ran out: it goes, and a redraw does not bring it back. */
+function closeOutcome(): void {
+  state.lastOutcome = null;
+  emptySlot();
 }
 
 export function markPlace(place: string): void {
@@ -195,6 +317,21 @@ export function requiredElement<T extends Element>(selector: string): T {
 export const root = document.documentElement;
 export const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 export const content = requiredElement<HTMLElement>('#studio-content');
+/**
+ * Where every sentence is said (W-283): a stack over the bottom right of the layer, above the
+ * status line, that floats over the page instead of taking a row in it. The slot used to sit in
+ * each view's markup between its toolbar and its content, and every notice moved the content
+ * down by its own height, and back up when it went (owner, 2026-10-17: "it pushes the main
+ * content down"). The newest notice is the slot; a success said before it waits above it.
+ */
+const noticeStack = requiredElement<HTMLElement>('#notice-stack');
+const outcomeSlot = requiredElement<HTMLElement>('#outcome-slot');
+// Not every way a page is drawn goes through rerender: moving to another screen draws it
+// directly. Every way replaces the pane's children, so watching them is what lets a notice go
+// with the screen it was said on, whichever path drew the next one.
+new MutationObserver(() => restoreOutcome()).observe(content, { childList: true });
+window.addEventListener('resize', () => placeStack());
+for (const kind of ['scroll', 'input'] as const) content.addEventListener(kind, () => placeStack(), { capture: true, passive: true });
 export const workspaceTitle = requiredElement<HTMLElement>('#workspace-title');
 export const sessionContext = requiredElement<HTMLElement>('#session-context');
 export const sessionHealth = requiredElement<HTMLElement>('#session-health');
@@ -498,23 +635,15 @@ export async function stopInFlightWork(): Promise<void> {
 }
 
 export function clearError(): void {
+  keepAsEarlier();
   state.lastOutcome = null;
-  const slot = content.querySelector<HTMLElement>('.message-slot');
-  if (slot !== null) {
-    slot.hidden = true;
-    slot.textContent = '';
-    slot.classList.remove('is-done');
-  }
+  emptySlot();
 }
 
-/** The one slot a view says something in, made if the view has not got one. */
+/** The one slot every sentence is said in, ready for the next one. */
 function messageSlot(): HTMLElement {
-  const existing = content.querySelector<HTMLElement>('.message-slot');
-  if (existing !== null) return existing;
-  const slot = document.createElement('div');
-  slot.className = 'message-slot';
-  content.prepend(slot);
-  return slot;
+  keepAsEarlier();
+  return outcomeSlot;
 }
 
 /**
@@ -534,7 +663,6 @@ export function showError(message: string): void {
   drawOutcome(slot, state.lastOutcome);
   slot.tabIndex = -1;
   focusWithoutInteraction(slot);
-  slot.scrollIntoView({ block: 'nearest' });
   announce(message);
 }
 
@@ -550,7 +678,7 @@ for (const kind of ['pointerdown', 'keydown'] as const)
   document.addEventListener(kind, (event) => {
     const outcome = state.lastOutcome;
     if (!releasedByNextInteraction(outcome)) return;
-    if (event.target instanceof Node && content.querySelector('.message-slot')?.contains(event.target) === true) return;
+    if (event.target instanceof Node && noticeStack.contains(event.target)) return;
     state.lastOutcome = null;
   }, true);
 
@@ -567,7 +695,6 @@ export function showOutcome(message: string, action?: OutcomeNotice['action']): 
   state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'done', ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
-  slot.scrollIntoView({ block: 'nearest' });
   announce(message);
 }
 
@@ -590,7 +717,6 @@ export function showKeptAlert(message: string, action?: OutcomeNotice['action'])
   state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'alert', kept: true, ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
-  slot.scrollIntoView({ block: 'nearest' });
   announce(message);
 }
 
@@ -601,7 +727,6 @@ export function showRetainedNotice(message: string, refresh: (button: HTMLButton
   slot.tabIndex = -1;
   // A background read that failed says so where it can be seen, without moving anybody (WCS-07).
   if (takeFocus) focusWithoutInteraction(slot);
-  slot.scrollIntoView({ block: 'nearest' });
   announce(message);
 }
 

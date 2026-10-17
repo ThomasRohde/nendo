@@ -732,7 +732,7 @@ try {
     const frame = ${probeMount}.querySelector('iframe'), bar = ${probeStrip}, add = document.querySelector('#new-record');
     // An outcome the person was just shown sits in the message line above the toolbar until they
     // move on (W-210, UX-04). It is said, not chrome, so its height is set aside and reported.
-    const slot = document.querySelector('.use-page .message-slot:not([hidden])');
+    const slot = document.querySelector('.message-slot:not([hidden])');
     const said = slot === null ? 0 : slot.getBoundingClientRect().height + parseFloat(getComputedStyle(slot).marginTop) + parseFloat(getComputedStyle(slot).marginBottom);
     const between = frame.getBoundingClientRect().top - header.getBoundingClientRect().bottom - said;
     return { between: Math.round(between), message: slot === null ? null : { height: Math.round(said), text: slot.textContent.trim().slice(0, 80) }, row: Math.round(row.getBoundingClientRect().height), headerHeight: Math.round(header.getBoundingClientRect().height),

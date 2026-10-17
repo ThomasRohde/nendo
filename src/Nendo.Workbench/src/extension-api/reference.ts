@@ -196,7 +196,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.ui.toast(text)',
     params: 'text of 1 to 300 characters.',
     answer: 'null.',
-    note: 'Shown in Nendo\'s outcome line as "view title: text", at most one a second.',
+    note: 'Shown as a notice over the bottom right of Nendo\'s window, as "view title: text", for a few seconds; at most one a second.',
   },
   'ui.setHeight': {
     call: 'nendo.ui.setHeight(pixels)',

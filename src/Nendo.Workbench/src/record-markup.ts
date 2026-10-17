@@ -624,7 +624,6 @@ export function recordSheetMarkup(
     </div>
     <div class="record-sheet-body">
       <div class="record-sheet-main">
-        <div class="message-slot" role="alert" hidden></div>
         ${hasLong
           ? `<article class="record-sheet-document">${titleMarkup}${long.map((field) =>
             `<section class="record-sheet-section">${fieldControlMarkup(field, record?.values[field.semanticId], { placeholder: 'Nothing written yet', record })}</section>`).join('')}</article>`

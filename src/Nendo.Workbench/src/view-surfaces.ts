@@ -22,7 +22,6 @@ export function renderSurfaces(): void {
   const recipe = currentRecipe();
   content.innerHTML = `<div class="studio-page">
     ${!valid && recipe !== null ? `<header class="page-heading"><button id="prepare-application" class="primary-button" data-action type="button">${escapeHtml(recipe.actionLabel)}</button></header>` : ''}
-    <div class="message-slot" role="alert" hidden></div>
     ${valid ? `<div class="page-toolbar">${recordTypePicker('surface-entity', applicationPlans().map(app => ({ value: app.entity.semanticId, label: app.entity.displayName, selected: app.entity.semanticId === plan.entity.semanticId })))}<span class="toolbar-spacer"></span><span class="record-total">${counted(surfaceCount(plan), 'screen')}</span></div><div class="surface-list">
       ${plan.surfaces.map((root) => treeSurfaceCard(plan, root, cardContext())).join('')}
     </div>`

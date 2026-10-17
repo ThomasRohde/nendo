@@ -290,7 +290,6 @@ export function renderAgentChat(): void {
       <span id="chat-state" class="chat-pill"><span class="chat-dot" aria-hidden="true"></span><strong id="chat-state-label"></strong></span>
       <button id="new-agent-session" class="chat-quiet" type="button" aria-label="New session" title="New session: end this conversation and start the agent again">${icon('newChat')}</button>
     </header>
-    <div class="message-slot" role="alert" hidden></div>
     <div id="chat-scroll" class="chat-scroll">
       <div class="chat-column">
         <div id="chat-sign-in" class="chat-sign-in" hidden></div>

@@ -682,7 +682,7 @@ Workbench suite, pins the table name by name.
 | `ui.openRecord` | `entityId`, `recordId` | Workbench navigation | `{opened}` |
 | `ui.openScreen` | `surfaceId` | Workbench navigation | `{opened}` |
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |
-| `ui.toast` | `text`, 1–300 characters | The Workbench's outcome line | null |
+| `ui.toast` | `text`, 1–300 characters | A notice over the bottom right of the Workbench, gone after a few seconds | null |
 | `ui.setHeight` | `pixels` | The frame's height | `{pixels}` |
 | `ui.setToolbar` | `items`, `add` | Nendo's toolbar for the view (W-090) | null |
 | `ui.showMenu` | `items`, `x`, `y` | Nendo's menu at a point in the view (W-090) | `{id, value}` of the item picked, or null |

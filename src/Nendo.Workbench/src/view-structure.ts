@@ -36,7 +36,6 @@ export function renderStructure(): void {
   const typeHeld = !entity.retired && calculationsHoldingType(entity.entityId, state.session.entities).length > 0;
   content.innerHTML = `<div class="studio-page structure-page">
     <div class="page-toolbar">${recordTypePicker('structure-entity', state.session.entities.map(candidate => ({ value: candidate.entityId, label: candidate.displayName, selected: candidate.entityId === entity.entityId })))}${activated ? '<span class="health-chip healthy">Active</span>' : ''}<span class="toolbar-spacer"></span>${activated || recipe === null ? '' : `<button id="prepare-application" class="primary-button" data-action type="button">${escapeHtml(recipe.actionLabel)}</button>`}<button id="rename-entity" class="secondary-button" data-action type="button">Rename record type</button><button id="add-field" class="primary-button" data-action type="button"><span class="button-glyph" aria-hidden="true">+</span>Add field</button></div>
-    <div class="message-slot" role="alert" hidden></div>
     <section class="definition-card">
       <div class="definition-title"><div><span class="entity-icon" aria-hidden="true">${escapeHtml((Array.from(entity.displayName)[0] ?? '?').toUpperCase())}</span><div><h2>${escapeHtml(entity.displayName)}</h2><code>${escapeHtml(entity.entityId)}</code></div></div><div class="definition-title-actions"><strong>${escapeHtml(fieldCountLabel(entity))}</strong><button id="retire-entity" class="secondary-button" data-action type="button"${typeHeld ? ' disabled aria-describedby="type-held-by"' : ''}>${entity.retired ? 'Reactivate' : 'Retire'} record type</button></div></div>${typeHeld ? typeHeldByMarkup(entity.entityId, state.session.entities) : ''}
       <div class="field-list">
@@ -149,7 +148,7 @@ export function renderNumbering(entity: EntitySnapshot, fieldId: string): void {
     <form id="numbering-form" class="record-form"><label>Prefix<input name="prefix" required maxlength="16" pattern="[^\s]*[^\s0-9]" autocomplete="off" value="${escapeAttribute(suggestedPrefix(field.displayName))}" /></label>
     <label>Digits<select name="width">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(width => `<option value="${width}" ${width === 3 ? 'selected' : ''}>${width}</option>`).join('')}</select></label>
     <p class="numbering-example" role="status"></p>
-    <div class="message-slot" role="alert" hidden></div><div class="form-actions"><button class="primary-button" data-action type="submit">Preview numbering</button></div></form></section></div>`;
+    <div class="form-actions"><button class="primary-button" data-action type="submit">Preview numbering</button></div></form></section></div>`;
   const form = requiredElement<HTMLFormElement>('#numbering-form');
   const example = (): void => {
     const data = new FormData(form);
@@ -195,7 +194,7 @@ export function renderReferenceLabel(entity: EntitySnapshot, fieldId: string): v
   const targetName = target?.displayName ?? reference.targetEntityId;
   content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><header><button id="cancel-reference-label" class="text-button" type="button" data-dismiss>Back to Structure</button><h2>Label ${escapeHtml(field.displayName)} by another field</h2><p>${escapeHtml(field.displayName)} shows each ${escapeHtml(targetName)} record by its ${escapeHtml(current)}. Choose another text field to show them by. The reference keeps pointing at the same records, and nothing stored changes. Review the proposal before applying it.</p></header>
     <form id="reference-label-form" class="record-form"><label>Show ${escapeHtml(targetName)} records by<select name="labelFieldId" required>${choices.map(choice => `<option value="${escapeAttribute(choice.fieldId)}">${escapeHtml(choice.displayName)}</option>`).join('')}</select></label>
-    <div class="message-slot" role="alert" hidden></div><div class="form-actions"><button class="primary-button" data-action type="submit">Preview label</button></div></form></section></div>`;
+    <div class="form-actions"><button class="primary-button" data-action type="submit">Preview label</button></div></form></section></div>`;
   requiredElement<HTMLButtonElement>('#cancel-reference-label').addEventListener('click', () => rerender());
   const form = requiredElement<HTMLFormElement>('#reference-label-form');
   form.addEventListener('submit', event => {
@@ -229,7 +228,7 @@ export function renderAddField(entity: EntitySnapshot): void {
     <label id="field-choices-label" hidden>Choices, one per line<textarea name="choices" rows="4"></textarea></label>
     <div id="field-scale" hidden><div class="scale-bounds"><label>Lowest<input name="scaleMin" type="number" step="1" value="1" /></label><label>Highest<input name="scaleMax" type="number" step="1" value="5" /></label></div><p>A rating is a whole number shown as dots. The scale carries at most ten values and is set once, so choose it with the field. A value outside it stays readable as its number.</p></div>
     <div id="reference-definition" hidden><label>Target record type<select id="reference-target" name="targetEntityId">${state.session.entities.filter(candidate => !candidate.retired && candidate.fields.some(field => !field.retired && storageLabel(field.storageKind) === 'Text')).map(candidate => `<option value="${escapeAttribute(candidate.entityId)}">${escapeHtml(candidate.displayName)}</option>`).join('')}</select></label><label>Show targets using this text field<select id="reference-label" name="labelFieldId"></select></label><p>The relationship stores the target's ID. Changing its label keeps the relationship.</p></div>
-    <div class="message-slot" role="alert" hidden></div><div class="form-actions"><button class="primary-button" data-action type="submit">Preview field</button></div></form></section></div>`;
+    <div class="form-actions"><button class="primary-button" data-action type="submit">Preview field</button></div></form></section></div>`;
   requiredElement<HTMLButtonElement>('#cancel-field').addEventListener('click', () => rerender());
   requiredElement<HTMLSelectElement>('#field-kind').addEventListener('change', event => {
     requiredElement<HTMLElement>('#field-choices-label').hidden = (event.target as HTMLSelectElement).value !== 'choice';
@@ -264,7 +263,7 @@ export function renderRenameSchema(entity: EntitySnapshot, fieldId: string | nul
   const expectedRevision = state.session.manifest!.definitionRevision;
   content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>Rename ${escapeHtml(name)}</h2>
     <p>This changes the display name. Existing record values and IDs stay as they are.</p>
-    <div class="message-slot" role="alert" hidden></div><form id="rename-schema-form" class="record-form">
+    <form id="rename-schema-form" class="record-form">
     <label>New name<input id="schema-name" name="displayName" maxlength="120" required value="${escapeAttribute(name)}" /></label>
     <div class="form-actions"><button id="cancel-rename" class="secondary-button" type="button" data-dismiss>Cancel</button><button class="primary-button" data-action type="submit">Preview rename</button></div>
     </form></section></div>`;
@@ -288,7 +287,7 @@ export function renderReferenceConversion(entity: EntitySnapshot, fieldId: strin
   const title = `Convert ${field.displayName} reference`;
   content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>${escapeHtml(title)}</h2>
     <p>Choose the target record type and its label, then explicitly map every existing value. Nothing changes until you accept the proposal.</p>
-    <div class="message-slot" role="alert" hidden></div><form id="conversion-target-form" class="record-form">
+    <form id="conversion-target-form" class="record-form">
     <label>Target record type<select id="conversion-target" required><option value="">Choose a record type</option>${targets.map(target => `<option value="${escapeAttribute(target.entityId)}">${escapeHtml(target.displayName)}</option>`).join('')}</select></label>
     <label>Target label<select id="conversion-label" required><option value="">Choose a text field</option></select></label>
     <div class="form-actions"><button id="cancel-conversion" class="secondary-button" type="button" data-dismiss>Cancel</button><button class="primary-button" type="submit">Map values</button></div>
@@ -313,7 +312,6 @@ export function renderReferenceConversion(entity: EntitySnapshot, fieldId: strin
         const boundField = { ...field, reference };
         content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>${escapeHtml(title)}</h2>
           <p>Choose a target for each record${field.required ? '.' : ', or use Clear to explicitly leave it unset.'} Original values remain in history; this conversion cannot be undone automatically.</p>
-          <div class="message-slot" role="alert" hidden></div>
           ${page.items.map(record => conversionRecordMarkup(entity, boundField, record)).join('')}
           <div class="form-actions"><button id="cancel-conversion" class="secondary-button" type="button" data-dismiss>Cancel</button><button id="preview-conversion" class="primary-button" data-action type="button">Preview conversion</button></div>
           </section></div>`;
@@ -366,7 +364,7 @@ export function renderChoiceEditor(entity: EntitySnapshot, fieldId: string): voi
   const expectedDefinitionRevision = state.session.manifest!.definitionRevision;
   content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>Edit ${escapeHtml(field.displayName)} choices</h2>
     <p>Change a display label, retire a choice or give it a colour. Existing records keep their stored choice ID. Retired choices remain readable but cannot be newly assigned. A colour shows on the board column, on chips and on any record page coloured by this field.</p>
-    <div class="message-slot" role="alert" hidden></div><form id="choice-form" class="record-form">
+    <form id="choice-form" class="record-form">
       <label>Choice<select id="choice-id">${field.options.map(id => `<option value="${escapeAttribute(id)}">${escapeHtml(choiceDisplay(field, id))}</option>`).join('')}</select></label>
       <label>Display label<input id="choice-label" maxlength="200" required /></label>
       <label class="checkbox-field"><input id="choice-retired" type="checkbox" />Retired</label>
@@ -437,7 +435,6 @@ export async function renderFieldRequirement(entity: EntitySnapshot, fieldId: st
     content.innerHTML = `<div class="dialog-page"><section class="record-form-card"><h2>${escapeHtml(title)}</h2>
       <p>${page.items.length ? 'Enter an explicit value for each record below. Review every change before applying it.' : 'No missing values need filling. Review the definition change before applying it.'}</p>
       ${page.nextCursor ? '<p>More than 50 records need values. This proposal fills this batch only. Return here after accepting it to continue; the field changes only after all missing values are filled.</p>' : ''}
-      <div class="message-slot" role="alert" hidden></div>
       ${page.items.map((record, index) => `<form class="record-form backfill-record" data-row="${index}"><h3>${escapeHtml(recordHeading(entity, record, fieldId))}</h3><code>${escapeHtml(record.recordId)}</code>${backfillControlMarkup(field)}</form>`).join('')}
       <div class="form-actions"><button id="cancel-requirement" class="secondary-button" type="button" data-dismiss>Cancel</button><button id="preview-requirement" class="primary-button" data-action type="button">Preview changes</button></div>
       </section></div>`;

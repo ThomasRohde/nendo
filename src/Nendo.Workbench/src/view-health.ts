@@ -59,7 +59,6 @@ export function renderHealth(): void {
   const local = client.mode === 'desktop';
   const status = healthStatus(state.session);
   content.innerHTML = `<div class="studio-page file-health-page"><header class="page-heading"><span class="health-chip ${status.healthy ? 'healthy' : 'warning'}">${escapeHtml(status.label)}</span></header>
-    <div class="message-slot" role="alert" hidden></div>
     <div class="health-grid">
       ${healthCard('Data', capabilities.readData, capabilities.readData ? 'Available' : 'Unavailable', capabilities.readData ? '' : 'Not available for inspection.', 'data')}
       ${healthCard('History', capabilities.readHistory, capabilities.readHistory ? 'Available' : 'Unavailable', capabilities.readHistory ? '' : 'Not available for inspection.', 'history')}

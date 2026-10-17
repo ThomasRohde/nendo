@@ -124,6 +124,11 @@
           <section class="workbench" aria-label="Nendo Studio workbench">
             <div id="studio-content" class="studio-content" aria-busy="true"></div>
           </section>
+
+          <!-- What happened, over the bottom right of the page and never in it (W-283, shell.ts). -->
+          <div id="notice-stack" class="notice-stack">
+            <div id="outcome-slot" class="message-slot notice" role="alert" hidden></div>
+          </div>
         </div>
 
         <footer id="session-status" class="status-bar" role="region" aria-label="Session status" hidden>

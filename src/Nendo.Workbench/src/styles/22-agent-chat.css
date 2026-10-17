@@ -285,10 +285,6 @@
   color: var(--muted);
 }
 
-.agent-chat > .message-slot {
-  margin: 10px auto 0;
-}
-
 .chat-scroll {
   flex: 1;
   min-height: 0;

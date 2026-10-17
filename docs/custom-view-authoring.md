@@ -482,8 +482,8 @@ zoom, so they are not theme values. The kit's focus ring answers the first two.
   view is not bounded. A
   view that is not on screen, such as one waiting while the person reviews its proposal,
   is refused `not-allowed`. Move the page when the person asks you to, not on a timer.
-- `nendo.ui.toast(text)` shows one sentence in Nendo's outcome line, as
-  "‹view title›: ‹text›": 1–300 characters, at most one a second.
+- `nendo.ui.toast(text)` shows one sentence as a notice over the bottom right of Nendo's
+  window, as "‹view title›: ‹text›", for a few seconds: 1–300 characters, at most one a second.
 - `nendo.ui.setHeight(pixels)` sets the height of a panel on a record page, between
   80 and 4,000 pixels. A panel starts at 360. A view on a screen fills the screen's
   area, and `setHeight` answers the height it has.

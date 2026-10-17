@@ -296,7 +296,6 @@ export function renderOverview(overview: OverviewPlan): void {
   // to pick or record to add, so it needs no row of its own below the top bar.
   const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">Showing</span><select id="use-entity">${showingOptionsMarkup({ overview: true, fileView: null, entityId: null })}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label>`);
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">
-    <div class="message-slot use-message" role="alert" hidden></div>
     <div class="use-layout"><section class="use-surface overview-surface">${overviewMarkup(overview)}</section></div>
   </div>`;
 
