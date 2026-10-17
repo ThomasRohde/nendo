@@ -388,7 +388,7 @@ async page => {
   await frame.waitForSelector('.block-menu', { timeout: 3000 });
   const menuOpen = await frame.evaluate(() => ({ heads: [...document.querySelectorAll('.block-menu .block-head')].map(h => h.textContent),
     checked: [...document.querySelectorAll('.block-menu [aria-checked="true"]')].map(b => b.textContent), inside: document.querySelector('.block-menu').getBoundingClientRect().bottom <= innerHeight + 1 }));
-  assert(menuOpen.heads.join() === 'Turn into,Align,Manuscript' && menuOpen.checked.join() === 'Paragraph' && menuOpen.inside, `Block menu: ${JSON.stringify(menuOpen)}`);
+  assert(menuOpen.heads.join() === 'Turn into,Align,Move,Manuscript' && menuOpen.checked.join() === 'Paragraph' && menuOpen.inside, `Block menu: ${JSON.stringify(menuOpen)}`);
   await page.screenshot({ path: '__OUTPUT__/block-menu.png' });
   let blockFrom = (await batches()).length;
   await frame.getByRole('menuitemradio', { name: 'Bulleted list' }).click();
@@ -691,6 +691,94 @@ async page => {
   await saved();
   checks.push('a draft that cannot be kept is said');
 
+  // Stage 2: a paragraph keeps its identity, and its notes follow what the editor did, never
+  // matching text. Paragraphs written as another client would, then read by the page.
+  const NOTE = 'mn.note';
+  const putBlock = (id, text, order) => page.evaluate(({ id, text, order, chapter }) => window.broker.put('mn.block', { entityId: 'mn.block', recordId: id, version: 1,
+    values: { 'mn.block.kind': 'Paragraph', 'mn.block.text': text, 'mn.block.parent': chapter, 'mn.block.order': order } }), { id, text, order, chapter: chapterOf });
+  const putNote = (id, on) => page.evaluate(({ id, on }) => window.broker.put('mn.note', { entityId: 'mn.note', recordId: id, version: 1,
+    values: { 'mn.note.block': on, 'mn.note.kind': 'Comment', 'mn.note.text': `On ${on}`, 'mn.note.done': false } }), { id, on });
+  await putBlock('b-echo-1', 'Echo line.', 2000000); await putBlock('b-echo-2', 'Echo line.', 2001024);
+  await putBlock('b-join-1', 'Joined head.', 2002048); await putBlock('b-join-2', 'Joined tail.', 2003072);
+  await putBlock('b-cut', 'A paragraph to cut.', 2004096); await putBlock('b-after-cut', 'The paragraph after it.', 2005120);
+  await putNote('n-echo', 'b-echo-2'); await putNote('n-join', 'b-join-2'); await putNote('n-cut', 'b-cut');
+  await page.evaluate(() => window.broker.pushChanges());
+  await frame.waitForFunction(() => document.querySelector('.sheet-text [data-block="b-after-cut"]'), null, { timeout: 5000 });
+
+  // Two paragraphs with the same words: one deleted, the other edited. The deleted one's note goes
+  // with it; it does not move to the paragraph that happens to hold the same words.
+  await frame.evaluate(() => { const s = window.manuscriptSheet, at = s.locate('b-echo-2'); s.editor.chain().focus().deleteRange({ from: at.pos, to: at.pos + at.node.nodeSize }).run(); });
+  await select('b-echo-1', 'end');
+  await page.keyboard.type(' Again.');
+  await saved();
+  const echo = { note: await record(NOTE, 'n-echo'), deleted: await record(BLOCK, 'b-echo-2') };
+  assert(echo.note === null && echo.deleted === null, `A note followed matching words to another paragraph: ${JSON.stringify(echo)}`);
+  checks.push('a repeated line cannot take another\'s note');
+
+  // Joined by Backspace, the second paragraph's note goes to the paragraph it joined.
+  await select('b-join-2', 0);
+  await page.keyboard.press('Backspace');
+  await saved();
+  const join = { note: (await record(NOTE, 'n-join'))?.values['mn.note.block'], second: await record(BLOCK, 'b-join-2'), first: (await record(BLOCK, 'b-join-1'))?.values[T] };
+  assert(join.note === 'b-join-1' && join.second === null && join.first === 'Joined head.Joined tail.', `Join: ${JSON.stringify(join)}`);
+  checks.push('a join hands its notes to the paragraph it joined');
+
+  // Deleted from one paragraph's start to the middle of the next: what is left is the second
+  // paragraph's text, so it is the second paragraph, its ID and note kept; the first is gone.
+  await frame.evaluate(() => { const s = window.manuscriptSheet, a = s.locate('b-echo-1'), b = s.locate('b-join-1');
+    s.editor.chain().focus().setTextSelection({ from: a.pos + 1, to: b.pos + 1 + 'Joined '.length }).run(); });
+  await page.keyboard.press('Delete');
+  await saved();
+  const across = { first: await record(BLOCK, 'b-echo-1'), second: (await record(BLOCK, 'b-join-1'))?.values[T], note: (await record(NOTE, 'n-join'))?.values['mn.note.block'] };
+  assert(across.first === null && across.second === 'head.Joined tail.' && across.note === 'b-join-1', `Deleted across two paragraphs: ${JSON.stringify(across)}`);
+  checks.push('what is left of a paragraph keeps its identity');
+
+  // Move up and down keep the block, its ID and its note.
+  await select('b-cut', 0);
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await saved();
+  const movedUp = { order: await blockIds(), cut: (await record(BLOCK, 'b-cut'))?.values[O], before: (await record(BLOCK, 'b-join-1'))?.values[O], note: (await record(NOTE, 'n-cut'))?.values['mn.note.block'] };
+  const upAt = movedUp.order.indexOf('b-cut');
+  assert(movedUp.order[upAt + 1] === 'b-join-1' && movedUp.cut < movedUp.before && movedUp.note === 'b-cut', `Move up: ${JSON.stringify(movedUp)}`);
+  await page.keyboard.press('Alt+Shift+ArrowDown');
+  await saved();
+  const movedDown = await blockIds();
+  assert(movedDown[movedDown.indexOf('b-join-1') + 1] === 'b-cut', `Move down: ${JSON.stringify(movedDown)}`);
+  checks.push('move up and down keep the block');
+
+  // Cut whole (from its start to the next paragraph's start, as a triple click selects), the
+  // paragraph goes to the Cuttings with its note; the next paragraph keeps its own ID and words.
+  const clip = await frame.evaluate(() => {
+    const s = window.manuscriptSheet, at = s.locate('b-cut'), next = s.locate('b-after-cut');
+    s.editor.chain().focus().setTextSelection({ from: at.pos + 1, to: next.pos + 1 }).run();
+    const data = new DataTransfer();
+    s.editor.view.dom.dispatchEvent(new ClipboardEvent('cut', { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData('text/html');
+  });
+  await saved();
+  const cutAway = { cut: await record(BLOCK, 'b-cut'), note: (await record(NOTE, 'n-cut'))?.values['mn.note.block'], next: (await record(BLOCK, 'b-after-cut'))?.values[T],
+    shown: await frame.evaluate(() => document.querySelector('[data-block="b-after-cut"]')?.textContent ?? null) };
+  assert(cutAway.cut?.values[P] && cutAway.cut.values[P] !== chapterOf && cutAway.note === 'b-cut' && cutAway.next === 'The paragraph after it.' && cutAway.shown === 'The paragraph after it.',
+    `Cut: ${JSON.stringify({ cutAway, clip })}`);
+  // Pasted back before another paragraph, it is the same block, at home again, its note with it.
+  await select('b-0501', 0);
+  await frame.evaluate(html => window.manuscriptSheet.editor.view.pasteHTML(html), clip);
+  await saved();
+  const pastedBack = { parent: (await record(BLOCK, 'b-cut'))?.values[P], note: (await record(NOTE, 'n-cut'))?.values['mn.note.block'], order: await blockIds() };
+  assert(pastedBack.parent === chapterOf && pastedBack.note === 'b-cut' && pastedBack.order[pastedBack.order.indexOf('b-cut') + 1] === 'b-0501', `Paste back: ${JSON.stringify(pastedBack)}`);
+  checks.push('cut and paste is a move');
+
+  // Deleted, saved, then Ctrl+Z: the same record comes back, its note too, not a new block.
+  await frame.evaluate(() => { const s = window.manuscriptSheet, at = s.locate('b-cut'); s.editor.chain().focus().deleteRange({ from: at.pos, to: at.pos + at.node.nodeSize }).run(); });
+  await saved();
+  const deletedThen = { block: await record(BLOCK, 'b-cut'), note: await record(NOTE, 'n-cut') };
+  await select('b-0501', 0);
+  await frame.evaluate(() => window.manuscriptSheet.editor.commands.undo());
+  await saved();
+  const undone = { block: (await record(BLOCK, 'b-cut'))?.values[T], note: (await record(NOTE, 'n-cut'))?.values['mn.note.block'], shown: await frame.evaluate(() => !!document.querySelector('[data-block="b-cut"]')) };
+  assert(deletedThen.block === null && deletedThen.note === null && undone.block === 'A paragraph to cut.' && undone.note === 'b-cut' && undone.shown, `Undo after a save: ${JSON.stringify({ deletedThen, undone })}`);
+  checks.push('undo after a save brings back the same block');
+
   // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
   // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;
   // the close button and Escape put it away, and the toggle is released.
@@ -821,7 +909,76 @@ async page => {
   const plainDash = (await batches()).slice(plainFrom).flatMap(b => b.writes);
   assert(plainDash.length === 1 && plainDash[0].op === 'create' && plainDash[0].values[T] === '\\- not a list' && !('mn.block.list' in plainDash[0].values), `"- " without the List field: ${JSON.stringify(plainDash)}`);
   checks.push('no alignment, lists or tables without their fields');
+
+  // Speed at the sizes the design names (owner's decision 9): 150,000 words, and 500,000 with
+  // -Stress. A generated manuscript of chapters and paragraphs of 8 to 52 words, some list items
+  // and quotations, a note on one paragraph in fifty and a link on one in a hundred. Typing is
+  // timed from each keydown to the frame after it, at a person's pace, in the middle of the book.
+  const bigFixture = words => {
+    const f = JSON.parse(JSON.stringify(manusFixture));
+    let s = 7;
+    const rand = () => { s = (s + 0x6D2B79F5) | 0; let x = Math.imul(s ^ (s >>> 15), 1 | s); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+    const vocab = 'the tide bar light ledger causeway water posts harbour boat night pencil winter father door shelf hands entries line report numbered dry keeps salt rope lamp wind gull she read it three times and'.split(' ');
+    const sentence = n => { const w = Array.from({ length: n }, () => vocab[Math.floor(rand() * vocab.length)]); w[0] = w[0][0].toUpperCase() + w[0].slice(1); return `${w.join(' ')}.`; };
+    const blocks = f.records['mn.block'].filter(r => ['b-root-2', 'b-fn-1', 'b-fn-2'].includes(r.recordId));
+    const put = (id, kind, parent, order, text, extra = {}) => blocks.push({ entityId: 'mn.block', recordId: id, version: 1, labels: {},
+      values: { 'mn.block.kind': kind, 'mn.block.parent': parent, 'mn.block.order': order, 'mn.block.text': text, ...extra } });
+    put('b-root', 'Manuscript', null, 1024, 'Low Water'); put('b-cuttings', 'Cuttings', 'b-root', 1073741824, 'Cuttings');
+    const notes = [], links = [];
+    let count = 0, n = 0, chapters = 0;
+    while (count < words) {
+      const chapter = `b-big-ch-${++chapters}`;
+      put(chapter, 'Chapter', 'b-root', chapters * 1024, `Chapter ${chapters}`);
+      for (let inChapter = 0, order = 0; inChapter < 4000 && count < words;) {
+        const length = 8 + Math.floor(rand() * 45);
+        const parts = [];
+        for (let left = length; left > 0;) { const k = Math.min(left, 6 + Math.floor(rand() * 12)); parts.push(sentence(k)); left -= k; }
+        const id = `b-big-${++n}`, roll = rand();
+        put(id, 'Paragraph', chapter, order += 1024, parts.join(' '), roll < 0.05 ? { 'mn.block.list': 'Bulleted' } : roll < 0.08 ? { 'mn.block.role': 'Quotation' } : {});
+        if (rand() < 0.02) notes.push({ entityId: 'mn.note', recordId: `n-big-${n}`, version: 1, labels: {}, values: { 'mn.note.block': id, 'mn.note.kind': 'Comment', 'mn.note.text': 'Check this.', 'mn.note.done': false } });
+        if (n > 10 && rand() < 0.01) links.push({ entityId: 'mn.link', recordId: `l-big-${n}`, version: 1, labels: {}, values: { 'mn.link.from': id, 'mn.link.to': `b-big-${n - 5}`, 'mn.link.kind': 'See also', 'mn.link.note': null, 'mn.link.review': 'Current' } });
+        count += length; inChapter += length;
+      }
+    }
+    f.records['mn.block'] = blocks; f.records['mn.note'] = notes; f.records['mn.link'] = links;
+    return { fixture: f, paragraphs: n, chapters, words: count };
+  };
+  const percentile = (values, q) => { const sorted = [...values].sort((a, b) => a - b); return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))]; };
+  const measure = async words => {
+    const big = bigFixture(words);
+    const before = frame, started = Date.now();
+    await page.evaluate(f => { window.broker.setFixture(f); window.broker.remount(); }, big.fixture);
+    frame = null;
+    for (let i = 0; i < 2000 && frame === null; i++) { frame = page.frames().find(f => f.url().startsWith(origin + '/') && f !== before) ?? null; if (frame === null) await page.waitForTimeout(50); }
+    assert(frame !== null, `The view did not start on ${words} words.`);
+    await frame.waitForFunction(() => window.manuscript?.root === 'b-root' && document.querySelector('.sheet-text [data-block="b-big-1"]') && !window.manuscript.saving, null, { timeout: 180000 });
+    const open = Date.now() - started;
+    const middle = `b-big-${Math.floor(big.paragraphs / 2)}`;
+    await frame.evaluate(id => window.manuscriptSheet.focusBlock(id), middle);
+    await frame.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'), null, { timeout: 5000 });
+    await frame.evaluate(() => {
+      window.__keys = [];
+      addEventListener('keydown', e => { const t = performance.now(); requestAnimationFrame(() => setTimeout(() => window.__keys.push(performance.now() - t), 0)); }, true);
+    });
+    for (const key of ' and the tide went out over the bar before anyone saw it') { await page.keyboard.type(key); await page.waitForTimeout(80); }
+    await page.waitForTimeout(400);
+    const keys = await frame.evaluate(() => window.__keys.slice());
+    const saveFrom = Date.now();
+    await saved();
+    const save = Date.now() - saveFrom;
+    const far = `b-big-${big.paragraphs - 3}`;
+    const goTo = await frame.evaluate(id => new Promise(resolve => { const t = performance.now(); window.manuscriptSheet.focusBlock(id); requestAnimationFrame(() => setTimeout(() => resolve(performance.now() - t), 0)); }), far);
+    const written = (await batches()).at(-1)?.writes.length ?? 0;
+    return { words: big.words, paragraphs: big.paragraphs, chapters: big.chapters, openMs: open, keyP50: Math.round(percentile(keys, 0.5)), keyP95: Math.round(percentile(keys, 0.95)),
+      keyMax: Math.round(Math.max(...keys)), keys: keys.length, saveAfterPauseMs: save, goToMs: Math.round(goTo), lastBatchWrites: written };
+  };
+  const speed = [await measure(150000)];
+  if ('__STRESS__' === 'yes') speed.push(await measure(500000));
+  // The design's budgets: input to paint at most 50 ms at p95 for 150,000 words, 100 ms for 500,000.
+  assert(speed[0].keyP95 <= 50 && speed[0].lastBatchWrites === 1, `Typing at 150,000 words: ${JSON.stringify(speed[0])}`);
+  if (speed[1]) assert(speed[1].keyP95 <= 100, `Typing at 500,000 words: ${JSON.stringify(speed[1])}`);
+  checks.push(`typing at ${speed.map(m => `${Math.round(m.words / 1000)}k words p95 ${m.keyP95} ms`).join(', ')}`);
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
-  return { complete: true, checks, colours, narrow, errors };
+  return { complete: true, checks, colours, narrow, speed, errors };
   })(); } catch (error) { throw Error(`After [${checks.join(', ')}]: ${error.message}`); }
 }

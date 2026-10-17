@@ -16,7 +16,7 @@ const state = {
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
-  hover: null, blockMenu: null,
+  hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -48,7 +48,21 @@ const sheet = createSheet({
   resolvePicture,
   canAlign: () => state.aligns && !state.readOnly,
   canList: () => state.lists && !state.readOnly,
+  canReuse: id => mayComeBack(id),
 });
+
+/**
+ * Whether a block arriving on the page with this ID (pasted, or brought back by undo) may keep it:
+ * one never saved, one of this manuscript's that is off the page (deleted or cut since it was
+ * read), or one of its cuttings. A block of another manuscript, pasted here, is a copy.
+ */
+function mayComeBack(id) {
+  const s = state.saved.get(id);
+  if (!s) return true;
+  if (s.visible) return true;
+  for (let p = s.parent, d = 0; p && d < 64; p = state.saved.get(p)?.parent, d++) if (p === state.cuttings) return true;
+  return false;
+}
 
 // Where a picture's address loads from: the open file's media origin for an embedded one.
 const pictureUrls = new Map();
@@ -157,13 +171,12 @@ async function putHeldBack(writes) {
 function edited() {
   if (!state.problem?.sticky) state.problem = null;
   keepDraft();
-  setStatus('Editing');
+  state.status = 'Editing';
   clearTimeout(state.timer);
   if (!state.firstEdit) state.firstEdit = Date.now();
   const wait = Date.now() - state.firstEdit > LONGEST ? 0 : PAUSE;
   state.timer = setTimeout(() => save(), wait);
-  placeOverlays();
-  declare();
+  soon();
 }
 
 function selected(where) {
@@ -171,8 +184,13 @@ function selected(where) {
   if (state.pinned && !state.popover && where.id !== state.selected) { state.pinned = false; state.more = false; }
   state.selected = where.id;
   if (!state.pinned && where.empty) closePopover();
-  render();
+  soon();
 }
+
+// A keystroke changes the text and the selection at once: the margin, the toolbar and the side
+// panel are drawn again once for the frame, not once for each.
+let drawing = 0;
+function soon() { if (!drawing) drawing = requestAnimationFrame(() => { drawing = 0; render(); }); }
 
 // ---------- Reading ----------
 
@@ -228,15 +246,56 @@ async function load() {
  * reload the page.
  */
 function planNow() {
-  for (const id of state.gone) if (sheet.locate(id)) sheet.renumber(id);
   const current = sheet.read();
-  const plan = withoutAsRead(planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links }), state.asRead);
+  const { merged, cut } = sheet.lineage();
+  if (cut.size && state.cuttings === null) state.newCuttings ??= `b-cuttings-${freshId().slice(2, 8)}`;
+  const plan = withoutAsRead(planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links,
+    merged, cut, cuttings: state.cuttings, newCuttings: state.newCuttings }), state.asRead);
   const root = state.saved.get(state.root);
   if (state.title !== state.savedTitle && root) plan.unshift({ op: 'update', entityId: BLOCK, recordId: state.root, version: root.version, values: { [F.text]: state.title || null }, refs: {} });
   return { plan, current };
 }
 
 function pending() { return state.root !== null && planNow().plan.length > 0; }
+
+/**
+ * Blocks a save deleted and the person brought back with Ctrl+Z: the revision that deleted them is
+ * undone (records.undo), so each comes back under its own ID with its notes and links, and the
+ * next plan writes whatever else that revision had changed that the page still shows. Refused
+ * (another writer changed one of its records since, or the view has started again since) the
+ * block is new instead.
+ */
+async function bringBack() {
+  const back = [...state.gone].filter(id => sheet.locate(id));
+  const revisions = [...new Set(back.map(id => state.deletedIn.get(id)).filter(Boolean))].reverse();
+  for (const revision of revisions) {
+    try {
+      const result = await nendo.records.undo(revision, { label: 'Undo a deletion' });
+      for (const r of result.records) {
+        if (r.version === null) { applyWrite({ op: 'delete', entityId: r.entityId, recordId: r.recordId }, null); continue; }
+        const record = await nendo.records.get(r.entityId, r.recordId);
+        if (record) restoreRecord(record);
+      }
+    } catch { /* refused: the blocks it would have brought back are new below */ }
+  }
+  for (const id of state.gone) if (sheet.locate(id)) sheet.renumber(id);
+}
+
+/** A record read back after an undo, as the page keeps it. */
+function restoreRecord(record) {
+  state.gone.delete(record.recordId);
+  if (record.entityId !== BLOCK) {
+    const list = record.entityId === NOTE ? state.notes : state.links;
+    const at = list.findIndex(r => r.recordId === record.recordId);
+    if (at >= 0) list[at] = record; else list.push(record);
+    return;
+  }
+  const v = record.values;
+  const next = { id: record.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null, order: v[F.order] ?? null,
+    role: v[F.role] ?? null, align: v[F.align] ?? null, list: v[F.list] ?? null, level: v[F.level] ?? null, version: record.version };
+  next.visible = next.id !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
+  state.saved.set(record.recordId, next);
+}
 
 async function save() {
   clearTimeout(state.timer);
@@ -247,6 +306,7 @@ async function save() {
   const run = (async () => {
     await null;
     try {
+      await bringBack();
       const { plan, current } = planNow();
       state.firstEdit = 0;
       state.saveError = null;
@@ -256,6 +316,8 @@ async function save() {
       setStatus('Saving…');
       for (const batch of chunkWrites(plan)) await send(batch);
       sheet.saved(current);
+      // Lineage the save has settled: a merged or cut block is now deleted or in the Cuttings.
+      sheet.settle([...sheet.lineage().merged.keys(), ...sheet.lineage().cut].filter(id => !state.saved.get(id)?.visible));
       state.savedTitle = title;
       state.savedAt = new Date();
       setStatus(`Saved ${clock(state.savedAt)}`);
@@ -289,6 +351,8 @@ async function send(batch, label = 'Write') {
     result = await nendo.records.batch(writes, { label, writeKey });
   }
   result.records.forEach((r, i) => applyWrite(writes[i], r.version));
+  // Which revision deleted which block, so Ctrl+Z after the save can undo it (bringBack).
+  for (const w of writes) if (w.entityId === BLOCK && w.op === 'delete' && result.revision) state.deletedIn.set(w.recordId, result.revision);
   return result;
 }
 
@@ -306,6 +370,7 @@ function applyWrite(write, version) {
     if (F.align in v) next.align = v[F.align];
     if (F.list in v) next.list = v[F.list];
     if (F.level in v) next.level = v[F.level];
+    if (next.kind === 'Cuttings' && next.parent === state.root && state.cuttings === null) { state.cuttings = write.recordId; state.newCuttings = null; }
     next.visible = write.recordId !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
     state.saved.set(write.recordId, next);
     return;
@@ -661,6 +726,15 @@ function counts() {
 }
 
 /** Words in the chapter (or part) the caret is in, and in the whole manuscript. */
+// Words per block, by the editor's node: a node is never changed, only replaced, so a count holds
+// for as long as its node is on the page, and a keystroke recounts one paragraph.
+const counted = new WeakMap();
+function wordsIn(node) {
+  let w = counted.get(node);
+  if (w === undefined) { w = countWords(node.textContent); counted.set(node, w); }
+  return w;
+}
+
 function summary() {
   const doc = sheet.editor.state.doc, here = state.selected;
   let chapter = null, found = false;
@@ -672,7 +746,7 @@ function summary() {
   if (!found) chapter = null;
   let words = 0, chapterWords = 0, inside = false;
   doc.forEach(node => {
-    const w = countWords(node.textContent);
+    const w = wordsIn(node);
     words += w;
     if (node === chapter) { inside = true; return; }
     if (inside && node.type.name === 'heading' && node.attrs.level <= chapter.attrs.level) inside = false;
@@ -855,6 +929,8 @@ const ICON = {
   grip: '<path class="dots" d="M5.5 3.5a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M10.5 3.5a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M5.5 6.9a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M10.5 6.9a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M5.5 10.3a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2M10.5 10.3a1.1 1.1 0 1 0 0 2.2a1.1 1.1 0 1 0 0-2.2"/>',
   add: '<path d="M8 3.5v9M3.5 8h9"/>',
   pin: '<path d="M9.5 2.5l4 4-2 1-2.5 2.5.5 2.5-1 1-6-6 1-1 2.5.5 2.5-2.5zM5.5 10.5 2.5 13.5"/>',
+  'move-up': '<path d="M8 13V3.5M4.5 7 8 3.5 11.5 7"/>',
+  'move-down': '<path d="M8 3v9.5M4.5 9 8 12.5 11.5 9"/>',
 };
 function svg(name) {
   const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -999,19 +1075,29 @@ function placeOverlays() {
   const { notes, links } = counts();
   const marks = [];
   // Beside a paragraph with notes or links, how many of each, each by its own icon; pressed, the
-  // side panel shows them: its notes when it has any, else what it is linked to.
-  sheet.editor.state.doc.forEach((node, offset) => {
+  // side panel shows them: its notes when it has any, else what it is linked to. Only the
+  // paragraphs on screen, and a screen either side: scrolling draws the margin again.
+  const { doc } = sheet.editor.state, view = sheet.editor.view;
+  const screen = $('scroller').getBoundingClientRect(), text = view.dom.getBoundingClientRect();
+  const first = view.posAtCoords({ left: text.left + 4, top: Math.max(text.top + 1, screen.top - screen.height) });
+  let index = 0, start = 0;
+  if (first) { const $first = doc.resolve(first.pos); index = $first.index(0); for (let i = 0; i < index; i++) start += doc.child(i).nodeSize; }
+  for (let offset = start; index < doc.childCount; index++) {
+    const node = doc.child(index), at = offset;
+    offset += node.nodeSize;
     const id = node.attrs.blockId, nc = notes.get(id) ?? 0, lc = links.get(id) ?? 0;
-    if (!nc && !lc) return;
-    const dom = sheet.editor.view.nodeDOM(offset);
-    if (!dom?.getBoundingClientRect) return;
-    const top = dom.getBoundingClientRect().top - origin.top;
+    if (!nc && !lc) continue;
+    const dom = view.nodeDOM(at);
+    if (!dom?.getBoundingClientRect) continue;
+    const rect = dom.getBoundingClientRect();
+    if (rect.top > screen.bottom + screen.height) break;
+    const top = rect.top - origin.top;
     const said = [nc ? `${nc} note${nc === 1 ? '' : 's'}` : '', lc ? `${lc} link${lc === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
     marks.push(el('button', { type: 'button', class: `mark${id === state.selected ? ' on' : ''}`, style: `top:${top + 6}px`, 'data-id': id, 'data-notes': String(nc), 'data-links': String(lc),
       'aria-label': `${said} on this paragraph: show ${nc ? 'its notes' : 'what it is linked to'}`, title: `${said}: show ${nc ? 'them' : 'it'}`,
       on: { mousedown: e => e.preventDefault(), click: () => { sheet.focusBlock(id); state.selected = id; state.drawer = nc ? 'notes' : 'related'; render(); declare(); } } },
     nc ? [svg('note'), el('span', { text: String(nc) })] : null, lc ? [svg('link'), el('span', { text: String(lc) })] : null));
-  });
+  }
   const where = sheet.where();
   const show = !state.readOnly && state.selected && sheet.locate(state.selected) && (state.pinned || state.popover || (where && !where.empty && where.single && where.id === state.selected));
   // Beside the block under the pointer, faintly: a plus that adds a block below it and a grip
@@ -1163,6 +1249,9 @@ function blockMenu(node) {
       menuItem({ label: 'Add a column at the right', icon: 'column-after', run: () => sheet.tableAction(id, 'addColumnAfter') }),
       menuItem({ label: 'Delete table', icon: 'table-delete', run: () => sheet.tableAction(id, 'deleteTable') }));
   }
+  section('Move',
+    menuItem({ label: 'Move up', icon: 'move-up', keys: 'Alt+Shift+↑', run: () => sheet.move(-1) }),
+    menuItem({ label: 'Move down', icon: 'move-down', keys: 'Alt+Shift+↓', run: () => sheet.move(1) }));
   section('Manuscript',
     menuItem({ label: 'Link to a passage', icon: 'link', run: () => runTool(TOOLS.find(t => t.id === 'link')) }),
     menuItem({ label: 'Add a note', icon: 'note', run: () => runTool(TOOLS.find(t => t.id === 'note')) }),

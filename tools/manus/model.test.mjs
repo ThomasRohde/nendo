@@ -63,7 +63,7 @@ test('a merge hands the removed paragraph\'s notes and links to the paragraph ho
   const links = [{ entityId: LINK, recordId: 'l1', version: 1, values: { [F.linkFrom]: 'p2', [F.linkTo]: 'p1' } },
     { entityId: LINK, recordId: 'l2', version: 1, values: { [F.linkFrom]: 'ch1', [F.linkTo]: 'p2' } }];
   const current = [m.nodes[0], { id: 'p1', kind: 'Paragraph', text: 'The tide table hung by the door. She took the ledger down.', changed: true }];
-  const plan = planWrites({ saved: m.saved, current, root: m.root, notes, links });
+  const plan = planWrites({ saved: m.saved, current, root: m.root, notes, links, merged: new Map([['p2', 'p1']]) });
   assert.deepEqual(plan.map(w => [w.op, w.recordId]), [['update', 'p1'], ['update', 'n1'], ['delete', 'l1'], ['update', 'l2'], ['delete', 'p2']]);
   assert.equal(plan[1].values[F.noteBlock], 'p1');
   assert.equal(plan[3].values[F.linkTo], 'p1'); assert.equal(plan[3].values[F.linkReview], 'Needs review');
@@ -258,4 +258,34 @@ test('a draft from before writes only its own changes: done ones dropped, change
   const again = sortDraft([draft[1]], saved);
   assert.deepEqual(again.stale.map(w => w.recordId), ['p9']);
   assert.deepEqual(forceDraft(again.stale, saved).map(w => [w.op, w.version]), [['update', 4]]);
+});
+
+test('lineage comes from the editor, never from matching text: a repeated line cannot take another\'s note', () => {
+  const twins = [...items.slice(0, 4), item('p3', 'Paragraph', 'ch1', 3072, 2, 'She took the ledger down.')];
+  const m = readManuscript(twins);
+  const notes = [{ entityId: NOTE, recordId: 'n1', version: 1, values: { [F.noteBlock]: 'p2' } }];
+  // p2 deleted outright; p3 holds the same words and was edited. Its note goes with p2.
+  const current = m.nodes.filter(n => n.id !== 'p2').map(n => ({ ...n, changed: n.id === 'p3', text: n.id === 'p3' ? 'She took the ledger down. Again.' : n.text }));
+  const plan = planWrites({ saved: m.saved, current, root: m.root, notes });
+  assert.deepEqual(plan.filter(w => w.entityId === NOTE).map(w => w.op), ['delete']);
+  // Joined into p1 by the editor, a chain of joins included, the note follows the join.
+  const joined = planWrites({ saved: m.saved, current, root: m.root, notes, merged: new Map([['p2', 'gone'], ['gone', 'p1']]) });
+  assert.equal(joined.find(w => w.recordId === 'n1').values[F.noteBlock], 'p1');
+});
+
+test('a block cut whole moves into the Cuttings with its notes, and pasted back it moves home', () => {
+  const m = readManuscript(items);
+  const notes = [{ entityId: NOTE, recordId: 'n1', version: 1, values: { [F.noteBlock]: 'p2' } }];
+  const current = m.nodes.filter(n => n.id !== 'p2').map(n => ({ ...n, changed: false }));
+  const plan = planWrites({ saved: m.saved, current, root: m.root, notes, cut: new Set(['p2']), cuttings: 'cuttings' });
+  assert.deepEqual(plan.map(w => [w.op, w.recordId, w.values?.[F.parent] ?? null]), [['update', 'p2', 'cuttings']]);
+  assert.equal(plan[0].values[F.order], 2048, 'after the cutting already there');
+  // A manuscript without Cuttings gets one, before the move.
+  const none = new Map([...m.saved].filter(([id]) => id !== 'cuttings' && id !== 'c1'));
+  const made = planWrites({ saved: none, current, root: m.root, cut: new Set(['p2']), cuttings: null, newCuttings: 'b-cuttings-new' });
+  assert.deepEqual(made.map(w => [w.op, w.recordId]), [['create', 'b-cuttings-new'], ['update', 'p2']]);
+  // Pasted back after the save: the same record moves home.
+  const cutSaved = new Map(m.saved); cutSaved.set('p2', { ...m.saved.get('p2'), parent: 'cuttings', order: 2048, visible: false });
+  const back = planWrites({ saved: cutSaved, current: m.nodes.map(n => ({ ...n, changed: false })), root: m.root });
+  assert.deepEqual(back.map(w => [w.op, w.recordId, w.values[F.parent]]), [['update', 'p2', 'ch1']]);
 });

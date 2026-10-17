@@ -189,24 +189,22 @@ export function assignOrders(existing) {
   return result;
 }
 
-/** The text a removed block's notes and links should follow: a block that now holds its text. */
-function survivorOf(removed, current) {
-  const text = (removed.text ?? '').trim();
-  if (text === '') return null;
-  const probe = text.slice(0, 40);
-  return current.find(n => n.changed && n.id !== removed.id && (n.text ?? '').includes(probe))?.id ?? null;
-}
+// Where Cuttings sits among a manuscript's top-level blocks: after everything else.
+export const CUTTINGS_ORDER = 1073741824;
 
 /**
  * The writes that make the saved blocks what the sheet now shows, in an order Nendo accepts:
  * creates in reading order (a heading before what it holds), then updates, then the notes and
- * links of removed blocks, then the removed blocks, the deepest first. A removed block whose
- * text now sits in another block (a merge) hands its notes and links to that block, marked for
- * review; any other removed block takes its notes and links with it. Each write names its
+ * links of removed blocks, then the removed blocks, the deepest first. Each write names its
  * references in `refs` so the sender can pass their versions.
  * `current`: [{id, kind, text, changed}] in reading order; `changed` says the person edited it.
+ * `merged`: removed block → the block its text went into, as the editor's transactions said; it
+ * hands that block its notes and links, links marked for review. `cut`: blocks cut whole, which
+ * move into the manuscript's Cuttings (`cuttings`, or a new one with the ID `newCuttings`) with
+ * their notes and links, so pasting one back is a move. Any other removed block takes its notes
+ * and links with it.
  */
-export function planWrites({ saved, current, root, notes = [], links = [] }) {
+export function planWrites({ saved, current, root, notes = [], links = [], merged = new Map(), cut = new Set(), cuttings = null, newCuttings = null }) {
   const { parent, children } = deriveTree(current, root);
   const order = new Map();
   for (const [p, ids] of children) {
@@ -237,9 +235,24 @@ export function planWrites({ saved, current, root, notes = [], links = [] }) {
     if (Object.keys(values).length) updates.push({ op: 'update', entityId: BLOCK, recordId: n.id, version: s.version, values, refs });
   }
   const present = new Set(current.map(n => n.id));
-  const removed = [...saved.values()].filter(s => s.visible && !present.has(s.id));
+  const gone = [...saved.values()].filter(s => s.visible && !present.has(s.id));
+  // Cut whole: into the Cuttings. A block inside one that was cut (a table's rows) goes with it.
+  const cutNow = new Set(gone.filter(s => cut.has(s.id)).map(s => s.id));
+  const insideCut = id => { for (let p = saved.get(id)?.parent, d = 0; p && d < 64; p = saved.get(p)?.parent, d++) if (cutNow.has(p)) return true; return false; };
+  const removed = gone.filter(s => !cutNow.has(s.id) && !insideCut(s.id));
+  if (cutNow.size) {
+    let home = cuttings;
+    if (home === null || !saved.has(home)) {
+      home = cuttings ?? newCuttings;
+      creates.push({ op: 'create', entityId: BLOCK, recordId: home, values: { [F.kind]: 'Cuttings', [F.text]: 'Cuttings', [F.parent]: root, [F.order]: CUTTINGS_ORDER }, refs: { [F.parent]: root } });
+    }
+    let last = Math.max(0, ...[...saved.values()].filter(s => s.parent === home).map(s => s.order ?? 0));
+    for (const s of gone.filter(g => cutNow.has(g.id)))
+      updates.push({ op: 'update', entityId: BLOCK, recordId: s.id, version: s.version, values: { [F.parent]: home, [F.order]: last += GAP }, refs: { [F.parent]: home } });
+  }
   const removedIds = new Set(removed.map(r => r.id));
-  const survivor = new Map(removed.map(r => [r.id, survivorOf(r, current)]));
+  const survivorOf = id => { let at = merged.get(id); for (let d = 0; at && !present.has(at) && d < 64; d++) at = merged.get(at); return at && present.has(at) ? at : null; };
+  const survivor = new Map(removed.map(r => [r.id, survivorOf(r.id)]));
   for (const note of notes) {
     const on = note.values[F.noteBlock];
     if (!removedIds.has(on)) continue;

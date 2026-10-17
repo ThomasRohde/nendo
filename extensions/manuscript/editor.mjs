@@ -1,10 +1,11 @@
 // The continuous sheet: one Tiptap editor over the manuscript's blocks, each carrying the ID of
 // the block record it stands for. Splitting a paragraph keeps the ID on the part before the
-// caret and gives the rest a new one; joining two keeps the first; turning a paragraph into a
-// heading keeps its ID; pasted text arrives as new blocks, never as a second copy of an
-// existing one. A list item is a paragraph with a List and a Level; a table, each of its rows
+// caret and gives the rest a new one; joining two keeps the first, and the sheet remembers which
+// block the second went into; turning a paragraph into a heading keeps its ID; a block moved,
+// or cut and pasted back into its own manuscript, keeps its ID; a copy is a new block, never a
+// second copy of an existing one. A list item is a paragraph with a List and a Level; a table, each of its rows
 // and each of its cells carry IDs of their own, as the blocks they are.
-import { Editor, Extension, InputRule, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Slice, Decoration, DecorationSet, Lexer, Table, TableRow, TableCell, TableHeader } from './vendor/editor.js';
+import { Editor, Extension, InputRule, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Slice, Fragment, TextSelection, Lexer, Table, TableRow, TableCell, TableHeader } from './vendor/editor.js';
 import { numberLists } from './export.mjs';
 import { levelOf, kindOf, newBlockId, LISTS, MAX_LEVEL } from './model.mjs';
 import { inlineToMarkdown, markdownToInline, pictureOf, pictureMarkdown } from './inline.mjs';
@@ -22,106 +23,158 @@ export const freshId = () => newBlockId(random);
 const blockId = {
   default: null,
   keepOnSplit: false,
-  parseHTML: () => null,
+  // A block cut and pasted back carries its ID in the clipboard's HTML; whether it may keep it is
+  // decided once it lands (blockIds).
+  parseHTML: element => element.getAttribute('data-block') || null,
   renderHTML: attributes => attributes.blockId ? { 'data-block': attributes.blockId } : {},
 };
 
-const BlockIds = Extension.create({
-  name: 'blockIds',
-  addGlobalAttributes() {
-    return [{
-      types: [...TYPES, ...NESTED],
-      attributes: { blockId },
-    }, {
-      types: ['paragraph', 'heading', 'picture'],
-      attributes: {
-        // How the block's lines are set: the Align field's value, or null for the layout's own
-        // setting. Enter carries it on, as a word processor does. Pasted text keeps a centred,
-        // right or justified setting; a left one is what it would have anyway.
-        align: {
-          default: null,
-          keepOnSplit: true,
-          parseHTML: element => ALIGN_CSS[element.style?.textAlign] ?? null,
-          renderHTML: attributes => attributes.align && CSS_ALIGN[attributes.align] ? { 'data-align': attributes.align, style: `text-align: ${CSS_ALIGN[attributes.align]}` } : {},
+/**
+ * Block IDs, kept through every edit. `track.canReuse(id)` says whether a block arriving with an
+ * ID the sheet did not hold may keep it (one of this manuscript's, cut or deleted and brought
+ * back); `track.merged(removed, into)` hears that a removed block's text now sits in another
+ * (a join, or a deletion across two paragraphs); `track.cut(id)` hears that a whole block was
+ * cut. Lineage comes from the transaction's own mapping, never from matching text.
+ */
+function blockIds(track) {
+  return Extension.create({
+    name: 'blockIds',
+    addGlobalAttributes() {
+      return [{
+        types: [...TYPES, ...NESTED],
+        attributes: { blockId },
+      }, {
+        types: ['paragraph', 'heading', 'picture'],
+        attributes: {
+          // How the block's lines are set: the Align field's value, or null for the layout's own
+          // setting. Enter carries it on, as a word processor does. Pasted text keeps a centred,
+          // right or justified setting; a left one is what it would have anyway.
+          align: {
+            default: null,
+            keepOnSplit: true,
+            parseHTML: element => ALIGN_CSS[element.style?.textAlign] ?? null,
+            renderHTML: attributes => attributes.align && CSS_ALIGN[attributes.align] ? { 'data-align': attributes.align, style: `text-align: ${CSS_ALIGN[attributes.align]}` } : {},
+          },
+          // A verse or a quotation goes on when Enter splits it.
+          role: {
+            default: null,
+            keepOnSplit: true,
+            parseHTML: element => element.getAttribute('data-role') || null,
+            renderHTML: attributes => attributes.role ? { 'data-role': attributes.role } : {},
+          },
         },
-        // A verse or a quotation goes on when Enter splits it.
-        role: {
-          default: null,
-          keepOnSplit: true,
-          parseHTML: element => element.getAttribute('data-role') || null,
-          renderHTML: attributes => attributes.role ? { 'data-role': attributes.role } : {},
+      }, {
+        types: ['paragraph'],
+        attributes: {
+          // A list item, and how deep: Enter makes the next paragraph an item of the same list.
+          list: {
+            default: null,
+            keepOnSplit: true,
+            parseHTML: element => LISTS.includes(element.getAttribute('data-list')) ? element.getAttribute('data-list') : null,
+            renderHTML: attributes => attributes.list ? { 'data-list': attributes.list, 'data-level': String(attributes.depth ?? 0) } : {},
+          },
+          // Named depth, not level: a heading's level is an attribute of the same block when it
+          // turns into a paragraph, and would come along as the list's depth.
+          depth: {
+            default: 0,
+            keepOnSplit: true,
+            parseHTML: element => Math.max(0, Math.min(MAX_LEVEL, Number(element.getAttribute('data-level')) || 0)),
+            renderHTML: () => ({}),
+          },
         },
-      },
-    }, {
-      types: ['paragraph'],
-      attributes: {
-        // A list item, and how deep: Enter makes the next paragraph an item of the same list.
-        list: {
-          default: null,
-          keepOnSplit: true,
-          parseHTML: element => LISTS.includes(element.getAttribute('data-list')) ? element.getAttribute('data-list') : null,
-          renderHTML: attributes => attributes.list ? { 'data-list': attributes.list, 'data-level': String(attributes.depth ?? 0) } : {},
-        },
-        // Named depth, not level: a heading's level is an attribute of the same block when it
-        // turns into a paragraph, and would come along as the list's depth.
-        depth: {
-          default: 0,
-          keepOnSplit: true,
-          parseHTML: element => Math.max(0, Math.min(MAX_LEVEL, Number(element.getAttribute('data-level')) || 0)),
-          renderHTML: () => ({}),
-        },
-      },
-    }];
-  },
-  addProseMirrorPlugins() {
-    return [new Plugin({
-      key: new PluginKey('blockIds'),
-      appendTransaction(transactions, before, after) {
-        if (!transactions.some(t => t.docChanged)) return null;
-        const present = new Map();
-        after.doc.forEach(node => { const id = node.attrs.blockId; if (id) present.set(id, (present.get(id) ?? 0) + 1); });
-        // Positions in the new document, mapped back to the old one, find the block a node came
-        // from when a change (a heading made from a paragraph) dropped its ID.
-        const back = transactions.map(t => t.mapping).reduceRight((acc, m) => { acc.appendMapping(m.invert()); return acc; }, new transactions[0].mapping.constructor());
-        const seen = new Set(), reused = new Set();
-        let tr = null;
-        after.doc.forEach((node, offset) => {
-          if (!TYPES.includes(node.type.name)) return;
-          let id = node.attrs.blockId;
-          if (id && !seen.has(id)) { seen.add(id); return; }
-          let next = null;
-          if (!id) {
-            const old = before.doc.resolve(Math.min(back.map(offset + 1, -1), before.doc.content.size));
-            const from = old.depth >= 1 ? old.node(1) : null;
-            const candidate = from?.attrs?.blockId;
-            if (candidate && !present.has(candidate) && !reused.has(candidate) && (from.type.name === 'table') === (node.type.name === 'table')) { next = candidate; reused.add(candidate); }
+      }];
+    },
+    addProseMirrorPlugins() {
+      return [new Plugin({
+        key: new PluginKey('blockIds'),
+        appendTransaction(transactions, before, after) {
+          if (!transactions.some(t => t.docChanged)) return null;
+          // Typing changes one block and keeps every block's place and ID: nothing to do. A table
+          // is looked at whole, since a row or cell may have come or gone inside it.
+          if (before.doc.childCount === after.doc.childCount) {
+            let same = true;
+            for (let i = 0; i < after.doc.childCount && same; i++) {
+              const a = before.doc.child(i), b = after.doc.child(i);
+              same = a === b || (a.type === b.type && a.type.name !== 'table' && !!b.attrs.blockId && a.attrs.blockId === b.attrs.blockId);
+            }
+            if (same) return null;
           }
-          next ??= freshId();
-          seen.add(next);
-          tr ??= after.tr;
-          tr.setNodeMarkup(offset, undefined, { ...node.attrs, blockId: next });
-        });
-        // A table's rows and cells: a new one, or a copy of another, takes a fresh ID.
-        after.doc.forEach((node, offset) => {
-          if (node.type.name !== 'table') return;
-          node.descendants((child, pos) => {
-            if (!NESTED.includes(child.type.name)) return false;
-            const id = child.attrs.blockId;
-            if (!id || seen.has(id)) {
-              const next = freshId();
-              seen.add(next);
-              tr ??= after.tr;
-              tr.setNodeMarkup(offset + 1 + pos, undefined, { ...child.attrs, blockId: next });
-            } else seen.add(id);
-            return child.type.name === 'tableRow';
+          const Mapping = transactions[0].mapping.constructor;
+          // Positions in the new document mapped back to the old one, and forward again.
+          const back = transactions.map(t => t.mapping).reduceRight((acc, m) => { acc.appendMapping(m.invert()); return acc; }, new Mapping());
+          const forward = new Mapping();
+          for (const t of transactions) forward.appendMapping(t.mapping);
+          const was = new Map(), wasNested = new Set();
+          before.doc.forEach((node, offset) => {
+            if (node.attrs.blockId) was.set(node.attrs.blockId, offset);
+            if (node.type.name === 'table') node.descendants(child => { if (NESTED.includes(child.type.name) && child.attrs.blockId) wasNested.add(child.attrs.blockId); return child.type.name === 'tableRow'; });
           });
-        });
-        if (tr) tr.setMeta('addToHistory', false);
-        return tr;
-      },
-    })];
-  },
-});
+          const count = new Map();
+          after.doc.forEach(node => { const id = node.attrs.blockId; if (id) count.set(id, (count.get(id) ?? 0) + 1); });
+          // Of two blocks with one ID (a copy pasted beside its original), the one standing where
+          // the ID stood before keeps it; the copy is new.
+          const keeper = new Map();
+          after.doc.forEach((node, offset) => {
+            const id = node.attrs.blockId;
+            if (!id || count.get(id) < 2 || keeper.has(id) || !was.has(id)) return;
+            const inside = [back.mapResult(offset + 1, 1), back.mapResult(offset + node.nodeSize - 1, -1)];
+            if (inside.some(r => !r.deleted && r.pos > was.get(id) && r.pos < was.get(id) + before.doc.nodeAt(was.get(id)).nodeSize)) keeper.set(id, offset);
+          });
+          const seen = new Set(), reused = new Set();
+          let tr = null;
+          after.doc.forEach((node, offset) => {
+            if (!TYPES.includes(node.type.name)) return;
+            let id = node.attrs.blockId;
+            const mine = id && !seen.has(id) && (count.get(id) < 2 || !keeper.has(id) || keeper.get(id) === offset);
+            if (mine && (was.has(id) || track.canReuse(id))) { seen.add(id); return; }
+            let next = null;
+            if (!id) {
+              const old = before.doc.resolve(Math.min(back.map(offset + 1, -1), before.doc.content.size));
+              const from = old.depth >= 1 ? old.node(1) : null;
+              const candidate = from?.attrs?.blockId;
+              if (candidate && !count.has(candidate) && !reused.has(candidate) && (from.type.name === 'table') === (node.type.name === 'table')) { next = candidate; reused.add(candidate); }
+            }
+            next ??= freshId();
+            seen.add(next);
+            tr ??= after.tr;
+            tr.setNodeMarkup(offset, undefined, { ...node.attrs, blockId: next });
+          });
+          // A table's rows and cells: a new one, a copy of another, or one from elsewhere takes a fresh ID.
+          after.doc.forEach((node, offset) => {
+            if (node.type.name !== 'table') return;
+            node.descendants((child, pos) => {
+              if (!NESTED.includes(child.type.name)) return false;
+              const id = child.attrs.blockId;
+              if (!id || seen.has(id) || (!wasNested.has(id) && !track.canReuse(id))) {
+                const next = freshId();
+                seen.add(next);
+                tr ??= after.tr;
+                tr.setNodeMarkup(offset + 1 + pos, undefined, { ...child.attrs, blockId: next });
+              } else seen.add(id);
+              return child.type.name === 'tableRow';
+            });
+          });
+          const cut = transactions.some(t => t.getMeta('uiEvent') === 'cut');
+          // Where each block that is gone went: its text into another block (a merge), or cut whole.
+          const doc = tr ? tr.doc : after.doc;
+          before.doc.forEach((node, offset) => {
+            const id = node.attrs.blockId;
+            if (!id || seen.has(id)) return;
+            const end = forward.mapResult(offset + node.nodeSize - 1, -1);
+            if (node.content.size && !end.deleted) {
+              const $at = doc.resolve(Math.min(end.pos, doc.content.size));
+              const into = $at.depth >= 1 ? $at.node(1).attrs.blockId : null;
+              if (into && into !== id) { track.merged(id, into); return; }
+            }
+            if (cut) track.cut(id);
+          });
+          if (tr) tr.setMeta('addToHistory', false);
+          return tr;
+        },
+      })];
+    },
+  });
+}
 
 // The Align field's values as CSS, and back.
 const CSS_ALIGN = { Left: 'left', Centre: 'center', Right: 'right', Justify: 'justify' };
@@ -218,24 +271,43 @@ function flattenLists(html) {
 /**
  * Each list item's marker, as data-marker on its paragraph for CSS to draw: the numbers come
  * from numberLists, the rule the exports number by, so the sheet and a document always agree.
+ * The marker is an attribute of the paragraph, never saved, set again only when a list's shape
+ * changes: a decoration on each item would be weighed against every block on every keystroke.
  */
 const ListMarkers = Extension.create({
   name: 'listMarkers',
+  addGlobalAttributes() {
+    return [{ types: ['paragraph'], attributes: { marker: { default: null, keepOnSplit: false, parseHTML: () => null, renderHTML: attributes => attributes.marker ? { 'data-marker': attributes.marker } : {} } } }];
+  },
   addProseMirrorPlugins() {
-    const markers = doc => {
-      const items = [], at = [];
-      doc.forEach((node, pos) => {
-        const listed = node.type.name === 'paragraph' && node.attrs.list;
-        items.push(listed ? { type: 'paragraph', list: node.attrs.list, listLevel: Math.min(MAX_LEVEL, node.attrs.depth ?? 0) } : { type: node.type.name });
-        at.push(listed ? { pos, size: node.nodeSize } : null);
-      });
-      numberLists(items);
-      return DecorationSet.create(doc, items.flatMap((item, i) => at[i] ? [Decoration.node(at[i].pos, at[i].pos + at[i].size, { 'data-marker': item.marker })] : []));
+    // Typing keeps a block's attributes (the same object): the lists are as they were.
+    const sameLists = (a, b) => {
+      if (a.childCount !== b.childCount) return false;
+      for (let i = 0; i < b.childCount; i++) {
+        const x = a.child(i), y = b.child(i);
+        if (x !== y && (x.type !== y.type || x.attrs !== y.attrs)) return false;
+      }
+      return true;
     };
     return [new Plugin({
       key: new PluginKey('listMarkers'),
-      state: { init: (_, state) => markers(state.doc), apply: (tr, set) => tr.docChanged ? markers(tr.doc) : set },
-      props: { decorations(state) { return this.getState(state); } },
+      appendTransaction(transactions, before, after) {
+        if (!transactions.some(t => t.docChanged) || sameLists(before.doc, after.doc)) return null;
+        const items = [];
+        after.doc.forEach(node => items.push(node.type.name === 'paragraph' && node.attrs.list
+          ? { type: 'paragraph', list: node.attrs.list, listLevel: Math.min(MAX_LEVEL, node.attrs.depth ?? 0) } : { type: node.type.name }));
+        numberLists(items);
+        let tr = null;
+        after.doc.forEach((node, pos, i) => {
+          if (node.type.name !== 'paragraph') return;
+          const marker = node.attrs.list ? items[i].marker : null;
+          if ((node.attrs.marker ?? null) === marker) return;
+          tr ??= after.tr;
+          tr.setNodeMarkup(pos, undefined, { ...node.attrs, marker });
+        });
+        if (tr) tr.setMeta('addToHistory', false);
+        return tr;
+      },
     })];
   },
 });
@@ -353,9 +425,20 @@ function pictureNode(resolve) {
  * selection is: {id, index, empty, single} for the block it starts in. `canAlign` and
  * `canList` say whether the file has the Align and List fields.
  */
-export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false, canList = () => false }) {
+export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false, canList = () => false, canReuse = () => false }) {
   let setAlign = () => {};
   let sheet = null;
+  // Since the last save: which removed block's text went into which, and which blocks were cut whole.
+  const merged = new Map(), cut = new Set();
+  const track = {
+    canReuse: id => canReuse(id),
+    merged(removed, into) {
+      merged.set(removed, into);
+      for (const [from, to] of merged) if (to === removed) merged.set(from, into);
+      cut.delete(removed);
+    },
+    cut(id) { cut.add(id); merged.delete(id); },
+  };
   const editor = new Editor({
     element,
     editable,
@@ -371,21 +454,34 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       Placeholder.configure({ placeholder: ({ node, pos }) => node.type.name === 'heading' ? 'Heading' : editor.state.doc.resolve(pos).depth ? '' : placeholder, showOnlyCurrent: true }),
       Highlight,
       alignKeys(canAlign, value => setAlign(value)),
+      // Alt+Shift+Up and Down move the blocks the selection touches, as Word moves paragraphs.
+      Extension.create({ name: 'moveKeys', addKeyboardShortcuts: () => ({ 'Alt-Shift-ArrowUp': () => sheet.move(-1), 'Alt-Shift-ArrowDown': () => sheet.move(1) }) }),
       listKeys(canList, () => sheet),
       ListMarkers,
       Table.configure({ resizable: false, HTMLAttributes: { class: 'sheet-table' } }),
       TableRow, HeaderCell, Cell,
       pictureNode(resolvePicture),
-      BlockIds,
+      blockIds(track),
     ],
     content: { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: freshId() } }] },
     editorProps: {
       attributes: { class: 'sheet-text', 'aria-label': 'Manuscript', spellcheck: 'true' },
       transformPastedHTML: html => canList() ? flattenLists(html) : html,
-      // A pasted list goes in as whole items: left open, its first item would join the paragraph
-      // it lands in and take that paragraph's settings, losing its own list.
-      transformPasted: slice => slice.openStart > 0 && slice.content.firstChild?.type.name === 'paragraph' && slice.content.firstChild.attrs.list
-        ? new Slice(slice.content, 0, slice.openEnd) : slice,
+      transformPasted: slice => {
+        // Blocks cut from this manuscript go back in whole, each keeping its ID, so a cut and a
+        // paste is a move; an empty line the cut carried at its end is left behind.
+        const nodes = [];
+        slice.content.forEach(node => nodes.push(node));
+        while (nodes.length > 1 && nodes.at(-1).isTextblock && !nodes.at(-1).content.size) nodes.pop();
+        const present = new Set();
+        editor.state.doc.forEach(node => present.add(node.attrs.blockId));
+        if (nodes.length && nodes.every(node => TYPES.includes(node.type.name) && node.attrs.blockId && !present.has(node.attrs.blockId) && canReuse(node.attrs.blockId)))
+          return new Slice(Fragment.from(nodes), 0, 0);
+        // A pasted list goes in as whole items: left open, its first item would join the paragraph
+        // it lands in and take that paragraph's settings, losing its own list.
+        return slice.openStart > 0 && slice.content.firstChild?.type.name === 'paragraph' && slice.content.firstChild.attrs.list
+          ? new Slice(slice.content, 0, slice.openEnd) : slice;
+      },
     },
   });
   // What each block held when it was last read or saved, by ID, as the editor holds it.
@@ -395,7 +491,14 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
   editor.on('selectionUpdate', () => onSelect?.(where()));
   editor.on('focus', () => onSelect?.(where()));
 
+  // A node is never changed, only replaced, so its signature is worked out once.
+  const signatures = new WeakMap();
   function signature(node) {
+    let s = signatures.get(node);
+    if (s === undefined) { s = signatureOf(node); signatures.set(node, s); }
+    return s;
+  }
+  function signatureOf(node) {
     return `${node.type.name}:${node.attrs.level ?? ''}:${node.attrs.role ?? ''}:${node.attrs.align ?? ''}:${node.attrs.list ?? ''}:${node.attrs.depth ?? ''}:${node.attrs.address ?? ''}:${node.attrs.alt ?? ''}:${JSON.stringify(node.toJSON().content ?? [])}`;
   }
 
@@ -459,7 +562,34 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
     /** Replaces the whole sheet with these blocks, without counting it as an edit. */
     load(nodes) {
       editor.commands.setContent({ type: 'doc', content: documentJSON(nodes) }, { emitUpdate: false });
+      merged.clear(); cut.clear();
       remember();
+    },
+    /** Which removed blocks went into which, and which were cut whole, since the sheet was loaded. */
+    lineage() { return { merged, cut }; },
+    /** Forgets the lineage of blocks a save has settled. */
+    settle(ids) { for (const id of ids) { merged.delete(id); cut.delete(id); } },
+    /**
+     * Moves the blocks the selection touches one block up (-1) or down (1), as one step: the same
+     * blocks, IDs and all, in a new place.
+     */
+    move(step) {
+      const { doc, selection } = editor.state;
+      const first = selection.$from.index(0), last = selection.$to.index(0);
+      if (step < 0 ? first === 0 : last >= doc.childCount - 1) return false;
+      let start = 0;
+      for (let i = 0; i < first; i++) start += doc.child(i).nodeSize;
+      let end = start;
+      for (let i = first; i <= last; i++) end += doc.child(i).nodeSize;
+      const moving = [];
+      for (let i = first; i <= last; i++) moving.push(doc.child(i));
+      const neighbour = doc.child(step < 0 ? first - 1 : last + 1);
+      const shift = step < 0 ? -neighbour.nodeSize : neighbour.nodeSize;
+      const tr = editor.state.tr.delete(start, end);
+      tr.insert(step < 0 ? start - neighbour.nodeSize : start + neighbour.nodeSize, Fragment.from(moving));
+      tr.setSelection(TextSelection.create(tr.doc, Math.min(selection.from + shift, tr.doc.content.size), Math.min(selection.to + shift, tr.doc.content.size)));
+      editor.view.dispatch(tr.scrollIntoView());
+      return true;
     },
     /** The blocks the sheet shows, in reading order, each saying whether it was edited. */
     read() {

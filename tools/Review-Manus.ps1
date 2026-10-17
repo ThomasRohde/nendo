@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    # Also time typing in a 500,000-word manuscript, the design's stress size.
+    [switch]$Stress
+)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -26,7 +29,7 @@ try {
     $fixture = & node --input-type=module -e "import {fixture} from './tools/manus/definition.mjs';console.log(JSON.stringify(fixture()));"
     if ($LASTEXITCODE -ne 0) { throw 'Manuscript fixture generation failed.' }
     $probe = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'Gate-Manus.mjs'))
-    $probe = $probe.Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__MANUS_FIXTURE__'", $fixture).Replace('__OUTPUT__', $output.Replace('\', '/'))
+    $probe = $probe.Replace('__BROKER_URL__', $info.brokerUrl).Replace("'__MANUS_FIXTURE__'", $fixture).Replace('__OUTPUT__', $output.Replace('\', '/')).Replace('__STRESS__', $(if ($Stress) { 'yes' } else { 'no' }))
     # Named for the run and removed after it, so two runs never share one probe file.
     $probePath = Join-Path $output "probe-$runId.mjs"
     [IO.File]::WriteAllText($probePath, $probe, [Text.UTF8Encoding]::new($false))

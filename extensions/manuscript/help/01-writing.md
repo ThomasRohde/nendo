@@ -66,7 +66,10 @@ The last group on the bar acts on the whole paragraph:
 | **Link to a passage** | Link this paragraph to another one, by kind: elaborates, supports, contradicts, foreshadows, resolves or see also. |
 | **Add a note** | Write a comment, question, task or issue on this paragraph. |
 | **Keep as cutting** | Take the paragraph out of the manuscript and keep it under **Cuttings**, where Studio and the Outline screen still show it. |
+| **Move up**, **Move down** | Move the paragraph, or the paragraphs you have selected, past the one above or below. `Alt` `Shift` `↑` and `↓` do the same. |
 | **Copy for the agent** | Copy a reference to this paragraph to paste into the Agent tab. Its tooltip names the paragraph and its version. |
+
+A paragraph keeps its notes and links wherever it goes. Move it, or cut it and paste it somewhere else in the manuscript, and they go with it; cut it without pasting and it waits under **Cuttings**. Join two paragraphs with **Backspace** and the second one's notes and links go to the first. **Ctrl** **Z** after Manuscript has saved brings a deleted paragraph back with its notes.
 
 A paragraph with notes or links shows how many of each in the right margin, a note icon for notes and a link icon for links; choose them to open its notes, or what it is linked to, beside the page. **Notes** and **Related** in the toolbar show them in full.
 

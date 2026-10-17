@@ -31,9 +31,15 @@ same records; the view keeps no copy of the manuscript in the file.
   blocks whose text, kind, parent or order changed, and deleted ones. A save of more than 200
   writes or 250,000 characters goes as several batches, each committed on its own. A block out
   of place (a row outside a table) is shown where it would go and left as stored until the
-  person changes it (0.13.0). Splitting a paragraph keeps its ID on the first
-  part; joining keeps the first. A removed paragraph takes its notes and links with it, unless
-  its text now sits in another block (a merge), which takes them over marked *Needs review*.
+  person changes it (0.13.0).
+- A block keeps its ID through what the editor does to it, and where a block goes is read from
+  the editor's own transactions, never from matching text (0.14.0). Splitting a paragraph keeps
+  its ID on the first part; joining keeps the first, and the second's notes and links go to it,
+  links marked *Needs review*. Deleted from one paragraph's start into the next, what is left is
+  the second paragraph. Move up and Move down (Alt+Shift+↑ and ↓, or the block menu) move the
+  blocks the selection touches. A block cut whole goes to the Cuttings with its notes and links,
+  and pasted back into its manuscript it is the same block, moved. A copy is a new block. Any
+  other removed block takes its notes and links with it.
 - A refused write keeps the text on the page and says why; Reload takes the saved version.
   Somebody else's change reloads the page when nothing is waiting to be saved.
 - What is not yet saved is kept in the view's own storage as the writes the next save would
@@ -114,8 +120,13 @@ same records; the view keeps no copy of the manuscript in the file.
 - Inline links are not editable here yet (a quotation is a role; lists and tables are blocks), and a picture can be
   added only by writing its block elsewhere (Studio, an agent); a block that holds them keeps
   their characters.
-- A cut and paste is a delete and a new paragraph, not a move. Undo after a save brings a
-  deleted paragraph back under a new ID.
+- Ctrl+Z after a save undoes the save's revision (`records.undo`), so a deleted block comes
+  back under its own ID with its notes and links. That holds while the view stays open and
+  nobody else has changed those records since; otherwise the block comes back as a new one.
+- Speed, measured by `Review-Manus.ps1` in Edge against the fixture broker, typing at a
+  person's pace in the middle of a generated manuscript (`-Stress` adds the larger one): at
+  150,000 words, 19 ms from key to frame at p95 and 0.7 s to open; at 500,000 words, 58 ms and
+  2.5 s. The lane fails above 50 ms and 100 ms. Not measured in the installed Nendo.
 
 ## Build
 

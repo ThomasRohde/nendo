@@ -85,7 +85,19 @@ the old code, with the failure text quoted in the commit or Finding.
 
 ### Stage 2 — A paragraph keeps its identity
 
-Fixes problems 6 to 8 and 10.
+Fixes problems 6, 8 and 10. **Built 2026-10-17 as Manuscript 0.14.0**, with three changes from
+the list below:
+
+- *Paragraphs in cells* moved to Stage 3, beside footnotes: both are the same container work,
+  and a note on a paragraph inside a cell is worth little until footnotes need it.
+- *Big edits* are not refused. Pasting a chapter is ordinary, and since Stage 1 a save that
+  goes as several batches loses nothing: a refused remainder stays pending and the next save
+  sends it. The cost is several History entries for one gesture, which the README states.
+- *Speed*: reading only the active manuscript was not needed. Measured: 19 ms per key at p95
+  and 0.7 s to open at 150,000 words; 58 ms and 2.5 s at 500,000. The work that mattered was
+  per keystroke: word counts and block signatures cached per node, one drawing per frame, the
+  margin drawn for the screen only, and list markers kept as an attribute rather than a
+  decoration on each item, which ProseMirror weighed against every block on every key.
 
 - **Lineage from transactions, not text.** Extend `BlockIds` so split, merge, cut and paste
   within a manuscript, and the new **Move** command, say which IDs survive. Notes and links
@@ -116,6 +128,8 @@ typing stays under 50 ms per keystroke at 150,000 words in the Edge lane.
 - Reorder sections in the view's Outline drawer, by pointer and keyboard, using Move.
 - A Cuttings drawer: browse, see where a cutting came from, put it back with its ID.
 - Edit a note and mark it done in the view.
+- Paragraphs in cells: a cell owns paragraph blocks, like the rest of the manuscript (from
+  Stage 2).
 - Footnotes: a footnote owns its paragraphs, as a cell does; insert, edit and jump to them;
   native footnotes in Word, a declared fallback in Markdown.
 
