@@ -196,6 +196,19 @@ export const LAYOUTS = {
     abstract: { size: 20, indent: 680 }, caption: { size: 18 }, references: { size: 18, hanging: 216 },
     figureWidth: 320, textWidth: 320, pageNumbers: 'header', chapterBreaks: false, titlePage: false,
   },
+  /**
+   * A manuscript for submission, as agents and publishers ask for one: Times New Roman at 12
+   * points, double-spaced, on Letter with one-inch margins, paragraphs indented half an inch,
+   * chapters on new pages, page numbers at the foot.
+   */
+  manuscript: {
+    font: 'Times New Roman', size: 24, line: 480, firstLine: 720, after: 0,
+    page: { width: 12240, height: 15840, margin: 1440 },
+    title: { size: 24, before: 2880, after: 480 }, front: { size: 24, after: 0 },
+    headings: [{ size: 24, before: 2880, after: 480, center: true, bold: false }, { size: 24, before: 480, after: 0, center: true, bold: false }, { size: 24, before: 480, after: 0, bold: false, italics: true }],
+    abstract: null, caption: { size: 24, italics: true }, references: { size: 24, hanging: 720 },
+    figureWidth: 468, textWidth: 468, pageNumbers: true, chapterBreaks: true, titlePage: false,
+  },
   /** A book: a title page, chapters on new pages, a 6 by 9 inch page. */
   book: {
     font: 'Georgia', size: 22, line: 300, firstLine: 360, after: 0,
@@ -206,6 +219,37 @@ export const LAYOUTS = {
     figureWidth: 432, textWidth: 432, pageNumbers: true, chapterBreaks: true, titlePage: true,
   },
 };
+
+// A page by its name, in twentieths of a point.
+export const PAGE_TWIPS = { 'Letter': [12240, 15840], 'A4': [11906, 16838], 'A5': [8391, 11906], '6 × 9 in': [8640, 12960] };
+const SPACING_LINE = { 'Single': 240, '1.15': 276, '1.5': 360, 'Double': 480 };
+
+/**
+ * A layout with an output profile's choices over it: page size, margins in millimetres, the
+ * typeface, its size in points (headings, title and the smaller roles scaled with it), line
+ * spacing and page numbers. A choice left empty keeps the layout's own.
+ */
+export function withProfile(layout, profile) {
+  if (!profile) return layout;
+  const L = structuredClone(layout);
+  const page = PAGE_TWIPS[profile.page];
+  if (page) [L.page.width, L.page.height] = page;
+  if (Number.isFinite(profile.margin) && profile.margin > 0) { L.page.margin = Math.round(profile.margin * 56.693); delete L.page.side; }
+  if (profile.font) L.font = profile.font;
+  if (Number.isFinite(profile.size) && profile.size > 0) {
+    const scale = profile.size * 2 / L.size;
+    const sized = o => { if (o && typeof o.size === 'number') o.size = Math.round(o.size * scale); };
+    L.size = profile.size * 2;
+    [L.title, L.front, L.abstract, L.caption, L.references, ...L.headings].forEach(sized);
+  }
+  if (SPACING_LINE[profile.spacing]) L.line = SPACING_LINE[profile.spacing];
+  if (typeof profile.numbers === 'boolean') L.pageNumbers = profile.numbers ? (layout.pageNumbers === 'header' ? 'header' : true) : false;
+  // Pictures fit what is left between the margins.
+  const text = Math.floor((L.page.width - 2 * (L.page.side ?? L.page.margin)) / 20);
+  L.textWidth = Math.min(L.columns ? layout.textWidth : text, text);
+  L.figureWidth = Math.min(layout.figureWidth, L.textWidth);
+  return L;
+}
 
 export const FIGURE = /^\*?(Figure|Fig\.|Table)\s+(\d+)[.:]\*?\s*/i;
 
@@ -278,7 +322,7 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
 }
 
 function docx(plan, pictures, lib, Lexer, layoutName, options) {
-  const L = LAYOUTS[layoutName] ?? LAYOUTS.book;
+  const L = withProfile(LAYOUTS[layoutName] ?? LAYOUTS.book, options.profile);
   const A = lib.AlignmentType;
   const headingLevels = [lib.HeadingLevel.HEADING_1, lib.HeadingLevel.HEADING_2, lib.HeadingLevel.HEADING_3];
   const children = [new lib.Paragraph({ heading: lib.HeadingLevel.TITLE, alignment: A.CENTER, children: [new lib.TextRun({ text: plan.title })] })];
@@ -315,6 +359,16 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
   const P = options => new lib.Paragraph(own ? { ...options, alignment: own } : options);
   const text = (markdown, size) => runs(markdown, lib, Lexer, size, L.size);
   const para = (options, markdown, size) => P({ ...options, children: text(markdown, size) });
+  // The paragraph styles the document uses, each written once into styles.xml.
+  const named = new Map();
+  const styled = (id, name, paragraph = {}, run = {}) => {
+    if (!named.has(id)) named.set(id, { id, name, basedOn: 'Normal', next: 'BodyText', quickFormat: true, paragraph, run });
+    return id;
+  };
+  // Body text: the first paragraph after a heading, a picture or a set-apart block starts flush.
+  const body = indented => indented
+    ? styled('BodyText', 'Body Text', { alignment: A.JUSTIFIED, indent: { firstLine: L.firstLine } })
+    : styled('BodyTextFirst', 'Body Text First', { alignment: A.JUSTIFIED, indent: { firstLine: 0 } });
   let firstAppendix = true;
   for (const [index, item] of plan.items.entries()) {
     if (item.type !== 'picture' || index === columnsAt) flushRow();
@@ -357,69 +411,88 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     }
     const role = item.role;
     let block = null, continues = false;
+    // Each role a paragraph style of its own, its formatting in the style: change Quotation in
+    // Word and every quotation changes.
+    const S = (id, words, italic = false) => P({ style: id, children: runs(words, lib, Lexer, undefined, L.size, italic) });
     switch (role) {
       case 'Caption': {
         const caption = FIGURE.exec(item.text);
         const label = caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}${paper ? '.' : ':'}` : null;
-        block = P({ alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: 240 }, indent: paper ? {} : { left: 360, right: 360 }, children: [
-          ...(label ? [new lib.TextRun({ text: `${label} `, bold: (!L.caption.italics && !paper) || undefined, italics: L.caption.italics || undefined, size: L.caption.size })] : []),
-          ...text(caption ? item.text.slice(caption[0].length) : item.text, L.caption.size)] });
+        styled('Caption', 'Caption', { alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: 240 }, indent: paper ? {} : { left: 360, right: 360 } }, { size: L.caption.size, italics: L.caption.italics || undefined });
+        block = P({ style: 'Caption', children: [
+          ...(label ? [new lib.TextRun({ text: `${label} `, bold: (!L.caption.italics && !paper) || undefined })] : []),
+          ...text(caption ? item.text.slice(caption[0].length) : item.text)] });
         break;
       }
       case 'Subtitle':
-        block = para({ alignment: A.CENTER, spacing: { after: 200 } }, item.text, paper ? L.size : Math.round(L.title.size * 0.6));
+        styled('Subtitle', 'Subtitle', { alignment: A.CENTER, spacing: { after: 200 } }, { size: paper ? L.size : Math.round(L.title.size * 0.6) });
+        block = S('Subtitle', item.text);
         break;
       case 'Author':
         // An article's authors are in small capitals, as AASTeX sets them.
-        block = paper
-          ? P({ alignment: A.CENTER, spacing: { after: L.front.after }, children: markdownToInline(item.text, Lexer).map(n => new lib.TextRun({ text: n.text ?? '', break: n.type === 'hardBreak' ? 1 : undefined, smallCaps: true, size: L.front.size + 2 })) })
-          : para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size);
+        styled('Author', 'Author', { alignment: A.CENTER, spacing: { after: L.front.after } }, paper ? { size: L.front.size + 2, smallCaps: true } : { size: L.front.size });
+        block = S('Author', item.text);
         break;
       case 'Dedication':
         // Word drops the space before a paragraph at the top of a page, so a dedication on its own
         // page is lowered by an empty paragraph's space after.
         if (L.titlePage) children.push(new lib.Paragraph({ pageBreakBefore: true, spacing: { before: 0, after: 2400 }, children: [] }));
-        block = P({ alignment: A.CENTER, spacing: { before: L.titlePage ? 0 : 240, after: 240 }, children: runs(item.text, lib, Lexer, undefined, L.size, true) });
+        styled('Dedication', 'Dedication', { alignment: A.CENTER, spacing: { before: L.titlePage ? 0 : 240, after: 240 } }, { italics: true });
+        block = S('Dedication', item.text);
         break;
       case 'Epigraph':
-        block = P({ alignment: A.LEFT, spacing: { before: 120, after: 240 }, indent: { left: Math.round(L.page.width * 0.3) },
-          children: runs(item.text, lib, Lexer, Math.round(L.size * 0.95), L.size, true) });
+        styled('Epigraph', 'Epigraph', { alignment: A.LEFT, spacing: { before: 120, after: 240 }, indent: { left: Math.round(L.page.width * 0.3) } }, { size: Math.round(L.size * 0.95), italics: true });
+        block = S('Epigraph', item.text);
         break;
       case 'Quotation':
-        block = para({ alignment: A.JUSTIFIED, spacing: { before: 120, after: 120 }, indent: { left: 720, right: 720 } }, item.text, Math.round(L.size * 0.95));
+        styled('Quotation', 'Quotation', { alignment: A.JUSTIFIED, spacing: { before: 120, after: 120 }, indent: { left: 720, right: 720 } }, { size: Math.round(L.size * 0.95) });
+        block = S('Quotation', item.text);
         break;
       case 'Verse':
-        block = para({ alignment: A.LEFT, spacing: { after: 160 }, indent: { left: 720 } }, item.text);
+        styled('Verse', 'Verse', { alignment: A.LEFT, spacing: { after: 160 }, indent: { left: 720 } });
+        block = S('Verse', item.text);
         break;
       case 'Aside':
-        block = para({ alignment: A.JUSTIFIED, spacing: { before: 120, after: 120 }, indent: { left: 720, right: 720 } }, item.text, Math.round(L.size * 0.9));
+        styled('Aside', 'Aside', { alignment: A.JUSTIFIED, spacing: { before: 120, after: 120 }, indent: { left: 720, right: 720 } }, { size: Math.round(L.size * 0.9) });
+        block = S('Aside', item.text);
         break;
       case 'Scene break':
-        block = para({ alignment: A.CENTER, spacing: { before: 240, after: 240 } }, item.text.trim() || '\\* \\* \\*');
+        styled('SceneBreak', 'Scene Break', { alignment: A.CENTER, spacing: { before: 240, after: 240 } });
+        block = S('SceneBreak', item.text.trim() || '\\* \\* \\*');
         break;
       case 'Abstract':
-        block = paper
-          ? para({ alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: L.firstLine } }, item.text, L.abstract.size)
-          : para({ alignment: A.JUSTIFIED, indent: { firstLine: indentNext ? L.firstLine : 0 } }, item.text);
+        if (paper) {
+          styled('Abstract', 'Abstract', { alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: L.firstLine } }, { size: L.abstract.size });
+          block = S('Abstract', item.text);
+        } else block = S(body(indentNext), item.text);
         continues = true;
         break;
       case 'Keywords':
         // "Keywords:" in italics, the list hanging under it.
-        block = paper
-          ? P({ alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: L.abstract.indent + 950, right: L.abstract.indent, hanging: 950 },
-            children: [new lib.TextRun({ text: 'Keywords: ', italics: true }), ...text(item.text.replace(KEYWORDS, ''), L.abstract.size)] })
-          : para({ alignment: A.LEFT, spacing: { before: 120 } }, item.text);
+        if (paper) {
+          styled('Keywords', 'Keywords', { alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: L.abstract.indent + 950, right: L.abstract.indent, hanging: 950 } }, { size: L.abstract.size });
+          block = P({ style: 'Keywords', children: [new lib.TextRun({ text: 'Keywords: ', italics: true }), ...text(item.text.replace(KEYWORDS, ''))] });
+        } else {
+          styled('Keywords', 'Keywords', { alignment: A.LEFT, spacing: { before: 120 } });
+          block = S('Keywords', item.text);
+        }
         break;
       case 'References':
       case 'Glossary':
-        block = para({ alignment: A.LEFT, spacing: { after: 60 }, indent: { left: L.references.hanging, hanging: L.references.hanging } }, item.text, L.references.size);
+        styled(role, role, { alignment: A.LEFT, spacing: { after: 60 }, indent: { left: L.references.hanging, hanging: L.references.hanging } }, { size: L.references.size });
+        block = S(role, item.text);
         break;
       case 'Colophon':
-        block = para({ alignment: A.CENTER, spacing: { after: 120 } }, item.text, Math.round(L.size * 0.85));
+        styled('Colophon', 'Colophon', { alignment: A.CENTER, spacing: { after: 120 } }, { size: Math.round(L.size * 0.85) });
+        block = S('Colophon', item.text);
         break;
       default:
-        if (item.front && paper) { block = para({ alignment: A.CENTER, spacing: { after: L.front.after } }, item.text, L.front.size); break; }
-        block = para({ alignment: A.JUSTIFIED, indent: { firstLine: indentNext ? L.firstLine : 0 } }, item.text);
+        if (item.front && paper) {
+          styled('FrontMatter', 'Front Matter', { alignment: A.CENTER, spacing: { after: L.front.after } }, { size: L.front.size });
+          block = S('FrontMatter', item.text);
+          break;
+        }
+        block = S(body(indentNext), item.text);
         continues = true;
     }
     children.push(block);
@@ -446,6 +519,7 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
           paragraph: { alignment: A.CENTER, spacing: { before: L.title.before, after: L.title.after } } },
         heading1: heading(L.headings[0]), heading2: heading(L.headings[1]), heading3: heading(L.headings[2]),
       },
+      paragraphStyles: [...named.values()],
     },
     sections: paper ? paperSections(lib, L, children, columnsChild, options.date) : [{
       properties: pageProperties(L),
@@ -472,7 +546,7 @@ function paperSections(lib, L, children, at, date) {
   const A = lib.AlignmentType;
   const headers = () => ({
     first: new lib.Header({ children: [new lib.Paragraph({ alignment: A.LEFT, children: [new lib.TextRun({ text: draftLine(date), smallCaps: true, size: 18 })] })] }),
-    default: new lib.Header({ children: [new lib.Paragraph({ alignment: A.RIGHT, children: [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: 18 })] })] }),
+    default: new lib.Header({ children: [new lib.Paragraph({ alignment: A.RIGHT, children: L.pageNumbers ? [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: 18 })] : [] })] }),
   });
   const across = { properties: { ...pageProperties(L), titlePage: true }, headers: headers(), children: children.slice(0, at) };
   if (at >= children.length) return [across];

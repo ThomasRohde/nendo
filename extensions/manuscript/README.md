@@ -125,6 +125,21 @@ same records; the view keeps no copy of the manuscript in the file.
   paragraph the caret is in, the same block with its notes and links; Delete, pressed twice,
   deletes it and its notes and links for good. Where a cutting came from is not kept.
 - A note's words and kind are edited in Notes, where the note is.
+- Word export sets each role in a paragraph style of Word's own (0.19.0): Body Text, Body Text
+  First, Quotation, Verse, Epigraph, Aside, Scene Break, Caption, Dedication, Subtitle, Author,
+  Abstract, Keywords, References, Glossary, Colophon and Front Matter, beside Title and Heading 1
+  to 3. The formatting is in the style, so changing a style in Word changes every paragraph of it;
+  a block's own alignment stays on the paragraph. Three layouts: book, paper and manuscript (for a
+  submission: Times at 12 points, double-spaced, on Letter with one-inch margins).
+- Page setup keeps an output profile per layout and manuscript in the file (`mn.profile`): page
+  size, margins in millimetres, a typeface by name, its size (headings and the smaller roles
+  scaled with it), line spacing and page numbers, each over the layout's own when set. The Word
+  export and the preview use it; *Use the layout's own* removes it. A typeface this computer does
+  not have is named, since the preview and Word set it in a stand-in. The writing appearance
+  stays per device. A file made before 0.19.0 gets the type from the package proposal
+  (`profileEntityOperations`).
+- A block longer than a page is shown whole in the preview, its sheet grown and marked, where it
+  was cut off at the sheet's foot.
 - A link keeps each end's words as they were when it was made or last reviewed (`mn.link.fromSeen`,
   `mn.link.toSeen`, 0.18.0). When a save changes the words at either end, the link is marked
   *Needs review* in the same batch; a link that kept no words yet keeps the ones from before the

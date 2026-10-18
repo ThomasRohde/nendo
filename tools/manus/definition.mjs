@@ -1,6 +1,6 @@
 // The Manuscript app (W-276): its schema, screens and starting records, as canonical operations
 // for Build-Manus.mjs, and the fixture the browser lane runs the view against.
-import { BLOCK, NOTE, LINK, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES, ALIGNMENTS, LISTS, TABLE_KINDS } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, PROFILE, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES, ALIGNMENTS, LISTS, TABLE_KINDS, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS } from '../../extensions/manuscript/model.mjs';
 
 export const PACKAGE_ID = 'org.nendo.manuscript';
 export const VIEW_NODE = 'mn.screen.sheet';
@@ -35,6 +35,16 @@ export const entities = [
     [F.linkFromSeen, 'From, as reviewed', 'Text', false, 'longText'],
     [F.linkToSeen, 'To, as reviewed', 'Text', false, 'longText'],
   ], refs: [[F.linkFrom, BLOCK, F.text], [F.linkTo, BLOCK, F.text]] },
+  { id: PROFILE, name: 'Output profiles', fields: [
+    [F.profileRoot, 'Manuscript', 'Reference', true],
+    [F.profileLayout, 'Layout', 'Text', true, 'singleChoice', OUTPUT_LAYOUTS],
+    [F.profilePage, 'Page size', 'Text', false, 'singleChoice', PAGE_SIZES],
+    [F.profileMargin, 'Margins (mm)', 'Integer'],
+    [F.profileFont, 'Typeface', 'Text'],
+    [F.profileSize, 'Size (points)', 'Integer'],
+    [F.profileSpacing, 'Line spacing', 'Text', false, 'singleChoice', SPACINGS],
+    [F.profileNumbers, 'Page numbers', 'Boolean'],
+  ], refs: [[F.profileRoot, BLOCK, F.text]] },
 ];
 
 export const PURPOSE = 'A manuscript, written as one continuous page and kept paragraph by paragraph. Every part, chapter, section and paragraph is a Block, one hierarchy in reading order, so each has one place and an identity that survives edits and moves. Notes and named links attach to blocks. The Manuscript view is where writing happens; Studio and the outline reach the same records.';
@@ -58,6 +68,14 @@ export function alignFieldOperations() { return fieldOperations(F.align); }
 
 /** The List and Level fields, for a file built before lists (Manuscript 0.10.0). */
 export function listFieldOperations() { return [...fieldOperations(F.list), ...fieldOperations(F.level)]; }
+
+/** The Output profiles type, for a file built before 0.19.0. */
+export function profileEntityOperations() {
+  const e = entities.find(x => x.id === PROFILE);
+  return [op('schema.createEntity', { entityId: e.id, displayName: e.name }),
+    ...e.fields.map(([fieldId, name, kind, required, presentation, options]) => addField(e.id, fieldId, name, kind, required, presentation, options)),
+    ...e.refs.map(([fieldId, target, label]) => op('schema.configureReference', { entityId: e.id, fieldId, targetEntityId: target, labelFieldId: label }))];
+}
 
 /** A link's two words-as-reviewed fields, for a file built before 0.18.0. */
 export function linkSeenFieldOperations() {

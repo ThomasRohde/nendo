@@ -6,12 +6,16 @@
 export const BLOCK = 'mn.block';
 export const NOTE = 'mn.note';
 export const LINK = 'mn.link';
+// An output profile: one layout's settings for one manuscript, kept in the file (Manuscript 0.19.0).
+export const PROFILE = 'mn.profile';
 export const F = {
   text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role', align: 'mn.block.align', list: 'mn.block.list', level: 'mn.block.level',
   noteBlock: 'mn.note.block', noteKind: 'mn.note.kind', noteText: 'mn.note.text', noteDone: 'mn.note.done',
   linkFrom: 'mn.link.from', linkTo: 'mn.link.to', linkKind: 'mn.link.kind', linkNote: 'mn.link.note', linkReview: 'mn.link.review',
   // Each end's words as they were when the link was made or last reviewed (Manuscript 0.18.0).
   linkFromSeen: 'mn.link.fromSeen', linkToSeen: 'mn.link.toSeen',
+  profileRoot: 'mn.profile.root', profileLayout: 'mn.profile.layout', profilePage: 'mn.profile.page', profileMargin: 'mn.profile.margin',
+  profileFont: 'mn.profile.font', profileSize: 'mn.profile.size', profileSpacing: 'mn.profile.spacing', profileNumbers: 'mn.profile.numbers',
 };
 export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings', 'Table', 'Row', 'Cell', 'Footnote'];
 // A footnote is a block of its own under the paragraph (or cell) that cites it, its text inline
@@ -39,6 +43,11 @@ export const LISTS = ['Bulleted', 'Numbered'];
 export const MAX_LEVEL = 4;
 const listOf = value => LISTS.includes(value) ? value : null;
 const levelFor = (list, level) => list && Number.isInteger(level) && level > 0 ? Math.min(level, MAX_LEVEL) : null;
+// What a profile chooses from: the layouts it adjusts, page sizes, line spacing and typefaces by name.
+export const OUTPUT_LAYOUTS = ['Book', 'Paper', 'Manuscript'];
+export const PAGE_SIZES = ['Letter', 'A4', 'A5', '6 × 9 in'];
+export const SPACINGS = ['Single', '1.15', '1.5', 'Double'];
+export const FONTS = ['Georgia', 'Times New Roman', 'Cambria', 'Constantia', 'Palatino Linotype', 'Book Antiqua', 'Garamond', 'Sitka Text', 'Charter', 'Calibri', 'Aptos', 'Segoe UI', 'Arial'];
 export const LINK_KINDS = ['Elaborates', 'Supports', 'Contradicts', 'Foreshadows', 'Resolves', 'See also'];
 export const REVIEW = { current: 'Current', needsReview: 'Needs review' };
 // Siblings are numbered this far apart, as Nendo numbers them (limits.hierarchy.orderGap).

@@ -209,6 +209,10 @@ button.quiet:hover { background: var(--soft); }
 .diff ins { text-decoration: none; background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 2px; }
 #links-view { width: 100%; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); padding: 5px 8px; min-height: 30px; color: inherit; }
 .thread .context { font-size: 13px; }
+/* Page setup: a label over each field. */
+.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.field select, .field input { border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); padding: 5px 8px; min-height: 30px; color: inherit; font: inherit; }
+.warning { margin: 0; font-size: 13px; color: var(--warning, #8a5a00); }
 .outline { text-align: left; border: 0; background: transparent; border-radius: 4px; padding: 6px 8px; }
 .outline:hover { background: var(--soft); }
 .outline.level-1 { font-weight: 600; }
@@ -247,6 +251,10 @@ button.quiet:hover { background: var(--soft); }
 .preview[data-layout='book'] .sheet-page { width: 576px; height: 864px; padding: 72px; font: 14.7px/1.25 Georgia, 'Sitka Text', serif; }
 .preview[data-layout='paper'] .sheet-page { width: 816px; height: 1056px; padding: 96px 72px; font: 13.3px/1.2 'Times New Roman', Times, serif; }
 .sheet-body { overflow: hidden; height: 100%; }
+/* A sheet holding a block taller than a page grows to show it whole, and says so under it. */
+.sheet-page.runs-over { height: auto !important; }
+.sheet-page.runs-over .sheet-body { overflow: visible; height: auto; }
+.runs-over-note { margin: 12px 0 0; font: 12px/1.4 'Segoe UI', sans-serif; color: #8a5a00; }
 .folio { position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-size: 12px; }
 /* An article: the draft line at the top left of its first page, numbers at the top right after it,
    and its body in two columns under what runs across the page. */

@@ -109,7 +109,7 @@ async page => {
     return bytes;
   };
   const exportMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'export');
-  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word,export-word-paper', `Export menu: ${JSON.stringify(exportMenu)}`);
+  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word,export-word-paper,export-word-manuscript', `Export menu: ${JSON.stringify(exportMenu)}`);
   // The probe's sandbox has no TextDecoder; the page decodes the bytes.
   const markdownBytes = await exported('export-markdown', 'Low Water.md');
   const markdown = await page.evaluate(bytes => new TextDecoder().decode(new Uint8Array(bytes)), Array.from(markdownBytes));
@@ -1026,6 +1026,56 @@ async page => {
   assert(gapText.includes(expectedGap === 0 ? 'right after' : `${expectedGap} block${expectedGap === 1 ? '' : 's'} later`) && gapText.startsWith('What the Bar Keeps'), `The gap before the payoff: ${JSON.stringify({ gapText, expectedGap, priorPassage })}`);
   await page.evaluate(() => window.broker.command('links'));
   checks.push('a thread of one kind reads in manuscript order');
+
+  // Stage 5: a block longer than a page is shown whole in the preview, its sheet marked, rather
+  // than cut off at the sheet's foot.
+  await putBlock('b-long', Array.from({ length: 160 }, (_, i) => `Sentence ${i + 1} of a paragraph that will not fit on one page.`).join(' '), 4003072);
+  await page.evaluate(() => window.broker.pushChanges());
+  await frame.waitForFunction(() => document.querySelector('.sheet-text [data-block="b-long"]'), null, { timeout: 5000 });
+  await mode('book');
+  await frame.waitForFunction(() => document.querySelector('.sheet-page.runs-over'), null, { timeout: 8000 }).catch(() => {});
+  const tall = await frame.evaluate(() => {
+    const sheet = document.querySelector('.sheet-page.runs-over'), block = [...document.querySelectorAll('.sheet-body p')].find(p => p.textContent.includes('Sentence 160 of'));
+    if (!sheet || !block) return { sheet: !!sheet, block: !!block };
+    const s = sheet.getBoundingClientRect(), b = block.getBoundingClientRect();
+    return { sheet: true, block: true, inside: b.bottom <= s.bottom + 1, note: sheet.querySelector('.runs-over-note')?.textContent ?? null, sameSheet: sheet.contains(block) };
+  });
+  await mode('write');
+  assert(tall.sheet && tall.block && tall.inside && tall.sameSheet && /longer than a page/.test(tall.note ?? ''), `A block longer than a page in the preview: ${JSON.stringify(tall)}`);
+  checks.push('a block longer than a page is shown whole in the preview');
+
+  // Page setup: a profile for the book layout kept in the file, used by the preview; the layout's
+  // own back with one press; a typeface this computer lacks is said.
+  await page.evaluate(() => window.broker.command('pagesetup'));
+  await frame.waitForSelector('#setup-page', { timeout: 3000 });
+  await frame.selectOption('#setup-layout', 'Book');
+  const profileNow = async () => (await records('mn.profile')).find(r => r.values['mn.profile.layout'] === 'Book' && r.values['mn.profile.root'] === 'b-root') ?? null;
+  await frame.selectOption('#setup-page', 'A4');
+  await frame.waitForFunction(() => window.manuscript.profiles.some(p => p.values['mn.profile.page'] === 'A4'), null, { timeout: 5000 });
+  await frame.fill('#setup-margin', '20'); await frame.press('#setup-margin', 'Tab');
+  await frame.waitForFunction(() => window.manuscript.profiles.some(p => p.values['mn.profile.margin'] === 20), null, { timeout: 5000 });
+  await frame.selectOption('#setup-font', 'Times New Roman');
+  await frame.selectOption('#setup-size', '12');
+  await frame.selectOption('#setup-spacing', 'Double');
+  await frame.waitForFunction(() => window.manuscript.profiles.some(p => p.values['mn.profile.spacing'] === 'Double'), null, { timeout: 5000 });
+  const keptProfile = (await profileNow())?.values;
+  assert(keptProfile && keptProfile['mn.profile.page'] === 'A4' && keptProfile['mn.profile.margin'] === 20 && keptProfile['mn.profile.font'] === 'Times New Roman' && keptProfile['mn.profile.size'] === 12 && keptProfile['mn.profile.spacing'] === 'Double',
+    `The profile kept in the file: ${JSON.stringify(keptProfile)}`);
+  await mode('book');
+  await frame.waitForFunction(() => document.querySelector('.sheet-page'), null, { timeout: 8000 });
+  const a4 = await frame.evaluate(() => { const s = getComputedStyle(document.querySelector('.sheet-page')); return { width: s.width, padding: s.paddingLeft, font: s.fontFamily }; });
+  await mode('write');
+  assert(Math.round(parseFloat(a4.width)) === 794 && Math.round(parseFloat(a4.padding)) === 76 && /Times New Roman/.test(a4.font), `The preview did not take the profile: ${JSON.stringify(a4)}`);
+  const openSetup = async () => { if (await frame.evaluate(() => window.manuscript.drawer) !== 'pagesetup') await page.evaluate(() => window.broker.command('pagesetup')); };
+  await openSetup();
+  await frame.selectOption('#setup-layout', 'Book');
+  await frame.getByRole('button', { name: 'Use the layout\u2019s own' }).click();
+  await frame.waitForFunction(() => !window.manuscript.profiles.some(p => p.values['mn.profile.layout'] === 'Book'), null, { timeout: 5000 });
+  assert(await profileNow() === null, 'The layout\u2019s own did not remove the profile.');
+  const typefaces = await frame.evaluate(() => ({ missing: window.manuscriptFontInstalled('Nendo Missing Typeface'), present: window.manuscriptFontInstalled('Arial') }));
+  assert(typefaces.missing === false && typefaces.present === true, `Typeface detection: ${JSON.stringify(typefaces)}`);
+  if (await frame.evaluate(() => window.manuscript.drawer) === 'pagesetup') await page.evaluate(() => window.broker.command('pagesetup'));
+  checks.push('page setup kept in the file, taken by the preview, and reset');
 
   // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
   // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;

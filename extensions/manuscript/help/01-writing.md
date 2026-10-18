@@ -107,6 +107,12 @@ Notes, links and cuttings are not exported. If a picture cannot be included, its
 
 **Book** and **Paper** at the left of the toolbar show the manuscript as a reader would see it: on pages of a 6 by 9 inch book or of a Letter-sized article, laid out as the Word export lays it out. **Write** takes you back to writing. The preview is close to what Word produces, not identical: Word may break a paragraph across two pages where the preview moves it whole.
 
+## Page setup
+
+**Page setup** in the toolbar sets the page for each layout of this manuscript: the page size, the margins, the typeface and its size, the line spacing and page numbers. Choose the layout at the top, then change what you want; anything you leave as *The layout's own* stays as the layout sets it. These settings are kept in the file with the manuscript, and the Word export and the preview use them. **Use the layout's own** puts a layout back. If the typeface you choose is not on this computer, Page setup says so: the preview shows a stand-in, and so will Word wherever the typeface is missing.
+
+A Word export uses Word's own styles, one for each kind of paragraph: change **Quotation** in Word and every quotation changes. **Word document, manuscript layout** in **Export** gives a submission copy: double-spaced Times at 12 points on Letter.
+
 ## Appearance
 
 The settings button in the toolbar chooses the typeface, the size and the line length: Narrow, Medium, Wide, or Full, which gives the text all the width of the window. In Book and Paper the line length scales the pages, so their text runs about as wide as it does while you write, and Full fits a whole page to the window; Small and Large make the pages smaller or larger, as they do the text while you write. A page is never drawn wider than the window, so in a narrow window Large or Wide may look the same as Medium. They are this computer's, not the manuscript's: they change how the page looks to you, and nothing in the file.

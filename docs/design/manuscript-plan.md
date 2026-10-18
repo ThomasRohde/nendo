@@ -172,6 +172,11 @@ review it, acknowledge it; the IDs and the link survive all of it.
 
 ### Stage 5 — Output and appearance
 
+**Built 2026-10-18 as Manuscript 0.19.0 (W-291):** Word's own paragraph styles for every role;
+a manuscript layout beside book and paper; output profiles per layout kept in the file and used
+by the export and the preview; typefaces by name with a warning when one is missing; a block
+longer than a page shown whole in the preview. The owner's check in Word is still to come.
+
 - Writing appearance stays per device and never changes output (it already is).
 - Named document styles (body, heading, quotation, verse, caption) that travel with the
   manuscript and map to real Word styles. Changing a style keeps IDs.

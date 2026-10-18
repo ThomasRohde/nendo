@@ -1,7 +1,7 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
-import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
+import { BLOCK, NOTE, LINK, PROFILE, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS, FONTS, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine } from './export.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine, PAGE_TWIPS } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
 import { markdownToInline } from './inline.mjs';
 import { Lexer } from './vendor/editor.js';
@@ -17,7 +17,7 @@ const state = {
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
   hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null, footnotes: new Map(), footnoteTexts: new Map(), footnotesOn: false,
-  linkSeen: false, linksView: 'review', threadContext: new Set(),
+  linkSeen: false, linksView: 'review', threadContext: new Set(), profilesOn: false, profiles: [], setupLayout: null,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -211,16 +211,18 @@ const READ_MAX = 1000000;
 async function readBlocks() { return nendo.records.queryAll({ entityId: BLOCK }, { max: READ_MAX }); }
 
 async function readAll() {
-  const [blocks, notes, links] = await Promise.all([
+  const [blocks, notes, links, profiles] = await Promise.all([
     readBlocks(),
     nendo.records.queryAll({ entityId: NOTE }, { max: READ_MAX }),
     nendo.records.queryAll({ entityId: LINK }, { max: READ_MAX }),
+    state.profilesOn ? nendo.records.queryAll({ entityId: PROFILE }, { max: 1000 }) : [],
   ]);
-  return { manuscript: readManuscript(blocks, state.wanted ?? state.root), notes, links };
+  return { manuscript: readManuscript(blocks, state.wanted ?? state.root), notes, links, profiles };
 }
 
 async function load() {
-  const { manuscript, notes, links } = await readAll();
+  const { manuscript, notes, links, profiles } = await readAll();
+  state.profiles = profiles;
   state.loads = (state.loads ?? 0) + 1;
   const switched = manuscript.root !== state.root;
   state.root = manuscript.root; state.cuttings = manuscript.cuttings; state.manuscripts = manuscript.manuscripts; state.wanted = null;
@@ -360,7 +362,7 @@ async function save() {
 }
 
 function versionOf(id) {
-  return state.saved.get(id)?.version ?? state.notes.find(n => n.recordId === id)?.version ?? state.links.find(l => l.recordId === id)?.version;
+  return state.saved.get(id)?.version ?? state.notes.find(n => n.recordId === id)?.version ?? state.links.find(l => l.recordId === id)?.version ?? state.profiles.find(p => p.recordId === id)?.version;
 }
 
 async function send(batch, label = 'Write') {
@@ -398,7 +400,7 @@ function applyWrite(write, version) {
     if (next.kind === 'Footnote') state.footnotes.set(write.recordId, { id: write.recordId, parent: next.parent, text: next.text, version });
     return;
   }
-  const list = write.entityId === NOTE ? state.notes : state.links;
+  const list = write.entityId === NOTE ? state.notes : write.entityId === PROFILE ? state.profiles : state.links;
   const at = list.findIndex(r => r.recordId === write.recordId);
   if (write.op === 'delete') { if (at >= 0) list.splice(at, 1); return; }
   const record = at >= 0 ? list[at] : { entityId: write.entityId, recordId: write.recordId, values: {} };
@@ -414,7 +416,8 @@ function changed() {
   changeTimer = setTimeout(async () => {
     if (state.saving) { await state.saving; }
     try {
-      const { manuscript, notes, links } = await readAll();
+      const { manuscript, notes, links, profiles } = await readAll();
+      state.profiles = profiles;
       const differs = [...manuscript.saved.values()].some(r => state.saved.get(r.id)?.version !== r.version) ||
         [...state.saved.keys()].some(id => !manuscript.saved.has(id));
       state.notes = notes; state.links = links;
@@ -569,7 +572,7 @@ async function exportAs(format, layout = 'book') {
     } else { blob = new Blob([text], { type: 'text/markdown' }); file = `${name}.md`; }
     missing = plan.items.filter(i => i.type === 'picture' && i.address.startsWith('media:') && !files.has(i.address)).map(i => i.alt || i.address);
   } else {
-    const built = toDocx(plan, pictures, lib, Lexer, layout);
+    const built = toDocx(plan, pictures, lib, Lexer, layout, { profile: profileOf(layout) });
     blob = await lib.Packer.toBlob(built.document);
     file = `${name}.docx`;
     missing = built.missing.map(m => m.alt || m.address);
@@ -671,7 +674,7 @@ async function pictureSizes(plan) {
 
 let previewRun = 0;
 async function renderPreview() {
-  const layout = state.mode, page = PAGES[layout], run = ++previewRun;
+  const layout = state.mode, page = previewPage(layout), run = ++previewRun;
   const footnotes = new Map([...state.footnotes.values()].map(f => [f.id, { text: footnoteText(f.id) }]));
   for (const [id, text] of state.footnoteTexts) footnotes.set(id, { text });
   const plan = exportPlan({ title: state.title, nodes: sheet.read(), footnotes });
@@ -685,16 +688,24 @@ async function renderPreview() {
   host.style.removeProperty('--zoom');
   host.replaceChildren();
   const limit = page.height - 2 * page.top;
-  let body = null, columns = null, column = 0;
+  let body = null, columns = null, column = 0, current = null;
+  // A block taller than a page: shown whole on a sheet that grows, and said, since a page cannot
+  // hold it; Word carries it on to the next page.
+  const runsOver = () => {
+    if (current.classList.contains('runs-over')) return;
+    current.classList.add('runs-over');
+    current.append(el('p', { class: 'runs-over-note', text: 'This block is longer than a page. Word carries it on to the next one.' }));
+  };
   const newSheet = () => {
     const number = host.childElementCount + 1;
-    const sheetPage = el('section', { class: 'sheet-page', 'aria-label': `Page ${number}` });
+    const sheetPage = el('section', { class: 'sheet-page', 'aria-label': `Page ${number}`, style: page.style ?? null });
     body = el('div', { class: 'sheet-body' });
     // An article's first page carries the draft line; every later one its number at the top.
     const folio = !page.columns ? el('div', { class: 'folio', text: String(number) })
       : number === 1 ? el('div', { class: 'running', text: draftLine() }) : el('div', { class: 'running number', text: String(number) });
     sheetPage.append(body, folio);
     host.append(sheetPage);
+    current = sheetPage;
     columns = null;
   };
   const newColumns = () => {
@@ -722,6 +733,7 @@ async function renderPreview() {
       if (block.breakBefore && body.childElementCount) newSheet();
       body.append(element);
       if (body.scrollHeight > limit && body.childElementCount > 1) { const moving = carried(element); moving.forEach(e => e.remove()); newSheet(); body.append(...moving); }
+      if (body.scrollHeight > limit + 0.5) runsOver();
       continue;
     }
     if (block.breakBefore && (columns ? columns.some(c => c.childElementCount) : body.childElementCount)) newSheet();
@@ -734,6 +746,7 @@ async function renderPreview() {
       else { newSheet(); newColumns(); }
       columns[column].append(...moving);
     }
+    if (past(columns[column])) runsOver();
   }
   previewZoom();
   state.previewPages = host.childElementCount;
@@ -849,6 +862,7 @@ function declare() {
       { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
       { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
       { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+      ...(state.profilesOn ? [{ kind: 'toggle', id: 'pagesetup', label: 'Page setup', icon: 'layout', pressed: state.drawer === 'pagesetup' }] : []),
       { kind: 'toggle', id: 'links', label: `Links${state.links.some(l => l.values[F.linkReview] === REVIEW.needsReview) ? ` ${state.links.filter(l => l.values[F.linkReview] === REVIEW.needsReview).length}` : ''}`, icon: 'chain', pressed: state.drawer === 'links' },
       { kind: 'toggle', id: 'cuttings', label: 'Cuttings', icon: 'layers', pressed: state.drawer === 'cuttings' },
       { kind: 'toggle', id: 'find', label: 'Find', icon: 'search', pressed: state.drawer === 'find' },
@@ -857,6 +871,7 @@ function declare() {
       { id: 'export-markdown', label: 'Markdown', detail: 'A .zip with the text and its pictures' },
       { id: 'export-word', label: 'Word document, book layout', detail: 'A 6 by 9 inch book: title page, chapters on new pages' },
       { id: 'export-word-paper', label: 'Word document, paper layout', detail: 'An article: title block, abstract, numbered sections, figures' },
+      { id: 'export-word-manuscript', label: 'Word document, manuscript layout', detail: 'For a submission: double-spaced Times at 12 points on Letter' },
     ] },
     { kind: 'menu', id: 'appearance', label: 'Appearance', icon: 'settings', iconOnly: true, items: [
       { kind: 'label', label: 'Typeface' }, radio('font', 'serif', 'Serif', a.font), radio('font', 'sans', 'Sans serif', a.font),
@@ -915,13 +930,13 @@ function command({ id, value }) {
     return;
   }
   if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
-  if (id === 'export-word' || id === 'export-word-paper') { exportAs('word', id === 'export-word-paper' ? 'paper' : 'book').catch(fail); return; }
+  if (id === 'export-word' || id === 'export-word-paper' || id === 'export-word-manuscript') { exportAs('word', { 'export-word-paper': 'paper', 'export-word-manuscript': 'manuscript' }[id] ?? 'book').catch(fail); return; }
   if (id === 'mode') { setMode(value).catch(fail); return; }
   if (id === 'manuscript') { (value === 'new' ? startManuscript() : openManuscript(value)).catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'find') { if (state.drawer === 'find') closeDrawer(); else openFind(false); return; }
-  if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings' || id === 'links') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
+  if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings' || id === 'links' || id === 'pagesetup') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
 }
 
@@ -1455,7 +1470,7 @@ function renderDrawer() {
   drawer.hidden = state.drawer === null;
   document.documentElement.dataset.drawer = state.drawer ?? '';
   if (state.drawer === null) return;
-  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace', cuttings: 'Cuttings', links: 'Links' }[state.drawer];
+  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace', cuttings: 'Cuttings', links: 'Links', pagesetup: 'Page setup' }[state.drawer];
   const body = [];
   if (state.drawer === 'find') {
     body.push(findPanel());
@@ -1489,6 +1504,7 @@ function renderDrawer() {
     if (!body.length) body.push(el('p', { class: 'muted', text: 'No headings yet. Make a line a Part, Chapter or Section with Style, or start it with #, ## or ###.' }));
   }
   if (state.drawer === 'links') body.push(...linksPanel());
+  if (state.drawer === 'pagesetup') body.push(...pageSetupPanel());
   if (state.drawer === 'cuttings') {
     // What was kept out of the manuscript, in the order it was kept; put back after the
     // paragraph the caret is in, the same block with its notes and links.
@@ -1619,6 +1635,96 @@ function linksPanel() {
       near && index + 1 < nodes.length ? el('p', { class: 'muted context', text: preview(nodes[index + 1].id, 160) }) : null));
     previous = index;
   }
+  return out;
+}
+
+// ---------- Page setup ----------
+// An output profile is one layout's settings for this manuscript, kept in the file: a page size,
+// margins, a typeface and its size, line spacing and page numbers over the layout's own. The Word
+// export and the preview both use it.
+
+const LAYOUT_OF = { Book: 'book', Paper: 'paper', Manuscript: 'manuscript' };
+
+function profileRecord(layoutName) {
+  const choice = Object.keys(LAYOUT_OF).find(k => LAYOUT_OF[k] === layoutName) ?? layoutName;
+  return state.profiles.find(p => p.values[F.profileRoot] === state.root && p.values[F.profileLayout] === choice) ?? null;
+}
+
+/** A layout's profile as the export takes it, or null. */
+function profileOf(layoutName) {
+  const r = profileRecord(layoutName);
+  if (!r) return null;
+  const v = r.values;
+  return { page: v[F.profilePage] ?? null, margin: v[F.profileMargin] ?? null, font: v[F.profileFont] ?? null, size: v[F.profileSize] ?? null,
+    spacing: v[F.profileSpacing] ?? null, numbers: typeof v[F.profileNumbers] === 'boolean' ? v[F.profileNumbers] : null };
+}
+
+/** The preview's page for a layout, with its profile over it: sizes in pixels, as a sheet is drawn. */
+const LINE_HEIGHT = { 'Single': 1.2, '1.15': 1.35, '1.5': 1.75, 'Double': 2.3 };
+function previewPage(layout) {
+  const base = PAGES[layout], p = profileOf(layout);
+  if (!p) return base;
+  const page = { ...base }, twips = PAGE_TWIPS[p.page];
+  if (twips) { page.width = Math.round(twips[0] / 15); page.height = Math.round(twips[1] / 15); }
+  if (p.margin > 0) page.margin = page.top = Math.round(p.margin * 56.693 / 15);
+  if (p.font) page.font = `'${p.font}', ${base.font}`;
+  if (p.size > 0) page.size = Math.round(p.size * 4 / 3 * 10) / 10;
+  if (LINE_HEIGHT[p.spacing]) page.line = LINE_HEIGHT[p.spacing];
+  page.style = `width:${page.width}px;height:${page.height}px;padding:${page.top}px ${page.margin}px;font:${page.size}px/${page.line} ${page.font}`;
+  return page;
+}
+
+/** Whether a typeface is on this computer: a line set in it is not the width of a fallback's. */
+function fontInstalled(name) {
+  const canvas = fontInstalled.canvas ??= document.createElement('canvas'), context = canvas.getContext('2d'), sample = 'mmmmmmmmmlliWW@#0';
+  return ['monospace', 'serif', 'sans-serif'].some(fallback => {
+    context.font = `72px ${fallback}`; const plain = context.measureText(sample).width;
+    context.font = `72px '${name}', ${fallback}`; return context.measureText(sample).width !== plain;
+  });
+}
+window.manuscriptFontInstalled = fontInstalled;
+
+async function saveProfile(choice, values) {
+  const record = state.profiles.find(p => p.values[F.profileRoot] === state.root && p.values[F.profileLayout] === choice);
+  if (record) await send([{ op: 'update', entityId: PROFILE, recordId: record.recordId, version: record.version, values, refs: {} }], 'Page setup');
+  else await send([{ op: 'create', entityId: PROFILE, recordId: `p-${freshId().slice(2)}`, values: { [F.profileRoot]: state.root, [F.profileLayout]: choice, ...values }, refs: { [F.profileRoot]: state.root } }], 'Page setup');
+  if (state.mode !== 'write') renderPreview(); else render();
+}
+
+async function resetProfile(choice) {
+  const record = state.profiles.find(p => p.values[F.profileRoot] === state.root && p.values[F.profileLayout] === choice);
+  if (record) await send([{ op: 'delete', entityId: PROFILE, recordId: record.recordId, version: record.version }], 'Page setup');
+  if (state.mode !== 'write') renderPreview(); else render();
+}
+
+function pageSetupPanel() {
+  const choice = state.setupLayout ?? ({ book: 'Book', paper: 'Paper' }[state.mode] ?? 'Book');
+  const record = state.profiles.find(p => p.values[F.profileRoot] === state.root && p.values[F.profileLayout] === choice);
+  const v = record?.values ?? {};
+  const own = 'The layout’s own';
+  const select = (id, label, field, options, value) => el('label', { class: 'field' }, el('span', { text: label }),
+    el('select', { id, disabled: state.readOnly || null, on: { change: e => saveProfile(choice, { [field]: e.target.value === '' ? null : field === F.profileSize ? Number(e.target.value) : e.target.value }).catch(fail) } },
+      el('option', { value: '', text: own, selected: value === undefined || value === null }),
+      options.map(o => el('option', { value: String(o), text: String(o), selected: String(value) === String(o) }))));
+  const margin = el('input', { id: 'setup-margin', type: 'number', min: '5', max: '60', step: '1', value: v[F.profileMargin] ?? '', placeholder: own, disabled: state.readOnly || null,
+    on: { change: e => saveProfile(choice, { [F.profileMargin]: e.target.value === '' ? null : Math.round(Number(e.target.value)) }).catch(fail) } });
+  const numbers = el('input', { id: 'setup-numbers', type: 'checkbox', checked: v[F.profileNumbers] !== false, disabled: state.readOnly || null,
+    on: { change: e => saveProfile(choice, { [F.profileNumbers]: e.target.checked }).catch(fail) } });
+  const font = v[F.profileFont];
+  const out = [
+    el('label', { class: 'field' }, el('span', { text: 'Layout' }),
+      el('select', { id: 'setup-layout', on: { change: e => { state.setupLayout = e.target.value; render(); } } }, OUTPUT_LAYOUTS.map(o => el('option', { value: o, text: o, selected: o === choice })))),
+    select('setup-page', 'Page size', F.profilePage, PAGE_SIZES, v[F.profilePage]),
+    el('label', { class: 'field' }, el('span', { text: 'Margins (mm)' }), margin),
+    select('setup-font', 'Typeface', F.profileFont, FONTS, font),
+    select('setup-size', 'Size (points)', F.profileSize, [9, 10, 11, 12, 13, 14, 16], v[F.profileSize]),
+    select('setup-spacing', 'Line spacing', F.profileSpacing, SPACINGS, v[F.profileSpacing]),
+    el('label', { class: 'check' }, numbers, 'Page numbers'),
+  ];
+  // Preflight: a typeface this computer does not have is set in a stand-in, here and in Word.
+  if (font && !fontInstalled(font)) out.push(el('p', { class: 'warning', id: 'setup-font-missing', text: `${font} is not on this computer: the preview uses a stand-in, and Word will too wherever it is missing.` }));
+  out.push(el('p', { class: 'muted', text: 'Kept with this manuscript in the file, for its Word export and its preview. Your writing appearance stays your own.' }));
+  if (record && !state.readOnly) out.push(el('div', { class: 'row end' }, el('button', { type: 'button', class: 'quiet', text: 'Use the layout’s own', on: { click: () => resetProfile(choice).catch(fail) } })));
   return out;
 }
 
@@ -1832,6 +1938,8 @@ async function start(context) {
     state.footnotesOn = kinds.includes('Footnote');
     // A link keeps its ends' words where the file has the fields (Manuscript 0.18.0 adds them).
     state.linkSeen = (schema.entities ?? []).find(e => e.entityId === LINK)?.fields?.some(f => f.fieldId === F.linkFromSeen) ?? false;
+    // Page setup where the file has the Output profiles type (Manuscript 0.19.0 adds it).
+    state.profilesOn = (schema.entities ?? []).some(e => e.entityId === PROFILE);
   } catch { state.roles = false; state.aligns = false; state.lists = false; state.tables = false; }
   state.pins = readPins();
   applyAppearance();

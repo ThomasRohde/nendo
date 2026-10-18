@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Lexer } from '../../extensions/manuscript/vendor/editor.js';
 import * as lib from '../../extensions/manuscript/vendor/export.js';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, paperHeadings, columnsStart, draftLine } from '../../extensions/manuscript/export.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, paperHeadings, columnsStart, draftLine, withProfile, LAYOUTS } from '../../extensions/manuscript/export.mjs';
 
 const address = `media:${'cd'.repeat(32)}`;
 const manuscript = { title: 'Low Water', nodes: [
@@ -14,6 +14,16 @@ const manuscript = { title: 'Low Water', nodes: [
   { id: 's', kind: 'Section', text: 'Ebb' },
   { id: 'b', kind: 'Paragraph', text: 'Outside, the water pulled back.' },
 ] };
+/**
+ * A paragraph as Word formats it: its own XML and the definition of the paragraph style it names,
+ * where a role's indent, alignment and type now live.
+ */
+const asFormatted = (xml, styles) => words => {
+  const own = xml.split('<w:p>').find(p => p.toLowerCase().includes(words.toLowerCase())) ?? '';
+  const id = /<w:pStyle w:val="([^"]+)"\/>/.exec(own)?.[1];
+  return own + (id ? styles.split('<w:style ').find(s => s.includes(`w:styleId="${id}"`)) ?? '' : '');
+};
+
 // The smallest PNG there is: one transparent pixel.
 const png = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
 
@@ -68,7 +78,7 @@ test('Word and the plan: underline and highlight runs, and a block\'s own alignm
     const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, layout).document));
     const xml = await zip.file('word/document.xml').async('string');
     // A paper sets a heading in capitals, with its number.
-    const paragraph = words => xml.split('<w:p>').find(p => p.toLowerCase().includes(words.toLowerCase())) ?? '';
+    const paragraph = asFormatted(xml, await zip.file('word/styles.xml').async('string'));
     assert.match(xml, /<w:u w:val="single"\/>[\s\S]*?underlined/, layout);
     assert.match(xml, /<w:highlight w:val="yellow"\/>[\s\S]*?lit/, layout);
     assert.match(paragraph('Set in the middle.'), /<w:jc w:val="center"\/>/, layout);
@@ -105,7 +115,7 @@ test('paper layout: AASTeX two columns, front matter centred, abstract and refer
   const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(document));
   const xml = await zip.file('word/document.xml').async('string'), styles = await zip.file('word/styles.xml').async('string');
   assert.doesNotMatch(xml, /<w:b w:val="false"\/>/, 'a run switches bold off, which overrides a bold heading style');
-  const paragraph = text => xml.split('<w:p>').find(p => p.includes(text)) ?? '';
+  const paragraph = asFormatted(xml, styles);
   assert.match(paragraph('[Authors]'), /<w:jc w:val="center"\/>/);
   assert.match(paragraph('We describe it.'), /<w:ind w:left="680" w:right="680" w:firstLine="288"/, 'the abstract is narrower, every paragraph indented');
   assert.doesNotMatch(paragraph('First.'), /w:firstLine="288"/, 'the first paragraph of a section is not indented');
@@ -179,8 +189,17 @@ test('roles beyond papers: epigraph, dedication, verse, quotation and scene brea
   assert.match(markdown, /\n\n\* \* \*\n\n/);
   assert.match(markdown, /\n\n> Boat seen beyond the bar\.\n/);
   assert.match(markdown, /\n\n> The sea has many voices\.\n/);
-  const xml = await (await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document))).file('word/document.xml').async('string');
-  const paragraph = text => xml.split('<w:p>').find(p => p.includes(text)) ?? '';
+  const roleZip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document));
+  const xml = await roleZip.file('word/document.xml').async('string'), styles = await roleZip.file('word/styles.xml').async('string');
+  const paragraph = asFormatted(xml, styles);
+  // Each role is a named paragraph style, its formatting in the style, not on the paragraph.
+  for (const [words, style, name] of [['For my grandfather', 'Dedication', 'Dedication'], ['many voices', 'Epigraph', 'Epigraph'], ['slow water', 'Verse', 'Verse'],
+    ['beyond the bar', 'Quotation', 'Quotation'], ['* * *', 'SceneBreak', 'Scene Break'], ['It rained.', 'BodyTextFirst', 'Body Text First']]) {
+    const own = xml.split('<w:p>').find(p => p.includes(words)) ?? '';
+    assert.match(own, new RegExp(`<w:pStyle w:val="${style}"/>`), `${words} is not in ${style}`);
+    assert.doesNotMatch(own, /<w:ind |<w:jc /, `${words} carries its formatting itself`);
+    assert.match(styles, new RegExp(`<w:style w:type="paragraph" w:styleId="${style}"[^>]*>\\s*<w:name w:val="${name}"/>`), `no style named ${name}`);
+  }
   assert.match(paragraph('For my grandfather'), /<w:jc w:val="center"\/>/);
   assert.match(paragraph('For my grandfather'), /<w:i\/>/);
   assert.match(paragraph('many voices'), /<w:i\/>/);
@@ -295,4 +314,31 @@ test('footnotes: numbered as first cited, Markdown footnotes, and Word\'s own fo
   assert.match(xml, /<w:footnoteReference w:id="2"\/>/);
   assert.match(notes, /<w:footnote w:id="1">.*Second\..*<\/w:footnote>/s);
   assert.match(notes, /<w:footnote w:id="2">.*First, .*in italics.*<\/w:footnote>/s);
+});
+
+test('the manuscript layout: Times at 12 points, double-spaced, on Letter with one-inch margins, chapters on new pages', async () => {
+  const plan = exportPlan({ title: 'Low Water', nodes: [{ id: 'c', kind: 'Chapter', text: 'One' }, { id: 'p', kind: 'Paragraph', text: 'It rained.' }, { id: 'q', kind: 'Paragraph', text: 'Then it stopped.' }] });
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'manuscript').document));
+  const xml = await zip.file('word/document.xml').async('string'), styles = await zip.file('word/styles.xml').async('string');
+  assert.match(xml, /<w:pgSz w:w="12240" w:h="15840"/);
+  assert.match(xml, /<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/);
+  assert.match(styles, /<w:docDefaults>[\s\S]*w:ascii="Times New Roman"[\s\S]*<w:sz w:val="24"\/>[\s\S]*w:line="480"/);
+  assert.match(asFormatted(xml, styles)('Then it stopped.'), /w:firstLine="720"/);
+  assert.match(xml.split('<w:p>').find(p => p.includes('One')) ?? '', /<w:pageBreakBefore\/>/);
+});
+
+test('an output profile over a layout: page, margins, typeface, size with the headings scaled, spacing and page numbers', async () => {
+  const profile = { page: 'A4', margin: 20, font: 'Cambria', size: 12, spacing: 'Double', numbers: false };
+  const L = withProfile(LAYOUTS.book, profile);
+  assert.deepEqual([L.page.width, L.page.height, L.page.margin, L.font, L.size, L.line, L.pageNumbers], [11906, 16838, 1134, 'Cambria', 24, 480, false]);
+  assert.equal(L.headings[0].size, Math.round(32 * 24 / 22), 'headings keep their size against the body');
+  assert.equal(LAYOUTS.book.page.width, 8640, 'the layout itself is left as it was');
+  assert.deepEqual(withProfile(LAYOUTS.book, { page: null, margin: null, font: null, size: null, spacing: null, numbers: null }).page, LAYOUTS.book.page, 'empty choices keep the layout');
+  const plan = exportPlan({ title: 'Low Water', nodes: [{ id: 'c', kind: 'Chapter', text: 'One' }, { id: 'p', kind: 'Paragraph', text: 'It rained.' }] });
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book', { profile }).document));
+  const xml = await zip.file('word/document.xml').async('string'), styles = await zip.file('word/styles.xml').async('string');
+  assert.match(xml, /<w:pgSz w:w="11906" w:h="16838"/);
+  assert.match(xml, /<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/);
+  assert.doesNotMatch(xml, /<w:footerReference/, 'no page numbers');
+  assert.match(styles, /<w:docDefaults>[\s\S]*w:ascii="Cambria"[\s\S]*<w:sz w:val="24"\/>[\s\S]*w:line="480"/);
 });
