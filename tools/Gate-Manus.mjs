@@ -109,7 +109,7 @@ async page => {
     return bytes;
   };
   const exportMenu = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'export');
-  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word,export-word-paper,export-word-manuscript', `Export menu: ${JSON.stringify(exportMenu)}`);
+  assert(exportMenu && exportMenu.items.map(i => i.id).join() === 'export-markdown,export-word,export-word-paper,export-word-paper-typeset,export-word-manuscript', `Export menu: ${JSON.stringify(exportMenu)}`);
   // The probe's sandbox has no TextDecoder; the page decodes the bytes.
   const markdownBytes = await exported('export-markdown', 'Low Water.md');
   const markdown = await page.evaluate(bytes => new TextDecoder().decode(new Uint8Array(bytes)), Array.from(markdownBytes));
@@ -122,6 +122,11 @@ async page => {
   assert(report.format === 'word' && report.layout === 'book' && report.missing.length === 1 && report.pictures === 1, `Export report: ${JSON.stringify(report)}`);
   const paper = await exported('export-word-paper', 'Low Water.docx');
   assert(paper[0] === 0x50 && paper[1] === 0x4b && (await frame.evaluate(() => window.manuscript.lastExport.layout)) === 'paper', 'The paper layout did not export.');
+  // The paper as typeset: laid out off screen for where its references start, its own file name.
+  const typeset = await exported('export-word-paper-typeset', 'Low Water (as typeset).docx');
+  const typesetReport = await frame.evaluate(() => ({ ...window.manuscript.lastExport, offscreen: document.querySelectorAll('[data-layout="paper"][aria-hidden]').length }));
+  assert(typeset[0] === 0x50 && typeset[1] === 0x4b && typesetReport.layout === 'paper' && typesetReport.typeset === true && typesetReport.offscreen === 0,
+    `The paper as typeset did not export: ${JSON.stringify(typesetReport)}`);
   // A long title makes a long status ("Exported <title>.docx"): Nendo takes a toolbar text of at most
   // 80 characters and refused all the view's controls for a longer one (owner, 2026-10-17).
   const longTitle = 'Malleable Software in One File: Nendo as a Case Study of an Application Built by an Agent';

@@ -8,5 +8,3 @@ export { Decoration, DecorationSet } from '@tiptap/pm/view';
 export { Slice, Fragment } from '@tiptap/pm/model';
 export { Lexer } from 'marked';
 export { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table';
-// English hyphenation from TeX's US patterns (hyph-utf8), so the paper preview breaks words where TeX does.
-export { default as hyphenation } from 'hyphen/en-us/index.js';

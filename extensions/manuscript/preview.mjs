@@ -3,6 +3,8 @@
 // starts a page, which is indented, which is a caption, which pictures share a row), and the
 // view draws them on page-sized sheets. Tested in Node (tools/manus/preview.test.mjs).
 import { FIGURE, paperHeadings, columnsStart, article } from './export.mjs';
+import { softHyphens } from './typeset.mjs';
+export { softHyphens };
 
 // Where a browser sets a Times baseline in a line box, in the line's units: half the line's
 // height, then half the difference of the face's ascent (0.891 em) and descent (0.216 em). The
@@ -19,21 +21,6 @@ export function paperSheet(A = article()) {
   const top = px(A.top - baseline(A.pitch, A.size));
   return { width: px(A.width), height: px(A.height), margin: px(A.left), right: px(A.right), top, columns: 2, column: px(A.column), gap: px(A.gap),
     limit: px(A.bottom + A.pitch - baseline(A.pitch, A.size)) - top, line: px(A.pitch) };
-}
-
-/**
- * Text with a soft hyphen wherever TeX's English sets one: at the breaks `hyphenate` (TeX's US
- * patterns) finds, at least two letters into a word and three before its end, in words of
- * letters that follow a space or an opening bracket or quote, as TeX hyphenates only those; a
- * compound's parts after its hyphen are left whole. Chromium on Windows hyphenates nothing.
- */
-export function softHyphens(text, hyphenate) {
-  return text.replace(/(^|[\s(\[“‘"'])([A-Za-z]{5,})(?![A-Za-z-])/g, (all, before, word) => {
-    const parts = hyphenate(word, { hyphenChar: '­' }).split('­');
-    let out = '', at = 0;
-    parts.forEach((part, i) => { out += part; at += part.length; if (i < parts.length - 1 && at >= 2 && word.length - at >= 3) out += '­'; });
-    return before + out;
-  });
 }
 
 /**
@@ -59,7 +46,7 @@ export function paperStyle(A = article(), font = PAGES.paper.font, below = basel
   const P = A.pitch, S = A.size, C = A.captionPitch, CS = A.captionSize, R = A.referencePitch, RS = A.referenceSize;
   const s = ".preview[data-layout='paper']", b = `${s} .sheet-body`;
   return `
-${s} .sheet-page { width: ${pt(A.width)}; height: ${pt(A.height)}; padding: ${pt(A.top - below(P, S))} ${pt(A.right)} 0 ${pt(A.left)}; font: ${pt(S)}/${pt(P)} ${font}; }
+${s} .sheet-page { width: ${pt(A.width)}; height: ${pt(A.height)}; padding: ${pt(A.top - below(P, S))} ${pt(A.right)} 0 ${pt(A.left)}; font: ${pt(S)}/${pt(P)} ${font}; font-kerning: none; font-variant-ligatures: none; }
 ${s} .running { top: ${pt(A.folio - below(P, S))}; left: ${pt(A.left)}; right: ${pt(A.right)}; font-size: ${pt(S)}; line-height: ${pt(P)}; font-variant: normal; text-align: right; }
 ${s} .running.even { text-align: left; }
 ${s} .running.draft { top: ${pt(A.draft - below(P, A.draftSize))}; left: ${pt(A.left + A.draftIndent)}; font-size: ${pt(A.draftSize)}; font-variant: small-caps; text-align: left; }
@@ -79,6 +66,7 @@ ${b} .pv-line { display: block; white-space: nowrap; word-spacing: 0; text-inden
 ${b} .pv-line:first-of-type { text-indent: inherit; }
 ${b} mark { background: #ffff00; border-radius: 0; }
 ${b} p.indent { text-indent: ${pt(A.indent)}; }
+${b} p.role-abstract.indent { text-indent: ${pt(A.abstractIndent)}; }
 ${b} :is(h2, h3, h4) { font-size: ${pt(S)}; font-weight: 400; line-height: ${pt(P)}; text-align: center; margin: ${gap(A.heading, P, S, P, S)} 0 ${gap(A.afterHeading, P, S, P, S)}; }
 ${b} .pv-column h2:not(.part) { font-size: ${pt(A.sectionSize)}; }
 ${b} :is(h3, h4) { font-style: italic; }
@@ -87,11 +75,11 @@ ${b} p.pv-li { margin: ${pt(A.listSpace)} 0 0; text-align: justify; padding-left
 ${b} p.pv-li.level-1 { padding-left: ${pt(A.hang + 18)}; } ${b} p.pv-li.level-2 { padding-left: ${pt(A.hang + 36)}; } ${b} p.pv-li.level-3 { padding-left: ${pt(A.hang + 54)}; } ${b} p.pv-li.level-4 { padding-left: ${pt(A.hang + 72)}; }
 ${b} .pv-marker { margin-left: ${pt(-A.hang)}; width: ${pt(A.number)}; text-align: right; }
 ${b} .pv-li + :is(p, .pv-piece):not(.pv-li) { margin-top: ${pt(A.listSpace)}; }
-${b} .pv-figure { gap: ${pt(A.pictureGap)}; margin: ${pt(A.pictureAbove - after(P, S))} 0 0; }
-${b} .pv-caption { font-size: ${pt(CS)}; line-height: ${pt(C)}; text-align: justify !important; margin: ${gap(A.pitch, P, S, C, CS)} 0 ${gap(A.afterCaption, C, CS, P, S)} !important; }
-${b} .pv-figure + .pv-caption { margin-top: ${pt(A.captionBelow - below(C, CS))} !important; }
-${b} .pv-caption + :is(h2, h3, h4) { margin-top: ${gap(A.headingAfterCaption, C, CS, P, S)}; }
-${b} .pv-caption.above-table { margin: ${gap(A.tableCaption, P, S, C, CS)} 0 ${pt(A.ruleBelowCaption - after(C, CS))} !important; }
+${b} .pv-figure { gap: ${pt(A.pictureGap)}; margin: ${pt(A.pictureAbove + A.descender * S - after(P, S))} 0 0; }
+${b} .pv-caption { font-size: ${pt(CS)}; line-height: ${pt(C)}; text-align: justify !important; margin: ${gap(A.pitch, P, S, C, CS)} 0 ${gap(A.afterCaption + A.descender * CS, C, CS, P, S)}; }
+${b} .pv-figure + .pv-caption { margin-top: ${pt(A.captionBelow - below(C, CS))}; }
+${b} .pv-caption + :is(h2, h3, h4) { margin-top: ${gap(A.headingAfterCaption + A.descender * CS, C, CS, P, S)}; }
+${b} .pv-caption.above-table { margin: ${gap(A.tableCaption + A.descender * S, P, S, C, CS)} 0 ${pt(A.ruleBelowCaption + A.descender * CS - after(C, CS))}; }
 ${b} table.pv-table { table-layout: fixed; width: 100%; margin: 0; font-size: ${pt(A.cellSize)}; line-height: ${pt(A.cellPitch)}; border-top: ${pt(0.4 + A.rulePair)} double #000000; border-bottom: 0.4pt solid #000000; }
 ${b} .pv-table :is(th, td) { border: 0; padding: ${pt(A.rowSpace / 2)} ${pt(A.cellPad)}; font-weight: 400; hyphens: manual; }
 ${b} .pv-table th { border-bottom: 0.4pt solid #000000; }

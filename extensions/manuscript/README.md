@@ -55,12 +55,17 @@ same records; the view keeps no copy of the manuscript in the file.
   the Word layout sets it, on sheets of its paper (6 by 9 inches, or Letter), with its fonts, roles,
   figure rows, page breaks and page numbers. It reads what is on the page, saved or not. The book
   is drawn block by block, so a paragraph is never split across sheets as Word may split it. The
-  paper is set as TeX sets the reference (0.20.0, W-293): each paragraph broken into lines by Knuth
-  and Plass's algorithm with the AASTeX reference's parameters, its words hyphenated with TeX's US
-  patterns and measured in the page's own type, each line's spaces as wide as TeX makes them; a
-  paragraph runs on line by line from the foot of a column to the head of the next, never one line
-  alone on either side; a heading keeps two lines with it, a figure its caption and a table its
-  caption; the columns above the references and those of the last page are balanced. The line
+  paper is set as TeX sets the reference (0.20.0 and 0.21.0, W-293): each paragraph broken into
+  lines by Knuth and Plass's algorithm as tex.web has it (TeX's integer badness, its fitness
+  classes, its tie rule and pruning, an emergency pass) with the AASTeX reference's parameters, its
+  words measured in TeX Gyre Termes as XeTeX sets them (kerned, with ligatures, a hyphenated word
+  in pieces) and hyphenated with plain TeX's patterns, the ones LaTeX's English loads; then drawn
+  in Times with each space ending where TeX starts the next word. The references are set ragged,
+  French-spaced and unhyphenated, as AASTeX sets its bibliography. A paragraph runs on line by line
+  from the foot of a column to the head of the next, never one line alone on either side; a
+  heading keeps two lines with it, a figure its caption and a table its caption; the room above a
+  picture or a table grows with how far the line above it reaches below its baseline; the columns
+  above the references and those of the last page are balanced as revtex balances them. The line
   length under Appearance scales the sheets, so the page's text runs as wide as it does while
   writing, and Full fits a whole sheet to the window; Small and Large scale them again, as they
   scale the writing sheet's type. No sheet is drawn wider than the window.
@@ -91,7 +96,10 @@ same records; the view keeps no copy of the manuscript in the file.
   and a browser size them, the References heading across the page under balanced columns and
   the references in two columns, ragged and never hyphenated, and page numbers on the outer
   side. Cuttings, notes and links stay out. A picture that cannot go in stands as
-  its description and the view names it.
+  its description and the view names it. *Word document, paper as typeset* (0.21.0) is the paper
+  line for line as the preview sets it: every line ends in a break and its spaces are widened by
+  character spacing, so Word draws TeX's lines; the references start a page where the preview's
+  do, their second column where revtex starts it. Its lines do not reflow when edited in Word.
 - Selecting words in a paragraph shows a bar of icons in groups (text, alignment, paragraph,
   manuscript), each named with its keys in a tooltip: bold, italic, underline, strikethrough,
   inline code, highlight and clear formatting; align left, centre, right and justify; paragraph
@@ -166,13 +174,18 @@ same records; the view keeps no copy of the manuscript in the file.
 ## Limits
 
 - The paper's reference is `tools/manus/latex.mjs`, the plan as AASTeX 6.3.1 sets it, and
-  `tools/Compare-ManusPaper.ps1` sets a manuscript three ways (the reference with Tectonic, the
-  Word export in Word, the preview in Edge) and measures each block's page, column and baseline
-  against the reference. It needs Tectonic, Word, and Python with PyMuPDF and Pillow, so it runs
-  by hand, outside the gate. Measured on the draft paper on 2026-10-18: all 122 blocks of the
-  preview and of the Word export on the reference's page and column, the preview's within a point
-  of it in 97 and a line in the rest; Word's a line on median, as Word breaks lines one at a time
-  where TeX weighs the whole paragraph, and never ends a column on a hyphenated line.
+  `tools/Compare-ManusPaper.ps1` sets a manuscript four ways (the reference with Tectonic, both
+  Word exports in Word, the preview in Edge), measures each block's page, column and baseline
+  against the reference, and scores each page's ink against the reference's, pixel by pixel. It
+  needs Tectonic, Word, and Python with PyMuPDF and Pillow, so it runs by hand, outside the gate.
+  Measured on the draft paper on 2026-10-18: the preview and the paper as typeset put all 122
+  blocks on the reference's page and column and within a point of its baseline (largest 0.8 and
+  1.0 points), their ink scoring 0.983 and 0.984 against the reference's on average (1 would be
+  identical; the type is Times, not Termes). Of the reference's 737 lines as a PDF reader takes
+  them out, 718 read the same in the preview and 720 in the paper as typeset; most of the rest
+  are lines the reader splits in two, and two paragraphs TeX breaks a line differently. The paper layout itself, which Word sets, is a line or two off on median, as Word
+  breaks lines one at a time. Of 240 generated paragraphs XeTeX sets, the breaker matches 224 line
+  for line, and all 240 as bibliography entries (`tools/manus/typeset-fixture.json` keeps nine).
 - The reference departs from the class in what the exports cannot do: pictures and tables stand
   where the text has them rather than float; the room around headings, lists and figures does
   not shrink or stretch to fill a column, and no break is preferred before a section or around a
@@ -220,10 +233,11 @@ pwsh ./tools/Review-Manus.ps1
 
 `Build-Manus.mjs` builds only into an empty, newly created file and accepts only with
 `--accept` at Unattended. `Put-NendoPackage.mjs` updates the view in a file that has it. The
-package carries Tiptap 3.31.4, marked 17.0.6 and hyphen 1.14.1 (TeX's US English patterns), bundled by esbuild 0.28.2 into
+package carries Tiptap 3.31.4 and marked 17.0.6, bundled by esbuild 0.28.2 into
 `vendor/editor.js`, and docx 9.8.1 and JSZip 3.10.2 into `vendor/export.js`, loaded only when
 exporting, with every bundled package's licence in `vendor/THIRD-PARTY-NOTICES.txt`;
-`tools/manus/package-lock.json` pins the rebuild. No remote script or font is loaded.
+`tools/manus/package-lock.json` pins the rebuild. `hyphenation.mjs` is plain TeX's `hyphen.tex`,
+converted by `tools/manus/plain-hyphen.mjs` and carrying that file's terms. No remote script or font is loaded.
 
 `Review-Manus.ps1` runs the unit tests (`tools/manus/*.test.mjs`) and the browser lane
 (`tools/Gate-Manus.mjs`) against the fixture broker; it is part of Test-Production. The view

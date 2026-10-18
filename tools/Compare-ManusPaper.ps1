@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-Sets a manuscript's paper three ways and measures them against each other (W-293): the LaTeX
+Sets a manuscript's paper four ways and measures them against each other (W-293): the LaTeX
 reference (AASTeX 6.3.1 twocolumn, tools/manus/latex.mjs, compiled with Tectonic), the Word
-export as Word sets it (converted to PDF by Word), and the view's Paper preview (in Edge, against
-the fixture broker). Writes artifacts/manus/paper-compare: report.txt, sheets-N.png side by side
-and overlay-*-N.png over the reference.
+export as Word sets it and the Word export set as TeX sets it (both converted to PDF by Word),
+and the view's Paper preview (in Edge, against the fixture broker). Writes
+artifacts/manus/paper-compare: report.txt, sheets-N.png side by side and overlay-*-N.png over
+the reference.
 
 .DESCRIPTION
 Optional and outside the gate: it needs Tectonic, Microsoft Word, and Python with PyMuPDF and
@@ -38,18 +39,6 @@ try {
     & node (Join-Path $tools 'render.mjs') $Output $Root
     if ($LASTEXITCODE -ne 0) { throw 'The renders could not be written.' }
 
-    # The Word export, as Word lays it out.
-    if (-not $NoWord) {
-        $word = New-Object -ComObject Word.Application
-        $word.Visible = $false; $word.DisplayAlerts = 0
-        try {
-            $document = $word.Documents.Open((Join-Path $Output 'paper.docx'), $false, $true)
-            $document.ExportAsFixedFormat((Join-Path $Output 'word.pdf'), 17)
-            $document.Close(0)
-        } finally { $word.Quit(); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($word) }
-        & python (Join-Path $tools 'pdf.py') pages $Output word (Join-Path $Output 'word.pdf')
-    }
-
     # The reference: a column starts before any heading the grid left at a column's foot.
     $tex = Join-Path $Output 'tex'
     Copy-Item -LiteralPath (Join-Path $env:WINDIR 'Fonts/consola.ttf') -Destination $tex -Force
@@ -66,6 +55,23 @@ try {
         & node (Join-Path $tools 'render.mjs') $Output $Root tex | Out-Null
     }
     & python (Join-Path $tools 'pdf.py') pages $Output latex (Join-Path $tex 'paper.pdf')
+
+    # The Word exports, as Word lays them out, starting the references where the reference does.
+    & node (Join-Path $tools 'render.mjs') $Output $Root docx
+    if ($LASTEXITCODE -ne 0) { throw 'The Word exports could not be written.' }
+    if (-not $NoWord) {
+        $word = New-Object -ComObject Word.Application
+        $word.Visible = $false; $word.DisplayAlerts = 0
+        try {
+            foreach ($pair in @(@('paper.docx', 'word.pdf'), @('paper-typeset.docx', 'wordset.pdf'))) {
+                $document = $word.Documents.Open((Join-Path $Output $pair[0]), $false, $true)
+                $document.ExportAsFixedFormat((Join-Path $Output $pair[1]), 17)
+                $document.Close(0)
+            }
+        } finally { $word.Quit(); [void][Runtime.InteropServices.Marshal]::ReleaseComObject($word) }
+        & python (Join-Path $tools 'pdf.py') pages $Output word (Join-Path $Output 'word.pdf')
+        & python (Join-Path $tools 'pdf.py') pages $Output wordset (Join-Path $Output 'wordset.pdf')
+    }
 
     # The preview, in the view itself against the fixture broker.
     $runId = [Guid]::NewGuid().ToString('N')

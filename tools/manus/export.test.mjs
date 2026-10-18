@@ -3,6 +3,8 @@ import test from 'node:test';
 import { Lexer } from '../../extensions/manuscript/vendor/editor.js';
 import * as lib from '../../extensions/manuscript/vendor/export.js';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, packDocx, paperHeadings, columnsStart, draftLine, withProfile, LAYOUTS, ARTICLE, tableColumns } from '../../extensions/manuscript/export.mjs';
+import { setLines, softHyphens, termesWidth, timesWidth } from '../../extensions/manuscript/typeset.mjs';
+import { hyphenate } from '../../extensions/manuscript/hyphenation.mjs';
 
 const address = `media:${'cd'.repeat(32)}`;
 const manuscript = { title: 'Low Water', nodes: [
@@ -117,17 +119,17 @@ test('paper layout: AASTeX two columns, front matter centred, abstract and refer
   assert.doesNotMatch(xml, /<w:b w:val="false"\/>/, 'a run switches bold off, which overrides a bold heading style');
   const paragraph = asFormatted(xml, styles);
   assert.match(paragraph('[Authors]'), /<w:jc w:val="center"\/>/);
-  // AASTeX's measures (W-293): the abstract 33.9 and 34.9 points in, every paragraph indented 9 points,
-  // the first after a heading too, on lines exactly 12.45 points apart.
-  assert.match(paragraph('We describe it.'), /<w:ind w:left="678" w:right="698" w:firstLine="180"/, 'the abstract is narrower, every paragraph indented');
+  // AASTeX's measures (W-293): the abstract 444 TeX points wide, every paragraph indented 9 points,
+  // the first after a heading too, on lines exactly 12.5 TeX points apart.
+  assert.match(paragraph('We describe it.'), /<w:ind w:left="677" w:right="700" w:firstLine="179"/, 'the abstract is 444pt wide, as AASTeX sets it, every paragraph indented 9pt');
   assert.match(paragraph('First.'), /w:firstLine="180"/, 'an article indents the first paragraph after a heading too');
   assert.match(paragraph('Second.'), /w:firstLine="180"/);
   assert.match(paragraph('Second.'), /w:line="249" w:lineRule="exact"/);
   assert.equal((paragraph('</w:drawing>').match(/<w:drawing>/g) ?? []).length, 2, 'two pictures next to each other share one row');
   assert.match(paragraph('Two panels'), /Figure 1\. /);
-  assert.match(paragraph('Someone. 2020'), /w:hanging="180"/);
+  assert.match(paragraph('Someone. 2020'), /w:hanging="179"/);
   assert.match(xml, /<w:pgSz w:w="12240" w:h="15840"/);
-  // The page: 7.1 inches of text from 50.74 points in, two 241.35-point columns 28.5 apart, the
+  // The page: 7.1 inches of text from 50.74 points in, TeX's two 242.27pt columns 28.58pt apart, the
   // first baseline of a column at 74.6 and the last no lower than 716.85 (Word sets a line's
   // baseline 0.8 of its height below its top).
   assert.match(xml, /<w:pgMar w:top="1293" w:right="1001" w:bottom="1453" w:left="1015" w:header="833"/);
@@ -391,4 +393,36 @@ test('table columns as Word and a browser size them: the longest word at least, 
   // When everything fits, each column takes its longest cell's share.
   const small = tableColumns([['aa', 'aaaa']], 100, 0);
   assert.ok(Math.abs(small[1] - 2 * small[0]) < 1e-9, JSON.stringify(small));
+});
+
+test('paper as typeset: TeX\'s lines, each ending in a break, the spaces widened to fill it, the references balanced as revtex balances them', async () => {
+  const long = 'Typesetting a paragraph well means choosing all of its breaks at once. A line that is a little loose early on can make room for a better line later, and the cost of each line depends on how far its spaces must stretch or shrink.';
+  const paper = { title: 'A Paper', nodes: [
+    { id: 'h1', kind: 'Chapter', text: '1 Introduction' },
+    { id: 'c', kind: 'Paragraph', text: long },
+    { id: 'h2', kind: 'Chapter', text: 'References' },
+    ...Array.from({ length: 6 }, (_, i) => ({ id: `r${i}`, kind: 'Paragraph', text: `[${i + 1}] Someone Else and Another Person. 2020. A Work with a Title Long Enough to Take Two Lines. Its Publisher.` })),
+  ] };
+  const plan = exportPlan(paper);
+  const words = async options => {
+    const { document } = toDocx(plan, new Map(), lib, Lexer, 'paper', { date: new Date(2026, 9, 16), ...options });
+    return (await lib.JSZip.loadAsync(await lib.Packer.toBuffer(document))).file('word/document.xml').async('string');
+  };
+  const xml = await words({ typeset: true, referencesOnNewPage: true }), flowing = await words({ referencesOnNewPage: true });
+  const own = xml.split('<w:p>').find(p => p.includes('Typesetting'));
+  // The lines TeX sets the paragraph in, as typeset.mjs finds them, each but the last ending in a break.
+  const size = ARTICLE.size, sp = timesWidth(' ', { size });
+  const lines = setLines([{ text: softHyphens(long, hyphenate), style: { size } }], { measure: termesWidth, space: { width: sp, stretch: sp / 2, shrink: sp / 3, extra: sp / 3 },
+    widths: n => n === 0 ? ARTICLE.column - ARTICLE.indent : ARTICLE.column });
+  assert.ok(lines.length >= 3);
+  const drawn = own.split('<w:br/>').map(part => [...part.matchAll(/<w:t(?: [^>]*)?>([^<]*)<\/w:t>/g)].map(m => m[1]).join(''));
+  assert.deepEqual(drawn.map(s => s.replace(/\s+/g, ' ').trim()), lines.map(l => l.parts.map(p => p.space === undefined ? p.text : ' ').join('') + (l.hyphen ? '-' : '')), 'the paragraph is TeX\'s lines');
+  assert.match(own, /<w:jc w:val="left"\/>/, 'Word does not justify the lines again');
+  assert.match(own, /<w:spacing w:val="\d+"\/>/, 'its spaces are widened by character spacing');
+  assert.doesNotMatch(flowing.split('<w:p>').find(p => p.includes('Typesetting')), /<w:br\/>/, 'the paper layout itself still flows');
+  // The references start a page, unbalanced above, and their second column starts where revtex's would.
+  assert.match(xml, /<w:type w:val="nextPage"\/>/);
+  assert.doesNotMatch(flowing, /<w:type w:val="nextPage"\/>/, 'only the typeset paper follows the reference\'s page');
+  const entries = xml.split('<w:p>').filter(p => p.includes('Publisher.'));
+  assert.equal(entries.findIndex(p => p.includes('<w:br w:type="column"/>')), 3, 'six two-line entries balance three and three');
 });

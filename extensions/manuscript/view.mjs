@@ -1,11 +1,12 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
 import { BLOCK, NOTE, LINK, PROFILE, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS, FONTS, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, packDocx, draftLine, PAGE_TWIPS, article, paperTableColumns } from './export.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, packDocx, draftLine, PAGE_TWIPS, article, paperTableColumns, BIBLIOGRAPHY } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES, paperSheet, paperStyle, softHyphens } from './preview.mjs';
 import { markdownToInline } from './inline.mjs';
-import { TEX, spaceAfter, breakLines } from './typeset.mjs';
-import { Lexer, hyphenation } from './vendor/editor.js';
+import { setLines, timesWidth, termesWidth, lineDepth, drawnSpaces, TEX } from './typeset.mjs';
+import { Lexer } from './vendor/editor.js';
+import { hyphenate } from './hyphenation.mjs';
 
 const nendo = window.nendo;
 const $ = id => document.getElementById(id);
@@ -542,7 +543,7 @@ function download(blob, name) {
 }
 
 /** Exports the manuscript as saved in the file, after saving what is on the page. */
-async function exportAs(format, layout = 'book') {
+async function exportAs(format, layout = 'book', typeset = false) {
   // The manuscript the person asked for, even if another is opened while this one is read.
   const root = state.root;
   await flush();
@@ -573,14 +574,15 @@ async function exportAs(format, layout = 'book') {
     } else { blob = new Blob([text], { type: 'text/markdown' }); file = `${name}.md`; }
     missing = plan.items.filter(i => i.type === 'picture' && i.address.startsWith('media:') && !files.has(i.address)).map(i => i.alt || i.address);
   } else {
-    const built = toDocx(plan, pictures, lib, Lexer, layout, { profile: profileOf(layout) });
+    const referencesOnNewPage = typeset ? await referencesStartPage(plan) : false;
+    const built = toDocx(plan, pictures, lib, Lexer, layout, { profile: profileOf(layout), typeset, referencesOnNewPage });
     blob = await packDocx(built, lib);
-    file = `${name}.docx`;
+    file = typeset ? `${name} (as typeset).docx` : `${name}.docx`;
     missing = built.missing.map(m => m.alt || m.address);
   }
   download(blob, file);
   const counts = { blocks: plan.items.length, pictures: plan.items.filter(i => i.type === 'picture').length };
-  state.lastExport = { format, layout: format === 'word' ? layout : null, file, bytes: blob.size, missing, ...counts };
+  state.lastExport = { format, layout: format === 'word' ? layout : null, typeset, file, bytes: blob.size, missing, ...counts };
   setStatus(`Exported ${file}`);
   toast(`Exported ${file} to your Downloads folder.`);
   if (missing.length) {
@@ -600,7 +602,7 @@ function inlineNodes(markdown) {
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.append(document.createElement('br')); continue; }
     if (node.type === 'footnote') { if (previewNumbers.has(node.attrs.id)) out.append(el('sup', { class: 'pv-fn', text: String(previewNumbers.get(node.attrs.id)) })); continue; }
-    let element = document.createTextNode(hyphenating ? softHyphens(node.text, hyphenation.hyphenateSync) : node.text);
+    let element = document.createTextNode(hyphenating ? softHyphens(node.text, hyphenate) : node.text);
     for (const mark of node.marks ?? []) {
       const tag = { bold: 'strong', italic: 'em', underline: 'u', strike: 's', highlight: 'mark', code: 'code', link: 'a' }[mark.type];
       if (!tag) continue;
@@ -783,96 +785,52 @@ async function renderPreview() {
 const pieceOf = new WeakMap();
 const HEADING = /^H[2-4]$/;
 
-// A paragraph of the paper set as TeX sets it: its words measured in the page's own type, broken
-// into lines where Knuth and Plass's algorithm breaks them with the reference's parameters, and
-// each line drawn as a block of its own, its spaces as wide as TeX makes them. The words keep
-// their marks; a soft hyphen where the line breaks becomes a hyphen. A paragraph no break
-// sequence fits is left to the browser.
-const measuring = document.createElement('canvas').getContext('2d');
-function fontOf(element) {
+// A paragraph of the paper set as TeX sets it (W-293): its runs measured as the reference sets
+// them in Termes, broken into lines by setLines with the reference's parameters, and each line
+// drawn as a block of its own in Times New Roman (unkerned, as Word sets it), its spaces as wide
+// as fill the line it has in TeX. The words keep their marks; a soft hyphen where a line breaks becomes a hyphen. The
+// paragraph's last line's depth is kept, for the room TeX leaves under it before a picture. A
+// paragraph no set of breaks fits is left to the browser.
+const PT = 0.75;
+function styleOf(element) {
   const s = getComputedStyle(element);
-  return `${s.fontStyle} ${s.fontVariant === 'small-caps' ? 'small-caps ' : ''}${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+  return { bold: Number(s.fontWeight) >= 600, italic: s.fontStyle !== 'normal', code: /consolas|mono/i.test(s.fontFamily), size: parseFloat(s.fontSize) * PT };
 }
-function widthOf(text, font) { measuring.font = font; return measuring.measureText(text).width; }
 
-function typesetParagraph(node) {
+function typesetParagraph(node, params = TEX) {
   const style = getComputedStyle(node);
-  const width = node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-  const indent = parseFloat(style.textIndent) || 0;
+  // The used width, unrounded: clientWidth rounds to whole pixels, and a fifth of a point decides a line.
+  const width = (parseFloat(style.width) - (style.boxSizing === 'border-box' ? parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) : 0)) * PT;
+  const indent = (parseFloat(style.textIndent) || 0) * PT;
   if (!(width > 0) || node.querySelector('br, img')) return false;
   // The runs of text in order, each with the elements that mark it (strong, em, code, a …).
-  const runs = [];
+  const pieces = [];
   const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
   for (let text = walker.nextNode(); text; text = walker.nextNode()) {
     if (text.parentElement.closest('.pv-marker')) continue;
     const wrappers = [];
     for (let e = text.parentElement; e && e !== node; e = e.parentElement) wrappers.unshift(e);
-    runs.push({ text: text.data, wrappers, font: fontOf(text.parentElement) });
+    pieces.push({ text: text.data, wrappers, style: styleOf(text.parentElement) });
   }
-  // Words: pieces of runs between spaces; a soft hyphen or a hyphen inside one may break it.
-  const words = [];
-  let word = null;
-  for (const run of runs) {
-    for (const part of run.text.split(/(\s+)/)) {
-      if (!part) continue;
-      if (/^\s+$/.test(part)) { if (word) words.push(word); word = null; continue; }
-      word ??= { pieces: [] };
-      word.pieces.push({ text: part, wrappers: run.wrappers, font: run.font });
-    }
-  }
-  if (word) words.push(word);
-  if (!words.length) return false;
-  const space = widthOf(' ', fontOf(node));
-  const glue = { width: space, stretch: space / 2, shrink: space / 3, extra: space / 3 };
-  // Boxes, discretionary hyphens and glue, as TeX would have them.
-  const items = [], segments = [];
-  words.forEach((w, n) => {
-    let segment = [];
-    const close = () => { if (segment.length) { items.push({ type: 'box', width: segment.reduce((s, p) => s + widthOf(p.text, p.font), 0), segment: segments.push(segment) - 1 }); segment = []; } };
-    for (const piece of w.pieces) {
-      const syllables = piece.text.split(/(­|(?<=[A-Za-z]-)(?=[A-Za-z]))/);
-      for (const s of syllables) {
-        if (s === undefined) continue;
-        if (s === '­') { close(); items.push({ type: 'penalty', width: widthOf('-', piece.font), penalty: TEX.hyphenpenalty, flagged: true, hyphen: true, soft: true }); continue; }
-        if (s === '') { close(); items.push({ type: 'penalty', width: 0, penalty: TEX.exhyphenpenalty, flagged: true }); continue; }
-        segment.push({ ...piece, text: s });
-      }
-    }
-    close();
-    if (n < words.length - 1) items.push({ ...spaceAfter(w.pieces.map(p => p.text).join('').replace(/­/g, ''), glue), word: true });
-  });
-  items.push({ type: 'glue', width: 0, stretch: 0, shrink: 0, fil: true }, { type: 'penalty', width: 0, penalty: -10000, flagged: false });
+  const size = parseFloat(style.fontSize) * PT, space = timesWidth(' ', { size });
   const widths = line => line === 0 ? width - indent : width;
-  const breaks = breakLines(items, widths, { ...TEX, tolerance: TEX.pretolerance }, false) ?? breakLines(items, widths, TEX, true);
-  if (!breaks) return false;
-  // Each line: its boxes, its glue at the width TeX's ratio gives it, a hyphen if it breaks one.
-  const lines = [];
-  let start = 0;
-  breaks.forEach((at, n) => {
-    const line = el('span', { class: 'pv-line' });
-    let natural = 0, stretch = 0, shrink = 0;
-    const content = items.slice(start, at).filter((item, i, all) => !(item.type === 'glue' && i === all.length - 1));
-    for (const item of content) { if (item.type === 'box') natural += item.width; if (item.type === 'glue' && !item.fil) { natural += item.width; stretch += item.stretch; shrink += item.shrink; } }
-    const end = items[at];
-    if (end.type === 'penalty' && end.hyphen) natural += end.width;
-    const target = widths(n), last = n === breaks.length - 1;
-    const ratio = last ? Math.min(0, (target - natural) / (shrink || 1)) : target >= natural ? (stretch ? (target - natural) / stretch : 0) : (shrink ? (target - natural) / shrink : 0);
-    let lastPiece = null;
-    for (const item of content) {
-      if (item.type === 'glue' && !item.fil) {
-        const wide = item.width + (ratio >= 0 ? ratio * item.stretch : ratio * item.shrink);
-        line.append(el('span', { class: 'pv-space', style: `word-spacing:${(wide - space).toFixed(3)}px` }, ' '));
-      } else if (item.type === 'box') {
-        for (const piece of segments[item.segment]) { line.append(marked(piece.text.replace(/­/g, ''), piece.wrappers)); lastPiece = piece; }
-      }
+  const lines = setLines(pieces, { measure: termesWidth, space: { width: space, stretch: space / 2, shrink: space / 3, extra: space / 3 }, widths, params });
+  if (!lines) return false;
+  const drawn = lines.map(line => {
+    const block = el('span', { class: 'pv-line' });
+    const spaces = drawnSpaces(line, timesWidth);
+    let at = 0;
+    for (const part of line.parts) {
+      if (part.space === undefined) block.append(marked(part.text, part.piece.wrappers));
+      else block.append(el('span', { class: 'pv-space', style: `word-spacing:${((spaces[at++] - part.natural) / PT).toFixed(3)}px` }, ' '));
     }
-    if (end.type === 'penalty' && end.hyphen && lastPiece) line.append(marked('-', lastPiece.wrappers));
-    lines.push(line);
-    start = at + 1;
-    while (start < items.length && items[start].type !== 'box') start++;
+    if (line.hyphen) block.append(marked('-', line.hyphen.piece.wrappers));
+    return block;
   });
+  const last = lines.at(-1);
+  node.dataset.depth = String(lineDepth(last.parts.filter(p => p.space === undefined).map(p => ({ text: p.text, style: p.piece.style }))));
   const marker = node.querySelector(':scope > .pv-marker');
-  node.replaceChildren(...(marker ? [marker] : []), ...lines);
+  node.replaceChildren(...(marker ? [marker] : []), ...drawn);
   node.classList.add('typeset');
   return true;
 }
@@ -901,6 +859,7 @@ function measuredBaseline(font) {
   };
 }
 
+
 function renderPaper(host, plan, page, sizes) {
   const style = $('paper-style') ?? document.head.appendChild(el('style', { id: 'paper-style' }));
   const below = measuredBaseline(page.font);
@@ -909,7 +868,7 @@ function renderPaper(host, plan, page, sizes) {
   // lines end where its last may; both from the baseline this browser sets.
   const A = page.article;
   page = { ...page, limit: (A.bottom + A.pitch - below(A.pitch, A.size) - (A.top - below(A.pitch, A.size))) * 4 / 3 };
-  let body = null, columns = null, column = 0, current = null, limit = page.limit, balancing = false;
+  let body = null, columns = null, column = 0, current = null, limit = page.limit, balancing = false, splitting = false, referencesOnNewPage = false;
   const newSheet = () => {
     const number = host.childElementCount + 1;
     current = el('section', { class: 'sheet-page', 'aria-label': `Page ${number}` });
@@ -976,7 +935,8 @@ function renderPaper(host, plan, page, sizes) {
     return moving;
   };
   const next = () => {
-    if (column + 1 < columns.length) { column++; return true; }
+    // Split as \vsplit splits, the second column takes all that is left.
+    if (column + 1 < columns.length) { column++; if (splitting) limit = Infinity; return true; }
     if (balancing) return false;
     newSheet(); newColumns();
     return true;
@@ -994,6 +954,7 @@ function renderPaper(host, plan, page, sizes) {
       // At the head of a column it stays: longer than any column, the sheet grows to show it;
       // unless the columns start lower on this sheet, under what runs across it.
       if (columns[column].firstElementChild === lead) {
+        if (splitting && column === 0) { moveOn(lead); node = lead; continue; }
         if (balancing) return false;
         if (body.firstElementChild === columns[0].parentElement) { runsOver(); return true; }
         lead.remove(); newSheet(); newColumns(); node = lead; continue;
@@ -1005,8 +966,11 @@ function renderPaper(host, plan, page, sizes) {
       lead = moving[0]; node = moving.at(-1);
     }
   };
-  // Balances the open columns: the pieces of one paragraph joined again, then laid out in two
-  // columns of the least height, a line at a time, that takes them all.
+  const moveOn = node => { node.remove(); next(); };
+  // Balances the open columns as revtex does (\balance@two): the pieces of one paragraph joined
+  // again, the first column split off at half their height, then the split moved by half as much
+  // again each time towards the longer column, until the two end within half a point of each other
+  // or the step is under half a point; the last split stands.
   // `full` lays them out again filling the first column, as before balancing.
   const balance = (full = false) => {
     if (!columns) return;
@@ -1027,14 +991,44 @@ function renderPaper(host, plan, page, sizes) {
     });
     const [a, b] = columns, columnsTop = top(a), saved = limit;
     a.replaceChildren(...ready); b.replaceChildren();
-    const needed = a.getBoundingClientRect().height, line = page.line;
+    const needed = a.getBoundingClientRect().height;
+    const lay = height => { limit = Math.min(saved, columnsTop + height); a.replaceChildren(); b.replaceChildren(); column = 0; ready.every(node => place(node)); };
     balancing = true;
-    for (let height = full ? saved - columnsTop : Math.max(line, Math.floor(needed / 2 / line) * line); columnsTop + height <= saved + line; height += line) {
-      limit = Math.min(saved, columnsTop + height);
-      a.replaceChildren(); b.replaceChildren(); column = 0;
-      if (ready.every(node => place(node))) break;
+    if (full) lay(saved - columnsTop);
+    else {
+      const ends = c => c.lastElementChild ? c.lastElementChild.getBoundingClientRect().bottom - c.getBoundingClientRect().top : 0;
+      const halfPoint = 0.5 * 96 / 72.27;
+      let at = needed / 2, step = needed / 2;
+      splitting = true;
+      for (;;) {
+        lay(at);
+        step /= 2;
+        const difference = ends(a) - ends(b);
+        if (Math.abs(difference) < halfPoint || step < halfPoint) break;
+        at += difference < 0 ? step : -step;
+      }
+      splitting = false;
     }
     balancing = false; limit = saved;
+  };
+  // The room TeX leaves around a picture or a table runs from the bottom of the line above it, so
+  // it grows with how far that line reaches below its baseline: a paragraph set here knows its
+  // last line's depth; anything else is taken to reach a descender down.
+  const P = A.pitch, S = A.size, C = A.captionPitch, CS = A.captionSize;
+  const after = (line, size) => line - below(line, size);
+  const depthOf = (node, size) => {
+    const known = node?.dataset.depth ?? node?.firstElementChild?.dataset.depth;
+    return known !== undefined ? Number(known) : A.descender * size;
+  };
+  const set = (node, property, points) => node.style.setProperty(property, `${points.toFixed(3)}pt`);
+  const roomAround = (node, above) => {
+    const caption = above?.matches('.pv-caption');
+    if (node.matches('.pv-figure') && above) set(node, 'margin-top', caption ? A.pictureAfterCaption + depthOf(above, CS) - after(C, CS) : A.pictureAbove + depthOf(above, S) - after(P, S));
+    if (node.matches('.pv-caption.above-table')) {
+      if (above) set(node, 'margin-top', A.tableCaption + depthOf(above, S) - after(P, S) - below(C, CS));
+      set(node, 'margin-bottom', A.ruleBelowCaption + depthOf(node, CS) - after(C, CS));
+    } else if (node.matches('.pv-caption')) set(node, 'margin-bottom', A.afterCaption + depthOf(node, CS) - after(C, CS) - below(P, S));
+    if (/^H[2-4]$/.test(node.tagName) && caption) set(node, 'margin-top', A.headingAfterCaption + depthOf(above, CS) - after(C, CS) - below(P, S));
   };
   newSheet();
   const notes = plan.footnotes.length ? [{ kind: 'heading', level: 2, text: 'Notes', breakBefore: false, indent: false, across: false },
@@ -1045,7 +1039,11 @@ function renderPaper(host, plan, page, sizes) {
     const element = blockElement(block, 'paper', sizes);
     hyphenating = false;
     // Running text, the abstract and captions are set as TeX sets them, at the width they take.
-    const typeset = () => { if ((element.matches('p.pv-p') && !element.matches('.front, .role-author, .role-references, .role-glossary, .role-keywords')) || element.matches('p.pv-caption')) typesetParagraph(element); };
+    const typeset = () => {
+      if ((element.matches('p.pv-p') && !element.matches('.front, .role-author, .role-references, .role-glossary, .role-keywords')) || element.matches('p.pv-caption')) typesetParagraph(element);
+      // The references as AASTeX sets them: ragged right, French spacing, never hyphenated.
+      else if (element.matches('p.pv-p.role-references')) typesetParagraph(element, BIBLIOGRAPHY);
+    };
     if (block.across) {
       body.append(element);
       typeset();
@@ -1059,7 +1057,7 @@ function renderPaper(host, plan, page, sizes) {
       // It needs room for two of the references under it, or it starts the next sheet.
       const room = element.getBoundingClientRect().bottom - body.getBoundingClientRect().top + (A.firstReference + 2 * A.referencePitch) * 4 / 3;
       // Moving on, it leaves the columns above it as they were, filled from the first.
-      if (room > limit + 0.5) { element.remove(); balance(true); newSheet(); body.append(element); }
+      if (room > limit + 0.5) { element.remove(); balance(true); newSheet(); body.append(element); referencesOnNewPage = true; }
       newColumns();
       continue;
     }
@@ -1071,12 +1069,29 @@ function renderPaper(host, plan, page, sizes) {
       columns[column].append(...moving);
     }
     if (!columns) newColumns();
+    const before = columns[column].lastElementChild;
     columns[column].append(element);
     typeset();
+    roomAround(element, before);
     element.remove();
     place(element);
   }
   balance();
+  return { referencesOnNewPage };
+}
+
+/**
+ * Whether the paper's references start a page, as the preview lays the paper out: the Word
+ * export set as TeX sets it starts them there too. Laid out off screen when the preview is not.
+ */
+async function referencesStartPage(plan) {
+  const sizes = await pictureSizes(plan);
+  const host = el('div', { class: 'preview', 'data-layout': 'paper', 'aria-hidden': 'true', style: 'position:fixed;left:-30000px;top:0;visibility:hidden' });
+  document.body.append(host);
+  const numbers = previewNumbers;
+  previewNumbers = plan.footnoteNumbers;
+  try { return renderPaper(host, plan, previewPage('paper'), sizes).referencesOnNewPage; }
+  finally { previewNumbers = numbers; host.remove(); }
 }
 
 // The line length chosen under Appearance is how wide a sheet's text column appears on screen:
@@ -1198,6 +1213,7 @@ function declare() {
       { id: 'export-markdown', label: 'Markdown', detail: 'A .zip with the text and its pictures' },
       { id: 'export-word', label: 'Word document, book layout', detail: 'A 6 by 9 inch book: title page, chapters on new pages' },
       { id: 'export-word-paper', label: 'Word document, paper layout', detail: 'An article: title block, abstract, numbered sections, figures' },
+      { id: 'export-word-paper-typeset', label: 'Word document, paper as typeset', detail: 'The paper line for line as the preview sets it; its lines do not reflow' },
       { id: 'export-word-manuscript', label: 'Word document, manuscript layout', detail: 'For a submission: double-spaced Times at 12 points on Letter' },
     ] },
     { kind: 'menu', id: 'appearance', label: 'Appearance', icon: 'settings', iconOnly: true, items: [
@@ -1257,6 +1273,7 @@ function command({ id, value }) {
     return;
   }
   if (id === 'export-markdown') { exportAs('markdown').catch(fail); return; }
+  if (id === 'export-word-paper-typeset') { exportAs('word', 'paper', true).catch(fail); return; }
   if (id === 'export-word' || id === 'export-word-paper' || id === 'export-word-manuscript') { exportAs('word', { 'export-word-paper': 'paper', 'export-word-manuscript': 'manuscript' }[id] ?? 'book').catch(fail); return; }
   if (id === 'mode') { setMode(value).catch(fail); return; }
   if (id === 'manuscript') { (value === 'new' ? startManuscript() : openManuscript(value)).catch(fail); return; }

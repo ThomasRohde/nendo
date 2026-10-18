@@ -69,8 +69,8 @@ test('paper preview: its CSS puts each baseline where the Word export and the re
   const css = paperStyle(article(), "'Times New Roman'", (line, size) => line / 2 + 0.3375 * size);
   const rule = selector => css.split('\n').find(line => line.includes(selector)) ?? '';
   assert.match(rule('.sheet-page {'), /width: 612pt; height: 792pt; padding: 65\.\d+pt 50\.06pt 0 50\.74pt;/);
-  assert.match(rule('.pv-column { flex'), /flex: 0 0 241.35pt;/);
-  assert.match(rule('.pv-columns {'), /gap: 28.5pt;/);
+  assert.match(rule('.pv-column { flex'), /flex: 0 0 241.361pt;/);
+  assert.match(rule('.pv-columns {'), /gap: 28.477pt;/);
   const [, above, below] = /margin: ([\d.]+)pt 0 ([\d.]+)pt/.exec(rule(' :is(h2, h3, h4) { font-size')).map(Number);
   assert.ok(Math.abs(above - (ARTICLE.heading - ARTICLE.pitch)) < 0.01 && Math.abs(below - (ARTICLE.afterHeading - ARTICLE.pitch)) < 0.01, `${above} ${below}`);
 });

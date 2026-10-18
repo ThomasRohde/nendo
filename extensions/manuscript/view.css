@@ -300,7 +300,7 @@ button.quiet:hover { background: var(--soft); }
 .pv-picture img { display: block; height: auto; }
 .pv-picture[style*='height'] img { height: 100%; object-fit: contain; }
 .pv-missing { display: block; border: 1px dashed #999999; padding: 24px 8px; font: 12px/1.4 'Segoe UI', sans-serif; color: #555555; }
-.pv-caption { text-align: center !important; font-size: 12px; margin: 5px 24px 16px !important; }
+.pv-caption { text-align: center !important; font-size: 12px; margin: 5px 24px 16px; }
 :root[data-mode='book'] .drawer, :root[data-mode='paper'] .drawer { display: none; }
 
 @media (max-width: 720px) {

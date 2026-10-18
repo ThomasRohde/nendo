@@ -3,6 +3,8 @@
 // same code the view runs (tools/manus/export.test.mjs).
 import { levelOf, MAX_LEVEL } from './model.mjs';
 import { pictureOf, markdownToInline, FOOTNOTE } from './inline.mjs';
+import { setLines, timesWidth, termesWidth, lineDepth, drawnSpaces, softHyphens, balancedSplit, TEX } from './typeset.mjs';
+import { hyphenate } from './hyphenation.mjs';
 
 const EXTENSION = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif', 'image/svg+xml': 'svg' };
 // The picture types a Word document holds without a fallback image.
@@ -201,17 +203,25 @@ function runs(markdown, lib, Lexer, size, base = 22, italic = false, bold = fals
       if (n) out.push(lib.FootnoteReferenceRun ? new lib.FootnoteReferenceRun(n) : new lib.TextRun({ text: String(n), superScript: true }));
       continue;
     }
-    const marks = new Set((node.marks ?? []).map(m => m.type));
-    const href = (node.marks ?? []).find(m => m.type === 'link')?.attrs?.href;
-    // Only marks that are on: a run that says bold false would override a bold heading style.
-    const run = new lib.TextRun({ text: node.text, bold: bold || marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
-      underline: marks.has('underline') ? {} : undefined, highlight: marks.has('highlight') ? 'yellow' : undefined,
-      font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size, style: href ? 'Hyperlink' : undefined });
-    // A web link is Word's own hyperlink, which a click in Word follows.
-    out.push(href && lib.ExternalHyperlink ? new lib.ExternalHyperlink({ link: href, children: [run] }) : run);
+    out.push(markedRun(node.text, node.marks, lib, size, base, italic, bold));
   }
   return out;
 }
+
+/** A run of `text` with its inline marks, `extra` (such as characterSpacing) added. */
+function markedRun(text, markList, lib, size, base = 22, italic = false, bold = false, extra = {}) {
+  const marks = new Set((markList ?? []).map(m => m.type));
+  const href = (markList ?? []).find(m => m.type === 'link')?.attrs?.href;
+  // Only marks that are on: a run that says bold false would override a bold heading style.
+  const run = new lib.TextRun({ text, bold: bold || marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
+    underline: marks.has('underline') ? {} : undefined, highlight: marks.has('highlight') ? 'yellow' : undefined,
+    font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size, style: href ? 'Hyperlink' : undefined, ...extra });
+  // A web link is Word's own hyperlink, which a click in Word follows.
+  return href && lib.ExternalHyperlink ? new lib.ExternalHyperlink({ link: href, children: [run] }) : run;
+}
+
+// The bibliography as AASTeX sets it: ragged right, French spacing, never hyphenated.
+export const BIBLIOGRAPHY = { ...TEX, ragged: true, french: true, hyphenpenalty: 10000, emergencystretch: 27 * 72 / 72.27 };
 
 /**
  * The paper layout's page as AASTeX 6.3.1 sets its twocolumn style, in points, measured from a
@@ -220,27 +230,35 @@ function runs(markdown, lib, Lexer, size, base = 22, italic = false, bold = fals
  * before it to that baseline; `pitch` is from one line's baseline to the next.
  */
 export const ARTICLE = {
-  width: 612, height: 792, left: 50.74, column: 241.35, gap: 28.5,
+  // The columns are TeX's own \columnwidth (242.26653pt) and \columnsep, not a measurement: a
+  // hundredth of a point decides where some lines break.
+  width: 612, height: 792, left: 50.74, column: 241.3614, gap: 28.4772,
   // A column's first baseline on a page after the first, and the lowest it may hold.
   top: 74.6, bottom: 716.85,
   // The running heads: the page number, and the draft line on the first page, indented.
   // Type sizes are TeX's (10pt is 9.963 PostScript points), so the preview's words are as wide
   // as the reference's and break where its lines break; Word rounds them to its half points.
   folio: 51.6, draft: 58.8, draftIndent: 9, draftSize: 7.9701,
-  size: 9.9626, pitch: 12.45, indent: 9,
+  // Line pitches are TeX's baselineskips: 12.5pt, 11pt for captions and cells, 13pt for references.
+  size: 9.9626, pitch: 12.4533, indent: 9,
   // The title block, across the page: the title's baseline, then each line after it.
   title: 116.3, author: 17, authorSize: 8.9664, front: 17, frontSize: 7.9701, abstractHeading: 24.4, abstract: 15.3,
-  abstractLeft: 33.9, abstractRight: 34.9, columns: 26.6,
+  // The abstract is 444pt wide (478pt less a 34pt \leftskip), its paragraphs indented 9pt.
+  abstractLeft: 33.873, abstractRight: 34.9858, abstractIndent: 8.9664, columns: 26.6,
   // Headings: a numbered section in 9 points, a part (Abstract, References) and a subsection in 10.
-  heading: 21.45, afterHeading: 16.43, sectionSize: 8.9664, headingAfterCaption: 30.65, headingAfterTable: 29.8,
+  heading: 21.45, afterHeading: 16.43, sectionSize: 8.9664, headingAfterTable: 29.8,
   // A list item: room above each and after the list, its number ending and its text starting.
-  listSpace: 8, number: 20.9, hang: 24.9,
-  // Pictures fill the column, a row's side by side with a gap; the caption under them.
-  pictureAbove: 15.1, pictureGap: 18, captionBelow: 15.9, captionSize: 8.9664, captionPitch: 11, afterCaption: 23,
+  listSpace: 8, number: 20.9215, hang: 24.9066,
+  // Pictures fill the column, a row's side by side with a gap; the caption under them. Around a
+  // picture or a table TeX leaves room from the bottom of the line above, so each distance marked
+  // + depth adds how far that line reaches below its baseline (lineDepth in typeset.mjs), or
+  // `descender` of its type when the line is not known.
+  pictureAbove: 13, pictureAfterCaption: 25, pictureGap: 18, captionBelow: 15.9, captionSize: 8.9664, captionPitch: 10.9589,
+  afterCaption: 23, headingAfterCaption: 28.8, descender: 0.218,
   // A table: its caption above it, a double rule, the header row, a rule, the rows, a rule.
-  tableCaption: 26.1, ruleBelowCaption: 16.1, rulePair: 1.9, cellSize: 8.9664, cellPitch: 11, cellPad: 5, rowSpace: 2, afterTable: 20.15,
+  tableCaption: 23.9, ruleBelowCaption: 16, rulePair: 1.9, cellSize: 8.9664, cellPitch: 10.9589, cellPad: 5, rowSpace: 2, afterTable: 20.15,
   // The references: their heading across the page under balanced columns, the entries hanging.
-  references: 32.2, firstReference: 18.6, referenceSize: 8.9664, referencePitch: 13, referenceHang: 9,
+  references: 32.2, firstReference: 18.6, referenceSize: 8.9664, referencePitch: 12.9514, referenceHang: 8.9664,
 };
 
 // Sizes are half-points and distances twentieths of a point (twips), as Word stores them.
@@ -457,20 +475,58 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
   let indentNext = false, previous = null;
   // In the paper, what was set last decides the room above what comes next, as in AASTeX: its
   // kind, and the height of its line (0 for a table, measured from its rule).
+  // Around a picture or a table the room runs from the bottom of the line above, so it grows with
+  // that line's depth: known when the line was set here, else a descender of its type.
   let last = { kind: 'front', height: paper ? G.pitch : 0 };
+  const depthOf = was => was.depth ?? G.descender * (was.size ?? G.size);
   const room = (kind, height, pictureTop = false) => {
     const was = last; last = { kind, height };
-    if (pictureTop) return was.kind === 'top' ? 0 : Math.max(0, T(G.pictureAbove - 0.2 * was.height));
+    if (pictureTop) return was.kind === 'top' ? 0 : Math.max(0, T((was.kind === 'caption' ? G.pictureAfterCaption : G.pictureAbove) + depthOf(was) - 0.2 * was.height));
     // At the top of the columns nothing is added: the title block's room is already there.
     if (was.kind === 'top') return 0;
-    if (kind === 'heading') return lead(was.kind === 'heading' ? G.afterHeading : was.kind === 'caption' ? G.headingAfterCaption : was.kind === 'table' ? G.headingAfterTable : G.heading, was.height, height);
+    if (kind === 'heading') return lead(was.kind === 'heading' ? G.afterHeading : was.kind === 'caption' ? G.headingAfterCaption + depthOf(was) : was.kind === 'table' ? G.headingAfterTable : G.heading, was.height, height);
     if (was.kind === 'heading') return lead(G.afterHeading, was.height, height);
-    if (was.kind === 'caption') return lead(G.afterCaption, was.height, height);
+    if (was.kind === 'caption') return lead(G.afterCaption + depthOf(was), was.height, height);
     if (was.kind === 'table') return lead(G.afterTable, 0, height);
     if (kind === 'item' || was.kind === 'item') return lead(G.pitch + G.listSpace, was.height, height);
     return lead(height, was.height, height);
   };
   const spaced = (kind, height) => paper ? { spacing: { before: room(kind, height), after: 0, ...exact(height) } } : {};
+  // The paper as TeX sets it (options.typeset, W-293): each paragraph broken into the lines the
+  // reference's TeX finds (typeset.mjs, measured in Termes), every line but the last ending in a
+  // manual break, its spaces widened by character spacing until Word's own Times fills the line,
+  // a quarter point short so Word never wraps it again. Returns the runs and the last line's
+  // depth, or null for a paragraph with a footnote or a hard break, which Word sets itself.
+  const typeset = paper && !!options.typeset;
+  const setText = (markdown, { size, width, indent = 0, prefix = [], params = TEX, hyphenating = true, italic = false }) => {
+    const nodes = markdownToInline(markdown, Lexer);
+    if (nodes.some(n => n.type === 'hardBreak' || n.type === 'footnote')) return null;
+    const styleOf = (marks, code) => ({ bold: marks.has('bold'), italic: italic || marks.has('italic'), code, size: code ? size * 0.88 : size });
+    const pieces = [...prefix.map(p => ({ ...p, style: styleOf(new Set(p.marks.map(m => m.type)), false) })), ...nodes.map(node => {
+      const marks = new Set((node.marks ?? []).map(m => m.type));
+      return { text: hyphenating && !marks.has('code') ? softHyphens(node.text, hyphenate) : node.text, marks: node.marks ?? [], style: styleOf(marks, marks.has('code')) };
+    })];
+    const sp = timesWidth(' ', { size });
+    const lines = setLines(pieces, { measure: termesWidth, space: { width: sp, stretch: sp / 2, shrink: sp / 3, extra: sp / 3 }, widths: n => n === 0 ? width - indent : width, params });
+    if (!lines) return null;
+    // Word sets the type at its half points, code at 0.88 of the text rounded again.
+    const words = half(size) / 2, code = Math.round(half(size) * 0.88) / 2;
+    const drawn = (text, style) => timesWidth(text, { ...style, size: style.code ? code : words });
+    const natural = timesWidth(' ', { size: words });
+    const out = [];
+    for (const line of lines) {
+      const spaces = drawnSpaces({ ...line, width: line.width - 0.25 }, drawn);
+      let at = 0;
+      for (const part of line.parts) {
+        if (part.space === undefined) out.push(markedRun(part.text, part.piece.marks, lib, undefined, L.size, italic));
+        else out.push(new lib.TextRun({ text: ' ', characterSpacing: Math.floor((spaces[at++] - natural) * 20) }));
+      }
+      if (line.hyphen) out.push(markedRun('-', line.hyphen.piece.marks, lib, undefined, L.size, italic));
+      if (!line.last) out.push(new lib.TextRun({ text: '', break: 1 }));
+    }
+    const final = lines.at(-1);
+    return { runs: out, count: lines.length, depth: lineDepth(final.parts.filter(p => p.space === undefined).map(p => ({ text: p.text, style: p.piece.style }))) };
+  };
   // Pictures next to each other share one figure row, as subfigures do, each at its share of the
   // width; a single picture is set at the layout's figure width.
   let row = [];
@@ -498,6 +554,15 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     indentNext = false; previous = row.at(-1); row = [];
   };
   const { labels, parts } = paper ? paperHeadings(plan) : { labels: new Map(), parts: new Set() };
+  // References that start a page sit in two columns that revtex balances; Word balances its own
+  // way, so the entry the second column starts with is given a column break.
+  const referenceSet = item => setText(item.text, { size: G.referenceSize, width: G.column - G.referenceHang, indent: -G.referenceHang, params: BIBLIOGRAPHY, hyphenating: false });
+  let secondColumn = null;
+  if (typeset && options.referencesOnNewPage) {
+    const entries = plan.items.filter(i => i.type !== 'heading' && i.role === 'References');
+    const counts = entries.map(i => referenceSet(i)?.count ?? 1);
+    if (entries.length > 1) secondColumn = entries[balancedSplit(counts, G.referencePitch, G.size)] ?? null;
+  }
   const columnsAt = paper ? columnsStart(plan) : -1;
   // The paper's sections: the title block across the page, the body in two columns, and the
   // references' heading across the page over their two columns, each starting at a child.
@@ -542,8 +607,13 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
       const across = paper && parts.has(item) && item.role === 'References' && index > columnsAt;
       let spacing = {};
       if (across) {
-        sectionsAt.push({ at: children.length, columns: 1 });
-        spacing = { spacing: { before: lead(G.references, last.height, G.pitch), after: T(G.firstReference - 0.2 * G.pitch - 0.8 * G.referencePitch), ...exact(G.pitch) } };
+        // Where AASTeX has no room for the heading and two entries under it, the references
+        // start the next page and the columns above stay as filled, not balanced: the caller
+        // says so (options.referencesOnNewPage), from the preview's layout or the reference's,
+        // which only a paper set as TeX sets it follows line for line.
+        const newPage = typeset && !!options.referencesOnNewPage;
+        sectionsAt.push({ at: children.length, columns: 1, newPage });
+        spacing = { spacing: { before: newPage ? 0 : lead(G.references, last.height, G.pitch), after: T(G.firstReference - 0.2 * G.pitch - 0.8 * G.referencePitch), ...exact(G.pitch) } };
         last = { kind: 'top', height: G.referencePitch };
       } else if (paper && item.role === 'Abstract' && index < columnsAt) {
         spacing = { spacing: { before: lead(G.abstractHeading, last.height, G.pitch), after: 0, ...exact(G.pitch) } };
@@ -585,8 +655,10 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     }
     if (item.list) {
       // A list item: Word's own numbering, each numbered list starting at 1.
-      children.push(para({ alignment: paper ? A.JUSTIFIED : A.LEFT, ...(paper ? spaced('item', G.pitch) : { spacing: { after: 60 } }), numbering: item.list === 'Numbered'
-        ? { reference: 'mn-numbered', level: item.listLevel, instance: item.run } : { reference: 'mn-bulleted', level: item.listLevel } }, item.text));
+      const numbering = item.list === 'Numbered' ? { reference: 'mn-numbered', level: item.listLevel, instance: item.run } : { reference: 'mn-bulleted', level: item.listLevel };
+      const set = typeset ? setText(item.text, { size: G.size, width: G.column - G.hang - 18 * item.listLevel }) : null;
+      if (set) { children.push(P({ alignment: A.LEFT, ...spaced('item', G.pitch), numbering, children: set.runs })); last.depth = set.depth; }
+      else children.push(para({ alignment: paper ? A.JUSTIFIED : A.LEFT, ...(paper ? spaced('item', G.pitch) : { spacing: { after: 60 } }), numbering }, item.text));
       indentNext = false; previous = item;
       continue;
     }
@@ -603,15 +675,18 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
         styled('Caption', 'Caption', { alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: paper ? 0 : 240 }, indent: paper ? {} : { left: 360, right: 360 } }, { size: paper ? half(G.captionSize) : L.caption.size, italics: L.caption.italics || undefined });
         // A figure's caption hangs under its pictures; a table's stands over the table.
         let spacing = {};
+        const words = caption ? item.text.slice(caption[0].length) : item.text;
+        const set = typeset ? setText(words, { size: G.captionSize, width: G.column, prefix: label ? [{ text: `${label} `, marks: [{ type: 'bold' }] }] : [] }) : null;
         if (paper) {
           const table = plan.items[index + 1]?.type === 'table';
-          const before = previous?.type === 'picture' ? T(G.captionBelow - 0.8 * G.captionPitch) : lead(table ? G.tableCaption : G.pitch, last.height, G.captionPitch);
-          spacing = { spacing: { before, after: table ? T(G.ruleBelowCaption - 0.2 * G.captionPitch) : 0, ...exact(G.captionPitch) } };
-          last = { kind: table ? 'above-table' : 'caption', height: G.captionPitch };
+          const depth = set?.depth ?? G.descender * G.captionSize;
+          const before = previous?.type === 'picture' ? T(G.captionBelow - 0.8 * G.captionPitch) : lead(table ? G.tableCaption + depthOf(last) : G.pitch, last.height, G.captionPitch);
+          spacing = { spacing: { before, after: table ? T(G.ruleBelowCaption + depth - 0.2 * G.captionPitch) : 0, ...exact(G.captionPitch) } };
+          last = { kind: table ? 'above-table' : 'caption', height: G.captionPitch, size: G.captionSize, depth };
         }
-        block = P({ style: 'Caption', ...spacing, children: [
+        block = P({ style: 'Caption', ...spacing, ...(set ? { alignment: A.LEFT } : {}), children: set ? set.runs : [
           ...(label ? [new lib.TextRun({ text: `${label} `, bold: !L.caption.italics || undefined })] : []),
-          ...text(caption ? item.text.slice(caption[0].length) : item.text)] });
+          ...text(words)] });
         break;
       }
       case 'Subtitle':
@@ -653,9 +728,10 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
         break;
       case 'Abstract':
         if (paper) {
-          styled('Abstract', 'Abstract', { alignment: A.JUSTIFIED, indent: { left: T(G.abstractLeft), right: T(G.abstractRight), firstLine: T(G.indent) } }, { size: half(G.size) });
+          styled('Abstract', 'Abstract', { alignment: A.JUSTIFIED, indent: { left: T(G.abstractLeft), right: T(G.abstractRight), firstLine: T(G.abstractIndent) } }, { size: half(G.size) });
           const first = last.kind === 'abstract-heading';
-          block = P({ style: 'Abstract', spacing: { before: first ? lead(G.abstract, G.pitch, G.pitch) : 0, after: 0, ...exact(G.pitch) }, children: runs(item.text, lib, Lexer, undefined, L.size) });
+          const set = typeset ? setText(item.text, { size: G.size, width: 2 * G.column + G.gap - G.abstractLeft - G.abstractRight, indent: G.abstractIndent }) : null;
+          block = P({ style: 'Abstract', ...(set ? { alignment: A.LEFT } : {}), spacing: { before: first ? lead(G.abstract, G.pitch, G.pitch) : 0, after: 0, ...exact(G.pitch) }, children: set ? set.runs : runs(item.text, lib, Lexer, undefined, L.size) });
           last = { kind: 'text', height: G.pitch };
         } else block = S(body(indentNext), item.text);
         continues = true;
@@ -675,7 +751,8 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
         // As AASTeX sets its references: smaller, ragged, never hyphenated, each entry hanging.
         if (paper) { lines = G.referencePitch; kind = 'reference'; }
         styled(role, role, { alignment: A.LEFT, spacing: { after: paper ? 0 : 60 }, indent: { left: paper ? T(G.referenceHang) : L.references.hanging, hanging: paper ? T(G.referenceHang) : L.references.hanging } }, { size: paper ? half(G.referenceSize) : L.references.size });
-        block = S(role, item.text);
+        const set = typeset ? referenceSet(item) : null;
+        block = set ? P({ style: role, ...spaced(kind, lines), children: [...(item === secondColumn ? [new lib.ColumnBreak()] : []), ...set.runs] }) : S(role, item.text);
         break;
       case 'Colophon':
         styled('Colophon', 'Colophon', { alignment: A.CENTER, spacing: { after: 120 } }, { size: Math.round(L.size * 0.85) });
@@ -688,7 +765,11 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
           last = { kind: 'front', height: G.pitch };
           break;
         }
-        block = S(body(indentNext), item.text);
+        {
+          const set = typeset ? setText(item.text, { size: G.size, width: G.column, indent: G.indent }) : null;
+          block = set ? P({ style: body(indentNext), alignment: A.LEFT, ...spaced(kind, lines), children: set.runs }) : S(body(indentNext), item.text);
+          if (set) last.depth = set.depth;
+        }
         continues = true;
     }
     children.push(block);
@@ -706,7 +787,8 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
   const document = new lib.Document({
     creator: 'Nendo Manuscript', title: plan.title, footnotes,
     // An article hyphenates as TeX does, and numbers its pages on the outer side.
-    ...(paper ? { evenAndOddHeaderAndFooters: true, hyphenation: { autoHyphenation: true, doNotHyphenateCaps: true } } : {}),
+    // Set as TeX sets it, every line is already broken where TeX breaks it.
+    ...(paper ? { evenAndOddHeaderAndFooters: true, hyphenation: { autoHyphenation: !typeset, doNotHyphenateCaps: true } } : {}),
     numbering: { config: [
       { reference: 'mn-bulleted', levels: listLevels(lib.LevelFormat.BULLET, level => BULLETS[level]) },
       { reference: 'mn-numbered', levels: listLevels(lib.LevelFormat.DECIMAL, level => `%${level + 1}.`).map((l, i) => ({ ...l, format: NUMBER_FORMATS[i] })) },
@@ -760,7 +842,7 @@ function paperSections(lib, G, children, sectionsAt, numbers, date) {
   const bounds = [{ at: 0, columns: 1 }, ...sectionsAt.filter(s => s.at < children.length)];
   const sections = bounds.map((s, i) => ({
     // Only the sections that start on the first page take its own header.
-    properties: { page, titlePage: i === 0 || bounds[i].at <= (sectionsAt[0]?.at ?? 0), ...(i > 0 ? { type: lib.SectionType.CONTINUOUS } : {}),
+    properties: { page, titlePage: i === 0 || bounds[i].at <= (sectionsAt[0]?.at ?? 0), ...(i > 0 ? { type: s.newPage ? lib.SectionType.NEXT_PAGE : lib.SectionType.CONTINUOUS } : {}),
       ...(s.columns > 1 ? { column: { count: s.columns, space: T(G.gap) } } : {}) },
     headers: headers(i === 0 || s.at <= (sectionsAt[0]?.at ?? 0)),
     children: children.slice(s.at, bounds[i + 1]?.at ?? children.length),
