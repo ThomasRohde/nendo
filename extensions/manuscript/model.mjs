@@ -11,7 +11,10 @@ export const F = {
   noteBlock: 'mn.note.block', noteKind: 'mn.note.kind', noteText: 'mn.note.text', noteDone: 'mn.note.done',
   linkFrom: 'mn.link.from', linkTo: 'mn.link.to', linkKind: 'mn.link.kind', linkNote: 'mn.link.note', linkReview: 'mn.link.review',
 };
-export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings', 'Table', 'Row', 'Cell'];
+export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings', 'Table', 'Row', 'Cell', 'Footnote'];
+// A footnote is a block of its own under the paragraph (or cell) that cites it, its text inline
+// Markdown; the paragraph cites it as [^its ID]. It is not a block of the sheet: the sheet draws
+// its number where it is cited, and its words are edited beside it.
 // A table is a block that owns its rows, and a row its cells: each cell is a block whose text
 // is inline Markdown, as a paragraph's is. The first row is the table's header.
 export const TABLE_KINDS = ['Table', 'Row', 'Cell'];
@@ -85,7 +88,7 @@ export function readManuscript(input, rootId = null) {
   for (const list of children.values()) list.sort(bySiblingOrder);
   const manuscripts = manuscriptsOf(records);
   const root = rootId !== null && manuscripts.some(m => m.id === rootId) ? rootId : manuscripts[0]?.id ?? null;
-  const nodes = [];
+  const nodes = [], footnotes = new Map();
   let cuttings = null;
   // A table holds rows and a row holds cells, in that order. A row anywhere else, a cell
   // anywhere else, and any other block Studio or an agent put inside a table are read as
@@ -94,6 +97,7 @@ export function readManuscript(input, rootId = null) {
     if (depth > 64) return;           // the Engine refuses cycles; this keeps a damaged file from looping
     for (const block of children.get(parent) ?? []) {
       if (block.kind === 'Cuttings') { if (cuttings === null && parent === root) cuttings = block.id; continue; }
+      if (block.kind === 'Footnote') { footnotes.set(block.id, { id: block.id, parent, text: block.text, version: block.version }); continue; }
       let kind = block.kind === 'Manuscript' ? 'Paragraph' : block.kind;
       const inTable = parentKind === 'Table' || parentKind === 'Row' || parentKind === 'Cell';
       if (inTable && kind !== (parentKind === 'Table' ? 'Row' : parentKind === 'Row' ? 'Cell' : null)) { spill.push(block); continue; }
@@ -115,7 +119,10 @@ export function readManuscript(input, rootId = null) {
     }
   };
   if (root !== null) walk(root, 1, 'Manuscript', []);
-  return { root, cuttings, title: root ? saved.get(root).text : '', nodes, saved, manuscripts };
+  // The footnotes of cuttings belong to this manuscript too.
+  const cutFootnotes = (parent, depth) => { if (depth > 64) return; for (const b of children.get(parent) ?? []) { if (b.kind === 'Footnote') footnotes.set(b.id, { id: b.id, parent, text: b.text, version: b.version }); else cutFootnotes(b.id, depth + 1); } };
+  if (cuttings !== null) cutFootnotes(cuttings, 1);
+  return { root, cuttings, title: root ? saved.get(root).text : '', nodes, saved, manuscripts, footnotes };
 }
 
 /**
@@ -187,6 +194,47 @@ export function assignOrders(existing) {
     i = j;
   }
   return result;
+}
+
+/**
+ * The writes that make the manuscript's footnotes what the page cites. `refs`: [{id, block}] in
+ * reading order, each citation and the block it is in; `texts`: a footnote's words as edited and
+ * not yet saved; `footnotes`: the footnotes the file holds for this manuscript. A footnote cited
+ * for the first time is created under its block; one cited from another block moves there; one
+ * whose words changed is updated; one no longer cited is deleted, with its notes and links.
+ * They go before the plan's block deletes, so a footnote leaves a block before the block goes.
+ */
+export function planFootnotes({ saved, refs, texts = new Map(), footnotes = new Map(), notes = [], links = [] }) {
+  const writes = [], cited = new Set(), perBlock = new Map();
+  for (const { id, block } of refs) {
+    if (cited.has(id)) continue;
+    cited.add(id);
+    const order = (perBlock.get(block) ?? 0) + GAP;
+    perBlock.set(block, order);
+    const s = saved.get(id), text = texts.has(id) ? texts.get(id) : s?.text ?? '';
+    if (!s) {
+      writes.push({ op: 'create', entityId: BLOCK, recordId: id, values: { [F.kind]: 'Footnote', [F.text]: text || null, [F.parent]: block, [F.order]: order }, refs: { [F.parent]: block } });
+      continue;
+    }
+    const values = {}, refsOf = {};
+    if ((s.text ?? '') !== (text ?? '')) values[F.text] = text || null;
+    if (s.parent !== block) { values[F.parent] = block; values[F.order] = order; refsOf[F.parent] = block; }
+    if (Object.keys(values).length) writes.push({ op: 'update', entityId: BLOCK, recordId: id, version: s.version, values, refs: refsOf });
+  }
+  for (const f of footnotes.values()) {
+    if (cited.has(f.id) || !saved.has(f.id)) continue;
+    for (const n of notes) if (n.values[F.noteBlock] === f.id) writes.push({ op: 'delete', entityId: NOTE, recordId: n.recordId, version: n.version });
+    for (const l of links) if (l.values[F.linkFrom] === f.id || l.values[F.linkTo] === f.id) writes.push({ op: 'delete', entityId: LINK, recordId: l.recordId, version: l.version });
+    writes.push({ op: 'delete', entityId: BLOCK, recordId: f.id, version: saved.get(f.id).version });
+  }
+  return writes;
+}
+
+/** Footnote writes put into a plan before its first block delete. */
+export function withFootnotes(plan, footnoteWrites) {
+  if (!footnoteWrites.length) return plan;
+  const at = plan.findIndex(w => w.op === 'delete' && w.entityId === BLOCK);
+  return at < 0 ? [...plan, ...footnoteWrites] : [...plan.slice(0, at), ...footnoteWrites, ...plan.slice(at)];
 }
 
 // Where Cuttings sits among a manuscript's top-level blocks: after everything else.

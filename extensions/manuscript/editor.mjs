@@ -312,6 +312,66 @@ const ListMarkers = Extension.create({
   },
 });
 
+/**
+ * A footnote cited in the text: a small atom that holds the footnote's block ID, drawn as its
+ * number (a CSS counter, in reading order). Its words are the footnote block's, edited beside it.
+ */
+const FootnoteRef = Node.create({
+  name: 'footnote',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: false,
+  addAttributes() {
+    return { id: { default: null, parseHTML: element => element.getAttribute('data-footnote'), renderHTML: attributes => attributes.id ? { 'data-footnote': attributes.id } : {} } };
+  },
+  parseHTML() { return [{ tag: 'sup[data-footnote]' }]; },
+  renderHTML({ HTMLAttributes }) { return ['sup', { ...HTMLAttributes, class: 'fn', title: 'Footnote: click to read or edit it' }]; },
+});
+
+/**
+ * One citation per footnote: a copy of a cited passage, or one pasted from another manuscript,
+ * cites a footnote of its own, its words copied (`track.footnoteCopied`).
+ */
+function footnoteIds(track) {
+  return Extension.create({
+    name: 'footnoteIds',
+    addProseMirrorPlugins() {
+      return [new Plugin({
+        key: new PluginKey('footnoteIds'),
+        appendTransaction(transactions, before, after) {
+          if (!transactions.some(t => t.docChanged)) return null;
+          // Only a step that puts a footnote in (a paste, an undo) can bring a second citation: typing never does.
+          const adds = transactions.some(tr => tr.steps.some(step => {
+            let found = false;
+            step.slice?.content.descendants(node => { if (node.type.name === 'footnote') found = true; return !found; });
+            return found;
+          }));
+          if (!adds) return null;
+          const had = new Set();
+          before.doc.descendants(node => { if (node.type.name === 'footnote') had.add(node.attrs.id); return node.isBlock; });
+          const seen = new Set();
+          let tr = null;
+          after.doc.descendants((node, pos) => {
+            if (node.type.name !== 'footnote') return node.isBlock;
+            const id = node.attrs.id;
+            if (id && !seen.has(id) && (had.has(id) || track.canReuse(id))) { seen.add(id); return false; }
+            const next = freshId();
+            seen.add(next);
+            if (id) track.footnoteCopied(id, next);
+            tr ??= after.tr;
+            tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: next });
+            return false;
+          });
+          if (tr) tr.setMeta('addToHistory', false);
+          return tr;
+        },
+      })];
+    },
+  });
+}
+
 /** The match Find is on, drawn as found: one decoration, set by `sheet.showFound`. */
 const FOUND = new PluginKey('found');
 const Found = Extension.create({
@@ -445,7 +505,7 @@ function pictureNode(resolve) {
  * selection is: {id, index, empty, single} for the block it starts in. `canAlign` and
  * `canList` say whether the file has the Align and List fields.
  */
-export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false, canList = () => false, canReuse = () => false, onFind = () => {} }) {
+export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false, canList = () => false, canReuse = () => false, onFind = () => {}, onFootnote = () => {}, onFootnoteCopied = () => {} }) {
   let setAlign = () => {};
   let sheet = null;
   // Since the last save: which removed block's text went into which, and which blocks were cut whole.
@@ -458,6 +518,7 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       cut.delete(removed);
     },
     cut(id) { cut.add(id); merged.delete(id); },
+    footnoteCopied: (from, to) => onFootnoteCopied(from, to),
   };
   const editor = new Editor({
     element,
@@ -482,9 +543,13 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       Extension.create({ name: 'moveKeys', addKeyboardShortcuts: () => ({ 'Alt-Shift-ArrowUp': () => sheet.move(-1), 'Alt-Shift-ArrowDown': () => sheet.move(1) }) }),
       // Ctrl+F finds, Ctrl+H finds and replaces, in the whole manuscript.
       Extension.create({ name: 'findKeys', addKeyboardShortcuts: () => ({ 'Mod-f': () => { onFind(false); return true; }, 'Mod-h': () => { onFind(true); return true; } }) }),
+      // Ctrl+Alt+F cites a new footnote at the caret, as Word does.
+      Extension.create({ name: 'footnoteKeys', addKeyboardShortcuts: () => ({ 'Mod-Alt-f': () => onFootnote() }) }),
       listKeys(canList, () => sheet),
       ListMarkers,
       Found,
+      FootnoteRef,
+      footnoteIds(track),
       Table.configure({ resizable: false, HTMLAttributes: { class: 'sheet-table' } }),
       TableRow, HeaderCell, Cell,
       pictureNode(resolvePicture),
@@ -723,6 +788,43 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       const top = at && TYPES.includes(at.node.type.name) ? at : null;
       const pos = top ? top.pos + top.node.nodeSize : editor.state.doc.content.size;
       editor.chain().focus().insertContentAt(pos, documentJSON(nodes)).setTextSelection(pos + 1).scrollIntoView().run();
+    },
+    /** Every footnote citation in reading order: {id, block}, the block a paragraph's (a cell's in a table). */
+    footnoteRefs() {
+      const refs = [], { doc } = editor.state;
+      doc.descendants((node, pos) => {
+        if (node.type.name !== 'footnote') return !node.isTextblock || node.childCount > 0;
+        const $at = doc.resolve(pos);
+        let block = null;
+        for (let depth = $at.depth; depth >= 1 && block === null; depth--) {
+          const holder = $at.node(depth);
+          if (depth === 1 || holder.type.name === 'tableCell' || holder.type.name === 'tableHeader') block = holder.attrs.blockId;
+        }
+        if (node.attrs.id && block) refs.push({ id: node.attrs.id, block });
+        return false;
+      });
+      return refs;
+    },
+    /** Cites a new footnote at the caret, and answers its ID. */
+    insertFootnote() {
+      const id = freshId();
+      editor.chain().focus().insertContent({ type: 'footnote', attrs: { id } }).run();
+      return id;
+    },
+    /** The footnote the selection is on (a click on its number selects it), or null. */
+    footnoteHere() {
+      const { selection } = editor.state;
+      return selection.node?.type.name === 'footnote' ? selection.node.attrs.id : null;
+    },
+    /** Gives a citation a new footnote ID, for a footnote whose record is gone. */
+    renumberFootnote(oldId) {
+      let tr = null, next = null;
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'footnote' && node.attrs.id === oldId) { next ??= freshId(); tr ??= editor.state.tr; tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: next }); }
+        return node.isBlock;
+      });
+      if (tr) { tr.setMeta('addToHistory', false); editor.view.dispatch(tr); }
+      return next;
     },
     /** Which removed blocks went into which, and which were cut whole, since the sheet was loaded. */
     lineage() { return { merged, cut }; },

@@ -2,7 +2,7 @@
 // file. Pure functions: the libraries and marked's Lexer are passed in, so Node tests drive the
 // same code the view runs (tools/manus/export.test.mjs).
 import { levelOf, MAX_LEVEL } from './model.mjs';
-import { pictureOf, markdownToInline } from './inline.mjs';
+import { pictureOf, markdownToInline, FOOTNOTE } from './inline.mjs';
 
 const EXTENSION = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/avif': 'avif', 'image/svg+xml': 'svg' };
 // The picture types a Word document holds without a fallback image.
@@ -55,8 +55,15 @@ export function exportPlan(manuscript) {
     items.push(previous = { type: 'paragraph', text, id: n.id, role, front: front && !n.role, align: n.align ?? null,
       list: n.list ?? null, listLevel: n.list ? Math.min(MAX_LEVEL, n.level ?? 0) : 0 });
   }
-  return { title: (manuscript.title ?? '').trim() || 'Untitled manuscript', items: numberLists(items) };
+  // Footnotes numbered as they are first cited, in reading order, cells included.
+  const numbers = new Map(), footnotes = [];
+  const cite = text => { for (const m of (text ?? '').matchAll(FOOTNOTE)) if (!numbers.has(m[1])) { numbers.set(m[1], numbers.size + 1); footnotes.push({ id: m[1], n: numbers.size, text: manuscript.footnotes?.get(m[1])?.text ?? '' }); } };
+  for (const item of items) { if (item.type === 'table') item.rows.flat().forEach(cite); else cite(item.text); }
+  return { title: (manuscript.title ?? '').trim() || 'Untitled manuscript', items: numberLists(items), footnotes, footnoteNumbers: numbers };
 }
+
+/** A block's text with each footnote cited by its number, as Markdown's footnotes write it. */
+const markdownFootnotes = (text, numbers) => (text ?? '').replace(FOOTNOTE, (all, id) => numbers?.has(id) ? `[^${numbers.get(id)}]` : '');
 
 const BULLETS = ['\u2022', '\u25E6', '\u25AA', '\u2022', '\u25E6'];
 const roman = n => [[10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']].reduce((out, [v, s]) => { while (n >= v) { out += s; n -= v; } return out; }, '');
@@ -118,6 +125,9 @@ export function pipeTable(rows) {
  * are written as Markdown's lists, an item of the same list on the next line.
  */
 export function toMarkdown(plan, files = new Map()) {
+  const numbers = plan.footnoteNumbers;
+  plan = { ...plan, items: plan.items.map(item => item.type === 'table' ? { ...item, rows: item.rows.map(r => r.map(c => markdownFootnotes(c, numbers))) }
+    : item.text !== undefined ? { ...item, text: markdownFootnotes(item.text, numbers) } : item) };
   const parts = [`# ${plan.title}`];
   const quoted = text => text.split('\n').map(line => `> ${line}`).join('\n');
   let previous = null;
@@ -138,13 +148,25 @@ export function toMarkdown(plan, files = new Map()) {
     else if (['Quotation', 'Epigraph', 'Aside'].includes(item.role)) parts.push(quoted(item.text));
     else parts.push(item.text);
   }
+  // The footnotes at the end, as Markdown's footnote extension writes them.
+  const notes = (plan.footnotes ?? []).map(f => `[^${f.n}]: ${markdownFootnotes(f.text, numbers).replace(/\\\n/g, ' ').trim() || ' '}`);
+  if (notes.length) parts.push(notes.join('\n'));
   return parts.join('\n\n') + '\n';
 }
+
+// The footnote numbers of the document being written, for runs to cite.
+let citing = null;
 
 function runs(markdown, lib, Lexer, size, base = 22, italic = false, bold = false) {
   const out = [];
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.push(new lib.TextRun({ text: '', break: 1 })); continue; }
+    if (node.type === 'footnote') {
+      const n = citing?.get(node.attrs.id);
+      // Word's own footnote: the number in the text, the note at the foot of its page.
+      if (n) out.push(lib.FootnoteReferenceRun ? new lib.FootnoteReferenceRun(n) : new lib.TextRun({ text: String(n), superScript: true }));
+      continue;
+    }
     const marks = new Set((node.marks ?? []).map(m => m.type));
     const href = (node.marks ?? []).find(m => m.type === 'link')?.attrs?.href;
     // Only marks that are on: a run that says bold false would override a bold heading style.
@@ -251,6 +273,11 @@ const KEYWORDS = /^\*{0,2}keywords?\*{0,2}\s*[:.]\s*/i;
  * `missing`. `options.date` is the paper's draft date, today unless given.
  */
 export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options = {}) {
+  citing = plan.footnoteNumbers ?? new Map();
+  try { return docx(plan, pictures, lib, Lexer, layoutName, options); } finally { citing = null; }
+}
+
+function docx(plan, pictures, lib, Lexer, layoutName, options) {
   const L = LAYOUTS[layoutName] ?? LAYOUTS.book;
   const A = lib.AlignmentType;
   const headingLevels = [lib.HeadingLevel.HEADING_1, lib.HeadingLevel.HEADING_2, lib.HeadingLevel.HEADING_3];
@@ -404,8 +431,9 @@ export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options 
   const listLevels = (format, text) => Array.from({ length: MAX_LEVEL + 1 }, (_, level) => ({ level, format, text: text(level), alignment: A.LEFT,
     style: { paragraph: { indent: { left: 360 * (level + 1) + 360, hanging: 360 } } } }));
   const NUMBER_FORMATS = [lib.LevelFormat.DECIMAL, lib.LevelFormat.LOWER_LETTER, lib.LevelFormat.LOWER_ROMAN, lib.LevelFormat.DECIMAL, lib.LevelFormat.LOWER_LETTER];
+  const footnotes = Object.fromEntries((plan.footnotes ?? []).map(f => [f.n, { children: [new lib.Paragraph({ children: runs(f.text, lib, Lexer, Math.round(L.size * 0.85), L.size) })] }]));
   const document = new lib.Document({
-    creator: 'Nendo Manuscript', title: plan.title,
+    creator: 'Nendo Manuscript', title: plan.title, footnotes,
     numbering: { config: [
       { reference: 'mn-bulleted', levels: listLevels(lib.LevelFormat.BULLET, level => BULLETS[level]) },
       { reference: 'mn-numbered', levels: listLevels(lib.LevelFormat.DECIMAL, level => `%${level + 1}.`).map((l, i) => ({ ...l, format: NUMBER_FORMATS[i] })) },

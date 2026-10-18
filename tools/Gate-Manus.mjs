@@ -337,7 +337,7 @@ async page => {
       strike: [...(m.querySelector('[data-tool="strike"]')?.querySelectorAll('.more-label, kbd') ?? [])].map(e => e.textContent).join(' | '),
       inside: r.left >= 0 && r.right <= innerWidth + 1 && r.top >= 0 && r.bottom <= innerHeight + 1, box: [Math.round(r.top), Math.round(r.bottom), innerHeight],
       expanded: document.getElementById('more-tools').getAttribute('aria-expanded') }; });
-  assert(menu && JSON.stringify(menu.tools) === JSON.stringify(['strike', 'code', 'highlight', 'weblink', 'clear', 'align-justify', 'paragraph', 'part', 'chapter', 'section', 'quotation', 'table'])
+  assert(menu && JSON.stringify(menu.tools) === JSON.stringify(['strike', 'code', 'highlight', 'weblink', 'clear', 'align-justify', 'paragraph', 'part', 'chapter', 'section', 'quotation', 'table', 'footnote'])
     && menu.heads.join() === 'Text,Alignment,Paragraph' && menu.strike === 'Strikethrough | Ctrl+Shift+S' && menu.inside && menu.expanded === 'true', `More: ${JSON.stringify(menu)}`);
   await page.screenshot({ path: '__OUTPUT__/bar-more.png' });
   await frame.locator('#more-menu [data-pin="highlight"]').click();
@@ -940,6 +940,54 @@ async page => {
   await page.evaluate(() => window.broker.command('notes'));
   checks.push('a note edited in the side panel');
 
+  // Footnotes: cited at the caret with its words typed beside it, saved as a Footnote block under
+  // the paragraph; its number reopens it; a copy of the passage cites a footnote of its own; and
+  // deleting the number deletes the footnote.
+  const footnotesOf = async parent => (await records(BLOCK)).filter(r => r.values[K] === 'Footnote' && (!parent || r.values[P] === parent));
+  await select('b-0501', 'end');
+  await page.evaluate(() => window.broker.command('fmt-footnote'));
+  await frame.waitForFunction(() => document.activeElement?.id === 'footnote-text', null, { timeout: 3000 });
+  await page.keyboard.type('Measured at the bar post.');
+  await saved();
+  const [cited] = await footnotesOf('b-0501');
+  const citing = (await record(BLOCK, 'b-0501')).values[T];
+  assert(cited && cited.values[T] === 'Measured at the bar post.' && citing.endsWith(`[^${cited.recordId}]`)
+    && await frame.evaluate(id => document.querySelectorAll(`[data-block="b-0501"] sup.fn[data-footnote="${id}"]`).length, cited.recordId) === 1,
+    `Cite a footnote: ${JSON.stringify({ cited, citing })}`);
+  await page.keyboard.press('Escape');
+  await frame.locator(`sup.fn[data-footnote="${cited.recordId}"]`).click();
+  await frame.waitForFunction(() => document.activeElement?.id === 'footnote-text', null, { timeout: 3000 });
+  await page.keyboard.press('End');
+  await page.keyboard.type(' Twice.');
+  await saved();
+  assert((await record(BLOCK, cited.recordId)).values[T] === 'Measured at the bar post. Twice.', 'The footnote\u2019s words were not saved from its number.');
+  await page.keyboard.press('Escape');
+  const copied = await frame.evaluate(() => {
+    const s = window.manuscriptSheet, at = s.locate('b-0501');
+    s.editor.chain().focus().setTextSelection({ from: at.pos + 1, to: at.pos + at.node.nodeSize - 1 }).run();
+    const data = new DataTransfer();
+    s.editor.view.dom.dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
+    return data.getData('text/html');
+  });
+  await select('b-find-2', 'end');
+  await frame.evaluate(html => window.manuscriptSheet.editor.view.pasteHTML(html), copied);
+  await saved();
+  const copies = { original: await footnotesOf('b-0501'), copy: await footnotesOf('b-find-2') };
+  assert(copies.original.length === 1 && copies.copy.length === 1 && copies.copy[0].recordId !== cited.recordId && copies.copy[0].values[T] === 'Measured at the bar post. Twice.',
+    `A copied citation: ${JSON.stringify(copies)}`);
+  await frame.evaluate(id => { const s = window.manuscriptSheet; let at = null; s.editor.state.doc.descendants((n, pos) => { if (n.attrs?.id === id) at = pos; }); s.editor.chain().focus().setNodeSelection(at).deleteSelection().run(); }, cited.recordId);
+  await saved();
+  assert(await record(BLOCK, cited.recordId) === null && !(await record(BLOCK, 'b-0501')).values[T].includes('[^'), 'Deleting a footnote\u2019s number left the footnote.');
+  checks.push('footnotes cited, edited from their number, copied with a passage, and deleted');
+  // In the preview the copy's footnote is numbered in the text and set after it.
+  await mode('book');
+  await frame.waitForFunction(() => document.querySelector('.sheet-body sup.pv-fn'), null, { timeout: 8000 }).catch(() => {});
+  const previewNotes = await frame.evaluate(() => ({ cited: [...document.querySelectorAll('.sheet-body sup.pv-fn')].map(s => s.textContent),
+    notes: [...document.querySelectorAll('.sheet-body p')].map(p => p.textContent).filter(t => /^\d+\. /.test(t)) }));
+  await mode('write');
+  assert(previewNotes.cited.join() === '1' && previewNotes.notes.includes('1. Measured at the bar post. Twice.'), `Footnotes in the preview: ${JSON.stringify(previewNotes)}`);
+  checks.push('footnotes numbered in the preview');
+
   // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
   // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;
   // the close button and Escape put it away, and the toggle is released.
@@ -1043,7 +1091,7 @@ async page => {
   const older = JSON.parse(JSON.stringify(manusFixture));
   for (const e of older.schema.entities) {
     e.fields = e.fields.filter(f => !['mn.block.align', 'mn.block.list', 'mn.block.level'].includes(f.fieldId));
-    for (const f of e.fields) if (f.fieldId === 'mn.block.kind') f.choices = f.choices.filter(c => !['Table', 'Row', 'Cell'].includes(c.id));
+    for (const f of e.fields) if (f.fieldId === 'mn.block.kind') f.choices = f.choices.filter(c => !['Table', 'Row', 'Cell', 'Footnote'].includes(c.id));
   }
   const frameBeforeOlder = frame;
   await page.evaluate(f => { window.broker.setFixture(f); window.broker.remount(); }, older);
@@ -1062,7 +1110,7 @@ async page => {
   assert(!withoutAlign.bar.some(id => id.startsWith('align-')) && !withoutAlign.more.some(id => id.startsWith('align-')) && withoutAlign.more.includes('code')
     && withoutAlign.writes.length === 0 && withoutAlign.drawn === null, `A file without the Align field: ${JSON.stringify(withoutAlign)}`);
   // Nor lists or tables without their fields and kinds: no tools, and "- " typed stays text.
-  assert(!withoutAlign.bar.includes('bulleted') && !withoutAlign.bar.includes('numbered') && !withoutAlign.more.includes('table'), `A file without lists or tables: ${JSON.stringify(withoutAlign)}`);
+  assert(!withoutAlign.bar.includes('bulleted') && !withoutAlign.bar.includes('numbered') && !withoutAlign.more.includes('table') && !withoutAlign.more.includes('footnote'), `A file without lists or tables: ${JSON.stringify(withoutAlign)}`);
   await page.keyboard.press('Escape');
   await select('b-0416', 'end');
   const plainFrom = (await batches()).length;

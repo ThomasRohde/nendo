@@ -65,6 +65,10 @@ Select some words and choose **Web link** to link them to a web page; with the c
 
 **Insert picture**, in **More** or from **+** beside a paragraph, puts a picture from this computer in the file and below the paragraph. Its file name is its description until you choose **Describe picture** in its menu; **Add a caption below** starts its caption.
 
+## Footnotes
+
+**Footnote** on the bar (in **More**), or **Ctrl** **Alt** **F**, puts a footnote's number at the caret and opens a box beside it for its words; they are saved as you type. Click a number to read or change its footnote, and delete the number to remove it. Numbers follow the order the footnotes come in the manuscript. A Word export puts each footnote at the foot of its page; a Markdown export lists them at the end, and so does the preview.
+
 ## Notes, links and cuttings
 
 The last group on the bar acts on the whole paragraph:

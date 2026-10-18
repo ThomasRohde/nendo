@@ -9,6 +9,9 @@
 // Tags open outside Markdown's delimiters: `<u>**word**</u>` reads as bold inside a word, where
 // `**<u>word</u>**` would not, because a delimiter next to `<` inside a word cannot open.
 const RANK = ['link', 'underline', 'highlight', 'bold', 'italic', 'strike'];
+// A footnote cited by its block's ID: [^b-…]. Marks close before it and open again after, so
+// each side of it reads on its own.
+export const FOOTNOTE = /\[\^(b-[A-Za-z0-9_-]+)\]/g;
 // A link's mark is kept here as one name with its address, so two links side by side stay two.
 const LINK = 'link\u0000';
 const linkOf = key => key.startsWith(LINK) ? key.slice(LINK.length) : null;
@@ -64,6 +67,7 @@ export function inlineToMarkdown(content = []) {
   };
   for (const node of content) {
     if (node.type === 'hardBreak') { close(0); out += '\\\n'; continue; }
+    if (node.type === 'footnote') { if (node.attrs?.id) { close(0); out += `[^${node.attrs.id}]`; } continue; }
     if (node.type !== 'text' || !node.text) continue;
     const marks = new Set((node.marks ?? []).map(m => m.type));
     const href = (node.marks ?? []).find(m => m.type === 'link')?.attrs?.href;
@@ -159,6 +163,13 @@ function normalise(nodes) {
  */
 export function markdownToInline(markdown, Lexer) {
   if (!markdown) return [];
-  const tokens = Lexer.lexInline(markdown, { gfm: true, breaks: false });
-  return normalise(fromTokens(tokens, [], []));
+  const out = [];
+  let at = 0;
+  for (const m of markdown.matchAll(FOOTNOTE)) {
+    if (m.index > at) fromTokens(Lexer.lexInline(markdown.slice(at, m.index), { gfm: true, breaks: false }), [], out);
+    out.push({ type: 'footnote', attrs: { id: m[1] } });
+    at = m.index + m[0].length;
+  }
+  if (at < markdown.length) fromTokens(Lexer.lexInline(markdown.slice(at), { gfm: true, breaks: false }), [], out);
+  return normalise(out);
 }

@@ -133,7 +133,8 @@ picture that could not be shown pushed text past the edge of a preview page.
 **Second part built 2026-10-18 as Manuscript 0.16.0:** reordering in the Outline drawer (arrows,
 Alt+Shift+Up and Down, drag onto a heading), the Cuttings drawer (put back as the same block,
 delete for good on a second press) and notes edited in the view. Where a cutting came from is
-not kept: that needs a field. Still to do: footnotes. Paragraphs in cells moved to Later: they
+not kept: that needs a field. **Footnotes built as Manuscript 0.17.0**, which completes Stage 3:
+a Footnote block under the paragraph that cites it, Word's own footnotes in an export. Paragraphs in cells moved to Later: they
 only let a note or a link point at one paragraph inside a cell, and would need the owner's
 files converted.
 

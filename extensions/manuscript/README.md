@@ -101,6 +101,14 @@ same records; the view keeps no copy of the manuscript in the file.
   Markdown a pipe table, the preview an HTML table. Kind needs Table, Row and Cell among its
   choices: a file made before 0.10.0 gets them with `schema.addChoice` (Nendo with W-280); until
   then the view offers no tables there.
+- A footnote (0.17.0) is a block of kind Footnote under the paragraph or cell that cites it, its
+  text inline Markdown; the citing text holds `[^its ID]`. The sheet draws the number (a CSS
+  counter, in reading order) and keeps the words beside it: Footnote on the bar or Ctrl+Alt+F
+  cites one at the caret, a click on the number opens it, and deleting the number deletes it with
+  its notes and links. A copy of a cited passage cites a footnote of its own, its words copied.
+  Word export writes Word's own footnotes; Markdown export writes `[^n]` and the notes at the end;
+  the preview sets them after the text. Kind needs Footnote among its choices: a file made before
+  0.17.0 gets it from the package proposal (`footnoteKindOperations`).
   Without a selection (0.12.0, canvas design A), a plus and a grip appear faintly in the margin
   beside the block under the pointer: the plus adds a paragraph, a list item, a table or a heading
   below it, the grip opens the block's menu (turn into, align, the table's own actions, link,

@@ -196,6 +196,13 @@ button.quiet:hover { background: var(--soft); }
 .outline-row[data-drop='before'] { box-shadow: inset 0 2px 0 var(--accent); }
 .outline-row[data-drop='after'] { box-shadow: inset 0 -2px 0 var(--accent); }
 .note-edit textarea, .note-edit select { width: 100%; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); padding: 5px 8px; color: inherit; font: 14px/1.45 var(--ui); }
+/* A footnote's number where it is cited, counted in reading order; its words are beside it. */
+.sheet-text { counter-reset: footnote; }
+.sheet-text sup.fn { counter-increment: footnote; color: var(--accent); cursor: pointer; padding: 0 1px; font-variant-numeric: tabular-nums; }
+.sheet-text sup.fn::after { content: counter(footnote); }
+.sheet-text sup.fn.ProseMirror-selectednode { outline: 1px solid var(--accent); border-radius: 2px; }
+.sheet-body sup.pv-fn { font-size: 0.7em; line-height: 0; }
+.popover #footnote-text { width: 100%; }
 .outline { text-align: left; border: 0; background: transparent; border-radius: 4px; padding: 6px 8px; }
 .outline:hover { background: var(--soft); }
 .outline.level-1 { font-weight: 600; }

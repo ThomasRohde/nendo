@@ -278,3 +278,21 @@ test('a web link is a hyperlink in Word and stays [words](address) in Markdown',
   assert.ok(id, 'the words are inside a w:hyperlink');
   assert.match(rels, new RegExp(`Id="${id}"[^>]*Target="https://example.org/tides"[^>]*TargetMode="External"|Target="https://example.org/tides"[^>]*TargetMode="External"[^>]*Id="${id}"`));
 });
+
+test('footnotes: numbered as first cited, Markdown footnotes, and Word\'s own footnotes', async () => {
+  const plan = exportPlan({ title: 'Notes', footnotes: new Map([['b-fa', { text: 'First, *in italics*.' }], ['b-fb', { text: 'Second.' }]]), nodes: [
+    { id: 'p', kind: 'Paragraph', text: 'The bar[^b-fb] was dry[^b-fa].' },
+    { id: 'q', kind: 'Paragraph', text: 'Again[^b-fb].' },
+  ] });
+  assert.deepEqual(plan.footnotes.map(f => [f.n, f.id]), [[1, 'b-fb'], [2, 'b-fa']]);
+  const markdown = toMarkdown(plan);
+  assert.match(markdown, /The bar\[\^1\] was dry\[\^2\]\./);
+  assert.match(markdown, /Again\[\^1\]\./);
+  assert.match(markdown, /\n\[\^1\]: Second\.\n\[\^2\]: First, \*in italics\*\.\n$/);
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document));
+  const xml = await zip.file('word/document.xml').async('string'), notes = await zip.file('word/footnotes.xml').async('string');
+  assert.equal((xml.match(/<w:footnoteReference w:id="1"\/>/g) ?? []).length, 2, 'both citations of the first footnote');
+  assert.match(xml, /<w:footnoteReference w:id="2"\/>/);
+  assert.match(notes, /<w:footnote w:id="1">.*Second\..*<\/w:footnote>/s);
+  assert.match(notes, /<w:footnote w:id="2">.*First, .*in italics.*<\/w:footnote>/s);
+});

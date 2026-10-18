@@ -1,5 +1,5 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
-import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
@@ -16,7 +16,7 @@ const state = {
   gone: new Set(), drawer: null, selected: null, pinned: false, saving: null, again: false, timer: null, firstEdit: 0,
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
-  hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null,
+  hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null, footnotes: new Map(), footnoteTexts: new Map(), footnotesOn: false,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -50,7 +50,12 @@ const sheet = createSheet({
   canList: () => state.lists && !state.readOnly,
   canReuse: id => mayComeBack(id),
   onFind: withReplace => openFind(withReplace),
+  onFootnote: () => { if (!state.footnotesOn || state.readOnly) return false; runTool(TOOLS.find(t => t.id === 'footnote')); return true; },
+  onFootnoteCopied: (from, to) => state.footnoteTexts.set(to, footnoteText(from)),
 });
+
+/** A footnote's words: as edited and not yet saved, or as the file holds them. */
+function footnoteText(id) { return state.footnoteTexts.has(id) ? state.footnoteTexts.get(id) : state.footnotes.get(id)?.text ?? state.saved.get(id)?.text ?? ''; }
 
 /**
  * Whether a block arriving on the page with this ID (pasted, or brought back by undo) may keep it:
@@ -60,6 +65,8 @@ const sheet = createSheet({
 function mayComeBack(id) {
   const s = state.saved.get(id);
   if (!s) return true;
+  // A footnote may come back with the paragraph that cites it.
+  if (s.kind === 'Footnote') return s.parent ? mayComeBack(s.parent) : false;
   if (s.visible) return true;
   for (let p = s.parent, d = 0; p && d < 64; p = state.saved.get(p)?.parent, d++) if (p === state.cuttings) return true;
   return false;
@@ -182,6 +189,8 @@ function edited() {
 
 function selected(where) {
   if (!where) return;
+  const footnote = sheet.footnoteHere();
+  if (footnote && state.popover?.id !== footnote) { state.selected = where.id; openPopover('footnote', { id: footnote }); return; }
   if (state.pinned && !state.popover && where.id !== state.selected) { state.pinned = false; state.more = false; }
   state.selected = where.id;
   if (!state.pinned && where.empty) closePopover();
@@ -215,6 +224,7 @@ async function load() {
   const switched = manuscript.root !== state.root;
   state.root = manuscript.root; state.cuttings = manuscript.cuttings; state.manuscripts = manuscript.manuscripts; state.wanted = null;
   state.saved = manuscript.saved; state.notes = notes; state.links = links;
+  state.footnotes = manuscript.footnotes; state.footnoteTexts.clear();
   state.title = state.savedTitle = manuscript.title;
   $('title').value = manuscript.title;
   $('empty').hidden = state.root !== null;
@@ -251,8 +261,10 @@ function planNow() {
   const current = sheet.read();
   const { merged, cut } = sheet.lineage();
   if (cut.size && state.cuttings === null) state.newCuttings ??= `b-cuttings-${freshId().slice(2, 8)}`;
-  const plan = withoutAsRead(planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links,
+  const blocks = withoutAsRead(planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links,
     merged, cut, cuttings: state.cuttings, newCuttings: state.newCuttings }), state.asRead);
+  const plan = state.footnotesOn ? withFootnotes(blocks, planFootnotes({ saved: state.saved, refs: sheet.footnoteRefs(), texts: state.footnoteTexts,
+    footnotes: state.footnotes, notes: state.notes, links: state.links })) : blocks;
   const root = state.saved.get(state.root);
   if (state.title !== state.savedTitle && root) plan.unshift({ op: 'update', entityId: BLOCK, recordId: state.root, version: root.version, values: { [F.text]: state.title || null }, refs: {} });
   return { plan, current };
@@ -268,7 +280,8 @@ function pending() { return state.root !== null && planNow().plan.length > 0; }
  * block is new instead.
  */
 async function bringBack() {
-  const back = [...state.gone].filter(id => sheet.locate(id));
+  const cited = new Set(state.footnotesOn ? sheet.footnoteRefs().map(r => r.id) : []);
+  const back = [...state.gone].filter(id => sheet.locate(id) || cited.has(id));
   const revisions = [...new Set(back.map(id => state.deletedIn.get(id)).filter(Boolean))].reverse();
   for (const revision of revisions) {
     try {
@@ -280,7 +293,10 @@ async function bringBack() {
       }
     } catch { /* refused: the blocks it would have brought back are new below */ }
   }
-  for (const id of state.gone) if (sheet.locate(id)) sheet.renumber(id);
+  for (const id of state.gone) {
+    if (sheet.locate(id)) sheet.renumber(id);
+    else if (cited.has(id)) { const text = footnoteText(id); const next = sheet.renumberFootnote(id); if (next) state.footnoteTexts.set(next, text); }
+  }
 }
 
 /** A record read back after an undo, as the page keeps it. */
@@ -295,8 +311,9 @@ function restoreRecord(record) {
   const v = record.values;
   const next = { id: record.recordId, kind: v[F.kind] ?? 'Paragraph', text: v[F.text] ?? '', parent: v[F.parent] ?? null, order: v[F.order] ?? null,
     role: v[F.role] ?? null, align: v[F.align] ?? null, list: v[F.list] ?? null, level: v[F.level] ?? null, version: record.version };
-  next.visible = next.id !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
+  next.visible = next.id !== state.root && next.kind !== 'Cuttings' && next.kind !== 'Footnote' && next.parent !== state.cuttings;
   state.saved.set(record.recordId, next);
+  if (next.kind === 'Footnote') state.footnotes.set(next.id, { id: next.id, parent: next.parent, text: next.text, version: next.version });
 }
 
 async function save() {
@@ -360,7 +377,7 @@ async function send(batch, label = 'Write') {
 
 function applyWrite(write, version) {
   if (write.entityId === BLOCK) {
-    if (write.op === 'delete') { state.saved.delete(write.recordId); state.gone.add(write.recordId); sheet.forget(write.recordId); return; }
+    if (write.op === 'delete') { state.saved.delete(write.recordId); state.footnotes.delete(write.recordId); state.gone.add(write.recordId); sheet.forget(write.recordId); return; }
     const was = state.saved.get(write.recordId) ?? { id: write.recordId, visible: true };
     const v = write.values;
     const next = { ...was, version };
@@ -373,8 +390,9 @@ function applyWrite(write, version) {
     if (F.list in v) next.list = v[F.list];
     if (F.level in v) next.level = v[F.level];
     if (next.kind === 'Cuttings' && next.parent === state.root && state.cuttings === null) { state.cuttings = write.recordId; state.newCuttings = null; }
-    next.visible = write.recordId !== state.root && next.kind !== 'Cuttings' && next.parent !== state.cuttings;
+    next.visible = write.recordId !== state.root && next.kind !== 'Cuttings' && next.kind !== 'Footnote' && next.parent !== state.cuttings;
     state.saved.set(write.recordId, next);
+    if (next.kind === 'Footnote') state.footnotes.set(write.recordId, { id: write.recordId, parent: next.parent, text: next.text, version });
     return;
   }
   const list = write.entityId === NOTE ? state.notes : state.links;
@@ -537,10 +555,12 @@ async function exportAs(format, layout = 'book') {
 // ---------- Preview ----------
 
 /** Inline Markdown as DOM: bold, italic, underline, strikethrough, highlight, code and line breaks. */
+let previewNumbers = new Map();
 function inlineNodes(markdown) {
   const out = document.createDocumentFragment();
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.append(document.createElement('br')); continue; }
+    if (node.type === 'footnote') { if (previewNumbers.has(node.attrs.id)) out.append(el('sup', { class: 'pv-fn', text: String(previewNumbers.get(node.attrs.id)) })); continue; }
     let element = document.createTextNode(node.text);
     for (const mark of node.marks ?? []) {
       const tag = { bold: 'strong', italic: 'em', underline: 'u', strike: 's', highlight: 'mark', code: 'code', link: 'a' }[mark.type];
@@ -619,7 +639,10 @@ async function pictureSizes(plan) {
 let previewRun = 0;
 async function renderPreview() {
   const layout = state.mode, page = PAGES[layout], run = ++previewRun;
-  const plan = exportPlan({ title: state.title, nodes: sheet.read() });
+  const footnotes = new Map([...state.footnotes.values()].map(f => [f.id, { text: footnoteText(f.id) }]));
+  for (const [id, text] of state.footnoteTexts) footnotes.set(id, { text });
+  const plan = exportPlan({ title: state.title, nodes: sheet.read(), footnotes });
+  previewNumbers = plan.footnoteNumbers;
   // Every picture's size first: a figure laid out before its picture loads takes no room, then
   // grows, and pushes the lines under it past the sheet's edge, where they are cut off.
   const sizes = await pictureSizes(plan);
@@ -657,7 +680,10 @@ async function renderPreview() {
     return moving;
   };
   newSheet();
-  for (const block of previewBlocks(plan, layout)) {
+  // The preview sets the footnotes after the text, numbered; a Word export puts each at the foot of its page.
+  const notes = plan.footnotes.length ? [{ kind: 'heading', level: 2, text: 'Notes', breakBefore: false, indent: false, across: false },
+    ...plan.footnotes.map(f => ({ kind: 'paragraph', role: null, text: `${f.n}. ${f.text}`, indent: false, breakBefore: false, across: false }))] : [];
+  for (const block of [...previewBlocks(plan, layout), ...notes]) {
     const element = blockElement(block, layout, sizes);
     if (!page.columns || block.across) {
       if (block.breakBefore && body.childElementCount) newSheet();
@@ -942,6 +968,7 @@ const ICON = {
   weblink: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11"/>',
   picture: '<path d="M2.5 3.5h11v9h-11z"/><path d="M2.5 11l3.5-3.5 3 3 2-2 2.5 2.5"/><circle cx="10.5" cy="6" r="1"/>',
   describe: '<path d="M2.5 12.5h3l7-7-3-3-7 7z"/><path d="M8.5 3.5l3 3"/>',
+  footnote: '<path d="M2.5 12h7M2.5 14h5M10.5 2.5v5M9 4l1.5-1.5"/>',
   caption: '<path d="M2.5 2.5h11v7h-11zM2.5 12h11M2.5 14h7"/>',
   'move-down': '<path d="M8 3v9.5M4.5 9 8 12.5 11.5 9"/>',
 };
@@ -977,6 +1004,7 @@ const TOOLS = [
   { id: 'outdent', label: 'Outdent list item', keys: 'Shift+Tab', group: 'paragraph', step: -1 },
   { id: 'table', label: 'Insert table', keys: '', group: 'paragraph' },
   { id: 'picture', label: 'Insert picture', keys: '', group: 'paragraph' },
+  { id: 'footnote', label: 'Footnote', keys: 'Ctrl+Alt+F', group: 'paragraph' },
   { id: 'row-after', label: 'Add row below', keys: '', group: 'table', command: 'addRowAfter' },
   { id: 'column-after', label: 'Add column right', keys: '', group: 'table', command: 'addColumnAfter' },
   { id: 'row-delete', label: 'Delete row', keys: '', group: 'table', command: 'deleteRow' },
@@ -1022,6 +1050,7 @@ function toolsFor(node) {
     if (t.step) return state.lists && kind === 'paragraph' && !!node.attrs.list;
     if (t.id === 'table') return state.tables;
     if (t.id === 'picture') return state.media;
+    if (t.id === 'footnote') return state.footnotesOn && !state.readOnly;
     if (t.id === 'cut') return kind !== 'heading';
     return true;
   });
@@ -1051,6 +1080,7 @@ function runTool(t) {
   else if (t.step) sheet.indent(t.step);
   else if (t.id === 'table') sheet.insertTable();
   else if (t.id === 'picture') choosePicture();
+  else if (t.id === 'footnote') { const id = sheet.insertFootnote(); openPopover('footnote', { id, fresh: true }); }
   else if (t.id === 'weblink') openPopover('weblink', { href: sheet.linkHere() ?? '' });
   else if (t.command) editor.chain().focus()[t.command]().run();
   else if (t.id === 'link') openPopover('link');
@@ -1331,6 +1361,17 @@ function popover(top) {
     } } },
     el('strong', { text: p.href ? 'Web link' : 'Link to a web page' }), input,
     el('div', { class: 'row end' }, remove, close, el('button', { type: 'submit', class: 'primary', text: p.href ? 'Change' : 'Link' })));
+  }
+  if (p.kind === 'footnote') {
+    const n = sheet.footnoteRefs().findIndex(r => r.id === p.id) + 1;
+    const text = el('textarea', { id: 'footnote-text', rows: '3', 'aria-label': `Footnote ${n}`, placeholder: 'What the footnote says' });
+    text.value = footnoteText(p.id);
+    text.addEventListener('input', () => { state.footnoteTexts.set(p.id, text.value); edited(); });
+    const done = () => { closePopover(); placeOverlays(); sheet.editor.commands.focus(); };
+    text.addEventListener('keydown', e => { if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); done(); } });
+    return el('div', { class: 'popover', style: `top:${top}px` }, el('strong', { text: `Footnote ${n || ''}`.trim() }), text,
+      el('p', { class: 'muted', text: 'Saved as you type. Delete its number in the text to remove it.' }),
+      el('div', { class: 'row end' }, el('button', { type: 'button', class: 'primary', text: 'Done', on: { click: done } })));
   }
   if (p.kind === 'describe') {
     const input = el('input', { id: 'picture-alt', type: 'text', value: p.alt ?? '', 'aria-label': 'What the picture shows', autocomplete: 'off' });
@@ -1691,6 +1732,8 @@ async function start(context) {
     state.tables = ['Table', 'Row', 'Cell'].every(kind => kinds.includes(kind));
     // A picture is added from this computer only where Nendo lets a view put media in the file.
     state.media = nendo.has?.('media.put') === true;
+    // Footnotes where the file's Kind offers Footnote (Manuscript 0.17.0 adds it to an older file).
+    state.footnotesOn = kinds.includes('Footnote');
   } catch { state.roles = false; state.aligns = false; state.lists = false; state.tables = false; }
   state.pins = readPins();
   applyAppearance();

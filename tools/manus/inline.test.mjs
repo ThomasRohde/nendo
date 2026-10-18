@@ -81,3 +81,18 @@ test('a link written [words](address) is a link with its marks, and comes back a
   for (const text of ['https://example.org', '<https://example.org>', '[titled](https://example.org "Title")'])
     assert.equal(markdownToInline(text, Lexer).some(n => n.marks?.some(m => m.type === 'link')), false, text);
 });
+
+test('a footnote is cited by its block ID, and the marks around it close before it and open after', () => {
+  const fn = id => ({ type: 'footnote', attrs: { id } });
+  const cases = [
+    [t('The bar'), fn('b-fn1'), t(' was dry.')],
+    [t('bold ', 'bold'), t('word', 'bold'), fn('b-fn2'), t(' still bold', 'bold')],
+  ];
+  assert.deepEqual(roundTrip(cases[0]), cases[0]);
+  assert.equal(inlineToMarkdown(cases[0]), 'The bar[^b-fn1] was dry.');
+  // A space at the edge of a marked run moves outside it, as everywhere else.
+  assert.equal(inlineToMarkdown(cases[1]), '**bold word**[^b-fn2] **still bold**');
+  assert.deepEqual(roundTrip(cases[1]), [t('bold word', 'bold'), fn('b-fn2'), t(' '), t('still bold', 'bold')]);
+  // Typed by the person, the same characters are text, not a citation.
+  assert.deepEqual(roundTrip([t('see [^b-x] here')]), [t('see [^b-x] here')]);
+});

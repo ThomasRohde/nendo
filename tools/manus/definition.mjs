@@ -57,6 +57,11 @@ export function alignFieldOperations() { return fieldOperations(F.align); }
 /** The List and Level fields, for a file built before lists (Manuscript 0.10.0). */
 export function listFieldOperations() { return [...fieldOperations(F.list), ...fieldOperations(F.level)]; }
 
+/** Footnote added to an older file's Kind (Manuscript 0.17.0). */
+export function footnoteKindOperations() {
+  return [op('schema.addChoice', { entityId: BLOCK, fieldId: F.kind, choiceId: 'Footnote', displayName: 'Footnote' })];
+}
+
 /** Table, Row and Cell added to an older file's Kind, which needs a Nendo with schema.addChoice. */
 export function tableKindOperations() {
   return TABLE_KINDS.map(choiceId => op('schema.addChoice', { entityId: BLOCK, fieldId: F.kind, choiceId, displayName: choiceId }));

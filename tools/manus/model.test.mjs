@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, planFootnotes, withFootnotes, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
 
 const item = (id, kind, parent, order, depth, text = '', version = 1) =>
   ({ record: { entityId: BLOCK, recordId: id, version, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } }, parentRecordId: parent, depth });
@@ -288,4 +288,26 @@ test('a block cut whole moves into the Cuttings with its notes, and pasted back 
   const cutSaved = new Map(m.saved); cutSaved.set('p2', { ...m.saved.get('p2'), parent: 'cuttings', order: 2048, visible: false });
   const back = planWrites({ saved: cutSaved, current: m.nodes.map(n => ({ ...n, changed: false })), root: m.root });
   assert.deepEqual(back.map(w => [w.op, w.recordId, w.values[F.parent]]), [['update', 'p2', 'ch1']]);
+});
+
+test('a footnote is a block under the paragraph that cites it, and not a block of the sheet', () => {
+  const m = readManuscript([...items, item('f1', 'Footnote', 'p1', 1024, 3, 'A note at the foot.')]);
+  assert.deepEqual(m.nodes.map(n => n.id), ['ch1', 'p1', 'p2']);
+  assert.deepEqual([...m.footnotes.keys()], ['f1']);
+  assert.equal(m.saved.get('f1').visible, false, 'a footnote is never deleted as a block gone from the sheet');
+});
+
+test('footnotes: created where first cited, moved with their citation, edited, and deleted when no longer cited', () => {
+  const m = readManuscript([...items, item('f1', 'Footnote', 'p1', 1024, 3, 'Old words.'), item('f2', 'Footnote', 'p1', 2048, 3, 'Gone.')]);
+  const notes = [{ entityId: NOTE, recordId: 'n9', version: 1, values: { [F.noteBlock]: 'f2' } }];
+  const writes = planFootnotes({ saved: m.saved, footnotes: m.footnotes, notes,
+    refs: [{ id: 'f1', block: 'p2' }, { id: 'f3', block: 'p1' }, { id: 'f1', block: 'p2' }], texts: new Map([['f1', 'New words.'], ['f3', 'Fresh.']]) });
+  assert.deepEqual(writes.map(w => [w.op, w.recordId]), [['update', 'f1'], ['create', 'f3'], ['delete', 'n9'], ['delete', 'f2']]);
+  assert.deepEqual(writes[0].values, { [F.text]: 'New words.', [F.parent]: 'p2', [F.order]: GAP });
+  assert.deepEqual(writes[1].values, { [F.kind]: 'Footnote', [F.text]: 'Fresh.', [F.parent]: 'p1', [F.order]: GAP });
+  // Cited where it is, with its words saved: nothing to write.
+  assert.deepEqual(planFootnotes({ saved: m.saved, footnotes: new Map([['f1', m.footnotes.get('f1')]]), refs: [{ id: 'f1', block: 'p1' }] }), []);
+  // They go before the plan's block deletes: a footnote leaves its paragraph before the paragraph goes.
+  const plan = [{ op: 'update', entityId: BLOCK, recordId: 'p2' }, { op: 'delete', entityId: BLOCK, recordId: 'p1' }];
+  assert.deepEqual(withFootnotes(plan, writes).map(w => w.recordId), ['p2', 'f1', 'f3', 'n9', 'f2', 'p1']);
 });
