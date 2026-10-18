@@ -1,7 +1,7 @@
 # Workspace
 
 The real `.nendo` files this project works in, out of the sweepable `artifacts/`.
-The demo files are tracked; the live planner is the owner's data and is ignored.
+The demo files are tracked; the live planner and the owner's working manuscript are the owner's data and are ignored.
 
 | File | What it is | In git |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
 | `Swarm.nendo` | The [Swarm](../extensions/swarm/README.md) behaviour playground: creature behaviours edited with bpmn-js, a habitat, and experiments that replay. Built by `tools/Build-Swarm.mjs`. | Yes |
 | `Garden.nendo` | [Garden](../docs/design/garden.md), a garden of Markdown notes whose `[[links]]`, `#tags` and `- [ ]` tasks are records, with the [Garden view](../extensions/garden/README.md) (reading first, a living d3 graph) and its own agent skill in the file. Built by `tools/Build-Garden.mjs`. | Yes |
 | `Manus.nendo` | The file the [manuscript workbench](../docs/design/manuscript.md) was built in, with the [Manuscript view](../extensions/manuscript/README.md) in the file: built by `tools/Build-Manus.mjs` (W-276) and kept with its history. | Not yet: the owner's call |
-| `Manuscript.nendo` | A clean new file of the Manuscript app (File > New manuscript, ADR-0022), with no history: a draft paper, *Malleable Software in One File: Nendo as a Case Study*, with real screenshots. | Not yet: the owner's call |
+| `Manuscript.nendo` | A clean new file of the Manuscript app (File > New manuscript, ADR-0022): the owner's paper in progress, *Malleable Software in One File: Nendo as a Case Study*, with real screenshots. | **No** — ignored since 2026-10-18, the owner's working file |
 | `Milo.nendo` | The owner's copy of Manus.nendo holding the picture book *Milo and the Paper Boat*. | Not yet: the owner's call |
 | `Herbarium.nendo` | The pictures reference file ([ADR-0031](../docs/decisions/0031-media-in-user-data.md)): seven plants whose pictures come from all three places, four stored in the file, two linked from the `Herbarium pictures` folder beside it, and one from the web, with a gallery whose cards are covered by them and a Markdown note that shows a picture. Built by `tools/Build-Herbarium.ps1`. | Yes, with its folder |
 
@@ -26,7 +26,7 @@ The demo files are tracked; the live planner is the owner's data and is ignored.
 
 ## What is in git, and what is not
 
-The planner is **git-ignored**. It changes on every write, and a `.nendo` is a
+The planner and `Manuscript.nendo` are **git-ignored**. Each changes on every write, and a `.nendo` is a
 SQLite database that git would store whole each time — about 5 MB a version. It
 is the owner's live data: it lives here so it is beside the files it belongs with
 and out of the sweepable `artifacts/`, and it is the owner who keeps copies of it.

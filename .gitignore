@@ -41,6 +41,10 @@ site/public/favicon.ico
 # whole on every write. It lives in workspace/ beside the tracked demo files and
 # is deliberately not one of them; workspace/README.md says how it is kept.
 workspace/Planner.nendo
+# The owner's working manuscript (a paper in progress), owner data like the planner
+# since 2026-10-18: it changes whenever the owner writes, and an open file stops the
+# gate's binary-asset check.
+workspace/Manuscript.nendo
 
 # Nendo/SQLite operational derivatives
 *.nendo-journal
