@@ -6,8 +6,9 @@
 - **Baseline:** main at `f494461`, Manuscript **0.12.1**. Where this plan and the code
   disagree, the code is current.
 - **Standing:** The owner's decisions in [`manuscript.md`](manuscript.md) section 2 stay in
-  force. Nothing here is an accepted ADR or permission for a `src/` change. The planner was
-  down when this was written: add the stages as Work items when it is back.
+  force. Nothing here is an accepted ADR or permission for a `src/` change. In the planner:
+  W-284 (this plan), W-285 to W-288 (Stages 1 to 3 built, and the host's media.put), W-289
+  (the rest of Stage 3), with Findings F-326 to F-337.
 
 ## 1. Goal
 
