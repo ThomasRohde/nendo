@@ -658,6 +658,72 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       if (!at || at.node.type.name !== 'picture') return;
       editor.view.dispatch(editor.state.tr.setNodeMarkup(at.pos, undefined, { ...at.node.attrs, alt }));
     },
+    /**
+     * A heading's section: the heading and what it holds, to the next heading at its level or
+     * above, as top-level indices [from, to). Null for anything but a heading.
+     */
+    section(id) {
+      const { doc } = editor.state;
+      let at = -1;
+      doc.forEach((node, _, i) => { if (node.attrs.blockId === id) at = i; });
+      const head = at >= 0 ? doc.child(at) : null;
+      if (!head || head.type.name !== 'heading') return null;
+      let end = at + 1;
+      while (end < doc.childCount && !(doc.child(end).type.name === 'heading' && doc.child(end).attrs.level <= head.attrs.level)) end++;
+      return { from: at, to: end, level: head.attrs.level };
+    },
+    /**
+     * Moves a heading's section past the section of the same level above it (-1) or below it (1),
+     * the same blocks, IDs and all. It goes no further than its own part or chapter: false when
+     * there is no such section.
+     */
+    moveSection(id, step) {
+      const here = this.section(id);
+      if (!here) return false;
+      const { doc } = editor.state;
+      let target = null;
+      if (step < 0) {
+        for (let i = here.from - 1; i >= 0; i--) {
+          const node = doc.child(i);
+          if (node.type.name !== 'heading' || node.attrs.level > here.level) continue;
+          if (node.attrs.level === here.level) target = node.attrs.blockId;
+          break;
+        }
+        return target ? this.moveSectionTo(id, target, true) : false;
+      }
+      const next = here.to < doc.childCount ? doc.child(here.to) : null;
+      if (!next || next.type.name !== 'heading' || next.attrs.level !== here.level) return false;
+      return this.moveSectionTo(id, next.attrs.blockId, false);
+    },
+    /**
+     * Moves a heading's section before (or after) the section of another heading, as one step: a
+     * section dropped in the Outline. Its blocks keep their IDs; what they belong to follows
+     * where they now stand.
+     */
+    moveSectionTo(id, targetId, before = true) {
+      const moving = this.section(id), target = this.section(targetId);
+      if (!moving || !target || id === targetId || (target.from >= moving.from && target.from < moving.to)) return false;
+      const { doc } = editor.state;
+      const offset = index => { let pos = 0; for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize; return pos; };
+      const nodes = [];
+      for (let i = moving.from; i < moving.to; i++) nodes.push(doc.child(i));
+      const start = offset(moving.from), end = offset(moving.to);
+      let insert = before ? offset(target.from) : offset(target.to);
+      if (insert === start || insert === end) return false;
+      if (insert > start) insert -= end - start;
+      const tr = editor.state.tr.delete(start, end);
+      tr.insert(insert, Fragment.from(nodes));
+      tr.setSelection(TextSelection.create(tr.doc, insert + 1));
+      editor.view.dispatch(tr.scrollIntoView());
+      return true;
+    },
+    /** Puts blocks read from the file (a cutting, its rows and cells) on the page after the block `afterId`, or at the end. */
+    insertBlocks(nodes, afterId = null) {
+      const at = afterId ? this.locate(afterId) : null;
+      const top = at && TYPES.includes(at.node.type.name) ? at : null;
+      const pos = top ? top.pos + top.node.nodeSize : editor.state.doc.content.size;
+      editor.chain().focus().insertContentAt(pos, documentJSON(nodes)).setTextSelection(pos + 1).scrollIntoView().run();
+    },
     /** Which removed blocks went into which, and which were cut whole, since the sheet was loaded. */
     lineage() { return { merged, cut }; },
     /** Forgets the lineage of blocks a save has settled. */

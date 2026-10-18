@@ -128,9 +128,14 @@ with the machine, three times over between two mornings on the same code.)
 links and pictures. Building it found three defects: Nendo's view API sent a picture's bytes as
 JSON, where they arrive as `{}`, so no view could ever add one (a host fix: the API now sends
 base64 parts); Ctrl+Z after a reload could take the page back to before it was read; and a
-picture that could not be shown pushed text past the edge of a preview page. Still to do:
-reordering in the Outline drawer, the Cuttings drawer, notes edited in the view, and footnotes
-and paragraphs in cells.
+picture that could not be shown pushed text past the edge of a preview page.
+
+**Second part built 2026-10-18 as Manuscript 0.16.0:** reordering in the Outline drawer (arrows,
+Alt+Shift+Up and Down, drag onto a heading), the Cuttings drawer (put back as the same block,
+delete for good on a second press) and notes edited in the view. Where a cutting came from is
+not kept: that needs a field. Still to do: footnotes. Paragraphs in cells moved to Later: they
+only let a note or a link point at one paragraph inside a cell, and would need the owner's
+files converted.
 
 - Find and replace across the whole manuscript, with a choice to include Cuttings.
 - Go to a paragraph or heading.
@@ -139,8 +144,6 @@ and paragraphs in cells.
 - Reorder sections in the view's Outline drawer, by pointer and keyboard, using Move.
 - A Cuttings drawer: browse, see where a cutting came from, put it back with its ID.
 - Edit a note and mark it done in the view.
-- Paragraphs in cells: a cell owns paragraph blocks, like the rest of the manuscript (from
-  Stage 2).
 - Footnotes: a footnote owns its paragraphs, as a cell does; insert, edit and jump to them;
   native footnotes in Word, a declared fallback in Markdown.
 
@@ -177,6 +180,8 @@ tables and footnotes as native structures; checked by the owner in Word.
 
 ### Later, when the owner wants them
 
+- **Paragraphs in cells:** a cell owns paragraph blocks, like the rest of the manuscript, when a
+  note or a link on one paragraph of a cell is wanted.
 - **Sources and subjects:** typed records linked to passages, with a simple locator; presets
   for fiction (characters, locations) and argument (claims, sources). No bibliography engine.
 - **Revision passes:** a named pass gathers issues and proposed changes, and compares against

@@ -107,8 +107,16 @@ same records; the view keeps no copy of the manuscript in the file.
   note, cut, copy for the agent). A Format menu in Nendo's toolbar names every tool that applies at the caret:
   marks, lists and roles as checks, alignment and style as radios, the rest as items. The menu
   declares no keys, since the editor runs them and a declared key would run the tool twice.
-  The margin counts each paragraph's notes and links. Outline, Notes, Related and the
-  appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
+  The margin counts each paragraph's notes and links. Outline, Notes, Related, Cuttings, Find
+  and the appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
+- The Outline moves a heading's section, the heading and what it holds, past its neighbour of
+  the same level: by its arrows, Alt+Shift+Up or Down on its row, or dragged onto another
+  heading, another chapter included (0.16.0). The blocks keep their IDs; parents and order
+  follow where they stand.
+- Cuttings lists what was kept out of the manuscript. Put back sets a cutting after the
+  paragraph the caret is in, the same block with its notes and links; Delete, pressed twice,
+  deletes it and its notes and links for good. Where a cutting came from is not kept.
+- A note's words and kind are edited in Notes, where the note is.
 
 ## Limits
 

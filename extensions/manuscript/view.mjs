@@ -790,6 +790,7 @@ function declare() {
       { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
       { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
       { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+      { kind: 'toggle', id: 'cuttings', label: 'Cuttings', icon: 'layers', pressed: state.drawer === 'cuttings' },
       { kind: 'toggle', id: 'find', label: 'Find', icon: 'search', pressed: state.drawer === 'find' },
     ]),
     { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
@@ -860,7 +861,7 @@ function command({ id, value }) {
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'find') { if (state.drawer === 'find') closeDrawer(); else openFind(false); return; }
-  if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
+  if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
 }
 
@@ -1379,19 +1380,55 @@ function renderDrawer() {
   drawer.hidden = state.drawer === null;
   document.documentElement.dataset.drawer = state.drawer ?? '';
   if (state.drawer === null) return;
-  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace' }[state.drawer];
+  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace', cuttings: 'Cuttings' }[state.drawer];
   const body = [];
   if (state.drawer === 'find') {
     body.push(findPanel());
     if (find.doc !== sheet.editor.state.doc) { clearTimeout(find.timer); find.timer = setTimeout(refreshFind, 250); }
   }
   if (state.drawer === 'outline') {
+    // Each heading's section can be moved past its neighbour of the same level, by its arrows, by
+    // Alt+Shift+Up or Down on the row, or dragged onto another heading: the same blocks, moved.
+    const move = (id, step) => { if (sheet.moveSection(id, step)) render(); };
     sheet.editor.state.doc.forEach(node => {
       if (node.type.name !== 'heading') return;
-      const id = node.attrs.blockId;
-      body.push(el('button', { type: 'button', class: `outline level-${node.attrs.level}`, on: { click: () => sheet.focusBlock(id) } }, node.textContent || 'Untitled'));
+      const id = node.attrs.blockId, name = node.textContent || 'Untitled';
+      const row = el('div', { class: `outline-row level-${node.attrs.level}`, 'data-id': id, draggable: state.readOnly ? 'false' : 'true',
+        on: {
+          dragstart: e => { e.dataTransfer.setData('text/x-manuscript-section', id); e.dataTransfer.effectAllowed = 'move'; },
+          dragover: e => { if (!e.dataTransfer.types.includes('text/x-manuscript-section')) return; e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.dataset.drop = e.clientY < r.top + r.height / 2 ? 'before' : 'after'; },
+          dragleave: e => { delete e.currentTarget.dataset.drop; },
+          drop: e => {
+            e.preventDefault();
+            const moving = e.dataTransfer.getData('text/x-manuscript-section'), before = e.currentTarget.dataset.drop !== 'after';
+            delete e.currentTarget.dataset.drop;
+            if (moving && sheet.moveSectionTo(moving, id, before)) { state.outlineFocus = moving; render(); }
+          },
+        } },
+        el('button', { type: 'button', class: `outline level-${node.attrs.level}`, title: 'Go to it. Alt+Shift+Up or Down moves it; or drag it onto another heading.',
+          on: { click: () => sheet.focusBlock(id), keydown: e => { if (e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); move(id, e.key === 'ArrowUp' ? -1 : 1); } } } }, name),
+        state.readOnly ? null : el('button', { type: 'button', class: 'quiet outline-move', 'aria-label': `Move ${name} up`, text: '↑', on: { click: () => move(id, -1) } }),
+        state.readOnly ? null : el('button', { type: 'button', class: 'quiet outline-move', 'aria-label': `Move ${name} down`, text: '↓', on: { click: () => move(id, 1) } }));
+      body.push(row);
     });
     if (!body.length) body.push(el('p', { class: 'muted', text: 'No headings yet. Make a line a Part, Chapter or Section with Style, or start it with #, ## or ###.' }));
+  }
+  if (state.drawer === 'cuttings') {
+    // What was kept out of the manuscript, in the order it was kept; put back after the
+    // paragraph the caret is in, the same block with its notes and links.
+    const kept = [...state.saved.values()].filter(b => b.parent === state.cuttings && state.cuttings !== null).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    body.push(el('p', { class: 'muted', text: kept.length ? 'Put back goes after the paragraph the caret is in.' : 'Nothing kept yet. Keep as cutting, or cutting a paragraph, puts it here.' }));
+    for (const b of kept) {
+      const notes = state.notes.filter(n => n.values[F.noteBlock] === b.id).length;
+      body.push(el('div', { class: 'card', 'data-id': b.id },
+        el('p', { text: b.kind === 'Table' ? 'A table' : preview(b.id, 160) }),
+        notes ? el('p', { class: 'muted', text: `${notes} note${notes === 1 ? '' : 's'}` }) : null,
+        state.readOnly ? null : el('div', { class: 'row end' },
+          // Deleting for good asks once, on the button itself: a second press, not a dialog.
+          el('button', { type: 'button', class: 'quiet', text: state.confirmCutting === b.id ? 'Delete for good' : 'Delete',
+            on: { click: () => { if (state.confirmCutting !== b.id) { state.confirmCutting = b.id; render(); return; } state.confirmCutting = null; deleteCutting(b).catch(fail); } } }),
+          el('button', { type: 'button', class: 'primary', text: 'Put back', on: { click: () => putBack(b) } }))));
+    }
   }
   if (state.drawer === 'notes') {
     const here = state.selected && block(state.selected) ? state.selected : null;
@@ -1399,13 +1436,16 @@ function renderDrawer() {
     body.push(el('p', { class: 'muted', text: here ? `On “${preview(here, 50)}”` : 'Every note in the manuscript' }));
     for (const n of list) {
       const done = n.values[F.noteDone] === true;
-      body.push(el('div', { class: 'card' },
+      if (state.editingNote === n.recordId) { body.push(noteEditor(n)); continue; }
+      body.push(el('div', { class: 'card', 'data-id': n.recordId },
         el('div', { class: 'row' }, el('span', { class: `chip ${String(n.values[F.noteKind]).toLowerCase()}`, text: n.values[F.noteKind] ?? 'Note' }),
           el('button', { type: 'button', class: 'quiet', text: 'Go to', on: { click: () => sheet.focusBlock(n.values[F.noteBlock]) } })),
         el('p', { class: done ? 'done' : '', text: n.values[F.noteText] ?? '' }),
         el('div', { class: 'row' },
           el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: done, on: { change: e => setNoteDone(n, e.target.checked).catch(fail) } }), 'Done'),
-          el('button', { type: 'button', class: 'quiet', text: 'Delete', on: { click: () => deleteRecord(n, 'Delete a note').catch(fail) } }))));
+          state.readOnly ? null : el('span', {},
+            el('button', { type: 'button', class: 'quiet', text: 'Edit', on: { click: () => { state.editingNote = n.recordId; state.noteDraft = { text: n.values[F.noteText] ?? '', kind: n.values[F.noteKind] ?? NOTE_KINDS[0] }; render(); $('note-edit')?.focus(); } } }),
+            el('button', { type: 'button', class: 'quiet', text: 'Delete', on: { click: () => deleteRecord(n, 'Delete a note').catch(fail) } })))));
     }
     if (!list.length) body.push(el('p', { class: 'muted', text: here ? 'No notes on this paragraph. Select some text and choose Note.' : 'No notes yet.' }));
   }
@@ -1430,11 +1470,68 @@ function renderDrawer() {
   drawer.setAttribute('aria-label', title);
   const close = el('button', { type: 'button', class: 'drawer-close', 'aria-label': `Close ${title}`, title: 'Close (Esc)', on: { click: closeDrawer } });
   close.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>';
+  // A note being edited keeps its words, its caret and the keyboard when the panel is drawn again,
+  // and so does any control in a row or a card: the same one, found again by its record.
+  const editing = document.activeElement?.id === 'note-edit' ? { start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd } : null;
+  const holder = drawer.contains(document.activeElement) ? document.activeElement.closest('[data-id]') : null;
+  const focused = holder ? { id: holder.dataset.id, index: [...holder.querySelectorAll('button, input, select, textarea')].indexOf(document.activeElement) } : null;
   // The find panel is kept, not drawn again, so typing in it is never interrupted.
   const kept = drawer.querySelector('.drawer-body');
   if (state.drawer === 'find' && kept?.firstChild === find.elements?.root && drawer.querySelector('.drawer-title')?.textContent === title) return;
   drawer.replaceChildren(el('div', { class: 'drawer-head' }, el('h2', { class: 'drawer-title', text: title }), close),
   el('div', { class: 'drawer-body' }, body));
+  if (editing && $('note-edit')) { $('note-edit').focus(); $('note-edit').setSelectionRange(editing.start, editing.end); }
+  else if (state.outlineFocus) { drawer.querySelector(`.outline-row[data-id="${state.outlineFocus}"] .outline`)?.focus(); state.outlineFocus = null; }
+  else if (focused && focused.index >= 0) drawer.querySelector(`[data-id="${focused.id}"]`)?.querySelectorAll('button, input, select, textarea')[focused.index]?.focus();
+}
+
+/** A note's words and kind, edited where the note is. */
+function noteEditor(note) {
+  const draft = state.noteDraft;
+  const kind = el('select', { 'aria-label': 'Kind of note', on: { change: e => { draft.kind = e.target.value; } } }, NOTE_KINDS.map(k => el('option', { value: k, text: k, selected: k === draft.kind })));
+  const text = el('textarea', { id: 'note-edit', rows: '4', 'aria-label': 'Note', on: { input: e => { draft.text = e.target.value; } } });
+  text.value = draft.text;
+  const stop = () => { state.editingNote = null; state.noteDraft = null; render(); };
+  return el('form', { class: 'card note-edit', 'data-id': note.recordId, on: { submit: e => { e.preventDefault(); saveNote(note, draft).catch(fail); },
+    keydown: e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); stop(); } } } },
+    kind, text, el('div', { class: 'row end' }, el('button', { type: 'button', class: 'quiet', text: 'Cancel', on: { click: stop } }), el('button', { type: 'submit', class: 'primary', text: 'Save' })));
+}
+
+async function saveNote(note, draft) {
+  const words = draft.text.trim();
+  if (!words) return;
+  const current = state.notes.find(n => n.recordId === note.recordId) ?? note;
+  await send([{ op: 'update', entityId: NOTE, recordId: note.recordId, version: current.version, values: { [F.noteText]: words, [F.noteKind]: draft.kind }, refs: {} }], 'Edit a note');
+  state.editingNote = null; state.noteDraft = null;
+  render(); declare();
+}
+
+/** The blocks a cutting holds as the sheet reads them: itself, and a table's rows and cells. */
+function cuttingNodes(block) {
+  const nodes = [], children = id => [...state.saved.values()].filter(b => b.parent === id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  const add = b => {
+    nodes.push({ id: b.id, kind: b.kind, text: b.text, role: b.role, align: b.align, list: b.list, level: b.level });
+    if (b.kind === 'Table' || b.kind === 'Row') children(b.id).forEach(add);
+  };
+  add(block);
+  return nodes;
+}
+
+function putBack(block) {
+  sheet.insertBlocks(cuttingNodes(block), state.selected && sheet.locate(state.selected) ? state.selected : null);
+  toast('Put back in the manuscript.');
+  render();
+}
+
+async function deleteCutting(block) {
+  const ids = new Set(cuttingNodes(block).map(n => n.id));
+  const writes = [
+    ...state.notes.filter(n => ids.has(n.values[F.noteBlock])).map(n => ({ op: 'delete', entityId: NOTE, recordId: n.recordId, version: n.version })),
+    ...state.links.filter(l => ids.has(l.values[F.linkFrom]) || ids.has(l.values[F.linkTo])).map(l => ({ op: 'delete', entityId: LINK, recordId: l.recordId, version: l.version })),
+    ...[...ids].reverse().map(id => ({ op: 'delete', entityId: BLOCK, recordId: id, version: state.saved.get(id).version })),
+  ];
+  for (const batch of chunkWrites(writes)) await send(batch, 'Delete a cutting');
+  render(); declare();
 }
 
 // ---------- Find and replace ----------

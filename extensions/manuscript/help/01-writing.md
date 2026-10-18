@@ -14,7 +14,7 @@ There is no Save button. A pause in your typing saves what changed, and the line
 
 **Style** in the toolbar makes the line you are on a **Part**, **Chapter**, **Section** or **Paragraph**. You can also start a line with `#`, `##` or `###` and a space. A heading holds the paragraphs after it, until the next heading at its level or above, so moving a heading moves its chapter.
 
-**Outline** opens the headings beside the page; choose one to go there.
+**Outline** opens the headings beside the page; choose one to go there. Its arrows move a part, chapter or section, with everything under it, past the one before or after it; so do **Alt** **Shift** **↑** and **↓** on its name, and dragging it onto another heading moves it there.
 
 ## Roles
 
@@ -79,7 +79,9 @@ The last group on the bar acts on the whole paragraph:
 
 A paragraph keeps its notes and links wherever it goes. Move it, or cut it and paste it somewhere else in the manuscript, and they go with it; cut it without pasting and it waits under **Cuttings**. Join two paragraphs with **Backspace** and the second one's notes and links go to the first. **Ctrl** **Z** after Manuscript has saved brings a deleted paragraph back with its notes.
 
-A paragraph with notes or links shows how many of each in the right margin, a note icon for notes and a link icon for links; choose them to open its notes, or what it is linked to, beside the page. **Notes** and **Related** in the toolbar show them in full.
+A paragraph with notes or links shows how many of each in the right margin, a note icon for notes and a link icon for links; choose them to open its notes, or what it is linked to, beside the page. **Notes** and **Related** in the toolbar show them in full; **Edit** on a note changes its words and its kind.
+
+**Cuttings** in the toolbar lists what you kept out of the manuscript. **Put back** sets a cutting after the paragraph the caret is in, with its notes and links; **Delete**, pressed twice, removes it for good.
 
 ## Export
 

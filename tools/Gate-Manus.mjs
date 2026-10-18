@@ -883,6 +883,63 @@ async page => {
   assert(described === `![The harbour light at dusk](${puts[0].address})`, `Describe a picture: ${described}`);
   checks.push('a picture inserted, put in the file and described');
 
+  // The Outline moves a chapter with everything it holds: by its arrow, by Alt+Shift+Up on its
+  // row, and dragged onto another heading. The same blocks, in a new order.
+  const chapterOrder = async () => (await Promise.all(['b-ch-3', 'b-ch-4'].map(async id => (await record(BLOCK, id)).values[O])));
+  await page.evaluate(() => window.broker.command('outline'));
+  await frame.waitForSelector('.outline-row[data-id="b-ch-3"]', { timeout: 3000 });
+  await frame.getByRole('button', { name: 'Move The Tide Table down' }).click();
+  await saved();
+  const downOrder = { orders: await chapterOrder(), sheet: (await blockIds()).filter(id => id === 'b-ch-3' || id === 'b-ch-4'), held: (await record(BLOCK, 'b-0415')).values[P], focus: await frame.evaluate(() => [document.activeElement?.closest('.outline-row')?.dataset.id, document.activeElement?.getAttribute('aria-label')]) };
+  assert(downOrder.orders[0] > downOrder.orders[1] && downOrder.sheet.join() === 'b-ch-4,b-ch-3' && downOrder.held === 'b-ch-3' && downOrder.focus.join() === 'b-ch-3,Move The Tide Table down', `Outline move down: ${JSON.stringify(downOrder)}`);
+  await frame.locator('.outline-row[data-id="b-ch-3"] .outline').focus();
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await saved();
+  const upOrder = { orders: await chapterOrder(), sheet: (await blockIds()).filter(id => id === 'b-ch-3' || id === 'b-ch-4') };
+  assert(upOrder.orders[0] < upOrder.orders[1] && upOrder.sheet.join() === 'b-ch-3,b-ch-4', `Outline move by keys: ${JSON.stringify(upOrder)}`);
+  const dropTarget = await frame.locator('.outline-row[data-id="b-ch-3"]').boundingBox();
+  await frame.locator('.outline-row[data-id="b-ch-4"]').dragTo(frame.locator('.outline-row[data-id="b-ch-3"]'), { targetPosition: { x: 20, y: 3 } });
+  await saved();
+  const dragged = { sheet: (await blockIds()).filter(id => id === 'b-ch-3' || id === 'b-ch-4'), box: dropTarget };
+  assert(dragged.sheet.join() === 'b-ch-4,b-ch-3', `Outline drag: ${JSON.stringify(dragged)}`);
+  await frame.getByRole('button', { name: 'Move What the Bar Keeps down' }).click();
+  await saved();
+  assert((await blockIds()).filter(id => id === 'b-ch-3' || id === 'b-ch-4').join() === 'b-ch-3,b-ch-4', 'The chapters did not go back in order.');
+  checks.push('the Outline moves a chapter by arrow, keys and drag');
+
+  // Cuttings: put back after the paragraph the caret is in, the same block; deleted for good on
+  // a second press.
+  await select('b-0501', 0);
+  await page.evaluate(() => window.broker.command('cuttings'));
+  await frame.waitForSelector('#drawer .card[data-id="b-0413"]', { timeout: 3000 });
+  await frame.locator('#drawer .card[data-id="b-0413"]').getByRole('button', { name: 'Put back' }).click();
+  await saved();
+  const restored = { parent: (await record(BLOCK, 'b-0413'))?.values[P], after: await frame.evaluate(() => { const ids = [...document.querySelectorAll('.sheet-text > [data-block]')].map(e => e.dataset.block); return ids[ids.indexOf('b-0501') + 1]; }),
+    link: (await records('mn.link')).some(l => l.values['mn.link.from'] === 'b-0413'), stillListed: await frame.evaluate(() => !!document.querySelector('#drawer .card[data-id="b-0413"]')) };
+  assert(restored.parent === chapterOf && restored.after === 'b-0413' && restored.link && !restored.stillListed, `Put back a cutting: ${JSON.stringify(restored)}`);
+  const doomed = frame.locator('#drawer .card[data-id="b-find-cut"]');
+  await doomed.getByRole('button', { name: 'Delete' }).click();
+  await doomed.getByRole('button', { name: 'Delete for good' }).click();
+  await frame.waitForFunction(() => !document.querySelector('#drawer .card[data-id="b-find-cut"]'), null, { timeout: 5000 });
+  assert(await record(BLOCK, 'b-find-cut') === null, 'A cutting deleted for good is still in the file.');
+  await page.evaluate(() => window.broker.command('cuttings'));
+  checks.push('cuttings put back as the same block, and deleted for good');
+
+  // A note edited where it is: its words and its kind, saved.
+  await select('b-0415', 'pencil');
+  await page.evaluate(() => window.broker.command('notes'));
+  await frame.waitForSelector('#drawer .card[data-id="n-1"]', { timeout: 3000 });
+  await frame.locator('#drawer .card[data-id="n-1"]').getByRole('button', { name: 'Edit' }).click();
+  await frame.waitForFunction(() => document.activeElement?.id === 'note-edit', null, { timeout: 3000 });
+  await frame.fill('#note-edit', 'Whose hand wrote the pencil line, and when?');
+  await frame.selectOption('#drawer .note-edit select', 'Task');
+  await frame.getByRole('button', { name: 'Save' }).click();
+  await frame.waitForFunction(() => !document.getElementById('note-edit'), null, { timeout: 5000 });
+  const edited = (await record('mn.note', 'n-1')).values;
+  assert(edited['mn.note.text'] === 'Whose hand wrote the pencil line, and when?' && edited['mn.note.kind'] === 'Task', `Edit a note: ${JSON.stringify(edited)}`);
+  await page.evaluate(() => window.broker.command('notes'));
+  checks.push('a note edited in the side panel');
+
   // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
   // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;
   // the close button and Escape put it away, and the toggle is released.
