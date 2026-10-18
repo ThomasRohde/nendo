@@ -33,7 +33,7 @@ test('characters Markdown would read as syntax come back as typed', () => {
 });
 
 test('Markdown written elsewhere keeps its characters when it is not inline syntax', () => {
-  assert.deepEqual(markdownToInline('see [the map](https://example.org)', Lexer), [t('see [the map](https://example.org)')]);
+  assert.deepEqual(markdownToInline('see ![a map](https://example.org/map.png) here', Lexer), [t('see ![a map](https://example.org/map.png) here')]);
   assert.deepEqual(markdownToInline('one\n\ntwo', Lexer), [t('one'), { type: 'hardBreak' }, t('two')]);
   assert.deepEqual(markdownToInline('soft\nwrap', Lexer), [t('soft wrap')]);
   assert.deepEqual(markdownToInline('', Lexer), []);
@@ -65,4 +65,19 @@ test('a tag typed as text stays text, and one written elsewhere without its clos
   assert.deepEqual(roundTrip([t('type <u> and <mark> here')]), [t('type <u> and <mark> here')]);
   assert.deepEqual(markdownToInline('open <u>never closed', Lexer), [t('open <u>never closed')]);
   assert.deepEqual(markdownToInline('<U>upper</U> and <mark>**bold**</mark>', Lexer), [t('upper', 'underline'), t(' and '), t('bold', 'highlight', 'bold')]);
+});
+
+test('a link written [words](address) is a link with its marks, and comes back as written', () => {
+  const link = (text, href, ...marks) => ({ type: 'text', text, marks: [{ type: 'link', attrs: { href } }, ...marks.map(type => ({ type }))] });
+  const cases = [
+    [t('see '), link('the tide table', 'https://example.org/tides'), t('.')],
+    [link('bold link', 'https://a.example', 'bold'), t(' and '), link('other', 'https://b.example')],
+    [link('one', 'https://a.example'), link('two', 'https://b.example')],
+    [link('spaced', 'https://example.org/a b(c)')],
+  ];
+  for (const content of cases) assert.deepEqual(roundTrip(content), content, inlineToMarkdown(content));
+  assert.equal(inlineToMarkdown(cases[0]), 'see [the tide table](https://example.org/tides).');
+  // Written elsewhere, a bare address, an angle-bracket one and a titled link stay as their characters.
+  for (const text of ['https://example.org', '<https://example.org>', '[titled](https://example.org "Title")'])
+    assert.equal(markdownToInline(text, Lexer).some(n => n.marks?.some(m => m.type === 'link')), false, text);
 });

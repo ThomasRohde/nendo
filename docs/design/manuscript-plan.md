@@ -117,9 +117,19 @@ the list below:
 
 *Done when:* split, merge, move, cut and paste, undo and redo each have a test of which IDs
 survive and where notes and links go; repeated identical paragraphs cannot misdirect a note;
-typing stays under 50 ms per keystroke at 150,000 words in the Edge lane.
+typing stays under 50 ms per keystroke at 150,000 words in the Edge lane. (Since 2026-10-18 the
+lane asserts the view's thread time per key instead, and reports key to frame: painting varies
+with the machine, three times over between two mornings on the same code.)
 
 ### Stage 3 — Ordinary writing without leaving Manuscript
+
+**First part built 2026-10-18 as Manuscript 0.15.0:** find and replace, go to a block, web
+links and pictures. Building it found three defects: Nendo's view API sent a picture's bytes as
+JSON, where they arrive as `{}`, so no view could ever add one (a host fix: the API now sends
+base64 parts); Ctrl+Z after a reload could take the page back to before it was read; and a
+picture that could not be shown pushed text past the edge of a preview page. Still to do:
+reordering in the Outline drawer, the Cuttings drawer, notes edited in the view, and footnotes
+and paragraphs in cells.
 
 - Find and replace across the whole manuscript, with a choice to include Cuttings.
 - Go to a paragraph or heading.

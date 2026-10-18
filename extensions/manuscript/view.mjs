@@ -49,6 +49,7 @@ const sheet = createSheet({
   canAlign: () => state.aligns && !state.readOnly,
   canList: () => state.lists && !state.readOnly,
   canReuse: id => mayComeBack(id),
+  onFind: withReplace => openFind(withReplace),
 });
 
 /**
@@ -210,6 +211,7 @@ async function readAll() {
 
 async function load() {
   const { manuscript, notes, links } = await readAll();
+  state.loads = (state.loads ?? 0) + 1;
   const switched = manuscript.root !== state.root;
   state.root = manuscript.root; state.cuttings = manuscript.cuttings; state.manuscripts = manuscript.manuscripts; state.wanted = null;
   state.saved = manuscript.saved; state.notes = notes; state.links = links;
@@ -541,7 +543,7 @@ function inlineNodes(markdown) {
     if (node.type === 'hardBreak') { out.append(document.createElement('br')); continue; }
     let element = document.createTextNode(node.text);
     for (const mark of node.marks ?? []) {
-      const tag = { bold: 'strong', italic: 'em', underline: 'u', strike: 's', highlight: 'mark', code: 'code' }[mark.type];
+      const tag = { bold: 'strong', italic: 'em', underline: 'u', strike: 's', highlight: 'mark', code: 'code', link: 'a' }[mark.type];
       if (!tag) continue;
       const wrap = document.createElement(tag); wrap.append(element); element = wrap;
     }
@@ -567,13 +569,14 @@ function blockBody(block, layout, sizes) {
   if (block.kind === 'figure') {
     const widths = figureWidths(block, layout);
     return el('div', { class: 'pv-figure' }, block.pictures.map((picture, i) => {
-      // Its height is known before it is laid out, so a sheet is filled with the room it takes.
-      const size = sizes.get(picture.address), height = size ? `;height:${Math.round(widths[i] * size.height / size.width)}px` : '';
-      const box = el('span', { class: 'pv-picture', style: `width:${widths[i]}px${height}` });
-      Promise.resolve(resolvePicture(picture.address)).then(url => {
-        if (url) box.append(el('img', { src: url, alt: picture.alt || '', style: `width:${widths[i]}px` }));
-        else box.append(el('span', { class: 'pv-missing', text: `Picture: ${picture.alt || 'no description'}` }));
-      });
+      // Its height is known before it is laid out, so a sheet is filled with the room it takes:
+      // the picture's own shape, or three by two for one that is missing or could not be read.
+      const size = sizes.get(picture.address), known = size && size !== MISSING;
+      const height = Math.round(widths[i] * (known ? size.height / size.width : 2 / 3));
+      const box = el('span', { class: 'pv-picture', style: `width:${widths[i]}px;height:${height}px${known ? '' : ';overflow:hidden'}` });
+      const missing = () => el('span', { class: 'pv-missing', text: `Picture: ${picture.alt || 'no description'}` });
+      if (size === MISSING) box.append(missing());
+      else Promise.resolve(resolvePicture(picture.address)).then(url => box.append(url ? el('img', { src: url, alt: picture.alt || '', style: `width:${widths[i]}px` }) : missing()));
       return box;
     }));
   }
@@ -596,12 +599,15 @@ function blockBody(block, layout, sizes) {
  * across columns or sheets.
  */
 /** Each picture's natural size, by address, for the pictures the plan shows and that load. */
+// A picture the file cannot show: its box is drawn at once, with the room it takes, rather than
+// after the page is laid out, where it would push what follows past the sheet's edge.
+const MISSING = 'missing';
 async function pictureSizes(plan) {
   const addresses = [...new Set(plan.items.filter(item => item.type === 'picture').map(item => item.address))];
   const sizes = new Map();
   await Promise.all(addresses.map(async address => {
     const url = await resolvePicture(address);
-    if (!url) return;
+    if (!url) { sizes.set(address, MISSING); return; }
     const image = new Image();
     image.src = url;
     try { await image.decode(); } catch { return; }
@@ -784,6 +790,7 @@ function declare() {
       { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
       { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
       { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+      { kind: 'toggle', id: 'find', label: 'Find', icon: 'search', pressed: state.drawer === 'find' },
     ]),
     { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [
       { id: 'export-markdown', label: 'Markdown', detail: 'A .zip with the text and its pictures' },
@@ -852,6 +859,7 @@ function command({ id, value }) {
   if (id === 'manuscript') { (value === 'new' ? startManuscript() : openManuscript(value)).catch(fail); return; }
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
+  if (id === 'find') { if (state.drawer === 'find') closeDrawer(); else openFind(false); return; }
   if (id === 'outline' || id === 'notes' || id === 'related') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
 }
@@ -930,6 +938,10 @@ const ICON = {
   add: '<path d="M8 3.5v9M3.5 8h9"/>',
   pin: '<path d="M9.5 2.5l4 4-2 1-2.5 2.5.5 2.5-1 1-6-6 1-1 2.5.5 2.5-2.5zM5.5 10.5 2.5 13.5"/>',
   'move-up': '<path d="M8 13V3.5M4.5 7 8 3.5 11.5 7"/>',
+  weblink: '<circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11"/>',
+  picture: '<path d="M2.5 3.5h11v9h-11z"/><path d="M2.5 11l3.5-3.5 3 3 2-2 2.5 2.5"/><circle cx="10.5" cy="6" r="1"/>',
+  describe: '<path d="M2.5 12.5h3l7-7-3-3-7 7z"/><path d="M8.5 3.5l3 3"/>',
+  caption: '<path d="M2.5 2.5h11v7h-11zM2.5 12h11M2.5 14h7"/>',
   'move-down': '<path d="M8 3v9.5M4.5 9 8 12.5 11.5 9"/>',
 };
 function svg(name) {
@@ -947,6 +959,7 @@ const TOOLS = [
   { id: 'strike', label: 'Strikethrough', keys: 'Ctrl+Shift+S', group: 'text', mark: 'strike' },
   { id: 'code', label: 'Inline code', keys: 'Ctrl+E', group: 'text', mark: 'code' },
   { id: 'highlight', label: 'Highlight', keys: 'Ctrl+Shift+H', group: 'text', mark: 'highlight' },
+  { id: 'weblink', label: 'Web link', keys: '', group: 'text' },
   { id: 'clear', label: 'Clear formatting', keys: '', group: 'text' },
   { id: 'align-left', label: 'Align left', keys: 'Ctrl+Shift+L', group: 'align', align: 'Left' },
   { id: 'align-centre', label: 'Centre', keys: 'Ctrl+Shift+E', group: 'align', align: 'Centre' },
@@ -962,6 +975,7 @@ const TOOLS = [
   { id: 'indent', label: 'Indent list item', keys: 'Tab', group: 'paragraph', step: 1 },
   { id: 'outdent', label: 'Outdent list item', keys: 'Shift+Tab', group: 'paragraph', step: -1 },
   { id: 'table', label: 'Insert table', keys: '', group: 'paragraph' },
+  { id: 'picture', label: 'Insert picture', keys: '', group: 'paragraph' },
   { id: 'row-after', label: 'Add row below', keys: '', group: 'table', command: 'addRowAfter' },
   { id: 'column-after', label: 'Add column right', keys: '', group: 'table', command: 'addColumnAfter' },
   { id: 'row-delete', label: 'Delete row', keys: '', group: 'table', command: 'deleteRow' },
@@ -1006,6 +1020,7 @@ function toolsFor(node) {
     if (t.list) return state.lists && kind === 'paragraph';
     if (t.step) return state.lists && kind === 'paragraph' && !!node.attrs.list;
     if (t.id === 'table') return state.tables;
+    if (t.id === 'picture') return state.media;
     if (t.id === 'cut') return kind !== 'heading';
     return true;
   });
@@ -1014,6 +1029,7 @@ function toolsFor(node) {
 /** Whether a tool's setting holds where the selection is, or null for a tool that is an action. */
 function toolOn(t) {
   if (t.mark) return sheet.editor.isActive(t.mark);
+  if (t.id === 'weblink') return sheet.editor.isActive('link');
   if (t.align) { const a = sheet.alignHere(); return t.align === 'Left' ? a === null || a === 'Left' : a === t.align; }
   if (t.style) return sheet.styleHere() === t.style;
   if (t.role) return sheet.roleHere() === t.role;
@@ -1033,6 +1049,8 @@ function runTool(t) {
   else if (t.list) sheet.setList(sheet.listHere() === t.list ? null : t.list);
   else if (t.step) sheet.indent(t.step);
   else if (t.id === 'table') sheet.insertTable();
+  else if (t.id === 'picture') choosePicture();
+  else if (t.id === 'weblink') openPopover('weblink', { href: sheet.linkHere() ?? '' });
   else if (t.command) editor.chain().focus()[t.command]().run();
   else if (t.id === 'link') openPopover('link');
   else if (t.id === 'note') openPopover('note');
@@ -1243,6 +1261,11 @@ function blockMenu(node) {
       section('Align', row);
     }
   }
+  if (kind === 'picture') {
+    section('Picture',
+      menuItem({ label: 'Describe picture', icon: 'describe', run: () => openPopover('describe', { id, alt: node.attrs.alt ?? '' }) }),
+      state.roles && menuItem({ label: 'Add a caption below', icon: 'caption', run: () => { sheet.insertAfter(id, 'Paragraph'); sheet.setRole('Caption'); } }));
+  }
   if (kind === 'table') {
     section('Table',
       menuItem({ label: 'Add a row at the end', icon: 'row-after', run: () => sheet.tableAction(id, 'addRowAfter') }),
@@ -1281,6 +1304,7 @@ function addMenu(node) {
       state.lists && add('Bulleted list', 'bulleted', '- ', 'Bulleted'),
       state.lists && add('Numbered list', 'numbered', '1. ', 'Numbered'),
       state.tables && add('Table', 'table', '', 'Table'),
+      state.media && menuItem({ label: 'Picture', icon: 'picture', run: () => { sheet.focusBlock(id); choosePicture(); } }),
       add('Section heading', 'section', '###', 'Section'),
       add('Chapter heading', 'chapter', '##', 'Chapter')].filter(Boolean));
 }
@@ -1294,6 +1318,25 @@ function popover(top) {
     return el('form', { class: 'popover', style: `top:${top}px`, on: { submit: e => { e.preventDefault(); if (text.value.trim()) addNote(kind.value, text.value.trim()).catch(fail); } } },
       el('div', { class: 'row' }, el('strong', { text: 'Note on this paragraph' }), kind), text,
       el('div', { class: 'row end' }, close, el('button', { type: 'submit', class: 'primary', text: 'Add note' })));
+  }
+  if (p.kind === 'weblink') {
+    const input = el('input', { id: 'weblink-href', type: 'text', inputmode: 'url', value: p.href ?? '', placeholder: 'https://…', 'aria-label': 'Web address', autocomplete: 'off' });
+    const remove = p.href ? el('button', { type: 'button', class: 'quiet', text: 'Remove link', on: { click: () => { sheet.unsetLink(); closePopover(); placeOverlays(); declare(); } } }) : null;
+    return el('form', { class: 'popover', style: `top:${top}px`, on: { submit: e => {
+      e.preventDefault();
+      const href = webAddress(input.value);
+      if (!href) { input.setCustomValidity('A web address, such as example.org or https://example.org, or mailto: and an email address.'); input.reportValidity(); return; }
+      sheet.setLink(href); closePopover(); placeOverlays(); declare();
+    } } },
+    el('strong', { text: p.href ? 'Web link' : 'Link to a web page' }), input,
+    el('div', { class: 'row end' }, remove, close, el('button', { type: 'submit', class: 'primary', text: p.href ? 'Change' : 'Link' })));
+  }
+  if (p.kind === 'describe') {
+    const input = el('input', { id: 'picture-alt', type: 'text', value: p.alt ?? '', 'aria-label': 'What the picture shows', autocomplete: 'off' });
+    return el('form', { class: 'popover', style: `top:${top}px`, on: { submit: e => { e.preventDefault(); sheet.describePicture(p.id, input.value.trim()); closePopover(); placeOverlays(); } } },
+      el('strong', { text: 'What the picture shows' }), input,
+      el('p', { class: 'muted', text: 'Shown under the picture, and read out for anyone who cannot see it. An export uses it as the picture’s description.' }),
+      el('div', { class: 'row end' }, close, el('button', { type: 'submit', class: 'primary', text: 'Save' })));
   }
   if (p.kind === 'reference') {
     return el('div', { class: 'popover', style: `top:${top}px` }, el('strong', { text: 'Copy this, then paste it into the Agent tab' }),
@@ -1336,8 +1379,12 @@ function renderDrawer() {
   drawer.hidden = state.drawer === null;
   document.documentElement.dataset.drawer = state.drawer ?? '';
   if (state.drawer === null) return;
-  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages' }[state.drawer];
+  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace' }[state.drawer];
   const body = [];
+  if (state.drawer === 'find') {
+    body.push(findPanel());
+    if (find.doc !== sheet.editor.state.doc) { clearTimeout(find.timer); find.timer = setTimeout(refreshFind, 250); }
+  }
   if (state.drawer === 'outline') {
     sheet.editor.state.doc.forEach(node => {
       if (node.type.name !== 'heading') return;
@@ -1383,8 +1430,152 @@ function renderDrawer() {
   drawer.setAttribute('aria-label', title);
   const close = el('button', { type: 'button', class: 'drawer-close', 'aria-label': `Close ${title}`, title: 'Close (Esc)', on: { click: closeDrawer } });
   close.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/></svg>';
+  // The find panel is kept, not drawn again, so typing in it is never interrupted.
+  const kept = drawer.querySelector('.drawer-body');
+  if (state.drawer === 'find' && kept?.firstChild === find.elements?.root && drawer.querySelector('.drawer-title')?.textContent === title) return;
   drawer.replaceChildren(el('div', { class: 'drawer-head' }, el('h2', { class: 'drawer-title', text: title }), close),
   el('div', { class: 'drawer-body' }, body));
+}
+
+// ---------- Find and replace ----------
+// Across the whole manuscript, the paragraphs off screen and the table cells included, and the
+// Cuttings when asked. The run Find is on is drawn as found; the others are counted and listed.
+
+const find = { query: '', matchCase: false, cuttings: false, at: -1, runs: [], kept: [], doc: null, timer: null, elements: null };
+const FIND_LIST = 100;
+
+function openFind(withReplace) {
+  const { from, to, empty } = sheet.editor.state.selection;
+  const picked = empty ? '' : sheet.editor.state.doc.textBetween(from, to, ' ');
+  state.drawer = 'find';
+  render(); declare();
+  const e = find.elements;
+  if (picked && picked.length <= 200 && !picked.includes('\n')) { e.query.value = picked; find.query = picked; find.at = -1; refreshFind(); }
+  (withReplace && e.query.value ? e.replace : e.query).focus();
+  (withReplace && e.query.value ? e.replace : e.query).select();
+}
+
+function findPanel() {
+  if (find.elements) return find.elements.root;
+  const query = el('input', { type: 'search', id: 'find-query', 'aria-label': 'Find', placeholder: 'Find in the manuscript', autocomplete: 'off', spellcheck: 'false' });
+  const replace = el('input', { type: 'text', id: 'find-replace', 'aria-label': 'Replace with', placeholder: 'Replace with', autocomplete: 'off', spellcheck: 'false' });
+  const matchCase = el('input', { type: 'checkbox', id: 'find-case' });
+  const cuttings = el('input', { type: 'checkbox', id: 'find-cuttings' });
+  const count = el('p', { class: 'muted', id: 'find-count', 'aria-live': 'polite' });
+  const results = el('div', { class: 'results find-results', id: 'find-results' });
+  const button = (text, run, primary = false) => el('button', { type: 'button', class: primary ? 'primary' : 'quiet', text, on: { click: () => run() } });
+  query.addEventListener('input', () => { find.query = query.value; find.at = -1; clearTimeout(find.timer); find.timer = setTimeout(refreshFind, 120); });
+  query.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); refreshFind(); stepFind(e.shiftKey ? -1 : 1); } });
+  replace.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); replaceFound(false).catch(fail); } });
+  matchCase.addEventListener('change', () => { find.matchCase = matchCase.checked; find.at = -1; refreshFind(); });
+  cuttings.addEventListener('change', () => { find.cuttings = cuttings.checked; refreshFind(); });
+  const root = el('div', { class: 'find' },
+    query,
+    el('div', { class: 'row' }, el('label', { class: 'check' }, matchCase, 'Match case'), el('label', { class: 'check' }, cuttings, 'Cuttings too')),
+    el('div', { class: 'row end' }, button('Previous', () => stepFind(-1)), button('Next', () => stepFind(1))),
+    replace,
+    el('div', { class: 'row end' }, button('Replace', () => replaceFound(false).catch(fail)), button('Replace all', () => replaceFound(true).catch(fail), true)),
+    count, results);
+  find.elements = { root, query, replace, matchCase, cuttings, count, results };
+  return root;
+}
+
+/** The cuttings of this manuscript whose words hold the query, as saved. */
+function cuttingsFound() {
+  if (!find.cuttings || !find.query || state.cuttings === null) return [];
+  const pattern = findPattern();
+  const under = id => { for (let p = state.saved.get(id)?.parent, d = 0; p && d < 64; p = state.saved.get(p)?.parent, d++) if (p === state.cuttings) return true; return false; };
+  return [...state.saved.values()].filter(b => under(b.id) && b.text && (pattern.lastIndex = 0, pattern.test(b.text)));
+}
+const findPattern = () => new RegExp(find.query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), find.matchCase ? 'gu' : 'giu');
+
+function refreshFind() {
+  clearTimeout(find.timer);
+  const e = find.elements;
+  if (!e) return;
+  find.doc = sheet.editor.state.doc;
+  find.runs = sheet.find(find.query, { matchCase: find.matchCase });
+  find.kept = cuttingsFound();
+  if (find.at >= find.runs.length) find.at = find.runs.length - 1;
+  sheet.showFound(find.at >= 0 ? find.runs[find.at] : null);
+  const n = find.runs.length, k = find.kept.length;
+  e.count.textContent = !find.query ? 'Type a word or a phrase.'
+    : `${n === 10000 ? 'At least 10,000' : n.toLocaleString()} in the manuscript${find.cuttings ? `, ${k.toLocaleString()} in Cuttings` : ''}${find.at >= 0 ? ` · on ${find.at + 1}` : ''}`;
+  const doc = find.doc, items = [];
+  // A block's ID, pasted as Copy for the agent copies it, goes straight to the block.
+  const asked = /\bb-[0-9a-z][\w-]*/.exec(find.query)?.[0];
+  if (asked && sheet.locate(asked)) items.push(el('button', { type: 'button', class: 'hit heading', on: { click: () => sheet.focusBlock(asked) } }, `Go to block ${asked}: ${preview(asked, 60)}`));
+  find.runs.slice(0, FIND_LIST).forEach((run, i) => {
+    const before = doc.textBetween(Math.max(0, run.from - 36), run.from, ' ', ' '), word = doc.textBetween(run.from, run.to, ' ', ' '), after = doc.textBetween(run.to, Math.min(doc.content.size, run.to + 36), ' ', ' ');
+    items.push(el('button', { type: 'button', class: `hit${i === find.at ? ' on' : ''}`, 'aria-current': i === find.at ? 'true' : null, on: { click: () => { find.at = i; sheet.selectRange(run.from, run.to); refreshFind(); } } },
+      `…${before.slice(-36)}`, el('mark', { text: word }), `${after.slice(0, 36)}…`));
+  });
+  if (n > FIND_LIST) items.push(el('p', { class: 'muted', text: `And ${(n - FIND_LIST).toLocaleString()} more: Next goes through them all.` }));
+  for (const b of find.kept.slice(0, 20)) items.push(el('div', { class: 'hit kept' }, el('span', { class: 'chip', text: 'Cuttings' }), ` ${preview(b.id, 80)}`));
+  e.results.replaceChildren(...items);
+}
+
+function stepFind(direction) {
+  if (!find.runs.length) return;
+  const n = find.runs.length;
+  if (find.at < 0) {
+    // From the caret: the first match after it, or before it going back.
+    const caret = sheet.editor.state.selection.from;
+    const next = find.runs.findIndex(r => r.from >= caret);
+    find.at = direction > 0 ? (next < 0 ? 0 : next) : ((next < 0 ? n : next) - 1 + n) % n;
+  } else find.at = (find.at + direction + n) % n;
+  sheet.showFound(find.runs[find.at]);
+  refreshFind();
+}
+
+/** Replaces the match Find is on, or every match; with Cuttings too, in the cuttings as saved. */
+async function replaceFound(all) {
+  refreshFind();
+  const text = find.elements.replace.value;
+  if (!find.query) return;
+  if (!all) {
+    if (find.at < 0) { stepFind(1); return; }
+    sheet.replace([find.runs[find.at]], text);
+    refreshFind();
+    if (find.runs.length) { if (find.at >= find.runs.length) find.at = 0; sheet.showFound(find.runs[find.at]); refreshFind(); }
+    return;
+  }
+  const n = find.runs.length, kept = find.kept;
+  sheet.replace(find.runs, text);
+  if (kept.length) {
+    await flush();
+    const pattern = findPattern();
+    const writes = kept.map(b => ({ op: 'update', entityId: BLOCK, recordId: b.id, version: b.version, values: { [F.text]: b.text.replace(pattern, text.replace(/\$/g, '$$$$')) || null }, refs: {} }));
+    for (const batch of chunkWrites(writes)) await send(batch, 'Replace in Cuttings');
+  }
+  find.at = -1;
+  refreshFind();
+  toast(`Replaced ${(n + kept.length).toLocaleString()}${n === 10000 ? ', the first 10,000 in the manuscript' : ''}.`);
+}
+
+/** A web address as typed, made whole: example.org is https://example.org. Null for anything that is not one. */
+function webAddress(text) {
+  const value = text.trim();
+  if (!value) return null;
+  const full = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+  try { const url = new URL(full); return ['http:', 'https:', 'mailto:'].includes(url.protocol) && (url.protocol === 'mailto:' || url.hostname.includes('.')) ? full : null; } catch { return null; }
+}
+
+/** A picture from this computer, put in the file and on the page after the paragraph the caret is in. */
+function choosePicture() {
+  const input = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp,image/avif,image/svg+xml', hidden: true });
+  input.addEventListener('change', async () => {
+    const file = input.files?.[0];
+    input.remove();
+    if (!file) return;
+    try {
+      setStatus('Adding the picture…');
+      const { address } = await nendo.media.put(file, { mediaType: file.type || undefined });
+      sheet.insertPicture(address, file.name.replace(/\.[^.]+$/, ''));
+    } catch (error) { fail(error); }
+  }, { once: true });
+  document.body.append(input);
+  input.click();
 }
 
 // ---------- Start ----------
@@ -1401,6 +1592,8 @@ async function start(context) {
     const kinds = (field(F.kind)?.choices ?? []).filter(c => !c.retired).map(c => c.id ?? c);
     state.roles = has(F.role); state.aligns = has(F.align); state.lists = has(F.list) && has(F.level);
     state.tables = ['Table', 'Row', 'Cell'].every(kind => kinds.includes(kind));
+    // A picture is added from this computer only where Nendo lets a view put media in the file.
+    state.media = nendo.has?.('media.put') === true;
   } catch { state.roles = false; state.aligns = false; state.lists = false; state.tables = false; }
   state.pins = readPins();
   applyAppearance();

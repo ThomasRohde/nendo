@@ -146,10 +146,13 @@ function runs(markdown, lib, Lexer, size, base = 22, italic = false, bold = fals
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.push(new lib.TextRun({ text: '', break: 1 })); continue; }
     const marks = new Set((node.marks ?? []).map(m => m.type));
+    const href = (node.marks ?? []).find(m => m.type === 'link')?.attrs?.href;
     // Only marks that are on: a run that says bold false would override a bold heading style.
-    out.push(new lib.TextRun({ text: node.text, bold: bold || marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
+    const run = new lib.TextRun({ text: node.text, bold: bold || marks.has('bold') || undefined, italics: italic || marks.has('italic') || undefined, strike: marks.has('strike') || undefined,
       underline: marks.has('underline') ? {} : undefined, highlight: marks.has('highlight') ? 'yellow' : undefined,
-      font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size }));
+      font: marks.has('code') ? 'Consolas' : undefined, size: marks.has('code') ? Math.round((size ?? base) * 0.88) : size, style: href ? 'Hyperlink' : undefined });
+    // A web link is Word's own hyperlink, which a click in Word follows.
+    out.push(href && lib.ExternalHyperlink ? new lib.ExternalHyperlink({ link: href, children: [run] }) : run);
   }
   return out;
 }

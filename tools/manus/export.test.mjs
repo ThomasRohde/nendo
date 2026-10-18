@@ -268,3 +268,13 @@ test('tables: one plan item of rows, a pipe table in Markdown, and a Word table 
     assert.match(xml, /<w:i\/>[\s\S]*?>4</, layout);
   }
 });
+
+test('a web link is a hyperlink in Word and stays [words](address) in Markdown', async () => {
+  const plan = exportPlan({ title: 'Links', nodes: [{ id: 'p', kind: 'Paragraph', text: 'See [the tide table](https://example.org/tides) first.' }] });
+  assert.match(toMarkdown(plan), /See \[the tide table\]\(https:\/\/example\.org\/tides\) first\./);
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toBuffer(toDocx(plan, new Map(), lib, Lexer, 'book').document));
+  const xml = await zip.file('word/document.xml').async('string'), rels = await zip.file('word/_rels/document.xml.rels').async('string');
+  const id = /<w:hyperlink[^>]* r:id="([^"]+)"[^>]*>(?:(?!<\/w:hyperlink>).)*the tide table/s.exec(xml)?.[1];
+  assert.ok(id, 'the words are inside a w:hyperlink');
+  assert.match(rels, new RegExp(`Id="${id}"[^>]*Target="https://example.org/tides"[^>]*TargetMode="External"|Target="https://example.org/tides"[^>]*TargetMode="External"[^>]*Id="${id}"`));
+});

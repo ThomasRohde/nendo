@@ -5,7 +5,7 @@
 // or cut and pasted back into its own manuscript, keeps its ID; a copy is a new block, never a
 // second copy of an existing one. A list item is a paragraph with a List and a Level; a table, each of its rows
 // and each of its cells carry IDs of their own, as the blocks they are.
-import { Editor, Extension, InputRule, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Slice, Fragment, TextSelection, Lexer, Table, TableRow, TableCell, TableHeader } from './vendor/editor.js';
+import { Editor, Extension, InputRule, Mark, Node, StarterKit, Placeholder, Plugin, PluginKey, Slice, Fragment, TextSelection, EditorState, Decoration, DecorationSet, Lexer, Table, TableRow, TableCell, TableHeader } from './vendor/editor.js';
 import { numberLists } from './export.mjs';
 import { levelOf, kindOf, newBlockId, LISTS, MAX_LEVEL } from './model.mjs';
 import { inlineToMarkdown, markdownToInline, pictureOf, pictureMarkdown } from './inline.mjs';
@@ -312,6 +312,26 @@ const ListMarkers = Extension.create({
   },
 });
 
+/** The match Find is on, drawn as found: one decoration, set by `sheet.showFound`. */
+const FOUND = new PluginKey('found');
+const Found = Extension.create({
+  name: 'found',
+  addProseMirrorPlugins() {
+    return [new Plugin({
+      key: FOUND,
+      state: {
+        init: () => DecorationSet.empty,
+        apply(tr, set) {
+          const at = tr.getMeta(FOUND);
+          if (at === undefined) return set.map(tr.mapping, tr.doc);
+          return at ? DecorationSet.create(tr.doc, [Decoration.inline(at.from, at.to, { class: 'found' })]) : DecorationSet.empty;
+        },
+      },
+      props: { decorations(state) { return this.getState(state); } },
+    })];
+  },
+});
+
 // A table cell holds paragraphs only; on the sheet its first row is the header row.
 const Cell = TableCell.extend({ content: 'paragraph+' });
 const HeaderCell = TableHeader.extend({ content: 'paragraph+' });
@@ -425,7 +445,7 @@ function pictureNode(resolve) {
  * selection is: {id, index, empty, single} for the block it starts in. `canAlign` and
  * `canList` say whether the file has the Align and List fields.
  */
-export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false, canList = () => false, canReuse = () => false }) {
+export function createSheet({ element, editable, onChange, onSelect, placeholder, resolvePicture = () => null, canAlign = () => false, canList = () => false, canReuse = () => false, onFind = () => {} }) {
   let setAlign = () => {};
   let sheet = null;
   // Since the last save: which removed block's text went into which, and which blocks were cut whole.
@@ -446,7 +466,11 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         blockquote: false, bulletList: false, orderedList: false, listItem: false, listKeymap: false,
-        codeBlock: false, horizontalRule: false, link: false,
+        codeBlock: false, horizontalRule: false,
+        // A link is written [words](address). A click on one selects it rather than leaving the
+        // page; typing an address leaves it as typed, and pasting one over words links them.
+        link: { openOnClick: false, enableClickSelection: true, autolink: false, linkOnPaste: true, defaultProtocol: 'https',
+          protocols: ['http', 'https', 'mailto'], HTMLAttributes: { rel: 'noopener noreferrer nofollow', target: null } },
         // A trailing empty paragraph after a closing picture would be a new block written on open.
         trailingNode: false,
       }),
@@ -456,8 +480,11 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
       alignKeys(canAlign, value => setAlign(value)),
       // Alt+Shift+Up and Down move the blocks the selection touches, as Word moves paragraphs.
       Extension.create({ name: 'moveKeys', addKeyboardShortcuts: () => ({ 'Alt-Shift-ArrowUp': () => sheet.move(-1), 'Alt-Shift-ArrowDown': () => sheet.move(1) }) }),
+      // Ctrl+F finds, Ctrl+H finds and replaces, in the whole manuscript.
+      Extension.create({ name: 'findKeys', addKeyboardShortcuts: () => ({ 'Mod-f': () => { onFind(false); return true; }, 'Mod-h': () => { onFind(true); return true; } }) }),
       listKeys(canList, () => sheet),
       ListMarkers,
+      Found,
       Table.configure({ resizable: false, HTMLAttributes: { class: 'sheet-table' } }),
       TableRow, HeaderCell, Cell,
       pictureNode(resolvePicture),
@@ -562,8 +589,74 @@ export function createSheet({ element, editable, onChange, onSelect, placeholder
     /** Replaces the whole sheet with these blocks, without counting it as an edit. */
     load(nodes) {
       editor.commands.setContent({ type: 'doc', content: documentJSON(nodes) }, { emitUpdate: false });
+      // Reading the file is not an edit, and Ctrl+Z must never take the page back to before it:
+      // the undo history starts again with what was read.
+      const { doc, selection, plugins } = editor.state;
+      editor.view.updateState(EditorState.create({ doc, selection, plugins }));
       merged.clear(); cut.clear();
       remember();
+    },
+    /**
+     * Where `query` occurs, in reading order, cells included: [{from, to, id}], `id` the block it is
+     * in (a table's for a cell). At most `limit`. A picture is not text and is not searched.
+     */
+    find(query, { matchCase = false, limit = 10000 } = {}) {
+      const found = [];
+      if (!query) return found;
+      const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'gu' : 'giu');
+      editor.state.doc.forEach((top, offset) => {
+        if (found.length >= limit) return;
+        const id = top.attrs.blockId;
+        const search = (node, pos) => {
+          // A leaf (a line break) is one position and one character here, so offsets are positions.
+          const text = node.textBetween(0, node.content.size, undefined, '\ufffc');
+          pattern.lastIndex = 0;
+          for (let m; found.length < limit && (m = pattern.exec(text));) found.push({ from: pos + 1 + m.index, to: pos + 1 + m.index + m[0].length, id });
+        };
+        if (top.isTextblock) search(top, offset);
+        else top.descendants((node, pos) => { if (node.isTextblock) { search(node, offset + 1 + pos); return false; } return true; });
+      });
+      return found;
+    },
+    /** Draws a run as the one Find is on (or none), and scrolls it to the middle of the page. */
+    showFound(run) {
+      editor.view.dispatch(editor.state.tr.setMeta(FOUND, run ? { from: run.from, to: run.to } : null).setMeta('addToHistory', false));
+      if (!run) return;
+      const { node } = editor.view.domAtPos(run.from);
+      (node.nodeType === 1 ? node : node.parentElement)?.scrollIntoView({ block: 'center' });
+    },
+    /** Selects a run of text and scrolls it into view. */
+    selectRange(from, to) { editor.chain().focus().setTextSelection({ from, to }).scrollIntoView().run(); },
+    /** Puts `text` in place of each run, as one step that one Ctrl+Z undoes. Marks are the first character's. */
+    replace(runs, text) {
+      if (!runs.length) return;
+      const tr = editor.state.tr;
+      for (const { from, to } of [...runs].sort((a, b) => b.from - a.from)) {
+        if (text) tr.insertText(text, from, to); else tr.delete(from, to);
+      }
+      editor.view.dispatch(tr);
+    },
+    /** The address of the link the selection is in, or null. */
+    linkHere() { return editor.getAttributes('link').href ?? null; },
+    /** Links the selected words, or the link the caret is in, to `href`; with no words, puts the address in as its own words. */
+    setLink(href) {
+      const { empty } = editor.state.selection;
+      if (empty && !editor.isActive('link')) editor.chain().focus().insertContent({ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] }).run();
+      else editor.chain().focus().extendMarkRange('link').setLink({ href }).run();
+    },
+    unsetLink() { editor.chain().focus().extendMarkRange('link').unsetLink().run(); },
+    /** Puts a picture after the block the selection is in, selected. */
+    insertPicture(address, alt) {
+      const at = where();
+      const node = at ? editor.state.doc.nodeAt(at.pos) : null;
+      const after = node ? at.pos + node.nodeSize : editor.state.doc.content.size;
+      editor.chain().focus().insertContentAt(after, { type: 'picture', attrs: { address, alt } }).setNodeSelection(after).run();
+    },
+    /** Sets a picture's description, which its caption on the sheet shows and an export uses as its alt text. */
+    describePicture(id, alt) {
+      const at = this.locate(id);
+      if (!at || at.node.type.name !== 'picture') return;
+      editor.view.dispatch(editor.state.tr.setNodeMarkup(at.pos, undefined, { ...at.node.attrs, alt }));
     },
     /** Which removed blocks went into which, and which were cut whole, since the sheet was loaded. */
     lineage() { return { merged, cut }; },

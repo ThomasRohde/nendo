@@ -57,6 +57,14 @@ A table is a block that holds its rows, and each row holds its cells, so Studio 
 
 A paragraph that is a single picture, written as `![description](address)` in Studio or by an agent, shows as a small picture with its description beside it, so the writing stays in front; choose **Full width** under Pictures in the settings button to see pictures at the width of the text. Click a picture to select it; Delete removes it, and Enter adds a paragraph after it.
 
+## Find, web links and pictures
+
+**Ctrl** **F**, or **Find** in the toolbar, finds a word or a phrase anywhere in the manuscript, the parts off the screen and the table cells included; tick **Cuttings too** to look there as well. **Enter** goes to the next one and **Shift** **Enter** back. **Ctrl** **H** opens it to replace: **Replace** changes the one you are on, **Replace all** every one, and one **Ctrl** **Z** puts them all back. Paste a reference made by **Copy for the agent** to go straight to that paragraph.
+
+Select some words and choose **Web link** to link them to a web page; with the caret in a link, the same tool changes the address or removes the link. A Word export keeps the links.
+
+**Insert picture**, in **More** or from **+** beside a paragraph, puts a picture from this computer in the file and below the paragraph. Its file name is its description until you choose **Describe picture** in its menu; **Add a caption below** starts its caption.
+
 ## Notes, links and cuttings
 
 The last group on the bar acts on the whole paragraph:

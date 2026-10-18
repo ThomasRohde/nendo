@@ -117,16 +117,28 @@ same records; the view keeps no copy of the manuscript in the file.
   bound; Nendo's Outline, `records.tree` and `descendantOf` page by key.
 - Every save writes one History row per block it changes; the file stops taking writes near
   100,000 rows until the person folds old history.
-- Inline links are not editable here yet (a quotation is a role; lists and tables are blocks), and a picture can be
-  added only by writing its block elsewhere (Studio, an agent); a block that holds them keeps
-  their characters.
+- A web link is written `[words](address)` and edited with Web link on the bar (0.15.0). A
+  bare address, an `<address>` and a link with a title stay as the characters they were
+  written with; a Word export makes each link Word's own hyperlink.
+- Insert picture puts a picture from this computer in the file with `nendo.media.put` and on
+  the page as a block of its own, its file name as its description; Describe picture changes
+  that. Add a caption below starts a Caption paragraph.
+- Find and replace (Ctrl+F, Ctrl+H, or Find in the toolbar) reaches every paragraph and table
+  cell, on the page or not, and with *Cuttings too* the cuttings as saved. Replace all is one
+  step that one Ctrl+Z undoes, except in the Cuttings, which are written as records. A block's
+  ID, as *Copy for the agent* copies it, goes straight to the block.
+- Reading the file again (a change made elsewhere) starts the undo history again, so Ctrl+Z
+  never takes the page back to before it was read.
 - Ctrl+Z after a save undoes the save's revision (`records.undo`), so a deleted block comes
   back under its own ID with its notes and links. That holds while the view stays open and
   nobody else has changed those records since; otherwise the block comes back as a new one.
 - Speed, measured by `Review-Manus.ps1` in Edge against the fixture broker, typing at a
-  person's pace in the middle of a generated manuscript (`-Stress` adds the larger one): at
-  150,000 words, 19 ms from key to frame at p95 and 0.7 s to open; at 500,000 words, 58 ms and
-  2.5 s. The lane fails above 50 ms and 100 ms. Not measured in the installed Nendo.
+  person's pace in the middle of a generated manuscript. The lane holds the view's own work on
+  the page's thread to 50 ms a key at 150,000 words and 75 ms at 500,000: 13 ms and 31 ms alone
+  on 2026-10-18, about twice that under the full gate. From key to frame, the design's measure, it took
+  19 ms and 57 ms at p95 on 2026-10-17 and 58 ms and 154 ms the next morning, the same code
+  both times; painting is the machine's, so that number is reported and not asserted. Not
+  measured in the installed Nendo.
 
 ## Build
 

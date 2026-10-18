@@ -163,6 +163,15 @@ button { cursor: pointer; }
 .hit { text-align: left; border: 0; background: transparent; border-radius: 4px; padding: 6px 8px; font-family: var(--prose); font-size: 14px; line-height: 1.4; }
 .hit.heading { font-weight: 600; }
 .hit:hover { background: var(--soft); }
+.hit.on { background: var(--soft); box-shadow: inset 2px 0 0 var(--accent); }
+.hit mark, .sheet-text .found { background: color-mix(in srgb, var(--accent) 26%, transparent); color: inherit; border-radius: 2px; }
+.hit.kept { font-size: 13px; color: var(--muted); }
+/* Find and replace, in the side panel: the fields as a popover has them, the list as long as the panel. */
+.find { display: flex; flex-direction: column; gap: 8px; }
+.find input[type='search'], .find input[type='text'] { width: 100%; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); padding: 5px 8px; min-height: 30px; color: inherit; font: inherit; }
+.find-results { max-height: none; }
+/* A web link on the sheet: the accent and an underline, as links are everywhere. */
+.sheet-text a, .sheet-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; cursor: text; }
 button.primary { border: 0; border-radius: 4px; background: var(--accent); color: var(--canvas); height: 30px; padding: 0 12px; }
 :root[data-nendo-theme='light'] button.primary, :root:not([data-nendo-theme]) button.primary { color: #ffffff; }
 button.quiet { border: 0; background: transparent; color: var(--accent); height: 28px; padding: 0 6px; border-radius: 4px; }

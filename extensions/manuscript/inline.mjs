@@ -1,13 +1,19 @@
 // A block's text is Markdown of one paragraph's inline content: bold, italic, strikethrough,
-// code and hard line breaks, with underline and highlight as the HTML Markdown allows inline,
-// <u> and <mark>. This module turns it into the editor's inline content and back.
+// code, hard line breaks and links, with underline and highlight as the HTML Markdown allows
+// inline, <u> and <mark>. This module turns it into the editor's inline content and back.
 // Only inline syntax is read: a block never holds a heading, a list or a second paragraph,
-// because the hierarchy is what holds structure. Links, pictures and raw HTML are kept as
-// the characters they were written with, so nothing a block holds is lost when it is edited.
+// because the hierarchy is what holds structure. A link written [words](address) is a link on
+// the sheet; a bare address, a link with a title, pictures and raw HTML are kept as the
+// characters they were written with, so nothing a block holds is lost when it is edited.
 
 // Tags open outside Markdown's delimiters: `<u>**word**</u>` reads as bold inside a word, where
 // `**<u>word</u>**` would not, because a delimiter next to `<` inside a word cannot open.
-const RANK = ['underline', 'highlight', 'bold', 'italic', 'strike'];
+const RANK = ['link', 'underline', 'highlight', 'bold', 'italic', 'strike'];
+// A link's mark is kept here as one name with its address, so two links side by side stay two.
+const LINK = 'link\u0000';
+const linkOf = key => key.startsWith(LINK) ? key.slice(LINK.length) : null;
+/** An address as Markdown writes it after the words: in angle brackets when it holds a space or a bracket. */
+const destination = href => /[\s()<>]/.test(href) ? `<${href.replace(/[<>]/g, encodeURIComponent)}>` : href;
 
 // A block whose whole text is one picture, `![alt](address)`, is a picture on the sheet.
 const PICTURE = /^!\[((?:[^\]\\]|\\.)*)\]\(\s*<?([^\s<>()]+)>?\s*\)$/;
@@ -24,6 +30,8 @@ export function pictureMarkdown(alt, address) {
 }
 const OPEN = { bold: '**', italic: '*', strike: '~~', underline: '<u>', highlight: '<mark>' };
 const CLOSE = { ...OPEN, underline: '</u>', highlight: '</mark>' };
+const opener = key => linkOf(key) !== null ? '[' : OPEN[key];
+const closer = key => linkOf(key) !== null ? `](${destination(linkOf(key))})` : CLOSE[key];
 const TAG = { u: 'underline', mark: 'highlight' };
 
 /** Escapes what Markdown would otherwise read as syntax, inline or at the start of a block. */
@@ -51,26 +59,29 @@ export function inlineToMarkdown(content = []) {
   const close = upTo => {
     const trailing = /\s*$/.exec(out)[0];
     out = out.slice(0, out.length - trailing.length);
-    while (open.length > upTo) out += CLOSE[open.pop()];
+    while (open.length > upTo) out += closer(open.pop());
     out += trailing;
   };
   for (const node of content) {
     if (node.type === 'hardBreak') { close(0); out += '\\\n'; continue; }
     if (node.type !== 'text' || !node.text) continue;
     const marks = new Set((node.marks ?? []).map(m => m.type));
-    const wanted = RANK.filter(m => marks.has(m));
+    const href = (node.marks ?? []).find(m => m.type === 'link')?.attrs?.href;
+    const wanted = RANK.filter(m => marks.has(m)).map(m => m === 'link' ? (href ? LINK + href : null) : m).filter(Boolean);
     let keep = 0;
     while (keep < open.length && keep < wanted.length && open[keep] === wanted[keep]) keep++;
     close(keep);
     let text = node.text;
     const lead = /^\s*/.exec(text)[0];
     if (open.length < wanted.length && lead) { out += lead; text = text.slice(lead.length); }
-    for (const m of wanted.slice(open.length)) { out += OPEN[m]; open.push(m); }
+    for (const m of wanted.slice(open.length)) { out += opener(m); open.push(m); }
     out += marks.has('code') ? codeSpan(text) : escapeText(text, out.length === 0 || out.endsWith('\n'));
   }
   close(0);
   return out;
 }
+
+const markOf = key => linkOf(key) !== null ? { type: 'link', attrs: { href: linkOf(key) } } : { type: key };
 
 function textNodes(text, marks) {
   const nodes = [];
@@ -78,7 +89,7 @@ function textNodes(text, marks) {
   for (const part of parts) {
     if (/^\n{2,}$/.test(part)) { nodes.push({ type: 'hardBreak' }); continue; }
     const flat = part.replace(/\n/g, ' ');
-    if (flat) nodes.push(marks.length ? { type: 'text', text: flat, marks: marks.map(type => ({ type })) } : { type: 'text', text: flat });
+    if (flat) nodes.push(marks.length ? { type: 'text', text: flat, marks: marks.map(markOf) } : { type: 'text', text: flat });
   }
   return nodes;
 }
@@ -110,7 +121,12 @@ function fromTokens(tokens, marks, out) {
       case 'strong': fromTokens(t.tokens, [...marks, 'bold'], out); break;
       case 'em': fromTokens(t.tokens, [...marks, 'italic'], out); break;
       case 'del': fromTokens(t.tokens, [...marks, 'strike'], out); break;
-      case 'codespan': out.push({ type: 'text', text: unescapeEntities(t.text), marks: [...marks, 'code'].map(type => ({ type })) }); break;
+      case 'codespan': out.push({ type: 'text', text: unescapeEntities(t.text), marks: [...marks, 'code'].map(markOf) }); break;
+      // [words](address): a link. A bare address, <address> or a link with a title stays as written.
+      case 'link':
+        if (!t.title && t.href && t.raw.startsWith('[') && !marks.some(m => linkOf(m) !== null)) fromTokens(t.tokens, [LINK + t.href, ...marks], out);
+        else out.push(...textNodes(t.raw, marks));
+        break;
       case 'br': out.push({ type: 'hardBreak' }); break;
       case 'escape': out.push(...textNodes(t.text, marks)); break;
       case 'text': if (t.tokens && t.tokens.length) fromTokens(t.tokens, marks, out); else out.push(...textNodes(t.text, marks)); break;
