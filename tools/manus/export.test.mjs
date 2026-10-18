@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Lexer } from '../../extensions/manuscript/vendor/editor.js';
 import * as lib from '../../extensions/manuscript/vendor/export.js';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, paperHeadings, columnsStart, draftLine, withProfile, LAYOUTS } from '../../extensions/manuscript/export.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, packDocx, paperHeadings, columnsStart, draftLine, withProfile, LAYOUTS, ARTICLE, tableColumns } from '../../extensions/manuscript/export.mjs';
 
 const address = `media:${'cd'.repeat(32)}`;
 const manuscript = { title: 'Low Water', nodes: [
@@ -117,21 +117,38 @@ test('paper layout: AASTeX two columns, front matter centred, abstract and refer
   assert.doesNotMatch(xml, /<w:b w:val="false"\/>/, 'a run switches bold off, which overrides a bold heading style');
   const paragraph = asFormatted(xml, styles);
   assert.match(paragraph('[Authors]'), /<w:jc w:val="center"\/>/);
-  assert.match(paragraph('We describe it.'), /<w:ind w:left="680" w:right="680" w:firstLine="288"/, 'the abstract is narrower, every paragraph indented');
-  assert.doesNotMatch(paragraph('First.'), /w:firstLine="288"/, 'the first paragraph of a section is not indented');
-  assert.match(paragraph('Second.'), /w:firstLine="288"/);
+  // AASTeX's measures (W-293): the abstract 33.9 and 34.9 points in, every paragraph indented 9 points,
+  // the first after a heading too, on lines exactly 12.45 points apart.
+  assert.match(paragraph('We describe it.'), /<w:ind w:left="678" w:right="698" w:firstLine="180"/, 'the abstract is narrower, every paragraph indented');
+  assert.match(paragraph('First.'), /w:firstLine="180"/, 'an article indents the first paragraph after a heading too');
+  assert.match(paragraph('Second.'), /w:firstLine="180"/);
+  assert.match(paragraph('Second.'), /w:line="249" w:lineRule="exact"/);
   assert.equal((paragraph('</w:drawing>').match(/<w:drawing>/g) ?? []).length, 2, 'two pictures next to each other share one row');
   assert.match(paragraph('Two panels'), /Figure 1\. /);
-  assert.match(paragraph('Someone. 2020'), /w:hanging="216"/);
+  assert.match(paragraph('Someone. 2020'), /w:hanging="180"/);
   assert.match(xml, /<w:pgSz w:w="12240" w:h="15840"/);
+  // The page: 7.1 inches of text from 50.74 points in, two 241.35-point columns 28.5 apart, the
+  // first baseline of a column at 74.6 and the last no lower than 716.85 (Word sets a line's
+  // baseline 0.8 of its height below its top).
+  assert.match(xml, /<w:pgMar w:top="1293" w:right="1001" w:bottom="1453" w:left="1015" w:header="833"/);
+  assert.match(xml, /<w:cols w:space="570" w:num="2"\/>/);
+  assert.equal(Math.round((1293 / 20 + 0.8 * ARTICLE.pitch) * 10) / 10, ARTICLE.top);
   // Headings as AASTeX sets them: numbered sections and parts in capitals, centred, not bold.
   assert.ok(xml.includes('>1. INTRODUCTION<') && xml.includes('>ABSTRACT<') && xml.includes('>REFERENCES<'));
   assert.doesNotMatch(styles.split('w:styleId="Heading1"')[1].split('</w:style>')[0], /<w:b\/>/);
   // The abstract runs across the page; the body after it in two columns on the same page.
+  // Across the page, two columns, the references' heading across, their two columns, and an
+  // empty last section so that Word balances the last page's columns, as AASTeX does.
   const sections = xml.split('<w:sectPr');
-  assert.equal(sections.length, 3, 'two sections');
+  assert.equal(sections.length, 6, 'five sections');
   assert.match(sections[2], /<w:type w:val="continuous"\/>/);
   assert.match(sections[2], /<w:cols[^>]*w:num="2"/);
+  assert.doesNotMatch(sections[3], /<w:cols[^>]*w:num="2"/);
+  assert.ok(sections[3].indexOf('>REFERENCES<') < 0 && sections[2].includes('>REFERENCES<'), 'the references heading ends the third section');
+  assert.match(sections[4], /<w:cols[^>]*w:num="2"/);
+  const settings = await zip.file('word/settings.xml').async('string');
+  assert.match(settings, /<w:autoHyphenation\/>/, 'an article hyphenates, as TeX does');
+  assert.match(settings, /<w:evenAndOddHeaders\/>/, 'page numbers on the outer side');
   assert.ok(xml.indexOf('We describe it.') < xml.indexOf('<w:sectPr') && xml.indexOf('1. INTRODUCTION') > xml.indexOf('<w:sectPr'));
   const headers = await Promise.all(Object.keys(zip.files).filter(name => /^word\/header\d+\.xml$/.test(name)).map(name => zip.file(name).async('string')));
   assert.ok(headers.some(h => h.includes('Draft version October 16, 2026') && h.includes('<w:smallCaps/>')), 'the first page carries the draft line');
@@ -283,7 +300,12 @@ test('tables: one plan item of rows, a pipe table in Markdown, and a Word table 
     assert.equal((xml.match(/<w:tr>|<w:tr /g) ?? []).length, 3, layout);
     assert.equal((xml.match(/<w:tc>/g) ?? []).length, 6, `${layout}: a short row is filled out`);
     assert.match(xml, /<w:tblHeader\/>/, layout);
-    assert.match(xml, /<w:b\/>[\s\S]*?Post/, layout);
+    // A book's header row is bold; an article's is plain, under AASTeX's rules.
+    if (layout === 'book') assert.match(xml, /<w:b\/>[\s\S]*?Post/, layout);
+    else {
+      assert.doesNotMatch(xml, /<w:b\/>[\s\S]*?Post/, layout);
+      assert.match(xml, /<w:top w:val="double"[^>]*\/>[\s\S]*<w:insideV w:val="none"/, 'a double rule above, no rules between columns');
+    }
     assert.match(xml, /<w:i\/>[\s\S]*?>4</, layout);
   }
 });
@@ -341,4 +363,32 @@ test('an output profile over a layout: page, margins, typeface, size with the he
   assert.match(xml, /<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/);
   assert.doesNotMatch(xml, /<w:footerReference/, 'no page numbers');
   assert.match(styles, /<w:docDefaults>[\s\S]*w:ascii="Cambria"[\s\S]*<w:sz w:val="24"\/>[\s\S]*w:line="480"/);
+});
+
+test('paper: Word is told not to hyphenate the references and table text, which docx cannot write', async () => {
+  const plan = exportPlan({ title: 'T', nodes: [
+    { id: 'h', kind: 'Chapter', text: '1 Intro' }, { id: 'a', kind: 'Paragraph', text: 'Hello.' },
+    { id: 't', kind: 'Table', text: '' }, { id: 'r', kind: 'Row', text: '' }, { id: 'c', kind: 'Cell', text: 'x' },
+    { id: 'rh', kind: 'Chapter', text: 'References' }, { id: 'b', kind: 'Paragraph', text: '[1] A.' },
+  ] });
+  const built = toDocx(plan, new Map(), lib, Lexer, 'paper');
+  assert.deepEqual(built.unhyphenated, ['References', 'TableText']);
+  const styles = await (await lib.JSZip.loadAsync(await packDocx(built, lib, 'nodebuffer'))).file('word/styles.xml').async('string');
+  for (const id of ['References', 'TableText']) {
+    const style = styles.split(`w:styleId="${id}"`)[1].split('</w:style>')[0];
+    // In the schema's order: before the spacing, indent and alignment that follow it.
+    assert.match(style, /<w:pPr><w:suppressAutoHyphens\/>(<w:spacing|<w:ind|<w:jc)/, id);
+  }
+  const book = toDocx(plan, new Map(), lib, Lexer, 'book');
+  assert.deepEqual(book.unhyphenated, []);
+});
+
+test('table columns as Word and a browser size them: the longest word at least, the rest by the longest cell', () => {
+  // Two short columns and a long one in 241.35 points of 9-point type, 5 points either side.
+  const shares = tableColumns([['Suite', 'Tests', 'What it exercises'], ['Engine', '1,397', 'Storage, typed operations, revisions, proposals and the semantic compiler']], ARTICLE.column / 9, 10 / 9);
+  assert.equal(Math.round(shares.reduce((a, b) => a + b) * 1e6), 1e6);
+  assert.ok(shares[2] > 0.5 && shares[0] > shares[1], JSON.stringify(shares));
+  // When everything fits, each column takes its longest cell's share.
+  const small = tableColumns([['aa', 'aaaa']], 100, 0);
+  assert.ok(Math.abs(small[1] - 2 * small[0]) < 1e-9, JSON.stringify(small));
 });

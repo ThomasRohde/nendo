@@ -249,7 +249,7 @@ button.quiet:hover { background: var(--soft); }
 .preview[hidden] { display: none; }
 .sheet-page { position: relative; box-sizing: border-box; background: #ffffff; color: #1b1b1b; box-shadow: var(--shadow); zoom: var(--zoom, 1); flex: none; }
 .preview[data-layout='book'] .sheet-page { width: 576px; height: 864px; padding: 72px; font: 14.7px/1.25 Georgia, 'Sitka Text', serif; }
-.preview[data-layout='paper'] .sheet-page { width: 816px; height: 1056px; padding: 96px 72px; font: 13.3px/1.2 'Times New Roman', Times, serif; }
+/* The paper's sheet, type and spacing come from paperStyle in preview.mjs, AASTeX's measures (W-293). */
 .sheet-body { overflow: hidden; height: 100%; }
 /* A sheet holding a block taller than a page grows to show it whole, and says so under it. */
 .sheet-page.runs-over { height: auto !important; }
@@ -275,12 +275,7 @@ button.quiet:hover { background: var(--soft); }
 .pv-title { margin: 0 0 14px; text-align: center; font-weight: 400; }
 .preview[data-layout='book'] .pv-title { font-size: 32px; }
 .preview[data-layout='book'] .pv-title.title-page { margin-top: 200px; }
-.preview[data-layout='paper'] .pv-title { font-size: 16px; font-weight: 700; margin: 34px 0 14px; }
 .sheet-body h2, .sheet-body h3, .sheet-body h4 { margin: 0; font-weight: 700; break-after: avoid; }
-.preview[data-layout='paper'] .sheet-body :is(h2, h3, h4) { font-size: 13.3px; font-weight: 400; }
-.preview[data-layout='paper'] .pv-h1 { margin: 16px 0 8px; }
-.preview[data-layout='paper'] .pv-h2 { font-style: italic; margin: 13px 0 7px; }
-.preview[data-layout='paper'] .pv-h3 { font-style: italic; margin: 11px 0 4px; }
 .preview[data-layout='book'] .pv-h1 { font-size: 21.3px; margin: 80px 0 32px; }
 .preview[data-layout='book'] .pv-h2 { font-size: 17.3px; margin: 24px 0 11px; }
 .preview[data-layout='book'] .pv-h3 { font-size: 14.7px; font-style: italic; margin: 16px 0 8px; }
@@ -288,7 +283,6 @@ button.quiet:hover { background: var(--soft); }
 .sheet-body p.front { text-align: center; margin-bottom: 4px; }
 .sheet-body p.role-subtitle { text-align: center; font-size: 19px; margin-bottom: 13px; }
 .sheet-body p.role-author { text-align: center; margin-bottom: 4px; }
-.preview[data-layout='paper'] .sheet-body p.role-author { font-variant: small-caps; font-size: 14.7px; }
 .preview[data-layout='paper'] .sheet-body p.role-subtitle { font-size: 13.3px; }
 .sheet-body p.role-dedication { text-align: center; font-style: italic; margin-top: 160px; }
 .sheet-body p.role-epigraph { text-align: left; font-style: italic; font-size: 0.95em; margin: 8px 0 16px 30%; }
@@ -296,7 +290,6 @@ button.quiet:hover { background: var(--soft); }
 .sheet-body p.role-aside { margin: 8px 48px; font-size: 0.9em; }
 .sheet-body p.role-verse { text-align: left; margin: 0 0 10px 48px; }
 .sheet-body p.role-scene-break { text-align: center; margin: 16px 0; }
-.preview[data-layout='paper'] .sheet-body p.role-abstract { margin: 0 45px; }
 .sheet-body p.role-keywords { text-align: left; margin: 13px 45px 8px; padding-left: 63px; text-indent: -63px; }
 /* Room between what runs across the first page and the columns under it. */
 .sheet-body > * + .pv-columns { margin-top: 20px; }
@@ -308,7 +301,6 @@ button.quiet:hover { background: var(--soft); }
 .pv-picture[style*='height'] img { height: 100%; object-fit: contain; }
 .pv-missing { display: block; border: 1px dashed #999999; padding: 24px 8px; font: 12px/1.4 'Segoe UI', sans-serif; color: #555555; }
 .pv-caption { text-align: center !important; font-size: 12px; margin: 5px 24px 16px !important; }
-.preview[data-layout='paper'] .pv-caption { text-align: justify !important; margin: 5px 0 16px !important; }
 :root[data-mode='book'] .drawer, :root[data-mode='paper'] .drawer { display: none; }
 
 @media (max-width: 720px) {

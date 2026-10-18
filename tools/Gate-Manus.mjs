@@ -153,7 +153,8 @@ async page => {
   await mode('paper');
   await frame.waitForFunction(() => document.getElementById('preview').dataset.layout === 'paper');
   const paperPreview = await frame.evaluate(() => ({ width: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), caption: !!document.querySelector('.pv-figure') }));
-  assert(Math.abs(paperPreview.width - Math.round(816 * 760 / 672)) <= 2, `Paper preview: ${JSON.stringify(paperPreview)}`);
+  // AASTeX's text is 7.1 inches (681.6 pixels) wide; at Medium it shows at 760.
+  assert(Math.abs(paperPreview.width - Math.round(816 * 760 / 681.6)) <= 2, `Paper preview: ${JSON.stringify(paperPreview)}`);
   // An article as arXiv carries one (AASTeX): the body in two columns side by side under the title
   // block, the draft line at the top of the first page, headings numbered in capitals.
   const article = await frame.evaluate(() => {
@@ -179,7 +180,7 @@ async page => {
     `Preview text size: ${JSON.stringify({ narrowSheet, ...sized })}`);
   await page.evaluate(() => window.broker.command('width', 'full'));
   const fullSheet = await frame.evaluate(() => ({ sheet: Math.round(document.querySelector('.sheet-page').getBoundingClientRect().width), frame: innerWidth }));
-  assert(Math.abs(narrowSheet - Math.round(816 * 620 / 672)) <= 2 && fullSheet.sheet >= fullSheet.frame - 60 && fullSheet.sheet <= fullSheet.frame, `Preview line length: narrow ${narrowSheet}, full ${JSON.stringify(fullSheet)}`);
+  assert(Math.abs(narrowSheet - Math.round(816 * 620 / 681.6)) <= 2 && fullSheet.sheet >= fullSheet.frame - 60 && fullSheet.sheet <= fullSheet.frame, `Preview line length: narrow ${narrowSheet}, full ${JSON.stringify(fullSheet)}`);
   await page.evaluate(() => window.broker.command('width', 'medium'));
   await mode('write');
   await frame.waitForFunction(() => document.getElementById('preview').hidden && !document.getElementById('page').hidden);
@@ -1184,9 +1185,52 @@ async page => {
     return { chapter: at('back matter'), appendix: at('post numbers'), first: sheet?.querySelector('.pv-column')?.firstElementChild?.textContent ?? null };
   });
   assert(appendix.chapter >= 1 && appendix.chapter === appendix.appendix && /back matter$/i.test(appendix.first ?? ''), `Paper preview: a heading left behind by a page break: ${JSON.stringify(appendix)}`);
+  // The page as AASTeX sets it (W-293), measured in points on a later sheet: columns 241.35 wide
+  // from 50.74 in and 28.5 apart, the first baseline of a column that starts with text at 74.6,
+  // lines 12.45 apart.
+  const geometry = await frame.evaluate(() => {
+    // At the sheet's own size: a zoom rounds where the browser sets each line.
+    const host = document.getElementById('preview'), zoom = host.style.getPropertyValue('--zoom');
+    host.style.setProperty('--zoom', '1');
+    const textFirst = c => Boolean(c.firstElementChild?.matches('p.typeset, .pv-piece'));
+    const sheet = [...document.querySelectorAll('.sheet-page')].slice(1).find(s => [...s.querySelectorAll('.pv-column')].some(textFirst));
+    const s = sheet.getBoundingClientRect(), pt = px => Math.round(px / (s.width / 816) * 0.75 * 100) / 100;
+    const columns = [...sheet.querySelectorAll('.pv-column')].map(c => c.getBoundingClientRect());
+    const column = [...sheet.querySelectorAll('.pv-column')].findIndex(textFirst);
+    const visible = [...sheet.querySelectorAll('.pv-column')[column].querySelectorAll('.pv-line')]
+      .filter(line => line.getBoundingClientRect().top >= columns[column].top - 1).slice(0, 2);
+    const at = line => { const mark = document.createElement('span'); mark.style.cssText = 'display:inline-block;width:0;height:0'; line.prepend(mark); const y = mark.getBoundingClientRect().bottom; mark.remove(); return pt(y - s.top); };
+    const found = { left: pt(columns[0].left - s.left), width: pt(columns[0].width), gap: pt(columns[1].left - columns[0].right), first: visible[0] ? at(visible[0]) : null, pitch: visible[1] ? Math.round((at(visible[1]) - at(visible[0])) * 100) / 100 : null };
+    host.style.setProperty('--zoom', zoom);
+    return found;
+  });
+  assert(Math.abs(geometry.left - 50.74) < 0.3 && Math.abs(geometry.width - 241.35) < 0.3 && Math.abs(geometry.gap - 28.5) < 0.3 && Math.abs(geometry.first - 74.6) < 0.4 && Math.abs(geometry.pitch - 12.45) < 0.1,
+    `Paper preview: the page is not AASTeX's: ${JSON.stringify(geometry)}`);
+  // A paragraph that runs past a column goes on at the head of the next: each of its lines shown
+  // once, never one alone on either side; and its justified lines end at the column's edge, as
+  // TeX breaks and spaces them.
+  const carried = await frame.evaluate(() => {
+    const pieces = [...document.querySelectorAll('.pv-piece')], groups = new Map();
+    // In reading order a paragraph's first piece shows its first line; the pieces after it go on.
+    for (const piece of pieces) { if (!parseFloat(piece.firstElementChild.style.marginTop)) groups.set(piece, []); [...groups.values()].at(-1)?.push(piece); }
+    const lineOf = piece => parseFloat(getComputedStyle(piece.firstElementChild).lineHeight);
+    const problems = [...groups.values()].flatMap(group => {
+      const line = lineOf(group[0]), full = Math.round(group[0].firstElementChild.offsetHeight / line);
+      const shown = group.map(p => Math.round(p.offsetHeight / line)), offsets = group.map(p => Math.round(-parseFloat(p.firstElementChild.style.marginTop) / line));
+      const contiguous = offsets.every((o, i) => o === shown.slice(0, i).reduce((a, b) => a + b, 0));
+      return shown.reduce((a, b) => a + b, 0) === full && contiguous && shown.every(n => n >= 2) ? [] : [{ text: group[0].textContent.slice(0, 30), full, shown, offsets }];
+    });
+    const ragged = [...document.querySelectorAll('.pv-column p.pv-p.typeset')].flatMap(p => [...p.querySelectorAll(':scope > .pv-line')].slice(0, -1).map(line => {
+      const range = document.createRange(); range.selectNodeContents(line);
+      return Math.abs(range.getBoundingClientRect().right - line.getBoundingClientRect().right) / (line.getBoundingClientRect().width / line.offsetWidth);
+    })).filter(off => off > 0.75);
+    return { pieces: pieces.length, problems, typeset: document.querySelectorAll('.pv-column p.typeset').length, ragged: ragged.length, worst: Math.max(0, ...ragged) };
+  });
+  assert(carried.pieces >= 2 && carried.problems.length === 0 && carried.typeset >= 10 && carried.ragged === 0,
+    `Paper preview: a paragraph carried on loses, repeats or strands a line, or a justified line misses the column's edge: ${JSON.stringify(carried)}`);
   await page.screenshot({ path: '__OUTPUT__/preview-paper-picture.png' });
   await mode('write');
-  checks.push('preview makes room for pictures', 'headings kept with their text', 'headings kept across a page break', 'room above the columns');
+  checks.push('preview makes room for pictures', 'headings kept with their text', 'headings kept across a page break', 'room above the columns', 'AASTeX page geometry', 'paragraphs carried across columns', 'lines set as TeX sets them');
   assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
 
   // A file built before alignment has no Align field: the bar and More offer no alignment, and

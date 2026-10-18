@@ -99,13 +99,13 @@ A paragraph with notes or links shows how many of each in the right margin, a no
 
 - **Markdown**: the text with its headings and emphasis. With pictures it is a `.zip` holding the `.md` file and a `media` folder.
 - **Word document, book layout**: a 6 by 9 inch book with a title page, each part or chapter on a new page.
-- **Word document, paper layout**: an article in the two-column style arXiv papers use. The lines before the first heading become the centred author block, a section called *Abstract* runs across the page and narrower, the rest is set in two columns with numbered headings in capitals (*1. INTRODUCTION*), pictures placed one after another sit side by side, a line after a picture that starts *Figure 1.* becomes its caption, and a section called *References* gets hanging indents.
+- **Word document, paper layout**: an article in the two-column style arXiv papers use (AASTeX), with its measures: Times at 10 points on Letter, two columns, every paragraph indented, hyphenated and justified. The lines before the first heading become the centred author block, a section called *Abstract* runs across the page and narrower, the rest is set in two columns with numbered headings in capitals (*1. INTRODUCTION*), pictures placed one after another sit side by side, a line after a picture that starts *Figure 1.* becomes its caption, tables have rules above and below, and a section called *References* gets its heading across the page and hanging indents.
 
 Notes, links and cuttings are not exported. If a picture cannot be included, its description stands in its place and the message above the page says which.
 
 ## Preview
 
-**Book** and **Paper** at the left of the toolbar show the manuscript as a reader would see it: on pages of a 6 by 9 inch book or of a Letter-sized article, laid out as the Word export lays it out. **Write** takes you back to writing. The preview is close to what Word produces, not identical: Word may break a paragraph across two pages where the preview moves it whole.
+**Book** and **Paper** at the left of the toolbar show the manuscript as a reader would see it: on pages of a 6 by 9 inch book or of a Letter-sized article, laid out as the Word export lays it out. **Write** takes you back to writing. The book preview is close to what Word produces, not identical: Word may break a paragraph across two pages where the preview moves it whole. The paper preview sets its lines as TeX would, so a paragraph runs on from one column to the next and its lines break as in the article arXiv would show; Word breaks some lines differently, so its columns can end a line or two apart.
 
 ## Page setup
 

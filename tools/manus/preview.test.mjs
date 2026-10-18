@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { exportPlan } from '../../extensions/manuscript/export.mjs';
-import { previewBlocks, figureWidths, PAGES } from '../../extensions/manuscript/preview.mjs';
+import { previewBlocks, figureWidths, PAGES, paperStyle, softHyphens } from '../../extensions/manuscript/preview.mjs';
+import { ARTICLE, article } from '../../extensions/manuscript/export.mjs';
 
 const P = (id, text, role = null) => ({ id, kind: 'Paragraph', text, role });
 const C = (id, text, role = null) => ({ id, kind: 'Chapter', text, role });
@@ -34,10 +35,10 @@ test('paper preview: front matter centred, abstract and references set apart, pi
   assert.equal(by('1. INTRODUCTION').level, 1);
   assert.equal(by('We describe it.').indent, true, 'an article indents its abstract');
   assert.equal(by('We describe it.').role, 'Abstract');
-  assert.equal(by('First.').indent, false); assert.equal(by('Second.').indent, true);
+  assert.equal(by('First.').indent, true, 'an article indents every paragraph, as AASTeX does'); assert.equal(by('Second.').indent, true);
   const figure = blocks.find(b => b.kind === 'figure');
   assert.equal(figure.pictures.length, 2);
-  assert.deepEqual(figureWidths(figure, 'paper'), [148, 148], 'two pictures share one column');
+  assert.deepEqual(figureWidths(figure, 'paper').map(w => Math.round(w * 10) / 10), [148.9, 148.9], 'two pictures share one column, 18 points apart');
   const caption = blocks.find(b => b.kind === 'caption');
   assert.equal(caption.label, 'Figure 1.'); assert.equal(caption.text, 'Two panels.');
   assert.equal(by('[1] A work.').indent, false);
@@ -47,8 +48,9 @@ test('paper preview: front matter centred, abstract and references set apart, pi
 test('page sizes are the Word layouts’: 6 by 9 inches and Letter', () => {
   assert.deepEqual([PAGES.book.width, PAGES.book.height], [576, 864]);
   assert.deepEqual([PAGES.paper.width, PAGES.paper.height], [816, 1056]);
-  // Letter with 0.75-inch sides: two 320-pixel columns and a 32-pixel gap fill the 672-pixel text.
-  assert.equal(PAGES.paper.columns * PAGES.paper.column + PAGES.paper.gap, PAGES.paper.width - 2 * PAGES.paper.margin);
+  // Letter as AASTeX sets it: 7.1 inches of text, two columns and their gap filling it exactly.
+  assert.ok(Math.abs(PAGES.paper.columns * PAGES.paper.column + PAGES.paper.gap - (PAGES.paper.width - PAGES.paper.margin - PAGES.paper.right)) < 1e-9);
+  assert.ok(Math.abs(PAGES.paper.width - PAGES.paper.margin - PAGES.paper.right - 7.1 * 96) < 0.1);
 });
 
 test('book preview: with parts, each part and each chapter starts a page, sections do not', () => {
@@ -59,4 +61,23 @@ test('book preview: with parts, each part and each chapter starts a page, sectio
   const by = text => blocks.find(b => b.text === text);
   assert.ok(by('Part One').breakBefore && by('One').breakBefore && by('Two').breakBefore);
   assert.ok(!by('A section').breakBefore);
+});
+
+test('paper preview: its CSS puts each baseline where the Word export and the reference put it', () => {
+  // With a baseline 9.6 points below a 12.45-point line's top, a heading after text needs 21.45
+  // points between baselines: 2.85 below the text's baseline, 9.6 into the heading's line.
+  const css = paperStyle(article(), "'Times New Roman'", (line, size) => line / 2 + 0.3375 * size);
+  const rule = selector => css.split('\n').find(line => line.includes(selector)) ?? '';
+  assert.match(rule('.sheet-page {'), /width: 612pt; height: 792pt; padding: 65\.\d+pt 50\.06pt 0 50\.74pt;/);
+  assert.match(rule('.pv-column { flex'), /flex: 0 0 241.35pt;/);
+  assert.match(rule('.pv-columns {'), /gap: 28.5pt;/);
+  const [, above, below] = /margin: ([\d.]+)pt 0 ([\d.]+)pt/.exec(rule(' :is(h2, h3, h4) { font-size')).map(Number);
+  assert.ok(Math.abs(above - (ARTICLE.heading - ARTICLE.pitch)) < 0.01 && Math.abs(below - (ARTICLE.afterHeading - ARTICLE.pitch)) < 0.01, `${above} ${below}`);
+});
+
+test('soft hyphens where TeX breaks: its patterns, two letters in and three before the end, words after a space only', () => {
+  const at = word => ({ regenerates: 're-gen-er-ates', malleability: 'mal-leabil-i-ty', programmers: 'pro-gram-mers' })[word] ?? word;
+  const hyphenate = word => at(word).replace(/-/g, '\u00AD');
+  assert.equal(softHyphens('regenerates malleability', hyphenate), 're\u00ADgen\u00ADer\u00ADates mal\u00ADleabil\u00ADity');
+  assert.equal(softHyphens('host-programmers (programmers)', hyphenate), 'host-programmers (pro\u00ADgram\u00ADmers)');
 });

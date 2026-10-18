@@ -1,10 +1,11 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
 import { BLOCK, NOTE, LINK, PROFILE, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS, FONTS, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
-import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine, PAGE_TWIPS } from './export.mjs';
-import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
+import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, packDocx, draftLine, PAGE_TWIPS, article, paperTableColumns } from './export.mjs';
+import { previewBlocks, figureWidths, PAGES, paperSheet, paperStyle, softHyphens } from './preview.mjs';
 import { markdownToInline } from './inline.mjs';
-import { Lexer } from './vendor/editor.js';
+import { TEX, spaceAfter, breakLines } from './typeset.mjs';
+import { Lexer, hyphenation } from './vendor/editor.js';
 
 const nendo = window.nendo;
 const $ = id => document.getElementById(id);
@@ -573,7 +574,7 @@ async function exportAs(format, layout = 'book') {
     missing = plan.items.filter(i => i.type === 'picture' && i.address.startsWith('media:') && !files.has(i.address)).map(i => i.alt || i.address);
   } else {
     const built = toDocx(plan, pictures, lib, Lexer, layout, { profile: profileOf(layout) });
-    blob = await lib.Packer.toBlob(built.document);
+    blob = await packDocx(built, lib);
     file = `${name}.docx`;
     missing = built.missing.map(m => m.alt || m.address);
   }
@@ -592,12 +593,14 @@ async function exportAs(format, layout = 'book') {
 
 /** Inline Markdown as DOM: bold, italic, underline, strikethrough, highlight, code and line breaks. */
 let previewNumbers = new Map();
+// While the paper's running text is drawn, its words carry TeX's soft hyphens.
+let hyphenating = false;
 function inlineNodes(markdown) {
   const out = document.createDocumentFragment();
   for (const node of markdownToInline(markdown, Lexer)) {
     if (node.type === 'hardBreak') { out.append(document.createElement('br')); continue; }
     if (node.type === 'footnote') { if (previewNumbers.has(node.attrs.id)) out.append(el('sup', { class: 'pv-fn', text: String(previewNumbers.get(node.attrs.id)) })); continue; }
-    let element = document.createTextNode(node.text);
+    let element = document.createTextNode(hyphenating ? softHyphens(node.text, hyphenation.hyphenateSync) : node.text);
     for (const mark of node.marks ?? []) {
       const tag = { bold: 'strong', italic: 'em', underline: 'u', strike: 's', highlight: 'mark', code: 'code', link: 'a' }[mark.type];
       if (!tag) continue;
@@ -620,8 +623,8 @@ function blockElement(block, layout, sizes = new Map()) {
 function blockBody(block, layout, sizes) {
   const slug = role => `role-${String(role).toLowerCase().replace(/\s+/g, '-')}`;
   if (block.kind === 'title') return el('h1', { class: `pv-title${block.titlePage ? ' title-page' : ''}` }, inlineNodes(block.text));
-  if (block.kind === 'heading') return el(`h${block.level + 1}`, { class: `pv-h${block.level}${block.centred ? ' centred' : ''}${block.role ? ` ${slug(block.role)}` : ''}` }, inlineNodes(block.text));
-  if (block.kind === 'caption') return el('p', { class: 'pv-caption' }, block.label ? el(layout === 'book' ? 'em' : 'strong', { text: `${block.label} ` }) : null, inlineNodes(block.text));
+  if (block.kind === 'heading') return el(`h${block.level + 1}`, { class: `pv-h${block.level}${block.centred ? ' centred' : ''}${block.part ? ' part' : ''}${block.role ? ` ${slug(block.role)}` : ''}` }, inlineNodes(block.text));
+  if (block.kind === 'caption') return el('p', { class: `pv-caption${block.aboveTable ? ' above-table' : ''}` }, block.label ? el(layout === 'book' ? 'em' : 'strong', { text: `${block.label} ` }) : null, inlineNodes(block.text));
   if (block.kind === 'figure') {
     const widths = figureWidths(block, layout);
     return el('div', { class: 'pv-figure' }, block.pictures.map((picture, i) => {
@@ -637,10 +640,13 @@ function blockBody(block, layout, sizes) {
     }));
   }
   if (block.kind === 'table') {
-    return el('table', { class: 'pv-table' }, el('tbody', {}, block.rows.map((cells, r) => el('tr', {}, cells.map(text => el(r === 0 ? 'th' : 'td', {}, inlineNodes(text)))))));
+    // The paper's columns are shared as the Word export and the reference share them.
+    const shares = layout === 'paper' ? paperTableColumns(block.rows, article(profileOf('paper'))) : null;
+    return el('table', { class: 'pv-table' }, shares ? el('colgroup', {}, shares.map(s => el('col', { style: `width:${(s * 100).toFixed(3)}%` }))) : null,
+      el('tbody', {}, block.rows.map((cells, r) => el('tr', {}, (shares ?? cells).map((_, c) => el(r === 0 ? 'th' : 'td', {}, inlineNodes(cells[c] ?? '')))))));
   }
   if (block.list) {
-    return el('p', { class: `pv-p pv-li level-${block.listLevel}`, style: `padding-left:${22 * (block.listLevel + 1)}px` }, el('span', { class: 'pv-marker', text: block.marker ?? '' }), inlineNodes(block.text));
+    return el('p', { class: `pv-p pv-li level-${block.listLevel}`, style: layout === 'paper' ? null : `padding-left:${22 * (block.listLevel + 1)}px` }, el('span', { class: 'pv-marker', text: block.marker ?? '' }), inlineNodes(block.text));
   }
   const classes = ['pv-p', block.indent ? 'indent' : '', block.front ? 'front' : '', block.across ? 'across' : '', block.role ? slug(block.role) : ''].filter(Boolean).join(' ');
   if (block.role === 'Scene break' && !block.text.trim()) return el('p', { class: classes, text: '* * *' });
@@ -687,6 +693,7 @@ async function renderPreview() {
   host.dataset.layout = layout;
   host.style.removeProperty('--zoom');
   host.replaceChildren();
+  if (layout === 'paper') { renderPaper(host, plan, page, sizes); previewZoom(); state.previewPages = host.childElementCount; return; }
   const limit = page.height - 2 * page.top;
   let body = null, columns = null, column = 0, current = null;
   // A block taller than a page: shown whole on a sheet that grows, and said, since a page cannot
@@ -764,6 +771,314 @@ async function renderPreview() {
   state.previewPages = host.childElementCount;
 }
 
+// ---------- The paper's sheets ----------
+// AASTeX's page as the Word export sets it: the title block across the first page, then two
+// columns through which a paragraph runs on line by line, from the foot of one column to the
+// head of the next, as Word and TeX carry it; a heading keeps two lines with it, a figure its
+// caption and a table's caption its table; the columns above the references and those of the
+// last page are balanced. A paragraph carried on is drawn once per column it reaches, each copy
+// cut to its own lines; the first is the paragraph itself, the others are hidden from a reader.
+
+// A piece of a paragraph: the paragraph, its first line here and how many lines.
+const pieceOf = new WeakMap();
+const HEADING = /^H[2-4]$/;
+
+// A paragraph of the paper set as TeX sets it: its words measured in the page's own type, broken
+// into lines where Knuth and Plass's algorithm breaks them with the reference's parameters, and
+// each line drawn as a block of its own, its spaces as wide as TeX makes them. The words keep
+// their marks; a soft hyphen where the line breaks becomes a hyphen. A paragraph no break
+// sequence fits is left to the browser.
+const measuring = document.createElement('canvas').getContext('2d');
+function fontOf(element) {
+  const s = getComputedStyle(element);
+  return `${s.fontStyle} ${s.fontVariant === 'small-caps' ? 'small-caps ' : ''}${s.fontWeight} ${s.fontSize} ${s.fontFamily}`;
+}
+function widthOf(text, font) { measuring.font = font; return measuring.measureText(text).width; }
+
+function typesetParagraph(node) {
+  const style = getComputedStyle(node);
+  const width = node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const indent = parseFloat(style.textIndent) || 0;
+  if (!(width > 0) || node.querySelector('br, img')) return false;
+  // The runs of text in order, each with the elements that mark it (strong, em, code, a …).
+  const runs = [];
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    if (text.parentElement.closest('.pv-marker')) continue;
+    const wrappers = [];
+    for (let e = text.parentElement; e && e !== node; e = e.parentElement) wrappers.unshift(e);
+    runs.push({ text: text.data, wrappers, font: fontOf(text.parentElement) });
+  }
+  // Words: pieces of runs between spaces; a soft hyphen or a hyphen inside one may break it.
+  const words = [];
+  let word = null;
+  for (const run of runs) {
+    for (const part of run.text.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) { if (word) words.push(word); word = null; continue; }
+      word ??= { pieces: [] };
+      word.pieces.push({ text: part, wrappers: run.wrappers, font: run.font });
+    }
+  }
+  if (word) words.push(word);
+  if (!words.length) return false;
+  const space = widthOf(' ', fontOf(node));
+  const glue = { width: space, stretch: space / 2, shrink: space / 3, extra: space / 3 };
+  // Boxes, discretionary hyphens and glue, as TeX would have them.
+  const items = [], segments = [];
+  words.forEach((w, n) => {
+    let segment = [];
+    const close = () => { if (segment.length) { items.push({ type: 'box', width: segment.reduce((s, p) => s + widthOf(p.text, p.font), 0), segment: segments.push(segment) - 1 }); segment = []; } };
+    for (const piece of w.pieces) {
+      const syllables = piece.text.split(/(­|(?<=[A-Za-z]-)(?=[A-Za-z]))/);
+      for (const s of syllables) {
+        if (s === undefined) continue;
+        if (s === '­') { close(); items.push({ type: 'penalty', width: widthOf('-', piece.font), penalty: TEX.hyphenpenalty, flagged: true, hyphen: true, soft: true }); continue; }
+        if (s === '') { close(); items.push({ type: 'penalty', width: 0, penalty: TEX.exhyphenpenalty, flagged: true }); continue; }
+        segment.push({ ...piece, text: s });
+      }
+    }
+    close();
+    if (n < words.length - 1) items.push({ ...spaceAfter(w.pieces.map(p => p.text).join('').replace(/­/g, ''), glue), word: true });
+  });
+  items.push({ type: 'glue', width: 0, stretch: 0, shrink: 0, fil: true }, { type: 'penalty', width: 0, penalty: -10000, flagged: false });
+  const widths = line => line === 0 ? width - indent : width;
+  const breaks = breakLines(items, widths, { ...TEX, tolerance: TEX.pretolerance }, false) ?? breakLines(items, widths, TEX, true);
+  if (!breaks) return false;
+  // Each line: its boxes, its glue at the width TeX's ratio gives it, a hyphen if it breaks one.
+  const lines = [];
+  let start = 0;
+  breaks.forEach((at, n) => {
+    const line = el('span', { class: 'pv-line' });
+    let natural = 0, stretch = 0, shrink = 0;
+    const content = items.slice(start, at).filter((item, i, all) => !(item.type === 'glue' && i === all.length - 1));
+    for (const item of content) { if (item.type === 'box') natural += item.width; if (item.type === 'glue' && !item.fil) { natural += item.width; stretch += item.stretch; shrink += item.shrink; } }
+    const end = items[at];
+    if (end.type === 'penalty' && end.hyphen) natural += end.width;
+    const target = widths(n), last = n === breaks.length - 1;
+    const ratio = last ? Math.min(0, (target - natural) / (shrink || 1)) : target >= natural ? (stretch ? (target - natural) / stretch : 0) : (shrink ? (target - natural) / shrink : 0);
+    let lastPiece = null;
+    for (const item of content) {
+      if (item.type === 'glue' && !item.fil) {
+        const wide = item.width + (ratio >= 0 ? ratio * item.stretch : ratio * item.shrink);
+        line.append(el('span', { class: 'pv-space', style: `word-spacing:${(wide - space).toFixed(3)}px` }, ' '));
+      } else if (item.type === 'box') {
+        for (const piece of segments[item.segment]) { line.append(marked(piece.text.replace(/­/g, ''), piece.wrappers)); lastPiece = piece; }
+      }
+    }
+    if (end.type === 'penalty' && end.hyphen && lastPiece) line.append(marked('-', lastPiece.wrappers));
+    lines.push(line);
+    start = at + 1;
+    while (start < items.length && items[start].type !== 'box') start++;
+  });
+  const marker = node.querySelector(':scope > .pv-marker');
+  node.replaceChildren(...(marker ? [marker] : []), ...lines);
+  node.classList.add('typeset');
+  return true;
+}
+
+// Text inside fresh copies of the elements that marked it, outermost first.
+function marked(text, wrappers) {
+  let out = document.createTextNode(text);
+  for (let i = wrappers.length - 1; i >= 0; i--) { const copy = wrappers[i].cloneNode(false); copy.append(out); out = copy; }
+  return out;
+}
+
+// Where this browser sets the baseline of a line of `line` points in type of `size` points,
+// below the line's top, in points: a zero-sized inline block stands on the baseline.
+function measuredBaseline(font) {
+  const known = new Map();
+  return (line, size) => {
+    const key = `${line}/${size}`;
+    if (!known.has(key)) {
+      const mark = el('span', { style: 'display:inline-block;width:0;height:0' });
+      const probe = el('p', { style: `position:absolute;visibility:hidden;left:0;top:0;margin:0;font:${size}pt/${line}pt ${font}` }, mark, 'Hg');
+      document.body.append(probe);
+      known.set(key, (mark.getBoundingClientRect().bottom - probe.getBoundingClientRect().top) * 0.75);
+      probe.remove();
+    }
+    return known.get(key);
+  };
+}
+
+function renderPaper(host, plan, page, sizes) {
+  const style = $('paper-style') ?? document.head.appendChild(el('style', { id: 'paper-style' }));
+  const below = measuredBaseline(page.font);
+  style.textContent = paperStyle(page.article, page.font, below);
+  // The sheet's body starts where its first baseline falls on the article's, and a column's
+  // lines end where its last may; both from the baseline this browser sets.
+  const A = page.article;
+  page = { ...page, limit: (A.bottom + A.pitch - below(A.pitch, A.size) - (A.top - below(A.pitch, A.size))) * 4 / 3 };
+  let body = null, columns = null, column = 0, current = null, limit = page.limit, balancing = false;
+  const newSheet = () => {
+    const number = host.childElementCount + 1;
+    current = el('section', { class: 'sheet-page', 'aria-label': `Page ${number}` });
+    body = el('div', { class: 'sheet-body' });
+    // The first page carries the draft line; every later one its number on the outer side.
+    const running = number === 1 ? el('div', { class: 'running draft', text: draftLine() }) : el('div', { class: `running ${number % 2 ? 'odd' : 'even'}`, text: String(number) });
+    current.append(body, running);
+    host.append(current);
+    columns = null;
+  };
+  const newColumns = () => {
+    columns = [el('div', { class: 'pv-column' }), el('div', { class: 'pv-column' })];
+    body.append(el('div', { class: 'pv-columns' }, columns));
+    column = 0;
+  };
+  const top = node => node.getBoundingClientRect().top - body.getBoundingClientRect().top;
+  const fits = node => node.getBoundingClientRect().bottom - body.getBoundingClientRect().top <= limit + 0.5;
+  const runsOver = () => {
+    if (current.classList.contains('runs-over')) return;
+    current.classList.add('runs-over');
+    current.append(el('p', { class: 'runs-over-note', text: 'This block is longer than a page. Word carries it on to the next one.' }));
+  };
+  // Lines of running text can be cut between; a caption, a heading or the title block cannot.
+  const cuttable = node => pieceOf.has(node) || (node.tagName === 'P' && node.classList.contains('pv-p') && !node.classList.contains('front') && !node.classList.contains('role-author'));
+  const piece = (source, from, count, line, marginTop, marginBottom) => {
+    const content = from === 0 ? source : Object.assign(source.cloneNode(true), { inert: true });
+    if (from > 0) content.setAttribute('aria-hidden', 'true');
+    content.style.margin = '0';
+    content.style.marginTop = `${-from * line}px`;
+    const wrap = el('div', { class: `pv-piece ${source.className}`, style: `height:${count * line}px;overflow:hidden;margin-top:${marginTop}px;margin-bottom:${marginBottom}px` }, content);
+    pieceOf.set(wrap, { source, from, count, line, marginTop, marginBottom });
+    return wrap;
+  };
+  // Cuts a block of lines where the column ends: the lines that fit stay, the rest go on.
+  const cut = node => {
+    const known = pieceOf.get(node), source = known?.source ?? node, computed = getComputedStyle(known ? node : source);
+    const line = known?.line ?? parseFloat(computed.lineHeight);
+    const from = known?.from ?? 0, total = known?.count ?? Math.round(node.getBoundingClientRect().height / line);
+    let fit = Math.floor((limit - top(node) + 0.5) / line);
+    if (fit >= total) return null;
+    // Never one line of a paragraph alone at the foot of a column or the head of the next, as
+    // Word's widow control and TeX's penalties keep it; a heading keeps two lines with it too.
+    if (from === 0 && fit < 2) return null;
+    if (total - fit < 2) fit = total - 2;
+    if (fit < (from === 0 ? 2 : 1)) return null;
+    const marginTop = parseFloat(computed.marginTop), marginBottom = known?.marginBottom ?? parseFloat(computed.marginBottom);
+    // The head takes the paragraph itself into it, so it goes where the block was by a marker.
+    const marker = document.createComment('');
+    node.before(marker);
+    const head = piece(source, from, fit, line, marginTop, 0), tail = piece(source, from + fit, total - fit, line, 0, marginBottom);
+    marker.replaceWith(head);
+    if (node !== source) node.remove();
+    return tail;
+  };
+  // What moves on with a block that does not fit: the headings above it, the figure above a
+  // caption, and a table's caption above its table.
+  const carried = node => {
+    const moving = [node];
+    for (let before = node.previousElementSibling; before && before.previousElementSibling; before = before.previousElementSibling) {
+      const keeps = HEADING.test(before.tagName) || before.classList.contains('above-table') || (before.classList.contains('pv-figure') && moving[0].classList.contains('pv-caption'));
+      if (!keeps) break;
+      moving.unshift(before);
+    }
+    return moving;
+  };
+  const next = () => {
+    if (column + 1 < columns.length) { column++; return true; }
+    if (balancing) return false;
+    newSheet(); newColumns();
+    return true;
+  };
+  const place = node => {
+    // `lead` is the first of the blocks moving together; at the head of a column they stay.
+    let lead = node;
+    for (;;) {
+      columns[column].append(node);
+      if (fits(node)) return true;
+      if (cuttable(node)) {
+        const tail = cut(node);
+        if (tail) { if (!next()) return false; node = lead = tail; continue; }
+      }
+      // At the head of a column it stays: longer than any column, the sheet grows to show it;
+      // unless the columns start lower on this sheet, under what runs across it.
+      if (columns[column].firstElementChild === lead) {
+        if (balancing) return false;
+        if (body.firstElementChild === columns[0].parentElement) { runsOver(); return true; }
+        lead.remove(); newSheet(); newColumns(); node = lead; continue;
+      }
+      const moving = carried(node);
+      moving.forEach(m => m.remove());
+      if (!next()) return false;
+      columns[column].append(...moving.slice(0, -1));
+      lead = moving[0]; node = moving.at(-1);
+    }
+  };
+  // Balances the open columns: the pieces of one paragraph joined again, then laid out in two
+  // columns of the least height, a line at a time, that takes them all.
+  // `full` lays them out again filling the first column, as before balancing.
+  const balance = (full = false) => {
+    if (!columns) return;
+    const items = [];
+    for (const node of [...columns[0].children, ...columns[1].children]) {
+      const p = pieceOf.get(node), last = items.at(-1), q = last && pieceOf.get(last);
+      if (p && q && q.source === p.source && q.from + q.count === p.from) {
+        items[items.length - 1] = piece(p.source, q.from, q.count + p.count, p.line, q.marginTop, p.marginBottom);
+        continue;
+      }
+      items.push(node);
+    }
+    // A paragraph whose pieces were all joined is the paragraph again.
+    const ready = items.map(node => {
+      const p = pieceOf.get(node);
+      if (p && p.from === 0 && Math.abs(p.count * p.line - p.source.scrollHeight) < 1) { p.source.style.margin = ''; p.source.style.marginTop = ''; return p.source; }
+      return node;
+    });
+    const [a, b] = columns, columnsTop = top(a), saved = limit;
+    a.replaceChildren(...ready); b.replaceChildren();
+    const needed = a.getBoundingClientRect().height, line = page.line;
+    balancing = true;
+    for (let height = full ? saved - columnsTop : Math.max(line, Math.floor(needed / 2 / line) * line); columnsTop + height <= saved + line; height += line) {
+      limit = Math.min(saved, columnsTop + height);
+      a.replaceChildren(); b.replaceChildren(); column = 0;
+      if (ready.every(node => place(node))) break;
+    }
+    balancing = false; limit = saved;
+  };
+  newSheet();
+  const notes = plan.footnotes.length ? [{ kind: 'heading', level: 2, text: 'Notes', breakBefore: false, indent: false, across: false },
+    ...plan.footnotes.map(f => ({ kind: 'paragraph', role: null, text: `${f.n}. ${f.text}`, indent: false, breakBefore: false, across: false }))] : [];
+  for (const block of [...previewBlocks(plan, 'paper'), ...notes]) {
+    // TeX hyphenates running text and captions; never the references, and headings rarely.
+    hyphenating = (block.kind === 'paragraph' && block.role !== 'References' && block.role !== 'Glossary' && !block.front && block.role !== 'Author') || block.kind === 'caption';
+    const element = blockElement(block, 'paper', sizes);
+    hyphenating = false;
+    // Running text, the abstract and captions are set as TeX sets them, at the width they take.
+    const typeset = () => { if ((element.matches('p.pv-p') && !element.matches('.front, .role-author, .role-references, .role-glossary, .role-keywords')) || element.matches('p.pv-caption')) typesetParagraph(element); };
+    if (block.across) {
+      body.append(element);
+      typeset();
+      if (!fits(element)) runsOver();
+      continue;
+    }
+    // The references' heading runs across the page, under the columns above it balanced.
+    if (block.kind === 'heading' && block.role === 'References' && block.part) {
+      balance();
+      body.append(element);
+      // It needs room for two of the references under it, or it starts the next sheet.
+      const room = element.getBoundingClientRect().bottom - body.getBoundingClientRect().top + (A.firstReference + 2 * A.referencePitch) * 4 / 3;
+      // Moving on, it leaves the columns above it as they were, filled from the first.
+      if (room > limit + 0.5) { element.remove(); balance(true); newSheet(); body.append(element); }
+      newColumns();
+      continue;
+    }
+    // A block that starts a page takes the headings just above it along, as Word keeps them.
+    if (block.breakBefore && columns && columns.some(c => c.childElementCount)) {
+      const moving = [];
+      for (let last = columns[column].lastElementChild; last && HEADING.test(last.tagName); last = columns[column].lastElementChild) { moving.unshift(last); last.remove(); }
+      if (columns.some(c => c.childElementCount)) { newSheet(); newColumns(); }
+      columns[column].append(...moving);
+    }
+    if (!columns) newColumns();
+    columns[column].append(element);
+    typeset();
+    element.remove();
+    place(element);
+  }
+  balance();
+}
+
 // The line length chosen under Appearance is how wide a sheet's text column appears on screen:
 // the sheets are scaled to it, and Full scales them to the frame. The text size scales them
 // again, by what it does to the writing sheet's type (17, 19 or 22 pixels), since a page's own
@@ -774,7 +1089,7 @@ const SIZE = { small: 17 / 19, medium: 1, large: 22 / 19 };
 function previewZoom() {
   if (state.mode === 'write') return;
   const host = $('preview'), page = PAGES[state.mode];
-  const room = host.clientWidth - 32, text = page.width - 2 * page.margin;
+  const room = host.clientWidth - 32, text = page.width - page.margin - (page.right ?? page.margin);
   const measure = MEASURE[state.appearance.width];
   let zoom = (measure ? measure / text : room / page.width) * (SIZE[state.appearance.size] ?? 1);
   if (room > 0) zoom = Math.min(zoom, room / page.width);
@@ -1675,6 +1990,8 @@ function profileOf(layoutName) {
 const LINE_HEIGHT = { 'Single': 1.2, '1.15': 1.35, '1.5': 1.75, 'Double': 2.3 };
 function previewPage(layout) {
   const base = PAGES[layout], p = profileOf(layout);
+  // The paper's sheet and type come from the article, its profile over it.
+  if (layout === 'paper') return { ...base, ...paperSheet(article(p)), article: article(p), font: p?.font ? `'${p.font}', ${base.font}` : base.font };
   if (!p) return base;
   const page = { ...base }, twips = PAGE_TWIPS[p.page];
   if (twips) { page.width = Math.round(twips[0] / 15); page.height = Math.round(twips[1] / 15); }

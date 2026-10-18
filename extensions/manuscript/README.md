@@ -53,8 +53,14 @@ same records; the view keeps no copy of the manuscript in the file.
   thumbnail with its description beside it; *Full width* under Appearance is the device's choice.
 - **Write / Book / Paper** in Nendo's toolbar switches between writing and a preview: the page as
   the Word layout sets it, on sheets of its paper (6 by 9 inches, or Letter), with its fonts, roles,
-  figure rows, page breaks and page numbers. It reads what is on the page, saved or not, and draws
-  it block by block, so a paragraph is never split across sheets as Word may split it. The line
+  figure rows, page breaks and page numbers. It reads what is on the page, saved or not. The book
+  is drawn block by block, so a paragraph is never split across sheets as Word may split it. The
+  paper is set as TeX sets the reference (0.20.0, W-293): each paragraph broken into lines by Knuth
+  and Plass's algorithm with the AASTeX reference's parameters, its words hyphenated with TeX's US
+  patterns and measured in the page's own type, each line's spaces as wide as TeX makes them; a
+  paragraph runs on line by line from the foot of a column to the head of the next, never one line
+  alone on either side; a heading keeps two lines with it, a figure its caption and a table its
+  caption; the columns above the references and those of the last page are balanced. The line
   length under Appearance scales the sheets, so the page's text runs as wide as it does while
   writing, and Full fits a whole sheet to the window; Small and Large scale them again, as they
   scale the writing sheet's type. No sheet is drawn wider than the window.
@@ -70,14 +76,21 @@ same records; the view keeps no copy of the manuscript in the file.
   heading says (Abstract, References, Appendix …), and a paragraph after a picture that starts
   "Figure n." is its caption. The *book layout* is a 6 by 9 inch page in Georgia with a title page and each
   part or chapter on a new page. The *paper layout* is an article as arXiv carries one in the
-  AASTeX two-column style, on Letter paper in Times at 10 points: the draft line at the top of
-  the first page, a centred title block from the paragraphs before the first heading (authors
-  in small capitals), the abstract across the page and narrower, then the body in two
-  justified columns, indented after the first paragraph, with headings centred and numbered
-  ("1. INTRODUCTION", "2.1. Documents as applications"; a heading's own number is kept), a
-  part such as the Abstract or References in capitals, pictures at the column's width and side
-  by side within it, a paragraph after a picture that starts "Figure n." set as its caption, a
-  References section with hanging indents, and page numbers at the top right. Cuttings, notes and links stay out. A picture that cannot go in stands as
+  AASTeX 6.3.1 two-column style, measured from a LaTeX render of the same plan (`ARTICLE` in
+  `export.mjs`, 0.20.0): Letter, 7.1 inches of text in two 241.35-point columns 28.5 apart, Times
+  at TeX's 10 points on lines exactly 12.45 points apart, each column's first baseline at 74.6
+  points; the draft line at the top of the first page, a centred title block from the paragraphs
+  before the first heading (title in bold, authors in small capitals, the rest smaller and
+  italic), the abstract across the page and narrower, then the body justified and hyphenated,
+  every paragraph indented 9 points, the first after a heading too, as the class indents it;
+  headings centred and numbered ("1. INTRODUCTION", "2.1. Documents as applications"; a
+  heading's own number is kept), a part such as the Abstract or References in capitals, numbered
+  lists with their numbers set right, pictures at the column's width and side by side 18 points
+  apart, a paragraph after a picture that starts "Figure n." set as its caption, tables with
+  AASTeX's rules (double above, one under the header row, one below) and columns sized as Word
+  and a browser size them, the References heading across the page under balanced columns and
+  the references in two columns, ragged and never hyphenated, and page numbers on the outer
+  side. Cuttings, notes and links stay out. A picture that cannot go in stands as
   its description and the view names it.
 - Selecting words in a paragraph shows a bar of icons in groups (text, alignment, paragraph,
   manuscript), each named with its keys in a tooltip: bold, italic, underline, strikethrough,
@@ -152,6 +165,20 @@ same records; the view keeps no copy of the manuscript in the file.
 
 ## Limits
 
+- The paper's reference is `tools/manus/latex.mjs`, the plan as AASTeX 6.3.1 sets it, and
+  `tools/Compare-ManusPaper.ps1` sets a manuscript three ways (the reference with Tectonic, the
+  Word export in Word, the preview in Edge) and measures each block's page, column and baseline
+  against the reference. It needs Tectonic, Word, and Python with PyMuPDF and Pillow, so it runs
+  by hand, outside the gate. Measured on the draft paper on 2026-10-18: all 122 blocks of the
+  preview and of the Word export on the reference's page and column, the preview's within a point
+  of it in 97 and a line in the rest; Word's a line on median, as Word breaks lines one at a time
+  where TeX weighs the whole paragraph, and never ends a column on a hyphenated line.
+- The reference departs from the class in what the exports cannot do: pictures and tables stand
+  where the text has them rather than float; the room around headings, lists and figures does
+  not shrink or stretch to fill a column, and no break is preferred before a section or around a
+  list; a column starts before a heading the class's grid would leave at its foot; the class's
+  credit under the draft line and its affiliation marks are left out.
+
 - The view reads every block of the file flat, a cursor page at a time, and builds the tree
   itself. Since ADR-0019's amendment of 2026-10-16 only subtree aggregates keep the 10,000-record
   bound; Nendo's Outline, `records.tree` and `descendantOf` page by key.
@@ -193,7 +220,7 @@ pwsh ./tools/Review-Manus.ps1
 
 `Build-Manus.mjs` builds only into an empty, newly created file and accepts only with
 `--accept` at Unattended. `Put-NendoPackage.mjs` updates the view in a file that has it. The
-package carries Tiptap 3.31.4 and marked 17.0.6, bundled by esbuild 0.28.2 into
+package carries Tiptap 3.31.4, marked 17.0.6 and hyphen 1.14.1 (TeX's US English patterns), bundled by esbuild 0.28.2 into
 `vendor/editor.js`, and docx 9.8.1 and JSZip 3.10.2 into `vendor/export.js`, loaded only when
 exporting, with every bundled package's licence in `vendor/THIRD-PARTY-NOTICES.txt`;
 `tools/manus/package-lock.json` pins the rebuild. No remote script or font is loaded.

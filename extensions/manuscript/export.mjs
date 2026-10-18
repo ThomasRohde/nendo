@@ -112,6 +112,40 @@ export function pictureFiles(plan, pictures) {
   return files;
 }
 
+// Times' advance widths in thousandths of an em, space to tilde: Times New Roman's, which TeX
+// Gyre Termes and Nimbus Roman share.
+const TIMES = [250, 333, 408, 500, 500, 833, 778, 180, 333, 333, 500, 564, 250, 333, 250, 278, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 278, 278, 564, 564, 564, 444,
+  921, 722, 667, 667, 722, 611, 556, 722, 722, 333, 389, 722, 611, 889, 722, 722, 556, 722, 667, 556, 611, 722, 722, 944, 722, 722, 611, 333, 278, 333, 469, 500,
+  333, 444, 500, 444, 500, 444, 333, 500, 500, 278, 278, 500, 278, 778, 500, 500, 500, 500, 333, 389, 278, 500, 500, 722, 500, 500, 444, 480, 200, 480, 541];
+const ems = text => [...text].reduce((w, c) => w + (TIMES[c.charCodeAt(0) - 32] ?? 500), 0) / 1000;
+const plainWords = markdown => (markdown ?? '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/<[^>]+>|[*_`~\\]/g, '');
+
+/**
+ * A table's column widths, as shares of its width that add up to 1, by the rule Word's and a
+ * browser's automatic layout follow: every column at least as wide as its longest word, and
+ * what is left shared by how much more each column's longest cell would take. `width` is the
+ * table's width and `padding` each cell's padding on both sides together, in ems of its type;
+ * the words are measured in Times. The paper's three renders take the same widths from here.
+ */
+export function tableColumns(rows, width, padding = 0) {
+  const count = Math.max(1, ...rows.map(r => r.length));
+  const least = Array(count).fill(padding), most = Array(count).fill(padding);
+  for (const row of rows) row.forEach((cell, c) => {
+    const words = plainWords(cell).split(/\s+/).filter(Boolean);
+    least[c] = Math.max(least[c], padding + Math.max(0, ...words.map(ems)));
+    most[c] = Math.max(most[c], padding + ems(words.join(' ')));
+  });
+  const sum = list => list.reduce((a, b) => a + b, 0);
+  let widths;
+  if (sum(most) <= width) widths = most.map(w => w * width / sum(most));
+  else if (sum(least) >= width) widths = least.map(w => w * width / sum(least));
+  else widths = least.map((w, c) => w + (width - sum(least)) * (most[c] - w) / (sum(most) - sum(least)));
+  return widths.map(w => w / width);
+}
+
+/** The paper's table columns, as the Word export, the preview and the reference share them. */
+export const paperTableColumns = (rows, A = article()) => tableColumns(rows, A.column / A.cellSize, 2 * A.cellPad / A.cellSize);
+
 /** A table as GitHub's pipe table: the first row the header, a line break as <br>. */
 export function pipeTable(rows) {
   const width = Math.max(1, ...rows.map(r => r.length));
@@ -179,6 +213,36 @@ function runs(markdown, lib, Lexer, size, base = 22, italic = false, bold = fals
   return out;
 }
 
+/**
+ * The paper layout's page as AASTeX 6.3.1 sets its twocolumn style, in points, measured from a
+ * LaTeX render of the same plan (tools/manus/latex.mjs, W-293). The Word export and the preview
+ * both set the page from these. A distance named for what it leads to is from the baseline
+ * before it to that baseline; `pitch` is from one line's baseline to the next.
+ */
+export const ARTICLE = {
+  width: 612, height: 792, left: 50.74, column: 241.35, gap: 28.5,
+  // A column's first baseline on a page after the first, and the lowest it may hold.
+  top: 74.6, bottom: 716.85,
+  // The running heads: the page number, and the draft line on the first page, indented.
+  // Type sizes are TeX's (10pt is 9.963 PostScript points), so the preview's words are as wide
+  // as the reference's and break where its lines break; Word rounds them to its half points.
+  folio: 51.6, draft: 58.8, draftIndent: 9, draftSize: 7.9701,
+  size: 9.9626, pitch: 12.45, indent: 9,
+  // The title block, across the page: the title's baseline, then each line after it.
+  title: 116.3, author: 17, authorSize: 8.9664, front: 17, frontSize: 7.9701, abstractHeading: 24.4, abstract: 15.3,
+  abstractLeft: 33.9, abstractRight: 34.9, columns: 26.6,
+  // Headings: a numbered section in 9 points, a part (Abstract, References) and a subsection in 10.
+  heading: 21.45, afterHeading: 16.43, sectionSize: 8.9664, headingAfterCaption: 30.65, headingAfterTable: 29.8,
+  // A list item: room above each and after the list, its number ending and its text starting.
+  listSpace: 8, number: 20.9, hang: 24.9,
+  // Pictures fill the column, a row's side by side with a gap; the caption under them.
+  pictureAbove: 15.1, pictureGap: 18, captionBelow: 15.9, captionSize: 8.9664, captionPitch: 11, afterCaption: 23,
+  // A table: its caption above it, a double rule, the header row, a rule, the rows, a rule.
+  tableCaption: 26.1, ruleBelowCaption: 16.1, rulePair: 1.9, cellSize: 8.9664, cellPitch: 11, cellPad: 5, rowSpace: 2, afterTable: 20.15,
+  // The references: their heading across the page under balanced columns, the entries hanging.
+  references: 32.2, firstReference: 18.6, referenceSize: 8.9664, referencePitch: 13, referenceHang: 9,
+};
+
 // Sizes are half-points and distances twentieths of a point (twips), as Word stores them.
 export const LAYOUTS = {
   /**
@@ -188,13 +252,14 @@ export const LAYOUTS = {
    * running head on the first page and page numbers at the top right after it.
    */
   paper: {
-    font: 'Times New Roman', size: 20, line: 240, firstLine: 288, after: 0,
-    page: { width: 12240, height: 15840, margin: 1440, side: 1080 }, columns: { count: 2, space: 475 },
-    title: { size: 24, before: 360, after: 200 }, front: { size: 20, after: 40 },
-    headings: [{ size: 20, before: 240, after: 120, center: true, bold: false }, { size: 20, before: 200, after: 100, center: true, bold: false, italics: true },
-      { size: 20, before: 160, after: 60, bold: false, italics: true }],
-    abstract: { size: 20, indent: 680 }, caption: { size: 18 }, references: { size: 18, hanging: 216 },
-    figureWidth: 320, textWidth: 320, pageNumbers: 'header', chapterBreaks: false, titlePage: false,
+    // The page itself is ARTICLE's, in points; these are the sizes its styles are written with.
+    font: 'Times New Roman', size: 20, line: 249, firstLine: 180, after: 0,
+    page: { width: 12240, height: 15840, margin: 1293, side: 1015 }, columns: { count: 2, space: 570 },
+    title: { size: 20, before: 0, after: 0 }, front: { size: 16, after: 0 },
+    headings: [{ size: 18, before: 199, after: 0, center: true, bold: false }, { size: 20, before: 199, after: 0, center: true, bold: false, italics: true },
+      { size: 20, before: 199, after: 0, bold: false, italics: true }],
+    abstract: { size: 20, indent: 678 }, caption: { size: 18 }, references: { size: 18, hanging: 180 },
+    figureWidth: 322, textWidth: 322, pageNumbers: 'header', chapterBreaks: false, titlePage: false,
   },
   /**
    * A manuscript for submission, as agents and publishers ask for one: Times New Roman at 12
@@ -316,43 +381,127 @@ const KEYWORDS = /^\*{0,2}keywords?\*{0,2}\s*[:.]\s*/i;
  * or one that could not be read, stands as its description in brackets and is named in
  * `missing`. `options.date` is the paper's draft date, today unless given.
  */
+// What may follow w:suppressAutoHyphens in a paragraph's properties, in the schema's order.
+const AFTER_HYPHENS = /<w:(?:kinsoku|wordWrap|overflowPunct|topLinePunct|autoSpaceDE|autoSpaceDN|bidi|adjustRightInd|snapToGrid|spacing|ind|contextualSpacing|mirrorIndents|suppressOverlap|jc|textDirection|textAlignment|textboxTightWrap|outlineLvl|divId|cnfStyle|rPr|sectPr|pPrChange)\b/;
+
+/**
+ * A document toDocx built, as the bytes of a .docx (`type` as JSZip names it: 'blob' or
+ * 'nodebuffer'): docx's own, with Word's Don't hyphenate added to the paragraph styles named in
+ * `built.unhyphenated`, which docx 9.8.1 cannot write. An article's references and table text
+ * are never hyphenated, as TeX sets them.
+ */
+export async function packDocx(built, lib, type = 'blob') {
+  const zip = await lib.JSZip.loadAsync(await lib.Packer.toArrayBuffer(built.document));
+  let styles = await zip.file('word/styles.xml').async('string');
+  for (const id of built.unhyphenated ?? []) {
+    styles = styles.replace(new RegExp(`(<w:style [^>]*w:styleId="${id}"[^>]*>)([\\s\\S]*?)(</w:style>)`), (all, open, inner, close) => {
+      if (!inner.includes('<w:pPr>')) return `${open}${inner.replace(/(<w:rPr>|$)/, '<w:pPr><w:suppressAutoHyphens/></w:pPr>$1')}${close}`;
+      return open + inner.replace(/<w:pPr>([\s\S]*?)<\/w:pPr>/, (p, body) => {
+        const at = body.search(AFTER_HYPHENS);
+        return `<w:pPr>${at < 0 ? `${body}<w:suppressAutoHyphens/>` : `${body.slice(0, at)}<w:suppressAutoHyphens/>${body.slice(at)}`}</w:pPr>`;
+      }) + close;
+    });
+  }
+  zip.file('word/styles.xml', styles);
+  return zip.generateAsync({ type, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
 export function toDocx(plan, pictures, lib, Lexer, layoutName = 'book', options = {}) {
   citing = plan.footnoteNumbers ?? new Map();
   try { return docx(plan, pictures, lib, Lexer, layoutName, options); } finally { citing = null; }
 }
 
+/**
+ * The paper's page with an output profile over it, in points: a page size or margins move the
+ * columns, a type size scales the type and every distance with it, line spacing the pitches.
+ */
+export function article(profile) {
+  const A = { ...ARTICLE, right: ARTICLE.width - ARTICLE.left - 2 * ARTICLE.column - ARTICLE.gap };
+  if (!profile) return A;
+  const page = PAGE_TWIPS[profile.page];
+  if (page) [A.width, A.height] = page.map(t => t / 20);
+  const scale = Number.isFinite(profile.size) && profile.size > 0 ? profile.size / 10 : 1;
+  const spacing = { '1.15': 1.15, '1.5': 1.5, 'Double': 2 }[profile.spacing] ?? 1;
+  const PAGE = new Set(['width', 'height', 'left', 'right', 'column', 'gap', 'top', 'bottom', 'folio', 'draft', 'title']);
+  for (const key of Object.keys(ARTICLE)) if (!PAGE.has(key)) A[key] = ARTICLE[key] * scale;
+  for (const key of ['pitch', 'captionPitch', 'cellPitch', 'referencePitch']) A[key] *= spacing;
+  const margin = Number.isFinite(profile.margin) && profile.margin > 0 ? profile.margin * 72 / 25.4 : null;
+  if (margin !== null) {
+    A.left = A.right = margin;
+    A.top = margin + 0.8 * A.pitch;
+    A.folio = margin * ARTICLE.folio / ARTICLE.top;
+    A.draft = margin * ARTICLE.draft / ARTICLE.top;
+  } else A.top = ARTICLE.top - 0.8 * ARTICLE.pitch + 0.8 * A.pitch;
+  A.bottom = A.height - (ARTICLE.height - ARTICLE.bottom) * (margin === null ? 1 : margin / ARTICLE.left);
+  A.title = A.top + (ARTICLE.title - ARTICLE.top) * scale;
+  A.column = (A.width - A.left - A.right - A.gap) / 2;
+  return A;
+}
+
 function docx(plan, pictures, lib, Lexer, layoutName, options) {
   const L = withProfile(LAYOUTS[layoutName] ?? LAYOUTS.book, options.profile);
   const A = lib.AlignmentType;
+  const paper = layoutName === 'paper';
+  const G = paper ? article(options.profile) : null;
+  // Twips, Word's exact line, and the room before a line: Word sets a line of exact height H
+  // with its baseline 0.8 H below its top, so a baseline `gap` below the one of a line of height
+  // `above` is that gap less 0.2 of the line above and 0.8 of this one.
+  const T = pt => Math.round(pt * 20), half = pt => Math.round(pt * 2);
+  const exact = pt => ({ line: T(pt), lineRule: 'exact' });
+  const lead = (gap, above, height) => Math.max(0, T(gap - 0.2 * above - 0.8 * height));
   const headingLevels = [lib.HeadingLevel.HEADING_1, lib.HeadingLevel.HEADING_2, lib.HeadingLevel.HEADING_3];
-  const children = [new lib.Paragraph({ heading: lib.HeadingLevel.TITLE, alignment: A.CENTER, children: [new lib.TextRun({ text: plan.title })] })];
+  const children = [new lib.Paragraph({ heading: lib.HeadingLevel.TITLE, alignment: A.CENTER,
+    ...(paper ? { spacing: { before: lead(G.title - (G.top - 0.8 * G.pitch), 0, G.pitch), after: 0, ...exact(G.pitch) } } : {}),
+    children: [new lib.TextRun({ text: plan.title })] })];
   const missing = [];
   let indentNext = false, previous = null;
+  // In the paper, what was set last decides the room above what comes next, as in AASTeX: its
+  // kind, and the height of its line (0 for a table, measured from its rule).
+  let last = { kind: 'front', height: paper ? G.pitch : 0 };
+  const room = (kind, height, pictureTop = false) => {
+    const was = last; last = { kind, height };
+    if (pictureTop) return was.kind === 'top' ? 0 : Math.max(0, T(G.pictureAbove - 0.2 * was.height));
+    // At the top of the columns nothing is added: the title block's room is already there.
+    if (was.kind === 'top') return 0;
+    if (kind === 'heading') return lead(was.kind === 'heading' ? G.afterHeading : was.kind === 'caption' ? G.headingAfterCaption : was.kind === 'table' ? G.headingAfterTable : G.heading, was.height, height);
+    if (was.kind === 'heading') return lead(G.afterHeading, was.height, height);
+    if (was.kind === 'caption') return lead(G.afterCaption, was.height, height);
+    if (was.kind === 'table') return lead(G.afterTable, 0, height);
+    if (kind === 'item' || was.kind === 'item') return lead(G.pitch + G.listSpace, was.height, height);
+    return lead(height, was.height, height);
+  };
+  const spaced = (kind, height) => paper ? { spacing: { before: room(kind, height), after: 0, ...exact(height) } } : {};
   // Pictures next to each other share one figure row, as subfigures do, each at its share of the
   // width; a single picture is set at the layout's figure width.
   let row = [];
   const flushRow = () => {
     if (!row.length) return;
-    const runsOfRow = [], each = row.length === 1 ? L.figureWidth : Math.floor((L.textWidth - 24 * (row.length - 1)) / row.length);
+    // The paper's pictures fill the column, a row's side by side 18 points apart; in points.
+    const each = paper ? (row.length === 1 ? G.column : (G.column - G.pictureGap * (row.length - 1)) / row.length - 0.05) * 4 / 3
+      : row.length === 1 ? L.figureWidth : Math.floor((L.textWidth - 24 * (row.length - 1)) / row.length);
+    const runsOfRow = [];
     row.forEach((item, i) => {
       const picture = pictures.get(item.address), type = picture && WORD_TYPE[picture.mediaType];
-      if (i > 0) runsOfRow.push(new lib.TextRun({ text: '    ' }));
+      if (i > 0) runsOfRow.push(paper ? new lib.TextRun({ text: ' ', characterSpacing: T(G.pictureGap - G.size / 4) }) : new lib.TextRun({ text: '    ' }));
       if (!picture || !type || !picture.width || !picture.height) {
         missing.push({ alt: item.alt, address: item.address, why: !picture ? 'not read' : 'a type Word does not hold' });
         runsOfRow.push(new lib.TextRun({ text: `[Picture: ${item.alt || 'no description'}]`, italics: true }));
         return;
       }
-      const width = Math.min(each, picture.width), height = Math.round(width * picture.height / picture.width);
-      runsOfRow.push(new lib.ImageRun({ type, data: picture.data, transformation: { width, height },
+      const width = Math.min(each, paper ? Infinity : picture.width), height = width * picture.height / picture.width;
+      runsOfRow.push(new lib.ImageRun({ type, data: picture.data, transformation: paper ? { width, height } : { width: Math.round(width), height: Math.round(height) },
         altText: { name: item.alt || 'Picture', title: item.alt || 'Picture', description: item.alt || '' } }));
     });
-    children.push(new lib.Paragraph({ alignment: A.CENTER, keepNext: true, spacing: { before: 200, after: 80 }, children: runsOfRow }));
+    children.push(new lib.Paragraph({ alignment: A.CENTER, keepNext: true,
+      spacing: paper ? { before: room('picture', 0, true), after: 0, line: 240, lineRule: 'auto' } : { before: 200, after: 80 }, children: runsOfRow }));
+    if (paper) last = { kind: 'picture', height: 0 };
     indentNext = false; previous = row.at(-1); row = [];
   };
-  const paper = layoutName === 'paper';
   const { labels, parts } = paper ? paperHeadings(plan) : { labels: new Map(), parts: new Set() };
   const columnsAt = paper ? columnsStart(plan) : -1;
-  let columnsChild = children.length;
+  // The paper's sections: the title block across the page, the body in two columns, and the
+  // references' heading across the page over their two columns, each starting at a child.
+  const sectionsAt = [];
   // A block's own alignment wins over the one its layout or role gives it.
   const ALIGN = { Left: A.LEFT, Centre: A.CENTER, Right: A.RIGHT, Justify: A.JUSTIFIED };
   let own = null;
@@ -365,17 +514,20 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     if (!named.has(id)) named.set(id, { id, name, basedOn: 'Normal', next: 'BodyText', quickFormat: true, paragraph, run });
     return id;
   };
-  // Body text: the first paragraph after a heading, a picture or a set-apart block starts flush.
-  const body = indented => indented
-    ? styled('BodyText', 'Body Text', { alignment: A.JUSTIFIED, indent: { firstLine: L.firstLine } })
+  // Body text: the first paragraph after a heading, a picture or a set-apart block starts flush,
+  // except in the paper, which indents every paragraph of running text as AASTeX does.
+  const body = indented => indented || paper
+    ? styled('BodyText', 'Body Text', { alignment: A.JUSTIFIED, indent: { firstLine: paper ? T(G.indent) : L.firstLine } })
     : styled('BodyTextFirst', 'Body Text First', { alignment: A.JUSTIFIED, indent: { firstLine: 0 } });
   let firstAppendix = true;
   for (const [index, item] of plan.items.entries()) {
     if (item.type !== 'picture' || index === columnsAt) flushRow();
     if (index === columnsAt) {
-      // A little room between the abstract and the columns, as an article leaves.
-      children.push(new lib.Paragraph({ spacing: { before: 0, after: 120 }, children: [] }));
-      columnsChild = children.length;
+      // Room between the title block and the columns: an empty line of that height, so both
+      // columns start level, as a heading's own room above would start only the first lower.
+      children.push(new lib.Paragraph({ spacing: paper ? { before: 0, after: 0, ...exact(G.columns - 0.2 * last.height - 0.8 * G.pitch) } : { before: 0, after: 120 }, children: [] }));
+      sectionsAt.push({ at: children.length, columns: 2 });
+      if (paper) last = { kind: 'top', height: G.pitch };
     }
     own = ALIGN[item.align] ?? null;
     if (item.type === 'heading') {
@@ -386,25 +538,54 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
       const opensPage = item.kind ? item.kind === 'Part' || item.kind === 'Chapter' : level === 1;
       const breakBefore = (L.chapterBreaks && opensPage) || (level === 1 && paper && item.role === 'Appendix' && firstAppendix);
       if (item.role === 'Appendix' && level === 1) firstAppendix = false;
-      children.push(P({ heading: headingLevels[level - 1], alignment: centred ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore,
-        children: text(labels.get(item) ?? item.text, paper && item.role === 'Abstract' ? L.abstract.size : undefined) }));
+      // The references' heading runs across the page, under the columns above it balanced.
+      const across = paper && parts.has(item) && item.role === 'References' && index > columnsAt;
+      let spacing = {};
+      if (across) {
+        sectionsAt.push({ at: children.length, columns: 1 });
+        spacing = { spacing: { before: lead(G.references, last.height, G.pitch), after: T(G.firstReference - 0.2 * G.pitch - 0.8 * G.referencePitch), ...exact(G.pitch) } };
+        last = { kind: 'top', height: G.referencePitch };
+      } else if (paper && item.role === 'Abstract' && index < columnsAt) {
+        spacing = { spacing: { before: lead(G.abstractHeading, last.height, G.pitch), after: 0, ...exact(G.pitch) } };
+        last = { kind: 'abstract-heading', height: G.pitch };
+      } else spacing = spaced('heading', G?.pitch);
+      // A part (Abstract, References) is set at the text's size, a numbered section smaller.
+      const size = paper && part ? half(G.size) : undefined;
+      children.push(P({ heading: headingLevels[level - 1], alignment: centred || (paper && level <= 2) ? A.CENTER : A.LEFT, pageBreakBefore: breakBefore, ...spacing,
+        children: text(labels.get(item) ?? item.text, size) }));
+      if (across) sectionsAt.push({ at: children.length, columns: 2 });
       indentNext = false; previous = item;
       continue;
     }
     if (item.type === 'picture') { row.push(item); continue; }
     if (item.type === 'table') {
-      // Across the text, the header row repeated on each page it runs to.
-      const width = Math.max(1, ...item.rows.map(r => r.length));
-      children.push(new lib.Table({ width: { size: 100, type: lib.WidthType.PERCENTAGE },
-        rows: item.rows.map((cells, r) => new lib.TableRow({ tableHeader: r === 0 || undefined, children: Array.from({ length: width }, (_, c) =>
-          new lib.TableCell({ children: [new lib.Paragraph({ spacing: { before: 40, after: 40, line: 240 }, children: runs(cells[c] ?? '', lib, Lexer, Math.round(L.size * 0.9), L.size, false, r === 0) })] })) })) }));
-      children.push(new lib.Paragraph({ spacing: { after: 120 }, children: [] }));
+      if (paper) {
+        // As AASTeX sets a table: a double rule above, a rule under the header row and one
+        // below, no others, the columns as tableColumns shares them, in 9 points.
+        const shares = paperTableColumns(item.rows, G);
+        const NONE = { style: lib.BorderStyle.NONE, size: 0, color: 'auto' }, RULE = { style: lib.BorderStyle.SINGLE, size: 4, color: '000000' };
+        const pad = T(G.rowSpace / 2), side = T(G.cellPad);
+        children.push(new lib.Table({ width: { size: T(G.column), type: lib.WidthType.DXA }, columnWidths: shares.map(s => T(s * G.column)), layout: lib.TableLayoutType.FIXED,
+          margins: { top: pad, bottom: pad, left: side, right: side },
+          borders: { top: { style: lib.BorderStyle.DOUBLE, size: 4, color: '000000' }, bottom: RULE, left: NONE, right: NONE, insideHorizontal: NONE, insideVertical: NONE },
+          rows: item.rows.map((cells, r) => new lib.TableRow({ tableHeader: r === 0 || undefined, cantSplit: true, children: shares.map((s, c) =>
+            new lib.TableCell({ width: { size: T(s * G.column), type: lib.WidthType.DXA }, borders: r === 0 ? { bottom: RULE } : undefined,
+              children: [new lib.Paragraph({ style: styled('TableText', 'Table Text', { alignment: A.LEFT }, { size: half(G.cellSize) }), spacing: { before: 0, after: 0, ...exact(G.cellPitch) }, children: runs(cells[c] ?? '', lib, Lexer, undefined, L.size) })] })) })) }));
+        last = { kind: 'table', height: 0 };
+      } else {
+        // Across the text, the header row repeated on each page it runs to.
+        const width = Math.max(1, ...item.rows.map(r => r.length));
+        children.push(new lib.Table({ width: { size: 100, type: lib.WidthType.PERCENTAGE },
+          rows: item.rows.map((cells, r) => new lib.TableRow({ tableHeader: r === 0 || undefined, children: Array.from({ length: width }, (_, c) =>
+            new lib.TableCell({ children: [new lib.Paragraph({ spacing: { before: 40, after: 40, line: 240 }, children: runs(cells[c] ?? '', lib, Lexer, Math.round(L.size * 0.9), L.size, false, r === 0) })] })) })) }));
+        children.push(new lib.Paragraph({ spacing: { after: 120 }, children: [] }));
+      }
       indentNext = false; previous = item;
       continue;
     }
     if (item.list) {
       // A list item: Word's own numbering, each numbered list starting at 1.
-      children.push(para({ alignment: A.LEFT, spacing: { after: 60 }, numbering: item.list === 'Numbered'
+      children.push(para({ alignment: paper ? A.JUSTIFIED : A.LEFT, ...(paper ? spaced('item', G.pitch) : { spacing: { after: 60 } }), numbering: item.list === 'Numbered'
         ? { reference: 'mn-numbered', level: item.listLevel, instance: item.run } : { reference: 'mn-bulleted', level: item.listLevel } }, item.text));
       indentNext = false; previous = item;
       continue;
@@ -412,26 +593,36 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     const role = item.role;
     let block = null, continues = false;
     // Each role a paragraph style of its own, its formatting in the style: change Quotation in
-    // Word and every quotation changes.
-    const S = (id, words, italic = false) => P({ style: id, children: runs(words, lib, Lexer, undefined, L.size, italic) });
+    // Word and every quotation changes. In the paper the room above is the paragraph's own.
+    let lines = paper ? G.pitch : null, kind = 'text';
+    const S = (id, words, italic = false) => P({ style: id, ...(paper ? spaced(kind, lines) : {}), children: runs(words, lib, Lexer, undefined, L.size, italic) });
     switch (role) {
       case 'Caption': {
         const caption = FIGURE.exec(item.text);
         const label = caption ? `${caption[1][0].toUpperCase()}${caption[1].slice(1).toLowerCase()} ${caption[2]}${paper ? '.' : ':'}` : null;
-        styled('Caption', 'Caption', { alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: 240 }, indent: paper ? {} : { left: 360, right: 360 } }, { size: L.caption.size, italics: L.caption.italics || undefined });
-        block = P({ style: 'Caption', children: [
-          ...(label ? [new lib.TextRun({ text: `${label} `, bold: (!L.caption.italics && !paper) || undefined })] : []),
+        styled('Caption', 'Caption', { alignment: paper ? A.JUSTIFIED : A.CENTER, spacing: { after: paper ? 0 : 240 }, indent: paper ? {} : { left: 360, right: 360 } }, { size: paper ? half(G.captionSize) : L.caption.size, italics: L.caption.italics || undefined });
+        // A figure's caption hangs under its pictures; a table's stands over the table.
+        let spacing = {};
+        if (paper) {
+          const table = plan.items[index + 1]?.type === 'table';
+          const before = previous?.type === 'picture' ? T(G.captionBelow - 0.8 * G.captionPitch) : lead(table ? G.tableCaption : G.pitch, last.height, G.captionPitch);
+          spacing = { spacing: { before, after: table ? T(G.ruleBelowCaption - 0.2 * G.captionPitch) : 0, ...exact(G.captionPitch) } };
+          last = { kind: table ? 'above-table' : 'caption', height: G.captionPitch };
+        }
+        block = P({ style: 'Caption', ...spacing, children: [
+          ...(label ? [new lib.TextRun({ text: `${label} `, bold: !L.caption.italics || undefined })] : []),
           ...text(caption ? item.text.slice(caption[0].length) : item.text)] });
         break;
       }
       case 'Subtitle':
-        styled('Subtitle', 'Subtitle', { alignment: A.CENTER, spacing: { after: 200 } }, { size: paper ? L.size : Math.round(L.title.size * 0.6) });
+        styled('Subtitle', 'Subtitle', { alignment: A.CENTER, spacing: { after: paper ? 0 : 200 } }, { size: paper ? L.size : Math.round(L.title.size * 0.6) });
         block = S('Subtitle', item.text);
         break;
       case 'Author':
         // An article's authors are in small capitals, as AASTeX sets them.
-        styled('Author', 'Author', { alignment: A.CENTER, spacing: { after: L.front.after } }, paper ? { size: L.front.size + 2, smallCaps: true } : { size: L.front.size });
-        block = S('Author', item.text);
+        styled('Author', 'Author', { alignment: A.CENTER, spacing: { after: paper ? 0 : L.front.after } }, paper ? { size: half(G.authorSize), smallCaps: true } : { size: L.front.size });
+        if (paper) { block = P({ style: 'Author', spacing: { before: lead(G.author, G.pitch, G.pitch), after: 0, ...exact(G.pitch) }, children: runs(item.text, lib, Lexer, undefined, L.size) }); last = { kind: 'front', height: G.pitch }; }
+        else block = S('Author', item.text);
         break;
       case 'Dedication':
         // Word drops the space before a paragraph at the top of a page, so a dedication on its own
@@ -462,15 +653,17 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
         break;
       case 'Abstract':
         if (paper) {
-          styled('Abstract', 'Abstract', { alignment: A.JUSTIFIED, indent: { left: L.abstract.indent, right: L.abstract.indent, firstLine: L.firstLine } }, { size: L.abstract.size });
-          block = S('Abstract', item.text);
+          styled('Abstract', 'Abstract', { alignment: A.JUSTIFIED, indent: { left: T(G.abstractLeft), right: T(G.abstractRight), firstLine: T(G.indent) } }, { size: half(G.size) });
+          const first = last.kind === 'abstract-heading';
+          block = P({ style: 'Abstract', spacing: { before: first ? lead(G.abstract, G.pitch, G.pitch) : 0, after: 0, ...exact(G.pitch) }, children: runs(item.text, lib, Lexer, undefined, L.size) });
+          last = { kind: 'text', height: G.pitch };
         } else block = S(body(indentNext), item.text);
         continues = true;
         break;
       case 'Keywords':
         // "Keywords:" in italics, the list hanging under it.
         if (paper) {
-          styled('Keywords', 'Keywords', { alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: L.abstract.indent + 950, right: L.abstract.indent, hanging: 950 } }, { size: L.abstract.size });
+          styled('Keywords', 'Keywords', { alignment: A.LEFT, spacing: { before: 200, after: 120 }, indent: { left: T(G.abstractLeft) + 950, right: T(G.abstractRight), hanging: 950 } }, { size: half(G.size) });
           block = P({ style: 'Keywords', children: [new lib.TextRun({ text: 'Keywords: ', italics: true }), ...text(item.text.replace(KEYWORDS, ''))] });
         } else {
           styled('Keywords', 'Keywords', { alignment: A.LEFT, spacing: { before: 120 } });
@@ -479,7 +672,9 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
         break;
       case 'References':
       case 'Glossary':
-        styled(role, role, { alignment: A.LEFT, spacing: { after: 60 }, indent: { left: L.references.hanging, hanging: L.references.hanging } }, { size: L.references.size });
+        // As AASTeX sets its references: smaller, ragged, never hyphenated, each entry hanging.
+        if (paper) { lines = G.referencePitch; kind = 'reference'; }
+        styled(role, role, { alignment: A.LEFT, spacing: { after: paper ? 0 : 60 }, indent: { left: paper ? T(G.referenceHang) : L.references.hanging, hanging: paper ? T(G.referenceHang) : L.references.hanging } }, { size: paper ? half(G.referenceSize) : L.references.size });
         block = S(role, item.text);
         break;
       case 'Colophon':
@@ -488,8 +683,9 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
         break;
       default:
         if (item.front && paper) {
-          styled('FrontMatter', 'Front Matter', { alignment: A.CENTER, spacing: { after: L.front.after } }, { size: L.front.size });
-          block = S('FrontMatter', item.text);
+          styled('FrontMatter', 'Front Matter', { alignment: A.CENTER, spacing: { after: 0 } }, { size: half(G.frontSize) });
+          block = P({ style: 'FrontMatter', spacing: { before: lead(G.front, G.pitch, G.pitch), after: 0, ...exact(G.pitch) }, children: runs(item.text, lib, Lexer, undefined, L.size) });
+          last = { kind: 'front', height: G.pitch };
           break;
         }
         block = S(body(indentNext), item.text);
@@ -501,12 +697,16 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
   flushRow();
   const heading = h => ({ run: { font: L.font, size: h.size, bold: h.bold !== false, italics: !!h.italics, color: '000000' },
     paragraph: { spacing: { before: h.before, after: h.after }, keepNext: true, keepLines: true } });
-  const listLevels = (format, text) => Array.from({ length: MAX_LEVEL + 1 }, (_, level) => ({ level, format, text: text(level), alignment: A.LEFT,
-    style: { paragraph: { indent: { left: 360 * (level + 1) + 360, hanging: 360 } } } }));
+  const listLevels = (format, text) => Array.from({ length: MAX_LEVEL + 1 }, (_, level) => ({ level, format, text: text(level),
+    // An article's numbers end where AASTeX's do, right-aligned, its text hanging after them.
+    ...(paper ? { alignment: A.RIGHT, style: { paragraph: { indent: { left: T(G.hang + 18 * level), hanging: T(G.hang - G.number) } } } }
+      : { alignment: A.LEFT, style: { paragraph: { indent: { left: 360 * (level + 1) + 360, hanging: 360 } } } }) }));
   const NUMBER_FORMATS = [lib.LevelFormat.DECIMAL, lib.LevelFormat.LOWER_LETTER, lib.LevelFormat.LOWER_ROMAN, lib.LevelFormat.DECIMAL, lib.LevelFormat.LOWER_LETTER];
   const footnotes = Object.fromEntries((plan.footnotes ?? []).map(f => [f.n, { children: [new lib.Paragraph({ children: runs(f.text, lib, Lexer, Math.round(L.size * 0.85), L.size) })] }]));
   const document = new lib.Document({
     creator: 'Nendo Manuscript', title: plan.title, footnotes,
+    // An article hyphenates as TeX does, and numbers its pages on the outer side.
+    ...(paper ? { evenAndOddHeaderAndFooters: true, hyphenation: { autoHyphenation: true, doNotHyphenateCaps: true } } : {}),
     numbering: { config: [
       { reference: 'mn-bulleted', levels: listLevels(lib.LevelFormat.BULLET, level => BULLETS[level]) },
       { reference: 'mn-numbered', levels: listLevels(lib.LevelFormat.DECIMAL, level => `%${level + 1}.`).map((l, i) => ({ ...l, format: NUMBER_FORMATS[i] })) },
@@ -514,20 +714,20 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     styles: {
       // docx writes its own Title and Heading styles; these are what it writes them as.
       default: {
-        document: { run: { font: L.font, size: L.size, color: '000000' }, paragraph: { spacing: { line: L.line, after: L.after } } },
-        title: { run: { font: L.font, size: L.title.size, bold: layoutName === 'paper', color: '000000' },
+        document: { run: { font: L.font, size: L.size, color: '000000' }, paragraph: { spacing: paper ? { after: 0, ...exact(G.pitch) } : { line: L.line, after: L.after } } },
+        title: { run: { font: L.font, size: L.title.size, bold: paper, color: '000000' },
           paragraph: { alignment: A.CENTER, spacing: { before: L.title.before, after: L.title.after } } },
         heading1: heading(L.headings[0]), heading2: heading(L.headings[1]), heading3: heading(L.headings[2]),
       },
       paragraphStyles: [...named.values()],
     },
-    sections: paper ? paperSections(lib, L, children, columnsChild, options.date) : [{
+    sections: paper ? paperSections(lib, G, children, sectionsAt, L.pageNumbers, options.date) : [{
       properties: pageProperties(L),
       footers: L.pageNumbers ? { default: new lib.Footer({ children: [new lib.Paragraph({ alignment: A.CENTER, children: [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: 20 })] })] }) } : undefined,
       children: L.titlePage ? [children[0], new lib.Paragraph({ children: [], pageBreakBefore: false }), ...children.slice(1)] : children,
     }],
   });
-  return { document, missing };
+  return { document, missing, unhyphenated: paper ? ['References', 'Glossary', 'TableText'].filter(id => named.has(id)) : [] };
 }
 
 function pageProperties(L) {
@@ -537,19 +737,36 @@ function pageProperties(L) {
 }
 
 /**
- * An article's two sections: the title block across the page, then the body in two columns,
- * continuing on the same page. The first page carries the draft line at the top left, every
- * later one its number at the top right; both sections carry the pair, so whichever Word
- * reads for a page says the same.
+ * An article's sections, all on the same run of pages: the title block across the page, the
+ * body in two columns, and, when the references have a heading, that heading across the page
+ * and the references in two columns again. Word balances the columns above a continuous
+ * break, as AASTeX balances them above its references, and a last empty section balances the
+ * last page's. The first page carries the draft line at the top left, the others their number
+ * on the outer side; every section carries the set, so whichever Word reads for a page says
+ * the same. Distances in points.
  */
-function paperSections(lib, L, children, at, date) {
-  const A = lib.AlignmentType;
-  const headers = () => ({
-    first: new lib.Header({ children: [new lib.Paragraph({ alignment: A.LEFT, children: [new lib.TextRun({ text: draftLine(date), smallCaps: true, size: 18 })] })] }),
-    default: new lib.Header({ children: [new lib.Paragraph({ alignment: A.RIGHT, children: L.pageNumbers ? [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: 18 })] : [] })] }),
+function paperSections(lib, G, children, sectionsAt, numbers, date) {
+  const A = lib.AlignmentType, T = pt => Math.round(pt * 20), half = pt => Math.round(pt * 2);
+  const line = height => ({ before: 0, after: 0, line: T(height), lineRule: 'exact' });
+  const folio = alignment => new lib.Header({ children: [new lib.Paragraph({ alignment, spacing: line(G.pitch),
+    children: numbers ? [new lib.TextRun({ children: [lib.PageNumber.CURRENT], size: half(G.size) })] : [] })] });
+  const headers = first => ({
+    ...(first ? { first: new lib.Header({ children: [new lib.Paragraph({ alignment: A.LEFT, indent: { left: T(G.draftIndent) }, spacing: line((G.draft - G.folio + 0.8 * G.pitch) / 0.8),
+      children: [new lib.TextRun({ text: draftLine(date), smallCaps: true, size: half(G.draftSize) })] })] }) } : {}),
+    default: folio(A.RIGHT), even: folio(A.LEFT),
   });
-  const across = { properties: { ...pageProperties(L), titlePage: true }, headers: headers(), children: children.slice(0, at) };
-  if (at >= children.length) return [across];
-  return [across, { properties: { ...pageProperties(L), titlePage: true, type: lib.SectionType.CONTINUOUS, column: { count: L.columns.count, space: L.columns.space } },
-    headers: headers(), children: children.slice(at) }];
+  const page = { size: { width: T(G.width), height: T(G.height) },
+    margin: { top: T(G.top - 0.8 * G.pitch), bottom: T(G.height - G.bottom - 0.2 * G.pitch), left: T(G.left), right: T(G.right), header: T(G.folio - 0.8 * G.pitch), footer: 720 } };
+  const bounds = [{ at: 0, columns: 1 }, ...sectionsAt.filter(s => s.at < children.length)];
+  const sections = bounds.map((s, i) => ({
+    // Only the sections that start on the first page take its own header.
+    properties: { page, titlePage: i === 0 || bounds[i].at <= (sectionsAt[0]?.at ?? 0), ...(i > 0 ? { type: lib.SectionType.CONTINUOUS } : {}),
+      ...(s.columns > 1 ? { column: { count: s.columns, space: T(G.gap) } } : {}) },
+    headers: headers(i === 0 || s.at <= (sectionsAt[0]?.at ?? 0)),
+    children: children.slice(s.at, bounds[i + 1]?.at ?? children.length),
+  }));
+  // A last section, empty, so Word balances the columns of the last page.
+  if (bounds.at(-1).columns > 1) sections.push({ properties: { page, type: lib.SectionType.CONTINUOUS }, headers: headers(false),
+    children: [new lib.Paragraph({ spacing: line(1), children: [] })] });
+  return sections;
 }
