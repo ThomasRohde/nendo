@@ -988,6 +988,45 @@ async page => {
   assert(previewNotes.cited.join() === '1' && previewNotes.notes.includes('1. Measured at the bar post. Twice.'), `Footnotes in the preview: ${JSON.stringify(previewNotes)}`);
   checks.push('footnotes numbered in the preview');
 
+  // Stage 4: a setup and its payoff. Moved, the link holds and stays current; the setup's words
+  // changed, the link is flagged with the words before and after; reviewed, it is current again
+  // and keeps the new words; and the thread of its kind reads in manuscript order.
+  await putBlock('b-setup', 'The lamp was left unlit.', 4000000);
+  await putBlock('b-between', 'The tide turned at four.', 4001024);
+  await putBlock('b-payoff', 'Nobody saw the boat come in.', 4002048);
+  await page.evaluate(() => { window.broker.put('mn.link', { entityId: 'mn.link', recordId: 'l-setup', version: 1, values: { 'mn.link.from': 'b-setup', 'mn.link.to': 'b-payoff',
+    'mn.link.kind': 'Foreshadows', 'mn.link.note': null, 'mn.link.review': 'Current', 'mn.link.fromSeen': 'The lamp was left unlit.', 'mn.link.toSeen': 'Nobody saw the boat come in.' } }); window.broker.pushChanges(); });
+  await frame.waitForFunction(() => document.querySelector('.sheet-text [data-block="b-payoff"]'), null, { timeout: 5000 });
+  await select('b-setup', 0);
+  await page.keyboard.press('Alt+Shift+ArrowUp');
+  await saved();
+  const afterMove = await record('mn.link', 'l-setup');
+  assert(afterMove.values['mn.link.review'] === 'Current' && afterMove.values['mn.link.from'] === 'b-setup', `A moved setup's link: ${JSON.stringify(afterMove.values)}`);
+  await select('b-setup', 'left', '.');
+  await page.keyboard.type('lit at dusk');
+  await saved();
+  const flagged = (await record('mn.link', 'l-setup')).values;
+  assert(flagged['mn.link.review'] === 'Needs review' && flagged['mn.link.fromSeen'] === 'The lamp was left unlit.', `A changed setup did not flag its link: ${JSON.stringify(flagged)}`);
+  await page.evaluate(() => window.broker.command('links'));
+  await frame.waitForSelector('#drawer .card[data-id="l-setup"]', { timeout: 3000 });
+  const changeShown = await frame.evaluate(() => { const c = document.querySelector('#drawer .card[data-id="l-setup"]'); return { gone: [...c.querySelectorAll('.diff del')].map(e => e.textContent), added: [...c.querySelectorAll('.diff ins')].map(e => e.textContent) }; });
+  assert(changeShown.gone.join() === 'left unlit.' && changeShown.added.join() === 'lit at dusk.', `The change was not shown word by word: ${JSON.stringify(changeShown)}`);
+  await frame.locator('#drawer .card[data-id="l-setup"]').getByRole('button', { name: 'Reviewed' }).click();
+  await frame.waitForFunction(() => !document.querySelector('#drawer .card[data-id="l-setup"]'), null, { timeout: 5000 });
+  const acknowledged = (await record('mn.link', 'l-setup')).values;
+  assert(acknowledged['mn.link.review'] === 'Current' && acknowledged['mn.link.fromSeen'] === 'The lamp was lit at dusk.', `Reviewed: ${JSON.stringify(acknowledged)}`);
+  checks.push('a changed setup flags its link with what changed, and review clears it');
+  await frame.selectOption('#links-view', 'kind:Foreshadows');
+  const threadIds = await frame.evaluate(() => [...document.querySelectorAll('#drawer .card.thread')].map(c => c.dataset.id));
+  const sheetOrder = (await blockIds()).filter(id => threadIds.includes(id));
+  assert(threadIds.length >= 4 && threadIds.includes('b-setup') && threadIds.includes('b-payoff') && JSON.stringify(threadIds) === JSON.stringify(sheetOrder), `Thread order: ${JSON.stringify({ threadIds, sheetOrder })}`);
+  const gapText = await frame.evaluate(() => document.querySelector('#drawer .card.thread[data-id="b-payoff"] .muted')?.textContent ?? '');
+  const everyBlock = await blockIds(), priorPassage = threadIds[threadIds.indexOf('b-payoff') - 1];
+  const expectedGap = everyBlock.indexOf('b-payoff') - everyBlock.indexOf(priorPassage) - 1;
+  assert(gapText.includes(expectedGap === 0 ? 'right after' : `${expectedGap} block${expectedGap === 1 ? '' : 's'} later`) && gapText.startsWith('What the Bar Keeps'), `The gap before the payoff: ${JSON.stringify({ gapText, expectedGap, priorPassage })}`);
+  await page.evaluate(() => window.broker.command('links'));
+  checks.push('a thread of one kind reads in manuscript order');
+
   // The side panel (owner, 2026-10-17: it showed blank on open, and Close did nothing): no box
   // until it is opened; opened from Nendo's toolbar it shows its title and presses the toggle;
   // the close button and Escape put it away, and the toggle is released.

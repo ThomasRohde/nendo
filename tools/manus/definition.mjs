@@ -32,6 +32,8 @@ export const entities = [
     [F.linkTo, 'To', 'Reference', true],
     [F.linkNote, 'Why', 'Text', false, 'longText'],
     [F.linkReview, 'Review', 'Text', false, 'singleChoice', Object.values(REVIEW)],
+    [F.linkFromSeen, 'From, as reviewed', 'Text', false, 'longText'],
+    [F.linkToSeen, 'To, as reviewed', 'Text', false, 'longText'],
   ], refs: [[F.linkFrom, BLOCK, F.text], [F.linkTo, BLOCK, F.text]] },
 ];
 
@@ -56,6 +58,12 @@ export function alignFieldOperations() { return fieldOperations(F.align); }
 
 /** The List and Level fields, for a file built before lists (Manuscript 0.10.0). */
 export function listFieldOperations() { return [...fieldOperations(F.list), ...fieldOperations(F.level)]; }
+
+/** A link's two words-as-reviewed fields, for a file built before 0.18.0. */
+export function linkSeenFieldOperations() {
+  return entities[2].fields.filter(f => f[0] === F.linkFromSeen || f[0] === F.linkToSeen)
+    .map(([fieldId, name, kind, required, presentation, options]) => addField(LINK, fieldId, name, kind, required, presentation, options));
+}
 
 /** Footnote added to an older file's Kind (Manuscript 0.17.0). */
 export function footnoteKindOperations() {

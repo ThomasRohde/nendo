@@ -1,5 +1,5 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
-import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, draftLine } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES } from './preview.mjs';
@@ -17,6 +17,7 @@ const state = {
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
   hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null, footnotes: new Map(), footnoteTexts: new Map(), footnotesOn: false,
+  linkSeen: false, linksView: 'review', threadContext: new Set(),
 };
 window.manuscript = state;   // for the browser lane
 
@@ -263,8 +264,10 @@ function planNow() {
   if (cut.size && state.cuttings === null) state.newCuttings ??= `b-cuttings-${freshId().slice(2, 8)}`;
   const blocks = withoutAsRead(planWrites({ saved: state.saved, current, root: state.root, notes: state.notes, links: state.links,
     merged, cut, cuttings: state.cuttings, newCuttings: state.newCuttings }), state.asRead);
-  const plan = state.footnotesOn ? withFootnotes(blocks, planFootnotes({ saved: state.saved, refs: sheet.footnoteRefs(), texts: state.footnoteTexts,
+  const withNotes = state.footnotesOn ? withFootnotes(blocks, planFootnotes({ saved: state.saved, refs: sheet.footnoteRefs(), texts: state.footnoteTexts,
     footnotes: state.footnotes, notes: state.notes, links: state.links })) : blocks;
+  // A link whose end's words change is marked for review, keeping the words it was reviewed with.
+  const plan = withLinkReviews(withNotes, { saved: state.saved, links: state.links, seen: state.linkSeen });
   const root = state.saved.get(state.root);
   if (state.title !== state.savedTitle && root) plan.unshift({ op: 'update', entityId: BLOCK, recordId: state.root, version: root.version, values: { [F.text]: state.title || null }, refs: {} });
   return { plan, current };
@@ -448,7 +451,8 @@ async function addLink(kind, target) {
   await flush();
   const id = state.selected;
   if (!block(id) || !block(target)) return;
-  await send([{ op: 'create', entityId: LINK, recordId: `l-${freshId().slice(2)}`, values: { [F.linkFrom]: id, [F.linkTo]: target, [F.linkKind]: kind, [F.linkReview]: REVIEW.current }, refs: { [F.linkFrom]: id, [F.linkTo]: target } }], 'Link passages');
+  const seen = state.linkSeen ? { [F.linkFromSeen]: block(id).text ?? '', [F.linkToSeen]: block(target).text ?? '' } : {};
+  await send([{ op: 'create', entityId: LINK, recordId: `l-${freshId().slice(2)}`, values: { [F.linkFrom]: id, [F.linkTo]: target, [F.linkKind]: kind, [F.linkReview]: REVIEW.current, ...seen }, refs: { [F.linkFrom]: id, [F.linkTo]: target } }], 'Link passages');
   closePopover(); state.drawer = 'related'; render(); declare();
 }
 
@@ -479,6 +483,35 @@ async function copyReference() {
   const text = `Manuscript block ${id}: “${preview(id, 90)}”`;
   try { await navigator.clipboard.writeText(text); toast('Copied a reference to this paragraph for the agent.'); closePopover(); }
   catch { openPopover('reference', { text }); }
+}
+
+/** A link reviewed: current again, keeping its ends' words as they are now. */
+async function reviewed(link) {
+  await flush();
+  const now = state.links.find(l => l.recordId === link.recordId) ?? link;
+  const seen = state.linkSeen ? { [F.linkFromSeen]: block(now.values[F.linkFrom])?.text ?? '', [F.linkToSeen]: block(now.values[F.linkTo])?.text ?? '' } : {};
+  await send([{ op: 'update', entityId: LINK, recordId: now.recordId, version: now.version, values: { [F.linkReview]: REVIEW.current, ...seen }, refs: {} }], 'Review a link');
+  render(); declare();
+}
+
+/** How an end of a link changed since it was reviewed: its words then and now, word by word, or null when unchanged. */
+function endChange(link, end) {
+  const field = end === 'from' ? F.linkFromSeen : F.linkToSeen, id = link.values[end === 'from' ? F.linkFrom : F.linkTo];
+  const then = link.values[field], now = block(id)?.text ?? '';
+  if (then === undefined || then === null) return state.linkSeen ? el('p', { class: 'muted', text: 'Its words before were not kept.' }) : null;
+  if (then === now) return null;
+  return el('p', { class: 'diff', 'aria-label': `${preview(id, 40)}, changed` }, wordDiff(then, now).map(part =>
+    part.kind === 'same' ? document.createTextNode(part.text) : el(part.kind === 'gone' ? 'del' : 'ins', { text: part.text })));
+}
+
+/** A link that needs review, as a card: its kind, its ends, what changed at each, and Reviewed. */
+function reviewCard(link) {
+  const from = link.values[F.linkFrom], to = link.values[F.linkTo];
+  return el('div', { class: 'card', 'data-id': link.recordId },
+    el('div', { class: 'row' }, el('span', { class: 'kind', text: `${link.values[F.linkKind] ?? 'Linked'} →` }), el('span', { class: 'chip issue', text: 'Needs review' })),
+    el('button', { type: 'button', class: 'passage', on: { click: () => sheet.focusBlock(from) } }, preview(from, 120)), endChange(link, 'from'),
+    el('button', { type: 'button', class: 'passage', on: { click: () => sheet.focusBlock(to) } }, preview(to, 120)), endChange(link, 'to'),
+    state.readOnly ? null : el('div', { class: 'row end' }, el('button', { type: 'button', class: 'primary', text: 'Reviewed', on: { click: () => reviewed(link).catch(fail) } })));
 }
 
 async function setNoteDone(note, done) {
@@ -816,6 +849,7 @@ function declare() {
       { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
       { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
       { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
+      { kind: 'toggle', id: 'links', label: `Links${state.links.some(l => l.values[F.linkReview] === REVIEW.needsReview) ? ` ${state.links.filter(l => l.values[F.linkReview] === REVIEW.needsReview).length}` : ''}`, icon: 'chain', pressed: state.drawer === 'links' },
       { kind: 'toggle', id: 'cuttings', label: 'Cuttings', icon: 'layers', pressed: state.drawer === 'cuttings' },
       { kind: 'toggle', id: 'find', label: 'Find', icon: 'search', pressed: state.drawer === 'find' },
     ]),
@@ -887,7 +921,7 @@ function command({ id, value }) {
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'find') { if (state.drawer === 'find') closeDrawer(); else openFind(false); return; }
-  if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
+  if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings' || id === 'links') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
 }
 
@@ -1421,7 +1455,7 @@ function renderDrawer() {
   drawer.hidden = state.drawer === null;
   document.documentElement.dataset.drawer = state.drawer ?? '';
   if (state.drawer === null) return;
-  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace', cuttings: 'Cuttings' }[state.drawer];
+  const title = { outline: 'Outline', notes: 'Notes', related: 'Related passages', find: 'Find and replace', cuttings: 'Cuttings', links: 'Links' }[state.drawer];
   const body = [];
   if (state.drawer === 'find') {
     body.push(findPanel());
@@ -1454,6 +1488,7 @@ function renderDrawer() {
     });
     if (!body.length) body.push(el('p', { class: 'muted', text: 'No headings yet. Make a line a Part, Chapter or Section with Style, or start it with #, ## or ###.' }));
   }
+  if (state.drawer === 'links') body.push(...linksPanel());
   if (state.drawer === 'cuttings') {
     // What was kept out of the manuscript, in the order it was kept; put back after the
     // paragraph the caret is in, the same block with its notes and links.
@@ -1499,11 +1534,13 @@ function renderDrawer() {
       for (const l of mine) {
         const out = l.values[F.linkFrom] === here, other = out ? l.values[F.linkTo] : l.values[F.linkFrom];
         const review = l.values[F.linkReview] === REVIEW.needsReview;
-        body.push(el('div', { class: 'card' },
+        body.push(el('div', { class: 'card', 'data-id': l.recordId },
           el('div', { class: 'row' }, el('span', { class: 'kind', text: `${out ? '' : '← '}${l.values[F.linkKind] ?? 'Linked'}${out ? ' →' : ''}` }),
             review ? el('span', { class: 'chip issue', text: 'Needs review' }) : null),
           el('button', { type: 'button', class: 'passage', on: { click: () => sheet.focusBlock(other) } }, preview(other, 120)),
-          el('div', { class: 'row end' }, el('button', { type: 'button', class: 'quiet', text: 'Remove link', on: { click: () => deleteRecord(l, 'Remove a link').catch(fail) } }))));
+          review ? endChange(l, 'from') : null, review ? endChange(l, 'to') : null,
+          el('div', { class: 'row end' }, el('button', { type: 'button', class: 'quiet', text: 'Remove link', on: { click: () => deleteRecord(l, 'Remove a link').catch(fail) } }),
+            review && !state.readOnly ? el('button', { type: 'button', class: 'primary', text: 'Reviewed', on: { click: () => reviewed(l).catch(fail) } }) : null)));
       }
       if (!mine.length) body.push(el('p', { class: 'muted', text: 'Nothing linked yet. Select some text in it and choose Link.' }));
     }
@@ -1524,6 +1561,65 @@ function renderDrawer() {
   if (editing && $('note-edit')) { $('note-edit').focus(); $('note-edit').setSelectionRange(editing.start, editing.end); }
   else if (state.outlineFocus) { drawer.querySelector(`.outline-row[data-id="${state.outlineFocus}"] .outline`)?.focus(); state.outlineFocus = null; }
   else if (focused && focused.index >= 0) drawer.querySelector(`[data-id="${focused.id}"]`)?.querySelectorAll('button, input, select, textarea')[focused.index]?.focus();
+}
+
+/**
+ * The Links panel: the links whose ends changed since they were reviewed, in reading order, or a
+ * thread: every passage at an end of one kind of link, or connected to the paragraph the caret is
+ * in, in reading order, with its chapter, the gap since the one before, and its neighbours on
+ * request. Reading only: a thread's passages are edited on the page.
+ */
+function linksPanel() {
+  const order = new Map(sheet.read().map((n, i) => [n.id, i]));
+  const at = id => order.get(id) ?? Infinity;
+  const stale = state.links.filter(l => l.values[F.linkReview] === REVIEW.needsReview)
+    .sort((a, b) => Math.min(at(a.values[F.linkFrom]), at(a.values[F.linkTo])) - Math.min(at(b.values[F.linkFrom]), at(b.values[F.linkTo])));
+  const kinds = [...new Set(state.links.map(l => l.values[F.linkKind]).filter(Boolean))];
+  const choose = el('select', { id: 'links-view', 'aria-label': 'Show', on: { change: e => { state.linksView = e.target.value; render(); } } },
+    el('option', { value: 'review', text: `To review (${stale.length})`, selected: state.linksView === 'review' }),
+    el('option', { value: 'here', text: 'Connected to this paragraph', selected: state.linksView === 'here' }),
+    kinds.map(k => el('option', { value: `kind:${k}`, text: `Thread: ${k}`, selected: state.linksView === `kind:${k}` })));
+  const out = [choose];
+  if (state.linksView === 'review') {
+    if (!stale.length) out.push(el('p', { class: 'muted', text: 'Nothing to review. A link is listed here when the words at either end change.' }));
+    out.push(...stale.map(reviewCard));
+    return out;
+  }
+  let passages;
+  if (state.linksView === 'here') {
+    // Everything reachable from the paragraph by links, either way round.
+    const start = state.selected && block(state.selected) ? state.selected : null;
+    if (!start) return [...out, el('p', { class: 'muted', text: 'Put the caret in a paragraph to follow its links.' })];
+    const seen = new Set([start]), queue = [start];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const l of state.links) {
+        const other = l.values[F.linkFrom] === id ? l.values[F.linkTo] : l.values[F.linkTo] === id ? l.values[F.linkFrom] : null;
+        if (other && !seen.has(other)) { seen.add(other); queue.push(other); }
+      }
+    }
+    passages = [...seen];
+  } else {
+    const kind = state.linksView.slice(5);
+    passages = [...new Set(state.links.filter(l => l.values[F.linkKind] === kind).flatMap(l => [l.values[F.linkFrom], l.values[F.linkTo]]))];
+  }
+  passages = passages.filter(id => order.has(id)).sort((a, b) => at(a) - at(b));
+  if (passages.length < 2) out.push(el('p', { class: 'muted', text: 'No thread here yet: link passages with Link to a passage.' }));
+  const nodes = sheet.read();
+  const chapterOf = index => { for (let i = index; i >= 0; i--) if (levelOf(nodes[i].kind)) return nodes[i].text || 'Untitled'; return null; };
+  let previous = null;
+  for (const id of passages) {
+    const index = at(id), gap = previous === null ? null : index - previous - 1;
+    const near = state.threadContext.has(id);
+    out.push(el('div', { class: 'card thread', 'data-id': id },
+      el('div', { class: 'row' }, el('span', { class: 'muted', text: [chapterOf(index), gap === null ? null : gap === 0 ? 'right after' : `${gap} block${gap === 1 ? '' : 's'} later`].filter(Boolean).join(' · ') }),
+        el('button', { type: 'button', class: 'quiet', 'aria-pressed': String(near), text: near ? 'Less' : 'Context', on: { click: () => { if (near) state.threadContext.delete(id); else state.threadContext.add(id); render(); } } })),
+      near && index > 0 ? el('p', { class: 'muted context', text: preview(nodes[index - 1].id, 160) }) : null,
+      el('button', { type: 'button', class: 'passage', on: { click: () => sheet.focusBlock(id) } }, preview(id, 160)),
+      near && index + 1 < nodes.length ? el('p', { class: 'muted context', text: preview(nodes[index + 1].id, 160) }) : null));
+    previous = index;
+  }
+  return out;
 }
 
 /** A note's words and kind, edited where the note is. */
@@ -1734,6 +1830,8 @@ async function start(context) {
     state.media = nendo.has?.('media.put') === true;
     // Footnotes where the file's Kind offers Footnote (Manuscript 0.17.0 adds it to an older file).
     state.footnotesOn = kinds.includes('Footnote');
+    // A link keeps its ends' words where the file has the fields (Manuscript 0.18.0 adds them).
+    state.linkSeen = (schema.entities ?? []).find(e => e.entityId === LINK)?.fields?.some(f => f.fieldId === F.linkFromSeen) ?? false;
   } catch { state.roles = false; state.aligns = false; state.lists = false; state.tables = false; }
   state.pins = readPins();
   applyAppearance();

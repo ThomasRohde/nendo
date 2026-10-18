@@ -203,6 +203,12 @@ button.quiet:hover { background: var(--soft); }
 .sheet-text sup.fn.ProseMirror-selectednode { outline: 1px solid var(--accent); border-radius: 2px; }
 .sheet-body sup.pv-fn { font-size: 0.7em; line-height: 0; }
 .popover #footnote-text { width: 100%; }
+/* What changed at a link's end since it was reviewed, word by word. */
+.diff { margin: 0; font-family: var(--prose); font-size: 14px; line-height: 1.45; }
+.diff del { color: var(--muted); text-decoration: line-through; }
+.diff ins { text-decoration: none; background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 2px; }
+#links-view { width: 100%; border: 1px solid var(--line-strong); border-radius: 4px; background: var(--surface); padding: 5px 8px; min-height: 30px; color: inherit; }
+.thread .context { font-size: 13px; }
 .outline { text-align: left; border: 0; background: transparent; border-radius: 4px; padding: 6px 8px; }
 .outline:hover { background: var(--soft); }
 .outline.level-1 { font-weight: 600; }

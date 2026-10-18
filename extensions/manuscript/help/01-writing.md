@@ -65,6 +65,12 @@ Select some words and choose **Web link** to link them to a web page; with the c
 
 **Insert picture**, in **More** or from **+** beside a paragraph, puts a picture from this computer in the file and below the paragraph. Its file name is its description until you choose **Describe picture** in its menu; **Add a caption below** starts its caption.
 
+## Links that keep up
+
+A link remembers the words at both its ends. Change either passage and the link is marked **Needs review**: **Links** in the toolbar lists every link to review, in the order of the manuscript, showing what changed word by word, and **Related** shows it beside the paragraph. **Reviewed** says you have looked, and the link remembers the words as they are now. Moving a passage does not need a review.
+
+**Links** also follows a thread. Choose a kind of link, such as *Thread: Foreshadows*, to read every passage it joins in the order of the manuscript, with its chapter and how far it is from the one before; or **Connected to this paragraph** to follow everything linked to where the caret is. **Context** shows the paragraphs either side, and choosing a passage goes there.
+
 ## Footnotes
 
 **Footnote** on the bar (in **More**), or **Ctrl** **Alt** **F**, puts a footnote's number at the caret and opens a box beside it for its words; they are saved as you type. Click a number to read or change its footnote, and delete the number to remove it. Numbers follow the order the footnotes come in the manuscript. A Word export puts each footnote at the foot of its page; a Markdown export lists them at the end, and so does the preview.
@@ -75,7 +81,7 @@ The last group on the bar acts on the whole paragraph:
 
 | Choose | To |
 | --- | --- |
-| **Link to a passage** | Link this paragraph to another one, by kind: elaborates, supports, contradicts, foreshadows, resolves or see also. |
+| **Link to a passage** | Link this paragraph to another one, by kind: elaborates, supports, contradicts, foreshadows, resolves or see also. When you change the words at either end, the link asks to be reviewed. |
 | **Add a note** | Write a comment, question, task or issue on this paragraph. |
 | **Keep as cutting** | Take the paragraph out of the manuscript and keep it under **Cuttings**, where Studio and the Outline screen still show it. |
 | **Move up**, **Move down** | Move the paragraph, or the paragraphs you have selected, past the one above or below. `Alt` `Shift` `↑` and `↓` do the same. |

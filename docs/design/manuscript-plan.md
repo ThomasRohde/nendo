@@ -152,6 +152,10 @@ files converted.
 
 ### Stage 4 — Linked passages
 
+**Built 2026-10-18 as Manuscript 0.18.0 (W-290):** a link keeps its ends' words; a save that
+changes them flags the link; Related and a Links panel show the change word by word; Reviewed
+clears it; threads by kind of link or from a paragraph, in reading order. Navigation only.
+
 The feature that sets Manuscript apart. Build it as soon as Stage 2 is in; it needs nothing
 from Stage 3.
 

@@ -10,6 +10,8 @@ export const F = {
   text: 'mn.block.text', kind: 'mn.block.kind', parent: 'mn.block.parent', order: 'mn.block.order', role: 'mn.block.role', align: 'mn.block.align', list: 'mn.block.list', level: 'mn.block.level',
   noteBlock: 'mn.note.block', noteKind: 'mn.note.kind', noteText: 'mn.note.text', noteDone: 'mn.note.done',
   linkFrom: 'mn.link.from', linkTo: 'mn.link.to', linkKind: 'mn.link.kind', linkNote: 'mn.link.note', linkReview: 'mn.link.review',
+  // Each end's words as they were when the link was made or last reviewed (Manuscript 0.18.0).
+  linkFromSeen: 'mn.link.fromSeen', linkToSeen: 'mn.link.toSeen',
 };
 export const KINDS = ['Manuscript', 'Part', 'Chapter', 'Section', 'Paragraph', 'Cuttings', 'Table', 'Row', 'Cell', 'Footnote'];
 // A footnote is a block of its own under the paragraph (or cell) that cites it, its text inline
@@ -228,6 +230,55 @@ export function planFootnotes({ saved, refs, texts = new Map(), footnotes = new 
     writes.push({ op: 'delete', entityId: BLOCK, recordId: f.id, version: saved.get(f.id).version });
   }
   return writes;
+}
+
+/**
+ * A link whose end's words this plan changes is marked Needs review: the plan says what changed,
+ * the link remembers what was reviewed. A link the plan already writes (a merge hands it on) is
+ * left to that write. With `seen` (the file has the fields), a link that kept no words yet keeps
+ * its ends' words as they were before this save, so the change can be shown. The writes go
+ * before the plan's first block delete.
+ */
+export function withLinkReviews(plan, { saved, links = [], seen = false }) {
+  const changed = new Set(plan.filter(w => w.entityId === BLOCK && w.op === 'update' && F.text in (w.values ?? {})).map(w => w.recordId));
+  if (!changed.size) return plan;
+  const written = new Set(plan.filter(w => w.entityId === LINK).map(w => w.recordId));
+  const writes = [];
+  for (const link of links) {
+    const from = link.values[F.linkFrom], to = link.values[F.linkTo];
+    if (written.has(link.recordId) || (!changed.has(from) && !changed.has(to)) || link.values[F.linkReview] === REVIEW.needsReview) continue;
+    const values = { [F.linkReview]: REVIEW.needsReview };
+    if (seen) {
+      if (link.values[F.linkFromSeen] === undefined || link.values[F.linkFromSeen] === null) values[F.linkFromSeen] = saved.get(from)?.text ?? '';
+      if (link.values[F.linkToSeen] === undefined || link.values[F.linkToSeen] === null) values[F.linkToSeen] = saved.get(to)?.text ?? '';
+    }
+    writes.push({ op: 'update', entityId: LINK, recordId: link.recordId, version: link.version, values, refs: {} });
+  }
+  return withFootnotes(plan, writes);
+}
+
+/**
+ * Two runs of words compared word by word: [{kind: 'same' | 'gone' | 'new', text}], spaces kept
+ * with the words. Past a few thousand words each, the whole of each side.
+ */
+export function wordDiff(before, after) {
+  // Each word with the space after it, so a run of changed words reads as one change.
+  const words = text => (text ?? '').split(/(?<=\s)(?=\S)/).filter(Boolean);
+  const a = words(before), b = words(after);
+  if (a.length * b.length > 4000000) return [...(a.length ? [{ kind: 'gone', text: a.join('') }] : []), ...(b.length ? [{ kind: 'new', text: b.join('') }] : [])];
+  const n = a.length, m = b.length, lcs = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+  const out = [];
+  const add = (kind, text) => { if (out.length && out.at(-1).kind === kind) out.at(-1).text += text; else out.push({ kind, text }); };
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { add('same', a[i]); i++; j++; }
+    else if (lcs[i + 1][j] >= lcs[i][j + 1]) add('gone', a[i++]);
+    else add('new', b[j++]);
+  }
+  while (i < n) add('gone', a[i++]);
+  while (j < m) add('new', b[j++]);
+  return out;
 }
 
 /** Footnote writes put into a plan before its first block delete. */

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, planFootnotes, withFootnotes, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, planFootnotes, withFootnotes, withLinkReviews, wordDiff, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
 
 const item = (id, kind, parent, order, depth, text = '', version = 1) =>
   ({ record: { entityId: BLOCK, recordId: id, version, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } }, parentRecordId: parent, depth });
@@ -310,4 +310,28 @@ test('footnotes: created where first cited, moved with their citation, edited, a
   // They go before the plan's block deletes: a footnote leaves its paragraph before the paragraph goes.
   const plan = [{ op: 'update', entityId: BLOCK, recordId: 'p2' }, { op: 'delete', entityId: BLOCK, recordId: 'p1' }];
   assert.deepEqual(withFootnotes(plan, writes).map(w => w.recordId), ['p2', 'f1', 'f3', 'n9', 'f2', 'p1']);
+});
+
+test('a link whose end\'s words change is marked for review, keeping the words it had', () => {
+  const m = readManuscript(items);
+  const links = [
+    { entityId: LINK, recordId: 'l1', version: 3, values: { [F.linkFrom]: 'p1', [F.linkTo]: 'p2', [F.linkReview]: 'Current' } },
+    { entityId: LINK, recordId: 'l2', version: 1, values: { [F.linkFrom]: 'ch1', [F.linkTo]: 'p2', [F.linkReview]: 'Current', [F.linkFromSeen]: 'Kept.', [F.linkToSeen]: 'Kept too.' } },
+    { entityId: LINK, recordId: 'l3', version: 1, values: { [F.linkFrom]: 'p1', [F.linkTo]: 'ch1', [F.linkReview]: 'Needs review' } },
+  ];
+  const plan = [{ op: 'update', entityId: BLOCK, recordId: 'p2', version: 1, values: { [F.text]: 'She took it down.' } }, { op: 'delete', entityId: BLOCK, recordId: 'x', version: 1 }];
+  const out = withLinkReviews(plan, { saved: m.saved, links, seen: true });
+  assert.deepEqual(out.map(w => w.recordId), ['p2', 'l1', 'l2', 'x'], 'review writes before the block deletes; one already flagged is left');
+  assert.deepEqual(out[1].values, { [F.linkReview]: 'Needs review', [F.linkFromSeen]: 'The tide table hung by the door.', [F.linkToSeen]: 'She took the ledger down.' });
+  assert.deepEqual(out[2].values, { [F.linkReview]: 'Needs review' }, 'words already kept are not replaced');
+  // A move, a kind or an order is not a change of words; a file without the fields keeps none.
+  assert.deepEqual(withLinkReviews([{ op: 'update', entityId: BLOCK, recordId: 'p2', version: 1, values: { [F.order]: 9 } }], { saved: m.saved, links }), [{ op: 'update', entityId: BLOCK, recordId: 'p2', version: 1, values: { [F.order]: 9 } }]);
+  assert.deepEqual(withLinkReviews(plan, { saved: m.saved, links }).find(w => w.recordId === 'l1').values, { [F.linkReview]: 'Needs review' });
+});
+
+test('words compared word by word', () => {
+  assert.deepEqual(wordDiff('The lamp was left unlit.', 'The lamp was lit at dusk.'),
+    [{ kind: 'same', text: 'The lamp was ' }, { kind: 'gone', text: 'left unlit.' }, { kind: 'new', text: 'lit at dusk.' }]);
+  assert.deepEqual(wordDiff('Same.', 'Same.'), [{ kind: 'same', text: 'Same.' }]);
+  assert.deepEqual(wordDiff('', 'New words.'), [{ kind: 'new', text: 'New words.' }]);
 });

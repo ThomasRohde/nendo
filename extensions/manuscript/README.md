@@ -125,6 +125,15 @@ same records; the view keeps no copy of the manuscript in the file.
   paragraph the caret is in, the same block with its notes and links; Delete, pressed twice,
   deletes it and its notes and links for good. Where a cutting came from is not kept.
 - A note's words and kind are edited in Notes, where the note is.
+- A link keeps each end's words as they were when it was made or last reviewed (`mn.link.fromSeen`,
+  `mn.link.toSeen`, 0.18.0). When a save changes the words at either end, the link is marked
+  *Needs review* in the same batch; a link that kept no words yet keeps the ones from before the
+  save. Related and the Links panel show what changed, word by word, and Reviewed makes the link
+  current again with the words as they are now. A move is not a change of words. The Links panel
+  also follows a thread: every passage at an end of one kind of link, or connected to the
+  paragraph the caret is in, in reading order, with its chapter, the gap since the one before and
+  its neighbours on request. Reading only: a thread's passages are edited on the page. The two
+  fields reach a file made before 0.18.0 from the package proposal (`linkSeenFieldOperations`).
 
 ## Limits
 
