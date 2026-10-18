@@ -45,7 +45,8 @@ function frame() {
   const parent = { postMessage: (message, targetOrigin) => sent.push({ message, targetOrigin }) };
   const window = { parent, addEventListener: (type, listener) => { if (type === 'message') listeners.push(listener); } };
   const errors = [];
-  vm.runInNewContext(source, { window, console: { error: (error) => errors.push(error) } });
+  // btoa is the frame's, as a browser gives every window one.
+  vm.runInNewContext(source, { window, btoa, console: { error: (error) => errors.push(error) } });
   return { window, parent, sent, errors, deliver: (event) => { for (const listener of listeners) listener(event); } };
 }
 
@@ -215,6 +216,29 @@ test('the client keeps an honest view inside the bounds: 256 KiB a request, eigh
   for (const message of workbench.inbox.filter((candidate) => candidate.t === 'req').slice(1))
     workbench.send({ t: 'res', id: message.id, ok: true, r: { count: 0 } });
   await Promise.all(calls);
+});
+
+test('media.put sends a picture as base64 parts under one uploadKey, each inside the request bound, then commits them', async (t) => {
+  const view = frame();
+  const workbench = connect(view, { ...baseContext, methods: [...baseContext.methods, 'media.put'] }, t);
+  const nendo = view.window.nendo;
+  const picture = Uint8Array.from({ length: 400 * 1024 }, (_, i) => (i * 7 + 3) % 256);
+  const requests = () => workbench.inbox.filter((message) => message.t === 'req');
+  const put = nendo.media.put(picture, { name: 'harbour.png', mediaType: 'image/png' });
+  for (let count = 1; count <= 4; count++) {
+    await until(() => requests().length === count, `media.put request ${count}`);
+    const request = requests().at(-1);
+    workbench.send({ t: 'res', id: request.id, ok: true, r: count < 4 ? { staged: true } : { address: 'media:abc' } });
+  }
+  assert.deepEqual(plain(await put), { address: 'media:abc' });
+  const sent = requests().map((request) => plain(request.p));
+  const parts = sent.slice(0, 3), commit = sent[3];
+  assert.deepEqual(parts.map((part) => part.offset), [0, 150 * 1024, 300 * 1024]);
+  assert.ok(parts.every((part) => part.uploadKey === commit.uploadKey && typeof part.uploadKey === 'string' && part.uploadKey.length > 0), 'One uploadKey for every part and the commit.');
+  assert.ok(sent.every((p) => Buffer.byteLength(JSON.stringify(p)) <= 256 * 1024), 'Each request stays inside 256 KiB.');
+  const joined = Buffer.concat(parts.map((part) => Buffer.from(part.base64, 'base64')));
+  assert.ok(joined.equals(Buffer.from(picture)), 'The parts are the picture, byte for byte.');
+  assert.deepEqual({ ...commit, uploadKey: undefined }, { uploadKey: undefined, name: 'harbour.png', mediaType: 'image/png' });
 });
 
 test('queryAll pages through a record type and starts again when the file moves under it', async (t) => {

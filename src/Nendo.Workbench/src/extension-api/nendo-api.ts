@@ -503,11 +503,22 @@ function install(host: Window & { nendo?: unknown }): void {
         return new Blob([answer.bytes], { type: answer.mediaType });
       },
       put: async (data: Blob | ArrayBuffer | Uint8Array, options: { name?: string; mediaType?: string; record?: { entityId: string; recordId: string; version: number }; fieldId?: string } = {}): Promise<{ address: string | null }> => {
-        const bytes = data instanceof Blob ? await data.arrayBuffer() : data;
+        const whole = typeof Blob !== 'undefined' && data instanceof Blob ? await data.arrayBuffer() : data as ArrayBuffer | Uint8Array;
+        const bytes = whole instanceof Uint8Array ? whole : new Uint8Array(whole);
         const name = options.name ?? (typeof File !== 'undefined' && data instanceof File ? data.name : undefined);
         const target = options.record === undefined || options.fieldId === undefined ? {}
           : { entityId: options.record.entityId, recordId: options.record.recordId, version: options.record.version, fieldId: options.fieldId };
-        return call<{ address: string | null }>('media.put', { bytes, name, mediaType: options.mediaType, ...target });
+        // A request crosses as JSON, which has no bytes and holds at most 256 KiB, so the picture
+        // goes as base64 in parts the broker stages in the package's name, and a last call commits
+        // them. Until 2026-10-18 the bytes went as they were and arrived as {}, refused every time.
+        const uploadKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID() : `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        for (let offset = 0; offset < bytes.length; offset += extensionLimits.mediaPartBytes) {
+          let text = '';
+          for (const byte of bytes.subarray(offset, offset + extensionLimits.mediaPartBytes)) text += String.fromCharCode(byte);
+          await call('media.put', { uploadKey, offset, base64: btoa(text) });
+        }
+        return call<{ address: string | null }>('media.put', { uploadKey, name, mediaType: options.mediaType, ...target });
       },
     }),
     records: Object.freeze({

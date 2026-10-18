@@ -803,16 +803,30 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     run: async ({ params, mount, deps }) => {
       const context = deps.context(mount);
       if (context.readOnly) throw new WorkbenchHostError('read-only', 'This file is open read-only, so a view cannot change it.');
-      const data = params.bytes;
-      const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data instanceof Uint8Array ? data : null;
-      if (bytes === null || bytes.length === 0) throw invalid('bytes must be the picture as an ArrayBuffer or a Uint8Array.');
       const actor = `extension:${context.packageId}`;
-      const uploadKey = crypto.randomUUID();
-      const chunk = 150 * 1024;
-      for (let offset = 0; offset < bytes.length; offset += chunk) {
-        let text = '';
-        for (const byte of bytes.subarray(offset, Math.min(offset + chunk, bytes.length))) text += String.fromCharCode(byte);
-        await deps.request('media.stage', { uploadKey, offset, base64: btoa(text), actor });
+      // A part of the picture, as api.js sends it: base64 at an offset, staged in the package's
+      // name under the view's uploadKey. The host keys the upload by the package as well.
+      if (params.base64 !== undefined) {
+        const base64 = params.base64, offset = params.offset;
+        if (typeof base64 !== 'string' || base64.length === 0 || base64.length > 4 * Math.ceil(extensionLimits.mediaPartBytes / 3) || !/^[A-Za-z0-9+/]*={0,2}$/.test(base64))
+          throw invalid('base64 must be a part of the picture of at most 150 KiB, as base64.');
+        if (typeof offset !== 'number' || !Number.isSafeInteger(offset) || offset < 0) throw invalid('offset must be where the part starts in the picture.');
+        await deps.request('media.stage', { uploadKey: textParam(params, 'uploadKey', 64), offset, base64, actor });
+        return { staged: true };
+      }
+      let uploadKey: string;
+      if (params.uploadKey !== undefined) uploadKey = textParam(params, 'uploadKey', 64);
+      else {
+        // The bytes themselves, from a caller that hands them over without JSON.
+        const data = params.bytes;
+        const bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : data instanceof Uint8Array ? data : null;
+        if (bytes === null || bytes.length === 0) throw invalid('bytes must be the picture as an ArrayBuffer or a Uint8Array, or its parts staged under an uploadKey.');
+        uploadKey = crypto.randomUUID();
+        for (let offset = 0; offset < bytes.length; offset += extensionLimits.mediaPartBytes) {
+          let text = '';
+          for (const byte of bytes.subarray(offset, Math.min(offset + extensionLimits.mediaPartBytes, bytes.length))) text += String.fromCharCode(byte);
+          await deps.request('media.stage', { uploadKey, offset, base64: btoa(text), actor });
+        }
       }
       const target = params.entityId === undefined ? {} : {
         entityId: textParam(params, 'entityId'), recordId: textParam(params, 'recordId'), fieldId: textParam(params, 'fieldId'),

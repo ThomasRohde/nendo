@@ -20,6 +20,8 @@ export const extensionLimits = {
   requestBytes: 256 * 1024,
   /** Requests one view may have in flight at once. */
   inFlight: 8,
+  /** The most of a picture one media.put part carries: its base64 stays inside `requestBytes`. */
+  mediaPartBytes: 150 * 1024,
   /** Requests one view may have waiting behind those; the next is refused as busy. */
   queued: 64,
   /** The fewest milliseconds between two `changes` events to one view: four a second. */

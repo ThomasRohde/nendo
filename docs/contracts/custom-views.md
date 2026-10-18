@@ -678,7 +678,7 @@ Workbench suite, pins the table name by name.
 | `state.delete` | `key`, `expectedVersion`, `scope` | `extension.state.set` with a null value | null |
 | `media.describe` | `address` | `media.describe` (ADR-0031, W-270) | `{address, source, url, mediaType, byteLength, name, width, height}`: `source` is `embedded`, `web` or `local`; `url` is where an `img` shows the picture, or null when the file holds no such picture; the rest only for an embedded one. `nendo.media.urlFor(address)` answers the `url` alone |
 | `media.read` | `address` (an embedded picture's) | `media.readWindow`, a window of at most 160 KiB at a time | `{bytes, mediaType}`; `nendo.media.read` makes a Blob of it. A local or web address is `invalid-params` |
-| `media.put` | `bytes` (an ArrayBuffer or Uint8Array), `name`, `mediaType`, and `entityId`, `recordId`, `version`, `fieldId` to set a media field | `media.stage` per 150 KiB chunk, then `media.commit`, both in the package's name | `{address}` |
+| `media.put` | A part: `uploadKey` (1–64 characters), `offset` and `base64` (at most 150 KiB of the picture). The commit: `uploadKey`, `name`, `mediaType`, and `entityId`, `recordId`, `version`, `fieldId` to set a media field. `nendo.media.put(data, options)` takes the picture's bytes and makes the parts and the commit itself ([below](#writes)) | A part: `media.stage` in the package's name, answered `{staged: true}`. The commit: `media.commit` in the package's name | `{address}` |
 | `ui.openRecord` | `entityId`, `recordId` | Workbench navigation | `{opened}` |
 | `ui.openScreen` | `surfaceId` | Workbench navigation | `{opened}` |
 | `ui.openStudio` | `entityId` (optional) | Workbench navigation | `{opened}` |
@@ -769,6 +769,13 @@ commands, through the same typed operations and version checks as a person's edi
   file's and this package's on this device, never as records and never saved on the
   person's behalf; it restores the draft when it starts again, over the version the
   draft was made from, and lets the person discard it. Garden and Swarm do.
+- **A picture crosses in parts** (2026-10-18). A request crosses as JSON and holds at most
+  256 KiB, so `nendo.media.put` sends the picture as base64 parts of at most 150 KiB under one
+  random `uploadKey`, each staged in the package's name, and commits them with a last call. Until
+  then the API sent the bytes themselves, which JSON turns into `{}`, and every view's `media.put`
+  was refused; no view had called it, and the broker's test pinned only the method's name. The
+  Workbench's `extension-api.test.mjs` and `extension-broker.test.mjs` now measure the parts, the
+  commit and a refused part, each seen failing against the old code.
 - **No confirmation** is drawn by the host (ADR-0013, the trust trade). A view that
   wants the person to confirm an act asks them itself.
 - A file open read-only refuses a view's writes with `read-only` before the host is

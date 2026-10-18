@@ -144,6 +144,26 @@ test('R30-016: a batch admits the same record ID in different record types', asy
   assert.equal((await view.next(message => message.id === 1)).ok, true);
 });
 
+test('media.put stages each base64 part in the package\'s name, then commits them by uploadKey', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  const part = Buffer.from('a picture, in part').toString('base64');
+  view.send({ t: 'req', id: 1, m: 'media.put', p: { uploadKey: 'u-1', offset: 0, base64: part } });
+  await until(() => h.calls.length === 1, 'the part staged');
+  assert.deepEqual(h.calls[0], { method: 'media.stage', payload: { uploadKey: 'u-1', offset: 0, base64: part, actor: 'extension:org.example.glance' } });
+  h.pending[0].resolve({ length: 18 });
+  assert.deepEqual((await view.next(message => message.id === 1)).r, { staged: true });
+  view.send({ t: 'req', id: 2, m: 'media.put', p: { uploadKey: 'u-1', name: 'harbour.png', mediaType: 'image/png' } });
+  await until(() => h.calls.length === 2, 'the commit');
+  assert.deepEqual(h.calls[1], { method: 'media.commit', payload: { uploadKey: 'u-1', actor: 'extension:org.example.glance', name: 'harbour.png', mediaType: 'image/png' } });
+  h.pending[1].resolve({ address: 'media:abc' });
+  assert.deepEqual((await view.next(message => message.id === 2)).r, { address: 'media:abc' });
+  // A part that is not base64, or has no place in the picture, goes nowhere.
+  view.send({ t: 'req', id: 3, m: 'media.put', p: { uploadKey: 'u-2', offset: 0, base64: 'not base64!' } });
+  view.send({ t: 'req', id: 4, m: 'media.put', p: { uploadKey: 'u-2', offset: -1, base64: part } });
+  for (const id of [3, 4]) assert.equal((await view.next(message => message.id === id)).e?.code, 'invalid-params');
+  assert.equal(h.calls.length, 2, 'A refused part reached the host.');
+});
+
 test('R30-015: reserved property names survive record projections, labels, exact digits and calculated values', () => {
   const fields = JSON.parse('{"__proto__":"kept","constructor":"named","toString":null}');
   const record = model.plainRecord({ entityId: 'items', recordId: 'one', recordVersion: 1,

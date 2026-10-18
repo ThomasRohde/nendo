@@ -52,6 +52,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //                                               place, and the place the next connect starts at
 //   offerMedia(urls)                            offer media.describe from the next connect on (ADR-0031):
 //                                               each address in urls answers with that picture URL
+//   offerMediaPut(on), mediaPuts                 offer media.put from the next connect on: a picture a
+//                                               view puts in the file, in base64 parts and a commit,
+//                                               answered by its bytes' address
 //   put(entityId, record), touch(entityId, id)  somebody else writes a record, or moves its version on
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
@@ -88,6 +91,11 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // Pictures (ADR-0031), offered only when a probe asks: an address the probe named answers with its URL.
   const MEDIA = ['media.describe'];
   let mediaUrls = null;
+  // A picture a view puts in the file (media.put), offered only when a probe asks: answered with an
+  // address made from its bytes, as the file's store names content, and recorded in mediaPuts.
+  const MEDIA_PUT = ['media.put'];
+  let mediaPutOffered = false;
+  const mediaPuts = [], mediaStaged = new Map();
   let placesOffered = false, startPlace = null;
   const places = [];
   const toolbars = [], menus = [], chromeRefusals = [];
@@ -136,7 +144,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
       ...clone(context), theme: themeOf(context.theme ?? 'light'),
-      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : [])],
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : []), ...(mediaPutOffered ? MEDIA_PUT : [])],
       ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
@@ -251,6 +259,35 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
         }
         const end = Math.min(nodes.length, start + limit);
         return { items: nodes.slice(start, end), nextCursor: end < nodes.length ? `${fixture.changeSequence}:${end}` : null, changeSequence: fixture.changeSequence };
+      }
+      case 'media.put': {
+        if (!mediaPutOffered) throw refusal('unknown-method', 'media.put is not a method this fixture answers.');
+        // As the Workbench's broker takes it: base64 parts staged under an uploadKey, then a commit
+        // under the same key. A part that is not base64, or has no place in the picture, is refused.
+        const uploadKey = text(params, 'uploadKey');
+        if (params.base64 !== undefined) {
+          if (typeof params.base64 !== 'string' || params.base64.length === 0 || params.base64.length > 204800 || !/^[A-Za-z0-9+/]*={0,2}$/.test(params.base64))
+            throw refusal('invalid-params', 'base64 must be a part of the picture of at most 150 KiB, as base64.');
+          if (!Number.isSafeInteger(params.offset) || params.offset < 0) throw refusal('invalid-params', 'offset must be where the part starts in the picture.');
+          const part = Uint8Array.from(atob(params.base64), c => c.charCodeAt(0));
+          const staged = mediaStaged.get(uploadKey) ?? [];
+          staged.push({ offset: params.offset, part });
+          mediaStaged.set(uploadKey, staged);
+          return { staged: true };
+        }
+        const staged = (mediaStaged.get(uploadKey) ?? []).sort((a, b) => a.offset - b.offset);
+        mediaStaged.delete(uploadKey);
+        const byteLength = staged.reduce((n, s) => Math.max(n, s.offset + s.part.length), 0);
+        if (byteLength === 0) throw refusal('invalid-params', 'Nothing was staged under that uploadKey.');
+        const bytes = new Uint8Array(byteLength);
+        for (const s of staged) bytes.set(s.part, s.offset);
+        const mediaType = text(params, 'mediaType');
+        // Not SHA-256, but the same bytes give the same 64 hex digits, as a content address does.
+        let h1 = 0x811c9dc5, h2 = 0x01000193;
+        for (const b of bytes) { h1 = Math.imul(h1 ^ b, 16777619) >>> 0; h2 = Math.imul(h2 + b, 2246822519) >>> 0; }
+        const address = `media:${Array.from({ length: 8 }, (_, i) => ((i % 2 ? h2 : h1) ^ Math.imul(i + 1, 2654435761)) >>> 0).map(n => n.toString(16).padStart(8, '0')).join('')}`;
+        mediaPuts.push({ address, name: params.name ?? null, mediaType, byteLength, parts: staged.length });
+        return { address };
       }
       case 'media.describe': {
         const url = mediaUrls?.[params.address] ?? null;
@@ -698,6 +735,8 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     offerSearch(on) { searchOffered = on === true; return searchOffered; },
     offerScreens(on) { screensOffered = on === true; return screensOffered; },
     offerMedia(urls) { mediaUrls = urls ? clone(urls) : null; return mediaUrls !== null; },
+    offerMediaPut(on) { mediaPutOffered = on === true; return mediaPutOffered; },
+    mediaPuts,
     screensOpened() { return requests.filter(request => request.m === 'ui.openScreen').map(request => request.p.surfaceId); },
     places,
     /** Back or Forward moved the person to this place of the view's. */

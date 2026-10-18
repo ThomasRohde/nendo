@@ -41,7 +41,7 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     call: 'nendo.media.put(data, options?)',
     params: 'A Blob, a File, an ArrayBuffer or a Uint8Array of a PNG, JPEG, GIF, WebP, AVIF or SVG, and {name?, mediaType?, record?, fieldId?}: with record and fieldId, that media field is set to the picture in the same revision.',
     answer: '{address}: the picture\'s address, which a media field holds.',
-    note: 'Written in the view\'s package\'s name. The type is read from the bytes; a picture larger than the bound is refused as media-too-large. Content the file already holds is not stored twice.',
+    note: 'Written in the view\'s package\'s name, sent by the API in base64 parts of 150 KiB and committed by a last call. The type is read from the bytes; a picture larger than the bound is refused as media-too-large. Content the file already holds is not stored twice.',
   },
   'records.query': {
     call: 'nendo.records.query(query)',
