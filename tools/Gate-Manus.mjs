@@ -1139,6 +1139,13 @@ async page => {
       window.broker.put('mn.block', { entityId: 'mn.block', recordId: `b-sec-${i}-p`, version: 1, labels: {},
         values: { 'mn.block.kind': 'Paragraph', 'mn.block.parent': `b-sec-${i}`, 'mn.block.order': 1024, 'mn.block.text': `${Array(5).fill(words).join(' ')} ${words.split(' ').slice(0, i * 3).join(' ')}` } });
     }
+    // A chapter with no text of its own whose first section, an appendix, starts a page: the
+    // chapter's heading was left at the foot of the page before (owner, 2026-10-18).
+    const block = (recordId, kind, parent, order, text) => window.broker.put('mn.block', { entityId: 'mn.block', recordId, version: 1, labels: {},
+      values: { 'mn.block.kind': kind, 'mn.block.parent': parent, 'mn.block.order': order, 'mn.block.text': text } });
+    block('b-back', 'Chapter', 'b-part-1', 900000000, 'Back matter');
+    block('b-appendix', 'Section', 'b-back', 1024, 'Appendix: the post numbers');
+    block('b-appendix-p', 'Paragraph', 'b-appendix', 1024, words);
   });
   const framePrevious = frame;
   await page.evaluate(() => window.broker.remount());
@@ -1170,9 +1177,16 @@ async page => {
     return before ? Math.round((columns.getBoundingClientRect().top - before.getBoundingClientRect().bottom) / zoom) : null; });
   const headings = await frame.evaluate(() => [...document.querySelectorAll('.pv-column :is(h2, h3, h4)')].filter(h => /Posts \d+$/.test(h.textContent)).length);
   assert(stranded.length === 0 && headings >= 14 && gap !== null && gap >= 18, `Paper preview: headings left without their text, or no room above the columns: ${JSON.stringify({ stranded, headings, gap })}`);
+  // The appendix starts a page, and the chapter heading above it starts that page with it.
+  const appendix = await frame.evaluate(() => {
+    const at = text => [...document.querySelectorAll('.sheet-page')].findIndex(sheet => [...sheet.querySelectorAll('h2, h3, h4')].some(h => h.textContent.toLowerCase().includes(text)));
+    const sheet = document.querySelectorAll('.sheet-page')[at('back matter')];
+    return { chapter: at('back matter'), appendix: at('post numbers'), first: sheet?.querySelector('.pv-column')?.firstElementChild?.textContent ?? null };
+  });
+  assert(appendix.chapter >= 1 && appendix.chapter === appendix.appendix && /back matter$/i.test(appendix.first ?? ''), `Paper preview: a heading left behind by a page break: ${JSON.stringify(appendix)}`);
   await page.screenshot({ path: '__OUTPUT__/preview-paper-picture.png' });
   await mode('write');
-  checks.push('preview makes room for pictures', 'headings kept with their text', 'room above the columns');
+  checks.push('preview makes room for pictures', 'headings kept with their text', 'headings kept across a page break', 'room above the columns');
   assert(!(await batches()).some(b => b.writes.some(w => w.recordId === 'b-0502')), 'An edit elsewhere rewrote the picture block.');
 
   // A file built before alignment has no Align field: the bar and More offer no alignment, and

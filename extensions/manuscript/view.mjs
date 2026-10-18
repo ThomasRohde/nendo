@@ -723,20 +723,32 @@ async function renderPreview() {
     while (before && /^H[2-4]$/.test(before.tagName) && before.previousElementSibling) { moving.unshift(before); before = before.previousElementSibling; }
     return moving;
   };
+  // A block that starts a page takes the headings just above it along, for the same reason; a
+  // heading that starts a page itself stays, and a sheet that held only them is that page already.
+  const startPage = () => {
+    const box = columns ? columns[column] : body, moving = [];
+    for (let last = box.lastElementChild; last && /^H[2-4]$/.test(last.tagName) && !last.hasAttribute('data-opens'); last = box.lastElementChild) { moving.unshift(last); last.remove(); }
+    if (columns ? !columns.some(c => c.childElementCount) && body.childElementCount === 1 : !body.childElementCount) { box.append(...moving); return; }
+    const inColumns = columns !== null;
+    newSheet();
+    if (inColumns) newColumns();
+    (inColumns ? columns[0] : body).append(...moving);
+  };
   newSheet();
   // The preview sets the footnotes after the text, numbered; a Word export puts each at the foot of its page.
   const notes = plan.footnotes.length ? [{ kind: 'heading', level: 2, text: 'Notes', breakBefore: false, indent: false, across: false },
     ...plan.footnotes.map(f => ({ kind: 'paragraph', role: null, text: `${f.n}. ${f.text}`, indent: false, breakBefore: false, across: false }))] : [];
   for (const block of [...previewBlocks(plan, layout), ...notes]) {
     const element = blockElement(block, layout, sizes);
+    if (block.breakBefore) element.setAttribute('data-opens', '');
     if (!page.columns || block.across) {
-      if (block.breakBefore && body.childElementCount) newSheet();
+      if (block.breakBefore && body.childElementCount) startPage();
       body.append(element);
       if (body.scrollHeight > limit && body.childElementCount > 1) { const moving = carried(element); moving.forEach(e => e.remove()); newSheet(); body.append(...moving); }
       if (body.scrollHeight > limit + 0.5) runsOver();
       continue;
     }
-    if (block.breakBefore && (columns ? columns.some(c => c.childElementCount) : body.childElementCount)) newSheet();
+    if (block.breakBefore && (columns ? columns.some(c => c.childElementCount) : body.childElementCount)) startPage();
     if (!columns) newColumns();
     columns[column].append(element);
     if (past(columns[column]) && columns[column].childElementCount > 1) {
