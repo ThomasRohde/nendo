@@ -1,9 +1,9 @@
 import { state } from './app-state';
 import { client } from './client';
-import { brokerMethodNames, createExtensionBroker, type BrokerMount, type ExtensionBroker } from './extension-broker';
+import { brokerMethodNames, createExtensionBroker, type BrokerMount, type ExtensionBroker, type ViewEventReport } from './extension-broker';
 import { describeSchema, viewContext, viewTheme, type ViewSpec } from './extension-model';
 import { hostKeys, type CommandSource, type Json, type ViewTheme } from './extension-api/protocol';
-import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView } from './extension-ui';
+import { openProposalFromView, openRecordFromView, openScreenFromView, openStudioFromView, toastFromView, undoOfferFromView } from './extension-ui';
 import type { ProposalPreview } from './host';
 import { WorkbenchHostError } from './host-types';
 import { navigationTrail } from './navigation-trail';
@@ -101,6 +101,9 @@ export function installViewFrames(): void {
   if (broker !== null) return;
   broker = createExtensionBroker({
     request: (method, payload) => client.request(method, payload),
+    // What a view did, for the agent that wrote it (W-251). Nobody waits on it, and a host that
+    // cannot keep it is no reason to say anything to the person.
+    report: (mount, event) => reportViewEvent(mount as Mount, event),
     mounts: () => [...mounts.values()].filter((mount) => mount.frame !== null),
     running: () => state.session.extensions?.run === true,
     fileSessionId: () => client.currentFileSession?.() ?? state.session.fileSessionId,
@@ -115,6 +118,7 @@ export function installViewFrames(): void {
       openStudio: (mount, target) => openStudioFromView(target.entityId, movable(mount as Mount)),
       personIn: (mount) => viewHasFocus(mount as Mount),
       toast: (mount, text) => toastFromView((mount as Mount).spec.title, text),
+      offerUndo: (mount, offer) => undoOfferFromView((mount as Mount).spec.title, offer.label, offer.undo),
       actionsSkipped: (mount, text) => showKeptAlert(`${(mount as Mount).spec.title} saved a change. ${text}`),
       setHeight: (mount, pixels) => setHeight(mount as Mount, pixels),
       openProposal: (mount, preview) => {
@@ -700,6 +704,14 @@ function reloadPackageViews(packageId: string): void {
   }
 }
 
+/**
+ * What a view did, for the agent that wrote it (W-251). Nobody waits on it, and a host that cannot
+ * keep it is no reason to say anything to the person.
+ */
+function reportViewEvent(mount: Mount, event: ViewEventReport): void {
+  void client.request('extension.events.report', { packageId: mount.spec.packageId, viewId: mount.spec.viewId, ...event }).catch(() => undefined);
+}
+
 /** The host says these frames' renderer ended: each shows that, with Reload. */
 function framesFailed(names: readonly string[]): void {
   for (const name of names) {
@@ -709,5 +721,6 @@ function framesFailed(names: readonly string[]): void {
     if (menuOwner === mount.key) closeViewMenu();
     setToolbar(mount, null);
     setTrouble(mount, 'crashed');
+    reportViewEvent(mount, { kind: 'stopped', text: 'The page of the view ended unexpectedly.' });
   }
 }

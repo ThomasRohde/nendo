@@ -11,7 +11,7 @@
  * Nothing here is exported. The build wraps it in one function, and the page sees only
  * `window.nendo`.
  */
-import { resolveClauseValue } from '../record-window';
+import { isPeriod, resolveClauseValue, resolvePeriodClause } from '../record-window';
 import {
   apiVersion, chordOf, extensionLimits, hostKeys, normalizeKeys, utf8Length, viewEventNames,
   type ConnectMessage, type HelloMessage, type Json, type KeyEventLike, type PortMessage, type SchemaDescription, type SchemaField,
@@ -187,7 +187,7 @@ type BatchWrite =
   | { op: 'create'; entityId: string; recordId?: string; values: WriteValues; targetVersions?: TargetVersions }
   | { op: 'update'; entityId: string; recordId: string; version: number; values: WriteValues; targetVersions?: TargetVersions }
   | { op: 'delete'; entityId: string; recordId: string; version: number };
-type BatchOptions = { label?: string; writeKey?: string };
+type BatchOptions = { label?: string; writeKey?: string; offerUndo?: boolean };
 type BatchAnswer = { records: { entityId: string; recordId: string; version: number | null }[]; revision: string | null };
 type UndoOptions = { label?: string };
 type MoveTarget = { parentRecordId: string | null; parentVersion?: number; beforeRecordId?: string | null };
@@ -311,6 +311,24 @@ function install(host: Window & { nendo?: unknown }): void {
     emit('context', context);
     pump();
   });
+  /**
+   * An error the view's own code throws and does not catch goes to the Workbench (W-251), which
+   * keeps the open file's last few for the agent that wrote the view; the view still sees it
+   * in its own console. Only the sentence travels, cut to a bound, never the stack.
+   */
+  const thrown = (text: unknown): void => {
+    if (port === null) return;
+    const sentence = typeof text === 'string' && text.length > 0 ? text : 'An error with no message.';
+    try { port.postMessage({ t: 'error', text: sentence.slice(0, extensionLimits.errorTextLength) } satisfies PortMessage); } catch { /* the channel is gone */ }
+  };
+  if (typeof host.addEventListener === 'function') {
+    host.addEventListener('error', ((event: { message?: unknown }) => thrown(event.message)) as unknown as EventListener);
+    host.addEventListener('unhandledrejection', ((event: { reason?: unknown }) => {
+      const reason = event.reason as { message?: unknown } | null | undefined;
+      thrown(typeof reason?.message === 'string' ? reason.message : String(event.reason));
+    }) as unknown as EventListener);
+  }
+
   // A page opened on its own has no Workbench to connect to: say so, rather than wait forever.
   if (host.parent !== host) host.parent.postMessage({ nendo: 'hello', apiVersion } satisfies HelloMessage, '*');
   else refuse(new NendoError('not-framed', 'This page is a Nendo view. It runs inside Nendo, on a screen or a record page that shows it.'));
@@ -349,13 +367,15 @@ function install(host: Window & { nendo?: unknown }): void {
   const queryAll = (query: Query, options: { max?: number } = {}): Promise<ViewRecord[]> =>
     readAll<ViewRecord>(call, 'records.query', query, options);
 
-  /** The view's authored filters for one record type, with `today` and `now` resolved as it reads. */
+  /** The view's authored filters for one record type, with `today`, `now` and the periods resolved as it reads. */
   function authoredFilters(view: ViewContext, entityId: string | null): Array<{ fieldId: string; operator: string; value?: Json }> {
     const at = new Date();
     return view.bindings.filters.filter((filter) => filter.entityId === entityId).map((filter) =>
       filter.operator === 'isNull' || filter.operator === 'isNotNull'
         ? { fieldId: filter.fieldId, operator: filter.operator }
-        : { fieldId: filter.fieldId, operator: filter.operator, value: resolveClauseValue(filter.valueKind, filter.value, at, filter.storageKind) as Json });
+        : isPeriod(filter.valueKind)
+          ? { fieldId: filter.fieldId, ...resolvePeriodClause(filter.operator, filter.valueKind, at, filter.storageKind) }
+          : { fieldId: filter.fieldId, operator: filter.operator, value: resolveClauseValue(filter.valueKind, filter.value, at, filter.storageKind) as Json });
   }
 
   /** The records the view is about: its record type under its filters, or the page's one record. */
@@ -574,13 +594,16 @@ function install(host: Window & { nendo?: unknown }): void {
        * and null for a deleted one. options.writeKey (1 to 64 letters, digits, - or _) names the
        * batch: sent again with the same key and the same writes, after a timeout or a reconnect
        * left its outcome unknown, it is kept once and answers as it did; with other writes it is
-       * refused. Without a key a batch sent again is a new batch.
+       * refused. Without a key a batch sent again is a new batch. options.offerUndo asks Nendo to
+       * offer Undo in its own notice (W-250), which stays while the person moves on, the record
+       * the view opens next included, until the next notice; the answer says undoOffered.
        */
       batch: (writes: BatchWrite[], options?: BatchOptions): Promise<BatchAnswer> =>
         call<BatchAnswer>('records.batch', {
           writes,
           ...(options?.label === undefined ? {} : { label: options.label }),
           ...(options?.writeKey === undefined ? {} : { writeKey: options.writeKey }),
+          ...(options?.offerUndo === undefined ? {} : { offerUndo: options.offerUndo }),
         }),
       /**
        * Undoes a revision this view wrote since it opened, named by the batch's answer, as a new

@@ -92,7 +92,8 @@ public sealed class NendoCalculationException(string code, string message) : Nen
 /// <summary>
 /// One budget's spend when an allowance ran out (W-246): which one, and every counter against
 /// its limit. The refused charge is not counted, so the allowance that ran out reads at or near
-/// its limit.
+/// its limit. On a save that ran actions it also names the step that spent the most work units
+/// (W-247), which the Billable author had to guess.
 /// </summary>
 public sealed record NendoBudgetSpend(
     string Allowance,
@@ -103,4 +104,6 @@ public sealed record NendoBudgetSpend(
     int AutomaticChanges,
     int AutomaticChangeLimit,
     int WorkUnits,
-    int WorkUnitLimit);
+    int WorkUnitLimit,
+    string? HeaviestStep = null,
+    int? HeaviestStepWorkUnits = null);

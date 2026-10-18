@@ -634,6 +634,7 @@ Everything after the handshake travels on the port.
 | Workbench | `{t: 'ping', id}` | A heartbeat. The script answers `{t: 'pong', id}` |
 | View | `{t: 'ping', id}` | The broker answers `{t: 'pong', id}` |
 | View | `{t: 'key', keys}` | A key pressed inside the view that is one of Nendo's own, or one its toolbar declares, normalised (`Ctrl+K`). The Workbench runs it as if it had been pressed there, and nothing answers ([Nendo's toolbar, menus and keys](#nendos-toolbar-menus-and-keys)) |
+| View | `{t: 'error', text}` | An error the view's code threw and did not catch, its sentence only, at most 500 characters; the script sends it. Nothing answers; the broker reports it ([When a view fails](#when-a-view-fails)) |
 
 A request without a safe-integer `id` is dropped without an answer.
 
@@ -665,7 +666,7 @@ Workbench suite, pins the table name by name.
 | `records.update` | `entityId`, `recordId`, `version`, `values`, `targetVersions` (optional) | `data.setFields`, with `targetVersions` as `expectedTargetVersions` | The record as it now stands |
 | `records.delete` | `entityId`, `recordId`, `version` | `data.deleteRecord` | null |
 | `records.move` | `entityId`, `recordId`, `version`, `parentRecordId` (null for the top level), `parentVersion` (with a parent), `beforeRecordId` (optional) | `data.moveRecord`, with `parentVersion` as `expectedParentVersion` ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) | The record as it now stands |
-| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional), `writeKey` (1–64 letters, digits, `-` or `_`, optional; [below](#writes)) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}], revision}`, version null for a deleted record |
+| `records.batch` | `writes` (1–200, each `{op: 'create', entityId, recordId?, values, targetVersions?}`, `{op: 'update', entityId, recordId, version, values, targetVersions?}` or `{op: 'delete', entityId, recordId, version}`), `label` (1–80 characters, optional), `writeKey` (1–64 letters, digits, `-` or `_`, optional; [below](#writes)), `offerUndo` (true or false, optional; [below](#writes)) | `data.writeRecords`, one revision ([below](#writes)) | `{records: [{entityId, recordId, version}], revision}`, version null for a deleted record; with `offerUndo`, also `undoOffered` |
 | `records.undo` | `revision` (a batch's or a redo's, this frame's), `label` (1–80 characters, optional) | `data.undoRecordWrites` ([below](#writes)) | `{records, revision}`, as a batch |
 | `records.redo` | `revision` (an undo's, this frame's), `label` (optional) | `data.undoRecordWrites` with `redo` | `{records, revision}`, as a batch |
 | `commands.run` | `commandId`, `entityId`, `recordId`, `version` | `data.executeCommand` | The record as it now stands. A command of another record type than `entityId` names is refused `command-unavailable` before anything is written (R2AP-08): the broker checks the commands `schema.describe` lists, and the host checks it again, since `data.executeCommand` carries `entityId` to `NendoExecuteCommandRequest.EntityId`. The host used to run a command on its own type's record and never read `entityId`, so the view was answered with another type's record, or null as if deleted |
@@ -824,7 +825,14 @@ undo by the undo's revision.
   it, so a view walks back any number of steps on one record.
 - **Only its own.** The broker answers `not-this-view`, without asking the host, for a
   revision this frame was not answered in this visit; a frame mounted again starts with
-  none. The host admits the view's actor on `data.undoRecordWrites` and answers
+  none.
+- **Offered by Nendo** (W-250, the ADR-0023 amendment of 2026-10-18). `records.batch` with
+  `offerUndo: true` asks Nendo to offer Undo in its own notice, named by the batch's label.
+  The notice follows the person, to the record the view opens next or another screen, until
+  it times out, is closed or another notice takes its place, so a gesture that writes and
+  then navigates keeps its undo. Undo there is the view's own `records.undo` of that
+  revision, in the package's name and under the same idempotency key, refused as any undo
+  is; it reaches nothing once another file is open. The batch answers `undoOffered`. The host admits the view's actor on `data.undoRecordWrites` and answers
   `revision-not-yours` for a revision another origin wrote, `not-an-undo` for a redo of a
   revision that is not a compensation, and `compensation-not-supported` for one already
   undone or redone, or for a revision that changes more than records.
@@ -1317,6 +1325,16 @@ The placeholder's `data-view-state` says where a view is: `waiting`, `starting`,
 
 If a view brings the whole Workbench down, the native recovery panel offers
 **Restart view** and **Restart without custom views**.
+
+**What the agent that wrote it reads** (W-251, [ADR-0032](../decisions/0032-a-views-runtime-events-reach-its-agent.md)).
+The broker tells the host, through `extension.events.report`, when a view connects
+(`loaded`), stops answering or its renderer ends (`stopped`), throws an error it does not
+catch (`error`, its sentence), and has a call refused, its toolbar and menu declarations
+included (`refused`, with the method and the code). At most ten a second from one view; a
+view's own actor cannot send one. The host keeps each package's last 50 in memory, for at
+most 32 packages, for the open file only, and an agent reads them at
+`nendo://application/extension-events`. `tools/view-kit/preview.mjs` runs a package against
+the real script and a fixture broker, and says that it is a source test, not this host.
 
 ## Kill switches
 

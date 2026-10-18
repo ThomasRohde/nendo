@@ -96,11 +96,21 @@ public sealed class BehaviourWriteRouteTests
         await service.CreateRecordAsync(new("projects", "p2",
             new Dictionary<string, object?> { ["name"] = "Second", ["total"] = 0L }, Context("p2")));
 
-        // One row per project, so the paste generates two changes rather than one.
-        // A budget reset per row would give each row its own allowance of one and let
-        // an import of any size through; one budget for the whole causal transaction
-        // refuses it, and refuses all of it.
-        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { GeneratedChanges = 1 };
+        // One row per project, so the paste generates two changes rather than one. Each
+        // record brings its own calls, related records and changes (W-247), but the work
+        // units are the save's: a budget reset per row would let an import of any size
+        // through, and one budget for the whole causal transaction refuses it, and refuses
+        // all of it. The work one row's paste needs is measured on a copy of this file.
+        var oneRow = await MinimumWorkUnitsAsync(async (copy, copyService) =>
+        {
+            var copyVersions = await VersionsAsync(copyService, "projects");
+            await copyService.CreateRecordsAsync(new("tasks",
+            [
+                new("b1", new Dictionary<string, object?> { ["project"] = "p1", ["done"] = true, ["title"] = "One" },
+                    new Dictionary<string, long> { ["project"] = copyVersions["p1"] }),
+            ], Context("one-row")));
+        });
+        coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { WorkUnits = oneRow };
         var before = (await service.GetHistoryAsync()).Count;
         var beforeTotals = await TotalsAsync(service);
         var versions = await VersionsAsync(service, "projects");
@@ -114,23 +124,63 @@ public sealed class BehaviourWriteRouteTests
         ], Context("over-budget"))));
 
         Assert.AreEqual(NendoCalculationCodes.LimitReached, refused.Code);
+        Assert.AreEqual("work", refused.Spend?.Allowance);
         CollectionAssert.AreEqual(beforeTotals, await TotalsAsync(service), "A refused paste left part of its work behind.");
         Assert.HasCount(before, await service.GetHistoryAsync(), "A refused paste raised a revision.");
         Assert.IsEmpty((await service.GetSnapshotAsync()).Records
             .Where(record => record.RecordId.StartsWith('b')).ToArray(),
             "A refused paste created records.");
 
-        // The same paste under the shipped ceiling commits, so the refusal above was
-        // the budget and not the paste.
-        coordinator.BehaviourLimits = NendoBehaviourLimits.Default;
+        // One of its rows alone fits the same budget, so two rows were refused for sharing it.
         await service.CreateRecordsAsync(new("tasks",
         [
             new("b1", new Dictionary<string, object?> { ["project"] = "p1", ["done"] = true, ["title"] = "One" },
                 new Dictionary<string, long> { ["project"] = versions["p1"] }),
+        ], Context("one-row")));
+        Assert.HasCount(before + 1, await service.GetHistoryAsync());
+
+        // The same paste under the shipped ceiling commits, so the refusal above was
+        // the budget and not the paste.
+        coordinator.BehaviourLimits = NendoBehaviourLimits.Default;
+        versions = await VersionsAsync(service, "projects");
+        await service.CreateRecordsAsync(new("tasks",
+        [
+            new("b3", new Dictionary<string, object?> { ["project"] = "p1", ["done"] = true, ["title"] = "Three" },
+                new Dictionary<string, long> { ["project"] = versions["p1"] }),
             new("b2", new Dictionary<string, object?> { ["project"] = "p2", ["done"] = true, ["title"] = "Two" },
                 new Dictionary<string, long> { ["project"] = versions["p2"] }),
         ], Context("within-budget")));
-        Assert.HasCount(before + 1, await service.GetHistoryAsync());
+        Assert.HasCount(before + 2, await service.GetHistoryAsync());
+    }
+
+    /// <summary>
+    /// The fewest work units an act commits under, each try on a fresh copy of the seeded file
+    /// with a second project, since a save that commits cannot be tried again.
+    /// </summary>
+    private static async Task<int> MinimumWorkUnitsAsync(Func<NendoWriteCoordinator, NendoApplicationService, Task> act)
+    {
+        int low = 1, high = NendoBehaviourLimits.Default.WorkUnits;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            await using var workspace = new EngineTestWorkspace();
+            var coordinator = await workspace.CreateAsync();
+            var service = new NendoApplicationService(coordinator);
+            await SeedAsync(coordinator, service);
+            await service.CreateRecordAsync(new("projects", "p2",
+                new Dictionary<string, object?> { ["name"] = "Second", ["total"] = 0L }, Context("p2")));
+            coordinator.BehaviourLimits = NendoBehaviourLimits.Default with { WorkUnits = middle };
+            try
+            {
+                await act(coordinator, service);
+                high = middle;
+            }
+            catch (NendoCalculationException exception) when (exception.ExhaustedBudget)
+            {
+                low = middle + 1;
+            }
+        }
+        return low;
     }
 
     /// <summary>

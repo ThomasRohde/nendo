@@ -25,6 +25,7 @@ import { fileViewValue, showFileView, showingOptionsMarkup } from './file-view-m
 import { icon } from './icons';
 import { drawPlacePickers } from './place-pickers';
 import { windowIsCurrent } from './record-window';
+import { calculationState, isDerived } from './calculated-fields';
 
 /**
  * The file's front page (ADR-0004, 2026-09-14 amendment, S4).
@@ -172,8 +173,12 @@ export function rankedRowsMarkup(
   if (records.length === 0) return `<p class="empty-note">No ${escapeHtml(entity.displayName)} has a number to rank.</p>`;
   // The bar's width is a proportion, which a JavaScript number draws well enough; the numeral
   // decides a tie, which only the exact digits can.
-  const values = records.map((record) => rankValue(record.values[rankByFieldId]));
-  const numerals = rankNumerals(records.map((record) => rankKey(record.values[rankByFieldId])));
+  // A calculated number ranks by its result as a stored one ranks by its value (W-249).
+  const ranked = (record: RecordPlan): unknown => isDerived(entity.derivedFields, rankByFieldId)
+    ? (calculationState(record.calculations?.[rankByFieldId]?.state ?? 'pending') === 'value' ? record.calculations?.[rankByFieldId]?.value : null)
+    : record.values[rankByFieldId];
+  const values = records.map((record) => rankValue(ranked(record)));
+  const numerals = rankNumerals(records.map((record) => rankKey(ranked(record))));
   // A maximum that is not positive means no bar is honest, so none is drawn and the
   // numbers carry the whole of it.
   const bars = largest > 0;

@@ -204,10 +204,18 @@ public sealed class BehaviourSurfaceTests
         var narrowed = await service.QueryRecordsAsync(query with { Filters = [.. query.Filters,
             new NendoRecordFilter("name", "eq", JsonSerializer.SerializeToElement("Project"))] });
         Assert.IsEmpty(narrowed.Items, "p1 has two tasks, so no project named Project has none.");
+
+        // A total of a calculated number stands on the same bounded read (W-249), and a stored
+        // filter brings it back within the bound the same way.
+        var total = new NendoRecordAggregateQuery("projects", "sum", "taskCount");
+        Assert.AreEqual("calculated-query-too-wide",
+            (await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => service.AggregateRecordsAsync(total))).Code);
+        Assert.AreEqual("2", (await service.AggregateRecordsAsync(total with
+            { Filters = [new NendoRecordFilter("name", "eq", JsonSerializer.SerializeToElement("Project"))] })).ValueLexeme);
     }
 
     [TestMethod]
-    public async Task ATotalAGroupingACalendarAndACommandAllRefuseACalculatedField()
+    public async Task AGroupingACalendarAndACommandAllRefuseACalculatedFieldAndATotalTakesOne()
     {
         await using var workspace = new EngineTestWorkspace();
         var coordinator = await workspace.CreateAsync();
@@ -230,7 +238,9 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("tile-aggregate", "project-surface", "project-tile", "aggregate", "sum"),
             new SetUiPropertyOperation("tile-field", "project-surface", "project-tile", "fieldId", "taskCount"),
         ]));
-        AssertRefused(await service.CompileSemanticUiAsync(), "fieldId");
+        // A total of a calculated number compiles since W-249, and needs the host that reads it.
+        AssertValid(await service.CompileSemanticUiAsync());
+        Assert.AreEqual(NendoFormat.CalculatedTotalsMinimumHostVersion, (await service.GetSnapshotAsync()).Manifest.MinimumHostVersion);
         await coordinator.ApplyAsync(new("test", "drop-tile", "test", "Remove the tile",
             [new RemoveUiNodeOperation("tile-remove", "project-surface", "project-tile")]));
 

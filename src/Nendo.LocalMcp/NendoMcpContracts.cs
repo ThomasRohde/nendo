@@ -273,7 +273,12 @@ public sealed record NendoMcpAggregate(
 }
 
 /// <summary>One group or bucket: its key (a choice ID, true, false, a bucket start, or null for unset), its exact value and how many records contributed.</summary>
-public sealed record NendoMcpAggregateGroup(string? Key, string? Value, long ContributingRecords);
+public sealed record NendoMcpAggregateGroup(string? Key, string? Value, long ContributingRecords)
+{
+    /// <summary>For a grouping by a reference (W-249), the label of the record the key names; absent otherwise.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Label { get; init; }
+}
 
 /// <summary>One cell of a grid aggregate.</summary>
 public sealed record NendoMcpAggregateCell(string? RowKey, string? ColumnKey, string? Value, long ContributingRecords);
@@ -420,6 +425,19 @@ public sealed record NendoMcpExtensionPackage(
     string Kind,
     long TotalBytes,
     IReadOnlyList<NendoMcpExtensionFile> Files);
+
+/// <summary>
+/// The open file's custom views' recent runtime events (W-251). <paramref name="Source"/> says
+/// which of three kinds of evidence this is: neither a definition's validation nor a test of the
+/// view's source, but what the embedded host saw.
+/// </summary>
+public sealed record NendoMcpViewEvents(string Source, IReadOnlyList<NendoMcpViewEventLog> Packages);
+
+/// <summary>One package's events, oldest first, and how many earlier ones the bound let go.</summary>
+public sealed record NendoMcpViewEventLog(string PackageId, long Dropped, IReadOnlyList<NendoMcpViewEvent> Events);
+
+/// <summary>One event: loaded, stopped, error or refused, when, in which view, and a refusal's method and code.</summary>
+public sealed record NendoMcpViewEvent(DateTimeOffset At, string Kind, string? ViewId, string? Method, string? Code, string? Text);
 
 /// <summary>One file of a package: where it is, what it is and which bytes.</summary>
 public sealed record NendoMcpExtensionFile(string Path, string MediaType, string Sha256, long ByteLength);

@@ -388,7 +388,8 @@ export function progressRead(node: SurfaceNodePlan, scope: TileScope, surfaceEnt
 
 /** The host's answer to a grouped read. */
 export interface GroupedResult {
-  groups: Array<{ key: string | null; valueLexeme: string | null; contributingRecords: number }>;
+  /** A grouping by a reference also says each group's record by its label (W-249). */
+  groups: Array<{ key: string | null; valueLexeme: string | null; contributingRecords: number; label?: string | null }>;
   unrecognised: number;
   changeSequence: number;
 }
@@ -399,9 +400,19 @@ export function isBooleanField(field: FieldPlan | undefined): boolean {
   return field.storageKind === 3 || String(field.storageKind).toLowerCase() === 'boolean';
 }
 
-/** What a group is called: the option's label, Yes and No for a Boolean, and Not set for the unset group. */
-export function groupLabel(field: FieldPlan | undefined, key: string | null): string {
+/** Whether a field stores a reference; the bridge spells the kind as text or as its enum index. */
+export function isReferenceField(field: FieldPlan | undefined): boolean {
+  if (field === undefined) return false;
+  return field.storageKind === 7 || String(field.storageKind).toLowerCase() === 'reference';
+}
+
+/**
+ * What a group is called: the option's label, Yes and No for a Boolean, the label of the record a
+ * reference points at (W-249), and Not set for the unset group.
+ */
+export function groupLabel(field: FieldPlan | undefined, key: string | null, label?: string | null): string {
   if (key === null) return 'Not set';
+  if (isReferenceField(field)) return label === undefined || label === null || label === '' ? '(No label)' : label;
   if (isBooleanField(field)) return key === 'true' ? 'Yes' : 'No';
   const choice = field?.choices?.find((candidate) => candidate.id === key);
   return choice ? choice.displayName + (choice.retired ? ' (retired)' : '') : key;
@@ -418,7 +429,7 @@ export function groupStyle(field: FieldPlan | undefined, key: string | null): st
 export function breakdownSegments(field: FieldPlan | undefined, result: GroupedResult): ChartSegment[] {
   return result.groups.map((group) => ({
     key: group.key,
-    label: groupLabel(field, group.key),
+    label: groupLabel(field, group.key, group.label),
     lexeme: group.valueLexeme,
     amount: proportionOf(group.valueLexeme),
     style: groupStyle(field, group.key),
@@ -478,8 +489,11 @@ export function chartContext(node: SurfaceNodePlan, scope: TileScope, fieldName:
  */
 export function sampleGrouped(node: SurfaceNodePlan, field: FieldPlan | undefined, records: readonly RecordPlan[]): GroupedResult {
   const groupByFieldId = property(node, 'groupByFieldId') ?? '';
-  const keys = isBooleanField(field) ? ['false', 'true'] : [...(field?.options ?? [])];
+  // A reference's groups are the records the sample points at, as the host's read is (W-249).
+  const open = isReferenceField(field);
+  const keys = isBooleanField(field) ? ['false', 'true'] : open ? [] : [...(field?.options ?? [])];
   const counts = new Map<string, number>(keys.map((key) => [key, 0]));
+  const labels = new Map<string, string | null>();
   let unset = 0;
   let unrecognised = 0;
   for (const record of records) {
@@ -488,10 +502,15 @@ export function sampleGrouped(node: SurfaceNodePlan, field: FieldPlan | undefine
       : typeof stored === 'boolean' ? String(stored) : String(stored);
     if (key === null) unset++;
     else if (counts.has(key)) counts.set(key, counts.get(key)! + 1);
-    else unrecognised++;
+    else if (open) {
+      counts.set(key, 1);
+      labels.set(key, record.referenceLabels?.[groupByFieldId] ?? null);
+      keys.push(key);
+    } else unrecognised++;
   }
+  if (open) keys.sort((left, right) => (labels.get(left) ?? '').localeCompare(labels.get(right) ?? '') || (left < right ? -1 : left > right ? 1 : 0));
   return {
-    groups: [...keys.map((key) => ({ key, valueLexeme: String(counts.get(key)), contributingRecords: counts.get(key)! })),
+    groups: [...keys.map((key) => ({ key, valueLexeme: String(counts.get(key)), contributingRecords: counts.get(key)!, ...(open ? { label: labels.get(key) ?? null } : {}) })),
       { key: null, valueLexeme: String(unset), contributingRecords: unset }],
     unrecognised,
     changeSequence: 0,
@@ -579,7 +598,7 @@ export function drillFilter(node: SurfaceNodePlan, field: FieldPlan | undefined,
 }
 
 /** What the pill says while a drill narrows the list. */
-export function drillLabel(node: SurfaceNodePlan, field: FieldPlan | undefined, key: string | null, fieldName: (fieldId: string) => string, range?: BucketRange | null): string {
+export function drillLabel(node: SurfaceNodePlan, field: FieldPlan | undefined, key: string | null, fieldName: (fieldId: string) => string, range?: BucketRange | null, label?: string | null): string {
   if (node.kind === 'progressTile') return chartTitle(node, fieldName);
   if (isOverTimeKind(node.kind)) {
     const bucket = node.kind === 'activityGrid' ? 'day' : property(node, 'bucket') ?? 'month';
@@ -587,7 +606,7 @@ export function drillLabel(node: SurfaceNodePlan, field: FieldPlan | undefined, 
     return `${fieldName(dateFieldId)}: ${bucketLabel(bucket, key, range)}`;
   }
   const groupByFieldId = property(node, 'groupByFieldId') ?? '';
-  return `${fieldName(groupByFieldId)}: ${groupLabel(field, key)}`;
+  return `${fieldName(groupByFieldId)}: ${groupLabel(field, key, label)}`;
 }
 
 /** A ring drills into the records matching its own clauses, which the compiler bounded. */

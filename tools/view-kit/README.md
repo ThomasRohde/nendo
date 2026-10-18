@@ -13,3 +13,12 @@ version, copy it into every package that carries it, and raise those packages' v
 `tools/Review-Gantt.ps1` runs it and measures the Gantt's rows with it, and a bare list without
 it and then with it. `tokens.test.mjs` checks that a view stylesheet which says its fallbacks are
 the Workbench's tokens holds the values `02-tokens.css` declares.
+
+## Previewing a package
+
+`node tools/view-kit/preview.mjs extensions/<package>` serves a package folder against Nendo's real
+`api.js` and the fixture broker the gate lanes use, and prints the address to open. It says what it
+is: a source test, not the embedded host. What a view did when Nendo showed it, an uncaught error or
+a refused call with its code, an agent reads at `nendo://application/extension-events`
+([ADR-0032](../../docs/decisions/0032-a-views-runtime-events-reach-its-agent.md)). The view API must
+be built first, with `npm --prefix src/Nendo.Workbench run build`.

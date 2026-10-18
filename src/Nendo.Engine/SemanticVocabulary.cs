@@ -335,7 +335,17 @@ public static class NendoSemanticVocabulary
         Set("eq", "ne", "lt", "lte", "gt", "gte", "isNull", "isNotNull");
 
     /// <summary>Closed value vocabulary, shared with a command step.</summary>
-    internal static IReadOnlySet<string> ValueKinds { get; } = Set("literal", "today", "now", "null");
+    internal static IReadOnlySet<string> ValueKinds { get; } = Set("literal", "today", "now", "null", "thisWeek", "thisMonth");
+
+    /// <summary>
+    /// The value kinds that name a span of days rather than one value (ADR-0004, 2026-10-18 note,
+    /// W-248). A filter compares a date with its first or last day; a command step cannot assign one.
+    /// A week starts on Monday.
+    /// </summary>
+    internal static IReadOnlySet<string> PeriodValueKinds { get; } = Set("thisWeek", "thisMonth");
+
+    /// <summary>The operators a period takes: before it, from its start, to its end, after it.</summary>
+    internal static IReadOnlySet<string> PeriodOperators { get; } = Set("lt", "gte", "lte", "gt");
 
     /// <summary>
     /// How a <c>trendChart</c> divides its range. Closed to the two the amendment names:

@@ -167,7 +167,10 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.52.0`, for a media field or an embedded picture (ADR-0031). `1.51.0` is for a reference
+is `1.54.0`, for a summary tile, breakdown or ranking over a calculated number, or a breakdown grouped
+by a reference (ADR-0004, 2026-10-18, W-249). `1.53.0` is for a formula that calls `AddDays` or a filter on
+`thisWeek` or `thisMonth` (ADR-0008 and ADR-0004, 2026-10-18, W-248). `1.52.0` is for a media field or an
+embedded picture (ADR-0031). `1.51.0` is for a reference
 whose label changed with `schema.setReferenceLabel` (ADR-0003, 2026-10-14 note). `1.50.0` is for the three history indexes a fold adds (ADR-0021, 2026-10-13
 note), which a file never folded does not have. `1.49.0` is for a formula that calls `ToText` (ADR-0008,
 2026-10-13). `1.48.0` is for a

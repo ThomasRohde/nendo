@@ -438,6 +438,18 @@ internal sealed partial class DesktopSessionController
     /// file carries, packages by title, pages by path. Text only, for Help to render as Markdown;
     /// nothing in them runs. A page that is not UTF-8, or past a bound, is left out and counted.
     /// </summary>
+    /// <summary>
+    /// Keeps one runtime event of a view of the open file (W-251), for an agent to read over MCP.
+    /// It takes no request gate: the log is memory only and guards itself, and an event must not
+    /// wait behind the write that a view's refusal may be about.
+    /// </summary>
+    internal DesktopViewEventKept ReportViewEvent(string packageId, NendoViewEvent viewEvent)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        RequireService().ViewEvents.Record(packageId, viewEvent);
+        return new DesktopViewEventKept(true);
+    }
+
     internal Task<DesktopHelpPagesView> ReadHelpPagesAsync(CancellationToken cancellationToken = default) =>
         QueryAsync(async service =>
         {

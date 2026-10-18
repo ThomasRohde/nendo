@@ -405,7 +405,11 @@ function filterNote(node: SurfaceNodePlan, fieldName: (id: string) => string): s
   const clauses = childrenOf(node, 'filterClause').map(clause => {
     const fieldId = property(clause, 'fieldId') ?? '';
     const operator = property(clause, 'operator') ?? 'eq';
-    const value = operator === 'isNull' || operator === 'isNotNull' ? '' : ` ${text(clause.properties.value)}`;
+    // today, now, thisWeek and thisMonth are words the host resolves as it reads, so the word is
+    // what a reviewer sees; they carry no value to show.
+    const kind = property(clause, 'valueKind');
+    const shown = kind !== null && kind !== 'literal' ? kind : text(clause.properties.value);
+    const value = operator === 'isNull' || operator === 'isNotNull' ? '' : ` ${shown}`;
     return `${fieldName(fieldId)} ${operator}${value}`;
   });
   return clauses.length === 0 ? '' : `<p class="preview-filter">Showing records where ${escape(clauses.join(' and '))}.</p>`;

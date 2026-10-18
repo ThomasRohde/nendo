@@ -334,7 +334,7 @@ are properties of the graph. Installation refuses when:
 
 - a call or the action of a trigger names a definition that the file does not
   hold, or a definition of the wrong kind;
-- definitions call each other in a loop, or nest more than 8 deep;
+- definitions call each other in a loop, or nest more than 16 deep (8 before 2026-10-18, W-247);
 - a reusable function's formula produces another kind than its declared `resultType`,
   naming the function: "Function 'fn.label' declares integer but its formula produces
   text."; or a definition calls such a function (R2AAV-01, 2026-10-14). Installation
@@ -485,7 +485,7 @@ field, a date that is not a date, or a delete blocked by references. The refusal
 keeps its own type and code, so every surface maps it as before (2026-10-13,
 EBH-05). A ceiling says which allowance ran out: a save's, one record's read, or
 one formula's check. An action that starts itself again until the change limit
-is told so (EBH-20). Since 2026-10-15 (W-246) a ceiling also says what the budget had spent of every allowance against its limit, names each related record's calculation it ran out inside ("It ran out inside project.amount of record p1, inside entry.amount of record p1e30"), and on a save that named more than one record says how many shared the one budget. An agent receives the same as fields under `limit` in the refusal's `_meta` (`allowance`, each counter and its limit, `path`). The refused charge is not counted, so the allowance that ran out reads at or near its limit. The Workbench receives it under the code of the calculation. An agent
+is told so (EBH-20). Since 2026-10-15 (W-246) a ceiling also says what the budget had spent of every allowance against its limit, names each related record's calculation it ran out inside ("It ran out inside project.amount of record p1, inside entry.amount of record p1e30"), and on a save that named more than one record says how many shared the one budget. Since 2026-10-18 (W-247) a save's refusal also names the step that spent most work ("The step that spent most was step rate of action 'Entry defaults', with 236 work units."). An agent receives the same as fields under `limit` in the refusal's `_meta` (`allowance`, each counter and its limit, `path`, `heaviestStep`, `heaviestStepWorkUnits`). The refused charge is not counted, so the allowance that ran out reads at or near its limit. The Workbench receives it under the code of the calculation. An agent
 receives it as `NENDO_CALCULATION_*` with the same sentence. Before this rule, an
 assignment could bind to the event record while it wrote to the referenced
 record. The published example warns about this mistake. Such an assignment
@@ -691,15 +691,24 @@ last. Past 10,000 records (`NendoQueryLimits.MaximumCalculatedQueryRecords`, the
 hierarchy's subtree has) the read is refused as `calculated-query-too-wide` rather than read
 slowly; a filter on a stored field narrows it. A file that does either needs host 1.40.0.
 
+Since 2026-10-18 (W-249) a calculated Integer or Decimal also totals: the `fieldId` of a
+`summaryTile` and a `breakdownChart`, and the `rankByFieldId` of a `rankedList`. The total
+stands on the same bounded read: every record the query keeps, with its calculations,
+each result folded exactly as a stored decimal is. An empty result adds nothing, as an
+unset field does; a result that could not be worked out refuses the whole total as
+`calculated-total-incomplete`, naming the field and the reason, rather than leaving the
+record out; past 10,000 records it is `calculated-query-too-wide`. A calculated Text,
+Boolean or Date is not a number to total (`NUI294`, `NUI420`). A file that does any of
+these needs host 1.54.0.
+
 It may not drive anything else. These all refuse a calculated field with code
 `NUI214`, and the refusal names the field:
 
 - the `groupByFieldId` of a board or a `breakdownChart`;
 - the `rowByFieldId` and `columnByFieldId` of a `matrixSurface`;
-- the `rankByFieldId` of a `rankedList`;
 - the `dateFieldId` of a calendar, a `trendChart` or an `activityGrid`;
 - the `dateFieldId` and `endDateFieldId` of a timeline;
-- the field of a `summaryTile`, `breakdownChart`, `trendChart` or `rangeTile`;
+- the field of a `trendChart` or `rangeTile`;
 - a command step.
 
 The database decides these over every matching record, and a calculated field
@@ -1013,6 +1022,7 @@ has already lost the precision.
 | `RoundAway(number, digits)` | decimal, 0–28 digits, halves away from zero |
 | `Date(text)` | invariant `yyyy-MM-dd`, a real calendar date |
 | `DaysBetween(start, end)` | signed whole-number day difference |
+| `AddDays(date, days)` | the date that many days later, or earlier for a negative number; past 0001-01-01 to 9999-12-31 is `calculation-invalid-date`; an empty input stops the formula, as for other functions (host 1.53.0, W-248) |
 | `Concat(a, b, …)` | 2–8 texts; joined size checked before allocating; write a number or a date as text with `ToText` first |
 | `ToText(value)` | an integer as its digits, a decimal as its stored digits, a date as `yyyy-MM-dd`; no locale; a Boolean or text is refused; an empty input stops the formula, as for other functions (host 1.49.0) |
 | `TextLength(text)` | how many UTF-16 code units a text value holds: most characters count as one, one outside the Basic Multilingual Plane, such as most emoji, as two (EBH-19); empty text is zero |
@@ -1122,22 +1132,28 @@ raises them.
 | Lexical items | 128 | Preflight scan, punctuation included |
 | Tree nodes / depth | 128 / 24 | During the typed walk |
 | Parse nesting | 24 | Preflight, before a recursive parse |
-| Definition graph depth | 8 | Over the whole candidate set, cache or not |
+| Definition graph depth | 16 | Over the whole candidate set, cache or not. 8 until 2026-10-18 (W-247) |
 | Functions per file, or call aliases per formula | 32 | Before the lookup table is built |
 | Definitions per file, of every kind | 256 | Over the whole candidate set, before the graph is walked |
 | Bindings or parameters | 16 | Before binding |
 | Stable ID or alias length | 128 | Before compilation |
 | Work units | 16,384 | Charged per visit, call, scan and change |
-| Function calls | 64 | One counter across nested calls |
+| Function calls | 64 | One counter across nested calls, per record on a read. A related record's calculation has its own 64; a save has 64 for each record it names (W-247) |
 | Text length | 4,096 UTF-16 code units | On input, and before `Concat` allocates |
 | Cached expressions | 16 | Cleared on reaching the cap. A save evaluates the conditions and assignments compiled with the file's behaviour and does not check them again on its own budget, so what it is charged does not depend on the cache (EBH-22) |
-| Related rows per chain | 256 | SQL LIMIT plus a charge per row read. A plain count on a read reads no row and is not charged against it. A record the request names is read for its events only when a trigger listens to its type (EBH-21) |
-| Generated changes per chain | 64 | Before each generated write |
+| Related rows | 256 | SQL LIMIT plus a charge per row read, per record on a read. A related record's calculation has its own 256; a save has 256 for each record it names, and no one aggregate reads more than 256. Reading the record being evaluated, a record the save names or one its actions created is a work unit, not a related row (W-247). A plain count on a read reads no row and is not charged against it. A record the request names is read for its events only when a trigger listens to its type (EBH-21) |
+| Generated changes | 64 per record a save names | Before each generated write (W-247) |
 | Exact total | int64, or the .NET decimal range (96-bit coefficient, scale 0–28) | On the fold; refused as `aggregate-not-representable`, never wrapped or rounded. A calculated `Sum` folds the same way and refuses such a total as `calculation-overflow` (EBH-18). Trailing zeros that only a mixed scale added are shed first, so `decimal.MaxValue + 0.0` is `decimal.MaxValue` |
 
 One budget spans an entire evaluation, every nested call and a whole causal
 transaction. A deep call chain or a chain of triggers therefore gets no extra
-allowance. If a chain reaches a ceiling, the whole transaction aborts. Counters
+allowance of work units. If a chain reaches a ceiling, the whole transaction aborts.
+Since 2026-10-18 (W-247, the ADR-0008 amendment of that date) a calculation is worked
+out once per record and budget, a save forgetting what it remembered before each change
+it makes; a related record's calculation spends its own function calls and related rows,
+as its own read would, and its owner's work units; and a save's call, related-row and
+change allowances are those of the records it names, one by one. The work units are not
+multiplied, and bound a save whatever its size. Counters
 are checked, and every charge happens before the work that it pays for. The key
 of a cached validated expression includes the limit policy, so a stricter run can
 never reuse a result validated under a looser policy.

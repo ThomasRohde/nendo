@@ -45,7 +45,7 @@ A related aggregate is one of three:
 - **FilteredCount** counts the related records whose Boolean field is true.
 - **Sum** adds an Integer or Decimal field over the related records. An empty set gives 0. The field must be required, because a missing value is an error and not a zero.
 
-A filtered count or a sum can also read a calculated field of each related record: name its calculation in `predicateCalculationId` or `valueCalculationId` instead of the stored field. An invoice can total its lines' calculated totals, and a client the totals of its invoices. Each related record counts against the limit of 256 related records a calculation reads.
+A filtered count or a sum can also read a calculated field of each related record: name its calculation in `predicateCalculationId` or `valueCalculationId` instead of the stored field. An invoice can total its lines' calculated totals, and a client the totals of its invoices. Each related record counts against the limit of 256 related records a calculation reads. Its own calculation is worked out as its own read would be, with its own function calls and related records, and only once however many totals read it.
 
 A subtree aggregate is one of the same three, over the records under this one; `includeSelf` adds the record itself. A related aggregate with `acrossSubtree` counts or totals the records that point at this record or at anything under it.
 
@@ -82,6 +82,7 @@ The function set is closed:
 | `RoundAway(number, digits)` | Decimal rounded to 0–28 digits, halves away from zero |
 | `Date(text)` | A date from `yyyy-MM-dd` text; an invalid date is an error |
 | `DaysBetween(start, end)` | Signed whole number of days |
+| `AddDays(date, days)` | The date that many days later, or earlier for a negative number: `AddDays(issued, terms)` is a due date |
 | `Concat(a, b, …)` | 2 to 8 texts joined |
 | `TextLength(text)` | Number of UTF-16 code units: most characters count as 1, an emoji outside the Basic Multilingual Plane as 2; empty text is 0 |
 | `ToText(value)` | A number or a date as text: `42`, `12.5`, `2026-10-13`. Use it inside `Concat`, as in `Concat('INV-', ToText(number))`. A yes/no is refused; write `paid ? 'Yes' : 'No'` |
@@ -94,7 +95,7 @@ Use `Refuse` in one branch of a choice to reject a value, for example `rating > 
 
 ### Reusable functions
 
-A function has a display name, typed parameters, a result type and a formula. A calculation calls it through a call alias, for example `Percent(done, total)`. A function can call other functions. Calls in a loop are refused, and a chain of definitions can be at most 8 deep.
+A function has a display name, typed parameters, a result type and a formula. A calculation calls it through a call alias, for example `Percent(done, total)`. A function can call other functions. Calls in a loop are refused, and a chain of definitions can be at most 16 deep.
 
 ### Empty results and errors
 
@@ -220,18 +221,18 @@ The limits belong to the host. A file cannot raise them.
 | Formula length | 2,048 characters |
 | Tokens in a formula | 128 |
 | Nodes in a parsed formula, and nesting depth | 128, and 24 |
-| Depth of the chain of definitions | 8 |
+| Depth of the chain of definitions | 16 |
 | Functions in a file, or call aliases in one formula | 32 |
 | Definitions in a file, of all kinds | 256 |
 | Bindings or parameters in one formula | 16 |
 | Stable ID or alias length | 128 characters |
 | Text value length | 4,096 UTF-16 code units |
 | Work units per evaluation or save | 16,384 |
-| Function calls per evaluation or save | 64 |
-| Related rows read per evaluation or save | 256 |
-| Records written by actions per save | 64 |
+| Function calls per record | 64 |
+| Related rows read per record, and by any one total | 256 |
+| Records written by actions, per record saved | 64 |
 
-A save and all the actions it starts share one budget. If a chain of triggers reaches a limit, the whole save is refused. These limits bound the work a formula can do. They are not a memory sandbox or a time limit.
+A save and all the actions it starts share one budget. If a chain of triggers reaches a limit, the whole save is refused. A save of several records has each record's function calls, related rows and writes, so a batch is allowed what its records would be one by one, but the work units are the save's whatever its size. Reading the record being worked out, or one the save itself names or creates, is not a related row. A refused save names the action step that spent the most. These limits bound the work a formula can do. They are not a memory sandbox or a time limit.
 
 ## What a person sees
 
@@ -251,12 +252,14 @@ Studio shows the formula below the value. A finished screen in Use shows the val
 
 A calculated field can appear on any screen: a record page, a list column, a board card, or a related list. A list can also be sorted by one, or filtered on one: *Tasks is 0* lists the records nothing points at. Nendo works that out over every record the list could show, up to 10,000 of them; past that, add a filter on an ordinary field to narrow it.
 
-A calculated field still cannot group or total anything, because the database decides those over every matching record and a calculated field has no column. A screen that uses one for any of these is refused with `NUI214`, and the refusal names the field:
+A calculated whole number or decimal can also feed a summary tile or a breakdown chart, and rank a ranked list. Nendo works it out over the same records, up to 10,000, and adds the results exactly. An empty result adds nothing; if one record's result could not be worked out, the tile says so and shows no total rather than one that leaves that record out.
+
+A calculated field still cannot group a screen or place a record on a timeline, because the database decides those over every matching record and a calculated field has no column. A screen that uses one for any of these is refused with `NUI214`, and the refusal names the field:
 
 - group a board or a breakdown chart;
 - place a record on a calendar, a timeline, a trend chart or an activity grid;
-- be the rows, columns or rank of a matrix or ranked list;
-- feed a summary tile, breakdown chart, trend chart or range tile;
+- be the rows or columns of a matrix;
+- feed a trend chart or range tile;
 - be set by a command step.
 
 A form made only of calculated fields is refused with `NUI215`, because it has nothing to save. See [Screens](/nendo/docs/screens).

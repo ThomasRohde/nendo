@@ -110,8 +110,8 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
   },
   'records.batch': {
     call: 'nendo.records.batch(writes, options?)',
-    params: 'writes is a list of 1 to 200 record writes, each {op: \'create\', entityId, recordId?, values, targetVersions?}, {op: \'update\', entityId, recordId, version, values, targetVersions?} or {op: \'delete\', entityId, recordId, version}. options is {label?, writeKey?}: label is what History calls the revision, 1 to 80 characters; writeKey, 1 to 64 letters, digits, - or _, names this batch so that sending it again is kept once.',
-    answer: '{records, revision}: each record {entityId, recordId, version} in the order written, version null for a deleted record, and the revision the batch wrote, which records.undo takes.',
+    params: 'writes is a list of 1 to 200 record writes, each {op: \'create\', entityId, recordId?, values, targetVersions?}, {op: \'update\', entityId, recordId, version, values, targetVersions?} or {op: \'delete\', entityId, recordId, version}. options is {label?, writeKey?, offerUndo?}: label is what History calls the revision, 1 to 80 characters; writeKey, 1 to 64 letters, digits, - or _, names this batch so that sending it again is kept once; offerUndo true asks Nendo to offer Undo in its own notice, which stays while the person moves on, to the record the view opens next or another screen, until the next notice.',
+    answer: '{records, revision}: each record {entityId, recordId, version} in the order written, version null for a deleted record, and the revision the batch wrote, which records.undo takes. With offerUndo, also undoOffered: whether Nendo offered it.',
     note: 'One revision: every write commits or none does. A record appears at most once. A reference to a record the batch creates or updates earlier needs no target version. A move is not part of a batch; set a tree\'s parent and order fields in an update instead, or use records.move. When a batch fails with host-timeout or disconnected it may have been kept: send the same writes again under the same writeKey, which answers as the first did if it was kept and writes it once if not. The same writeKey with other writes is refused.',
   },
   'records.undo': {
@@ -316,7 +316,7 @@ export function viewApiReference() {
       packageId: 'The package the view runs.',
       entityId: 'The record type the view is about; on a record page, the page\'s.',
       recordId: 'The page\'s record for a panel on a record page; null elsewhere.',
-      bindings: '{labelFieldId, statusFieldId, edgeEntityId, sourceFieldId, targetFieldId, fields, filters}, as the definition names them. fields is [{fieldId, entityId}] in authored order. filters is [{fieldId, entityId, operator, value, valueKind, storageKind}], operator already a query word; valueKind is literal, or today or now, which loadRecords resolves as it reads.',
+      bindings: '{labelFieldId, statusFieldId, edgeEntityId, sourceFieldId, targetFieldId, fields, filters}, as the definition names them. fields is [{fieldId, entityId}] in authored order. filters is [{fieldId, entityId, operator, value, valueKind, storageKind}], operator already a query word; valueKind is literal, or today, now, thisWeek or thisMonth, which loadRecords resolves as it reads; a period compares by its first or last day, and a week starts on Monday.',
       configuration: 'The definition\'s configuration, parsed; {} when there is none. Nendo does not interpret it.',
       theme: '{mode, tokens}: light or dark, and the colour tokens under theme.',
       locale: 'The browser\'s language, or en.',

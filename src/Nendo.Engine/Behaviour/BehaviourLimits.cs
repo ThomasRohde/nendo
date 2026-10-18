@@ -34,8 +34,12 @@ public sealed record NendoBehaviourLimits
     /// <summary>Depth of the walked tree, guarding unary and call chains.</summary>
     public int AstDepth { get; init; } = 24;
 
-    /// <summary>Depth of the definition graph, revalidated even on a warm cache.</summary>
-    public int GraphDepth { get; init; } = 8;
+    /// <summary>
+    /// Depth of the definition graph, revalidated even on a warm cache. 16 since W-247: an
+    /// invoice's line, subtotal, discount, taxable, tax, total, balance, outstanding and client
+    /// are nine, and 8 refused them. Each level is one more calculation on the same budget.
+    /// </summary>
+    public int GraphDepth { get; init; } = 16;
 
     /// <summary>Functions in one catalogue, checked before the lookup table is built.</summary>
     public int CatalogueSize { get; init; } = 32;
@@ -56,7 +60,10 @@ public sealed record NendoBehaviourLimits
     /// <summary>Source visits, validation, evaluation, scans and changes all spend these.</summary>
     public int WorkUnits { get; init; } = 16_384;
 
-    /// <summary>Function calls, counted once across nested evaluation and action chains.</summary>
+    /// <summary>
+    /// Function calls, counted once across nested evaluation and action chains: per record on a
+    /// read, a related record's calculation having its own (W-247), and per named record in a save.
+    /// </summary>
     public int FunctionCalls { get; init; } = 64;
 
     /// <summary>Length of any text input or result, checked before allocation.</summary>
@@ -65,10 +72,14 @@ public sealed record NendoBehaviourLimits
     /// <summary>Validated expressions one adapter retains.</summary>
     public int CacheEntries { get; init; } = 16;
 
-    /// <summary>Related rows read per chain, as a SQL LIMIT and a charge per row.</summary>
+    /// <summary>
+    /// Related rows read, as a SQL LIMIT and a charge per row: per record on a read, a related
+    /// record's calculation having its own, and per named record in a save; no one aggregate reads
+    /// more than this (W-247).
+    /// </summary>
     public int RelatedRows { get; init; } = 256;
 
-    /// <summary>Generated non-no-op changes per chain.</summary>
+    /// <summary>Generated non-no-op changes, per record a save names (W-247).</summary>
     public int GeneratedChanges { get; init; } = 64;
 
     /// <summary>

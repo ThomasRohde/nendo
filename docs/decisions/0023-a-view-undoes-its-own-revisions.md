@@ -12,6 +12,30 @@
 - **Depends on:** ADR-0005 one write coordinator, ADR-0006 lanes and compensation, ADR-0013
   custom views
 
+### Accepted amendment — 2026-10-18 (Nendo offers a view's Undo after the view has gone)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, for W-250 (Finding F-307). The
+first revisit trigger below is met.
+
+**Context.** Billable's New invoice wrote the invoice, its lines and their source links in one
+batch and then opened the invoice, as the person asked. The view's Undo went with the view: the
+broker forgets a frame's revisions when it is unmounted, by design. The Workbench's own notice
+already offered one step (Show in folder for a download), but a view's `ui.toast` could not reach it.
+
+**Decision.** `records.batch` may carry `offerUndo: true`. The broker then asks the Workbench to
+offer Undo in its notice, named by the batch's label, which follows the person to the next screen
+or record until it times out, is closed or the next notice replaces it. Undo there is the view's
+own `records.undo` of that one revision, in the package's name and under the same idempotency
+key, so a lost answer is not a second undo; the Engine's package-origin check and compensation's
+conflict refusals are unchanged, and an offer made in one file reaches nothing once another is
+open. The batch answers `undoOffered`, false on a host that has no notice to offer it in.
+
+**Not changed.** A view's own undo stack is still the view's, and still reaches only what the frame
+wrote in this visit; the host still keeps no stack. Another package's revision is never offered.
+
+**Consequences.** `extension-broker.test.mjs` (W-250) and the Workbench shell lane's "W-250 a view's
+Undo offer follows the person" carry the obligations, each falsified.
+
 ## Context
 
 A diagram editor needs Ctrl+Z and Ctrl+Y over its own gestures. Nendo has no universal undo, and
@@ -149,6 +173,7 @@ upgrade would become a conflict.
 
 ## Revisit triggers
 
-- A view needs to undo across visits, or across views of the same package.
+- A view needs to undo across visits, or across views of the same package. *(Met for one step by
+  the amendment of 2026-10-18: Nendo offers the batch's Undo after the view has gone.)*
 - A gesture needs more than one revision to be one step.
 - Reserved IDs from undone creates become a measurable cost in a file.

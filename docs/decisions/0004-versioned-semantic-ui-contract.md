@@ -10,6 +10,57 @@
 
 ## Context
 
+### Accepted amendment — 2026-10-18 (a tile totals a calculation, and a breakdown groups by a reference)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, for W-249 (Finding F-306). It
+amends the standing rule that a calculated field never drives a total.
+
+**Context.** Billable built a custom Financial overview for its unbilled, outstanding, by-client
+and top-client widgets: `NUI214` refused a calculated field in a summary tile, a breakdown and a
+ranking, and `NUI350` refused grouping a chart by a reference. The 2026-09-30 amendment of ADR-0008
+had already given filters and sorts a bounded read of every record a query could match, with its
+calculations; a total had no such read.
+
+**Decision.**
+
+- A `summaryTile`, `breakdownChart` and `rankedList` may name a calculated Integer or Decimal.
+  The host folds each record's result exactly over the bounded read a calculated filter uses: an
+  empty result adds nothing, a result in error refuses the whole total
+  (`calculated-total-incomplete`), and past 10,000 records the read is refused
+  (`calculated-query-too-wide`). A calculated Text, Boolean or Date is refused as not a number.
+- A `breakdownChart` may group by a bound Reference: an open grouping of the records the data
+  points at, each labelled by the target's label field, ordered by label then ID, the unset group
+  last, and refused whole past 365 groups (`aggregate-too-many-groups`).
+- The compiler says so before a proposal is submitted: what stays refused (a calculated
+  grouping, matrix axis, trend, range or date) keeps `NUI214`.
+
+**Not changed.** Multi-hop related lists, a matrix or trend over a calculation, and a board's
+grouping. Totals are exact; there is still no average.
+
+**Consequences.** A file that uses either needs host 1.54.0, read from its node tree.
+`CalculatedWidgetTests` carries the obligations, each falsified.
+
+### Accepted amendment — 2026-10-18 (a filter compares with this week or this month)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, for W-248 (Finding F-310).
+
+**Context.** Billable's current-month totals were worked out in view code: a filter's value kinds
+were literal, today, now and null, and the range words of the over-time charts belong to those
+charts alone.
+
+**Decision.** Two more value kinds for a `filterClause`, `thisWeek` and `thisMonth`: spans of days
+on a Date or DateTime field, a week starting on Monday, resolved by the reader when it reads, in
+the person's own calendar, as `today` is. A period is compared by an edge, so a clause stays one
+query filter and no filter budget changes: `lt` before it, `gte` from its first day, `lte` to its
+last day, `gt` after it; *within this month* is `gte` and `lte` together. `eq`, `ne` and any other
+operator are refused as `NUI460`, the wrong field as `NUI457`, and a command step that assigns a
+period as `NUI287`. A custom view's filters follow the same rules.
+
+**Not changed.** Formulas still have no clock; the chart range words are unchanged.
+
+**Consequences.** A file whose filter names a period needs host 1.53.0, read from its node tree.
+`SemanticCompilerReviewTests` (W248) and `record-window.test.mjs` carry the obligations.
+
 ### Accepted amendment — 2026-10-16 (a gallery may be covered by pictures)
 
 Accepted with [ADR-0031](0031-media-in-user-data.md) on 2026-10-16, for W-267.

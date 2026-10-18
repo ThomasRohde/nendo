@@ -80,12 +80,16 @@ public sealed record NendoToolLimit(
     [property: Description("Work units spent.")] int WorkUnits,
     [property: Description("Work units one budget allows.")] int WorkUnitLimit,
     [property: Description("The related records' calculations it ran out inside, outermost first, each 'calculationId of record recordId'.")]
-    IReadOnlyList<string> Path)
+    IReadOnlyList<string> Path,
+    [property: Description("On a save that ran actions, the step that spent most, as \"step S of action 'A'\"; null otherwise.")]
+    string? HeaviestStep = null,
+    [property: Description("Work units that step spent; null with no step.")]
+    int? HeaviestStepWorkUnits = null)
 {
     internal static NendoToolLimit? From(Nendo.Engine.NendoCalculationException exception) =>
         exception.Spend is not { } spend ? null : new(spend.Allowance, spend.FunctionCalls, spend.FunctionCallLimit,
             spend.RelatedRecords, spend.RelatedRecordLimit, spend.AutomaticChanges, spend.AutomaticChangeLimit,
-            spend.WorkUnits, spend.WorkUnitLimit, exception.Path);
+            spend.WorkUnits, spend.WorkUnitLimit, exception.Path, spend.HeaviestStep, spend.HeaviestStepWorkUnits);
 }
 
 /// <summary>What an outstanding proposal has to do with a refused write: the sentence, and the proposal it names.</summary>

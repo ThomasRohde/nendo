@@ -20,17 +20,35 @@ internal sealed class GroupedAggregateFold
 
     private readonly IReadOnlyList<string> _keys;
     private readonly string _aggregate;
+    private readonly bool _integral;
     private readonly Dictionary<string, Bucket> _buckets;
     private readonly Bucket _unset;
     private long _unrecognised;
+
+    /// <summary>
+    /// An open grouping's groups are the values the data holds rather than a configured list, each
+    /// labelled as the record it points at is (W-249); null for a closed grouping.
+    /// </summary>
+    private readonly Dictionary<string, string?>? _labels;
 
     internal GroupedAggregateFold(IReadOnlyList<string> keys, string aggregate, bool integral)
     {
         _keys = keys;
         _aggregate = aggregate;
+        _integral = integral;
         _buckets = keys.ToDictionary(key => key, _ => new Bucket(aggregate, integral), StringComparer.Ordinal);
         _unset = new Bucket(aggregate, integral);
     }
+
+    private GroupedAggregateFold(string aggregate, bool integral)
+        : this([], aggregate, integral) => _labels = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// A fold over a reference's targets (W-249): a group per record the data points at, met as
+    /// the rows arrive, bounded like a closed grouping and refused whole past the bound rather
+    /// than answered in part.
+    /// </summary>
+    internal static GroupedAggregateFold Open(string aggregate, bool integral) => new(aggregate, integral);
 
     /// <summary>
     /// The ordered keys of a closed grouping: a single-choice field's options as
@@ -68,18 +86,32 @@ internal sealed class GroupedAggregateFold
         _ => stored.GetRawText(),
     };
 
-    internal void Add(string? key, decimal? value)
+    internal void Add(string? key, decimal? value, string? label = null)
     {
         Bucket bucket;
         if (key is null) bucket = _unset;
-        else if (!_buckets.TryGetValue(key, out bucket!)) { _unrecognised++; return; }
+        else if (!_buckets.TryGetValue(key, out bucket!))
+        {
+            if (_labels is null) { _unrecognised++; return; }
+            if (_buckets.Count + 1 >= NendoSemanticVocabulary.MaximumAggregateGroups)
+                throw new NendoPreconditionException("aggregate-too-many-groups",
+                    $"These records point at more than {NendoSemanticVocabulary.MaximumAggregateGroups - 1} different records, " +
+                    "so no breakdown is shown rather than part of one. Narrow it with a filter.");
+            _buckets[key] = bucket = new Bucket(_aggregate, _integral);
+            _labels[key] = label;
+        }
         bucket.Count++;
         if (value is { } contributing) bucket.Fold.Add(contributing);
     }
 
     internal NendoRecordGroupedAggregate Result(NendoRecordGroupedAggregateQuery query, long changeSequence)
     {
-        var groups = _keys.Select(key => Group(key, _buckets[key])).Append(Group(null, _unset)).ToArray();
+        // An open grouping's groups in the order a person reads them: by label, then by record.
+        IEnumerable<string> keys = _labels is null
+            ? _keys
+            : _buckets.Keys.OrderBy(key => _labels[key] ?? string.Empty, StringComparer.CurrentCultureIgnoreCase).ThenBy(key => key, StringComparer.Ordinal);
+        var groups = keys.Select(key => Group(key, _buckets[key]) with { Label = _labels?.GetValueOrDefault(key) })
+            .Append(Group(null, _unset)).ToArray();
         return new(query.EntityId, query.GroupByFieldId, query.Aggregate, query.FieldId, groups, _unrecognised, changeSequence);
     }
 

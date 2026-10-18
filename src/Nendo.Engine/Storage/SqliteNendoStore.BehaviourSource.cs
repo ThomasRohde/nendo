@@ -164,11 +164,13 @@ internal sealed partial class SqliteNendoStore
                 results.Add(record);
                 continue;
             }
+            // The record being read is read for work, not as a related record of itself (W-247).
+            var budget = new BehaviourBudget(_behaviourLimits, cancellationToken, BehaviourBudgetUse.Read);
+            budget.Own(record.EntityId, record.RecordId);
             results.Add(record with
             {
                 Calculations = await service.EvaluateRecordAsync(
-                    behaviour, record.EntityId, record.RecordId, source,
-                    new BehaviourBudget(_behaviourLimits, cancellationToken, BehaviourBudgetUse.Read), cancellationToken),
+                    behaviour, record.EntityId, record.RecordId, source, budget, cancellationToken),
             });
         }
         return results;
@@ -262,7 +264,7 @@ internal sealed partial class SqliteNendoStore
             CancellationToken cancellationToken)
         {
             var (entity, field) = Locate(entityId, fieldId);
-            budget.SpendScan();
+            budget.SpendRead(entityId, recordId);
             // The record's version comes back with the value. A reviewed plan is valid only while
             // a record it read still says what it said, and a field read across a reference never
             // reached the plan's read set, so a project's rate a condition read was not checked
@@ -289,7 +291,7 @@ internal sealed partial class SqliteNendoStore
             CancellationToken cancellationToken)
         {
             var (entity, field) = Locate(entityId, referenceFieldId);
-            budget.SpendScan();
+            budget.SpendRead(entityId, recordId);
             await using var command = store.Command(
                 $"SELECT {Quote(field.PhysicalColumnName)}, {Quote("__nendo_record_version")} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
                 transaction);
@@ -336,7 +338,9 @@ internal sealed partial class SqliteNendoStore
             var member = valueFieldId is null ? null : Locate(binding.RelatedEntityId!, valueFieldId).Field;
             RequireCalculator(binding);
 
-            var allowance = budget.RemainingScanAllowance;
+            // No aggregate reads more than one record's related rows, also in a batch whose allowance
+            // is several records' (W-247), so a save never answers a total a read refuses.
+            var allowance = Math.Min(budget.RemainingScanAllowance, budget.Limits.RelatedRows);
             if (allowance <= 0) throw budget.Exhausted("related record");
             var selection = member is null ? "1" : Quote(member.PhysicalColumnName);
             // The row's identity and version come back with its value. A record that was
@@ -413,8 +417,9 @@ internal sealed partial class SqliteNendoStore
             var calculated = binding.MemberCalculationId is not null;
             // Past the descendant bound the data is too wide, which is not a budget; past a
             // smaller remaining allowance the save has spent its related rows, which is.
-            var budgetBound = calculated && budget.RemainingScanAllowance < bound;
-            if (calculated) bound = Math.Min(bound, budget.RemainingScanAllowance);
+            var remaining = Math.Min(budget.RemainingScanAllowance, budget.Limits.RelatedRows);
+            var budgetBound = calculated && remaining < bound;
+            if (calculated) bound = Math.Min(bound, remaining);
             await using var command = store.Command(sql, transaction);
             command.Parameters.AddWithValue("@recordId", recordId);
             command.Parameters.AddWithValue("@limit", (long)bound + 1);
@@ -527,7 +532,7 @@ internal sealed partial class SqliteNendoStore
                     // A calculated member is this record's own result, worked out now; an empty
                     // or failed one stops the total as a stored empty does.
                     var calculatedValue = binding.MemberCalculationId is { } calculationId
-                        ? await CalculateMemberAsync(calculationId, rows.GetString(1), budget, cancellationToken)
+                        ? await CalculateMemberAsync(calculationId, memberEntityId, rows.GetString(1), budget, cancellationToken)
                         : (BehaviourValue?)null;
                     switch (binding.Aggregate)
                     {
@@ -604,6 +609,7 @@ internal sealed partial class SqliteNendoStore
 
         private async Task<BehaviourValue> CalculateMemberAsync(
             string calculationId,
+            string entityId,
             string recordId,
             BehaviourBudget budget,
             CancellationToken cancellationToken)
@@ -611,7 +617,10 @@ internal sealed partial class SqliteNendoStore
             BehaviourValue value;
             try
             {
-                value = await Calculate!(calculationId, recordId, budget, cancellationToken);
+                // The member's calculation costs what its own read would: its own calls and related
+                // records, every unit of work still this budget's (W-247).
+                using (budget.EnterMember(entityId, recordId))
+                    value = await Calculate!(calculationId, recordId, budget, cancellationToken);
             }
             catch (NendoCalculationException exception) when (exception.ExhaustedBudget)
             {

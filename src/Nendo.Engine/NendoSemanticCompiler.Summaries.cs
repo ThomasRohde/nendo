@@ -65,7 +65,7 @@ public sealed partial class NendoSemanticCompiler
         RequireFilterBudget(node, scope, DeclaredClauseCount(node, nodes),
             groupScoped ? "column predicate" : null, diagnostics);
 
-        ValidateAggregateReading(node, fields, derived, diagnostics);
+        ValidateAggregateReading(node, fields, derived, diagnostics, calculatedAllowed: true);
     }
 
     /// <summary>
@@ -336,7 +336,15 @@ public sealed partial class NendoSemanticCompiler
     {
         var fieldId = ReadRequiredString(node, "rankByFieldId", "NUI420", diagnostics);
         if (fieldId is null) return;
-        if (RefuseCalculatedQueryField(node, "rankByFieldId", fieldId, derived, "rank by it", diagnostics)) return;
+        // A calculated number ranks as a stored one does (W-249): the sort and the largest value
+        // are both read over the bounded set a calculated filter stands on.
+        if (derived.TryGetValue(fieldId, out var calculated))
+        {
+            if (calculated.ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
+                AddError(diagnostics, "NUI420", $"'{calculated.DisplayName}' is not calculated as a number, and a ranking ranks by one.",
+                    node.NodeId, "rankByFieldId", "Name a calculation whose result is a whole number or a decimal.");
+            return;
+        }
         if (!fields.TryGetValue(fieldId, out var field))
         {
             AddError(diagnostics, "NUI420", $"Field '{fieldId}' is not an active field of this record type.",
@@ -362,7 +370,8 @@ public sealed partial class NendoSemanticCompiler
         NendoUiNodeSnapshot node,
         IReadOnlyDictionary<string, NendoFieldSnapshot> fields,
         IReadOnlyDictionary<string, NendoDerivedFieldSnapshot> derived,
-        ICollection<NendoCompilerDiagnostic> diagnostics)
+        ICollection<NendoCompilerDiagnostic> diagnostics,
+        bool calculatedAllowed = false)
     {
         var aggregate = ReadRequiredString(node, "aggregate", "NUI290", diagnostics);
         if (aggregate is null) return;
@@ -400,6 +409,15 @@ public sealed partial class NendoSemanticCompiler
             return;
         }
 
+        // A summary tile and a breakdown total a calculated number over the same bounded read a
+        // calculated filter stands on (W-249); a trend still buckets stored values only.
+        if (calculatedAllowed && derived.TryGetValue(declared, out var calculated))
+        {
+            if (calculated.ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
+                AddError(diagnostics, "NUI294", $"Calculated field '{declared}' is not a number, so '{aggregate}' cannot read it.", node.NodeId, "fieldId",
+                    "Aggregate a calculation whose result is a whole number or a decimal.");
+            return;
+        }
         if (RefuseCalculatedQueryField(node, "fieldId", declared, derived, "total it", diagnostics)) return;
 
         if (!fields.TryGetValue(declared, out var field))
@@ -431,17 +449,23 @@ public sealed partial class NendoSemanticCompiler
     {
         var groupScoped = ValidateSummaryScope(node, scope, diagnostics);
         RequireFilterBudget(node, scope, DeclaredClauseCount(node, nodes), groupScoped ? "column predicate" : null, diagnostics);
-        ValidateAggregateReading(node, fields, derived, diagnostics);
+        ValidateAggregateReading(node, fields, derived, diagnostics, calculatedAllowed: true);
 
         var groupId = ReadRequiredString(node, "groupByFieldId", "NUI350", diagnostics);
         if (groupId is null) return;
         if (RefuseCalculatedQueryField(node, "groupByFieldId", groupId, derived, "break numbers down by it", diagnostics)) return;
         if (!fields.TryGetValue(groupId, out var field))
             AddError(diagnostics, "NUI350", $"Field '{groupId}' does not exist or is retired.", node.NodeId, "groupByFieldId",
-                "Break the numbers down by an active single-choice or Boolean field of this record type.");
-        else if (field.StorageKind != NendoStorageKind.Boolean && (field.Presentation != "singleChoice" || field.Options.Count == 0))
+                "Break the numbers down by an active single-choice, Boolean or Reference field of this record type.");
+        // A reference groups by the records it points at, labelled as the reference shows them,
+        // at most the published number of groups (W-249); it needs its target and label set.
+        else if (field.StorageKind == NendoStorageKind.Reference && field.Reference is null)
+            AddError(diagnostics, "NUI350", $"Field '{groupId}' is a reference whose target and label are not set, so a group has no name.",
+                node.NodeId, "groupByFieldId", "Bind the reference to its target record type and label field first, with schema.configureReference.");
+        else if (field.StorageKind is not (NendoStorageKind.Boolean or NendoStorageKind.Reference) &&
+                 (field.Presentation != "singleChoice" || field.Options.Count == 0))
             AddError(diagnostics, "NUI350", $"Field '{groupId}' is {HeaderShape(field)}, so it cannot group a chart.", node.NodeId, "groupByFieldId",
-                "Break the numbers down by a single-choice or Boolean field: the groups of a chart are closed, and only those two kinds close them.");
+                "Break the numbers down by a single-choice, Boolean or Reference field: a choice and a yes/no close the groups, and a reference's are the records it points at.");
         else if (groupScoped && BoardGroupingOf(node, nodes) == groupId)
             AddError(diagnostics, "NUI352", $"Field '{groupId}' is the board's own grouping, so every column would break down into itself.",
                 node.NodeId, "groupByFieldId",

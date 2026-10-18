@@ -34,6 +34,15 @@ internal enum BehaviourBudgetUse
 /// allocation, a row read or a write — so the ceiling bounds what is attempted, not
 /// what already happened.
 /// </para>
+/// <para>
+/// Since W-247 (ADR-0008 amendment of 2026-10-18) the work units are the one allowance
+/// nothing renews. A related record's calculation runs under that record's own function-call
+/// and related-record allowances, as it would on its own read (<see cref="EnterMember"/>); a
+/// record the evaluation is about is read for work, not as a related record (<see cref="SpendRead"/>);
+/// a result is worked out once per budget (<see cref="TryRecall"/>); and a save's call,
+/// related-record and change allowances are those of the records it names, one by one
+/// (<see cref="Records"/>).
+/// </para>
 /// </summary>
 internal sealed class BehaviourBudget
 {
@@ -42,20 +51,34 @@ internal sealed class BehaviourBudget
     private int _calls;
     private int _scans;
     private int _changes;
+    private int _memberDepth;
+    private HashSet<(string EntityId, string RecordId)> _own = [];
+    private readonly Dictionary<(string CalculationId, string RecordId), (BehaviourValue? Value, NendoCalculationException? Failure)> _worked = [];
+    private readonly Dictionary<string, int> _stepWork = new(StringComparer.Ordinal);
 
     internal BehaviourBudget(
         NendoBehaviourLimits limits,
         CancellationToken cancellationToken = default,
-        BehaviourBudgetUse use = BehaviourBudgetUse.Save)
+        BehaviourBudgetUse use = BehaviourBudgetUse.Save,
+        int records = 1)
     {
         Limits = (limits ?? throw new ArgumentNullException(nameof(limits))).Validate();
         _cancellationToken = cancellationToken;
         Use = use;
+        if (records < 1) throw new NendoValidationException("A budget pays for at least one record.");
+        Records = records;
     }
 
     internal BehaviourBudgetUse Use { get; }
 
     internal NendoBehaviourLimits Limits { get; }
+
+    /// <summary>
+    /// The records a save names. Its function-call, related-record and automatic-change allowances
+    /// are this many times one record's, so a batch is allowed what its records would be allowed
+    /// saved one by one; work units are not multiplied, and bound the save whatever its size.
+    /// </summary>
+    internal int Records { get; }
 
     internal int WorkSpent => _work;
 
@@ -65,7 +88,25 @@ internal sealed class BehaviourBudget
 
     internal int ChangesSpent => _changes;
 
+    /// <summary>Function calls this budget, or the member scope it is in, allows.</summary>
+    internal int FunctionCallLimit => checked(Limits.FunctionCalls * Scale);
+
+    /// <summary>Related records this budget, or the member scope it is in, allows.</summary>
+    internal int RelatedRowLimit => checked(Limits.RelatedRows * Scale);
+
+    /// <summary>Automatic changes one save allows.</summary>
+    internal int GeneratedChangeLimit => checked(Limits.GeneratedChanges * Records);
+
+    /// <summary>Inside a related record's calculation the allowances are that one record's.</summary>
+    private int Scale => _memberDepth > 0 ? 1 : Records;
+
     internal CancellationToken CancellationToken => _cancellationToken;
+
+    /// <summary>
+    /// The step of an action the work now being spent belongs to, so a save that runs out can
+    /// say which step spent most. Null outside a step.
+    /// </summary>
+    internal string? Step { get; set; }
 
     /// <summary>
     /// Charges primitive work. Counters are checked, so an absurd request overflows
@@ -80,13 +121,14 @@ internal sealed class BehaviourBudget
         catch (OverflowException) { throw Exhausted("work"); }
         if (total > Limits.WorkUnits) throw Exhausted("work");
         _work = total;
+        if (Step is { } step) _stepWork[step] = _stepWork.GetValueOrDefault(step) + units;
     }
 
     /// <summary>Charges one function call, nested or not, plus its work.</summary>
     internal void SpendCall()
     {
         SpendWork();
-        if (checked(_calls + 1) > Limits.FunctionCalls) throw Exhausted("function call");
+        if (checked(_calls + 1) > FunctionCallLimit) throw Exhausted("function call");
         _calls++;
     }
 
@@ -101,30 +143,91 @@ internal sealed class BehaviourBudget
         int total;
         try { total = checked(_scans + rows); }
         catch (OverflowException) { throw Exhausted("related record"); }
-        if (total > Limits.RelatedRows) throw Exhausted("related record");
+        if (total > RelatedRowLimit) throw Exhausted("related record");
         _scans = total;
     }
 
-    /// <summary>Charges one generated, non-no-op record change.</summary>
+    /// <summary>
+    /// Charges reading one record: work alone for a record this evaluation is about, the save's
+    /// own records and the member whose calculation is being worked out, and a related record
+    /// for any other. Re-reading the record being saved spent most of a batch's related records
+    /// (W-247).
+    /// </summary>
+    internal void SpendRead(string entityId, string recordId)
+    {
+        if (_own.Contains((entityId, recordId))) SpendWork();
+        else SpendScan();
+    }
+
+    /// <summary>A record this evaluation is about: reading it is work, not a related record.</summary>
+    internal void Own(string entityId, string recordId) => _own.Add((entityId, recordId));
+
+    /// <summary>Charges one generated, non-no-op record change, and forgets results the change may have moved.</summary>
     internal void SpendChange()
     {
         SpendWork();
-        if (checked(_changes + 1) > Limits.GeneratedChanges) throw Exhausted("automatic change");
+        if (checked(_changes + 1) > GeneratedChangeLimit) throw Exhausted("automatic change");
         _changes++;
+        // A remembered result was worked out against the state this change is about to replace.
+        _worked.Clear();
     }
 
     /// <summary>Rows a related read may still ask SQLite for, so the LIMIT is real.</summary>
-    internal int RemainingScanAllowance => Math.Max(0, Limits.RelatedRows - _scans);
+    internal int RemainingScanAllowance => Math.Max(0, RelatedRowLimit - _scans);
+
+    /// <summary>
+    /// A calculation already worked out for a record under this budget, or its failure. A
+    /// client's two sums over the same projects worked every project out twice (W-247). A spent
+    /// allowance is never remembered: it is this budget's, not the record's.
+    /// </summary>
+    internal bool TryRecall(string calculationId, string recordId, out (BehaviourValue? Value, NendoCalculationException? Failure) known) =>
+        _worked.TryGetValue((calculationId, recordId), out known);
+
+    internal void Remember(string calculationId, string recordId, BehaviourValue? value, NendoCalculationException? failure)
+    {
+        if (failure is { ExhaustedBudget: true }) return;
+        _worked[(calculationId, recordId)] = (value, failure);
+    }
+
+    /// <summary>
+    /// Works out a related record's calculation under that record's own function-call and
+    /// related-record allowances, as its own read would, while every unit of work is still
+    /// charged here. A client's total of 33 entries ran out of the client's 64 calls (W-247).
+    /// The owner still pays one related record for each member it reads.
+    /// </summary>
+    internal MemberScope EnterMember(string entityId, string recordId)
+    {
+        var scope = new MemberScope(this, _calls, _scans, _own);
+        _memberDepth++;
+        _calls = 0;
+        _scans = 0;
+        _own = [(entityId, recordId)];
+        return scope;
+    }
+
+    internal readonly struct MemberScope(BehaviourBudget budget, int calls, int scans, HashSet<(string, string)> own) : IDisposable
+    {
+        public void Dispose()
+        {
+            budget._memberDepth--;
+            budget._calls = calls;
+            budget._scans = scans;
+            budget._own = own;
+        }
+    }
 
     /// <summary>
     /// The refusal for an allowance of this budget that ran out, worded for what the budget pays
-    /// for, with what it had spent of every allowance (W-246).
+    /// for, with what it had spent of every allowance (W-246) and, on a save, the step that spent
+    /// most (W-247).
     /// </summary>
     internal NendoCalculationException Exhausted(string what)
     {
-        var spend = new NendoBudgetSpend(what, _calls, Limits.FunctionCalls, _scans, Limits.RelatedRows,
-            _changes, Limits.GeneratedChanges, _work, Limits.WorkUnits);
-        var reason = Use switch
+        var heaviest = _stepWork.Count == 0 ? (KeyValuePair<string, int>?)null
+            : _stepWork.OrderByDescending(entry => entry.Value).ThenBy(entry => entry.Key, StringComparer.Ordinal).First();
+        var spend = new NendoBudgetSpend(what, _calls, FunctionCallLimit, _scans, RelatedRowLimit,
+            _changes, GeneratedChangeLimit, _work, Limits.WorkUnits, heaviest?.Key, heaviest?.Value);
+        var reason = (_memberDepth > 0 && what is "function call" or "related record" ? BehaviourBudgetUse.Read : Use) switch
         {
             BehaviourBudgetUse.Read =>
                 $"This calculation reached the {what} limit for one record. Simplify the formula or narrow what it reads.",
@@ -142,7 +245,10 @@ internal sealed class BehaviourBudget
         $"It had spent {spend.FunctionCalls:N0} of {spend.FunctionCallLimit:N0} function calls, " +
         $"{spend.RelatedRecords:N0} of {spend.RelatedRecordLimit:N0} related records, " +
         $"{spend.AutomaticChanges:N0} of {spend.AutomaticChangeLimit:N0} automatic changes " +
-        $"and {spend.WorkUnits:N0} of {spend.WorkUnitLimit:N0} work units.");
+        $"and {spend.WorkUnits:N0} of {spend.WorkUnitLimit:N0} work units.") +
+        (spend.HeaviestStep is { } step
+            ? string.Create(CultureInfo.InvariantCulture, $" The step that spent most was {step}, with {spend.HeaviestStepWorkUnits:N0} work units.")
+            : string.Empty);
 
     /// <summary>
     /// A ceiling met inside a related record's calculation, with that step named (W-246). The

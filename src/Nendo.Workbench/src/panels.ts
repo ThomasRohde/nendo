@@ -375,7 +375,9 @@ export async function drillInto(plan: ApplicationPlan, scoped: ScopedChart, grou
       ? bucketDrillFilters(scoped.node, bucket, group.key, range)
       : [drillFilter(scoped.node, field, group.key)].filter((filter): filter is DrillFilter => filter !== null);
   if (filters.length === 0) return;
-  drills.set(plan.entity.semanticId, { listId: list.semanticId, label: drillLabel(scoped.node, field, group?.key ?? null, names, range), filters });
+  // A reference's group is named by the record it points at, which only the read knows (W-249).
+  const named = known?.state === 'ready' ? known.grouped?.groups.find((candidate) => candidate.key === (group?.key ?? null))?.label : undefined;
+  drills.set(plan.entity.semanticId, { listId: list.semanticId, label: drillLabel(scoped.node, field, group?.key ?? null, names, range, named), filters });
   await reopenDrilledList(plan, list);
 }
 

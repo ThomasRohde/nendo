@@ -120,6 +120,16 @@ test('a ranking numbers two different exact values apart, and one value spelt tw
   assert.deepEqual(numerals(alike), [1, 1, 3]);
 });
 
+// W-249: a ranking by a calculated number reads each record's result, not a stored value.
+test('a ranking by a calculated number reads its results', () => {
+  const entity = { semanticId: 'tasks', displayName: 'Tasks', fields: [field], derivedFields: [{ semanticId: 'score', automationTarget: 'score', displayName: 'Score', resultType: 'decimal', resultNullable: true, calculationId: 'c', expression: 'x' }] };
+  const row = (id, digits) => ({ semanticId: id, automationTarget: `record-${id}`, version: 1, values: { title: id },
+    calculations: { score: { calculationId: 'c', fieldId: 'score', state: 'value', resultType: 'decimal', value: { $nendoNumber: digits } } } });
+  const markup = p.rankedRowsMarkup(entity, [row('a', '40'), row('b', '20')], 'score', ['title'], 40);
+  const widths = [...markup.matchAll(/ranked-bar-fill" style="width: ([\d.]+)%/g)].map(([, width]) => Number(width));
+  assert.deepEqual(widths, [100, 50], 'A calculated ranking drew its bars from a stored value it does not have.');
+});
+
 // WSP-17: a front-page chart of a type whose only screen is a board was drawn as bars to press
 // that did nothing, and the press had already left the front page for a later redraw to show;
 // a row of a type with no screen at all was a button that opened nothing.

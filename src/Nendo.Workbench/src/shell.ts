@@ -158,6 +158,8 @@ function placeStack(): void {
 }
 
 function saidHere(outcome: OutcomeNotice, here: string): boolean {
+  // An offer that is about the person's last step, a view's Undo, goes where they go (W-250).
+  if (outcome.everywhere === true) return true;
   // It belongs to the page it happened on. A message that followed somebody to the next
   // screen would be reporting an action they had already left behind.
   if (outcome.view !== state.view) return false;
@@ -713,6 +715,35 @@ export function showOutcome(message: string, action?: OutcomeNotice['action']): 
  * moved the focus to this sentence on every save would stop the person typing. It keeps the
  * step a success offers.
  */
+/**
+ * A view's batch offers Undo (W-250). It is a success that offers a step, as a saved download's
+ * Show in folder is, kept wherever the person goes until it times out, is closed or another
+ * notice takes its place; the step it offers runs once.
+ */
+export function showUndoOffer(message: string, undo: () => Promise<void>, undone: string): void {
+  let ran = false;
+  state.lastOutcome = {
+    view: state.view, message, tone: 'done', everywhere: true,
+    action: {
+      label: 'Undo',
+      run: async () => {
+        if (ran) return;
+        ran = true;
+        try {
+          await undo();
+        } catch (error) {
+          ran = false;
+          throw error;
+        }
+        showOutcome(undone);
+      },
+    },
+  };
+  const slot = messageSlot();
+  drawOutcome(slot, state.lastOutcome);
+  announce(message);
+}
+
 export function showKeptAlert(message: string, action?: OutcomeNotice['action']): void {
   state.lastOutcome = { view: state.view, screen: outcomeScreen(), message, tone: 'alert', kept: true, ...(action === undefined ? {} : { action }) };
   const slot = messageSlot();

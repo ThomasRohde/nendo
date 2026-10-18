@@ -107,6 +107,8 @@ internal static partial class WorkbenchMethods
         MediaCommit,
         MediaUsage,
         MediaRemoveUnused,
+        // A view's runtime event (W-251): kept in memory, and no window is involved.
+        ExtensionEventsReport,
     };
 
     /// <summary>

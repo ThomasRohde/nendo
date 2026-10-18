@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/record-window.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {cacheKey,clauseFilters,declaredQuery,emptyWindowQuery,hasWindowQuery,pageTarget,queryOperatorFor,resolveClauseValue,useFieldKinds,windowRequest} =
+const {cacheKey,clauseFilters,declaredQuery,emptyWindowQuery,hasWindowQuery,pageTarget,queryOperatorFor,resolveClauseValue,resolvePeriodClause,useFieldKinds,windowRequest} =
  await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const node=(semanticId,kind,properties,children=[])=>({semanticId,automationTarget:semanticId,kind,properties,children});
@@ -161,4 +161,40 @@ test('today is a date for a Date field and the instant the person’s day begins
  }finally{useFieldKinds(()=>undefined);}
  // A field whose kind is unknown keeps the date, the kind every `today` had before.
  assert.match(clauseFilters(due,new Date('2026-09-26T12:00:00Z'))[1].value,/^\d{4}-\d{2}-\d{2}$/);
+});
+
+// W-248: thisWeek and thisMonth are spans of days, each clause compared by one edge, so a
+// clause stays one filter. A week starts on Monday; a DateTime field compares with instants.
+test('a period clause compares by its first or last day, a week from Monday',()=>{
+ inZone('Europe/Copenhagen',()=>{
+  // Thursday 2026-10-15, 23:30 local: still the week of Monday the 12th.
+  const at=new Date('2026-10-15T21:30:00Z');
+  const list=node('list.due','recordList',{},[
+   node('f.w.gte','filterClause',{fieldId:'due',operator:'gte',valueKind:'thisWeek'}),
+   node('f.w.lte','filterClause',{fieldId:'due',operator:'lte',valueKind:'thisWeek'}),
+   node('f.m.lt','filterClause',{fieldId:'due',operator:'lt',valueKind:'thisMonth'}),
+   node('f.m.gt','filterClause',{fieldId:'due',operator:'gt',valueKind:'thisMonth'}),
+  ]);
+  useFieldKinds((fieldId)=>({due:'date',at:'dateTime'})[fieldId]);
+  try{
+   const [from,to,before,after]=clauseFilters(list,at);
+   assert.deepEqual(from,{fieldId:'due',operator:'ge',value:'2026-10-12'});
+   assert.deepEqual(to,{fieldId:'due',operator:'le',value:'2026-10-18'});
+   assert.deepEqual(before,{fieldId:'due',operator:'lt',value:'2026-10-01'});
+   assert.deepEqual(after,{fieldId:'due',operator:'ge',value:'2026-11-01'});
+   // A DateTime field: from the instant Monday begins to before the instant next Monday begins.
+   assert.deepEqual(resolvePeriodClause('gte','thisWeek',at,'dateTime'),{operator:'ge',value:'2026-10-12T00:00:00+02:00'});
+   assert.deepEqual(resolvePeriodClause('lte','thisWeek',at,'dateTime'),{operator:'lt',value:'2026-10-19T00:00:00+02:00'});
+   // October ends on summer time and November begins on winter time.
+   assert.deepEqual(resolvePeriodClause('lte','thisMonth',at,'dateTime'),{operator:'lt',value:'2026-11-01T00:00:00+01:00'});
+   // The record query's spelling is taken as well as the contract's.
+   assert.deepEqual(resolvePeriodClause('le','thisMonth',at,'date'),{operator:'le',value:'2026-10-31'});
+  }finally{useFieldKinds(()=>undefined);}
+  // A Sunday belongs to the week that began the Monday before it.
+  assert.deepEqual(resolvePeriodClause('gte','thisWeek',new Date('2026-10-18T10:00:00Z'),'date'),{operator:'ge',value:'2026-10-12'});
+  assert.deepEqual(resolvePeriodClause('gte','thisWeek',new Date('2026-10-19T10:00:00Z'),'date'),{operator:'ge',value:'2026-10-19'});
+  // A week across a year's end, and a February.
+  assert.deepEqual(resolvePeriodClause('lte','thisWeek',new Date('2026-12-31T10:00:00Z'),'date'),{operator:'le',value:'2027-01-03'});
+  assert.deepEqual(resolvePeriodClause('lte','thisMonth',new Date('2028-02-10T10:00:00Z'),'date'),{operator:'le',value:'2028-02-29'});
+ });
 });

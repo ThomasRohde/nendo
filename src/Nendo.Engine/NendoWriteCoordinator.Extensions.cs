@@ -4,6 +4,12 @@ namespace Nendo.Engine;
 
 public sealed partial class NendoWriteCoordinator
 {
+    /// <summary>
+    /// The open file's custom views' recent runtime events (W-251): memory only, this file's alone,
+    /// gone when it closes. The Workbench reports them and an agent reads them over MCP.
+    /// </summary>
+    public NendoViewEvents ViewEvents { get; } = new();
+
     /// <summary>What this read-only session last verified its file against, so a page read is not a full scan (W-221 review).</summary>
     internal SqliteNendoStore.InspectedContentStamp ReadOnlyContentStamp { get; } = new();
 

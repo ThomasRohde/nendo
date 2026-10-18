@@ -218,6 +218,10 @@ internal sealed partial class SqliteNendoStore
             CancellationToken cancellationToken)
         {
             string? field = null;
+            var outer = context.Budget.Step;
+            // The work this step spends is counted against it, so a save that runs out names the
+            // step that spent most (W-247).
+            context.Budget.Step = $"step {step.StepId} of action '{action.DisplayName}'";
             try
             {
                 await RunStepAsync(trigger, action, step, targetRecordId, raised, value => field = value, cancellationToken);
@@ -249,6 +253,10 @@ internal sealed partial class SqliteNendoStore
                     { RecordId = precondition.RecordId },
                     _ => new NendoValidationException(message),
                 };
+            }
+            finally
+            {
+                context.Budget.Step = outer;
             }
         }
 
@@ -363,6 +371,8 @@ internal sealed partial class SqliteNendoStore
                     }
                     context.Budget.SpendChange();
                     var recordId = DeterministicRecordId(attribution, raised, targetRecordId);
+                    // A record this save made is its own, read for work like the ones it names.
+                    context.Budget.Own(entityId, recordId);
                     await ExecuteAsync(
                         new CreateRecordOperation(NextOperationId(), entityId, recordId, values, targetVersions),
                         attribution, cancellationToken);
@@ -478,7 +488,7 @@ internal sealed partial class SqliteNendoStore
             // A record type with no stored fields has no readable state, like an absent
             // record, and costs no scan: the store's reader returns null for it unread.
             if (entity is null || entity.Fields.Count == 0) return null;
-            context.Budget.SpendScan();
+            context.Budget.SpendRead(key.EntityId, key.RecordId);
             return await store.ReadRecordValuesAsync(key, mappings, transaction, cancellationToken);
         }
 

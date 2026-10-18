@@ -187,6 +187,54 @@ public sealed class OperationGapReviewTests
         StringAssert.Contains(joined.Message, "ToText", StringComparison.Ordinal);
     }
 
+    /// <summary>W-248: Billable's due date, issue date plus terms, as a formula rather than view code.</summary>
+    [TestMethod]
+    public async Task W248_ADueDateIsTheIssueDatePlusItsTerms()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        var service = new NendoApplicationService(coordinator);
+        await coordinator.ApplyAsync(new("test", "schema", "test", "Invoices", [
+            new CreateEntityOperation("invoices", "invoices", "Invoices", "invoices"),
+            new AddFieldOperation("i-issued", "invoices", "issued", "Issued", "issued", NendoStorageKind.Date, false),
+            new AddFieldOperation("i-terms", "invoices", "terms", "Terms", "terms", NendoStorageKind.Integer, false),
+        ]));
+        await service.CreateRecordsAsync(new("invoices",
+        [
+            new("r1", new Dictionary<string, object?> { ["issued"] = "2026-10-18", ["terms"] = 30L }),
+            new("r2", new Dictionary<string, object?> { ["issued"] = "2028-02-20", ["terms"] = 10L }),
+            new("r3", new Dictionary<string, object?> { ["issued"] = "2026-10-18", ["terms"] = -18L }),
+            new("r4", new Dictionary<string, object?> { ["terms"] = 30L }),
+            new("r5", new Dictionary<string, object?> { ["issued"] = "9999-12-25", ["terms"] = 30L }),
+        ], new("test", "create", "test")));
+        var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        await coordinator.ApplyAsync(new("test", "due", "test", "Due date", [
+            new SetBehaviourDefinitionOperation("set-due", new NendoCalculationDefinition("invoices.due", "invoices", "due", "Due",
+                NendoBehaviourScalar.Date, true, "AddDays(i, t)",
+                [NendoBehaviourBinding.SameRecordField("i", "invoices", "issued", NendoBehaviourScalar.Date, true),
+                 NendoBehaviourBinding.SameRecordField("t", "invoices", "terms", NendoBehaviourScalar.Integer, true)]), revision),
+        ]));
+
+        var records = (await service.GetSnapshotAsync()).Records.ToDictionary(record => record.RecordId, record => record.Calculations.Single());
+        Assert.AreEqual("2026-11-17", records["r1"].Value.GetString());
+        Assert.AreEqual("2028-03-01", records["r2"].Value.GetString(), "A leap February was not counted.");
+        Assert.AreEqual("2026-09-30", records["r3"].Value.GetString(), "A negative number of days did not count back.");
+        Assert.AreEqual(NendoCalculationState.Empty, records["r4"].State, "A due date with no issue date was not empty.");
+        Assert.AreEqual(NendoCalculationState.Error, records["r5"].State);
+        Assert.AreEqual(NendoCalculationCodes.InvalidDate, records["r5"].ErrorCode);
+        Assert.AreEqual(NendoFormat.DatePeriodsMinimumHostVersion, (await service.GetSnapshotAsync()).Manifest.MinimumHostVersion);
+
+        var badRevision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
+        var refused = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => coordinator.ApplyAsync(new("test", "bad", "test", "Due", [
+            new SetBehaviourDefinitionOperation("set-bad", new NendoCalculationDefinition("invoices.bad", "invoices", "bad", "Bad",
+                NendoBehaviourScalar.Date, true, "AddDays(t, i)",
+                [NendoBehaviourBinding.SameRecordField("i", "invoices", "issued", NendoBehaviourScalar.Date, true),
+                 NendoBehaviourBinding.SameRecordField("t", "invoices", "terms", NendoBehaviourScalar.Integer, true)]),
+                badRevision),
+        ])));
+        StringAssert.Contains(refused.Message, "AddDays", StringComparison.Ordinal);
+    }
+
     [TestMethod]
     public void R2AAV05_EveryFunctionTheCatalogueNamesExists()
     {

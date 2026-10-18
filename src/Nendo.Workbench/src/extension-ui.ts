@@ -6,7 +6,7 @@ import { WorkbenchHostError, type ProposalPreview } from './host';
 import { applicationPlans, overviewPlan } from './plan-selection';
 import { loadFocusedRecord } from './reads';
 import { loadOpenedRecordPanels } from './related-actions';
-import { announce, rerender, setBusy, showError, showOutcome } from './shell';
+import { announce, rerender, setBusy, showError, showOutcome, showUndoOffer } from './shell';
 import { useSurfaces } from './surface-model';
 import { fileViewById } from './file-view-model';
 import { renderDataRecordDialog } from './view-data';
@@ -165,4 +165,10 @@ export async function openStudioFromView(entityId: string | null, said = true): 
  */
 export function toastFromView(title: string, text: string): void {
   showOutcome(`${title}: ${text}`);
+}
+
+/** A view's batch asked for Undo in Nendo's notice (W-250), named by the batch's label. */
+export function undoOfferFromView(title: string, label: string | null, undo: () => Promise<void>): void {
+  const what = label === null ? 'saved a change' : `saved ${label}`;
+  showUndoOffer(`${title} ${what}.`, undo, `${title}: ${label === null ? 'the change' : label} was undone.`);
 }

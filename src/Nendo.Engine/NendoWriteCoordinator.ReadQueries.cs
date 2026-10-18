@@ -167,9 +167,13 @@ public sealed partial class NendoWriteCoordinator
                     ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
                 var target = SnapshotFieldKind(query.EntityId, query.FieldId);
                 Storage.SqliteNendoStore.RequireGroupedTarget(query.FieldId, target);
-                var fold = new GroupedAggregateFold(
-                    GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options), query.Aggregate,
-                    integral: target == NendoStorageKind.Integer);
+                // A reference's groups are the records it points at, as the file's read answers (W-249).
+                var open = grouping.StorageKind == NendoStorageKind.Reference;
+                var fold = open
+                    ? GroupedAggregateFold.Open(query.Aggregate, integral: target == NendoStorageKind.Integer)
+                    : new GroupedAggregateFold(
+                        GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options), query.Aggregate,
+                        integral: target == NendoStorageKind.Integer);
                 // The same fold over the same exact lexemes, so the snapshot answers what the file would.
                 foreach (var record in FilteredSnapshotRecords(query.EntityId, query.Filters))
                 {
@@ -177,7 +181,7 @@ public sealed partial class NendoWriteCoordinator
                     decimal? value = query.FieldId is not null &&
                         record.Values.TryGetValue(query.FieldId, out var raw) && raw.ValueKind == System.Text.Json.JsonValueKind.Number
                         ? raw.GetDecimal() : null;
-                    fold.Add(key, value);
+                    fold.Add(key, value, open && record.ReferenceLabels is { } labels && labels.TryGetValue(query.GroupByFieldId, out var label) ? label : null);
                 }
                 return fold.Result(query, _readOnlySnapshot.Manifest.ChangeSequence);
             }

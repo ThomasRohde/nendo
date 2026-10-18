@@ -397,9 +397,9 @@ public sealed class BehaviourDefinitionTests
     public void GraphValidationRejectsDepthAndSelfReferenceWithoutTouchingStorage()
     {
         var definitions = new Dictionary<string, NendoBehaviourDefinition>(StringComparer.Ordinal);
-        for (var index = 0; index < 10; index++)
+        for (var index = 0; index < 18; index++)
         {
-            var next = index == 9 ? null : $"fn.{index + 1}";
+            var next = index == 17 ? null : $"fn.{index + 1}";
             definitions[$"fn.{index}"] = Function($"fn.{index}", next);
         }
         Assert.ThrowsExactly<NendoValidationException>(() => NendoBehaviourGraph.ValidateCandidate(definitions));

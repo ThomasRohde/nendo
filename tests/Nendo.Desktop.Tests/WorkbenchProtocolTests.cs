@@ -454,6 +454,33 @@ public sealed class WorkbenchProtocolTests
     }
 
     /// <summary>
+    /// W-251: the broker reports what a view did, and the open file keeps it for an agent to read.
+    /// The event belongs to the file the request was bound to, and a view's actor cannot send one.
+    /// </summary>
+    [TestMethod]
+    public async Task AViewsRuntimeEventIsKeptForTheOpenFile()
+    {
+        await using var workspace = new DesktopTestWorkspace();
+        await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
+        await session.CreateAsync(workspace.FilePath);
+        var handler = Handler(session);
+
+        var response = await handler.HandleAsync(await RequestAsync(session, "event-1", WorkbenchMethods.ExtensionEventsReport,
+            new { packageId = "org.example.board", kind = "refused", viewId = "view.board", method = "records.batch", code = "stale-version", text = "The record changed." }));
+        Assert.IsTrue(response.Ok, response.Error?.Message);
+        var log = (await session.QueryAsync(service => Task.FromResult(service.ViewEvents.Read("org.example.board")), CancellationToken.None)).Single();
+        var kept = log.Events.Single();
+        Assert.AreEqual((NendoViewEventKind.Refused, "records.batch", "stale-version", "The record changed."), (kept.Kind, kept.Method, kept.Code, kept.Text));
+
+        var unknown = await handler.HandleAsync(await RequestAsync(session, "event-2", WorkbenchMethods.ExtensionEventsReport,
+            new { packageId = "org.example.board", kind = "exploded" }));
+        Assert.IsFalse(unknown.Ok);
+        StringAssert.Contains(unknown.Error!.Message, "not a view event");
+        Assert.DoesNotContain(WorkbenchMethods.ExtensionEventsReport, WorkbenchMethods.ExtensionWriterMethods,
+            "A view's own actor may send its events, so it could write what the broker never saw.");
+    }
+
+    /// <summary>
     /// The eight methods that served the Idea Garden by name at protocol 2 are gone with it
     /// (W-135). An open file and its current generation, so each request reaches the dispatch
     /// itself rather than stopping at the binding.

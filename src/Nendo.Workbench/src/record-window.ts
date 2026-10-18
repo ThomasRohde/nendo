@@ -128,6 +128,51 @@ export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date 
   }
 }
 
+/** The value kinds that name a span of days (W-248): a week starts on Monday. */
+export function isPeriod(valueKind: unknown): valueKind is 'thisWeek' | 'thisMonth' {
+  return valueKind === 'thisWeek' || valueKind === 'thisMonth';
+}
+
+/**
+ * A clause comparing a date with this week or this month, as the one filter a period's edge
+ * gives (W-248). The compiler accepts only lt (before it), gte (from its start), lte (to its
+ * end) and gt (after it), so each clause stays one filter, and within a period is two clauses.
+ * A Date field compares with the period's first or last civil date; a DateTime field with the
+ * instant its first day begins, or the instant the day after it begins. Either spelling of an
+ * operator is taken, the contract's lte or the record query's le, and the query's comes back.
+ */
+export function resolvePeriodClause(
+  operator: string,
+  valueKind: 'thisWeek' | 'thisMonth',
+  at: Date = clock(),
+  storageKind?: string,
+): { operator: string; value: string } {
+  const start = valueKind === 'thisMonth'
+    ? new Date(at.getFullYear(), at.getMonth(), 1)
+    : new Date(at.getFullYear(), at.getMonth(), at.getDate() - ((at.getDay() + 6) % 7));
+  const next = valueKind === 'thisMonth'
+    ? new Date(start.getFullYear(), start.getMonth() + 1, 1)
+    : new Date(start.getFullYear(), start.getMonth(), start.getDate() + 7);
+  const last = new Date(next.getFullYear(), next.getMonth(), next.getDate() - 1);
+  const instant = storageKind === 'dateTime';
+  const first = instant ? startOfCivilDay(start) : civilDate(start);
+  const after = instant ? startOfCivilDay(next) : civilDate(next);
+  switch (queryOperatorFor(operator)) {
+    case 'lt':
+      return { operator: 'lt', value: first };
+    case 'ge':
+      return { operator: 'ge', value: first };
+    case 'le':
+      return instant ? { operator: 'lt', value: after } : { operator: 'le', value: civilDate(last) };
+    case 'gt':
+      return { operator: 'ge', value: after };
+    default:
+      // NUI460 refuses any other operator, so a definition that reaches here is damaged; it
+      // compares with the period's start rather than with nothing.
+      return { operator: queryOperatorFor(operator), value: first };
+  }
+}
+
 const two = (value: number): string => String(value).padStart(2, '0');
 
 /** The person's own date at `at`, as yyyy-MM-dd. */
@@ -168,8 +213,10 @@ export function clauseFilters(node: SurfaceNodePlan, at: Date = clock()): QueryF
       const operator = child.properties.operator;
       if (typeof fieldId !== 'string' || typeof operator !== 'string') return null;
       const queryOperator = queryOperatorFor(operator);
-      return operator === 'isNull' || operator === 'isNotNull'
-        ? { fieldId, operator: queryOperator }
+      if (operator === 'isNull' || operator === 'isNotNull') return { fieldId, operator: queryOperator };
+      const kind = child.properties.valueKind;
+      return isPeriod(kind)
+        ? { fieldId, ...resolvePeriodClause(operator, kind, at, fieldKinds(fieldId)) }
         : { fieldId, operator: queryOperator, value: clauseValue(fieldId, child.properties, at) };
     })
     .filter((clause): clause is QueryFilter => clause !== null);

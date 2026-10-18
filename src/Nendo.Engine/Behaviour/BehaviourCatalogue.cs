@@ -95,6 +95,33 @@ internal static class NendoBehaviourCatalogue
                 ResultType = "integer",
                 Summary = "Whole days from the first date to the second. Negative when the second is earlier.",
             },
+            // ADR-0008, 2026-10-18 amendment (W-248): date arithmetic without a clock. Billable
+            // worked out an invoice's due date, issue date plus terms, in view code, because '+'
+            // takes numbers on both sides and nothing else could. A date past the calendar a date
+            // holds is refused, never clamped.
+            ["AddDays"] = new("AddDays", 2, 2,
+                types =>
+                {
+                    Expect(types, "AddDays", NendoBehaviourScalar.Date, NendoBehaviourScalar.Integer);
+                    return NendoBehaviourScalar.Date;
+                },
+                (args, budget) =>
+                {
+                    budget.SpendWork();
+                    var date = args[0].AsDate();
+                    var days = args[1].AsInteger();
+                    var target = (long)date.DayNumber + days;
+                    return target < DateOnly.MinValue.DayNumber || target > DateOnly.MaxValue.DayNumber
+                        ? throw new NendoCalculationException(NendoCalculationCodes.InvalidDate,
+                            "Adding these days goes past the calendar a date can hold, 0001-01-01 to 9999-12-31.")
+                        : BehaviourValue.Date(DateOnly.FromDayNumber((int)target));
+                })
+            {
+                ParameterTypes = ["date", "integer"],
+                ResultType = "date",
+                Summary = "The date that many days after the first, or before it when the number is negative: AddDays(issued, terms) is a due date. " +
+                    "An empty date or number stops it, as it stops every function but IsEmpty; a date past 9999-12-31 is refused.",
+            },
             // ADR-0008 P8: a function added after the fact, through the ordinary
             // catalogue, with nothing else to change. It is total, bounded by the
             // same text ceiling every other text value is, and has no clock, file or

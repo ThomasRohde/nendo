@@ -35,8 +35,9 @@ Which screen, tab, month or year is open is remembered for the session only and
 never written to the file.
 
 A calculated field can appear on any screen as a read-only value, and a list,
-board, calendar or tile can filter and sort by one. It cannot group a screen,
-place a record on a calendar or timeline, or feed a total. See
+board, calendar or tile can filter and sort by one. A calculated number can also be
+totalled by a summary tile or a breakdown chart and rank a ranked list. It cannot group
+a screen or place a record on a calendar or timeline. See
 [Calculations and actions](/nendo/docs/calculations-and-actions#calculated-fields-on-screens).
 
 ## Screens for one record type
@@ -181,7 +182,7 @@ Every number is exact. Nendo does not round, and a sum that does not fit reads
 | Part | What it states | Where it can go |
 | --- | --- | --- |
 | Summary tile | One count, sum, minimum or maximum. | List, board, gallery, matrix, record page, front page, section, related list |
-| Breakdown chart | One number per option of a single-choice field, or per yes and no, as a stacked bar. | List, board, gallery, matrix, record page, front page, section |
+| Breakdown chart | One number per option of a single-choice field, per yes and no, or per record a reference points at, named by its label, as a stacked bar. | List, board, gallery, matrix, record page, front page, section |
 | Progress ring | The records that match its own clauses, out of all records in its scope. | Same as breakdown chart |
 | Range tile | The smallest and largest value of one number or date field. | Same as breakdown chart |
 | Trend chart | One number per month or week over the last 12 months, 6 months, 90 days or 30 days. | Same as breakdown chart |
@@ -202,7 +203,10 @@ label names the year (Oct 13–31 2025).
 
 A **filter clause** keeps the records where one stored field compares to a
 value. The operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull` and
-`isNotNull`. The value is a fixed value, today, now or empty. All clauses on a
+`isNotNull`. The value is a fixed value, today, now, this week, this month or empty.
+This week and this month take `lt` (before it), `gte` (from its first day), `lte`
+(to its last day) and `gt` (after it); a week starts on Monday, and *in this month*
+is `gte` and `lte` together. All clauses on a
 node must match. There is no OR and no grouping of clauses. A record with no value
 in the field matches only `isNull`: `ne Done` keeps the records whose status is
 something other than Done and leaves out those with none.

@@ -94,7 +94,7 @@ const frameStubs = {
   './extension-broker': `export const brokerMethodNames = []; export const createExtensionBroker = deps => {
     const f = globalThis.extensionSettingsFrames; f.deps = deps;
     return { disconnect: mount => f.retired.push(mount), isConnected: () => true, place: () => {}, refreshContext: () => {} }; };`,
-  './extension-ui': 'export const openProposalFromView = () => ({ opened: true }); export const openRecordFromView = () => {}; export const openScreenFromView = () => {}; export const openStudioFromView = () => {}; export const toastFromView = () => {};',
+  './extension-ui': 'export const openProposalFromView = () => ({ opened: true }); export const openRecordFromView = () => {}; export const openScreenFromView = () => {}; export const openStudioFromView = () => {}; export const toastFromView = () => {}; export const undoOfferFromView = () => {};',
   './view-menu': 'export const closeViewMenu = () => {}; export const showViewMenu = () => {};',
   './view-toolbar': 'export const drawViewToolbar = (_element, host) => globalThis.extensionSettingsFrames.controls.push(host.toolbar); export const focusViewSearch = () => {};',
   './view-health': 'export const refreshHealth = () => {}; export const openHealth = () => {};',

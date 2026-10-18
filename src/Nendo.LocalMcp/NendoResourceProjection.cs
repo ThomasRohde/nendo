@@ -454,7 +454,7 @@ internal sealed class NendoResourceProjection(
             return new NendoMcpAggregate(entityId, aggregate, field, "grouped", grouped.ChangeSequence)
             {
                 GroupByFieldId = groupBy,
-                Groups = grouped.Groups.Select(group => new NendoMcpAggregateGroup(group.Key, group.ValueLexeme, group.ContributingRecords)).ToArray(),
+                Groups = grouped.Groups.Select(group => new NendoMcpAggregateGroup(group.Key, group.ValueLexeme, group.ContributingRecords) { Label = group.Label }).ToArray(),
                 Unrecognised = grouped.Unrecognised,
             };
         }

@@ -37,11 +37,18 @@ earlier type's are broken, so one validation reports them all.
 
 **A filter clause compiles only if storage can read it.** `today` compares with a
 Date or DateTime field and `now` with a DateTime field; anything else is `NUI457`.
+`thisWeek` and `thisMonth` (W-248, host 1.53.0) are spans of days on a Date or
+DateTime field, a week from Monday, compared by an edge: `lt` before it, `gte` from
+its first day, `lte` to its last day and `gt` after it, so a clause stays one filter
+and *within this month* is `gte` and `lte` together. Any other operator is `NUI460`,
+and a command step cannot assign one (`NUI287`). The reader resolves them when it
+reads, in the person's own calendar, as it resolves `today`.
 Neither takes a `value`: one beside them is ignored and warned about (`NUI458`), as
 no operation removes a property. A literal must be written as storage keeps the
 field: a Date as `yyyy-MM-dd`, a DateTime as an ISO timestamp with seconds and its
 zone, a Uuid hyphenated (`NUI277`). The same rules hold for a custom view's
-filters, where `today` or `now` on the wrong field is refused as `NUI450` and a
+filters, where `today`, `now` or a period on the wrong field, or a period with
+another operator, is refused as `NUI450` and a
 malformed literal as `NUI277`. A command step that sets a retired choice is warned
 about (`NUI286`), since every press would be refused; a filter may still match one.
 
@@ -803,8 +810,17 @@ stored value that is none of them is counted apart as *unrecognised*, and the
 chart states it. It is never folded into a group that nobody configured and never
 drawn as a segment.
 
-The grouping field must be active and one of those two kinds (`NUI350`). A
-calculated field cannot group, as it cannot be totalled. At `group` scope on a
+A `breakdownChart` may also group by a **Reference** whose target and label are set
+(W-249, host 1.54.0). That grouping is open: a group for each record the data points
+at, ordered by its label and then its ID, each group carrying the target's `label`, and
+the unset group last. Past 365 groups the read is refused whole as
+`aggregate-too-many-groups`, never answered in part; a filter narrows it. A board's
+reference grouping is unchanged.
+
+The grouping field must be active and one of those three kinds (`NUI350`); a reference
+must be bound. A calculated field cannot group. The number a breakdown totals may be a
+calculated Integer or Decimal, as a summary tile's may
+([calculations](calculations-and-actions.md)). At `group` scope on a
 board, the grouping field must not be the board's own grouping, because every
 column would break down into itself (`NUI352`). A ring with no clause would always
 be full, so it is refused (`NUI360`).
@@ -1253,6 +1269,8 @@ the shape cannot show (below). The ladder is:
 | An `outlineSurface` | 1.36 |
 | A `filterClause` on, or an `orderByFieldId` naming, a calculated field | 1.40 |
 | An `extensionView` (a custom view as a screen of the file) | 1.42 |
+| A `filterClause` whose value kind is `thisWeek` or `thisMonth` (W-248); a formula that calls `AddDays` states it on its own evidence | 1.53 |
+| A `summaryTile`, `breakdownChart` or `rankedList` over a calculated number, or a `breakdownChart` grouped by a Reference (W-249) | 1.54 |
 
 Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
 1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51 and 1.52 (`NendoFormat`).
@@ -1276,7 +1294,7 @@ history fold, which is not an operation, states it in the manifest itself: 1.50.
 2026-10-13, which covers the fold table's 1.39.0, and a file started with New states 1.50.0
 too, because its copy is folded.
 
-Every row except the 1.27, 1.34 and 1.40 rows is a shape of the node tree. At 1.19 and 1.22 a
+Every row except the 1.27, 1.34, 1.40 and 1.54 rows is a shape of the node tree. At 1.19 and 1.22 a
 field operation also raises the rung through its own evidence: a choice tone and a
 rating scale. The 1.27 row is not a shape of the tree. A board grouped by a
 reference and a board grouped by a choice carry the same kind, the

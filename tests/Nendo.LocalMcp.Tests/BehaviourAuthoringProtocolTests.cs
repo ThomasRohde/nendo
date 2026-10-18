@@ -37,7 +37,7 @@ public sealed class BehaviourAuthoringProtocolTests
         // The published function set is the enforced one. A second table would be a
         // table that disagrees.
         CollectionAssert.AreEquivalent(
-            new[] { "Concat", "Date", "DaysBetween", "IsEmpty", "Refuse", "RoundAway", "RoundEven", "TextLength", "ToText" },
+            new[] { "AddDays", "Concat", "Date", "DaysBetween", "IsEmpty", "Refuse", "RoundAway", "RoundEven", "TextLength", "ToText" },
             behaviour.Functions.Select(function => function.Name).ToArray());
         foreach (var function in behaviour.Functions)
         {

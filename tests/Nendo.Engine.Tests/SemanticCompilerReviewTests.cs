@@ -54,6 +54,58 @@ public sealed class SemanticCompilerReviewTests
         Assert.IsTrue(compiled.IsValid, Codes(compiled));
     }
 
+    /// <summary>W-248: thisWeek and thisMonth compare a date by the period's first or last day.</summary>
+    [TestMethod]
+    [DataRow("t-due", "thisWeek", "gte")]
+    [DataRow("t-due", "thisWeek", "lte")]
+    [DataRow("t-due", "thisMonth", "lt")]
+    [DataRow("t-at", "thisMonth", "gt")]
+    [DataRow("t-at", "thisWeek", "gte")]
+    public void W248_APeriodComparedByItsEdgeCompiles(string fieldId, string valueKind, string comparison)
+    {
+        var compiled = Compile(List(Clause("f", "l", fieldId, comparison, valueKind, null)));
+        Assert.IsTrue(compiled.IsValid, Codes(compiled));
+    }
+
+    [TestMethod]
+    [DataRow("t-due", "thisMonth", "eq", "NUI460")]
+    [DataRow("t-due", "thisWeek", "ne", "NUI460")]
+    [DataRow("t-points", "thisWeek", "gte", "NUI457")]
+    [DataRow("t-flag", "thisMonth", "lt", "NUI457")]
+    public void W248_APeriodItCannotCompareDoesNotCompile(string fieldId, string valueKind, string comparison, string code)
+    {
+        var compiled = Compile(List(Clause("f", "l", fieldId, comparison, valueKind, null)));
+        Assert.IsFalse(compiled.IsValid, $"{fieldId} {comparison} {valueKind} compiled.");
+        Assert.IsNotNull(compiled.Diagnostics.SingleOrDefault(d => d.Code == code && d.SemanticId == "f"), $"Expected {code}; got {Codes(compiled)}.");
+    }
+
+    [TestMethod]
+    public void W248_AFilterOnAPeriodNeedsTheHostThatResolvesIt()
+    {
+        var period = List(Clause("f", "l", "t-due", "gte", "thisWeek", null));
+        Assert.AreEqual(NendoFormat.DatePeriodsMinimumHostVersion, NendoSemanticCapability.RequiredHostVersion(period, []));
+        Assert.IsTrue(NendoSemanticCapability.PresentFeatures(period, []).Any(feature => feature.Name == "a filter on this week or this month"));
+        Assert.AreNotEqual(NendoFormat.DatePeriodsMinimumHostVersion,
+            NendoSemanticCapability.RequiredHostVersion(List(Clause("f", "l", "t-due", "lt", "today", null)), []));
+    }
+
+    [TestMethod]
+    public void W248_ACommandStepCannotAssignAPeriodAndAViewComparesOneByItsEdge()
+    {
+        var nodes = Command("done");
+        nodes[^1] = Node("s", "c", "commandStep", 0, ("fieldId", "t-due"), ("valueKind", "thisWeek"));
+        var step = Compile(nodes).Diagnostics.SingleOrDefault(d => d.Code == "NUI287" && d.SemanticId == "s");
+        Assert.IsNotNull(step, "A command step assigning thisWeek compiled.");
+        StringAssert.Contains(step.Message, "span of days", StringComparison.Ordinal);
+
+        Assert.IsTrue(Compile(View(1, ("valueKind", "thisMonth"))).IsValid, "A view filter Due lt thisMonth did not compile.");
+        var view = View(0);
+        view.Add(Node("v-f0", "v", "filterClause", 0, ("fieldId", "t-due"), ("operator", "eq"), ("valueKind", "thisMonth")));
+        var refused = Compile(view);
+        Assert.IsFalse(refused.IsValid, $"A view filter Due eq thisMonth compiled: {Codes(refused)}.");
+        StringAssert.Contains(string.Join(" ", refused.Diagnostics.Select(d => d.Message)), "a span of days", StringComparison.Ordinal);
+    }
+
     [TestMethod]
     public void ESM05_ACommandStepThatSetsARetiredChoiceIsWarnedAbout()
     {

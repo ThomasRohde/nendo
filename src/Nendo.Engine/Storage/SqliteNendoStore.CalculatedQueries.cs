@@ -49,42 +49,7 @@ internal sealed partial class SqliteNendoStore
         var calculatedFilters = filters.Where(filter => derived.ContainsKey(filter.FieldId)).ToArray();
         var sort = sortFieldId is not null && derived.TryGetValue(sortFieldId, out var sorted) ? sorted : null;
         if (calculatedFilters.Length == 0 && sort is null) return null;
-
-        var predicates = new List<string>();
-        var parameters = new Dictionary<string, object>();
-        await AddFilterPredicatesAsync(entity, StoredFilters(filters, derived), $"{prefix}_stored", predicates, parameters, transaction, ct);
-        var where = predicates.Count == 0 ? string.Empty : $" WHERE {string.Join(" AND ", predicates)}";
-
-        await using (var probe = Command(
-            $"SELECT COUNT(*) FROM (SELECT 1 FROM {Quote(entity.PhysicalTableName)} source_record{where} LIMIT @limit);", transaction))
-        {
-            foreach (var parameter in parameters) probe.Parameters.AddWithValue(parameter.Key, parameter.Value);
-            probe.Parameters.AddWithValue("@limit", NendoQueryLimits.MaximumCalculatedQueryRecords + 1);
-            if (Convert.ToInt64(await probe.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) > NendoQueryLimits.MaximumCalculatedQueryRecords)
-                throw new NendoPreconditionException("calculated-query-too-wide",
-                    $"A filter or sort on a calculated field works out every record it could match, and more than " +
-                    $"{NendoQueryLimits.MaximumCalculatedQueryRecords} {entity.DisplayName} records could. Narrow it with a filter on a stored field.");
-        }
-
-        var (columns, references) = RecordColumns(entity, mappings);
-        var records = new List<NendoRecordSnapshot>();
-        await using (var read = Command($"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} source_record{where};", transaction))
-        {
-            foreach (var parameter in parameters) read.Parameters.AddWithValue(parameter.Key, parameter.Value);
-            await using var reader = await read.ExecuteReaderAsync(ct);
-            while (await reader.ReadAsync(ct)) records.Add(ReadRecordRow(reader, entity, references));
-        }
-        var calculated = await WithKeptMarksAsync(await WithCalculationsAsync(records, mappings, transaction, ct), transaction, ct, entity.EntityId);
-
-        var expected = calculatedFilters.Select(filter => filter.Operator is "isNull" or "isNotNull" ? null
-            : Convert.ToString(ConvertValue(Calculated(entity, derived[filter.FieldId]), filter.Value), CultureInfo.InvariantCulture)).ToArray();
-        var kept = calculated.Where(record => calculatedFilters.Select((filter, index) => (filter, index)).All(pair =>
-        {
-            var (known, text) = ValueOf(record, pair.filter.FieldId);
-            // A value that could not be worked out matches nothing, not even "is empty":
-            // it is not empty, it is unknown.
-            return known && RecordQuerySemantics.Matches(pair.filter.Operator, KindOf(derived[pair.filter.FieldId].ResultType), text, expected[pair.index]);
-        })).ToArray();
+        var kept = await CalculatedMembersAsync(entity, mappings, derived, filters, prefix, transaction, ct);
 
         string? keepPredicate = null;
         if (calculatedFilters.Length > 0)
@@ -113,6 +78,78 @@ internal sealed partial class SqliteNendoStore
         }
         return new(keepPredicate, rankFunction);
     }
+
+    /// <summary>
+    /// Every record a query keeps, with its calculations: the ones its stored filters leave, read
+    /// once and bounded, that then pass its calculated filters. A filter, sort or total on a
+    /// calculated field (W-249) all stand on this one read, so they cannot disagree about the set.
+    /// Refused past <see cref="NendoQueryLimits.MaximumCalculatedQueryRecords"/> rather than read slowly.
+    /// </summary>
+    private async Task<IReadOnlyList<NendoRecordSnapshot>> CalculatedMembersAsync(
+        EntityMapping entity, IReadOnlyList<EntityMapping> mappings, IReadOnlyDictionary<string, NendoDerivedFieldSnapshot> derived,
+        IReadOnlyList<NendoRecordFilter> filters, string prefix, SqliteTransaction transaction, CancellationToken ct)
+    {
+        var calculatedFilters = filters.Where(filter => derived.ContainsKey(filter.FieldId)).ToArray();
+        var predicates = new List<string>();
+        var parameters = new Dictionary<string, object>();
+        await AddFilterPredicatesAsync(entity, StoredFilters(filters, derived), $"{prefix}_stored", predicates, parameters, transaction, ct);
+        var where = predicates.Count == 0 ? string.Empty : $" WHERE {string.Join(" AND ", predicates)}";
+
+        await using (var probe = Command(
+            $"SELECT COUNT(*) FROM (SELECT 1 FROM {Quote(entity.PhysicalTableName)} source_record{where} LIMIT @limit);", transaction))
+        {
+            foreach (var parameter in parameters) probe.Parameters.AddWithValue(parameter.Key, parameter.Value);
+            probe.Parameters.AddWithValue("@limit", NendoQueryLimits.MaximumCalculatedQueryRecords + 1);
+            if (Convert.ToInt64(await probe.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture) > NendoQueryLimits.MaximumCalculatedQueryRecords)
+                throw new NendoPreconditionException("calculated-query-too-wide",
+                    $"A filter, sort or total on a calculated field works out every record it could match, and more than " +
+                    $"{NendoQueryLimits.MaximumCalculatedQueryRecords} {entity.DisplayName} records could. Narrow it with a filter on a stored field.");
+        }
+
+        var (columns, references) = RecordColumns(entity, mappings);
+        var records = new List<NendoRecordSnapshot>();
+        await using (var read = Command($"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} source_record{where};", transaction))
+        {
+            foreach (var parameter in parameters) read.Parameters.AddWithValue(parameter.Key, parameter.Value);
+            await using var reader = await read.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct)) records.Add(ReadRecordRow(reader, entity, references));
+        }
+        var calculated = await WithKeptMarksAsync(await WithCalculationsAsync(records, mappings, transaction, ct), transaction, ct, entity.EntityId);
+
+        var expected = calculatedFilters.Select(filter => filter.Operator is "isNull" or "isNotNull" ? null
+            : Convert.ToString(ConvertValue(Calculated(entity, derived[filter.FieldId]), filter.Value), CultureInfo.InvariantCulture)).ToArray();
+        return calculated.Where(record => calculatedFilters.Select((filter, index) => (filter, index)).All(pair =>
+        {
+            var (known, text) = ValueOf(record, pair.filter.FieldId);
+            // A value that could not be worked out matches nothing, not even "is empty":
+            // it is not empty, it is unknown.
+            return known && RecordQuerySemantics.Matches(pair.filter.Operator, KindOf(derived[pair.filter.FieldId].ResultType), text, expected[pair.index]);
+        })).ToArray();
+    }
+
+    /// <summary>
+    /// The number one record's calculated field contributes to a total, or null when it is empty,
+    /// as an unset stored field contributes nothing. One that could not be worked out refuses the
+    /// whole total: a total that leaves a record out is an incomplete one (W-249).
+    /// </summary>
+    private static decimal? CalculatedContribution(NendoRecordSnapshot record, NendoDerivedFieldSnapshot field)
+    {
+        var result = record.Calculations.FirstOrDefault(calculation => calculation.FieldId == field.FieldId);
+        return result?.State switch
+        {
+            NendoCalculationState.Value when result.Value.ValueKind == JsonValueKind.Number => result.Value.GetDecimal(),
+            NendoCalculationState.Empty => null,
+            _ => throw new NendoPreconditionException("calculated-total-incomplete",
+                $"'{field.DisplayName}' could not be worked out for one of the records ({result?.ErrorMessage ?? "it is not calculated yet"}), " +
+                "so no total is shown rather than one that leaves it out."),
+        };
+    }
+
+    /// <summary>A calculated field a total, ranking or breakdown reads: an Integer or Decimal result.</summary>
+    private static NendoDerivedFieldSnapshot RequireCalculatedNumber(NendoDerivedFieldSnapshot field) =>
+        field.ResultType is NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal
+            ? field
+            : throw new NendoValidationException($"'{field.DisplayName}' is calculated as {field.ResultType.ToString().ToLowerInvariant()}, and only a whole number or a decimal can be totalled.");
 
     /// <summary>A calculated value as the text a stored column of its type casts to, or unknown when it has none to give.</summary>
     private static (bool Known, string? Text) ValueOf(NendoRecordSnapshot record, string fieldId)

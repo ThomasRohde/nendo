@@ -385,7 +385,7 @@ internal static class NendoAuthoringExamples
         "One button that sets several fields at once.",
         [
             "A recordCommand root takes commandStep children.",
-            "Each commandStep names one fieldId on the same record type and a valueKind of literal, today, now or null. literal carries value; today and now resolve when the button runs, not when the definition compiles.",
+            "Each commandStep names one fieldId on the same record type and a valueKind of literal, today, now or null. literal carries value; today and now resolve when the button runs, not when the definition compiles. thisWeek and thisMonth are filter words only: a step assigns one value, not a span of days.",
             "The commandId that nendo.data.execute_command takes is this root's node ID, and nendo://application/surfaces states it under applications[].surfaces as commandId.",
             "Every step of a command lands in one mutation against one expected record version, so the button applies whole or not at all.",
         ],

@@ -388,6 +388,22 @@ internal sealed class NendoMcpResources(
     public Task<string> GetExtensionsAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetExtensionsAsync(cancellationToken));
 
+    // W-251. What the open file's views did when they ran in this Nendo's embedded host, so the
+    // agent that wrote one can see a thrown error or a refused call it would otherwise never learn of.
+    [McpServerResource(
+        Name = "nendo.application.extension.events",
+        Title = "Custom-view runtime events",
+        UriTemplate = "nendo://application/extension-events{?packageId}",
+        MimeType = "application/json")]
+    [Description("What the open file's custom views did when they ran in this Nendo: each package's last 50 events, oldest first, each loaded, stopped, error (an uncaught error's text) or refused (a refused call or toolbar, with its method and code). Memory only and this file's alone: nothing from another file or the browser, and gone when the file closes. packageId narrows it to one package. Empty until a view of the file is shown.")]
+    public Task<string> GetExtensionEventsAsync(string? packageId = null, CancellationToken cancellationToken = default) =>
+        TranslateAsync(() => Task.FromResult(new NendoMcpViewEvents(
+            "embedded host: what the Workbench's broker saw while these views ran in this Nendo, not a check of their source",
+            application.ViewEvents.Read(string.IsNullOrWhiteSpace(packageId) ? null : packageId)
+                .Select(log => new NendoMcpViewEventLog(log.PackageId, log.Dropped,
+                    log.Events.Select(item => new NendoMcpViewEvent(item.At, item.Kind.ToString().ToLowerInvariant(), item.ViewId, item.Method, item.Code, item.Text)).ToArray()))
+                .ToArray())));
+
     // W-094. The first sentence is the condition, because it is the one sentence describe's
     // reads index shows: an agent that is not writing a view's code has no reason to read on.
     [McpServerResource(

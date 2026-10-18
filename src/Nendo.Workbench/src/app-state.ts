@@ -162,6 +162,11 @@ export interface OutcomeNotice {
    * is read again: results from an earlier query (WCS-24). Dropped by a redraw at another change.
    */
   changeSequence?: number;
+  /**
+   * A sentence that follows the person rather than staying with its screen: a view's Undo offer
+   * (W-250), made just before the view opens the record it created, until the next notice.
+   */
+  everywhere?: boolean;
 }
 
 export { emptySession };

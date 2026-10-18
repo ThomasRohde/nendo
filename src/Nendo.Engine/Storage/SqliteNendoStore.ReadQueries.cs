@@ -336,6 +336,17 @@ internal sealed partial class SqliteNendoStore
         using var transaction = _connection.BeginTransaction(deferred: true);
         var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
+        // A calculated number is totalled over the same bounded read a calculated filter stands on,
+        // each record's result exact, and refused whole if any record's could not be worked out (W-249).
+        if (derived.TryGetValue(query.FieldId, out var calculated))
+        {
+            RequireCalculatedNumber(calculated);
+            var totalled = new ExactAggregate(query.Aggregate, calculated.ResultType == NendoBehaviourScalar.Integer);
+            foreach (var member in await CalculatedMembersAsync(entity, mappings, derived, query.Filters, "nendo_aggregate_members", transaction, cancellationToken))
+                if (CalculatedContribution(member, calculated) is { } value) totalled.Add(value);
+            return new(entity.EntityId, query.Aggregate, query.FieldId, totalled.Value(), totalled.ContributingRecords, manifest.ChangeSequence);
+        }
+
         var target = entity.Fields.SingleOrDefault(f => f.FieldId == query.FieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The aggregated field does not exist on this record type.");
         var dateExtreme = RequireAggregatedField(target.StorageKind, query.Aggregate);
@@ -382,8 +393,29 @@ internal sealed partial class SqliteNendoStore
 
         var grouping = entity.Fields.SingleOrDefault(f => f.FieldId == query.GroupByFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
-        var keys = GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options);
-        var target = AggregatedTarget(entity, query.FieldId);
+        // A reference groups by the records it points at, an open set read from the data and
+        // labelled by the target's label field (W-249); every other grouping is closed.
+        var open = grouping.StorageKind == NendoStorageKind.Reference;
+        var calculated = query.FieldId is not null && derived.TryGetValue(query.FieldId, out var derivedTarget)
+            ? RequireCalculatedNumber(derivedTarget) : null;
+        var target = calculated is null ? AggregatedTarget(entity, query.FieldId) : null;
+        var integral = calculated is not null ? calculated.ResultType == NendoBehaviourScalar.Integer : target?.StorageKind == NendoStorageKind.Integer;
+        if (open && grouping.Reference is null)
+            throw new NendoValidationException("A reference groups a breakdown only once its target record type and label are set.");
+        var fold = open
+            ? GroupedAggregateFold.Open(query.Aggregate, integral)
+            : new GroupedAggregateFold(GroupedAggregateFold.KeysOf(grouping.StorageKind, grouping.Presentation, grouping.Options), query.Aggregate, integral);
+
+        if (calculated is not null)
+        {
+            foreach (var member in await CalculatedMembersAsync(entity, mappings, derived, query.Filters, "nendo_group_members", transaction, cancellationToken))
+            {
+                var stored = member.Values.TryGetValue(query.GroupByFieldId, out var raw) ? GroupedAggregateFold.KeyText(raw) : null;
+                fold.Add(stored, CalculatedContribution(member, calculated),
+                    open && member.ReferenceLabels is { } labels && labels.TryGetValue(query.GroupByFieldId, out var memberLabel) ? memberLabel : null);
+            }
+            return fold.Result(query, manifest.ChangeSequence);
+        }
 
         var predicates = new List<string>();
         var parameters = new Dictionary<string, object>();
@@ -391,21 +423,27 @@ internal sealed partial class SqliteNendoStore
         if ((await SelectByCalculationAsync(entity, mappings, derived, query.Filters, null, false, "nendo_group_calculated", transaction, cancellationToken))?.KeepPredicate is { } keep)
             predicates.Add(keep);
 
-        var columns = target is null
-            ? Quote(grouping.PhysicalColumnName)
-            : $"{Quote(grouping.PhysicalColumnName)}, {Quote(target.PhysicalColumnName)}";
-        var sql = $"SELECT {columns} FROM {Quote(entity.PhysicalTableName)} source_record" +
+        var columns = new List<string> { Quote(grouping.PhysicalColumnName) };
+        if (target is not null) columns.Add(Quote(target.PhysicalColumnName));
+        if (open)
+        {
+            var targetType = mappings.Single(mapping => mapping.EntityId == grouping.Reference!.TargetEntityId);
+            var label = targetType.Fields.Single(candidate => candidate.FieldId == grouping.Reference!.LabelFieldId);
+            columns.Add($"(SELECT ref_target.{Quote(label.PhysicalColumnName)} FROM {Quote(targetType.PhysicalTableName)} ref_target " +
+                $"WHERE ref_target.{Quote("__nendo_record_id")} = source_record.{Quote(grouping.PhysicalColumnName)})");
+        }
+        var sql = $"SELECT {string.Join(", ", columns)} FROM {Quote(entity.PhysicalTableName)} source_record" +
             (predicates.Count == 0 ? string.Empty : $" WHERE {string.Join(" AND ", predicates)}") + ";";
         await using var command = Command(sql, transaction);
         foreach (var parameter in parameters) command.Parameters.AddWithValue(parameter.Key, parameter.Value);
 
-        var fold = new GroupedAggregateFold(keys, query.Aggregate, target?.StorageKind == NendoStorageKind.Integer);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var labelColumn = target is null ? 1 : 2;
         while (await reader.ReadAsync(cancellationToken))
         {
             var key = GroupedAggregateFold.KeyText(reader.IsDBNull(0) ? null : reader.GetValue(0), grouping.StorageKind);
             var value = target is null ? null : ExactAggregate.Read(reader.IsDBNull(1) ? null : reader.GetValue(1));
-            fold.Add(key, value);
+            fold.Add(key, value, open && !reader.IsDBNull(labelColumn) ? reader.GetString(labelColumn) : null);
         }
         return fold.Result(query, manifest.ChangeSequence);
     }

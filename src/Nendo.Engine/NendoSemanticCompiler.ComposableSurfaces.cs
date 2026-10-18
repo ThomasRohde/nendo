@@ -684,6 +684,10 @@ public sealed partial class NendoSemanticCompiler
             case "now" when field.StorageKind != NendoStorageKind.DateTime:
                 AddError(diagnostics, "NUI287", "now can only be assigned to a datetime field.", node.NodeId, "valueKind", "Assign now to a DateTime field.");
                 break;
+            case "thisWeek" or "thisMonth":
+                AddError(diagnostics, "NUI287", $"{valueKind} is a span of days, and a command step assigns one value.", node.NodeId, "valueKind",
+                    "Assign today, or a literal date.");
+                break;
             case "null" when field.Required:
                 AddError(diagnostics, "NUI288", "A required field cannot be cleared.", node.NodeId, "valueKind", "Clear an optional field, or assign a value.");
                 break;
@@ -742,7 +746,15 @@ public sealed partial class NendoSemanticCompiler
                 "Use the operator isNull or isNotNull to match records with or without a value.");
             return;
         }
-        if (valueKind is "today" or "now")
+        if (NendoSemanticVocabulary.PeriodValueKinds.Contains(valueKind) && comparison is not null &&
+            !NendoSemanticVocabulary.PeriodOperators.Contains(comparison))
+        {
+            // A period is compared by its edges, so each clause stays one filter (W-248).
+            AddError(diagnostics, "NUI460", $"'{comparison}' does not compare with {valueKind}, a span of days.", node.NodeId, "operator",
+                $"Use gte {valueKind} and lte {valueKind} together for within it, lt for before it or gt for after it.");
+            return;
+        }
+        if (valueKind is "today" or "now" or "thisWeek" or "thisMonth")
         {
             // A command step already refused these (NUI287, NUI289); a filter compiled them and
             // every read of the screen was then refused (ESM-03).
@@ -754,7 +766,7 @@ public sealed partial class NendoSemanticCompiler
                 : calculated is not null ? Storage.SqliteNendoStore.KindOf(calculated.ResultType) : (NendoStorageKind?)null;
             if (kind is { } storage && MomentMismatch(valueKind, storage) is { } mismatch)
                 AddError(diagnostics, "NUI457", mismatch, node.NodeId, "valueKind",
-                    "Use today on a Date or DateTime field and now on a DateTime field, or compare with a literal.");
+                    "Use today, thisWeek or thisMonth on a Date or DateTime field and now on a DateTime field, or compare with a literal.");
             return;
         }
         if (valueKind == "literal" && !hasValue)
@@ -779,6 +791,8 @@ public sealed partial class NendoSemanticCompiler
             $"today is a date, and this field holds {kind} values.",
         "now" when kind != NendoStorageKind.DateTime =>
             $"now is a date and time, and this field holds {kind} values.",
+        "thisWeek" or "thisMonth" when kind is not (NendoStorageKind.Date or NendoStorageKind.DateTime) =>
+            $"{valueKind} is a span of days, and this field holds {kind} values.",
         _ => null,
     };
 
@@ -930,8 +944,8 @@ public sealed partial class NendoSemanticCompiler
         AddError(diagnostics, "NUI214",
             $"Field '{fieldId}' is calculated, so this host cannot {action}.",
             node.NodeId, property,
-            "Name a stored field. A calculated field can be bound for display on the same surface, " +
-            "and filtered or sorted by, but nothing writes to one and nothing groups, ranks or totals it.");
+            "Name a stored field. A calculated field can be bound for display on the same surface, filtered or " +
+            "sorted by, and, as a number, totalled by a summary tile or breakdown or ranked by a ranked list; nothing writes to one or groups by it.");
         return true;
     }
 

@@ -135,7 +135,9 @@ public sealed partial class NendoSemanticCompiler
                 if (clause.Properties.ContainsKey("value"))
                     throw Refused($"'{moment}' does not take a value; remove the value, or use the literal value kind.");
                 if (MomentMismatch(moment, field.StorageKind) is { } mismatch)
-                    throw Refused($"The filter on '{field.DisplayName}': {mismatch} Use today on a Date or DateTime field and now on a DateTime field.");
+                    throw Refused($"The filter on '{field.DisplayName}': {mismatch} Use today, thisWeek or thisMonth on a Date or DateTime field and now on a DateTime field.");
+                if (NendoSemanticVocabulary.PeriodValueKinds.Contains(moment) && !NendoSemanticVocabulary.PeriodOperators.Contains(comparison))
+                    throw Refused($"The filter on '{field.DisplayName}': '{comparison}' does not compare with {moment}, a span of days. Use gte and lte together for within it, lt for before it or gt for after it.");
             }
             if (literal && clause.Properties.TryGetValue("value", out var value)) ValidateLiteral(clause, field, value, diagnostics);
             var type = onNodes is not null ? nodes.EntityId : edges!.EntityId;

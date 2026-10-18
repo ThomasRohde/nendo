@@ -552,3 +552,22 @@ test('WXS-16: an element named nendo does not stop the view from connecting; a s
   assert.equal(taken.sent.length, 0);
   assert.match(String(taken.errors[0]?.message ?? taken.errors[0]), /window\.nendo is already something else/, 'Nothing said why the view never connected.');
 });
+
+// W-251: an error the view's code throws and does not catch reaches the Workbench, which reports
+// it for the agent that wrote the view; only the sentence travels, cut to its bound.
+test('an uncaught error or rejection in the view is handed to the Workbench, cut to its bound', async (t) => {
+  const handlers = {};
+  const sent = [];
+  const listeners = [];
+  const parent = { postMessage: (message) => sent.push(message) };
+  const window = { parent, addEventListener: (type, listener) => { if (type === 'message') listeners.push(listener); else (handlers[type] ??= []).push(listener); } };
+  vm.runInNewContext(source, { window, btoa, console: { error: () => undefined } });
+  const view = { parent, deliver: (event) => { for (const listener of listeners) listener(event); } };
+  const workbench = connect(view, baseContext, t);
+  for (const handler of handlers.error ?? []) handler({ message: `TypeError: ${'x'.repeat(700)}` });
+  for (const handler of handlers.unhandledrejection ?? []) handler({ reason: new Error('The batch was refused.') });
+  const thrown = await workbench.next((message) => message.t === 'error');
+  assert.equal(thrown.text.length, 500, 'An uncaught error crossed the channel past its bound.');
+  assert.match(thrown.text, /^TypeError: x/);
+  assert.equal((await workbench.next((message) => message.t === 'error' && message !== thrown)).text, 'The batch was refused.');
+});

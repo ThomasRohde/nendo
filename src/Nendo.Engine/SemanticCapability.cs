@@ -106,22 +106,33 @@ internal static class NendoSemanticCapability
         /// not store: a calculated one, since the compiler refuses a field that is neither. The
         /// record type is the nearest node above that names one. Unknown fields count as absent.
         /// </summary>
-        internal bool NamesCalculatedField(NendoUiNodeSnapshot node)
+        internal bool NamesCalculatedField(NendoUiNodeSnapshot node) =>
+            NamesCalculated(node, node.Kind == "filterClause" ? Text(node, "fieldId") : Text(node, "orderByFieldId"));
+
+        /// <summary>Whether a field a node names is one its record type does not store: a calculated one.</summary>
+        internal bool NamesCalculated(NendoUiNodeSnapshot node, string? fieldId) =>
+            fieldId is not null && EntityAbove(node) is { } entityId && KnowsEntity(entityId) && StoredKind(entityId, fieldId) is null;
+
+        /// <summary>The stored kind of a field a node names, read on the nearest record type above it.</summary>
+        internal NendoStorageKind? KindAbove(NendoUiNodeSnapshot node, string propertyName) =>
+            Text(node, propertyName) is { } fieldId && EntityAbove(node) is { } entityId ? StoredKind(entityId, fieldId) : null;
+
+        /// <summary>
+        /// The record type a node reads: the nearest node at or above it that names one, a related
+        /// list naming its target. Null inside a custom view, whose filters are on stored fields of
+        /// its node or edge type only, which the compiler checks; reading them against the node
+        /// type alone counted an edge field as calculated and raised the file's minimum host (ESM-16).
+        /// </summary>
+        private string? EntityAbove(NendoUiNodeSnapshot node)
         {
-            var fieldId = node.Kind == "filterClause" ? Text(node, "fieldId") : Text(node, "orderByFieldId");
-            if (fieldId is null) return false;
             for (NendoUiNodeSnapshot? at = node; at is not null;
                  at = at.ParentNodeId is not null && _byId.TryGetValue(at.ParentNodeId, out var parent) ? parent : null)
             {
-                // A view's filters are on stored fields of its node or edge type only, which the
-                // compiler checks; reading them against the node type alone counted an edge field
-                // as calculated and raised the file's minimum host (ESM-16).
-                if (NendoExtensionViewDefinition.IsViewKind(at.Kind)) return false;
+                if (NendoExtensionViewDefinition.IsViewKind(at.Kind)) return null;
                 var entityId = at.Kind == "relatedList" ? Text(at, "targetEntityId") : Text(at, "entityId");
-                if (entityId is null) continue;
-                return KnowsEntity(entityId) && StoredKind(entityId, fieldId) is null;
+                if (entityId is not null) return entityId;
             }
-            return false;
+            return null;
         }
 
         /// <summary>The kind of a node's parent, or null for a root or a dangling reference.</summary>
@@ -271,6 +282,15 @@ internal static class NendoSemanticCapability
         new(NendoFormat.MediaMinimumHostVersion,
             "a gallery covered by pictures",
             tree => tree.OfKind("gallerySurface").Any(gallery => gallery.Properties.ContainsKey("coverFieldId"))),
+        new(NendoFormat.DatePeriodsMinimumHostVersion,
+            "a filter on this week or this month",
+            tree => tree.OfKind("filterClause").Any(clause => Tree.Text(clause, "valueKind") is { } kind &&
+                NendoSemanticVocabulary.PeriodValueKinds.Contains(kind))),
+        new(NendoFormat.CalculatedTotalsMinimumHostVersion,
+            "a total, ranking or breakdown of a calculated field, or a breakdown by a reference",
+            tree => tree.OfKind("summaryTile").Concat(tree.OfKind("breakdownChart")).Any(node => tree.NamesCalculated(node, Tree.Text(node, "fieldId"))) ||
+                tree.OfKind("rankedList").Any(node => tree.NamesCalculated(node, Tree.Text(node, "rankByFieldId"))) ||
+                tree.OfKind("breakdownChart").Any(node => tree.KindAbove(node, "groupByFieldId") == NendoStorageKind.Reference)),
     ];
 
     private static readonly string[] EarlierPins = ["packageVersion", "packageDigest", "protocolVersion", "configurationVersion", "configuration"];

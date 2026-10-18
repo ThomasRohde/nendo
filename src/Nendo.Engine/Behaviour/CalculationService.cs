@@ -162,44 +162,33 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
     /// code, makes its dependant report <c>calculation-dependency-failed</c>, whatever the
     /// dependant declares: before, a required dependency stopped by an empty input reached a
     /// dependant that allows an empty result as that empty result, so a condition saw an empty
-    /// value where the record page showed an error. Each calculation is worked out once per call,
-    /// so a dependency two others read, and the related records it totals, is read once.
+    /// value where the record page showed an error. Each calculation is worked out once per record and budget (W-247), so a
+    /// dependency two others read, and a project two of its client's sums total, is read once.
     /// </para>
     /// </summary>
-    internal Task<BehaviourValue> EvaluateAsync(
+    internal async Task<BehaviourValue> EvaluateAsync(
         CompiledBehaviour behaviour,
         string calculationId,
         string recordId,
         IBehaviourRecordSource source,
         BehaviourBudget budget,
-        CancellationToken cancellationToken) =>
-        EvaluateAsync(behaviour, calculationId, recordId, source, budget,
-            new Dictionary<string, (BehaviourValue? Value, NendoCalculationException? Failure)>(StringComparer.Ordinal), cancellationToken);
-
-    private async Task<BehaviourValue> EvaluateAsync(
-        CompiledBehaviour behaviour,
-        string calculationId,
-        string recordId,
-        IBehaviourRecordSource source,
-        BehaviourBudget budget,
-        Dictionary<string, (BehaviourValue? Value, NendoCalculationException? Failure)> worked,
         CancellationToken cancellationToken)
     {
-        if (worked.TryGetValue(calculationId, out var known))
+        if (budget.TryRecall(calculationId, recordId, out var known))
             return known.Value ?? throw known.Failure!;
         if (!behaviour.Calculations.TryGetValue(calculationId, out var calculation))
             throw new NendoValidationException($"'{calculationId}' is not a calculated field in this file.");
         try
         {
-            var value = await ComputeAsync(behaviour, calculation, recordId, source, budget, worked, cancellationToken);
-            worked[calculationId] = (value, null);
+            var value = await ComputeAsync(behaviour, calculation, recordId, source, budget, cancellationToken);
+            budget.Remember(calculationId, recordId, value, null);
             return value;
         }
         catch (NendoCalculationException exception) when (!exception.ExhaustedBudget)
         {
             // A spent budget is the save's, not this calculation's, and leaves untouched.
             var named = Named(exception, calculation.Expression.FormulaId, calculation.Definition.Bindings, source, behaviour);
-            worked[calculationId] = (null, named);
+            budget.Remember(calculationId, recordId, null, named);
             throw named;
         }
     }
@@ -210,7 +199,6 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
         string recordId,
         IBehaviourRecordSource source,
         BehaviourBudget budget,
-        Dictionary<string, (BehaviourValue? Value, NendoCalculationException? Failure)> worked,
         CancellationToken cancellationToken)
     {
         var values = new Dictionary<string, BehaviourValue>(StringComparer.Ordinal);
@@ -220,7 +208,7 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
             {
                 try
                 {
-                    values[binding.BindingId] = await EvaluateAsync(behaviour, read, recordId, source, budget, worked, cancellationToken);
+                    values[binding.BindingId] = await EvaluateAsync(behaviour, read, recordId, source, budget, cancellationToken);
                 }
                 catch (NendoCalculationException exception) when (!exception.ExhaustedBudget)
                 {

@@ -76,6 +76,10 @@ export const extensionLimits = {
   menusPerSecond: 4,
   /** The most keys one view hands the Workbench in any second. */
   keysPerSecond: 8,
+  // W-251: what a view's runtime events the broker reports to the host, per second, and how long
+  // an uncaught error's text may be.
+  reportsPerSecond: 10,
+  errorTextLength: 500,
   /**
    * A view's place in Back and Forward (2026-09-29, W-127): at most this many UTF-8 bytes of
    * JSON, a label of at most `labelCharacters`, and this many declared in any second.
@@ -417,7 +421,9 @@ export type PortMessage =
   | { t: 'pong'; id: number }
   // A key pressed inside the view that is Nendo's, or one the view declared: the Workbench
   // runs it as if it had been pressed there. Normalised, as normalizeKeys spells it.
-  | { t: 'key'; keys: string };
+  | { t: 'key'; keys: string }
+  // An error the view's own code threw and did not catch (W-251), for the agent that wrote it.
+  | { t: 'error'; text: string };
 
 /** The UTF-8 length of a string, counted without encoding it, stopping once past `limit`. */
 export function utf8Length(text: string, limit = Number.POSITIVE_INFINITY): number {

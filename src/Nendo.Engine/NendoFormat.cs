@@ -363,7 +363,23 @@ public static class NendoFormat
     /// </summary>
     public const string MediaMinimumHostVersion = "1.52.0";
 
-    public const string CurrentHostVersion = MediaMinimumHostVersion;
+    /// <summary>
+    /// Dates that move (ADR-0008 and ADR-0004, 2026-10-18 amendments, W-248): a formula that calls
+    /// AddDays, stated by the definition operation's evidence, and a filter that compares with
+    /// thisWeek or thisMonth, read from the node tree. An older host's catalogue and value
+    /// kinds refuse both. A file that uses neither keeps the rung it had.
+    /// </summary>
+    public const string DatePeriodsMinimumHostVersion = "1.53.0";
+
+    /// <summary>
+    /// A summary tile, breakdown or ranking over a calculated number, and a breakdown grouped by a
+    /// reference (ADR-0004 and ADR-0008, 2026-10-18 amendments, W-249), read from the node tree.
+    /// An older host's compiler refuses each as NUI214 or NUI350. A file that uses none keeps the
+    /// rung it had.
+    /// </summary>
+    public const string CalculatedTotalsMinimumHostVersion = "1.54.0";
+
+    public const string CurrentHostVersion = CalculatedTotalsMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

@@ -43,6 +43,13 @@ export interface BrokerUi {
    */
   personIn?(mount: BrokerMount): boolean;
   toast(mount: BrokerMount, text: string): void;
+  /**
+   * A batch asked for Undo in Nendo's own notice (W-250): said in the chrome, it stays while the
+   * person moves on, to another screen or the record the view opened, until the next notice.
+   * `undo` compensates the batch in the package's name. Optional so a host without it still
+   * brokers the batch, which then answers `undoOffered: false`.
+   */
+  offerUndo?(mount: BrokerMount, offer: { label: string | null; undo: () => Promise<void> }): void;
   /** Sets the mount's height and answers the height it now has. */
   setHeight(mount: BrokerMount, pixels: number): number;
   /**
@@ -77,9 +84,23 @@ export interface BrokerUi {
   setPlace(mount: BrokerMount, place: { value: Json; label: string | null; replace: boolean }): boolean | null;
 }
 
+/** One runtime event of a view, as the broker saw it (W-251). */
+export interface ViewEventReport {
+  kind: 'loaded' | 'stopped' | 'error' | 'refused';
+  method?: string;
+  code?: string;
+  text?: string;
+}
+
 export interface BrokerDeps {
   /** The Workbench's own host bridge. */
   request(method: string, payload: Record<string, unknown>): Promise<unknown>;
+  /**
+   * Tell the host what a view did (W-251): it connected, stopped answering, threw an error it did
+   * not catch, or had a call refused. The host keeps the open file's last few for an agent to
+   * read. At most `reportsPerSecond` from one view; optional, so a host without it still brokers.
+   */
+  report?(mount: BrokerMount, event: ViewEventReport): void;
   /** Every mount that has a frame now. */
   mounts(): Iterable<BrokerMount>;
   /** Whether views may run now; the host answers 403 on every view origin when they may not. */
@@ -706,9 +727,31 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       };
       if (JSON.stringify(body).length > batchCharacters)
         throw new WorkbenchHostError('too-large', 'This batch is too large to send at once; split it into smaller batches.');
+      const offer = params.offerUndo;
+      if (offer !== undefined && typeof offer !== 'boolean') throw invalid('offerUndo must be true or false.');
       const answer = await deps.request('data.writeRecords', body);
       reportSkipped(deps, mount, answer);
-      return writtenRecords(mount, answer);
+      const written = writtenRecords(mount, answer);
+      const revision = written.revision;
+      // Undo offered by Nendo itself (W-250), which a view's own undo cannot be once it opens a
+      // record and is gone: the same compensation as records.undo, in the package's name, under
+      // the same key, so a lost answer is not a second undo. It belongs to the file it was made in.
+      if (offer === true && typeof revision === 'string' && deps.ui.offerUndo !== undefined) {
+        const fileSessionId = mount.fileSessionId;
+        deps.ui.offerUndo(mount, {
+          label: label ?? null,
+          undo: async () => {
+            if (fileSessionId !== deps.fileSessionId())
+              throw new WorkbenchHostError('not-this-view', 'This undo belongs to a file that is no longer open.');
+            await deps.request('data.undoRecordWrites', {
+              revisionId: revision, redo: false,
+              idempotencyKey: `view-${context.packageId}-undo-${revision}`, actor: `extension:${context.packageId}`,
+            });
+          },
+        });
+        return { ...written, undoOffered: true };
+      }
+      return offer === true ? { ...written, undoOffered: false } : written;
     },
   },
   // Undo of a revision this frame wrote, and redo of its undo (ADR-0023, W-103).
@@ -908,6 +951,8 @@ interface Connection {
   mount: BrokerMount;
   port: MessagePort;
   closed: boolean;
+  /** When this view's recent runtime events were reported, for the per-second bound (W-251). */
+  reportTimes: number[];
   inFlight: number;
   queue: Pending[];
   toastAt: number;
@@ -988,8 +1033,17 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     }
   }
 
-  function fail(connection: Connection, id: number, code: string, message: string): void {
+  function fail(connection: Connection, id: number, code: string, message: string, method?: string): void {
     post(connection, { t: 'res', id, ok: false, e: { code, message } });
+    // A view of a file no longer open is not this file's to report on.
+    if (code !== 'stale-file-session') report(connection, { kind: 'refused', ...(method === undefined ? {} : { method }), code, text: message });
+  }
+
+  /** One runtime event of a view, told to the host at most so often (W-251); one past the bound is not told. */
+  function report(connection: Connection, event: ViewEventReport): void {
+    if (deps.report === undefined || !current(connection)) return;
+    try { withinRate(connection.reportTimes, deps.now(), extensionLimits.reportsPerSecond, ''); } catch { return; }
+    deps.report(connection.mount, event);
   }
 
   function close(connection: Connection): void {
@@ -1031,7 +1085,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       post(connection, { t: 'res', id: pending.id, ok: true, r: result === undefined ? null : result });
     } catch (error) {
       const described = describeError(error);
-      fail(connection, pending.id, described.code, described.message);
+      fail(connection, pending.id, described.code, described.message, pending.method);
     } finally {
       connection.inFlight -= 1;
       if (stale) close(connection);
@@ -1050,22 +1104,22 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     if (typeof id !== 'number' || !Number.isSafeInteger(id)) return;
     const method = typeof message.m === 'string' ? message.m : '';
     if (!Object.prototype.hasOwnProperty.call(brokerMethods, method)) {
-      fail(connection, id, 'unknown-method', `${method.slice(0, 80) || 'That'} is not a method this Workbench answers.`);
+      fail(connection, id, 'unknown-method', `${method.slice(0, 80) || 'That'} is not a method this Workbench answers.`, method.slice(0, 80));
       return;
     }
     let size: number;
     try { size = utf8Length(JSON.stringify(message.p ?? {}) ?? '', extensionLimits.requestBytes); } catch {
-      fail(connection, id, 'invalid-params', 'The parameters are not JSON.');
+      fail(connection, id, 'invalid-params', 'The parameters are not JSON.', method);
       return;
     }
     if (size > extensionLimits.requestBytes) {
-      fail(connection, id, 'too-large', 'A request may carry at most 256 KiB.');
+      fail(connection, id, 'too-large', 'A request may carry at most 256 KiB.', method);
       return;
     }
     const pending: Pending = { id, method, params: message.p };
     if (connection.inFlight < extensionLimits.inFlight) { void run(connection, pending); return; }
     if (connection.queue.length >= extensionLimits.queued) {
-      fail(connection, id, 'busy', 'This view has too many requests waiting. Send more when some have answered.');
+      fail(connection, id, 'busy', 'This view has too many requests waiting. Send more when some have answered.', method);
       return;
     }
     connection.queue.push(pending);
@@ -1079,8 +1133,10 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       deps.responsive?.(connection.mount, true);
     }
     if (typeof message !== 'object' || message === null) return;
-    const envelope = message as { t?: unknown; id?: unknown; m?: unknown; p?: unknown; keys?: unknown };
+    const envelope = message as { t?: unknown; id?: unknown; m?: unknown; p?: unknown; keys?: unknown; text?: unknown };
     if (envelope.t === 'req') request(connection, envelope);
+    else if (envelope.t === 'error' && typeof envelope.text === 'string')
+      report(connection, { kind: 'error', text: envelope.text.slice(0, extensionLimits.errorTextLength) });
     else if (envelope.t === 'pong' && connection.ping !== null && envelope.id === connection.ping.id) connection.ping = null;
     else if (envelope.t === 'ping' && typeof envelope.id === 'number') post(connection, { t: 'pong', id: envelope.id });
     else if (envelope.t === 'key') handKey(connection, envelope.keys);
@@ -1127,7 +1183,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       const context = deps.context(mount);
       const now = deps.now();
       const connection: Connection = {
-        mount, port: channel.port1, closed: false, inFlight: 0, queue: [], toastAt: -Infinity, stateWrites: [],
+        mount, port: channel.port1, closed: false, reportTimes: [], inFlight: 0, queue: [], toastAt: -Infinity, stateWrites: [],
         toolbars: [], menus: [], keyTimes: [], keys: new Set(), places: [], placeJson: JSON.stringify(context.place ?? null),
         changesAt: -Infinity, changesPending: null, changesScheduled: false,
         lastHeardAt: now, lastPingAt: now, ping: null, unresponsive: false, contextJson: JSON.stringify(context),
@@ -1136,6 +1192,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       channel.port1.onmessage = (message: MessageEvent) => heard(connection, message.data);
       (event.source as Window).postMessage({ nendo: 'connect', apiVersion, context } satisfies ConnectMessage, mount.origin, [channel.port2]);
       deps.connected?.(mount);
+      report(connection, { kind: 'loaded' });
     },
 
     disconnect(mount) {
@@ -1221,6 +1278,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
               now - connection.lastHeardAt >= extensionLimits.pongTimeoutMs) {
             connection.unresponsive = true;
             deps.responsive?.(connection.mount, false);
+            report(connection, { kind: 'stopped', text: 'The view stopped answering.' });
           }
         } else if (now - connection.lastPingAt >= extensionLimits.pingIntervalMs) {
           const id = nextPing++;

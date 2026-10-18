@@ -36,6 +36,13 @@ internal static partial class WorkbenchMethods
     internal const string HelpReadPages = "help.readPages";
 
     /// <summary>
+    /// One runtime event of one of the open file's custom views, from the Workbench's broker (W-251):
+    /// loaded, stopped, an uncaught error or a refused call. Kept in memory for an agent to read; never
+    /// carried by a view's actor, since the broker reports what it saw rather than what a view says.
+    /// </summary>
+    internal const string ExtensionEventsReport = "extension.events.report";
+
+    /// <summary>
     /// The only methods a request may carry a custom view's actor on (ADR-0013 Phase 3): the
     /// record writes a person's own edit uses, since 2026-09-28 a move in a declared tree
     /// (ADR-0019, W-079), since 2026-09-29 several record writes as one revision (W-102), and
@@ -74,6 +81,9 @@ internal interface IWorkbenchExtensionHost
 
 internal sealed record ExtensionImportCancelled(bool Cancelled = true);
 
+/// <summary>A view's runtime event was kept (W-251).</summary>
+internal sealed record DesktopViewEventKept(bool Kept);
+
 /// <summary>A view's kept values: each key with its JSON value (null when only keys were asked for) and its version.</summary>
 internal sealed record DesktopExtensionStateView(IReadOnlyList<DesktopExtensionStateEntryView> Entries);
 
@@ -92,6 +102,24 @@ internal sealed partial class WorkbenchProtocolHandler
 {
     private IWorkbenchExtensionHost ExtensionHost() => _extensionHost ?? throw new NendoPreconditionException(
         "extension-host-unavailable", "Importing and exporting custom views is unavailable in this host.");
+
+    /// <summary>
+    /// A view's runtime event as the broker reports it (W-251): its kind by name, and the view,
+    /// method, code and sentence when it has them. The time is the host's, when the event arrives.
+    /// </summary>
+    private static NendoViewEvent ViewEventFrom(JsonElement payload)
+    {
+        var kind = RequiredString(payload, "kind", 16) switch
+        {
+            "loaded" => NendoViewEventKind.Loaded,
+            "stopped" => NendoViewEventKind.Stopped,
+            "error" => NendoViewEventKind.Error,
+            "refused" => NendoViewEventKind.Refused,
+            var other => throw new NendoValidationException($"'{other}' is not a view event: loaded, stopped, error or refused."),
+        };
+        string? Text(string name) => payload.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        return new NendoViewEvent(DateTimeOffset.UtcNow, kind, Text("viewId"), Text("method"), Text("code"), Text("text"));
+    }
 
     private async Task<object> ImportExtensionAsync(CancellationToken cancellationToken)
     {

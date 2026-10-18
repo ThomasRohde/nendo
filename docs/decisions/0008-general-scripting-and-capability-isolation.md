@@ -8,6 +8,78 @@
 - **Depends on:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007, ADR-0009 and ADR-0012.
 - **Related design:** [Architecture](../architecture.md), [scalar contract](../contracts/scalars.md), [semantic surfaces](../contracts/semantic-surfaces.md), [ADR-0013](0013-custom-views-with-code-in-the-file.md).
 
+### Accepted amendment — 2026-10-18 (a date plus a number of days)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, for W-248 (Finding F-310).
+
+**Context.** Billable worked out an invoice's due date, the issue date plus its terms, in view
+code: `+` takes numbers on both sides and the closed catalogue had no date arithmetic, so the
+date could not be a calculated field, filtered or sorted.
+
+**Decision.** One catalogue entry through section 13's growth path, `AddDays(date, days)`: the
+date that many days later, or earlier for a negative number. It is total and reads no clock; a
+result outside 0001-01-01 to 9999-12-31 is `calculation-invalid-date`, never clamped; an empty
+input stops it, as it stops every function but `IsEmpty`; it costs one work unit. *This week*
+and *this month*, which need a clock, are not functions: they are filter words resolved where
+`today` is (the ADR-0004 note of this date).
+
+**Consequences.** A definition whose formula calls `AddDays` needs host 1.53.0, stated by its
+operation's evidence. `OperationGapReviewTests.W248_ADueDateIsTheIssueDatePlusItsTerms` carries
+the obligations.
+
+### Accepted amendment — 2026-10-18 (budgets sized for a business app's rollups and batches)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, for the friction an agent met
+building Billable, a time-and-invoicing app, in an empty file (W-247, Findings F-302 to F-304).
+
+**Context.** Section 9 shares one budget across an evaluation, and the shared counters were
+sized for one record. Measured on 2026-10-15: every member calculation of a related total spent
+its owner's 64 function calls, and no member result was reused, so a client's total of its
+projects' totals failed at 32 time entries with Billable's defensive formula
+`IsEmpty(h) or IsEmpty(r) ? 0 : RoundAway(h * r, 2)`, and at 66 with `RoundAway` alone. A save of
+created entries with three defaulting steps committed at 15 and failed at 20 on related records,
+about 13 per entry, most of them re-reads of the entry being saved. An invoice's line, subtotal,
+discount, taxable, tax, total, balance, outstanding and client are nine definitions, refused at
+eight.
+
+**Decision.** The work units stay the one allowance nothing renews, and every limit still refuses
+whole; a partial total is never an answer.
+
+- **A result is worked out once per budget.** A calculation of a record, or its failure, is
+  remembered for the rest of the evaluation, so two sums over the same projects work each project
+  out once. A save forgets what it remembered before each change it makes. A spent allowance is
+  never remembered.
+- **A related record's calculation costs what its own read would.** It runs under that record's
+  own 64 function calls and 256 related records; its work units are its owner's. The owner pays
+  one related record for each member it reads, so one aggregate still reads at most 256.
+- **The record an evaluation is about is read for work.** Reading the record being read, the
+  member being worked out, a record a save names or one its actions created costs a work unit,
+  not a related record.
+- **A save's allowances are its records' own.** A save that names N records has N times one
+  record's function calls, related records and automatic changes, so a batch is allowed what its
+  records would be allowed saved one by one. No aggregate in it reads more than 256 related
+  records, so a save never writes a total that a read refuses. Its 16,384 work units are not
+  multiplied: they bound the save whatever its size, and a loop started by any of its records
+  still ends there.
+- **The definition graph may be 16 deep**, not 8. Each level is one more calculation on the same
+  budget.
+- **A save's refusal names the step that spent most work**, as text and under `limit` in an
+  agent's refusal (`heaviestStep`, `heaviestStepWorkUnits`). This was W-246's last criterion.
+
+**Measured on 2026-10-18** (`BehaviourBudgetSizingTests`, debug build): three clients, five
+projects and 500 entries with missing hours, rates and billable marks total exactly, a client of
+200 entries in two projects included; a client's total over 60 entries needs 537 work units and a
+second sum over the same projects 4 more, where it needed 1,074 without the memo; 50 created
+entries with three defaulting steps each commit; 256 entries of one project total and 257 are
+refused; the nine-deep invoice chain installs and totals.
+
+**Not changed.** Section 9's other ceilings, that a ceiling met in a save aborts the save, that a
+plain count on a read reads no row, the descendant bound of a hierarchy, and what a reviewed plan
+observes.
+
+**Consequences.** A file that relied on a refusal at the old ceilings now computes. No stored
+data or definition changes, so no minimum host moves.
+
 ### Accepted amendment — 2026-10-13 (an undo is not withheld while actions await approval)
 
 Accepted by the owner on 2026-10-13 for the broad review's finding EBH-11 (W-209).
@@ -111,7 +183,8 @@ that pass and their order. The page, its continuation, the count and every aggre
 read one set. The comparison is the one a stored field of the result type takes. A value that
 could not be worked out matches nothing and sorts last. Past 10,000 records the read is refused
 as `calculated-query-too-wide`, the bound a hierarchy's subtree already has. Grouping, ranking,
-totalling, dates and command steps still refuse a calculated field. A file that filters or sorts
+totalling, dates and command steps still refuse a calculated field. *(Note, 2026-10-18: a total
+and a ranking of a calculated number are allowed by the ADR-0004 amendment of that date, W-249.)* A file that filters or sorts
 on one needs host 1.40.0, read from the node tree beside the stored fields.
 
 **Decision, part two: a count on a read.** A `RelatedAggregate` `Count` evaluated for a read is
@@ -472,6 +545,8 @@ Do not accept a delegate, plug-in package or binary supplied by a `.nendo` file.
 Bound source length before parsing. Also bound parse depth, evaluation work, function calls, related records scanned, output size, cache size and trigger-generated changes.
 
 Apply one shared work budget to an execution chain. A nested function or trigger must not reset it. Limit repeated record changes even when each individual expression is small.
+
+*Note, 2026-10-18: the work units are that shared budget. A related record's calculation has its own call and related-record allowances, and a save's are its records' own; see the amendment of this date (W-247).*
 
 Use cancellation, but do not treat a timeout token as proof that work stops. NCalc's documentation requires custom handlers to honour cancellation and does not promise general forced termination. [E4]
 

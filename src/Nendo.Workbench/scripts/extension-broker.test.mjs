@@ -21,8 +21,9 @@ function harness() {
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
   const mount = { key: 'mount-1', origin, fileSessionId: 'file-A', frameWindow: () => frameWindow };
   const h = { posted, frameWindow, otherWindow, mount, calls: [], pending: [], timers: [], toasts: [], responsive: [], now: 0, running: true, fileSessionId: 'file-A', heights: [], opened: [], canOpen: true,
-    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [], placeAnswer: true, skipped: [], moves: [], personIn: false, moveRefusal: null };
+    toolbars: [], menus: [], menuAnswer: null, keys: [], places: [], placeAnswer: true, skipped: [], moves: [], personIn: false, moveRefusal: null, offers: [], reports: [] };
   h.broker = broker.createExtensionBroker({
+    report: (_mount, event) => h.reports.push(event),
     request: (method, payload) => {
       h.calls.push({ method, payload });
       return new Promise((resolve, reject) => h.pending.push({ resolve, reject }));
@@ -48,6 +49,7 @@ function harness() {
       key: (_mount, keys) => { h.keys.push(keys); },
       setPlace: (_mount, place) => { h.places.push(place); return h.placeAnswer; },
       actionsSkipped: (_mount, text) => { h.skipped.push(text); },
+      offerUndo: (_mount, offer) => { h.offers.push(offer); },
     },
     responsive: (_mount, responsive) => h.responsive.push(responsive),
     now: () => h.now,
@@ -1210,6 +1212,92 @@ test('a view undoes and redoes only what this frame wrote, as the mount’s pack
   await until(() => h.calls.length === 3, 'the redo');
   assert.equal(h.calls[2].payload.redo, true);
   assert.equal(h.calls[2].payload.label, 'Make it again');
+});
+
+// W-250: a batch may ask Nendo to offer Undo in its own notice, which outlives the view: Billable's
+// New invoice wrote an invoice, its lines and links and then opened the invoice, and its own Undo
+// went with it. The offer undoes in the package's name, under the key the view's own undo uses.
+test('W-250: a batch offers Undo in Nendo’s notice, made as the package, once, in its own file', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { label: 'New invoice', offerUndo: true, writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
+  await until(() => h.calls.length === 1, 'the batch');
+  h.pending[0].resolve({ mutation: { revisionId: 'revision-made' }, records: [{ entityId: 'items', recordId: 'n1', recordVersion: 1 }] });
+  const answer = await view.next((message) => message.id === 1);
+  assert.equal(answer.r.undoOffered, true);
+  assert.equal(h.offers.length, 1, 'Nendo was not asked to offer Undo.');
+  assert.equal(h.offers[0].label, 'New invoice');
+
+  // The view opens the invoice and is gone; the offer is Nendo's and still runs.
+  close(h);
+  const undoing = h.offers[0].undo();
+  await until(() => h.calls.length === 2, 'the undo');
+  assert.equal(h.calls[1].method, 'data.undoRecordWrites');
+  assert.deepEqual(h.calls[1].payload, { revisionId: 'revision-made', redo: false,
+    idempotencyKey: 'view-org.example.glance-undo-revision-made', actor: 'extension:org.example.glance' },
+    'The offered undo was not the view’s own undo of its own revision, in its package’s name.');
+  h.pending[1].resolve({ mutation: { revisionId: 'revision-undone' }, records: [] });
+  await undoing;
+
+  // An offer made in one file reaches nothing once another is open.
+  h.fileSessionId = 'file-B';
+  // Raced with a short wait: an undo that reached the host would wait on an answer this harness
+  // never gives, and the guard would hang rather than fail.
+  const late = h.offers[0].undo().then(() => 'undone', (error) => error.code);
+  assert.equal(await Promise.race([late, settle().then(() => 'sent to the host')]), 'not-this-view');
+  assert.equal(h.calls.length, 2, 'An offer from another file asked this file to undo.');
+});
+
+test('W-250: a batch without offerUndo offers nothing, and offerUndo must be true or false', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
+  await until(() => h.calls.length === 1, 'the batch');
+  h.pending[0].resolve({ mutation: { revisionId: 'revision-made' }, records: [] });
+  assert.equal((await view.next((message) => message.id === 1)).r.undoOffered, undefined);
+  assert.equal(h.offers.length, 0);
+  view.send({ t: 'req', id: 2, m: 'records.batch', p: { offerUndo: 'yes', writes: [{ op: 'create', entityId: 'items', recordId: 'n2', values: { name: 'B' } }] } });
+  const refused = await view.next((message) => message.id === 2);
+  assert.equal(refused.ok, false);
+  assert.match(refused.e.message, /offerUndo must be true or false/);
+  assert.equal(h.calls.length, 1, 'A batch with a malformed offerUndo reached the host.');
+});
+
+// W-251: the broker tells the host what a view did, so the agent that wrote it can read it over
+// MCP: Billable's agent could not see a thrown error or a refused toolbar from outside the frame.
+test('W-251: a view’s connection, refusals with their codes, a refused toolbar and an uncaught error are reported', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  await until(() => h.reports.length === 1, 'the loaded report');
+  assert.deepEqual(h.reports[0], { kind: 'loaded' });
+  view.send({ t: 'req', id: 1, m: 'records.undo', p: { revision: 'revision-someone-else' } });
+  await view.next((message) => message.id === 1);
+  view.send({ t: 'req', id: 2, m: 'ui.setToolbar', p: { items: [{ kind: 'html', id: 'x', label: 'X' }] } });
+  await view.next((message) => message.id === 2);
+  view.send({ t: 'req', id: 3, m: 'nendo.noSuchThing', p: {} });
+  await view.next((message) => message.id === 3);
+  view.send({ t: 'error', text: `TypeError: ${'x'.repeat(600)}` });
+  await until(() => h.reports.length === 5, 'every report');
+  assert.deepEqual(h.reports.slice(1, 4).map((report) => [report.kind, report.method, report.code]), [
+    ['refused', 'records.undo', 'not-this-view'],
+    ['refused', 'ui.setToolbar', h.reports[2].code],
+    ['refused', 'nendo.noSuchThing', 'unknown-method'],
+  ]);
+  assert.match(h.reports[2].text, /kind must be/, 'A refused toolbar was reported without the sentence that says why.');
+  assert.equal(h.reports[4].kind, 'error');
+  assert.equal(h.reports[4].text.length, 500, 'An uncaught error was reported past its bound.');
+});
+
+test('W-251: at most ten reports a second from one view, and none from a view of a file no longer open', async (t) => {
+  const h = harness(); t.after(() => close(h)); const view = connect(h);
+  await until(() => h.reports.length === 1, 'the loaded report');
+  for (let index = 0; index < 15; index += 1) view.send({ t: 'error', text: `Error ${index}` });
+  await settle();
+  assert.equal(h.reports.length, 10, 'A view flooding errors was reported past ten a second.');
+  h.now += 1_000;
+  view.send({ t: 'error', text: 'After a second' });
+  await until(() => h.reports.length === 11, 'the report a second later');
+  h.fileSessionId = 'file-B';
+  view.send({ t: 'error', text: 'From another file' });
+  await settle();
+  assert.equal(h.reports.length, 11, 'A view of a file no longer open was reported against the next one.');
 });
 
 test('R2RM-03: an undo whose answer was lost is sent again as the same request, and its redo can then be reached', async (t) => {

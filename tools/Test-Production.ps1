@@ -312,6 +312,7 @@ try {
         'nendo.application.entity.schema',
         'nendo.application.entity.tree',
         'nendo.application.examples',
+        'nendo.application.extension.events',
         'nendo.application.extension.file',
         'nendo.application.extensions',
         'nendo.application.health',

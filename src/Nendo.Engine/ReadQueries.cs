@@ -89,6 +89,12 @@ public sealed record NendoRecordGroupedAggregateQuery(string EntityId, string Gr
 /// </summary>
 public sealed record NendoRecordAggregateGroup(string? Key, System.Text.Json.JsonElement? Value, long ContributingRecords)
 {
+    /// <summary>
+    /// For a grouping by a reference (W-249), the label of the record the group's key names, as the
+    /// reference shows it; null for every other grouping and for a target with no label.
+    /// </summary>
+    public string? Label { get; init; }
+
     /// <summary>The exact numeric lexeme, or null over an empty group; see <see cref="NendoRecordAggregate.ValueLexeme"/>.</summary>
     public string? ValueLexeme => Value?.GetRawText();
 }

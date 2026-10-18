@@ -1067,12 +1067,19 @@ internal static class SemanticDiff
             "today" => "today",
             "now" => "now",
             "null" => "empty",
+            "thisWeek" => "this week",
+            "thisMonth" => "this month",
             _ => terms.Value is { } given ? Text(given, "blank") : "the value",
         };
         // A date is before or after another, not less or greater than it.
         var dated = terms.FieldId is { } dateId && names.FieldKinds.GetValueOrDefault(dateId) is NendoStorageKind.Date or NendoStorageKind.DateTime;
+        var period = terms.ValueKind is "thisWeek" or "thisMonth";
         var condition = (terms.Operator ?? "eq") switch
         {
+            "lt" when period => $"{field} is before {value}",
+            "lte" when period => $"{field} is in {value} or earlier",
+            "gt" when period => $"{field} is after {value}",
+            "gte" when period => $"{field} is in {value} or later",
             "eq" => $"{field} is {value}",
             "ne" => $"{field} is not {value}",
             "lt" => dated ? $"{field} is before {value}" : $"{field} is less than {value}",
@@ -1198,6 +1205,8 @@ internal static class SemanticDiff
             {
                 "today" => "Compare with today's date when the screen reads.",
                 "now" => "Compare with the date and time when the screen reads.",
+                "thisWeek" => "Compare with this week, Monday to Sunday, when the screen reads.",
+                "thisMonth" => "Compare with this month when the screen reads.",
                 "null" => "Compare with no value.",
                 _ => "Compare with the value stated.",
             },

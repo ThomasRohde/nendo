@@ -53,7 +53,7 @@ public sealed class BehaviourLimitTests
     [TestMethod]
     public void D2_05_AWarmCacheCannotSmuggleADeepDefinitionGraphPast()
     {
-        foreach (var (length, allowed) in new[] { (7, true), (8, true), (9, false) })
+        foreach (var (length, allowed) in new[] { (15, true), (16, true), (17, false) })
         {
             var definitions = new Dictionary<string, NendoBehaviourDefinition>(StringComparer.Ordinal);
             for (var index = 0; index < length; index++)
@@ -78,7 +78,7 @@ public sealed class BehaviourLimitTests
         // points from a higher-sorting ID to a lower-sorting one — must be refused at the
         // same length. Memoising reachedness rather than height let this direction install
         // any depth, because every root after the first settled at height 1.
-        foreach (var (length, allowed) in new[] { (8, true), (9, false) })
+        foreach (var (length, allowed) in new[] { (16, true), (17, false) })
         {
             var descending = new Dictionary<string, NendoBehaviourDefinition>(StringComparer.Ordinal);
             for (var index = 0; index < length; index++)

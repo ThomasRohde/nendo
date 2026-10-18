@@ -947,6 +947,24 @@ async page => {
     assert(left === null || !/Activate completed/.test(left), `The command's outcome followed the person to another screen: ${JSON.stringify(left)}.`);
   });
 
+  // W-250: a view's batch may ask for Undo in Nendo's notice. Billable's New invoice opened the invoice
+  // it made, and its own Undo went with the view; the offer has to follow the person to that screen.
+  await check('W-250 a view\'s Undo offer follows the person', 'tree', async () => {
+    await pickView('All capabilities');
+    await shell(async () => {
+      window.__undone = 0;
+      const { showUndoOffer } = await import('/src/shell.ts');
+      showUndoOffer('Billable saved New invoice.', async () => { window.__undone += 1; }, 'Billable: New invoice was undone.');
+    });
+    await pickView('Capabilities by status');
+    await page.waitForTimeout(300);
+    const offered = await page.evaluate(() => { const slot = document.querySelector('.message-slot'); return slot === null || slot.hidden ? null : slot.textContent; });
+    assert(offered !== null && /saved New invoice/.test(offered), `The Undo offer did not follow the person to another screen: ${JSON.stringify(offered)}.`);
+    await page.click('#outcome-action');
+    await until(() => /New invoice was undone/.test(document.querySelector('.message-slot')?.textContent ?? ''), null, 'the undo\'s outcome');
+    assert(await page.evaluate(() => window.__undone) === 1, 'Undo did not run exactly once.');
+  });
+
   await check('UIS-12 reference controls named by field', 'tree', async () => {
     await openRecord();
     const name = await page.evaluate(() => document.querySelector('.record-inspector .reference-choose')?.getAttribute('aria-label') ?? null);

@@ -744,12 +744,16 @@ public abstract record NendoBehaviourDefinition
     private static readonly System.Text.RegularExpressions.Regex ToTextCall =
         new(@"\bToText\s*\(", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
+    private static readonly System.Text.RegularExpressions.Regex AddDaysCall =
+        new(@"\bAddDays\s*\(", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
     /// <summary>
     /// The host this definition needs (ADR-0008, 2026-10-10): a link, a calculated aggregate
     /// member or IsEmpty is refused by an older host, which would read the file as damaged.
     /// </summary>
     internal string RequiredHostVersion =>
-        // ToText (ADR-0008, 2026-10-13) is a name an older host's catalogue refuses.
+        // AddDays (ADR-0008, 2026-10-18) and ToText (2026-10-13) are names an older host's catalogue refuses.
+        Expressions.Any(expression => AddDaysCall.IsMatch(expression)) ? NendoFormat.DatePeriodsMinimumHostVersion :
         Expressions.Any(expression => ToTextCall.IsMatch(expression)) ? NendoFormat.ToTextMinimumHostVersion :
         AllBindings.Any(binding => binding.MemberCalculationId is not null) ||
         (this is NendoActionDefinition action && action.Steps.Any(step => step.Links.Count != 0)) ||

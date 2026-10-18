@@ -17,6 +17,9 @@ public sealed partial class NendoApplicationService
 
     public NendoSessionHealth Health => _coordinator.Health;
 
+    /// <summary>The open file's custom views' recent runtime events (W-251); see <see cref="NendoViewEvents"/>.</summary>
+    public NendoViewEvents ViewEvents => _coordinator.ViewEvents;
+
     public NendoFileCapabilities Capabilities => _coordinator.Capabilities;
 
     /// <summary>

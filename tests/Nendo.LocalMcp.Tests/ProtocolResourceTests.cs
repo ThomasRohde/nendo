@@ -131,6 +131,8 @@ public sealed class ProtocolResourceTests
                 "nendo.application.entity.schema",
                 "nendo.application.entity.tree",
                 "nendo.application.extension.file",
+                // What the file's views did when they ran here (W-251).
+                "nendo.application.extension.events",
                 "nendo.application.history",
                 "nendo.application.proposal",
                 "nendo.application.revision.operations",

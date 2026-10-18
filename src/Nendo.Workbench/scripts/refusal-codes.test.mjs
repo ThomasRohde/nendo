@@ -53,7 +53,7 @@ const notSettled = new Set([
   // Raised only for a view's own writes, which carry its actor and never enter the journal.
   'actor-not-allowed', 'views-off',
   // Raised only by other methods.
-  'calculated-query-too-wide', 'definition-referenced', 'definition-revision-conflict', 'entity-exists',
+  'calculated-query-too-wide', 'calculated-total-incomplete', 'definition-referenced', 'definition-revision-conflict', 'entity-exists',
   'field-not-retired', 'file-already-open', 'file-changed-before-open', 'hierarchy-already-declared', 'hierarchy-field-in-use',
   'idea-field-conflict', 'inspection-not-required', 'invalid-cursor', 'invalid-limit', 'location-confirmation-context',
   'open-assessment-unavailable', 'partial-export-confirmation', 'proposal-exists', 'proposal-file-missing', 'proposal-not-previewable',
