@@ -27,7 +27,9 @@
   flex-direction: column;
 }
 
-.use-page > .use-toolbar,
+/* The toolbar's own row is as tall as its controls; only the surface grows. Both grew once, and a
+   toolbar too wide for the address row took half the page, its controls centred in it. */
+.use-page > .use-toolbar { flex: 0 0 auto; }
 .use-page > .use-layout { flex: 1 1 auto; min-height: 0; }
 
 /* The legacy ghost-button rule outranks the row treatment, so restate it at the

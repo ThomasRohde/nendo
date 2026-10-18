@@ -211,6 +211,9 @@ It bites heredocs hardest, since they carry a whole file in one command — a
   has a structural reader for `.png`, `.ico`, `.mp4` and `.nendo` only.
 - When rebuilding the app, rebuild the installer in the same task:
   `Publish-NendoPayload.ps1` → `Build-NendoInstaller.ps1` → `Test-NendoInstaller.ps1`.
+  Build it **before** the full gate, not after (owner, 2026-10-18): the owner tries it while
+  the gate runs and can stop the gate on a bug. Never both at once — the publish and the
+  gate build into the same output. Commit only once the gate passes.
   Deliver `artifacts/installer/Nendo-Setup.exe`, upgrading the per-user
   `Programs/Nendo` installation in place. Do not run the install/uninstall smoke
   over an owner installation — use `Test-NendoSetupIsolated.ps1`.

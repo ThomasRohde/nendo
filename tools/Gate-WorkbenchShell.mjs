@@ -1390,8 +1390,17 @@ async page => {
     assert(bar.below !== null && bar.below - bar.header.bottom <= 4, `One bar: a second row still stands under the address row: ${JSON.stringify(bar)}`);
     await resized(700, 800);
     await until(() => document.querySelector('.workspace-layer[data-one-bar]') === null, null, 'the toolbar back on its own row', 4000);
-    const narrow = await page.evaluate(() => ({ toolbar: Math.round(document.querySelector('.use-page > .use-toolbar').getBoundingClientRect().top), header: Math.round(document.querySelector('.workspace-header').getBoundingClientRect().bottom) }));
+    const narrow = await page.evaluate(() => {
+      const toolbar = document.querySelector('.use-page > .use-toolbar').getBoundingClientRect();
+      const below = (document.querySelector('.use-page > .use-layout') ?? document.querySelector('.use-page > :not(.use-toolbar)'))?.getBoundingClientRect();
+      return { toolbar: Math.round(toolbar.top), height: Math.round(toolbar.height), header: Math.round(document.querySelector('.workspace-header').getBoundingClientRect().bottom),
+        gap: below ? Math.round(below.top - toolbar.bottom) : null };
+    });
     assert(narrow.toolbar >= narrow.header - 1, `One bar: in a narrow window the toolbar is not below the address row: ${JSON.stringify(narrow)}`);
+    // Its own row is as tall as its controls and the screen starts right under it (owner,
+    // 2026-10-18: "Lots of whitespace around the menubar"): the row took half the page, the
+    // controls centred in it, once a view's toolbar was too wide for the address row.
+    assert(narrow.height <= 64 && narrow.gap !== null && narrow.gap <= 4, `One bar: the toolbar's own row is not the height of its controls: ${JSON.stringify(narrow)}`);
   }, 1600, 900);
 
   // A message can be put away (owner, 2026-10-16: "add a x to remove the message"). A saved
