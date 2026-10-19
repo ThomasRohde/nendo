@@ -181,8 +181,15 @@ public sealed partial class MainPage : Page
             // Transparent, so the window's Mica shows wherever the page leaves its ground (G).
             DefaultBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0),
             IsTabStop = true,
+            // A file dragged in from Windows reaches the page only through XAML's drag events,
+            // which go to an element that allows a drop. Without this no drop from Explorer
+            // arrived anywhere: not a Nendo file, not a picture field, not About this file.
+            AllowDrop = true,
         };
         AutomationProperties.SetAutomationId(_webView, "workbench.webview");
+        // The grid that holds the browser must allow a drop too: XAML hit-tests an outside drag
+        // from the window down, and a parent that does not take one ends the search there.
+        WebHost.AllowDrop = true;
         WebHost.Children.Add(_webView);
 
         DesktopStartupTiming.Mark("webview.ensure.begin");

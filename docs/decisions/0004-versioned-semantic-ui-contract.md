@@ -48,9 +48,11 @@ the same dot more often than not, and a letter is only drawn from 24 pixels up.
   media* keeps it, and a new file of the application (ADR-0022) keeps it with the look. Duplicate,
   Fork and Backup copy it with the file.
 - **Where it shows.** Wherever the look is drawn: the window and taskbar icon, Alt+Tab, the
-  notification-area icon, a notification's picture, and the status bar. The Jump List keeps the
-  shipped document icon, because drawing a closed file's icon means opening it; tabs carry no look
-  today and still do not.
+  notification-area icon, a notification's picture, and the status bar. The Jump List shows each
+  file's icon as this device last drew it, from a small index beside the drawn icons, and the
+  shipped document icon for a file it never opened, because drawing a closed file's icon would
+  mean opening it (owner request, 2026-10-19). A row the person pinned keeps the icon it had when
+  pinned, since the shell owns that category. Tabs carry no look today and still do not.
 - **Reading and choosing it.** The manifest's `look` gains `icon`, the address or null. The
   review names it as part of `lookBefore`/`lookAfter` and says "Give this file its own picture as
   its icon." or "Take this file's picture away, so it shows its colour and letter again." On

@@ -112,7 +112,8 @@ internal static class DesktopJumpList
     /// Everything here is best effort. A missing taskbar menu is a missing convenience;
     /// a window that failed to open because of one would be a defect.
     /// </remarks>
-    internal static int? Publish(IReadOnlyList<DesktopShellRecentFile> files, string appUserModelId, string executablePath, string iconPath)
+    internal static int? Publish(IReadOnlyList<DesktopShellRecentFile> files, string appUserModelId, string executablePath, string iconPath,
+        IReadOnlyDictionary<string, string>? fileIcons = null)
     {
         ICustomDestinationList? list = null;
         try
@@ -133,7 +134,7 @@ internal static class DesktopJumpList
             if (collection is null) { list.AbortList(); return null; }
             foreach (var entry in entries)
             {
-                var link = CreateLink(entry, executablePath, iconPath);
+                var link = CreateLink(entry, executablePath, IconFor(entry.Path, fileIcons, iconPath));
                 if (link is not null) collection.AddObject(link);
             }
             list.AppendCategory("Recent", (IObjectArray)collection);
@@ -187,6 +188,14 @@ internal static class DesktopJumpList
         var trimmed = value.Trim();
         return trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"' ? trimmed[1..^1] : trimmed;
     }
+
+    /// <summary>
+    /// The icon a row shows: the file's own, as this device last drew it (W-001), or the document
+    /// icon for a file it never drew. A row the person pinned keeps the icon it had when pinned:
+    /// the shell owns the Pinned category.
+    /// </summary>
+    internal static string IconFor(string path, IReadOnlyDictionary<string, string>? fileIcons, string fallback) =>
+        fileIcons is not null && fileIcons.TryGetValue(path, out var icon) ? icon : fallback;
 
     private static IShellLinkW? CreateLink(DesktopJumpListEntry entry, string executablePath, string iconPath)
     {

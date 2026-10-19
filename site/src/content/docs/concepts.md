@@ -33,7 +33,8 @@ A file can use a picture of its own instead, which is easier to tell apart at th
 the taskbar draws. Drop a picture onto the icon in About this file, or choose
 **Choose picture…**, then **Review change**. Nendo fits the picture onto a square and
 keeps it in the file, so the icon goes wherever the file goes. **Use colour and
-letter** takes it away again.
+letter** takes it away again. The taskbar's menu of recent files shows each file's icon too, once
+Nendo has opened that file on this computer.
 
 ### Record type
 

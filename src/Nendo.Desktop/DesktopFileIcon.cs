@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
+using System.Text.Json;
 using Nendo.Engine;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
@@ -13,6 +14,63 @@ namespace Nendo.Desktop;
 /// window has no title bar of its own to draw one on (W-093); the status bar draws the look.
 /// </summary>
 internal sealed record DesktopFileIconFiles(string Icon, string NotificationImage);
+
+/// <summary>
+/// Which icon this device last drew for each file (W-001), so the taskbar menu can show a file's
+/// own icon while the file is closed. Kept beside the drawn icons, newest first and bounded; an
+/// entry whose icon has since been deleted reads as none.
+/// </summary>
+internal static class DesktopFileIconIndex
+{
+    /// <summary>The most files remembered: more than the taskbar menu offers.</summary>
+    internal const int MaximumFiles = 64;
+
+    private sealed record Entry(string Path, string Icon);
+
+    internal static string IndexPath(string cacheRoot) => Path.Combine(cacheRoot, "files.json");
+
+    /// <summary>Each remembered file's icon, by full path, ignoring case; only icons still there.</summary>
+    internal static IReadOnlyDictionary<string, string> Read(string cacheRoot)
+    {
+        var icons = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in Load(cacheRoot))
+        {
+            if (!icons.ContainsKey(entry.Path) && File.Exists(entry.Icon)) icons[entry.Path] = entry.Icon;
+        }
+        return icons;
+    }
+
+    /// <summary>Records the icon drawn for a file. Answers whether that changed what is kept.</summary>
+    internal static bool Remember(string cacheRoot, string filePath, string iconFile)
+    {
+        var entries = Load(cacheRoot);
+        if (entries.Count > 0 && string.Equals(entries[0].Path, filePath, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(entries[0].Icon, iconFile, StringComparison.OrdinalIgnoreCase)) return false;
+        var kept = entries.Where(entry => !string.Equals(entry.Path, filePath, StringComparison.OrdinalIgnoreCase)).ToList();
+        var changed = !entries.Any(entry => string.Equals(entry.Path, filePath, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(entry.Icon, iconFile, StringComparison.OrdinalIgnoreCase));
+        kept.Insert(0, new Entry(filePath, iconFile));
+        Directory.CreateDirectory(cacheRoot);
+        DesktopFileIcon.WriteAtomically(IndexPath(cacheRoot), JsonSerializer.SerializeToUtf8Bytes(kept.Take(MaximumFiles).ToArray()));
+        return changed;
+    }
+
+    private static List<Entry> Load(string cacheRoot)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(IndexPath(cacheRoot));
+            return (JsonSerializer.Deserialize<Entry[]>(bytes) ?? [])
+                .Where(entry => !string.IsNullOrWhiteSpace(entry?.Path) && !string.IsNullOrWhiteSpace(entry?.Icon))
+                .ToList();
+        }
+        // A missing or unreadable index is an empty one: the menu shows the document icon.
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return [];
+        }
+    }
+}
 
 /// <summary>
 /// Draws a file's icon: the Nendo mark with a badge in the file's tone carrying its letter
@@ -381,7 +439,7 @@ internal static class DesktopFileIcon
 
     private static byte ToByte(float value) => (byte)Math.Clamp((int)MathF.Round(value * 255f), 0, 255);
 
-    private static void WriteAtomically(string path, byte[] bytes)
+    internal static void WriteAtomically(string path, byte[] bytes)
     {
         var stage = $"{path}.{Guid.NewGuid():N}.tmp";
         try

@@ -121,6 +121,8 @@ public sealed partial class MainWindow : Window
         var cache = DesktopFileIcon.CacheRoot(DesktopAppearanceStore.DefaultRoot);
         var mark = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
         var session = Page?.Session;
+        var openFile = session?.CurrentFilePath;
+        var remembers = !_isTabWindow;
         _ = Task.Run(async () =>
         {
             DesktopFileIconFiles? files = null;
@@ -134,9 +136,17 @@ public sealed partial class MainWindow : Window
                 catch (Exception) when (drawn.Icon is not null) { files = await DesktopFileIcon.EnsureAsync(cache, look with { Icon = null }, mark); }
             }
             catch (Exception) { }
+            // The taskbar menu shows each file's own icon once this device has drawn it (W-001).
+            var remembered = false;
+            if (files is not null && remembers && openFile is not null)
+            {
+                try { remembered = DesktopFileIconIndex.Remember(cache, openFile, files.Icon); }
+                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
+            }
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (files is not null && string.Equals(_appliedLook, key, StringComparison.Ordinal)) ApplyIcons(files);
+                if (remembered && !_closing) RefreshJumpList();
             });
         });
     }
@@ -344,9 +354,11 @@ public sealed partial class MainWindow : Window
         // Jump List row is a shortcut, and a shortcut to the wrong file opens nothing.
         var executable = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "Nendo.Desktop.exe");
         var icon = Path.Combine(AppContext.BaseDirectory, "Assets", "DocumentIcon.ico");
+        var cache = DesktopFileIcon.CacheRoot(DesktopAppearanceStore.DefaultRoot);
         _ = Task.Run(async () =>
         {
             IReadOnlyList<DesktopShellRecentFile> files;
+            var fileIcons = DesktopFileIconIndex.Read(cache);
             try
             {
                 files = await page.Session.GetShellRecentFilesAsync(DesktopJumpList.Considered);
@@ -356,7 +368,7 @@ public sealed partial class MainWindow : Window
             {
                 return;
             }
-            DispatcherQueue.TryEnqueue(() => DesktopJumpList.Publish(files, identity, executable, icon));
+            DispatcherQueue.TryEnqueue(() => DesktopJumpList.Publish(files, identity, executable, icon, fileIcons));
         });
     }
 

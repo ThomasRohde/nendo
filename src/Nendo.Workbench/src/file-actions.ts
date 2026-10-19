@@ -236,19 +236,26 @@ function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSess
     fileInput.value = '';
     if (file !== undefined) void takePicture(file);
   });
-  const dropZone = dialog.querySelector<HTMLElement>('.about-file-look');
-  dropZone?.addEventListener('dragover', event => {
-    if (![...(event.dataTransfer?.types ?? [])].includes('Files')) return;
-    event.preventDefault();
-    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
-    dropZone.classList.add('look-drop-ready');
+  // The whole dialog takes a dropped picture: a drop that landed on its padding, beside the
+  // icon or on the colours fell through to nothing, and looked like a drop that did not work.
+  // dragenter is accepted as well as dragover, as the drag-and-drop model asks of a target.
+  const lookSection = dialog.querySelector<HTMLElement>('.about-file-look');
+  const carriesFiles = (event: DragEvent): boolean => [...(event.dataTransfer?.types ?? [])].includes('Files');
+  for (const kind of ['dragenter', 'dragover'] as const) {
+    dialog.addEventListener(kind, event => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
+      lookSection?.classList.add('look-drop-ready');
+    });
+  }
+  dialog.addEventListener('dragleave', event => {
+    if (!dialog.contains(event.relatedTarget as Node | null)) lookSection?.classList.remove('look-drop-ready');
   });
-  dropZone?.addEventListener('dragleave', event => {
-    if (!dropZone.contains(event.relatedTarget as Node | null)) dropZone.classList.remove('look-drop-ready');
-  });
-  dropZone?.addEventListener('drop', event => {
+  dialog.addEventListener('drop', event => {
+    if (!carriesFiles(event)) return;
     event.preventDefault();
-    dropZone.classList.remove('look-drop-ready');
+    lookSection?.classList.remove('look-drop-ready');
     const file = event.dataTransfer?.files[0];
     if (file !== undefined) void takePicture(file);
   });

@@ -747,7 +747,13 @@ file, described under the title band above (W-277).
   or picked picture whole onto a transparent 256-pixel square (192 or 128 if the PNG
   would not fit one message), sends the PNG with `look.embedIcon`, and proposes
   `application.setIcon`; a colour and a picture chosen together are two mutations of
-  one proposal, so each undoes on its own. Taskbar buttons still group under one
+  one proposal, so each undoes on its own. `DesktopFileIconIndex` remembers, under
+  `icons/files.json`, the icon drawn for each file (64 newest), and the Jump List gives
+  each Recent row that icon, or `DocumentIcon.ico` for a file this device never drew; a
+  pinned row keeps the icon it was pinned with. A file dragged in from Windows reaches
+  the page only because the WebView2 and the `WebHost` grid holding it set `AllowDrop`:
+  without it no drop arrived at all (the CDP drags the lanes use go round XAML and
+  never showed this). Taskbar buttons still group under one
   Nendo identity, so the grouped button shows one icon; a button per file needs a
   shell identity per file, which is not built.
 - **Each window's notifications are its own.** Every process posted under one

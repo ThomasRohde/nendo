@@ -2585,6 +2585,43 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
   });
 
   // WST-10: a window in dark mode is dark before the bundle has run. Last, since it changes the colour scheme.
+  // W-001: a picture dropped on About this file landed on the dialog's padding, outside the
+  // narrow zone that listened, and nothing happened. The whole dialog takes it now, and accepts
+  // the drag on dragenter as the drag-and-drop model asks of a target.
+  await check('W-001 About this file takes a picture dropped anywhere on it', 'idea', async () => {
+    const outcome = await page.evaluate(async () => {
+      const { client } = await import('/src/client.ts');
+      window.__iconEmbeds = [];
+      const request = client.request.bind(client);
+      client.request = async (method, payload) => {
+        if (method !== 'look.embedIcon') return request(method, payload);
+        window.__iconEmbeds.push(payload);
+        return { cancelled: false, address: 'media:' + 'a'.repeat(64) };
+      };
+      document.querySelector('[data-file-action="about"]').click();
+      const dialog = document.querySelector('dialog.about-file-dialog');
+      const canvas = Object.assign(document.createElement('canvas'), { width: 40, height: 20 });
+      canvas.getContext('2d').fillRect(0, 0, 40, 20);
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([blob], 'wide.png', { type: 'image/png' }));
+      // On the dialog itself: its padding, where the drop that failed had landed.
+      const fire = kind => { const event = new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: transfer }); dialog.dispatchEvent(event); return event.defaultPrevented; };
+      return { enter: fire('dragenter'), over: fire('dragover'), drop: fire('drop') };
+    });
+    assert(outcome.enter && outcome.over && outcome.drop,
+      `W-001: About this file let a file drag on its own padding fall through: ${JSON.stringify(outcome)}.`);
+    await until(() => window.__iconEmbeds.length === 1, null, 'the dropped picture sent to the host', 5000);
+    const sent = await page.evaluate(() => {
+      const bytes = Uint8Array.from(atob(window.__iconEmbeds[0].base64), character => character.charCodeAt(0));
+      const view = new DataView(bytes.buffer);
+      return { width: view.getUint32(16), height: view.getUint32(20), name: window.__iconEmbeds[0].name,
+        review: document.querySelector('[data-look-review]').disabled };
+    });
+    assert(sent.width === 256 && sent.height === 256 && sent.name === 'wide.png' && sent.review === false,
+      `W-001: the dropped picture did not become a 256-pixel square ready to review: ${JSON.stringify(sent)}.`);
+  });
+
   await check('WST-10 dark window paints dark first', 'decision', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.evaluate(() => { try { localStorage.removeItem('nendo.appearance'); } catch { /* none kept */ } });
