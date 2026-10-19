@@ -8,7 +8,8 @@ import { state } from './app-state';
 import { recentFileState } from './recent-files';
 import { openHelp, prepareApplication, recoverAfterWriteFailure, refreshDerived, resetFileView, retainDraftReadOnly, showOutcomeRefreshNotice } from './actions';
 import { openCustomViews } from './view-packages';
-import { aboutLookMarkup, chosenLook, lookIconMarkup, lookProposal, lookReviewable, lookSentence, normaliseLetter } from './file-look';
+import { aboutLookMarkup, chosenLook, iconPictureUrl, lookIconMarkup, lookProposal, lookReviewable, lookSentence, normaliseLetter } from './file-look';
+import { squareIconPng } from './icon-picture';
 import { recordFormIsDirty, refuseWhileDirty } from './draft-guard';
 import { decideDraftState } from './draft-state';
 import { newFileMenuLabel } from './new-file';
@@ -136,7 +137,7 @@ export function openAboutFile(): void {
     ${purpose === null
       ? '<p class="about-file-empty">Nobody has said what this file is for.</p>'
       : `<p class="about-file-purpose">${escapeHtml(purpose)}</p>`}
-    ${look === null ? '' : aboutLookMarkup(look, canChange)}
+    ${look === null ? '' : aboutLookMarkup(look, canChange, state.session.mediaOrigin ?? null)}
     <div class="form-actions"><button class="primary-button" data-close type="button" autofocus>Close</button></div>`;
   document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove(), { once: true });
@@ -146,23 +147,33 @@ export function openAboutFile(): void {
 }
 
 /**
- * The tone and letter on the About page. The picture follows what is chosen before anything is
- * sent; Review change prepares the proposal and opens its review, where the person accepts it.
+ * The tone, letter and picture on the About page. The icon follows what is chosen before anything
+ * is proposed; Review change prepares the proposal and opens its review, where the person accepts
+ * it. A dropped or picked picture is drawn into a square PNG here and embedded at once (W-001), so
+ * the proposal can name it; until it is accepted the file's icon is unchanged.
  */
 function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSessionView['look']>): void {
   let tone = look.tone;
   let letter = look.letter;
   let next: { tone: string | null; letter: string | null } = chosenLook(look, tone, letter);
+  // Undefined while the picture is as the file has it; an address, or null to take it away.
+  let picture: string | null | undefined = undefined;
+  const shownPicture = (): string | null => picture === undefined ? look.icon ?? null : picture;
+  const proposed = (): { tone: string | null; letter: string | null; icon?: string | null } =>
+    picture === undefined ? next : { ...next, icon: picture };
   const review = dialog.querySelector<HTMLButtonElement>('[data-look-review]')!;
   const letterInput = dialog.querySelector<HTMLInputElement>('input[name="look-letter"]')!;
+  const clearPicture = dialog.querySelector<HTMLButtonElement>('[data-look-clear-picture]');
   const redraw = (): void => {
     const shownTone = next.tone ?? look.defaultTone ?? tone;
     const shownLetter = next.letter ?? look.defaultLetter ?? letter;
+    const url = iconPictureUrl(shownPicture(), state.session.mediaOrigin);
     const icon = dialog.querySelector('.look-icon');
-    if (icon !== null) icon.outerHTML = lookIconMarkup(shownTone, shownLetter);
+    if (icon !== null) icon.outerHTML = lookIconMarkup(shownTone, shownLetter, url);
     const sentence = dialog.querySelector('[data-look-sentence]');
-    if (sentence !== null) sentence.textContent = lookSentence(shownTone, shownLetter, next.tone !== null || next.letter !== null);
-    review.disabled = !lookReviewable(look, next, letterInput.value);
+    if (sentence !== null) sentence.textContent = lookSentence(shownTone, shownLetter, next.tone !== null || next.letter !== null, url !== null);
+    if (clearPicture !== null) clearPicture.disabled = shownPicture() === null;
+    review.disabled = !lookReviewable(look, proposed(), letterInput.value);
   };
   for (const swatch of dialog.querySelectorAll<HTMLInputElement>('input[name="look-tone"]')) {
     swatch.addEventListener('change', () => {
@@ -194,17 +205,69 @@ function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSess
   said.setAttribute('role', 'alert');
   said.hidden = true;
   review.closest('.look-actions')?.after(said);
+
+  // A picture: drawn into a square PNG on this page, embedded, then shown in place of the badge.
+  const pick = dialog.querySelector<HTMLButtonElement>('[data-look-pick]');
+  const fileInput = dialog.querySelector<HTMLInputElement>('[data-look-file]');
+  let taking = false;
+  const takePicture = async (file: File): Promise<void> => {
+    if (taking) return;
+    taking = true;
+    said.hidden = true;
+    if (pick !== null) pick.disabled = true;
+    review.disabled = true;
+    try {
+      const base64 = await squareIconPng(file);
+      const embedded = await client.request<{ cancelled: boolean; address?: string | null }>('look.embedIcon', { base64, name: file.name });
+      if (embedded.address) picture = embedded.address;
+      announce('Picture ready. Review change to make it the icon.');
+    } catch (error) {
+      said.textContent = messageFor(error);
+      said.hidden = false;
+    } finally {
+      taking = false;
+      if (pick !== null) pick.disabled = false;
+      redraw();
+    }
+  };
+  pick?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    if (file !== undefined) void takePicture(file);
+  });
+  const dropZone = dialog.querySelector<HTMLElement>('.about-file-look');
+  dropZone?.addEventListener('dragover', event => {
+    if (![...(event.dataTransfer?.types ?? [])].includes('Files')) return;
+    event.preventDefault();
+    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
+    dropZone.classList.add('look-drop-ready');
+  });
+  dropZone?.addEventListener('dragleave', event => {
+    if (!dropZone.contains(event.relatedTarget as Node | null)) dropZone.classList.remove('look-drop-ready');
+  });
+  dropZone?.addEventListener('drop', event => {
+    event.preventDefault();
+    dropZone.classList.remove('look-drop-ready');
+    const file = event.dataTransfer?.files[0];
+    if (file !== undefined) void takePicture(file);
+  });
+  clearPicture?.addEventListener('click', () => {
+    picture = null;
+    redraw();
+  });
+
   review.addEventListener('click', () => {
     const revision = state.session.manifest?.definitionRevision;
     if (revision === undefined) return;
-    const proposal = lookProposal(look, next, revision);
+    const proposal = lookProposal(look, proposed(), revision);
     if (proposal === null) return;
     review.disabled = true;
     said.hidden = true;
     void prepareApplication({ actionLabel: String(proposal.title), applicationName: state.session.fileName ?? 'This file', proposalPayload: proposal }, state.view)
       .then(opened => {
         if (opened) { dialog.close(); return; }
-        review.disabled = !lookReviewable(look, next, letterInput.value);
+        review.disabled = !lookReviewable(look, proposed(), letterInput.value);
         said.textContent = state.lastOutcome?.message ?? 'The change was not prepared.';
         said.hidden = false;
       });

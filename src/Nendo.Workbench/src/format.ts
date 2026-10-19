@@ -170,6 +170,7 @@ export function operationLabel(value: string): string {
   const labels: Record<string, string> = {
     'application.buildSearchIndex': 'Build the search index',
     'application.setLook': 'Change the file’s look',
+    'application.setIcon': 'Change the file’s picture',
     'application.setNewFileLabel': 'Name a new file',
     'application.setPurpose': 'Say what the file is for',
     'behaviour.removeDefinition': 'Remove a calculation or action',

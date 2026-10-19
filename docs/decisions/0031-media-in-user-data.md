@@ -279,6 +279,13 @@ left out, inside the run-to-run noise; the 2 GiB budget stands.
 - Help pages that need pictures (ADR-0027's trigger), if the media origin should serve package
   files too.
 
+## Note — 2026-10-19, a file's own icon (W-001)
+
+[ADR-0004](0004-versioned-semantic-ui-contract.md)'s 2026-10-19 amendment lets a file use an
+embedded picture as its icon. Point 8 counts that picture as used: *Remove unused media* keeps
+what `__nendo_application_icon` names, and a new file of the application keeps it with the look.
+The picture enters through `media.put` like any other, with no field.
+
 ## History
 
 - 2026-10-15 — proposed, with the plan in [`../design/media.md`](../design/media.md).

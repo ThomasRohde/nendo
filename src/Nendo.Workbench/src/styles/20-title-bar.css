@@ -41,3 +41,7 @@
   border-width: 1px;
   font-size: 0;
 }
+
+.status-file .look-picture img {
+  border-radius: 2px;
+}

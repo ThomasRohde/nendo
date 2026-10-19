@@ -142,6 +142,8 @@ internal static class CanonicalChangeSetRequestCompiler
             "application.setLook" => new SetApplicationLookOperation(request.OperationId,
                 OptionalString(request.Payload, "tone", 16), OptionalString(request.Payload, "letter", 8),
                 Long(request.Payload, "expectedDefinitionRevision")),
+            "application.setIcon" => new SetApplicationIconOperation(request.OperationId,
+                OptionalString(request.Payload, "icon", 100), Long(request.Payload, "expectedDefinitionRevision")),
             "schema.setFieldPresentation" => new SetFieldPresentationOperation(request.OperationId, String(request.Payload, "entityId"),
                 String(request.Payload, "fieldId"), String(request.Payload, "presentation", 100), Long(request.Payload, "expectedDefinitionRevision")),
             "schema.setKeptInNewFiles" => new SetKeptInNewFilesDefaultOperation(request.OperationId, String(request.Payload, "entityId"),

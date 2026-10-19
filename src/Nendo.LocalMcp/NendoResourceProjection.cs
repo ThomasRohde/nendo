@@ -92,7 +92,7 @@ internal sealed class NendoResourceProjection(
             value.ChangeSequence)
         {
             Purpose = value.Purpose,
-            Look = new NendoMcpLook(look.Tone, look.Letter, look.ToneChosen, look.LetterChosen),
+            Look = new NendoMcpLook(look.Tone, look.Letter, look.ToneChosen, look.LetterChosen, look.Icon),
             NewFileLabel = value.NewFileLabel,
         };
     }

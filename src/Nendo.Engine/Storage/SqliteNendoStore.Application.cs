@@ -115,16 +115,119 @@ internal sealed partial class SqliteNendoStore
             await NonQueryAsync(ApplicationLookSchemaSql, transaction, ct);
     }
 
-    /// <summary>The look the file chose, if it chose one. A file that never did carries no table.</summary>
+    /// <summary>
+    /// The look the file chose, if it chose one: its tone and letter, and its picture, which live
+    /// in tables of their own. A file that never chose carries neither table.
+    /// </summary>
     private async Task<NendoApplicationLook?> ReadApplicationLookAsync(SqliteTransaction? transaction, CancellationToken ct)
     {
-        if (!await TableExistsAsync("__nendo_application_look", transaction, ct)) return null;
-        await using var query = Command("SELECT tone, letter FROM __nendo_application_look WHERE singleton_id = 1;", transaction);
-        await using var reader = await query.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)) return null;
-        return new NendoApplicationLook(
-            reader.IsDBNull(0) ? null : reader.GetString(0),
-            reader.IsDBNull(1) ? null : reader.GetString(1));
+        var icon = await ReadApplicationIconAsync(transaction, ct);
+        string? tone = null, letter = null;
+        if (await TableExistsAsync("__nendo_application_look", transaction, ct))
+        {
+            await using var query = Command("SELECT tone, letter FROM __nendo_application_look WHERE singleton_id = 1;", transaction);
+            await using var reader = await query.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                tone = reader.IsDBNull(0) ? null : reader.GetString(0);
+                letter = reader.IsDBNull(1) ? null : reader.GetString(1);
+            }
+        }
+        return tone is null && letter is null && icon is null ? null : new NendoApplicationLook(tone, letter, icon);
+    }
+
+    /// <summary>
+    /// The file's own picture as its icon (W-001), the rung above media. A singleton like the look:
+    /// a row only while the file has a picture, naming content the media table holds.
+    /// </summary>
+    private const string ApplicationIconSchemaSql = """
+        CREATE TABLE __nendo_application_icon (
+            singleton_id INTEGER NOT NULL PRIMARY KEY CHECK (singleton_id = 1),
+            sha256 TEXT NOT NULL,
+            FOREIGN KEY (sha256) REFERENCES __nendo_media(sha256),
+            CHECK (length(sha256) = 64)
+        );
+        """;
+
+    /// <summary>Brings the protected layout up to the icon rung: the whole ladder through media, then the icon table.</summary>
+    private async Task EnsureApplicationIconLayoutAsync(SqliteTransaction transaction, CancellationToken ct)
+    {
+        await EnsureMediaLayoutAsync(transaction, ct);
+        if (!await ApplicationIconLayoutExistsAsync(transaction, ct))
+            await NonQueryAsync(ApplicationIconSchemaSql, transaction, ct);
+    }
+
+    private Task<bool> ApplicationIconLayoutExistsAsync(SqliteTransaction? transaction, CancellationToken ct) =>
+        TableExistsAsync("__nendo_application_icon", transaction, ct);
+
+    /// <summary>The picture's <c>media:</c> address, or null when the file has none.</summary>
+    private async Task<string?> ReadApplicationIconAsync(SqliteTransaction? transaction, CancellationToken ct)
+    {
+        if (!await ApplicationIconLayoutExistsAsync(transaction, ct)) return null;
+        await using var query = Command("SELECT sha256 FROM __nendo_application_icon WHERE singleton_id = 1;", transaction);
+        return await query.ExecuteScalarAsync(ct) is string sha ? NendoMediaAddress.Embedded(sha) : null;
+    }
+
+    private async Task<OperationEvidence> ExecuteSetApplicationIconAsync(
+        SetApplicationIconOperation operation,
+        SqliteTransaction transaction,
+        CancellationToken ct)
+    {
+        var manifest = await ReadManifestAsync(transaction, ct);
+        if (manifest.DefinitionRevision != operation.ExpectedDefinitionRevision)
+            throw DefinitionVersionConflict(operation.ExpectedDefinitionRevision, manifest.DefinitionRevision);
+
+        if (operation.Sha256 is { } sha)
+        {
+            var item = await ReadMediaAsync(sha, transaction, ct)
+                ?? throw new NendoPreconditionException("media-missing",
+                    "The file does not hold the picture named as its icon. Embed the picture before making it the file's icon.");
+            if (NendoLook.IconRefusal(item) is { } refusal)
+                throw new NendoPreconditionException("icon-invalid", refusal);
+            // Choosing creates the rung; taking the picture away never does, for the look's reason.
+            await EnsureApplicationIconLayoutAsync(transaction, ct);
+        }
+        if (await ApplicationIconLayoutExistsAsync(transaction, ct))
+        {
+            await using var save = Command(operation.Sha256 is null
+                ? "DELETE FROM __nendo_application_icon WHERE singleton_id = 1;"
+                : """
+                  INSERT INTO __nendo_application_icon(singleton_id,sha256) VALUES(1,@sha)
+                  ON CONFLICT(singleton_id) DO UPDATE SET sha256=excluded.sha256;
+                  """, transaction);
+            if (operation.Sha256 is not null) save.Parameters.AddWithValue("@sha", operation.Sha256);
+            await save.ExecuteNonQueryAsync(ct);
+        }
+
+        return new OperationEvidence(operation, Evidence(new
+        {
+            previousIcon = manifest.Look?.Icon,
+            appliedDefinitionRevision = manifest.DefinitionRevision + 1,
+        }))
+        {
+            RequiredHostVersion = operation.Sha256 is null ? NendoFormat.MinimumHostVersion : NendoFormat.ApplicationIconMinimumHostVersion,
+        };
+    }
+
+    /// <summary>
+    /// A stored icon names a picture the file holds that may be an icon. Read at inspection, so a
+    /// file whose icon row names missing or unfit content is refused rather than drawn wrong.
+    /// </summary>
+    private async Task<bool> ApplicationIconIsValidAsync(string? icon, CancellationToken ct)
+    {
+        if (icon is null) return true;
+        var item = await ReadMediaAsync(icon[NendoMedia.EmbeddedScheme.Length..], null, ct);
+        return item is not null && NendoLook.IconRefusal(item) is null;
+    }
+
+    private static SetApplicationIconOperation CreateIconInverse(string evidenceJson, string key)
+    {
+        using var evidence = JsonDocument.Parse(evidenceJson);
+        var prior = evidence.RootElement;
+        return new(
+            NendoCanonical.DeterministicId("operation", "application.icon.compensation", key, 0),
+            prior.TryGetProperty("previousIcon", out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null,
+            prior.GetProperty("appliedDefinitionRevision").GetInt64());
     }
 
     private async Task<OperationEvidence> ExecuteSetApplicationLookAsync(
@@ -168,9 +271,12 @@ internal sealed partial class SqliteNendoStore
         };
     }
 
-    /// <summary>A stored look is a tone the vocabulary names and a single letter or digit, and at least one of them.</summary>
+    /// <summary>
+    /// A stored look is a tone the vocabulary names and a single letter or digit, and at least one
+    /// of them or a picture; the picture is checked against the media it names on its own.
+    /// </summary>
     private static bool ApplicationLookIsValid(NendoApplicationLook? look) =>
-        look is null || ((look.Tone is not null || look.Letter is not null) &&
+        look is null || ((look.Tone is not null || look.Letter is not null || look.Icon is not null) &&
             (look.Tone is null || NendoLook.IsTone(look.Tone)) &&
             (look.Letter is null || NendoLook.IsLetter(look.Letter)));
 

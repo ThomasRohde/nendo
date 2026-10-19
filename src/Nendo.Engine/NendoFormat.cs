@@ -379,7 +379,14 @@ public static class NendoFormat
     /// </summary>
     public const string CalculatedTotalsMinimumHostVersion = "1.54.0";
 
-    public const string CurrentHostVersion = CalculatedTotalsMinimumHostVersion;
+    /// <summary>
+    /// A file's own picture as its icon (ADR-0004, 2026-10-19 amendment, W-001): a protected table
+    /// on the rung above media, stated by application.setIcon's evidence and by the layout rung at
+    /// open. A file that never chose a picture keeps the rung it had.
+    /// </summary>
+    public const string ApplicationIconMinimumHostVersion = "1.55.0";
+
+    public const string CurrentHostVersion = ApplicationIconMinimumHostVersion;
 
     internal static string RequireAtLeast(string existing, string required) =>
         Version.Parse(existing) >= Version.Parse(required) ? existing : required;

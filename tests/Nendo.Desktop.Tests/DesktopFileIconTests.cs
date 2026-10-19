@@ -115,6 +115,69 @@ public sealed class DesktopFileIconTests
             "A letter from beyond ASCII is drawn too.");
     }
 
+    /// <summary>
+    /// W-001. A file with its own picture is drawn as that picture at every frame, with no mark
+    /// and no badge over it: the badge's corner shows the picture, not the tone.
+    /// </summary>
+    [TestMethod]
+    [DataRow(16)]
+    [DataRow(24)]
+    [DataRow(48)]
+    [DataRow(256)]
+    public async Task AFilesOwnPictureIsTheWholeIconAtEverySize(int size)
+    {
+        const int Red = 0xD02020, Blue = 0x2040D0;
+        var picture = await HalvesAsync(256, Red, Blue);
+        var look = NendoLook.Resolve("application-icon", "Albums.nendo", new NendoApplicationLook("violet", "A", "media:" + new string('d', 64)));
+
+        await using var workspace = new DesktopTestWorkspace();
+        var root = DesktopFileIcon.CacheRoot(workspace.FileHistoryRoot);
+        var files = await DesktopFileIcon.EnsureAsync(root, look, Mark, picture);
+        StringAssert.Contains(Path.GetFileName(files.Icon), "picture-dddd", "Kept by the picture, not by the tone and letter.");
+        var frames = DesktopFileIcon.ReadIconFrames(await File.ReadAllBytesAsync(files.Icon));
+        CollectionAssert.AreEqual(DesktopFileIcon.IconSizes.ToArray(), frames.Keys.Order().ToArray());
+
+        // The frame the shell shows, decoded at its own size.
+        var pixels = await DesktopFileIcon.RenderPictureAsync(frames[size], size);
+        Assert.HasCount(size * size * 4, pixels);
+        var badge = DesktopFileIcon.BadgeFor(size);
+        var inside = 0;
+        var picturePixels = 0;
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size / 2 - 1; x++)
+            {
+                if (Distance(x, y, badge) > badge.Inner - 1) continue;
+                inside++;
+                if (Near(Pixel(pixels, size, x, y), Red)) picturePixels++;
+            }
+        }
+        Assert.IsGreaterThan(0, inside);
+        Assert.AreEqual(inside, picturePixels,
+            $"At {size}px, {picturePixels} of {inside} pixels where the badge would be are the picture's.");
+        Assert.IsTrue(Near(Pixel(pixels, size, size - 2, size / 2), Blue), "The picture's right half is drawn on the right.");
+        await Assert.ThrowsExactlyAsync<ArgumentException>(() => DesktopFileIcon.EnsureAsync(root, look, Mark));
+    }
+
+    /// <summary>A square PNG whose left half is one colour and right half another, fully opaque.</summary>
+    private static async Task<byte[]> HalvesAsync(int size, int left, int right)
+    {
+        var bgra = new byte[size * size * 4];
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var colour = x < size / 2 ? left : right;
+                var at = (y * size + x) * 4;
+                bgra[at] = (byte)(colour & 0xFF);
+                bgra[at + 1] = (byte)((colour >> 8) & 0xFF);
+                bgra[at + 2] = (byte)((colour >> 16) & 0xFF);
+                bgra[at + 3] = 255;
+            }
+        }
+        return await DesktopFileIcon.EncodePngAsync(bgra, size);
+    }
+
     [TestMethod]
     public void TheIconsTonesAreTheLightThemesChoiceTones()
     {

@@ -150,6 +150,11 @@ ADRs from ADR-0018 on, whose rows in the table above say what each has delivered
   41763 and each further file the next free port, kept for its application ID on this
   device (for its application and instance IDs since 2026-10-14), so several files can be
   registered side by side.
+- **ADR-0004, 2026-10-19 — a file's own picture as its icon** (W-001):
+  `application.setIcon` names an embedded square PNG, 16 to 1,024 pixels and at most
+  1 MiB, drawn instead of the mark and badge wherever the look is, stored in
+  `__nendo_application_icon` on a rung above media from host 1.55.0. *Remove unused
+  media* and a new file keep it (ADR-0031 point 8).
 - **ADR-0004, 2026-09-28 — a file's own look** (W-089): `application.setLook` stores the
   tone and letter a file chose for the badge on its icons, in `__nendo_application_look`,
   from host 1.38.0. The defaults come from the application ID and the file's name, and a

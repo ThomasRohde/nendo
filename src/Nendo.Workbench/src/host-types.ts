@@ -37,6 +37,8 @@ export interface ManifestSnapshot {
 export interface ChosenLook {
   tone: string | null;
   letter: string | null;
+  /** The media: address of the file's own picture, or null when it has none (W-001). */
+  icon?: string | null;
 }
 
 /** A file's look as its icon draws it, which parts it chose, and what it would have by default. */
@@ -47,6 +49,8 @@ export interface ResolvedLook {
   letterChosen: boolean;
   defaultTone: string | null;
   defaultLetter: string | null;
+  /** The media: address of the file's own picture, drawn instead of the tone and letter (W-001). */
+  icon?: string | null;
 }
 
 /** Which links a record type allows (ADR-0026): its ends, its kind, and the record type of allowed combinations. */

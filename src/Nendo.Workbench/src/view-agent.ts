@@ -400,9 +400,10 @@ export function agentPreviewMarkup(summary: AgentPreviewSummary, operationCount:
   // The file's look is the file's own too, and is named here for the same reason.
   const lookBefore = summary.lookBefore ?? null;
   const lookAfter = summary.lookAfter ?? null;
-  const lookChanged = lookBefore?.tone !== lookAfter?.tone || lookBefore?.letter !== lookAfter?.letter;
+  const pictureChanged = (lookBefore?.icon ?? null) !== (lookAfter?.icon ?? null);
+  const lookChanged = lookBefore?.tone !== lookAfter?.tone || lookBefore?.letter !== lookAfter?.letter || pictureChanged;
   const lookRow = lookChanged
-    ? `<div><dt>Icon</dt><dd>${escapeHtml(lookAfter === null ? 'Back to its default' : `${lookAfter.tone ?? 'Default colour'}, ${lookAfter.letter === null ? 'default letter' : `the letter ${lookAfter.letter}`}`)}</dd></div>`
+    ? `<div><dt>Icon</dt><dd>${escapeHtml(lookAfter?.icon ? 'Its own picture' : lookAfter === null || (lookAfter.tone === null && lookAfter.letter === null) ? 'Back to its default' : `${lookAfter.tone ?? 'Default colour'}, ${lookAfter.letter === null ? 'default letter' : `the letter ${lookAfter.letter}`}`)}</dd></div>`
     : '';
   const rows = `<dl>
     <div><dt>Record ${summary.entities.length === 1 ? 'type' : 'types'}</dt><dd>${escapeHtml(entities)}</dd></div>

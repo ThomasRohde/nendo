@@ -240,7 +240,8 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// Removes every embedded item that no current value of any media field names. Only where
+    /// Removes every embedded item that no current value of any media field names, and that is
+    /// not the file's icon, which a new file keeps with the look (W-001). Only where
     /// nothing can undo back to one: a new file, whose history is folded whole. Removing unused media
     /// from an open file also keeps what retained history names, and is its own operation.
     /// </summary>
@@ -259,6 +260,8 @@ internal sealed partial class SqliteNendoStore
                     $"WHERE {column} LIKE '{NendoMedia.EmbeddedScheme}%'");
             }
         }
+        if (await ApplicationIconLayoutExistsAsync(transaction, ct))
+            named.Add("SELECT sha256 FROM __nendo_application_icon");
         var kept = named.Count == 0 ? "SELECT NULL WHERE 0" : string.Join(" UNION ", named);
         await NonQueryAsync($"""
             DELETE FROM __nendo_media_content WHERE sha256 NOT IN ({kept});

@@ -32,7 +32,7 @@ import { fileViewById, viewIcon } from './file-view-model';
 import { viewTitle } from './view-frame-markup';
 import { startTitleBar } from './title-bar';
 import { startOneBar } from './one-bar';
-import { lookIconMarkup } from './file-look';
+import { iconPictureUrl, lookIconMarkup } from './file-look';
 import { chordOf } from './extension-api/protocol';
 import { refreshExtensionSettings } from './extension-settings';
 import { approvalNeeded, capitalise, formatDateTime, messageFor, undoAllowedWhileUnapproved } from './format';
@@ -388,9 +388,10 @@ function updateChrome(): void {
   // The file's icon beside its name (W-089). It was on the window's title bar, which is Nendo's
   // top bar now (W-093), so the status bar, where the file is named, carries it instead.
   const look = state.session.look ?? null;
-  const lookKey = look === null ? 'file' : `${look.tone}:${look.letter}`;
+  const lookPicture = look === null ? null : iconPictureUrl(look.icon, state.session.mediaOrigin);
+  const lookKey = look === null ? 'file' : lookPicture ?? `${look.tone}:${look.letter}`;
   if (statusFileIcon.dataset.look !== lookKey) {
-    statusFileIcon.innerHTML = look === null ? icon('file') : lookIconMarkup(look.tone, look.letter);
+    statusFileIcon.innerHTML = look === null ? icon('file') : lookIconMarkup(look.tone, look.letter, lookPicture);
     statusFileIcon.dataset.look = lookKey;
   }
   // The status bar stays up without a file so the build is always answerable;

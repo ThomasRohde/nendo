@@ -32,6 +32,11 @@ internal sealed record DesktopFileIconFiles(string Icon, string NotificationImag
 /// badge is a dot: a letter there is a smudge. The results are kept by look, not by file, in
 /// the device state, and drawn once.
 /// </para>
+/// <para>
+/// A file that carries its own picture (W-001) is drawn as that picture alone, scaled to each
+/// frame: no mark and no badge, because at 16 pixels the picture is what tells it apart. It is
+/// kept by the picture's SHA-256, so two files with the same picture share it.
+/// </para>
 /// </summary>
 internal static class DesktopFileIcon
 {
@@ -64,8 +69,9 @@ internal static class DesktopFileIcon
     internal static string CacheRoot(string deviceStateRoot) => Path.Combine(deviceStateRoot, "icons");
 
     /// <summary>The name the files for this look are kept under: the look and nothing about the file.</summary>
-    internal static string KeyFor(NendoResolvedLook look) =>
-        $"file-v{StyleVersion}-{look.Tone}-{Convert.ToHexString(Encoding.UTF8.GetBytes(look.Letter)).ToLowerInvariant()}";
+    internal static string KeyFor(NendoResolvedLook look) => look.Icon is { } icon
+        ? $"file-v{StyleVersion}-picture-{icon[NendoMedia.EmbeddedScheme.Length..]}"
+        : $"file-v{StyleVersion}-{look.Tone}-{Convert.ToHexString(Encoding.UTF8.GetBytes(look.Letter)).ToLowerInvariant()}";
 
     /// <summary>
     /// The files for this look, drawn now if this device has not drawn them before.
@@ -73,25 +79,42 @@ internal static class DesktopFileIcon
     /// <param name="cacheRoot">Where drawn icons are kept (<see cref="CacheRoot"/>).</param>
     /// <param name="look">The file's look as it is drawn.</param>
     /// <param name="markIconPath">The shipped application icon, whose frames are the mark.</param>
+    /// <param name="picture">The file's own picture, a square PNG, when the look names one.</param>
     internal static async Task<DesktopFileIconFiles> EnsureAsync(
-        string cacheRoot, NendoResolvedLook look, string markIconPath, CancellationToken cancellationToken = default)
+        string cacheRoot, NendoResolvedLook look, string markIconPath, byte[]? picture = null, CancellationToken cancellationToken = default)
     {
+        if (look.Icon is not null && picture is null)
+            throw new ArgumentException("A look with a picture is drawn from that picture.", nameof(picture));
         var key = KeyFor(look);
         var files = new DesktopFileIconFiles(
             Path.Combine(cacheRoot, key + ".ico"),
             Path.Combine(cacheRoot, key + "-96.png"));
         if (File.Exists(files.Icon) && File.Exists(files.NotificationImage)) return files;
 
-        var mark = ReadIconFrames(await File.ReadAllBytesAsync(markIconPath, cancellationToken));
+        var mark = look.Icon is null ? ReadIconFrames(await File.ReadAllBytesAsync(markIconPath, cancellationToken)) : null;
+        async Task<byte[]> Draw(int size) => mark is null
+            ? await RenderPictureAsync(picture!, size, cancellationToken)
+            : await RenderAsync(mark, look, size, cancellationToken);
         var frames = new List<(int Size, byte[] Png)>();
         foreach (var size in IconSizes)
         {
-            frames.Add((size, await EncodePngAsync(await RenderAsync(mark, look, size, cancellationToken), size)));
+            frames.Add((size, await EncodePngAsync(await Draw(size), size)));
         }
         Directory.CreateDirectory(cacheRoot);
         WriteAtomically(files.Icon, IconFile(frames));
-        WriteAtomically(files.NotificationImage, await EncodePngAsync(await RenderAsync(mark, look, 96, cancellationToken), 96));
+        WriteAtomically(files.NotificationImage, await EncodePngAsync(await Draw(96), 96));
         return files;
+    }
+
+    /// <summary>
+    /// One size of a file's own picture, as straight-alpha BGRA rows from the top: the picture
+    /// scaled to the frame, and nothing drawn over it.
+    /// </summary>
+    internal static async Task<byte[]> RenderPictureAsync(byte[] png, int size, CancellationToken cancellationToken = default)
+    {
+        var pixels = await DecodeAsync(png, size);
+        cancellationToken.ThrowIfCancellationRequested();
+        return pixels;
     }
 
     /// <summary>
@@ -227,7 +250,7 @@ internal static class DesktopFileIcon
         return data.DetachPixelData();
     }
 
-    private static async Task<byte[]> EncodePngAsync(byte[] bgra, int size)
+    internal static async Task<byte[]> EncodePngAsync(byte[] bgra, int size)
     {
         using var stream = new InMemoryRandomAccessStream();
         var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);

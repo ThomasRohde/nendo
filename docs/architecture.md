@@ -85,6 +85,10 @@ The file format gained these rungs and operations:
 - A rung for folded history (1.39.0, ADR-0021): the evidence of each fold in its own
   protected table on the layout ladder's fold rung, after the look's, added by a file's
   first fold.
+- A rung for a file's own picture as its icon (1.55.0, ADR-0004's 2026-10-19
+  amendment, W-001): `__nendo_application_icon` names an embedded square PNG, on the
+  rung above media, added when a file first chooses one. The look's tone and letter
+  stay in their own table.
 
 Every other boundary below is unchanged.
 
@@ -167,7 +171,8 @@ A file records the `minimumHostVersion` that it needs. The constants are in
 `src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
 what a file can contain. `1.11.0` is for composable surfaces. After it, each
 version adds one capability, usually a widened semantic shape. The highest version
-is `1.54.0`, for a summary tile, breakdown or ranking over a calculated number, or a breakdown grouped
+is `1.55.0`, for a file's own picture as its icon (ADR-0004, 2026-10-19, W-001). `1.54.0` is for a
+summary tile, breakdown or ranking over a calculated number, or a breakdown grouped
 by a reference (ADR-0004, 2026-10-18, W-249). `1.53.0` is for a formula that calls `AddDays` or a filter on
 `thisWeek` or `thisMonth` (ADR-0008 and ADR-0004, 2026-10-18, W-248). `1.52.0` is for a media field or an
 embedded picture (ADR-0031). `1.51.0` is for a reference
@@ -336,7 +341,8 @@ schema.setRetired           data.convertLegacyReference    behaviour.setDefiniti
 schema.setChoiceMetadata    data.setKeptInNewFiles         behaviour.removeDefinition
 schema.configureReference   identity.transition *          application.setPurpose
 schema.setReferenceLabel                                   application.setLook
-schema.declareHierarchy                                    application.setNewFileLabel
+schema.declareHierarchy                                    application.setIcon
+                                                           application.setNewFileLabel
 schema.removeHierarchy                                     application.buildSearchIndex
 schema.setFieldUnique
 schema.setFieldSequence     extension.setPackage           extension.removeFile
@@ -351,7 +357,7 @@ schema.removeChoice *
 `*` marks an operation that only host services create: a restore from deletion
 history, an identity transition, the undo of an added choice option, and a custom
 view's kept state (`nendo.state`, written through the application service). The
-other thirty-nine are the closed union that
+other forty are the closed union that
 the canonical change-set parser accepts and an MCP client may author (see
 `NendoAuthoringOperations.cs`). Whole-definition
 convenience APIs must expand into typed operations before the host records, diffs
@@ -734,7 +740,14 @@ file, described under the title band above (W-277).
   bar draws it beside the file's name (the title bar that carried it is Nendo's top
   bar since W-093); the tones are the light theme's choice tones, which a test holds to
   `02-tokens.css`. `Review-ShellRuntime.ps1` reads the running window's icon back
-  through `WM_GETICON` and checks the badge. Taskbar buttons still group under one
+  through `WM_GETICON` and checks the badge. A file with its own picture (W-001) is
+  drawn as that picture alone at every frame, read from the file by
+  `DesktopSessionController.ReadIconPictureAsync` and kept by its SHA-256; one that
+  cannot be read falls back to the badge. On About this file the page draws a dropped
+  or picked picture whole onto a transparent 256-pixel square (192 or 128 if the PNG
+  would not fit one message), sends the PNG with `look.embedIcon`, and proposes
+  `application.setIcon`; a colour and a picture chosen together are two mutations of
+  one proposal, so each undoes on its own. Taskbar buttons still group under one
   Nendo identity, so the grouped button shows one icon; a button per file needs a
   shell identity per file, which is not built.
 - **Each window's notifications are its own.** Every process posted under one

@@ -157,6 +157,8 @@ internal static class NendoToolErrors
             // the bounds; none echoes the address or the bytes sent.
             "media-address-invalid", "media-missing", "media-type-mismatch", "media-too-large", "media-budget-exceeded",
             "field-not-media",
+            // W-001: a file's icon names why its picture cannot be one, by type, size or bytes.
+            "icon-invalid",
             // W-249: a total of a calculated number names the field and the reason its calculation
             // gave, as the record's own read shows it; a breakdown by a reference names the bound.
             "calculated-total-incomplete", "aggregate-too-many-groups",

@@ -97,6 +97,8 @@ internal sealed partial class SqliteNendoStore
             }
         }
         named.Add("SELECT 1 FROM __nendo_operation o WHERE instr(o.canonical_json, m.sha256) > 0 OR instr(o.inverse_evidence_json, m.sha256) > 0");
+        if (await ApplicationIconLayoutExistsAsync(transaction, ct))
+            named.Add("SELECT 1 FROM __nendo_application_icon i WHERE i.sha256 = m.sha256");
         if (await TableExistsAsync("__nendo_deleted_record", transaction, ct))
             named.Add("SELECT 1 FROM __nendo_deleted_record d WHERE instr(d.values_json, m.sha256) > 0");
         if (await TableExistsAsync("__nendo_extension_state", transaction, ct))

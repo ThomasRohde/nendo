@@ -8,8 +8,10 @@ public sealed record NendoAgentLook(
     [property: Description("One of the choice tones, or null when the file keeps the default tone.")]
     string? Tone,
     [property: Description("One letter or digit, or null when the file keeps the default letter.")]
-    string? Letter)
+    string? Letter,
+    [property: Description("The media: address of the picture drawn as the file's icon, or null when it shows its tone and letter.")]
+    string? Icon = null)
 {
     internal static NendoAgentLook? From(NendoApplicationLook? look) =>
-        look is null ? null : new NendoAgentLook(look.Tone, look.Letter);
+        look is null ? null : new NendoAgentLook(look.Tone, look.Letter, look.Icon);
 }

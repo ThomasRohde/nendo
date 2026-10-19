@@ -29,6 +29,12 @@ comes from the file's identity and the letter from its name. To choose another,
 open About this file, pick a colour and a letter, and choose **Review change**; the
 change is a proposal you accept like any other.
 
+A file can use a picture of its own instead, which is easier to tell apart at the size
+the taskbar draws. Drop a picture onto the icon in About this file, or choose
+**Choose picture…**, then **Review change**. Nendo fits the picture onto a square and
+keeps it in the file, so the icon goes wherever the file goes. **Use colour and
+letter** takes it away again.
+
 ### Record type
 
 A record type is one kind of thing that the file tracks, for example *Task* or

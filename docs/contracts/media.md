@@ -122,6 +122,9 @@ kept value of a view; or a retained operation, in its encoding or its undo evide
 the picture's hash. A put names its picture, so a picture leaves only after folding history lets
 go of every change that named it.
 
+The file's own icon (W-001, ADR-0004 2026-10-19) names its picture too: removal keeps the picture
+`__nendo_application_icon` names, and so does a new file of the application.
+
 `ReadMediaUsageAsync` (`media.usage`) answers the count and bytes, the unused count and bytes, and
 the 2 GiB budget; History shows them under the fold. `RemoveUnusedMediaAsync(backupPlanId)`
 (`media.removeUnused`, started from History) follows the fold's rules: a backup of the file as it

@@ -406,6 +406,7 @@ internal sealed partial class WorkbenchProtocolHandler
                     WorkbenchMethods.DataSetKeptInNewFiles => await SetKeptInNewFilesAsync(payload, writer, cancellationToken),
                     WorkbenchMethods.DataSetField => await SetGenericFieldAsync(payload, cancellationToken),
                     WorkbenchMethods.MediaEmbed => await EmbedMediaAsync(payload, droppedPicture, cancellationToken),
+                    WorkbenchMethods.LookEmbedIcon => await EmbedIconAsync(payload, cancellationToken),
                     WorkbenchMethods.MediaLink => await LinkMediaAsync(payload, cancellationToken),
                     WorkbenchMethods.MediaEmbedCopy => await EmbedMediaCopyAsync(payload, cancellationToken),
                     WorkbenchMethods.MediaSaveCopy => await SaveMediaCopyAsync(payload, cancellationToken),

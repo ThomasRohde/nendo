@@ -72,3 +72,59 @@ test('every class the look markup emits has a rule, and every tone has a colour 
     assert.match(styles, new RegExp(`\\.look-badge\\[data-tone="${tone}"\\][^{]*\\{ background: var\\(--look-${tone}\\); \\}`));
   }
 });
+
+// W-001. A file may carry its own picture, drawn instead of the badge wherever the look is.
+const sha = 'ab'.repeat(32);
+const withPicture = { ...chosen, icon: `media:${sha}` };
+const origin = 'https://media-0123456789abcdef.example';
+
+test('a file with its own picture shows it instead of the badge, from the file’s media origin', () => {
+  assert.equal(look.iconPictureUrl(`media:${sha}`, origin), `${origin}/m/${sha}`);
+  assert.equal(look.iconPictureUrl(`media:${sha}`, null), null, 'no origin, no picture: the badge is shown');
+  assert.equal(look.iconPictureUrl('https://example.org/a.png', origin), null, 'only a picture the file holds');
+  assert.equal(look.iconPictureUrl(null, origin), null);
+
+  const markup = look.aboutLookMarkup(withPicture, true, origin);
+  assert.match(markup, new RegExp(`<span class="look-icon look-picture" aria-hidden="true"><img src="${origin}/m/${sha}" alt="" /></span>`));
+  assert.doesNotMatch(markup, /look-badge/, 'the picture replaces the badge');
+  assert.match(markup, /Its own picture\./);
+  assert.match(markup, /data-look-clear-picture >/, 'a picture can be taken away');
+  assert.match(look.aboutLookMarkup(chosen, true, origin), /data-look-clear-picture disabled/, 'nothing to take away without one');
+  assert.match(markup, /<div class="look-summary" data-look-drop>/, 'the icon takes a dropped picture');
+  assert.match(markup, /data-look-pick>Choose picture…/);
+  assert.match(markup, /accept="image\/png,[^"]*\.ico,\.svg"/, 'the picker offers every kind the page can draw');
+  const readOnly = look.aboutLookMarkup(withPicture, false, origin);
+  assert.match(readOnly, /look-picture/);
+  assert.doesNotMatch(readOnly, /data-look-drop|data-look-pick|data-look-clear-picture/);
+});
+
+test('a picture becomes one reviewed operation, and taking it away another', () => {
+  const given = look.lookProposal(chosen, { ...look.chosenLook(chosen, 'violet', 'P'), icon: `media:${sha}` }, 5);
+  assert.equal(given.title, 'Give this file its own picture');
+  assert.deepEqual(given.mutations[0].operations.map(operation => [operation.operationType, operation.payload]),
+    [['application.setIcon', { icon: `media:${sha}`, expectedDefinitionRevision: 5 }]], 'the tone and letter as shown are not touched');
+
+  const away = look.lookProposal(withPicture, { ...look.chosenLook(withPicture, 'violet', 'P'), icon: null }, 6);
+  assert.equal(away.title, 'Take this file’s picture away');
+  assert.deepEqual(away.mutations[0].operations[0].payload, { icon: null, expectedDefinitionRevision: 6 });
+
+  assert.equal(look.lookProposal(withPicture, look.chosenLook(withPicture, 'violet', 'P'), 6), null, 'a picture left as it is is no change');
+  assert.equal(look.lookProposal(withPicture, { ...look.chosenLook(withPicture, 'violet', 'P'), icon: `media:${sha}` }, 6), null, 'nor is the same picture again');
+
+  const both = look.lookProposal(byDefault, { ...look.chosenLook(byDefault, 'teal', 'N'), icon: `media:${sha}` }, 7);
+  assert.deepEqual(both.mutations.map(mutation => mutation.operations.map(operation => [operation.operationType, operation.payload.expectedDefinitionRevision])),
+    [[['application.setLook', 7]], [['application.setIcon', 8]]],
+    'a colour and a picture chosen together are one proposal of two revisions, each undoable on its own');
+  assert.throws(() => look.lookProposal(byDefault, { tone: null, letter: null, icon: 'C:\icon.png' }, 1), /Drop a picture/);
+  assert.equal(look.lookReviewable(withPicture, { ...look.chosenLook(withPicture, 'violet', 'P'), icon: null }, 'P'), true);
+});
+
+test('a dropped picture is drawn whole and centred on the square', () => {
+  assert.deepEqual(look.containRect(512, 512, 256), { x: 0, y: 0, width: 256, height: 256 });
+  assert.deepEqual(look.containRect(1000, 500, 256), { x: 0, y: 64, width: 256, height: 128 }, 'a wide picture is letterboxed');
+  assert.deepEqual(look.containRect(300, 900, 192), { x: 64, y: 0, width: 64, height: 192 }, 'a tall one pillarboxed');
+  assert.deepEqual(look.containRect(16, 16, 256), { x: 0, y: 0, width: 256, height: 256 }, 'a small icon fills the square');
+  assert.throws(() => look.containRect(0, 10, 256), /no size/);
+  assert.deepEqual([...look.iconPictureSides], [256, 192, 128]);
+  assert.ok(look.iconPictureMaxBase64 < 262_144, 'one icon fits in one message to the host');
+});

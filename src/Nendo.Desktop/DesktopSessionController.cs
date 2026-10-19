@@ -663,6 +663,18 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     /// </summary>
     internal NendoResolvedLook? CurrentLook => _currentLook;
 
+    /// <summary>
+    /// The bytes of the open file's own picture, for drawing its icon (W-001), or null when the
+    /// file is closed, cannot be read or no longer holds it.
+    /// </summary>
+    internal async Task<byte[]?> ReadIconPictureAsync(string address, CancellationToken cancellationToken = default)
+    {
+        if (_service is not { } service || !service.Capabilities.ReadData) return null;
+        if (!NendoMediaAddress.TryParse(address, out var parsed) || parsed!.Sha256 is not { } sha) return null;
+        try { return await service.ReadMediaContentAsync(sha, cancellationToken); }
+        catch (Exception exception) when (exception is NendoPreconditionException or NendoRecoveryRequiredException or ObjectDisposedException) { return null; }
+    }
+
     private volatile NendoResolvedLook? _currentLook;
 
     private async Task<DesktopSessionView> ReadViewAsync(CancellationToken cancellationToken)

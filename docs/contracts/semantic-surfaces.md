@@ -1273,7 +1273,7 @@ the shape cannot show (below). The ladder is:
 | A `summaryTile`, `breakdownChart` or `rankedList` over a calculated number, or a `breakdownChart` grouped by a Reference (W-249) | 1.54 |
 
 Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
-1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51 and 1.52 (`NendoFormat`).
+1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51, 1.52 and 1.55 (`NendoFormat`).
 `1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
 to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), `1.33.0` to a file
 that carries a custom-view package (ADR-0013), `1.35.0` to a file that declares a hierarchy
@@ -1288,8 +1288,9 @@ full-text index (ADR-0028), `1.47.0` to one whose behaviour uses a create step's
 `ui.removeProperty` (ADR-0004, 2026-10-13), `1.49.0` to one whose formula calls `ToText`
 (ADR-0008, 2026-10-13), `1.50.0` to one carrying the three history indexes a fold adds
 (ADR-0021, 2026-10-13 note), `1.51.0` to one that changed a reference's label with
-`schema.setReferenceLabel` (ADR-0003, 2026-10-14 note), and `1.52.0` to one with a media field or
-an embedded picture (ADR-0031). Each operation declares that version on its own evidence. A
+`schema.setReferenceLabel` (ADR-0003, 2026-10-14 note), `1.52.0` to one with a media field or
+an embedded picture (ADR-0031), and `1.55.0` to one with its own picture as its icon (ADR-0004,
+2026-10-19, W-001). Each operation declares that version on its own evidence. A
 history fold, which is not an operation, states it in the manifest itself: 1.50.0 since
 2026-10-13, which covers the fold table's 1.39.0, and a file started with New states 1.50.0
 too, because its copy is folded.

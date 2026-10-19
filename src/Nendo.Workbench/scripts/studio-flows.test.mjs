@@ -339,7 +339,7 @@ test('WSP-25: Review change stays off while the letter box holds a refused lette
   assert.equal(look.lookReviewable(current, teal, 'N'), true);
   assert.equal(look.lookReviewable(current, teal, 'AB'), false, 'a colour picked after a refused letter enables Review with the old letter');
   assert.equal(look.lookReviewable(current, teal, ''), false);
-  assert.match(source('file-actions.ts'), /review\.disabled = !lookReviewable\(look, next, letterInput\.value\);/, 'the dialog’s redraw ignores the letter box');
+  assert.match(source('file-actions.ts'), /review\.disabled = !lookReviewable\(look, proposed\(\), letterInput\.value\);/, 'the dialog’s redraw ignores the letter box');
 });
 
 test('WSP-09: a filter status reads a number by its digits, typed or stored', () => {

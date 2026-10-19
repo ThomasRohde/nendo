@@ -277,6 +277,7 @@ internal sealed partial class SqliteNendoStore
                 definitionAfter, cancellationToken),
             "application.setPurpose" => CreatePurposeInverse(original.Canonical, original.Evidence, idempotencyKey),
             "application.setLook" => CreateLookInverse(original.Evidence, idempotencyKey),
+            "application.setIcon" => CreateIconInverse(original.Evidence, idempotencyKey),
             "application.setNewFileLabel" => CreateNewFileLabelInverse(original.Evidence, idempotencyKey),
             "schema.setKeptInNewFiles" => CreateKeptDefaultInverse(original.Canonical, original.Evidence, idempotencyKey),
             "schema.declareHierarchy" => CreateDeclareHierarchyInverse(original.Canonical, original.Evidence, idempotencyKey),

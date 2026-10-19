@@ -10,6 +10,64 @@
 
 ## Context
 
+### Accepted amendment — 2026-10-19 (a file's own picture as its icon)
+
+Accepted on the owner's standing pre-acceptance of ADR changes, for W-001 (I-001, UI and UX
+polish). The owner asked for it on 2026-10-19: "The current dot is not differentiating enough.
+The custom icon of an app is saved to the nendo file. Users can drop icons onto the About dialog."
+It amends the 2026-09-28 entry below and [ADR-0031](0031-media-in-user-data.md) point 8.
+
+**Context.** The 2026-09-28 look is a tone and a letter, drawn as a badge on the Nendo mark.
+Below 24 pixels the badge is a dot, and the taskbar, the notification area and Alt+Tab at 100%
+draw the icon at 16 to 24 pixels. Six default tones over several open files leave two files with
+the same dot more often than not, and a letter is only drawn from 24 pixels up.
+
+**Decision.**
+
+- **A file may carry a picture as its icon.** The picture replaces the whole drawn icon, the
+  mark and the badge both: what tells files apart at 16 pixels is the picture, and a mark shrunk
+  to make room for it would be the smudge the dot already is. The tone and letter stay, and they
+  are what the file shows again when the picture is taken away. A file without a picture is drawn
+  as before.
+- **One canonical operation**, `application.setIcon { icon, expectedDefinitionRevision }`, on the
+  definition lane like `application.setLook`, `ReversibleWithRetainedState`. `icon` is a `media:`
+  address, or null to take the picture away. The picture must already be embedded in the file
+  (ADR-0031 `media.put`, which needs no media field): `media-missing` otherwise.
+- **What a picture must be.** A square PNG, 16 to 1,024 pixels a side, at most 1 MiB, refused
+  as `icon-invalid` naming which. One format keeps every place that draws the icon to one
+  decoder. The Workbench makes any picture it can show into one: it draws the dropped picture
+  (PNG, JPEG, GIF, WebP, AVIF, SVG or ICO) centred on a transparent 256-pixel square, keeping its
+  proportions, and embeds the PNG it gets.
+- **Storage.** Its own protected table, `__nendo_application_icon` (`singleton_id`, `sha256`
+  referencing `__nendo_media`), as the new last rung of the layout ladder (`-icon-`), above
+  media. Only a file that chose a picture takes the rung; taking it away deletes the row and
+  keeps the rung. The minimum host is **1.55.0**, declared by the operation's evidence and by the
+  rung at open. An icon row naming content the file does not hold, or that is not a PNG, makes the
+  file unreadable rather than misdrawn.
+- **Kept with the file.** The icon's picture is in use for ADR-0031 point 8: *Remove unused
+  media* keeps it, and a new file of the application (ADR-0022) keeps it with the look. Duplicate,
+  Fork and Backup copy it with the file.
+- **Where it shows.** Wherever the look is drawn: the window and taskbar icon, Alt+Tab, the
+  notification-area icon, a notification's picture, and the status bar. The Jump List keeps the
+  shipped document icon, because drawing a closed file's icon means opening it; tabs carry no look
+  today and still do not.
+- **Reading and choosing it.** The manifest's `look` gains `icon`, the address or null. The
+  review names it as part of `lookBefore`/`lookAfter` and says "Give this file its own picture as
+  its icon." or "Take this file's picture away, so it shows its colour and letter again." On
+  **About this file** a person drops a picture onto the icon, or picks one with **Choose
+  picture…**. The picture is embedded at once, shown in place of the badge, and **Review change**
+  opens the ordinary proposal review. **Use colour and letter** takes it away. An agent sets it
+  with the same operation, naming a picture the file holds.
+
+**Rejected.** *A picture field in the look table*: the look's CHECK constraints are its
+compatibility promise, and a changed table would make every 1.38.0 file a layout the older host
+misreads. *Any picture type stored as dropped*: an SVG or AVIF on the taskbar would need a
+second renderer in the Desktop for a picture the Workbench can already draw. *The picture as a
+badge on the mark*: at 16 pixels a badge is the dot this replaces.
+
+**Consequences.** A file with an icon needs host 1.55.0. `ApplicationIconTests`,
+`DesktopFileIconTests` and `file-look.test.mjs` carry the obligations, each guard falsified.
+
 ### Accepted amendment — 2026-10-18 (a tile totals a calculation, and a breakdown groups by a reference)
 
 Accepted on the owner's standing pre-acceptance of ADR changes, for W-249 (Finding F-306). It

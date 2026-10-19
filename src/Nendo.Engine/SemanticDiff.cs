@@ -301,6 +301,12 @@ internal static class SemanticDiff
                         ? "Give this file back its default icon."
                         : $"Give this file its own icon: {value.Tone ?? "its default colour"}, {(value.Letter is { } letter ? $"the letter {letter}" : "its default letter")}.",
                     value.Reversibility),
+                SetApplicationIconOperation value => Entry(
+                    "setApplicationIcon",
+                    value.Icon is null
+                        ? "Take this file's picture away, so it shows its colour and letter again."
+                        : "Give this file its own picture as its icon.",
+                    value.Reversibility),
                 SetFieldPresentationOperation value => Entry(
                     "setFieldPresentation",
                     $"Show {FieldName(names, value.FieldId)} in {EntityName(names, value.EntityId)} as {value.Presentation switch

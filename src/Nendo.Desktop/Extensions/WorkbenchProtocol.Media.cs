@@ -36,6 +36,13 @@ internal static partial class WorkbenchMethods
     /// </summary>
     internal const string MediaUsage = "media.usage";
     internal const string MediaRemoveUnused = "media.removeUnused";
+
+    /// <summary>
+    /// A picture for the file's own icon (W-001), embedded so About this file can propose it. The
+    /// page has already drawn what the person dropped or picked into a square PNG, small enough for
+    /// one message, so this carries the PNG and never a path; the Engine checks it can be an icon.
+    /// </summary>
+    internal const string LookEmbedIcon = "look.embedIcon";
 }
 
 /// <summary>The window's half of the picture actions: its pickers and the clipboard.</summary>
@@ -258,6 +265,34 @@ internal sealed partial class WorkbenchProtocolHandler
         var result = new DesktopMediaActionView(false, address, write);
         _viewUploads.Remember(key, result);
         return result;
+    }
+
+    /// <summary>
+    /// Embeds the square PNG About this file drew for the file's icon, refusing before anything is
+    /// written one that could not be an icon; choosing it is the proposal that follows.
+    /// </summary>
+    private async Task<object> EmbedIconAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        byte[] content;
+        try { content = Convert.FromBase64String(RequiredString(payload, "base64", MaximumMessageCharacters)); }
+        catch (FormatException) { throw new NendoValidationException("base64 is not valid base64."); }
+        if (content.Length == 0) throw new NendoValidationException("No picture arrived with that request.");
+        var mediaType = NendoMedia.Sniff(content) ?? "an unknown type";
+        var size = NendoMedia.PictureSize(mediaType, content);
+        var item = new NendoMediaItem(NendoExtensionContent.Sha256(content), mediaType, content.LongLength, null, size?.Width, size?.Height);
+        if (NendoLook.IconRefusal(item) is { } refusal) throw new NendoPreconditionException("icon-invalid", refusal);
+        var name = payload.TryGetProperty("name", out var given) && given.ValueKind == JsonValueKind.String && given.GetString() is { Length: > 0 } text
+            ? text : "icon.png";
+        string? address = null;
+        var write = await _session.MutateAsync(async service =>
+        {
+            var put = await service.PutMediaAsync(new NendoPutMediaRequest(content, NendoLook.IconMediaType,
+                name.Length > NendoMedia.MaximumNameCharacters ? name[..NendoMedia.MaximumNameCharacters] : name,
+                new NendoRequestContext("desktop.p2.5", "icon-embed-" + Guid.NewGuid().ToString("N"), "surface")), cancellationToken);
+            address = put.Address;
+            return put.Result;
+        }, cancellationToken);
+        return new DesktopMediaActionView(false, address, write);
     }
 
     private async Task<object> PutPictureAsync(byte[] content, string name, NendoMediaTarget target, CancellationToken cancellationToken)

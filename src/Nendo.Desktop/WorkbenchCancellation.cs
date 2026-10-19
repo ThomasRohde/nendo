@@ -107,6 +107,8 @@ internal static partial class WorkbenchMethods
         MediaCommit,
         MediaUsage,
         MediaRemoveUnused,
+        // The file's own icon (W-001): the page sends the drawn PNG, so no picker is involved.
+        LookEmbedIcon,
         // A view's runtime event (W-251): kept in memory, and no window is involved.
         ExtensionEventsReport,
     };

@@ -5,18 +5,20 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// The look a file chose for itself: one of the choice tones and one letter, each of which
-/// may be left to the default. Null parts are not chosen; a file that chose neither carries
-/// no look at all.
+/// may be left to the default, and a picture drawn in their place (W-001). Null parts are not
+/// chosen; a file that chose none carries no look at all.
 /// </summary>
-public sealed record NendoApplicationLook(string? Tone, string? Letter);
+public sealed record NendoApplicationLook(string? Tone, string? Letter, string? Icon = null);
 
 /// <summary>
 /// A file's look as it is drawn: what it chose, and the defaults where it chose nothing. The
 /// defaults travel too, so a page offering "use the defaults" can show what that would be
-/// without working it out a second time.
+/// without working it out a second time. <see cref="Icon"/> is the picture's <c>media:</c>
+/// address when the file has one, drawn instead of the tone and letter.
 /// </summary>
 public sealed record NendoResolvedLook(
-    string Tone, string Letter, bool ToneChosen, bool LetterChosen, string? DefaultTone = null, string? DefaultLetter = null);
+    string Tone, string Letter, bool ToneChosen, bool LetterChosen, string? DefaultTone = null, string? DefaultLetter = null,
+    string? Icon = null);
 
 /// <summary>
 /// How a file is told apart from the others open beside it: a tone and a letter, drawn as a
@@ -70,7 +72,40 @@ public static class NendoLook
     {
         var tone = DefaultTone(applicationId);
         var letter = DefaultLetter(fileName);
-        return new(chosen?.Tone ?? tone, chosen?.Letter ?? letter, chosen?.Tone is not null, chosen?.Letter is not null, tone, letter);
+        return new(chosen?.Tone ?? tone, chosen?.Letter ?? letter, chosen?.Tone is not null, chosen?.Letter is not null, tone, letter,
+            chosen?.Icon);
+    }
+
+    /// <summary>The only picture type an icon may be: one decoder for every place that draws it.</summary>
+    public const string IconMediaType = "image/png";
+
+    /// <summary>The smallest side an icon's picture may have: the smallest frame the shell asks for.</summary>
+    public const int MinimumIconPixels = 16;
+
+    /// <summary>The largest side an icon's picture may have: four times the largest frame drawn from it.</summary>
+    public const int MaximumIconPixels = 1024;
+
+    /// <summary>The most an icon's picture may hold, so drawing it never reads a large picture.</summary>
+    public const long MaximumIconBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Why an embedded picture cannot be a file's icon, or null when it can: a square PNG, 16 to
+    /// 1,024 pixels a side, at most 1 MiB.
+    /// </summary>
+    public static string? IconRefusal(NendoMediaItem item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        if (item.MediaType != IconMediaType)
+            return $"A file's icon is a PNG, and this picture is {item.MediaType}. Nendo converts a dropped picture to one.";
+        if (item.ByteLength > MaximumIconBytes)
+            return $"A file's icon holds at most {MaximumIconBytes / 1024} KiB, and this picture holds {Math.Ceiling(item.ByteLength / 1024.0)} KiB.";
+        if (item.Width is not { } width || item.Height is not { } height)
+            return "A file's icon must say its size, and this picture does not.";
+        if (width != height)
+            return $"A file's icon is square, and this picture is {width} by {height} pixels.";
+        if (width is < MinimumIconPixels or > MaximumIconPixels)
+            return $"A file's icon is {MinimumIconPixels} to {MaximumIconPixels} pixels a side, and this picture is {width}.";
+        return null;
     }
 
     /// <summary>Whether this is a tone a file may choose.</summary>
@@ -123,4 +158,42 @@ public sealed record SetApplicationLookOperation : NendoOperation
 
     internal override void WritePayload(Utf8JsonWriter writer) => JsonSerializer.Serialize(writer,
         new { tone = Tone, letter = Letter, expectedDefinitionRevision = ExpectedDefinitionRevision });
+}
+
+/// <summary>
+/// Gives the file a picture as its icon, drawn instead of the tone and letter, or takes it away
+/// (ADR-0004, 2026-10-19 amendment, W-001).
+/// <para>
+/// The picture is embedded content the file already holds (<see cref="PutMediaOperation"/>), a
+/// square PNG within <see cref="NendoLook.IconRefusal"/>'s bounds. Null takes the picture away,
+/// and the file shows its tone and letter again.
+/// </para>
+/// </summary>
+public sealed record SetApplicationIconOperation : NendoOperation
+{
+    public SetApplicationIconOperation(string operationId, string? icon, long expectedDefinitionRevision)
+        : base(operationId)
+    {
+        Icon = string.IsNullOrWhiteSpace(icon) ? null : icon.Trim();
+        ExpectedDefinitionRevision = expectedDefinitionRevision;
+        if (Icon is not null && (!NendoMediaAddress.TryParse(Icon, out var address) || address!.Source != NendoMediaSource.Embedded))
+        {
+            throw new NendoValidationException(
+                $"A file's icon is a picture embedded in the file, named media: and its SHA-256, and '{Icon}' is not.");
+        }
+    }
+
+    /// <summary>The picture's <c>media:</c> address, or null to take the picture away.</summary>
+    public string? Icon { get; }
+
+    /// <summary>The SHA-256 the address names, or null.</summary>
+    public string? Sha256 => Icon?[NendoMedia.EmbeddedScheme.Length..];
+
+    public long ExpectedDefinitionRevision { get; }
+    public override string OperationType => "application.setIcon";
+    public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
+    public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
+
+    internal override void WritePayload(Utf8JsonWriter writer) => JsonSerializer.Serialize(writer,
+        new { icon = Icon, expectedDefinitionRevision = ExpectedDefinitionRevision });
 }

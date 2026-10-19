@@ -120,11 +120,19 @@ public sealed partial class MainWindow : Window
         }
         var cache = DesktopFileIcon.CacheRoot(DesktopAppearanceStore.DefaultRoot);
         var mark = Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico");
+        var session = Page?.Session;
         _ = Task.Run(async () =>
         {
             DesktopFileIconFiles? files = null;
             // A missing icon is a missing convenience; the plain mark stays until one is drawn.
-            try { files = await DesktopFileIcon.EnsureAsync(cache, look, mark); }
+            // A file's own picture that cannot be read or drawn falls back to its tone and letter.
+            try
+            {
+                var picture = look.Icon is { } icon && session is not null ? await session.ReadIconPictureAsync(icon) : null;
+                var drawn = picture is null ? look with { Icon = null } : look;
+                try { files = await DesktopFileIcon.EnsureAsync(cache, drawn, mark, picture); }
+                catch (Exception) when (drawn.Icon is not null) { files = await DesktopFileIcon.EnsureAsync(cache, look with { Icon = null }, mark); }
+            }
             catch (Exception) { }
             DispatcherQueue.TryEnqueue(() =>
             {

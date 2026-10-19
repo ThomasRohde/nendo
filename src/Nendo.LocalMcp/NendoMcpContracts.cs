@@ -88,7 +88,7 @@ public sealed record NendoMcpManifest(
 }
 
 /// <summary>A file's look as it is drawn, and which parts the file chose rather than has by default.</summary>
-public sealed record NendoMcpLook(string Tone, string Letter, bool ToneChosen, bool LetterChosen);
+public sealed record NendoMcpLook(string Tone, string Letter, bool ToneChosen, bool LetterChosen, string? Icon = null);
 
 public sealed record NendoMcpEntity(string EntityId, string DisplayName) { public bool Retired { get; init; } }
 
