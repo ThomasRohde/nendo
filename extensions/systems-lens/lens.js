@@ -10,15 +10,15 @@
   const nendo = window.nendo;
   let loaded = false, nodes = [], edges = [], hidden = 0, selected = null, focusing = false, removed = null;
   // Whether the person has zoomed or panned since the schematic was last fitted. A re-read keeps
-  // where they are then, rather than fitting the whole schematic again (GGV-02).
+  // where they are then, rather than fitting the whole schematic again.
   let moved = false;
   // True while a redraw puts focus back where it was, so that focus does not move the drawing.
   let restoring = false;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
-  // True where Nendo draws this view's controls in its own toolbar (W-091), and whether the
-  // explanation is shown over the schematic (W-092).
+  // True where Nendo draws this view's controls in its own toolbar, and whether the
+  // explanation is shown over the schematic.
   let nativeChrome = false, aboutShown = false;
   const positions = new Map();     // node id -> {x, y}
   const component = new Map();     // node id -> strongly connected component index
@@ -35,7 +35,7 @@
   const SEPARATOR = ' · ';
   // The view kit (tools/view-kit, copied into kit/): the components are one tab stop, and the
   // arrow keys go to the nearest component in that direction on the schematic, not the next in
-  // the file's order (GGV-09). Loaded as a module from this classic script; until it arrives,
+  // the file's order. Loaded as a module from this classic script; until it arrives,
   // every component is a tab stop and Enter opens it.
   let keys = null;
   import('./kit/nendo-view-kit.js').then(kit => {
@@ -250,7 +250,7 @@
     const total = walk(id, outgoing).size;
     element('selection').textContent = `${labelOf(id)} · fed by ${fed} · feeds ${feeds}`
       + (total > feeds ? ` (${total} downstream in all)` : '')
-      // With feeds from outside this view left undrawn, nothing drawn feeding it is all it shows (GGV-06).
+      // With feeds from outside this view left undrawn, nothing drawn feeding it is all it shows.
       + (looping.has(id) ? ' · in a circuit' : fed === 0 ? (hidden > 0 ? ' · no feed drawn into it' : ' · a declared source') : '')
       + (baseline.has(id) ? '' : ' · no declared source reaches it');
     paint();
@@ -265,7 +265,7 @@
     });
   }
 
-  // The text view is built once for each read (GGV-04). A selection, Focus or a take-out only
+  // The text view is built once for each read. A selection, Focus or a take-out only
   // updates its rows, so the button the person just pressed stays, with the keyboard on it.
   function textView() {
     const list = element('records'); list.replaceChildren();
@@ -309,7 +309,7 @@
       return;
     }
     const parts = [`${nodes.length} component${nodes.length === 1 ? '' : 's'}`, `${edges.length} feed${edges.length === 1 ? '' : 's'}`];
-    // A feed to or from a component this view does not show is not drawn (GGV-06). A component
+    // A feed to or from a component this view does not show is not drawn. A component
     // fed only that way would read as a declared source, so then they are named for what is
     // known: no feed into them is drawn.
     if (nodes.length !== 0) parts.push(hidden > 0 ? `${seeds.length} with no feed drawn` : `${seeds.length} declared source${seeds.length === 1 ? '' : 's'}`);
@@ -332,7 +332,7 @@
     return null;
   }
   // Gives the keyboard back to that component after the redraw, or to the one now where it was,
-  // so focus does not fall to the page (GGV-03). Giving it back moves nothing.
+  // so focus does not fall to the page. Giving it back moves nothing.
   function restoreFocus(was) {
     if (was === null) return;
     const items = [...was.container.querySelectorAll('[data-id]')];
@@ -427,7 +427,7 @@
     textView();
     paint();
     // The person's zoom and pan stay while any component they were looking at is still drawn;
-    // the first drawing, and a schematic that is all new, are fitted (GGV-02). A component added
+    // the first drawing, and a schematic that is all new, are fitted. A component added
     // or taken away can move the others to another layer or row, so the selected component, or
     // else the focused one, stays at the point on screen where it was.
     if (moved && nodes.some(node => drawn.has(node.id))) {
@@ -564,14 +564,14 @@
   });
   new ResizeObserver(() => { if (loaded && !canvas.hidden && !moved) fit(); }).observe(canvas);
 
-  // --- Nendo's own chrome (W-091) ---------------------------------------------------------
+  // --- Nendo's own chrome ---------------------------------------------------------
   //
   // Where the host offers it, this view does not draw its controls: it declares them, and
   // Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys and
   // sends a press back as a command. A right-click on a component opens Nendo's menu. The
   // page's title gives way to Nendo's own breadcrumb; the caveat stays the view's own.
 
-  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // The view's own lines: where Nendo draws the controls, the summary is declared as
   // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
   // frame. A summary that reports a problem stays in the frame, whole.
   function setSummary(text, problem = false) {

@@ -249,7 +249,7 @@ button.quiet:hover { background: var(--soft); }
 .preview[hidden] { display: none; }
 .sheet-page { position: relative; box-sizing: border-box; background: #ffffff; color: #1b1b1b; box-shadow: var(--shadow); zoom: var(--zoom, 1); flex: none; }
 .preview[data-layout='book'] .sheet-page { width: 576px; height: 864px; padding: 72px; font: 14.7px/1.25 Georgia, 'Sitka Text', serif; }
-/* The paper's sheet, type and spacing come from paperStyle in preview.mjs, AASTeX's measures (W-293). */
+/* The paper's sheet, type and spacing come from paperStyle in preview.mjs, AASTeX's measures. */
 .sheet-body { overflow: hidden; height: 100%; }
 /* A sheet holding a block taller than a page grows to show it whole, and says so under it. */
 .sheet-page.runs-over { height: auto !important; }

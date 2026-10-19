@@ -26,11 +26,11 @@ let model = hierarchy([], binding.title);
 // Whether the file declares no capability hierarchy, which is the one thing the map needs.
 let undeclared = false;
 // The most records the Atlas reads: capabilities as the tree, and each record type that refers to
-// them (ABS-10). One more is asked for, so a read that was cut is known, and said, rather than
+// them. One more is asked for, so a read that was cut is known, and said, rather than
 // silently drawing the latest assessment, Change since or coverage from part of the file.
 const CAPABILITY_MAX = 10000, RELATED_MAX = 5000;
 let cutNotice = null;
-// The mode a view's configuration names, applied once the first read has bound the view (ABS-13):
+// The mode a view's configuration names, applied once the first read has bound the view:
 // before then, Importance × health and Capability × application are never available.
 let configuredMode = null;
 
@@ -38,7 +38,7 @@ let configuredMode = null;
 let selected = null;        // record ID of the selected capability
 let scope = null;           // record ID of the focused group; null is the whole enterprise
 let mode = 'map';           // 'map', 'assessment', 'outline', 'portfolio' or 'matrix'
-let covered = new Map();    // capability ID -> distinct applications at or below it (W-081)
+let covered = new Map();    // capability ID -> distinct applications at or below it
 let colour = 'maturity';    // what card colour shows: maturity, gap, change, importance, investment, none
 let since = null;           // the assessment date 'change' is measured from; null is the earliest
 let layoutMode = 'compact'; // the reference layout's 'compact' or 'ordered' packing
@@ -58,7 +58,7 @@ let editing = null, dirty = false;
 // The latest refresh wins over one still in flight; a burst of changes is read once.
 let loading = 0, refreshTimer;
 
-// Whether Nendo draws the Atlas's controls in its own toolbar, menus, Ctrl K and keys (W-090).
+// Whether Nendo draws the Atlas's controls in its own toolbar, menus, Ctrl K and keys.
 // On a host that does not offer it, the Atlas draws its own toolbar, as it always has.
 let nativeChrome = false;
 // Export's "Light colours for print", which the Atlas's own menu keeps in a checkbox.
@@ -145,13 +145,13 @@ function toneFor(record) {
       return g === 1 ? 'amber' : g === 2 ? 'orange' : 'red';
     }
     case 'change': {
-      // Latest maturity against the maturity in force on the chosen date (W-080).
+      // Latest maturity against the maturity in force on the chosen date.
       const d = binding.change(record, sinceDate());
       if (d == null) return 'grey';
       return d < 0 ? 'red' : d === 0 ? 'blue' : d === 1 ? 'teal' : 'green';
     }
     case 'coverage': {
-      // Applications supporting the capability or anything below it (W-081).
+      // Applications supporting the capability or anything below it.
       const n = covered.get(record.recordId) ?? 0;
       return n === 0 ? 'red' : n === 1 ? 'teal' : 'amber';
     }
@@ -228,7 +228,7 @@ function setModeQuietly(next) {
   document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
 }
 
-/** Importance against health needs an importance field and IT health assessments (W-080). */
+/** Importance against health needs an importance field and IT health assessments. */
 function portfolioAvailable() {
   return binding.has('importance') && binding.has('health');
 }
@@ -363,7 +363,7 @@ function card(node, lit) {
 
   const b = button('', () => select(node.id), classes.join(' '));
   b.dataset.id = node.id;
-  // One tab stop for the whole map (ABS-18): the selected card, else the first; arrows move between them.
+  // One tab stop for the whole map: the selected card, else the first; arrows move between them.
   b.tabIndex = selected === node.id ? 0 : -1;
   const maturity = binding.has('maturity') ? `, ${maturityText(binding.value(record, 'maturity'), 'Unassessed').replace(/^\d+ · /, '')}` : '';
   b.setAttribute('aria-label',
@@ -407,7 +407,7 @@ function score(record, hidden) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Export (W-078)
+// Export
 //
 // The map as a file: SVG to edit, PNG for a slide. export.js builds both from the packed layout,
 // so a file holds every card of the scope at the chosen levels in the chosen colour, whatever
@@ -519,7 +519,7 @@ async function exportMap(format) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Importance against health (W-080)
+// Importance against health
 //
 // Every capability in scope, placed by its strategic importance (a row per choice, the most
 // important on top) against its latest IT health assessment (a column per score, and one for
@@ -530,8 +530,8 @@ function renderPortfolio() {
   const importance = [...(binding.choices.importance ?? [])].reverse();
   const scale = binding.assessments?.scale ?? { min: 1, max: 5 };
   const scores = Array.from({ length: scale.max - scale.min + 1 }, (_, i) => scale.min + i);
-  // ABS-17: a capability whose importance is a retired choice, or one the schema does not know,
-  // matched no row and was left out without a word; it is placed in a row of its own.
+  // A capability whose importance is a retired choice, or one the schema does not know,
+  // matches no row; rather than being left out without a word, it is placed in a row of its own.
   const offered = new Set(importance.map(choice => choice.id));
   const importanceOf = choice => record => {
     const value = binding.value(record, 'importance');
@@ -579,7 +579,7 @@ function renderPortfolio() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Capability against application (W-081)
+// Capability against application
 //
 // A row for each capability in scope that an application supports directly, a column for each
 // application supporting one of them, and in each cell the role and fit of the link. Pressing a
@@ -713,7 +713,7 @@ function introduction() {
     el('p', null, 'Select a capability to inspect it. Double-click a group to focus. Colour reveals maturity, strategic importance or investment direction.'),
     el('h3', null, 'A model you can evolve'),
     el('p', null, 'Create capabilities, organise the hierarchy and record assessments. Link applications and initiatives through the record page.'),
-    // With Nendo's toolbar, its own Add adds one here (W-090).
+    // With Nendo's toolbar, its own Add adds one here.
     ...(nativeChrome ? [] : [button('+ Top-level capability', () => edit(null, null), 'primary')]),
   ];
 }
@@ -749,7 +749,7 @@ function assessment(record) {
   }
   const nodes = rows.length ? [facts] : [];
 
-  // With dated assessments, the latest on each dimension and how many there have been (W-080).
+  // With dated assessments, the latest on each dimension and how many there have been.
   if (binding.has('assessments')) {
     const latest = el('div', 'facts assessed');
     for (const key of ['maturity', 'value', 'health']) {
@@ -783,7 +783,7 @@ function assessment(record) {
 function actions(record) {
   const bar = el('div', 'inspector-actions');
   bar.append(button('Edit', () => edit(record)));
-  // With Nendo's toolbar, its Add adds under the selected capability (W-090).
+  // With Nendo's toolbar, its Add adds under the selected capability.
   if (binding.parentFieldId && !nativeChrome) bar.append(button('+ Child', () => edit(null, record.recordId)));
   bar.append(button('Open record', () => nendo.ui.openRecord(binding.entityId, record.recordId)));
   if (model.children.get(record.recordId)?.length) bar.append(button('Focus group', () => scopeTo(record.recordId)));
@@ -987,7 +987,7 @@ function edit(record, parent) {
   fillSelect('importance', choiceOptions('importance'), binding.value(record, 'importance'));
   fillSelect('investment', choiceOptions('investment'), binding.value(record, 'investment'));
   // A new capability starts at the first lifecycle choice; an existing one without a lifecycle
-  // keeps none (ABS-09), where saving any field set it to the first choice unseen.
+  // keeps none, so saving another field never sets it to the first choice unseen.
   const lifecycle = binding.value(record, 'lifecycle');
   fillSelect('lifecycle', choiceOptions('lifecycle'), record ? lifecycle : binding.choices.lifecycle?.[0]?.id ?? null, record && lifecycle == null ? 'Not set' : null);
   // Only places a capability can go are offered: not itself, and not anything under it. The
@@ -1122,7 +1122,7 @@ function movePan(event) {
   }
   // Ctrl pressed after the button turns a press on a card into a pan.
   if (!drag.active && (panMode || event.ctrlKey || event.metaKey)) activatePan(event);
-  // Without it, a press on a card that travels four pixels picks the card up (W-079).
+  // Without it, a press on a card that travels four pixels picks the card up.
   if (!drag.active && drag.card !== null && canMove() && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) >= 4) {
     startMove(event);
     return;
@@ -1227,7 +1227,7 @@ map.addEventListener('keydown', event => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// Moving and renaming (W-079)
+// Moving and renaming
 //
 // Dragging a card without a key picks it up: over the middle of a card it goes in, as that
 // card's last child; over a card's left or right edge it goes beside it, before or after. A drop
@@ -1406,7 +1406,7 @@ async function saveRename() {
   document.querySelector(`.cap[data-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
 }
 
-/** Whether a key belongs to what the person is typing in, or to the editor over the map (ABS-14). */
+/** Whether a key belongs to what the person is typing in, or to the editor over the map. */
 const typing = event => Boolean(event.target?.closest?.('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) || $('editor').open;
 
 function mapKeys(event) {
@@ -1431,7 +1431,7 @@ function mapKeys(event) {
 }
 document.addEventListener('keydown', mapKeys);
 
-// The cards are one tab stop, and the arrows move to the nearest card that way (ABS-18), as the
+// The cards are one tab stop, and the arrows move to the nearest card that way, as the
 // view kit's roving() does for the graph views. Alt+Shift+arrows on a card are the move keys,
 // not the roving ones: they reach mapKeys alone.
 const cards = roving($('drawing'), { items: '.cap', orientation: 'spatial' });
@@ -1451,7 +1451,7 @@ new ResizeObserver(() => {
 }).observe($('workspace'));
 
 // ---------------------------------------------------------------------------------------------
-// Nendo's own chrome (W-090)
+// Nendo's own chrome
 //
 // Where the host offers it, the Atlas does not draw its toolbar: it declares its controls and
 // Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys, and
@@ -1484,7 +1484,7 @@ function declareToolbar(withoutOptional = false) {
     { kind: 'choice', id: 'levels', label: 'Levels', value: chosen(levelOptions, Number.isFinite(levels) ? String(levels) : 'all'), options: levelOptions },
   ];
   if (colours.length > 1) items.push({ kind: 'select', id: 'colour', label: 'Colour', value: chosen(colours, colour), options: colours });
-  // Nendo's select holds at most 64 options, and a longer one refuses the whole row (ABS-16): the
+  // Nendo's select holds at most 64 options, and a longer one refuses the whole row: the
   // 64 most recent dates, the chosen one always among them. The Atlas's own select keeps them all.
   const recent = binding.assessmentDates().slice(-64);
   if (sinceDate() !== null && !recent.includes(sinceDate())) recent.splice(0, 1, sinceDate());
@@ -1518,7 +1518,7 @@ function declareToolbar(withoutOptional = false) {
   }
   nendo.ui.setToolbar({ items, add: canAdd() ? 'add-capability' : null }).catch(error => {
     // A refusal over an optional control declares the row again without it, before the Atlas
-    // gives up Nendo's row for the visit (ABS-16).
+    // gives up Nendo's row for the visit.
     if (!withoutOptional && items.some(item => item.id === 'since')) { declareToolbar(true); return; }
     leaveNativeChrome(error.message);
   });

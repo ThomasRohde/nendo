@@ -1,4 +1,4 @@
-"""PDF pages as pictures and lines, for Compare-ManusPaper.ps1 (W-293). Needs PyMuPDF.
+"""PDF pages as pictures and lines, for Compare-ManusPaper.ps1. Needs PyMuPDF.
 
     pdf.py pages <out-folder> <name> <file.pdf>   pictures at 96 dpi (<name>-N.png) and lines (<name>.json)
     pdf.py stranded <file.pdf> <plan.json>        headings the reference left at a column's foot

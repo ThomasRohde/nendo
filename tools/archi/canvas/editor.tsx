@@ -1,4 +1,4 @@
-// The Archi workbench's diagram editor (W-111): archi-online's own ViewEditor, Palette and context
+// The Archi workbench's diagram editor: archi-online's own ViewEditor, Palette and context
 // menus, running on an archi-online model store the workbench fills from its mirror of the
 // file's records. Every gesture is an archi-online transaction on that store; the workbench
 // collects them and, on Commit, writes the difference to the file as one revision
@@ -30,7 +30,7 @@ import { ModelStoreProvider } from '@archi/ui/store-hooks';
 import { createModelStore, openView, redo, setActiveModelStore, setSelection, undo, type ModelStore } from '@archi/model/store';
 
 /**
- * The arrange commands (W-113), each archi-online's own operation as its context menu runs it, on
+ * The arrange commands, each archi-online's own operation as its context menu runs it, on
  * the objects of the view among `ids`: one transaction, so one Undo step and one edit waiting to
  * be committed. Answers a sentence when the selection does not suit the command, else null.
  */
@@ -84,7 +84,7 @@ export function arrangeModel(model: ModelState, viewId: string, ids: string[], c
 export type LayoutDirection = 'right' | 'down';
 
 /**
- * Auto-layout (W-115): archi-online's ELK layout as its app.layout.elk runs it. The boxes selected
+ * Auto-layout: archi-online's ELK layout as its app.layout.elk runs it. The boxes selected
  * on the view when there are two or more, else every box at the top of the view, are placed in
  * layers in `direction`, and the lines between them routed at right angles; what is nested in a
  * box moves with it. One transaction, so one Undo step and one edit waiting to be committed.
@@ -109,7 +109,7 @@ export async function layoutModel(model: ModelState, viewId: string, ids: string
 }
 
 /**
- * Generate View For (W-115): archi-online's operation, which builds a view around the elements
+ * Generate View For: archi-online's operation, which builds a view around the elements
  * in `options.focusIds` from their relationships, to a depth and in a direction, lays it out with
  * ELK and adds it in one transaction. On a store of its own when nothing is being edited.
  */
@@ -125,7 +125,7 @@ export async function generatedViewModel(model: ModelState, options: GeneratedVi
 }
 
 /**
- * Archi's automatic relationships preferences (W-115), as archi-online's settings list them: when
+ * Archi's automatic relationships preferences, as archi-online's settings list them: when
  * nesting offers a relationship, which types it offers parent to child and child to parent, and
  * which a nesting stands for, so their lines are not drawn. Kept in this view's origin with the
  * editor's other settings.
@@ -160,7 +160,7 @@ export function setEditorSetting(name: 'grid' | 'snap' | 'guides', on: boolean) 
 }
 
 /**
- * How the selected box or line looks (W-114): archi-online's own Appearance and Label tabs, for
+ * How the selected box or line looks: archi-online's own Appearance and Label tabs, for
  * one object selected on the view. Each change is an edit waiting to be committed, as a move is.
  */
 // A view's frame is never allowed the computer's font list (Nendo's frame delegates no
@@ -209,7 +209,7 @@ interface EditorOptions {
   /** The pointer was let go in the editor: a change held back while it was pressed may land now. */
   onIdle?: () => void;
   /** Whether the Appearance panel is shown from the start: archi-online fits a view to the canvas
-   *  it first measures, so the panel must not narrow it afterwards (the owner, W-114). */
+   *  it first measures, so the panel must not narrow it afterwards. */
   styleShown?: boolean;
 }
 
@@ -221,8 +221,8 @@ interface EditorOptions {
 export function createEditor(host: HTMLElement, base: ModelState, options: EditorOptions = {}) {
   host.classList.add('archi-editor');
   const store: ModelStore = createModelStore({ model: structuredClone(base) });
-  // The editor's settings as last chosen in this view's origin: the grid, snapping and guides
-  // (W-113). archi-online's app shell reads them at start; without it they reset every visit.
+  // The editor's settings as last chosen in this view's origin: the grid, snapping and guides.
+  // archi-online's app shell reads them at start; without it they reset every visit.
   hydrateSettingsStore().catch(() => { /* the defaults */ });
   setActiveModelStore(store);
   let viewId: string | null = null;
@@ -295,7 +295,7 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
       createElement('div', { key: 'style', className: 'archi-style', hidden: !styleShown }, createElement(StylePanel)),
       createElement(ContextMenuHost, { key: 'menus' }),
       // archi-online asks through its own dialogs, which its app shell hosts: which relationship a
-      // box dropped into an element box stands for (W-113). Without the host the question waited
+      // box dropped into an element box stands for. Without the host the question waited
       // forever and the move never landed.
       createElement(AppDialogHost, { key: 'dialogs' }),
     ] }));
@@ -334,10 +334,10 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
     canRedo: () => store.getState().redoStack.length > 0,
     undo: () => undo(store),
     redo: () => redo(store),
-    /** What Undo and Redo would undo or make again: archi-online's own name for the gesture (W-112). */
+    /** What Undo and Redo would undo or make again: archi-online's own name for the gesture. */
     undoLabel: () => store.getState().undoStack.at(-1)?.label ?? null,
     redoLabel: () => store.getState().redoStack.at(-1)?.label ?? null,
-    /** Forget the editor's own steps once they are saved: Undo then takes back the commit (W-112). */
+    /** Forget the editor's own steps once they are saved: Undo then takes back the commit. */
     clearHistory() {
       quiet = true;
       try { store.setState({ undoStack: [], redoStack: [] }); } finally { quiet = false; }
@@ -352,24 +352,24 @@ export function createEditor(host: HTMLElement, base: ModelState, options: Edito
       try { setSelection('tree', ids, store); } finally { quiet = false; }
     },
     setReadOnly(readOnly: boolean) { store.setState({ readOnly }); },
-    /** An arrange command on what is selected on the view (W-113); a sentence when it does not suit. */
+    /** An arrange command on what is selected on the view; a sentence when it does not suit. */
     arrange(command: ArrangeCommand) {
       if (!viewId) return 'Open a view to arrange it.';
       const refusal = arrangeIn(store, viewId, store.getState().selection.ids, command);
       if (refusal === null) host.querySelector<SVGElement>('.view-svg')?.focus();
       return refusal;
     },
-    /** Auto-layout (W-115) of what is selected on the view, or the whole view; a sentence when it does not suit. */
+    /** Auto-layout of what is selected on the view, or the whole view; a sentence when it does not suit. */
     async layout(direction: LayoutDirection) {
       if (!viewId) return 'Open a view to lay it out.';
       const ids = store.getState().selection.source === 'view' ? store.getState().selection.ids : [];
       return layoutIn(store, viewId, ids, direction);
     },
-    /** Generate View For (W-115) on the model with every edit not yet committed: one Undo step. */
+    /** Generate View For on the model with every edit not yet committed: one Undo step. */
     generateView: (options: GeneratedViewOptions) => generateViewFor(store, options),
     /** The ids selected on the view. */
     selected: () => [...store.getState().selection.ids],
-    /** The Appearance panel beside the view, shown or not (W-114). */
+    /** The Appearance panel beside the view, shown or not. */
     showStyle(on: boolean) { styleShown = on; draw(); },
     styleShown: () => styleShown,
     zoomIn: () => zoomButton(2),

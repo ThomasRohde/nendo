@@ -102,7 +102,7 @@ async function compare(file) {
   if (overview) problems.push(`the file still has a native front page (${overview.nodeId ?? overview.properties?.title}), which the ${HOME_TITLE} view replaced: run upgrade`);
   if (!await file.read.hasNode(HOME_VIEW)) problems.push(`the file has no ${HOME_TITLE} view (${HOME_VIEW}): run upgrade`);
   for (const screen of LIST_SCREENS) if (!await file.read.hasNode(screen.nodeId)) problems.push(`the file has no ${screen.properties.title} screen (${screen.nodeId}): run upgrade`);
-  for (const nodeId of RETIRED_SCREENS) if (await file.read.hasNode(nodeId)) problems.push(`the file still has the list ${nodeId}, which W-184 took out: run upgrade`);
+  for (const nodeId of RETIRED_SCREENS) if (await file.read.hasNode(nodeId)) problems.push(`the file still has the list ${nodeId}, which the current definition leaves out: run upgrade`);
   if (packages.includes(RETIRED_GRAPH_PACKAGE_ID)) problems.push(`${RETIRED_GRAPH_PACKAGE_ID} is still in the file: run upgrade`);
   const garden = (describe.extensions ?? []).find(p => p.packageId === PACKAGE_ID);
   const { manifest: wanted, files: wantedFiles } = await packageFiles(PACKAGE_FOLDER);

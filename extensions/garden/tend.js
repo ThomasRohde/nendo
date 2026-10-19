@@ -1,4 +1,4 @@
-// Tend (W-184), a screen of the Notes: the seeds and growing notes nobody has tended within the span
+// Tend, a screen of the Notes: the seeds and growing notes nobody has tended within the span
 // chosen, the longest untended first, and the notes that are still only a name. Each note opens in
 // the Garden view, and Tended today, Mark growing and Mark evergreen write what the commands of the
 // same names write, as one batch the line under the heading offers to take back.
@@ -41,7 +41,7 @@ export async function startTend(nendo, context, kit) {
   }
 
   // A redraw replaces the rows: the keyboard stays on the control it was on, in the same note's row,
-  // or, when that note has left the list, on the row that took its place, else on the summary (GDN-11).
+  // or, when that note has left the list, on the row that took its place, else on the summary.
   function focusedControl() {
     const active = document.activeElement, item = active?.closest?.('#tend li.tend-note[data-id]');
     if (!item) return null;

@@ -14,7 +14,7 @@ const escape = value => String(value ?? '').replace(/[<>&"']/g, c => ({ '<': '&l
 export function diagramXML(model) {
   const tags = { Start: 'startEvent', Action: 'task', Decision: 'exclusiveGateway', End: 'endEvent' };
   const items = model.nodes.map(n => `<bpmn:${tags[n.kind]} id="${escape(n.id)}" name="${escape(n.name)}"/>`).join('');
-  // A transition whose ends are not both drawn has nothing to join (ABS-12): fromRecords names it.
+  // A transition whose ends are not both drawn has nothing to join: fromRecords names it.
   const drawn = new Set(model.nodes.map(n => n.id));
   model = { ...model, links: model.links.filter(l => drawn.has(l.source) && drawn.has(l.target)) };
   const flows = model.links.map(l => `<bpmn:sequenceFlow id="${escape(l.id)}" sourceRef="${escape(l.source)}" targetRef="${escape(l.target)}" name="${l.branch === 'Next' ? '' : escape(l.branch)}"/>`).join('');
@@ -58,7 +58,7 @@ export function preset(key = 'murmuration') {
   return { species, habitat: { id: 'sw_habitat_meadow', name: 'Open meadow', width: 1000, height: 620 }, nodes, links };
 }
 /**
- * One species as the view's model. Records edited in Studio can disagree with each other (ABS-12):
+ * One species as the view's model. Records edited in Studio can disagree with each other:
  * a transition whose From or To is a node of another species, or gone, is left out of the
  * diagram, and one whose Route points do not read is drawn along a route of its own. Each is
  * pushed to `problems` as { recordId, leftOut, message }, so the view can name it, and a save

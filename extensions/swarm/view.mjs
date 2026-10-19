@@ -12,19 +12,19 @@ const notice = text => { $('status').textContent = text; };
 const problem = error => { $('problem').textContent = error?.message ?? String(error); $('problem').hidden = false; };
 const clearProblem = () => { $('problem').hidden = true; $('problem').textContent = ''; };
 const canWrite = () => !api.context.readOnly && !replayMode && !saving && !loading;
-// Every edit counts, so a save knows whether the person changed anything while it was written (ABS-11).
+// Every edit counts, so a save knows whether the person changed anything while it was written.
 let edits = 0;
-// Transitions the diagram leaves out because their ends are in another species (ABS-12): a save keeps them.
+// Transitions the diagram leaves out because their ends are in another species: a save keeps them.
 let leftOutLinks = new Set();
-// The file's change sequence once this view's own save was read back (ABS-11). Nendo may hold a
+// The file's change sequence once this view's own save was read back. Nendo may hold a
 // changes event back for up to a quarter of a second, so the save's own can arrive after the save
 // is done; one at or below this sequence is the view's own write, not somebody else's.
 let savedThrough = 0;
 const changeSequenceNow = async () => { try { return (await api.records.query({ entityId: 'sw.species', limit: 1 })).changeSequence ?? 0; } catch { return 0; } };
-// Replays running now, for the measurement surface (ABS-20).
+// Replays running now, for the measurement surface.
 let replaying = 0;
 /**
- * The species as Nendo's select takes them (ABS-19): a label is at most 80 characters and a select
+ * The species as Nendo's select takes them: a label is at most 80 characters and a select
  * at most 64 options, and one too long refuses the whole toolbar, Play, Reset and Save with it.
  * A longer name is cut with an ellipsis; past 64 species the selected one is always offered.
  */
@@ -186,7 +186,7 @@ async function readAll() {
   for (const [key, entityId] of Object.entries(prefix)) out[key] = await api.records.queryAll({ entityId }, { max: 2000 });
   return out;
 }
-/** Replay buttons do nothing while a replay or a load runs (ABS-20): two replays at once, the last to finish won. */
+/** Replay buttons do nothing while a replay or a load runs, so two replays never race to be the last to finish. */
 const replayButtons = disabled => { for (const button of document.querySelectorAll('.experiment-row button')) button.disabled = disabled; };
 async function load() {
   if (loading) { pendingReload = true; return; }
@@ -263,7 +263,7 @@ async function saveBehaviour() {
         : `The behaviour was not saved. Your draft is kept. ${e.message}`);
       return;
     }
-    // ABS-11: a change made while the save was on its way is not in it, so it stays a draft.
+    // A change made while the save was on its way is not in it, so it stays a draft.
     const changedMeanwhile = edits !== editsSaved;
     if (!changedMeanwhile) { dirty = false; keepDraft(); $('draft-state').textContent = 'Saved behaviour'; }
     externalChange = false;
@@ -281,7 +281,7 @@ async function saveExperiment(name) {
   try {
     const s = records.species.find(r => r.recordId === selectedSpecies), h = records.habitats.find(r => r.recordId === selectedHabitat);
     const snapshot = sim.snapshot(name);
-    // A record ID that sorts by when it was made (ABS-21): the list shows the newest first.
+    // A record ID that sorts by when it was made: the list shows the newest first.
     const recordId = `sw_experiment_${String(Date.now()).padStart(15, '0')}_${crypto.randomUUID().slice(0, 8)}`;
     await api.records.create('sw.experiment', {
       'sw.experiment.name': name, 'sw.experiment.species': s.recordId, 'sw.experiment.habitat': h.recordId,
@@ -306,7 +306,7 @@ async function replayExperiment(record) {
 function renderExperiments() {
   $('experiment-count').textContent = records.experiments.length; $('experiment-list').replaceChildren();
   if (!records.experiments.length) { const p = document.createElement('p'); p.textContent = 'Save a run to keep its behaviour and replay it later.'; $('experiment-list').append(p); }
-  // Newest first: by the time in the record ID, then those saved before it had one, last read first (ABS-21).
+  // Newest first: by the time in the record ID, then those saved before it had one, last read first.
   const timed = r => /^sw_experiment_\d{15}_/.test(r.recordId);
   const ordered = [...records.experiments.filter(timed).sort((a, b) => (a.recordId < b.recordId ? 1 : a.recordId > b.recordId ? -1 : 0)),
     ...records.experiments.filter(r => !timed(r)).reverse()];

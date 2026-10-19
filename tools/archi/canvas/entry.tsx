@@ -1,4 +1,4 @@
-// The Archi workbench's canvas (W-110): archi-online's own static view renderer, figures,
+// The Archi workbench's canvas: archi-online's own static view renderer, figures,
 // icons, connection routes and Manhattan router, drawn from the mirror of Archi.nendo's records.
 // tools/archi/build-canvas.mjs bundles this with React into extensions/archi/canvas.js.
 //
@@ -25,17 +25,17 @@ import { createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_C
   automaticRelationshipSettings, setAutomaticRelationshipSetting } from './editor';
 
 export { buildMirror, unreadableValues, toRecords, writesFor, applyWrites, createEditor, arrangeModel, editorSettings, setEditorSetting, ARRANGE_COMMANDS };
-// W-115: auto-layout, Generate View For and the automatic relationships preferences, with ELK in a worker.
+// Auto-layout, Generate View For and the automatic relationships preferences, with ELK in a worker.
 export { layoutModel, generatedViewModel, automaticRelationshipSettings, setAutomaticRelationshipSetting };
 export { useElkWorkerFactory, ELK_WORKER_URL } from './elk';
 export { analyzeNestingChange, applyNestingChange, createNestedConnectionVisibilityResolver } from '@archi/model/ops';
 export { createModelStore } from '@archi/model/store';
-// archi-online's label expressions, as the canvas draws them (W-114).
+// archi-online's label expressions, as the canvas draws them.
 export { evaluateLabelExpression };
-// Archi's 25 viewpoints and what each allows, as archi-online ported them from Archi (W-116).
+// Archi's 25 viewpoints and what each allows, as archi-online ported them from Archi.
 export { VIEWPOINTS, isAllowedElementInViewpoint, viewpointName } from '@archi/model/data/viewpoints';
 export { GHOST_OPACITY, isNodeGhosted, isConnectableGhosted };
-// Open and save .archimate files (W-120).
+// Open and save .archimate files.
 export { readArchimate, planImport, importBatches, holdsNoModel, modelForExport, exportArchimate, leftOutSentence,
   parseArchimateText, ArchimateFileError, recordIdOf, readExchange, readModelFile, modelFileFormat, exportExchange,
   importProblems, importProblemSentence } from './io';
@@ -45,12 +45,12 @@ export { serializeExchange } from '@archi/model/io/exchange-xml/serialize';
 // archi-online's own rules, for the lane that checks the editor offers nothing else.
 export { validRelationshipTypes } from '@archi/model/rules';
 export { RELATIONSHIP_TYPES } from '@archi/model/metamodel';
-// archi-online's validator, Archi 5.9's eight checks and its integrity pass, run on the mirror (W-117).
+// archi-online's validator, Archi 5.9's eight checks and its integrity pass, run on the mirror.
 export { VALIDATION_RULES, DEFAULT_VALIDATION_CONFIG, validateModel } from '@archi/model/validation';
-// archi-online's Analysis and Visualiser, run on the mirror (W-118).
+// archi-online's Analysis and Visualiser, run on the mirror.
 export { modelRelations, viewsUsing, findInView, analysisGraph, analysisLayout, analysisSvg, analysisPng, copyAnalysisPng, createVisualiser,
   DEFAULT_ANALYSIS_PREFERENCES, normalizeAnalysisPreferences, ELEMENT_TYPES, elementLabel, relationshipLabel } from './visualiser';
-// archi-online's Specializations Manager, Properties Manager and Find and Replace, on the mirror (W-119).
+// archi-online's Specializations Manager, Properties Manager and Find and Replace, on the mirror.
 export { specializationsOf, manageSpecializations, propertyKeys, displayPropertyKey, renamePropertyKeyIn, deletePropertyKeyIn,
   findReplacePreview, findReplaceApply } from './manage';
 declare const __ARCHI_ONLINE_COMMIT__: string;
@@ -59,7 +59,7 @@ export const archiOnlineCommit = __ARCHI_ONLINE_COMMIT__;
 const SVG = 'http://www.w3.org/2000/svg';
 /**
  * How a view is drawn: the person's settings as archi-online keeps them in this view's origin, the
- * same the editor reads, so a connection that a nesting stands for (W-115) is hidden or drawn
+ * same the editor reads, so a connection that a nesting stands for is hidden or drawn
  * alike in both. Legends keep archi-online's own labels and colours.
  */
 const renderSettings = () => ({ ...useSettingsStore.getState().settings, legendLabels: {}, legendUserColors: {} });
@@ -84,7 +84,7 @@ export function geometry(model: ModelState, viewId: string) {
 }
 
 /**
- * A view as an image (W-123): archi-online's own export, which draws the view offscreen, turns
+ * A view as an image: archi-online's own export, which draws the view offscreen, turns
  * its labels into SVG text and crops to the drawing with Archi's 10-pixel margin. White or
  * transparent behind it; the figures are Archi's in either theme, as the canvas draws them.
  */
@@ -117,7 +117,7 @@ export function geometryOf(sets: RecordSets, viewId: string) {
 
 /**
  * A box and what is nested in it, as archi-online's static view draws them. The figure is ghosted
- * as archi-online's editor ghosts it (W-116): drawn faint when the view's viewpoint leaves its
+ * as archi-online's editor ghosts it: drawn faint when the view's viewpoint leaves its
  * element type out, and nothing nested in it with it.
  */
 function ReadNode({ model, nodeId, viewpoint }: { model: ModelState; nodeId: string; viewpoint: string | undefined }) {

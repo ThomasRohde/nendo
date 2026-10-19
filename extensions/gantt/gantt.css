@@ -23,7 +23,7 @@ h1{font-size:1.3rem;margin:0;font-weight:650}
 p{margin:2px 0;color:var(--muted);font-size:.9rem}
 .hint{font-size:.8rem}
 main{flex:1;min-height:120px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface-raised);padding:0 12px 10px}
-/* The axis stays at the top of the chart while its rows scroll under it (GGV-11): a band as
+/* The axis stays at the top of the chart while its rows scroll under it: a band as
    wide as the chart, so a label scrolling up passes beneath it rather than over the dates. */
 #axis{position:sticky;top:0;z-index:1;padding-top:10px;background:var(--surface-raised)}
 #ticks{position:relative;height:22px;margin-left:var(--label-width,38%);border-bottom:1px solid var(--line)}
@@ -42,7 +42,7 @@ main{flex:1;min-height:120px;overflow:auto;border:1px solid var(--line);border-r
 .milestone{position:absolute;top:2px;width:13px;height:13px;margin-left:-6.5px;transform:rotate(45deg);border-radius:2px;background:var(--cobalt)}
 .row[aria-pressed=true] .milestone{background:var(--violet)}
 /* A Windows contrast theme paints every background as Canvas, so a mark drawn by its background
-   alone took the track's colour and the chart showed nothing (GGV-01). There the marks keep a
+   alone would take the track's colour and the chart would show nothing. There the marks keep a
    colour of their own, the system's: CanvasText, and Highlight for the selected record's mark.
    The selected row carries a bar down its start edge, a cue of another shape than the focus
    ring, so the ring still shows on the selected row and the two never read as one. */
@@ -65,11 +65,11 @@ body.single #ticks{margin-left:0}
 body.single .row{flex-direction:column;align-items:stretch;cursor:default}
 body.single .row:hover,body.single .row[aria-pressed=true]{background:none}
 body.single .label{flex:none;padding:2px 0 4px;white-space:normal}
-/* Nendo draws this chart's controls in its own toolbar where the host offers it (W-091), and
+/* Nendo draws this chart's controls in its own toolbar where the host offers it, and
    its breadcrumb names the screen: the page title goes. */
 .native-chrome h1{display:none}
-/* The chart's own lines go to Nendo's row as well where Nendo draws the controls, on a screen
-   (W-092): the summary is declared as text there and the explanation waits behind About, shown
+/* The chart's own lines go to Nendo's row as well where Nendo draws the controls, on a screen:
+   the summary is declared as text there and the explanation waits behind About, shown
    over the chart on demand. A summary that reports a problem stays here, whole. A chart of one
    on a record page declares nothing and keeps its summary. */
 .native-chrome body:not(.single){padding-top:8px}

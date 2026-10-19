@@ -1,4 +1,4 @@
-"""Compares the paper's renders with the LaTeX reference, for Compare-ManusPaper.ps1 (W-293).
+"""Compares the paper's renders with the LaTeX reference, for Compare-ManusPaper.ps1.
 
 Each block of the export plan is found in each render by its first words, in reading order, and
 its first line's page, column, left edge and baseline are set beside the reference's. Each page is

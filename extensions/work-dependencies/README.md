@@ -89,7 +89,7 @@ installs:
   changes, and keeps the selected item selected while it is still there;
 - `nendo.ui.openRecord(entityId, recordId)`: opening the selected item;
 - `nendo.commands.run(commandId, record)`: running a record command on the selected item
-  (ADR-0013 Phase 3).
+  (ADR-0013).
 
 It changes records only through the file's own record commands. A read that Nendo refuses
 is shown in the summary line, and a refused command in the line below the drawing.

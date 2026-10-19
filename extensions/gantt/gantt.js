@@ -9,14 +9,14 @@
   const DAY = 86400000;
   const nendo = window.nendo;
   let selected = null, records = [], single = false, query = '';
-  // True where Nendo draws this view's controls in its own toolbar (W-091), and whether the
-  // explanation is shown over the chart (W-092).
+  // True where Nendo draws this view's controls in its own toolbar, and whether the
+  // explanation is shown over the chart.
   let nativeChrome = false, aboutShown = false;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
   const element = id => document.getElementById(id);
   // The view kit (tools/view-kit, copied into kit/): one tab stop for the rows, the arrow keys,
-  // Home and End between them, and a focus ring in the theme's colour (W-064). Loaded as a
+  // Home and End between them, and a focus ring in the theme's colour. Loaded as a
   // module from this classic script; until it arrives, every row is a tab stop as before.
   let keys = null;
   import('./kit/nendo-view-kit.js').then(kit => {
@@ -31,11 +31,11 @@
     const time = Date.parse(text + 'T00:00:00Z');
     return Number.isFinite(time) ? time : null;
   }
-  // The view's own words are English, as its index.html says; the person's locale formats dates only (R2LAT-10).
+  // The view's own words are English, as its index.html says; the person's locale formats dates only.
   let locale = 'en';
   function month(time) { return new Date(time).toLocaleDateString(locale, { month: 'short', year: '2-digit', timeZone: 'UTC' }); }
   function dayOf(time) { return new Date(time).toLocaleDateString(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }); }
-  // The axis's ticks (GGV-11): the first of each month where the span holds at least two, else
+  // The axis's ticks: the first of each month where the span holds at least two, else
   // each Monday where it holds two, else each day. At most twelve, so it stays readable at any
   // span, and a two-week sprint inside one month still has dates to read its bars against.
   function ticksOf(low, high) {
@@ -63,7 +63,7 @@
     const fields = projection.fields;
     const dates = fields.filter(field => field.type === 'date');
     // The chart draws date fields. A date and time is not a day on its time line, and never the
-    // line under a label either, where it would show as raw ISO text (GGV-12).
+    // line under a label either, where it would show as raw ISO text.
     const timed = fields.filter(field => field.type === 'dateTime');
     // The first field that is neither is shown under the label, as the record's group.
     const detail = fields.find(field => field.type !== 'date' && field.type !== 'dateTime') ?? null;
@@ -74,7 +74,7 @@
     document.body.classList.toggle('single', single);
     declareToolbar();
     // The redraw replaces every row. The row that had the keyboard gets it back afterwards, or the
-    // row now where it was, rather than focus falling to the page (GGV-03).
+    // row now where it was, rather than focus falling to the page.
     const rows = element('rows');
     const had = rows.contains(document.activeElement) && document.activeElement.classList.contains('row')
       ? { id: document.activeElement.dataset.id, index: [...rows.querySelectorAll('.row')].indexOf(document.activeElement) } : null;
@@ -136,8 +136,8 @@
       const span = to === null ? `${start.name} ${new Date(from).toISOString().slice(0, 10)}`
         : `${new Date(from).toISOString().slice(0, 10)} to ${new Date(to).toISOString().slice(0, 10)}`;
       const detailText = detail !== null && record.values?.[detail.id] != null ? String(record.values[detail.id]) : null;
-      // The name is everything the row shows: the label, the group line under it, and the span
-      // (GGV-13). aria-label replaces the button's content, so a line left out is never heard.
+      // The name is everything the row shows: the label, the group line under it, and the span.
+      // aria-label replaces the button's content, so a line left out is never heard.
       row.setAttribute('aria-label', [record.label, detailText, span].filter(part => part !== null).join(', '));
       const label = document.createElement('span'); label.className = 'label';
       label.textContent = record.label; // text, never markup
@@ -256,13 +256,13 @@
     if (theme?.mode === 'light' || theme?.mode === 'dark') document.documentElement.dataset.theme = theme.mode;
   }
 
-  // --- Nendo's own chrome (W-091) ---------------------------------------------------------
+  // --- Nendo's own chrome ---------------------------------------------------------
   //
   // Where the host offers it, the chart's title gives way to Nendo's breadcrumb, Nendo's
   // toolbar carries a Find box with Ctrl F, and a right-click on a row opens Nendo's menu. A
   // chart of one on a record page has nothing to find and declares nothing.
 
-  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // The view's own lines: where Nendo draws the controls, the summary is declared as
   // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
   // frame. A summary that reports a problem stays in the frame, whole.
   function setSummary(text, problem = false) {

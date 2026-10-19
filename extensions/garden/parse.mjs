@@ -63,7 +63,7 @@ export function parse(body) {
  * A stable address made from a title: lower-case letters of any script, decimal digits and single hyphens.
  * Accents a Latin, Greek or Cyrillic letter carries are dropped (Café is cafe), and every other
  * letter is kept as it is written, so 'Заметки о саде' is заметки-о-саде and '庭のメモ' 庭のメモ
- * rather than one more 'note' (GDN-03). At most 64 characters; 'note' when nothing is left.
+ * rather than one more 'note'. At most 64 characters; 'note' when nothing is left.
  */
 export function slugify(text) {
   // A Greek final sigma is a sigma, so 'ΣΗΜΕΙΩΣΕΙΣ' and 'Σημειώσεις' make one slug.

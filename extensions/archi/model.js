@@ -215,7 +215,7 @@ export function createElement(model, typeKey, selectedFolderId, name, specializa
   const type = [...model.types.values()].find(candidate => candidate.values['ar.type.key'] === typeKey);
   if (!type || type.values['ar.type.category'] !== 'Element') throw new Error(`${typeKey} is not an element type.`);
   const folder = folderFor(model, HOME_OF_LAYER[type.values['ar.type.layer']], selectedFolderId);
-  // A specialized element (W-119), as archi-online's tree makes one: of the specialization's type, named after it.
+  // A specialized element, as archi-online's tree makes one: of the specialization's type, named after it.
   const specialization = specializationId ? model.records.get(specializationId) : null;
   if (specializationId && (specialization?.entityId !== E.specialization || specialization.values['ar.specialization.type'] !== type.recordId)) {
     throw new Error(`That specialization is not one of ${type.values['ar.type.name']}.`);
@@ -230,7 +230,7 @@ export function createElement(model, typeKey, selectedFolderId, name, specializa
     ...(specialization ? { 'ar.concept.specialization': specialization.version } : {}) } };
 }
 
-/** The specializations of element types, by name, each with its type: what the tree can make (W-119). */
+/** The specializations of element types, by name, each with its type: what the tree can make. */
 export function elementSpecializations(model) {
   return model.of(E.specialization).map(specialization => ({ specialization, type: model.records.get(specialization.values['ar.specialization.type']) }))
     .filter(({ type }) => type?.values['ar.type.category'] === 'Element')
@@ -348,7 +348,7 @@ export function propertyWrites(model, ownerId, rows) {
 /** Whether a record passes the tree's filter: its label contains the text, and a concept is of the layer. */
 export const filtering = filter => Boolean(filter.text || filter.layer || filter.specialization);
 
-/** Whether a record passes the tree's filter; a specialization keeps only the concepts given it (W-119). */
+/** Whether a record passes the tree's filter; a specialization keeps only the concepts given it. */
 export function matches(model, record, filter) {
   if (!filtering(filter)) return true;
   if (filter.layer || filter.specialization) {

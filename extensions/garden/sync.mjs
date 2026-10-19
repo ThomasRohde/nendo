@@ -27,8 +27,8 @@ export const BATCH_WRITES = 200;
 
 /**
  * The note a wikilink names: by title, then by slug, then by the slug its text would make. The
- * title comes first, so [[Note]] is the note titled Note even where another note's slug is 'note'
- * (GDN-03); of two notes with that title, the one whose slug it also is. Case is never minded.
+ * title comes first, so [[Note]] is the note titled Note even where another note's slug is 'note';
+ * of two notes with that title, the one whose slug it also is. Case is never minded.
  * `prefer` holds the notes the body already links to: a link that could name one of them still
  * does, so no link a save made before changes its target under it.
  */
@@ -101,7 +101,7 @@ export function plan({ note = null, title, body, parsed, index = [], existing = 
 
   // 2. Stubs: a wikilink to a note that is not there yet plants a Seed, so the link has somewhere to point.
   // Two spellings of one missing note ([[Café]] and [[Cafe]]) name the Seed the first one planted, as
-  // the next save would read them, so one Seed is planted and none is left behind (GDN-04).
+  // the next save would read them, so one Seed is planted and none is left behind.
   const resolved = new Map();
   const stubs = [];
   for (const link of parsed.links) {

@@ -1,4 +1,4 @@
-// The Agenda (W-184), a screen of the Tasks: every open task in the garden by when it is due, each
+// The Agenda, a screen of the Tasks: every open task in the garden by when it is due, each
 // with its box and the note it belongs to. Ticking a box writes the tick as one batch, into the
 // note's line too when the body says the task (agenda.mjs), and the line under the heading offers to
 // take it back. A ticked task stays, ticked, until the screen is read afresh, so a slip can be unticked.

@@ -10,7 +10,7 @@
 // stay the size of the page's text.
 //
 // A drawing that sits in a page that scrolls (inline: the local graph and the Overview's) leaves the
-// wheel and a one-finger swipe to the page; Ctrl and the wheel, or a pinch, zoom it (GDN-02).
+// wheel and a one-finger swipe to the page; Ctrl and the wheel, or a pinch, zoom it.
 //
 //   createGraph(host, { kit, colour, onOpen, onContext, compact, inline, label }) -> {
 //     update(data, { focus }), setOptions({ arrows, spread, query }), fit(), highlight(id), select(ids), state(), stop() }

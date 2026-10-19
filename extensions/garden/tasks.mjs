@@ -1,4 +1,4 @@
-// A note's tasks as the strip under its title shows them (the owner, 2026-10-08): how many are done,
+// A note's tasks as the strip under its title shows them: how many are done,
 // the next one to do with its box, and every one under Show all. The body's checkboxes come as the
 // draft says them now, each with what its record adds (the record to open, a due date); after them
 // come the tasks somebody added by hand. Everything but drawTaskStrip is pure.

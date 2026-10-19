@@ -1,4 +1,4 @@
-// Nendo view kit 1.1.0 (W-064): what a custom view owes the person, in one file a package copies.
+// Nendo view kit 1.1.0: what a custom view owes the person, in one file a package copies.
 //
 // A view draws its own document, so the Workbench's focus rings, keyboard traversal and text
 // alternatives stop at its frame. This file carries them across: copy it into the package (at

@@ -1,9 +1,9 @@
-/* The diagram editor (W-111): archi-online's own rules for its ViewEditor, Palette and context
+/* The diagram editor: archi-online's own rules for its ViewEditor, Palette and context
    menus, taken from archi-online 6205a6a src/styles.css (MIT, Copyright (c) archi-online
    contributors; see THIRD-PARTY.txt). Only archi-online's colour variables are new: each is one
    of Nendo's tokens, so the palette and menus take the theme while the paper stays white. */
 /* On the page root, not the editor: archi-online draws its menus into the page's body, outside
-   the editor, and there they had no colours at all (the owner's transparent menus). */
+   the editor, and there they would have no colours at all. */
 :root {
   --accent: var(--cobalt); --accent-soft: var(--cobalt-soft); --border: var(--line); --chrome-icon: var(--muted);
   --danger-soft: color-mix(in srgb, var(--danger) 14%, transparent);
@@ -11,7 +11,7 @@
   --text: var(--ink); --text-dim: var(--muted); --input-bg: var(--surface);
   --border-soft: var(--line); --accent-soft-strong: color-mix(in srgb, var(--cobalt) 26%, transparent);
   --danger-fill: var(--danger); --danger-fill-hover: color-mix(in srgb, var(--danger) 82%, black);
-  /* The editor's own drawing colours, which its SVG names directly (the owner's white selection):
+  /* The editor's own drawing colours, which its SVG names directly:
      the outline and handles are Nendo's accent, as the read-only view's outline is. */
   --canvas-selection: var(--cobalt); --canvas-valid: var(--nendo-healthy, #1d9e46);
   --canvas-invalid: var(--danger); --canvas-anchor: var(--nendo-warning, #e8820c);
@@ -28,12 +28,12 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
 .archi-editor .view-svg, .archi-editor .view-svg * { outline: none; }
 .palette-item-disabled { opacity: 0.35; pointer-events: none; }
 
-/* The Appearance panel beside the view while editing (W-114): archi-online's own tabs. */
+/* The Appearance panel beside the view while editing: archi-online's own tabs. */
 .archi-style { flex: 0 0 248px; display: flex; min-width: 0; border-left: 1px solid var(--line); background: var(--surface); }
 .archi-style[hidden] { display: none; }
 
 /* ---- archi-online ---- */
-/* Its Appearance and Label tabs (W-114), from src/styles.css. */
+/* Its Appearance and Label tabs, from src/styles.css. */
 .empty-hint {
   color: var(--text-dim);
   padding: 12px;
@@ -471,7 +471,7 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
   }
 }
 
-/* Its dialogs (W-113), from src/styles.css: the nesting question asks here. */
+/* Its dialogs, from src/styles.css: the nesting question asks here. */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); display: flex; align-items: center; justify-content: center; z-index: 2000; }
 .app-dialog-backdrop { padding: 16px; }
 .app-dialog { width: min(430px, 100%); max-height: min(80vh, 560px); overflow: auto; display: flex; flex-direction: column; gap: 16px; padding: 18px;
@@ -689,7 +689,7 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
   border: 1.5px solid var(--accent);
   border-radius: 2px;
   resize: none;
-  /* ABS-08: the box and its text both from the theme, so typed text shows in the dark theme too. */
+  /* The box and its text both from the theme, so typed text shows in the dark theme too. */
   background: var(--input-bg);
   color: var(--text);
   padding: 3px;
@@ -740,7 +740,7 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
   touch-action: none;
 }
 
-/* The tabs in Nendo's own manner (the owner, W-114): a strip with the chosen tab raised, as the
+/* The tabs in Nendo's own manner: a strip with the chosen tab raised, as the
    Workbench's .tablist draws it, not archi-online's accent underline. */
 .archi-style .prop-tabs { gap: 2px; margin: 8px 8px 0; padding: 3px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .archi-style .prop-tab { min-height: 28px; padding: 4px 11px; border-radius: 6px; color: var(--muted); font-size: inherit; font-weight: 600; }
@@ -748,7 +748,7 @@ body.native-chrome .archi-editor .zoom-controls { display: none; }
 .archi-style .prop-tab.active { color: var(--ink); background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--line-strong); font-weight: 670; }
 .archi-style .prop-tab:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 1px; }
 
-/* The Visualiser (W-118): archi-online's own rules for its VisualiserCanvas, taken from archi-online
+/* The Visualiser: archi-online's own rules for its VisualiserCanvas, taken from archi-online
    6205a6a src/styles.css (MIT, Copyright (c) archi-online contributors; see THIRD-PARTY.txt). The
    paper is white in both themes; the zoom controls take Nendo's tokens through the variables above. */
 .visualiser-host > .visualiser-canvas { flex: 1; }

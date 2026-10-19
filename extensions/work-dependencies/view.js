@@ -8,7 +8,7 @@
   // drawing rather than stretching it. Everything arrives through window.nendo (ADR-0013): the
   // graph from nendo.view.loadGraph, field names and choices from nendo.schema.describe, and
   // the theme. Selecting an item asks Nendo to open it, and offers that item's record commands
-  // (Plan now, Complete, ...) to run where it is, through nendo.commands.run (ADR-0013 Phase 3):
+  // (Plan now, Complete, ...) to run where it is, through nendo.commands.run (ADR-0013):
   // each at the version this view read, refused if somebody changed the item since.
   const element = id => document.getElementById(id);
   const SVG = 'http://www.w3.org/2000/svg';
@@ -33,7 +33,7 @@
   let extent = { x: 0, y: 0, width: 800, height: 500 };
   let scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Whether the person has zoomed or panned since the drawing was last fitted. A re-read keeps
-  // where they are then, rather than fitting the whole plan again (GGV-02).
+  // where they are then, rather than fitting the whole plan again.
   let moved = false;
   // True while a redraw puts focus back where it was, so that focus does not move the drawing.
   let restoring = false;
@@ -42,13 +42,13 @@
   const component = new Map(), cyclic = new Set(), outgoing = new Map(), incoming = new Map(), boxes = new Map();
   const settings = { groupBy: '', hidden: [], linkedOnly: false };
   const remembered = loadSettings();
-  // Whether Nendo draws this view's controls in its own toolbar, menus, Ctrl K and keys (W-090).
+  // Whether Nendo draws this view's controls in its own toolbar, menus, Ctrl K and keys.
   // On a host that does not offer it, the view draws its own, as it always has.
-  // Whether the explanation is shown over the drawing, where Nendo draws the controls (W-092).
+  // Whether the explanation is shown over the drawing, where Nendo draws the controls.
   let nativeChrome = false, aboutShown = false;
   // The view kit (tools/view-kit, copied into kit/): the work items are one tab stop, and the
   // arrow keys go to the nearest item in that direction on the drawing, not the next in the
-  // file's order (GGV-09). Loaded as a module from this classic script; until it arrives, every
+  // file's order. Loaded as a module from this classic script; until it arrives, every
   // item is a tab stop and Enter opens it.
   let keys = null;
   import('./kit/nendo-view-kit.js').then(kit => {
@@ -158,7 +158,7 @@
           record: node.record, lines: wrap(label) };
       }),
       edges: graph.edges.map(edge => ({ id: edge.id, sourceId: edge.source, targetId: edge.target })),
-      // Links with an end this view does not show: not drawn, and counted (GGV-06).
+      // Links with an end this view does not show: not drawn, and counted.
       outside: Number.isInteger(graph.hiddenEdges) ? graph.hiddenEdges : 0,
     };
   }
@@ -519,7 +519,7 @@
       maxX = Math.max(maxX, box.x + box.width); maxY = Math.max(maxY, box.y + box.height);
     });
     // A drawing smaller than the least extent grows evenly on every side, so fitting it centres
-    // what is drawn: one item sits in the middle, not up and to the left (GGV-17).
+    // what is drawn: one item sits in the middle, not up and to the left.
     const drawnWidth = maxX - minX, drawnHeight = maxY - minY;
     const fullWidth = Math.max(320, drawnWidth), fullHeight = Math.max(200, drawnHeight);
     extent = { x: minX - (fullWidth - drawnWidth) / 2, y: minY - (fullHeight - drawnHeight) / 2, width: fullWidth, height: fullHeight };
@@ -575,7 +575,7 @@
   }
 
   // The buttons are made once for a list of commands and updated where they are, so the one the
-  // person just pressed keeps the keyboard (GGV-08). A command that cannot run now says so with
+  // person just pressed keeps the keyboard. A command that cannot run now says so with
   // aria-disabled, which leaves its button focusable: disabling the pressed button would drop
   // the keyboard too. A press of it does nothing.
   function showActions() {
@@ -625,7 +625,7 @@
       const after = await nendo.commands.run(command.id, node.record);
       // The record as it now stands. The buttons are judged on it and the next command is sent
       // at its version, not at the one read before this command, which Nendo would refuse as a
-      // change nobody else made (GGV-07).
+      // change nobody else made.
       if (after !== null && typeof after === 'object' && after.recordId === node.id && Number.isInteger(after.version)) node.record = after;
       say(`${command.label}: done for ${node.label}. Undo it in Nendo's History.`);
     } catch (error) {
@@ -684,7 +684,7 @@
     const total = reachable(id, outgoing).size;
     element('selection').textContent = `${node.label} · blocked by ${blockers} · blocks ${blocks}`
       + (total > blocks ? ` (${total} in all downstream)` : '')
-      // With links to items outside this view left undrawn, no blocker drawn is all it shows (GGV-06).
+      // With links to items outside this view left undrawn, no blocker drawn is all it shows.
       + (cyclic.has(id) ? ' · in a dependency cycle' : blockers === 0 ? (all.outside > 0 ? ' · no blocker drawn' : ' · nothing is blocking it') : '');
     paint();
   }
@@ -724,7 +724,7 @@
   function summarize() {
     const unblocked = shown.nodes.filter(node => incoming.get(node.id).length === 0).length;
     const parts = [`${shown.nodes.length} work item${shown.nodes.length === 1 ? '' : 's'}`, `${shown.edges.length} link${shown.edges.length === 1 ? '' : 's'}`];
-    // A link to an item this view does not show is not drawn (GGV-06): an item blocked only that
+    // A link to an item this view does not show is not drawn: an item blocked only that
     // way would count as unblocked, so then the count says what is known, no blocker drawn.
     if (shown.nodes.length !== 0) parts.push(all.outside > 0 ? `${unblocked} with no blocker drawn` : `${unblocked} unblocked`);
     if (cyclic.size !== 0) parts.push(`${cyclic.size} in a dependency cycle`);
@@ -745,7 +745,7 @@
     }
     select.value = groupField() === null ? '' : settings.groupBy;
     // The chips are made once for a list of statuses and kept, so the one the person just toggled
-    // keeps the keyboard when the layout follows (GGV-08); only whether each is checked changes.
+    // keeps the keyboard when the layout follows; only whether each is checked changes.
     const chips = element('status-chips');
     const statuses = fields.status?.choices ?? [];
     const inputs = [...chips.querySelectorAll('input[data-status]')];
@@ -779,7 +779,7 @@
     return null;
   }
   // Gives the keyboard back to that item after the redraw, or to the one now where it was, so
-  // focus does not fall to the page (GGV-03). Giving it back moves nothing.
+  // focus does not fall to the page. Giving it back moves nothing.
   function restoreFocus(was) {
     if (was === null) return;
     const items = [...was.container.querySelectorAll('[data-id]')];
@@ -796,7 +796,7 @@
     const placed = await arrange();
     if (mine !== run) return;
     const had = focusedItem(), drawn = new Set(boxes.keys());
-    // Where the person is (GGV-02): the selected or focused item and the point on screen it is
+    // Where the person is: the selected or focused item and the point on screen it is
     // at. ELK can move items when the plan changes, so that item is kept at that point.
     const anchorId = keep ?? had?.id ?? null, anchorBox = anchorId === null ? undefined : boxes.get(anchorId);
     const anchor = anchorBox === undefined ? null : { id: anchorId, x: offsetX + anchorBox.x * scale, y: offsetY + anchorBox.y * scale };
@@ -937,14 +937,14 @@
   });
   new ResizeObserver(() => { if (loaded && !canvas.hidden && !moved) fit(); }).observe(canvas);
   window.addEventListener('pagehide', () => { try { elk?.terminateWorker(); } catch { /* Already gone. */ } });
-  // --- Nendo's own chrome (W-090) ---------------------------------------------------------
+  // --- Nendo's own chrome ---------------------------------------------------------
   //
   // Where the host offers it, this view does not draw its controls: it declares them, and
   // Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys and
   // sends a press back as a command. A right-click on a work item opens Nendo's menu, with the
   // item's record commands. The page's title gives way to Nendo's own breadcrumb.
 
-  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // The view's own lines: where Nendo draws the controls, the summary is declared as
   // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
   // frame. A summary that reports a problem stays in the frame, whole.
   function setSummary(text, problem = false) {

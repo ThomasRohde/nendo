@@ -138,7 +138,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-== fflate (reads Archi's .archimate archives, W-120)
+== fflate (reads Archi's .archimate archives)
 
 MIT License
 
@@ -162,7 +162,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-== libxml2-wasm (checks Open Exchange XML against its schemas in xsd.js, W-121)
+== libxml2-wasm (checks Open Exchange XML against its schemas in xsd.js)
 
 MIT License
 
@@ -208,7 +208,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-== elkjs (ELK's layouts, W-115): elk-api.js in canvas.js, and vendor/elkjs/elk-worker.min.js
+== elkjs (ELK's layouts): elk-api.js in canvas.js, and vendor/elkjs/elk-worker.min.js
 
 elkjs 0.11.1, https://github.com/kieler/elkjs, built from the Eclipse Layout Kernel,
 https://github.com/eclipse-elk/elk. Copyright (c) 2017 and 2021 Kiel University and others.

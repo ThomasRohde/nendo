@@ -1,4 +1,4 @@
-// Where TeX breaks a paragraph into lines, for the paper's preview (W-293): Knuth and Plass's
+// Where TeX breaks a paragraph into lines, for the paper's preview: Knuth and Plass's
 // total-fit algorithm over boxes, glue and penalties, with the parameters the AASTeX reference
 // sets. Pure: the view measures the words and draws the lines (tools/manus/typeset.test.mjs).
 
@@ -132,7 +132,7 @@ export function softHyphens(text, hyphenate) {
 // ---------- Measuring and setting a paragraph ----------
 // Times New Roman's advance widths, in thousandths of an em, for the characters of TIMES_CHARS.
 // Word sets the paper's text with them, unkerned and without ligatures, and so does the preview,
-// so a line set here is a line in both (W-293).
+// so a line set here is a line in both.
 const TIMES_CHARS = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u2019\u2018\u201c\u201d\u2013\u2014\u2026\u00e9\u00e8\u00f6\u00fc\u00e4\u00e5\u00f8\u00e6\u00c5\u00c9\u00d6\u00dc\u00c4\u00e7\u00f1\u00d7\u00b7\u2022\u00a0\u00ad";
 const TIMES_WIDTHS = {
   regular: [250,333,408,500,500,833,778,180,333,333,500,564,250,333,250,278,500,500,500,500,500,500,500,500,500,500,278,278,564,564,564,444,921,722,667,667,722,611,556,722,722,333,389,722,611,889,722,722,556,722,667,556,611,722,722,944,722,722,611,333,278,333,469,500,333,444,500,444,500,444,333,500,500,278,278,500,278,778,500,500,500,500,333,389,278,500,500,722,500,500,444,480,200,480,541,333,333,444,444,500,1000,1000,444,444,500,500,444,444,500,667,722,611,722,722,722,444,500,564,333,350,250,333],
@@ -155,7 +155,7 @@ export function timesWidth(text, style = {}) {
   return width * size / 1000;
 }
 
-// TeX Gyre Termes as XeTeX sets the reference (W-293): advance widths for TIMES_CHARS but the
+// TeX Gyre Termes as XeTeX sets the reference: advance widths for TIMES_CHARS but the
 // soft hyphen, the kerns between them and the f-ligatures, in thousandths of an em, read from the
 // fonts' hmtx, GPOS and GSUB tables. Breaking a paragraph with these finds TeX's own lines, which
 // the preview and the typeset Word export then draw in Times New Roman.

@@ -1,5 +1,5 @@
 #:package Microsoft.Data.Sqlite
-// W-264's measurement (ADR-0031 point 7), not a lane: what opening costs once a file embeds 2 GiB
+// A measurement (ADR-0031 point 7), not a lane: what opening costs once a file embeds 2 GiB
 // of pictures, and whether leaving the media content out of the integrity check and the content
 // digest keeps that cost where a file without media has it. SQLite only, on synthetic files shaped
 // like a Nendo file near its bound; Measure-MediaOpen.ps1 runs it cold. Build nothing while it runs.

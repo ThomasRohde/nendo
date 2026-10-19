@@ -8,20 +8,20 @@
   const nendo = window.nendo;
   let loaded = false, nodes = [], edges = [], hidden = 0, selected = null;
   // Whether the person has zoomed or panned since the graph was last fitted. A re-read keeps
-  // where they are then, rather than fitting the whole graph again (GGV-02).
+  // where they are then, rather than fitting the whole graph again.
   let moved = false;
   // True while a redraw puts focus back where it was, so that focus does not move the drawing.
   let restoring = false;
   let width = 800, height = 500, scale = 1, offsetX = 0, offsetY = 0, drag = null;
   // Reads are numbered so an answer that arrives after a newer read has started is dropped.
   let latest = 0, pending = null;
-  // True where Nendo draws this view's controls in its own toolbar (W-091), and whether the
-  // explanation is shown over the graph (W-092).
+  // True where Nendo draws this view's controls in its own toolbar, and whether the
+  // explanation is shown over the graph.
   let nativeChrome = false, aboutShown = false;
   const positions = new Map();
   // The view kit (tools/view-kit, copied into kit/): the records are one tab stop, and the arrow
   // keys go to the nearest record in that direction on the drawing, not the next in the file's
-  // order (GGV-09). Loaded as a module from this classic script; until it arrives, every record
+  // order. Loaded as a module from this classic script; until it arrives, every record
   // is a tab stop and Enter opens it.
   let keys = null;
   import('./kit/nendo-view-kit.js').then(kit => {
@@ -99,7 +99,7 @@
     return null;
   }
   // Gives the keyboard back to that record after the redraw, or to the one now where it was, so
-  // focus does not fall to the page (GGV-03). Giving it back moves nothing.
+  // focus does not fall to the page. Giving it back moves nothing.
   function restoreFocus(was) {
     if (was === null) return;
     const items = [...was.container.querySelectorAll('[data-id]')];
@@ -112,7 +112,7 @@
     // A re-read keeps the selection when its record is still there, without opening it again.
     const keep = selected, had = focusedItem(), before = new Map(positions);
     nodes = projection.nodes; edges = projection.edges; hidden = projection.hidden; selected = null; positions.clear(); drawing.replaceChildren();
-    // A link to a record this view does not show is left out of the drawing, and said (GGV-06).
+    // A link to a record this view does not show is left out of the drawing, and said.
     setSummary(`${nodes.length} record${nodes.length === 1 ? '' : 's'} · ${edges.length} connection${edges.length === 1 ? '' : 's'}`
       + (hidden > 0 ? ` · ${hidden} connection${hidden === 1 ? '' : 's'} outside this view` : ''));
     element('selection').textContent = 'No record selected'; element('empty').hidden = nodes.length !== 0;
@@ -120,7 +120,7 @@
     const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length * 1.5)));
     nodes.forEach((node, index) => positions.set(node.id, { x: 30 + index % columns * 230, y: 80 + Math.floor(index / columns) * 160 }));
     // The drawing is as wide as the columns it uses and as tall as its rows, with the same margin
-    // on either side, so fitting it centres the records: one record sits in the middle (GGV-17).
+    // on either side, so fitting it centres the records: one record sits in the middle.
     const used = Math.min(columns, Math.max(1, nodes.length)), rows = Math.max(1, Math.ceil(nodes.length / columns));
     width = used * 230 + 20; height = rows * 160 + 66;
     const parallel = new Map();
@@ -130,7 +130,7 @@
       const key = JSON.stringify([edge.sourceId, edge.targetId]);
       const rank = parallel.get(key) || 0; parallel.set(key, rank + 1);
       const bend = 30 + 40 * rank / (rank + 1);
-      // Every link ends outside its target, where its arrowhead shows (GGV-05): on the left edge
+      // Every link ends outside its target, where its arrowhead shows: on the left edge
       // of a record further right, over the top of one to the left on the same row, on the top
       // edge of one on a lower row and on the bottom edge of one on a higher row. Ending on the
       // left edge of a record below or behind put the arrowhead inside it, under its box. A link
@@ -179,7 +179,7 @@
     });
     textView();
     // The person's zoom and pan stay while any record they were looking at is still drawn; the
-    // first drawing, and a graph that is all new, are fitted (GGV-02). A record added or taken
+    // first drawing, and a graph that is all new, are fitted. A record added or taken
     // away moves the others on the grid, so the selected record, or else the focused one, stays
     // at the point on screen where it was.
     if (moved && nodes.some(node => before.has(node.id))) {
@@ -269,14 +269,14 @@
   });
   new ResizeObserver(() => { if (loaded && !canvas.hidden && !moved) fit(); }).observe(canvas);
 
-  // --- Nendo's own chrome (W-091) ---------------------------------------------------------
+  // --- Nendo's own chrome ---------------------------------------------------------
   //
   // Where the host offers it, this view does not draw its controls: it declares them, and
   // Nendo draws them in the toolbar every screen has, lists them in Ctrl K with their keys and
   // sends a press back as a command. A right-click on a record opens Nendo's menu. The page's
   // title gives way to Nendo's own breadcrumb.
 
-  // The view's own lines (W-092): where Nendo draws the controls, the summary is declared as
+  // The view's own lines: where Nendo draws the controls, the summary is declared as
   // text in Nendo's row and the explanation waits behind About, so neither spends a line of the
   // frame. A summary that reports a problem stays in the frame, whole.
   function setSummary(text, problem = false) {

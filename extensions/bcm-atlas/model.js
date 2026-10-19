@@ -116,7 +116,7 @@ function relatedTypes(entityId, entities, presentation, typeName, problems) {
 }
 
 /**
- * Dated assessments (W-080): a record type that holds one scored judgement of one capability on
+ * Dated assessments: a record type that holds one scored judgement of one capability on
  * one dimension at one date, named by the view's configuration as
  *
  *   { "assessments": { "entityId", "capability", "dimension", "score", "date",
@@ -204,7 +204,7 @@ export function assessmentIndex(assessments, records) {
 }
 
 /**
- * Application coverage (W-081): the link record type that says which application supports which
+ * Application coverage: the link record type that says which application supports which
  * capability, named by the view's configuration as
  *
  *   { "coverage": { "entityId", "capability", "application", "role", "fit" } }
@@ -239,7 +239,7 @@ export function bindCoverage(value, entities, atlasEntityId, problems) {
 
 /**
  * How many distinct applications support each capability, counting everything below a group
- * as the group's own (W-081): a group with no application of its own is still covered when its
+ * as the group's own: a group with no application of its own is still covered when its
  * children are, and two children on one application count it once.
  */
 export function coverageCounts(model, coverage, links) {
@@ -261,7 +261,7 @@ export function coverageCounts(model, coverage, links) {
 }
 
 /**
- * Capabilities against applications (W-081): a row for each capability given that has an
+ * Capabilities against applications: a row for each capability given that has an
  * application of its own, a column for each application that supports one of them, and in each
  * cell the links between the two, by role and fit. Rows keep the order given; columns go by name.
  */
@@ -547,7 +547,7 @@ function standsAt(model, recordId, parentId, beforeId, ordered) {
 }
 
 /**
- * Where a drop puts a capability, as records.move takes it (W-079): { parentId, beforeId }, a
+ * Where a drop puts a capability, as records.move takes it: { parentId, beforeId }, a
  * parent of null being the top level and a beforeId of null the end. A drop is
  * { kind: 'into' | 'before' | 'after', targetId }: into makes it the target's last child;
  * before and after make it the target's sibling on that side. The answer is { refused } when

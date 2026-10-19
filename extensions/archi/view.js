@@ -1,4 +1,4 @@
-// The Archi workbench (W-109, W-110): Archi's model tree, the open view drawn in the middle with
+// The Archi workbench: Archi's model tree, the open view drawn in the middle with
 // archi-online's own figures (canvas.js), and the properties of what is selected, one selection
 // shared by all three. Every rule lives in model.js; this file reads the file through
 // window.nendo, draws, and sends the writes model.js plans.
@@ -18,14 +18,14 @@ const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concept
   specializations: M.E.specialization, views: M.E.view, items: M.E.item, properties: M.E.property };
 
 /*
- * The Appearance panel beside the view while editing (W-114) takes room from the drawing, so it
+ * The Appearance panel beside the view while editing takes room from the drawing, so it
  * starts hidden; the Appearance toggle shows it, and this device remembers the choice.
  */
 const APPEARANCE_KEY = 'archi-appearance';
 function appearanceKept() { try { return localStorage.getItem(APPEARANCE_KEY) === 'shown'; } catch { return false; } }
 
 /*
- * The most records of one type the workbench reads (ABS-10). One more is asked for, so a type that
+ * The most records of one type the workbench reads. One more is asked for, so a type that
  * holds more is known to have been cut, and Save as .archimate or Exchange XML, which would leave
  * the rest out of the file, is refused rather than written short.
  */
@@ -112,8 +112,8 @@ const modelRecord = () => state.model?.of(M.E.model)[0] ?? null;
 let writing = Promise.resolve();
 
 /*
- * Undo and Redo of what the file has saved (W-112). Each gesture written as one batch is one step,
- * named by the gesture, and Nendo undoes it (ADR-0023, W-103): records.undo writes the batch's
+ * Undo and Redo of what the file has saved. Each gesture written as one batch is one step,
+ * named by the gesture, and Nendo undoes it (ADR-0023): records.undo writes the batch's
  * opposite as a new revision, version-checked, so a record changed, deleted or used since refuses
  * the whole undo and nothing is written. A deleted record comes back under its own record ID,
  * which only Nendo can do. A redo is the undo's own undo. The steps are this visit's; a gesture
@@ -125,8 +125,7 @@ const STEPS_KEPT = 50;
 /**
  * One gesture's writes, after every earlier gesture and the reread it caused: `plan` is called
  * only then, so it plans from the records as they now stand. Planned at once, a second edit
- * made while the first was still being read back pointed at versions the first had moved on
- * (F-211).
+ * made while the first was still being read back pointed at versions the first had moved on.
  */
 function write(plan, label, { atomic = false, undoable = true } = {}) {
   const run = writing.then(() => writeNow(plan, label, atomic, undoable));
@@ -170,7 +169,7 @@ async function writeNow(plan, label, atomic, undoable) {
       }
     }
   } catch (error) {
-    // A batch refused after earlier ones went through leaves those (ABS-04): said as a part, not
+    // A batch refused after earlier ones went through leaves those: said as a part, not
     // as a refusal of the whole, and, being several revisions, it cannot be undone here.
     const sent = Math.ceil(writes.length / 200);
     outcome = batched && revisions.length > 0
@@ -186,7 +185,7 @@ async function writeNow(plan, label, atomic, undoable) {
       saved.undo.push({ label, revision: revisions[0] });
       if (saved.undo.length > STEPS_KEPT) saved.undo.shift();
     } else if (undoable && revisions.length > 1) {
-      // ABS-04: several revisions are not one step Nendo can take back. Undo must not then name
+      // Several revisions are not one step Nendo can take back. Undo must not then name
       // and run the gesture before this one, as if it were next: the steps before it end here.
       saved.undo = [];
     }
@@ -381,7 +380,7 @@ function startRename() {
 }
 
 /**
- * The name a rename starts from and is compared with: the record's own name (ABS-06). The tree
+ * The name a rename starts from and is compared with: the record's own name. The tree
  * labels a relationship with its two ends, and an unnamed one with its type; neither is its name,
  * and either, edited in place, was saved into it.
  */
@@ -448,7 +447,7 @@ function renderDiagram() {
 }
 
 /**
- * Archi's Analysis (W-118): archi-online's own model relations and views in use of a concept, run
+ * Archi's Analysis: archi-online's own model relations and views in use of a concept, run
  * on the mirror of the file's records, in archi-online's order: what starts here, then what ends
  * here, each by name; the views by name. A relationship selects itself; a view opens with the
  * concept's first object on it selected, as archi-online's Analysis tab opens it.
@@ -535,7 +534,7 @@ const options = (fieldId, choices, value, empty) => `<select data-field="${field
   .map(choice => `<option value="${escape(choice.id)}" ${choice.id === value ? 'selected' : ''} ${choice.disabled ? 'disabled' : ''}>${escape(choice.label)}</option>`).join('')}</select>`;
 
 /**
- * Archi's 25 viewpoints by name, as archi-online's properties offer them (W-116); a key no
+ * Archi's 25 viewpoints by name, as archi-online's properties offer them; a key no
  * viewpoint has, from another tool, is kept and named as unknown. Until the canvas has loaded the
  * stored key is the one choice, and the pane is drawn again when it has.
  */
@@ -705,7 +704,7 @@ function newElement() {
   const hint = () => {
     const probe = M.createElement(state.model, $('new-element-type').value, selectedFolder());
     $('new-element-folder').textContent = `It goes in ${M.folderPath(state.model, probe.values['ar.concept.folder'])}.`;
-    // The specializations of the type chosen (W-119), or none to choose from.
+    // The specializations of the type chosen, or none to choose from.
     const own = M.elementSpecializations(state.model).filter(({ type }) => type.values['ar.type.key'] === $('new-element-type').value);
     $('new-element-specialization').innerHTML = `<option value="">None</option>${own.map(({ specialization }) =>
       `<option value="${escape(specialization.recordId)}">${escape(specialization.values['ar.specialization.name'])}</option>`).join('')}`;
@@ -786,7 +785,7 @@ function summary() {
 }
 
 /*
- * Nendo refuses a toolbar declaration over 16 KiB of JSON whole (ABS-05), and a refusal leaves
+ * Nendo refuses a toolbar declaration over 16 KiB of JSON whole, and a refusal leaves
  * the workbench's own row for the rest of the visit. The New menu's specializations and the
  * specialization filter grow with the model, so the declaration is measured before it is sent
  * and those optional parts are trimmed until it fits: first their detail lines, then their
@@ -806,14 +805,14 @@ function declareToolbar() {
     if (toolbarBytes(toolbar) <= TOOLBAR_BYTES) break;
   }
   nendo.ui.setToolbar(toolbar).catch(error => {
-    // A Nendo from before W-115 has no clipboard, layout, undo or redo icon and refuses the
+    // A Nendo without the clipboard, layout, undo or redo icon refuses the
     // row: it is declared again with words where those icons would be.
     if (!plainIcons && /icon/i.test(describe(error))) { plainIcons = true; declareToolbar(); return; }
     leaveNativeChrome(describe(error));
   });
 }
 
-/** The row's controls, with the optional parts as `trim` allows them (ABS-05). */
+/** The row's controls, with the optional parts as `trim` allows them. */
 function toolbarItems(trim) {
   return [
     { kind: 'search', id: 'find', label: 'Find in the model', placeholder: 'Find…', value: state.filter.text.slice(0, 256), keys: 'Ctrl+F' },
@@ -838,7 +837,7 @@ function toolbarItems(trim) {
       { id: 'save-archimate', label: 'Save as .archimate', detail: 'Download the model for Archi' },
       { id: 'save-exchange', label: 'Save as Exchange XML', detail: 'Download it in The Open Group’s format, checked against Archi 5.9’s schemas' },
     ] },
-    // Archi's model tools (W-119): each change is one revision, which Undo takes back.
+    // Archi's model tools: each change is one revision, which Undo takes back.
     { kind: 'menu', id: 'tools', label: 'Tools', items: [
       { id: 'find-replace', label: 'Find and replace…', detail: 'In names, text, documentation and property values', disabled: state.readOnly },
       { id: 'properties-manager', label: 'Properties…', detail: 'Rename or delete a property key everywhere it is used', disabled: state.readOnly },
@@ -846,7 +845,7 @@ function toolbarItems(trim) {
     ] },
     ...(state.openView && !state.readOnly && canvasModule?.createEditor
       ? [{ kind: 'toggle', id: 'edit', label: 'Edit the view', icon: 'edit', pressed: state.editing, keys: 'Ctrl+E' }] : []),
-    // Undo and Redo name what they would do (W-112), here, in Ctrl K and in More.
+    // Undo and Redo name what they would do, here, in Ctrl K and in More.
     ...(!state.readOnly ? [{ kind: 'group', label: 'Undo and redo', items: [
       { kind: 'button', id: 'undo', label: undoName() ? `Undo ${undoName()}`.slice(0, 80) : 'Undo', icon: 'undo', iconOnly: true, keys: 'Ctrl+Z', disabled: !undoName() },
       { kind: 'button', id: 'redo', label: redoName() ? `Redo ${redoName()}`.slice(0, 80) : 'Redo', icon: 'redo', iconOnly: true, keys: 'Ctrl+Y', disabled: !redoName() },
@@ -876,7 +875,7 @@ function toolbarItems(trim) {
 }
 
 /**
- * Edit, Commit and Discard in the workbench's own row (ABS-05): when Nendo's row is refused, the
+ * Edit, Commit and Discard in the workbench's own row: when Nendo's row is refused, the
  * edits waiting on a view can still be committed or discarded, and a view can still be edited.
  */
 function ownEditControls() {
@@ -898,11 +897,10 @@ function knownIcons(items) {
 }
 
 /**
- * The editor's menus in Nendo's row while editing, so they are in Ctrl K too: Arrange (W-113),
- * Copy and paste, Lay out (W-115), and the editor's settings behind the gear, each an icon whose
- * name shows on hover, so the row fits beside Add; Nendo puts what still does not fit in More
- * (the owner, W-115). Each command is
- * archi-online's own, as its context menu runs it: one edit waiting to be committed and one Undo
+ * The editor's menus in Nendo's row while editing, so they are in Ctrl K too: Arrange,
+ * Copy and paste, Lay out, and the editor's settings behind the gear, each an icon whose
+ * name shows on hover, so the row fits beside Add; Nendo puts what still does not fit in More.
+ * Each command is archi-online's own, as its context menu runs it: one edit waiting to be committed and one Undo
  * step. Cut, copy, paste and duplicate keep their keys in the view.
  */
 function editingMenus() {
@@ -1012,7 +1010,7 @@ function setFilter(change) {
   declareToolbar();
 }
 
-// ---------------------------------------------------------------- editing a view (W-111)
+// ---------------------------------------------------------------- editing a view
 
 /*
  * Edit turns the open view into archi-online's own editor: its palette, gestures, magic connector
@@ -1021,12 +1019,12 @@ function setFilter(change) {
  * without saving anything (an older Nendo without records.batch writes them one by one).
  * Discard drops them. A box moved five times is
  * one change of its place when committed, which is what keeps an editing session inside the
- * file's operation-row bound (W-101). The waiting edits are kept in this browser, so leaving the
+ * file's operation-row bound. The waiting edits are kept in this browser, so leaving the
  * screen, or Back, finds them again; a change to the file meanwhile is carried under them.
  */
 const EDITS_KEY = 'archi-edits';
 let editor = null, editBase = null, editSets = null, selectionFromEditor = false;
-// The view the waiting edits were made on, when they were found again in this browser (ABS-22):
+// The view the waiting edits were made on, when they were found again in this browser:
 // kept until they are committed or discarded, so opening another view does not take its place.
 let keptViewId = null;
 
@@ -1056,7 +1054,7 @@ function editsChanged() {
   refreshVisualiser();
 }
 
-/** The whole drawing in sight when the editor opens a view (the owner, W-114), once it is laid out. */
+/** The whole drawing in sight when the editor opens a view, once it is laid out. */
 function fitEditorSoon() {
   requestAnimationFrame(() => requestAnimationFrame(() => { editor?.fit(); declareToolbar(); }));
 }
@@ -1139,7 +1137,7 @@ function toggleEditing(on) {
 function commitEdits() {
   if (!editor || state.pending === 0) return;
   const count = state.pending;
-  // Once saved, the edits are undone as one step of the file's (W-112), not one by one in the editor.
+  // Once saved, the edits are undone as one step of the file's, not one by one in the editor.
   return write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`, { atomic: true })
     .then(ok => { if (ok) { editor?.clearHistory?.(); declareToolbar(); } return ok; });
 }
@@ -1151,7 +1149,7 @@ function discardEdits() {
   setStatus('The waiting changes were discarded.');
 }
 
-// ---------------------------------------------------------------- automation (W-115)
+// ---------------------------------------------------------------- automation
 
 /*
  * Archi's automation, each archi-online's own operation. Auto-layout runs ELK on the open view in
@@ -1233,7 +1231,7 @@ async function layoutView(direction) {
   const before = state.pending;
   try {
     const refusal = await editor.layout(direction);
-    // ABS-23: a layout that moves more than a Commit can save would wait for ever; as Generate
+    // A layout that moves more than a Commit can save would wait for ever; as Generate
     // view does, it is taken back at once, and the person is told to lay out fewer boxes.
     if (refusal === null && state.pending > 200) {
       const own = state.pending - before;
@@ -1272,7 +1270,7 @@ $('arm-settings').addEventListener('close', () => {
   setStatus(choice === 'save' ? 'Automatic relationships saved.' : "Automatic relationships are Archi's defaults again.");
 });
 
-// ---------------------------------------------------------------- the validator (W-117)
+// ---------------------------------------------------------------- the validator
 
 /*
  * Archi's validator is archi-online's, bundled in canvas.js, run on the mirror of the file's
@@ -1313,8 +1311,8 @@ async function validate() {
 }
 
 /**
- * A diagram item whose Bendpoints or Legend options are not readable JSON is drawn without them
- * (ABS-07), and named here as a model-integrity error, so the person can open it and its record.
+ * A diagram item whose Bendpoints or Legend options are not readable JSON is drawn without them,
+ * and named here as a model-integrity error, so the person can open it and its record.
  */
 function unreadableIssues() {
   return (canvasModule.unreadableValues?.(state.sets) ?? []).map(entry => {
@@ -1326,7 +1324,7 @@ function unreadableIssues() {
   });
 }
 
-/** What the status line says about values that do not read, or null when every one does (ABS-07). */
+/** What the status line says about values that do not read, or null when every one does. */
 function unreadableNote() {
   const found = canvasModule?.unreadableValues?.(state.sets ?? {}) ?? [];
   if (found.length === 0) return null;
@@ -1339,7 +1337,7 @@ function unreadableNote() {
 const TYPE_WORDS = { [M.E.model]: 'models', [M.E.folder]: 'folders', [M.E.type]: 'concept types', [M.E.concept]: 'concepts',
   [M.E.specialization]: 'specializations', [M.E.view]: 'views', [M.E.item]: 'diagram objects and connections', [M.E.property]: 'properties' };
 
-/** Why nothing can be saved as a file now: a type the workbench read only in part (ABS-10). */
+/** Why nothing can be saved as a file now: a type the workbench read only in part. */
 function cutRefusal() {
   return state.cut.length === 0 ? null
     : `Not saved: the file holds more than ${READ_MAX.toLocaleString('en')} ${state.cut.map(entityId => TYPE_WORDS[entityId] ?? entityId).join(' and more than as many ')}, and the workbench reads only that many of a kind, so the saved file would leave the rest out.`;
@@ -1417,7 +1415,7 @@ $('validator-config').addEventListener('close', () => {
   validate();
 });
 
-// ---------------------------------------------------------------- the Visualiser (W-118)
+// ---------------------------------------------------------------- the Visualiser
 
 /*
  * Archi's Visualiser is archi-online's: the graph around a concept, built by its
@@ -1574,14 +1572,14 @@ async function exportVisualiser(format) {
   }
 }
 
-// ---------------------------------------------------------------- .archimate files (W-120)
+// ---------------------------------------------------------------- .archimate files
 
 /*
  * Archi's own files, read and written with archi-online's parser and serializer in canvas.js.
  * Open reads a model into an empty one, as Archi opens a model into a new tree: a file that
  * already holds a model says how to make an empty one. The person chooses the file in the
  * workbench's own dialog, because a picker opens only on a click inside the view, or drops it on
- * the workbench. Images are left out and counted (F-208). Save downloads the model as plain XML.
+ * the workbench. Images are left out and counted. Save downloads the model as plain XML.
  */
 let opening = null;
 
@@ -1612,10 +1610,10 @@ async function readChosen(file) {
   summary.textContent = `Reading ${file.name}…`;
   $('open-archimate-open').disabled = true;
   try {
-    // An .archimate file, plain or an archive, or Open Exchange XML (W-121), told apart by what it holds.
+    // An .archimate file, plain or an archive, or Open Exchange XML, told apart by what it holds.
     const { model, leftOut, format } = canvasModule.readModelFile(new Uint8Array(await file.arrayBuffer()));
     const plan = canvasModule.planImport(model, importTarget(), leftOut);
-    // ABS-03: what Nendo would refuse part-way, after the first batches were kept, is refused now.
+    // What Nendo would refuse part-way, after the first batches were kept, is refused before anything is written.
     const refusal = canvasModule.importProblemSentence(canvasModule.importProblems(plan, state.sets));
     if (refusal) throw new Error(refusal);
     opening = { name: file.name, model, leftOut };
@@ -1686,7 +1684,7 @@ async function saveArchimate() {
 }
 
 /**
- * The model as Open Exchange XML (W-121), as archi-online's export makes it, checked first against
+ * The model as Open Exchange XML, as archi-online's export makes it, checked first against
  * Archi 5.9's schemas by libxml2, which xsd.js brings only now. A file that does not validate is
  * not saved, and the status names the first thing the schemas refused.
  */
@@ -1716,7 +1714,7 @@ async function saveExchange() {
 const isArchimateName = name => /\.(archimate|xml)$/i.test(name);
 const draggedFiles = event => [...(event.dataTransfer?.types ?? [])].includes('Files');
 
-// ---------------------------------------------------------------- view images (W-123)
+// ---------------------------------------------------------------- view images
 
 /*
  * A view as a picture, as Archi's File › Export › View As Image makes one: archi-online's own
@@ -1768,7 +1766,7 @@ async function copyView() {
     window.focus();
     // Always on the white page, as Archi copies a view: a program that pastes Windows' bitmap
     // shows a transparent picture's see-through pixels as black. At twice the view's size, as
-    // PNG at 2×, so it stays sharp on a slide; at its own size it pasted small (owner, W-123).
+    // PNG at 2×, so it stays sharp on a slide; at its own size it pasted small.
     await canvasModule.copyViewPng(imageModel(), view.recordId, 'white', 2);
     setStatus(`Copied ${name} to the clipboard as a picture.`);
   } catch (error) {
@@ -1803,14 +1801,14 @@ function render() {
   declarePlace();
   markStale();
   refreshVisualiser();
-  // The Properties Manager open over the workbench follows the file, as the tree does (W-119).
+  // The Properties Manager open over the workbench follows the file, as the tree does.
   if (canvasModule && $('properties-manager').open) renderPropertiesManager();
 }
 
 // ---------------------------------------------------------------- Back and Forward
 
 /*
- * Where the workbench is, for Nendo's Back and Forward (W-127): the open view, the record
+ * Where the workbench is, for Nendo's Back and Forward: the open view, the record
  * selected and the object picked on the diagram. Opening another view is a step; a new
  * selection corrects the step the person is on, so Back from a record page, or from the next
  * view, comes back to it. Selections are declared once the person pauses, a view at once.
@@ -2042,7 +2040,7 @@ function wire() {
   $('visualiser-copy').addEventListener('click', () => exportVisualiser('copy'));
 }
 
-// ---------------------------------------------------------------- Archi's model tools (W-119)
+// ---------------------------------------------------------------- Archi's model tools
 
 /*
  * The Specializations Manager, the Properties Manager and Find and Replace are archi-online's own
@@ -2062,7 +2060,7 @@ function specializedItems(most, detail = true) {
     ...(detail ? { detail: `A new ${type.values['ar.type.name']} with this specialization` } : {}) }))];
 }
 
-/** The tree's filter by specialization, where the model has any, with at most `most` of them (ABS-05). */
+/** The tree's filter by specialization, where the model has any, with at most `most` of them. */
 function specializationFilter(most = 63) {
   const all = state.model?.of(M.E.specialization) ?? [];
   if (all.length === 0 || most === 0) return [];

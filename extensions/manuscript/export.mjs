@@ -225,7 +225,7 @@ export const BIBLIOGRAPHY = { ...TEX, ragged: true, french: true, hyphenpenalty:
 
 /**
  * The paper layout's page as AASTeX 6.3.1 sets its twocolumn style, in points, measured from a
- * LaTeX render of the same plan (tools/manus/latex.mjs, W-293). The Word export and the preview
+ * LaTeX render of the same plan (tools/manus/latex.mjs). The Word export and the preview
  * both set the page from these. A distance named for what it leads to is from the baseline
  * before it to that baseline; `pitch` is from one line's baseline to the next.
  */
@@ -492,7 +492,7 @@ function docx(plan, pictures, lib, Lexer, layoutName, options) {
     return lead(height, was.height, height);
   };
   const spaced = (kind, height) => paper ? { spacing: { before: room(kind, height), after: 0, ...exact(height) } } : {};
-  // The paper as TeX sets it (options.typeset, W-293): each paragraph broken into the lines the
+  // The paper as TeX sets it (options.typeset): each paragraph broken into the lines the
   // reference's TeX finds (typeset.mjs, measured in Termes), every line but the last ending in a
   // manual break, its spaces widened by character spacing until Word's own Times fills the line,
   // a quarter point short so Word never wraps it again. Returns the runs and the last line's

@@ -17,7 +17,7 @@ export function escape(text) {
 }
 
 // U+0000 marks a held piece of markup while a line is read, so a body's own is read as U+FFFD
-// and can never stand for one (GDN-07).
+// and can never stand for one.
 const plainText = text => String(text ?? '').replace(/\u0000/g, '\uFFFD');
 
 export function render(body, { resolve = () => null, interactive = false } = {}) {
@@ -40,7 +40,7 @@ export function render(body, { resolve = () => null, interactive = false } = {})
     }
     if (opening !== null) { flushAll(); fence = opening[1]; language = opening[2].toLowerCase(); continue; }
     if (line.trim() === '') { flushAll(); continue; }
-    // A closing run of # is cut only after a space, so '# Learning C#' keeps its # (GDN-07).
+    // A closing run of # is cut only after a space, so '# Learning C#' keeps its #.
     const heading = /^(#{1,6})\s+(.+?)(?:\s+#+)?\s*$/.exec(line);
     if (heading !== null) { flushAll(); out.push(`<h${heading[1].length}>${inline(heading[2], resolve)}</h${heading[1].length}>`); continue; }
     if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushAll(); out.push('<hr>'); continue; }
@@ -52,7 +52,7 @@ export function render(body, { resolve = () => null, interactive = false } = {})
       const tag = item[1] ? 'ul' : 'ol';
       if (list === null || list.tag !== tag) { flushList(); list = { tag, items: [] }; }
       // A task is a bullet item, as parse() and a tick read one: a numbered '1. [ ] x' stays text,
-      // never a box that ticks and saves nothing (GDN-05).
+      // never a box that ticks and saves nothing.
       const task = item[1] ? /^\[( |x|X)\]\s+(.+?)\s*$/.exec(item[3]) : null;
       list.items.push(task === null
         ? `<li>${inline(item[3], resolve)}</li>`
@@ -74,7 +74,7 @@ export function inline(text, resolve) {
   // A piece held later can hold an earlier one (a link whose words are code): its placeholders are
   // expanded as it is held, so the line is expanded once at the end, and its text never grows.
   // Where a piece's words go into an attribute, an earlier piece stands there as the text it was
-  // written as, escaped like the rest, never as its markup (GDN-07).
+  // written as, escaped like the rest, never as its markup.
   const holds = [], sources = [];
   const PLACE = /\u0000(\d+)\u0000/g;
   const expand = html => html.replace(PLACE, (_, index) => holds[Number(index)] ?? '');

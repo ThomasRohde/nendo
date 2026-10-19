@@ -1,4 +1,4 @@
-// The Archi workbench's Analysis and Visualiser (W-118): archi-online's own model relations, views
+// The Archi workbench's Analysis and Visualiser: archi-online's own model relations, views
 // in use and semantic graph (src/model/analysis.ts, analysis-graph.ts), its layout request, laid out
 // by ELK in the worker (elk.ts), and its VisualiserCanvas, all run on the mirror of the file's
 // records. The controls around the drawing are the workbench's (view.js), as the validator's list
@@ -45,7 +45,7 @@ export function analysisPng(graph: AnalysisGraphResult, layout: ElkGraphLayoutRe
   return rasterizeSvg(svg, Number(size[1]), Number(size[2]), scale);
 }
 
-/** The PNG at twice its size on the clipboard, as a view is copied (W-123). */
+/** The PNG at twice its size on the clipboard, as a view is copied. */
 export function copyAnalysisPng(graph: AnalysisGraphResult, layout: ElkGraphLayoutResult, showRelationshipNames: boolean) {
   return copyPngBlobToClipboard(analysisPng(graph, layout, showRelationshipNames, 2));
 }

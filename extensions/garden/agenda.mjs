@@ -1,4 +1,4 @@
-// The Agenda (W-184): the garden's open tasks by when they are due, Overdue, Today, This week,
+// The Agenda: the garden's open tasks by when they are due, Overdue, Today, This week,
 // Later and No date, and the writes one tick makes. A task that a note's body says ticks its line in
 // that note as well as its record, so the next save of the note keeps the tick rather than taking
 // it back. A task added by hand has no line and ticks its record alone. Pure: it reads nothing.

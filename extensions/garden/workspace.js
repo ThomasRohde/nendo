@@ -159,7 +159,7 @@ export async function startWorkspace(nendo, context, kit) {
     for (const list of children.values()) list.sort((a, b) => (a.values[F.note.order] ?? Infinity) - (b.values[F.note.order] ?? Infinity) || a.title.localeCompare(b.title));
     const matches = note => !filter || (state.hits !== null ? state.hits.has(note.recordId) : localMatch(note, filter, F.note.body));
     // The row is the treeitem the keyboard lands on, with its level and whether it is unfolded, and
-    // it owns the group of the notes under it; the list item around it is only layout (GDN-12).
+    // it owns the group of the notes under it; the list item around it is only layout.
     const build = (parent, level = 1) => {
       const list = document.createElement('ul');
       list.setAttribute('role', parent === null ? 'tree' : 'group');
@@ -332,8 +332,8 @@ export async function startWorkspace(nendo, context, kit) {
   }
   const draftKeyNow = () => state.note?.recordId ?? state.newKey;
   // A draft whose note is gone (Undo of the save that planted it, a delete elsewhere, a compensation
-  // in History) waits as a new note at the head of the tree, rather than under an ID no row has
-  // (GDN-01). It remembers the note and the version it was written over, so when the note is back
+  // in History) waits as a new note at the head of the tree, rather than under an ID no row has.
+  // It remembers the note and the version it was written over, so when the note is back
   // (Redo, a compensation undone) the draft is that note's again rather than a second note to plant.
   // Only over a garden read whole: a note past the read is not gone.
   const away = (draft, from) => ({ ...draft, version: null, hash: null, from, fromVersion: draft.version ?? null, fromHash: draft.hash ?? null });
@@ -618,7 +618,7 @@ export async function startWorkspace(nendo, context, kit) {
     state.dirty = true;
     drawPreview();
     storeSoon();
-    // A tick while a write is on its way is saved once that write is answered (GDN-06).
+    // A tick while a write is on its way is saved once that write is answered.
     if (state.saving) { tickWaiting = draftKeyNow(); setStatus('Ticked. It is saved once the save on its way is done.'); expose(); return; }
     if (wasDirty) { setStatus('Ticked. Save to keep it with your other changes.'); expose(); return; }
     await save({ quiet: true });
@@ -722,7 +722,7 @@ export async function startWorkspace(nendo, context, kit) {
   }
   function hideHover() { clearTimeout(hoverTimer); hoverCard.hidden = true; }
   for (const host of [readingBody, preview]) { host.addEventListener('pointerover', onLinkOver); host.addEventListener('pointerout', onLinkOut); }
-  // A wikilink the keyboard reaches previews its note too; leaving it, or Esc, puts the preview away (GDN-13).
+  // A wikilink the keyboard reaches previews its note too; leaving it, or Esc, puts the preview away.
   for (const host of [readingBody, preview]) {
     host.addEventListener('focusin', event => {
       const link = event.target.closest?.('a.wikilink[data-id]');
@@ -970,7 +970,7 @@ export async function startWorkspace(nendo, context, kit) {
   async function save({ quiet = false } = {}) {
     if (state.saving) return;
     // A save Nendo never answered goes again as it was, under its key, so it is kept once whatever
-    // happened to it, before anything else is saved; after a restart too, and with no note open (GDN-10).
+    // happened to it, before anything else is saved; after a restart too, and with no note open.
     if (state.unanswered !== null) { await send(state.unanswered); return; }
     if (!state.draft) return;
     if (state.external) { showProblem('This note changed elsewhere since your draft began, so it is not saved over that change. Keep mine, under the note, saves it over the change; Discard mine lets it go.'); return; }
@@ -985,7 +985,7 @@ export async function startWorkspace(nendo, context, kit) {
       // The note's links, tags and tasks, and the garden's tags, as they are now: a save planned over
       // rows it could not read would write them all again.
       // The garden's notes too: a link carries its target's version, and a note changed elsewhere since
-      // the garden was read last would refuse the save over a version nobody holds any more (GDN-14).
+      // the garden was read last would refuse the save over a version nobody holds any more.
       let related, tags, notes;
       try {
         [related, tags, notes] = await Promise.all([note === null ? NOTHING_RELATED : readRelated(nendo, note.recordId), readTags(nendo), readNotes()]);
@@ -1070,7 +1070,7 @@ export async function startWorkspace(nendo, context, kit) {
         let record;
         try { record = await nendo.records.get('gd.note', savedId); } catch (error) {
           // The garden was read again a moment ago: its copy of the saved note stands in, so the newer
-          // text stays a draft over that note and a second Save never plants it twice (GDN-17).
+          // text stays a draft over that note and a second Save never plants it twice.
           const indexed = state.byId.get(savedId);
           if (ticket !== openTicket) return;
           if (indexed === undefined) {
@@ -1150,7 +1150,7 @@ export async function startWorkspace(nendo, context, kit) {
     const template = state.index.find(note => note.values[F.note.kind] === 'Template');
     let body = '';
     if (template) {
-      // A template that cannot be read says so, with Retry, rather than leaving Today silent (GDN-17).
+      // A template that cannot be read says so, with Retry, rather than leaving Today silent.
       let full;
       try { full = await nendo.records.get('gd.note', template.recordId); } catch (error) {
         showProblem(`Today's note was not started: its template could not be read (${error.code ?? 'error'}): ${error.message}`, () => daily());
@@ -1191,7 +1191,7 @@ export async function startWorkspace(nendo, context, kit) {
       return item;
     }));
     autocomplete.hidden = false;
-    // The option Enter inserts is the editor's active descendant, so a screen reader says it (GDN-13).
+    // The option Enter inserts is the editor's active descendant, so a screen reader says it.
     editor.setAttribute('aria-activedescendant', `autocomplete-${picked}`);
   }
   function closeSuggest() { autocomplete.hidden = true; picks = []; anchor = -1; editor.removeAttribute('aria-activedescendant'); }

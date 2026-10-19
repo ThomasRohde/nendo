@@ -12,7 +12,7 @@ iframe{position:fixed;inset:0;width:100%;height:100%;border:0;display:block}
 <script type="module">
 // The Workbench's own rules for a view's toolbar and menu (view-toolbar-model.ts), which
 // Graph-FixtureServer.mjs builds and serves. A module runs after the page's own script and
-// before its load event, so the rules are here before a probe mounts a view (W-091).
+// before its load event, so the rules are here before a probe mounts a view.
 import { readToolbar, readMenu } from '/toolbar-rules.js';
 window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 </script>
@@ -34,20 +34,20 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //   drop(method, { code, message }, times)      keep the next requests of one method, then answer
 //                                               them with this error, as a reply lost on the way
 //   delayChanges(ms, times)                     send the next changes events ms late, as the
-//                                               Workbench's broker may hold one back (W-213)
+//                                               Workbench's broker may hold one back
 //   remount()                                   a fresh frame, as a new placeholder would start one
 //   offerWrites(on)                             offer records.create, records.delete, records.batch,
 //                                               records.undo and records.redo from the next connect on
-//                                               (W-109, W-103); each answers as the host writes,
+//                                               each answers as the host writes,
 //                                               versions, references and deletion history all
 //   offerChrome(on)                             offer ui.setToolbar and ui.showMenu from the next
-//                                               connect on (W-090); toolbars and menus record them,
-//                                               and chromeRefusals what Nendo's rules refused (W-091)
+//                                               connect on; toolbars and menus record them,
+//                                               and chromeRefusals what Nendo's rules refused
 //   pickNext(pick), command(id, value, source)  the next menu's answer; a press on the toolbar
 //   offerSearch(on)                             offer records.search from the next connect on (ADR-0028):
 //                                               every word in any text value of a record, the last
 //                                               word also as a prefix, a field's excerpt with ranges
-//   offerPlaces(on), places, pushPlace(place),   ui.setPlace from the next connect on (W-127): what
+//   offerPlaces(on), places, pushPlace(place),   ui.setPlace from the next connect on: what
 //   startAt(place)                              the view declared, Back or Forward handing it a
 //                                               place, and the place the next connect starts at
 //   offerMedia(urls)                            offer media.describe from the next connect on (ADR-0031):
@@ -62,15 +62,15 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   const config = '__FIXTURE_CONFIG__';
   // The frame's sandbox, as src/Nendo.Workbench/src/view-frame-markup.ts sets it.
   const SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals allow-pointer-lock allow-presentation';
-  // And the features it delegates, as view-frame-markup.ts's frameAllow: the clipboard among them (W-123).
+  // And the features it delegates, as view-frame-markup.ts's frameAllow: the clipboard among them.
   const ALLOW = 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture';
   // The methods this fixture answers, which is what the context lists and nendo.has reads.
   const METHODS = ['schema.describe', 'records.query', 'records.get', 'records.tree', 'records.update', 'records.move', 'ui.openRecord', 'commands.run'];
-  // A view's controls in Nendo's own chrome (W-090), offered only when a probe asks, so each
+  // A view's controls in Nendo's own chrome, offered only when a probe asks, so each
   // lane measures a view both on a host that draws its controls and on one that does not.
   const CHROME = ['ui.setToolbar', 'ui.showMenu'];
   let chrome = false, menuPick = null;
-  // Record writes beyond an update, offered only when a probe asks (W-109), so the lanes that pin
+  // Record writes beyond an update, offered only when a probe asks, so the lanes that pin
   // the methods a view is offered keep measuring what they always measured.
   const WRITES = ['records.create', 'records.delete', 'records.batch', 'records.undo', 'records.redo'];
   let writes = false;
@@ -82,7 +82,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // methods a view is offered keep measuring what they always measured.
   const SEARCH = ['records.search'];
   let searchOffered = false;
-  // A view's place in Back and Forward (W-127), offered only when a probe asks.
+  // A view's place in Back and Forward, offered only when a probe asks.
   const PLACES = ['ui.setPlace'];
   // Opening another screen of the file (ui.openScreen), offered only when a probe asks, so the lanes
   // that measure a view on a host without it keep measuring that.

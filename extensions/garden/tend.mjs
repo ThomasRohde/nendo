@@ -1,4 +1,4 @@
-// Tend (W-184): the notes that want a gardener. Seeds and growing notes nobody has tended within the
+// Tend: the notes that want a gardener. Seeds and growing notes nobody has tended within the
 // span chosen, the longest untended first, and notes that are still only a name, as a link plants
 // them. Daily notes are a record of their day and evergreen notes are grown, so neither is asked
 // for. Pure: it reads nothing.

@@ -1,5 +1,5 @@
 {
- "about": "Paragraphs of generated words and the lines TeX sets them in (W-293): XeTeX (Tectonic) with TeX Gyre Termes, plain TeX hyphenation, the paper column of 242.26653pt; body text indented 9.03374pt with tolerance 9999 and emergencystretch 10pt, bibliography entries at 9pt on 13pt, raggedright, frenchspacing, never hyphenated, hanging 9pt, emergencystretch 27pt. Each catches one of the rules typeset.mjs follows: the space factor after a capital, TeX's integer badness, its tie rule, its emergency pass, the exact column and plain TeX's patterns.",
+ "about": "Paragraphs of generated words and the lines TeX sets them in: XeTeX (Tectonic) with TeX Gyre Termes, plain TeX hyphenation, the paper column of 242.26653pt; body text indented 9.03374pt with tolerance 9999 and emergencystretch 10pt, bibliography entries at 9pt on 13pt, raggedright, frenchspacing, never hyphenated, hanging 9pt, emergencystretch 27pt. Each catches one of the rules typeset.mjs follows: the space factor after a capital, TeX's integer badness, its tie rule, its emergency pass, the exact column and plain TeX's patterns.",
  "paragraphs": [
   {
    "kind": "body",

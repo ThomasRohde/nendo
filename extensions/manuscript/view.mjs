@@ -785,7 +785,7 @@ async function renderPreview() {
 const pieceOf = new WeakMap();
 const HEADING = /^H[2-4]$/;
 
-// A paragraph of the paper set as TeX sets it (W-293): its runs measured as the reference sets
+// A paragraph of the paper set as TeX sets it: its runs measured as the reference sets
 // them in Termes, broken into lines by setLines with the reference's parameters, and each line
 // drawn as a block of its own in Times New Roman (unkerned, as Word sets it), its spaces as wide
 // as fill the line it has in TeX. The words keep their marks; a soft hyphen where a line breaks becomes a hyphen. The
@@ -1543,7 +1543,7 @@ function placeOverlays() {
   const where = sheet.where();
   const show = !state.readOnly && state.selected && sheet.locate(state.selected) && (state.pinned || state.popover || (where && !where.empty && where.single && where.id === state.selected));
   // Beside the block under the pointer, faintly: a plus that adds a block below it and a grip
-  // that opens the block's menu (owner, 2026-10-17, design A of the canvas). Nothing is drawn
+  // that opens the block's menu. Nothing is drawn
   // for a block the pointer is not over, so the writing stands alone.
   const gutterId = state.readOnly ? null : state.blockMenu?.id ?? state.hover;
   const gutterAt = gutterId ? sheet.locate(gutterId) : null;

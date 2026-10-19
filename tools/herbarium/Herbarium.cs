@@ -1,6 +1,6 @@
 #:project ../../src/Nendo.Engine/Nendo.Engine.csproj
 #:property PublishAot=false
-// The pictures reference file (W-274, ADR-0031): a small herbarium whose plants show a picture
+// The pictures reference file (ADR-0031): a small herbarium whose plants show a picture
 // from each of the three places a picture can come from: embedded in the file, a file in the
 // folder beside it, and the web. Built through the Engine's typed operations, as a host would
 // write them; Build-Herbarium.ps1 runs it. Also measures a file at the 2 GiB budget.
