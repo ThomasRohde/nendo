@@ -53,7 +53,7 @@ async function withLease(work) {
 
 if (phase === 'schema') {
   const mutations = upgradeMutations();
-  const title = 'Assessments over time and initiative scope for the Capability Atlas (W-080, W-081)';
+  const title = 'Assessments over time and initiative scope for the Capability Atlas';
   console.log(`Mutations       ${mutations.length} (${mutations.reduce((sum, m) => sum + m.operations.length, 0)} operations)`);
   if (dryRun) { console.log('Dry run: nothing was sent.'); process.exit(0); }
   await withLease(async owned => {

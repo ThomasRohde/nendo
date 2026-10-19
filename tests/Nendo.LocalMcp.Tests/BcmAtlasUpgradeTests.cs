@@ -36,7 +36,7 @@ public sealed class BcmAtlasUpgradeTests
 
         var begun = await CallAsync<NendoChangeSetBeginResult>(client, "nendo.change_set.begin", new(owned)
         {
-            ["title"] = "Assessments over time for the Capability Atlas (W-080)",
+            ["title"] = "Assessments over time for the Capability Atlas",
             ["idempotencyKey"] = "upgrade-begin",
         });
         var scoped = new Dictionary<string, object?>(owned) { ["changeSetId"] = begun.ChangeSetId };
