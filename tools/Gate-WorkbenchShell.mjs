@@ -1381,6 +1381,27 @@ async page => {
     assert(line.past.length === 0 && !line.scrolls, `CSS-03: at 400px with both pills showing the status line runs past the window: ${line.past.map(item => `${item.item} ends at ${item.right}px`).join(', ')}${line.scrolls ? '; it scrolls' : ''}.`);
   }, 400, 700);
 
+  // The status pill's words in every state and theme. The warning rule once painted the text span
+  // too, so "Approval needed" was drawn as a solid orange bar: its words in their own colour.
+  for (const theme of ['light', 'dark']) await check(`Status pill words readable ${theme}`, 'decision', async () => {
+    const pills = await page.evaluate(async theme => {
+      const { applyTheme } = await import('/src/shell.ts');
+      applyTheme(theme, false);
+      const pill = document.getElementById('session-health');
+      pill.hidden = false;
+      pill.querySelector('.status-pill-text').textContent = 'Approval needed';
+      return ['warning', 'healthy', 'agent'].map(state => {
+        pill.dataset.state = state;
+        const [dot, words] = pill.children;
+        const box = dot.getBoundingClientRect();
+        return { state, wordsBackground: getComputedStyle(words).backgroundColor, dotBackground: getComputedStyle(dot).backgroundColor,
+          dot: [Math.round(box.width), Math.round(box.height)] };
+      });
+    }, theme);
+    const painted = pills.filter(pill => pill.wordsBackground !== 'rgba(0, 0, 0, 0)' || pill.dot[0] !== 8 || pill.dot[1] !== 8 || pill.dotBackground === 'rgba(0, 0, 0, 0)');
+    assert(painted.length === 0, `In ${theme} the status pill's words are painted over, or its dot is lost: ${JSON.stringify(painted)}.`);
+  }, 1440, 900);
+
   // One bar above a Use screen. Where the address row's middle holds what the Use toolbar
   // needs (this list's pager makes it about 520 px, which a 1600 px window holds), the Use toolbar
   // shares that row (its top is the breadcrumb's, it stands between the breadcrumb and the command

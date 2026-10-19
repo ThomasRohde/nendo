@@ -34,7 +34,9 @@
   background: var(--cobalt);
 }
 
-.status-pill[data-state="healthy"] > span {
+/* Each state colours the dot alone. A state rule on every span outranks the reset below and
+   paints the words in their own colour, which drew "Approval needed" as a solid orange bar. */
+.status-pill[data-state="healthy"] > span:first-child {
   background: var(--healthy);
 }
 
@@ -43,7 +45,7 @@
   border-color: color-mix(in srgb, var(--warning) 45%, var(--line));
 }
 
-.status-pill[data-state="warning"] > span {
+.status-pill[data-state="warning"] > span:first-child {
   background: var(--warning);
 }
 
