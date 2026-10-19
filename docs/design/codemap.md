@@ -217,7 +217,7 @@ A crashed holder blocks writes until the owner revokes it from the Agent page.
 ## Reaching the file from any repository
 
 **The port.** Each open file runs its own Nendo process and listener, on the port that file
-keeps on this device (`agent-ports.json`, from the base port 41763). Planner.nendo keeps 41766
+keeps on this device (`agent-ports.json`, from the base port 41763). Planner.nendo keeps 41787
 and Copilot.nendo 41774. Codemap would claim 41775 when access is first switched on. Another
 file being open changes nothing, because each open file runs in its own window and process.
 

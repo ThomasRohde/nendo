@@ -165,9 +165,9 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp
 Agent → Connect shows the address a file uses and copies either command.
 
 The registrations checked into this repository (`.mcp.json` and
-`.codex/config.toml`) point at port 41766. That is the port the author's planner
+`.codex/config.toml`) point at port 41787. That is the port the author's planner
 file keeps on their machine, not a default, so on a fresh machine they connect
-to nothing. To use them, set **Port for this file** to 41766 in Agent →
+to nothing. To use them, set **Port for this file** to 41787 in Agent →
 Connect for the file you want an agent in this checkout to reach; otherwise
 register the address that panel shows.
 

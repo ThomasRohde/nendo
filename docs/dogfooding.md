@@ -100,10 +100,10 @@ does not prove that a fresh agent session loaded the instructions or used the
 planner. In Claude, `/context` lists loaded memory files. Check that the
 repository `CLAUDE.md` and the imported `AGENTS.md` are present.
 
-Both registrations name the local host at port 41766. Each file keeps its own
-agent port on a device: 41766 is the one Planner.nendo claimed on this machine.
+Both registrations name the local host at port 41787. Each file keeps its own
+agent port on a device: 41787 is the one Planner.nendo claimed on this machine.
 If Agent → Connect in the planner shows another
-port, set it back to 41766 there; the refusal names the file that has it.
+port, set it back to 41787 there; the refusal names the file that has it.
 On another device, first open the intended planner in Nendo and confirm the
 application identity. The
 working `.nendo` file is owner data and is git-ignored, so a Git checkout alone
@@ -125,7 +125,7 @@ the repository knows.
 
 Its source is [`tools/planner-skill/`](../tools/planner-skill/SKILL.md). To change it,
 edit the source and propose it with
-`node tools/Put-NendoPackage.mjs tools/planner-skill --endpoint http://127.0.0.1:41766/mcp`;
+`node tools/Put-NendoPackage.mjs tools/planner-skill --endpoint http://127.0.0.1:41787/mcp`;
 the owner accepts it like any proposal, and only what differs is sent. The package in the
 file is what agents read, so a source edit that was never accepted changes nothing.
 
@@ -187,7 +187,7 @@ Proposal acceptance alone does not allow the agent to bypass that interlock.
 
 ### Endpoint and identity
 
-The registered MCP server is `nendo`, at `http://127.0.0.1:41766/mcp` for this
+The registered MCP server is `nendo`, at `http://127.0.0.1:41787/mcp` for this
 installation. Before you author, read `nendo://application/describe`, the live
 vocabulary and the pending proposals. The planner's application ID is
 `application-d0b7c0e877744c1c81cf0fdd013cae2e`. A different identity must be explained before
