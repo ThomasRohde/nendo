@@ -8,7 +8,7 @@ import { createNendoMcpClient } from './Nendo-McpClient.mjs';
 import { definitionOperations, screenOperations, seedOperations } from './manus/definition.mjs';
 
 export const TITLE = 'Manuscript: a quiet continuous sheet, kept paragraph by paragraph';
-const PLANNERS = ['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
+const PLANNERS = ['application-d0b7c0e877744c1c81cf0fdd013cae2e', 'application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
 const args = process.argv.slice(2), option = name => args[args.indexOf(name) + 1];
 const root = path.resolve(import.meta.dirname, '../extensions/manuscript');
 const manifest = JSON.parse(await fs.readFile(path.join(root, 'nendo-package.json'), 'utf8'));

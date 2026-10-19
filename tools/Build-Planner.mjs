@@ -6,11 +6,9 @@
 //   node tools/Build-Planner.mjs <stage>         one named stage
 //   node tools/Build-Planner.mjs --list          what the stages are
 //   node tools/Build-Planner.mjs --dry-run       say what would be sent, take no lease
-//   node tools/Build-Planner.mjs --ng ...        the next planner, into PlannerNG.nendo
 //
 // The shape is in tools/planner-definition.mjs and the reasons in
-// docs/design/planner.md; with --ng, tools/planner-ng-definition.mjs and
-// docs/design/planner-ng.md. One stage is one change set, validated into a proposal.
+// docs/design/planner.md. One stage is one change set, validated into a proposal.
 // When the person has set Planner.nendo's Agent access to Unattended the script
 // accepts its own proposal, as tools/Put-NendoPackage.mjs --accept does; below it,
 // it prints the proposal's title and stops, because acceptance is theirs.
@@ -19,11 +17,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createNendoMcpClient, isRunning } from './Nendo-McpClient.mjs';
+import { STAGES, STAGE_ORDER, CALL_CHARACTERS, TARGET_FILE_NAME as PLANNER_FILE_NAME } from './planner-definition.mjs';
 
-const NEXT = process.argv.includes('--ng');
-const definition = await import(NEXT ? './planner-ng-definition.mjs' : './planner-definition.mjs');
-const { STAGES, STAGE_ORDER, CALL_CHARACTERS } = definition;
-const TARGET_FILE_NAME = process.env.NENDO_PLANNER_TARGET || definition.TARGET_FILE_NAME || 'Planner.nendo';
+const TARGET_FILE_NAME = process.env.NENDO_PLANNER_TARGET || PLANNER_FILE_NAME;
 
 function fail(message) {
   console.error(`\n${message}\n`);

@@ -6,8 +6,10 @@ this repository does not keep versions of it. The file contains real work. It is
 not a reusable test fixture. The application is authored through MCP and is used
 through the installed host's Use and Studio routes.
 
-Records crossed from the planner it replaced with their record IDs and Reference
-codes, so a W-, F-, C- or I- code in an older commit or document means what it meant.
+This planner replaced the one of 2026-09-29 on 2026-10-19, and started empty: nothing
+was migrated ([design](design/planner.md)). Its codes start again at W-001, so a W-, F-,
+C-, D- or I- code in a commit or document from before 2026-10-19 names a record of the
+retired planner, which the owner keeps outside this repository.
 
 ## Live planner and next work
 
@@ -17,17 +19,22 @@ the plan, and a Later item needing a decision or ADR is retained work, not a
 scheduled commitment.
 
 **Planning order is the order among siblings.** Work can be *Part of* other work
-(`nd.work.parent`, the type's hierarchy), and the *Breakdown* outline drags an
-item into place and splits a bundle into parts. Nothing needs renumbering when
-work closes.
+(`nd.work.parent`, the type's hierarchy), and its page lists its parts in that order.
+Nothing needs renumbering when work closes.
+
+**Every open item says what happens next and who has it.** *Next action*
+(`nd.work.next`) is one line, kept true whenever an item is left open; the Now board and
+the front page show it. *Held by* (`nd.work.heldBy`: Owner, Claude Code, Codex) says who
+has the item, so a client sets it when it starts and does not take an item someone else
+holds without a handoff. The handoff itself goes into the item's *Handoff log*
+(`nd.work.handoff`), never over the brief.
 
 **Closed work has no horizon.** Horizon is optional: *Complete* and *Drop* clear it,
 and *Reopen* sets it to Next. Work that waits on an owner's choice points at a
 Decision (`nd.work.decision`, `D-` codes), which says the question, the options,
 the recommendation and what was decided.
-**Decision standing on a closed item is its standing at the time it closed**.
-For example, the S4-S7 items read *Within accepted scope* because their
-amendments were accepted, not because the gate was waived.
+**Decision standing on a closed item is its standing at the time it closed**, not a
+waiver granted afterwards.
 
 Work that waits for a decision stays explicit. Intentional product constraints
 remain Findings; they are not promises to remove the constraints. Unknown ratings
@@ -48,18 +55,16 @@ planner exists to prevent.
 
 ### The planner has its own front page
 
-Use opens on the front page. It is a tab group:
+Use opens on the front page, in four sections:
 
-- **Now**: doing, in review, blocked, ready in Now, the Now list in planning order,
-  and open work by horizon.
-- **Delivery**: delivered, the span, by month, the days anything was delivered, and
-  recently delivered.
-- **Evidence**: checks by outcome and by method, findings by disposition, untriaged,
-  and the latest findings.
-- **Decisions**: open decisions, and open work needing one.
+- **Now**: doing, in review, blocked, ready in Now, and the Now list in planning order
+  with each item's next action.
+- **Waiting for the owner**: work in review, and open decisions.
+- **Findings**: how many are untriaged, and the newest of them.
+- **Delivered**: by month, and lately.
 
 The record types are one step away, in the breadcrumb's record-type picker. The file
-is violet with the letter P.
+is teal with the letter P.
 
 ## Connect and identify the file
 
@@ -129,8 +134,8 @@ stage explicit paths, because concurrent sessions share the checkout.
 
 ### Reference codes are numbered by Nendo
 
-The Reference field of Work items, Findings, Checks and Initiatives is unique and
-numbered ([ADR-0020](decisions/0020-unique-and-generated-fields.md)). The number carries
+The Reference field of Work items, Findings, Checks, Decisions and Initiatives is
+unique and numbered ([ADR-0020](decisions/0020-unique-and-generated-fields.md)). The number carries
 on after the highest code of that shape and is never given out twice, even after its
 record is deleted; a duplicate is refused with `value-not-unique`, whoever writes it. A
 CSV import may leave the Reference column out, or its cells empty, and every row receives
@@ -185,7 +190,7 @@ Proposal acceptance alone does not allow the agent to bypass that interlock.
 The registered MCP server is `nendo`, at `http://127.0.0.1:41766/mcp` for this
 installation. Before you author, read `nendo://application/describe`, the live
 vocabulary and the pending proposals. The planner's application ID is
-`application-5c52097771f342d5a648fcb514318e7c`. A different identity must be explained before
+`application-d0b7c0e877744c1c81cf0fdd013cae2e`. A different identity must be explained before
 writes. Instance IDs and edit handles are not durable
 identity.
 
@@ -204,8 +209,8 @@ acceptance remains the person's action, also after a reconnect.
 The skill has the record types, the lanes and the evidence rules. Record identity is the
 record type plus record ID; the planner uses distinct prefixed IDs across its types, such
 as `nd.work.r.s4`. Choose a descriptive unique ID, and never reuse an import key for a
-different record. `nd.link` holds one dependency (`nd.link.from` blocks `nd.link.to`),
-drawn by the Dependencies screen.
+different record. There is no dependency type: planning order and *Part of* say what comes
+first, and a Blocked item's *Blocker* says what it waits for.
 
 On a work page, the related Findings and Checks carry **Add Check** and **Add
 Finding** beside their headings. Each row opens the record that it names. Add
@@ -215,9 +220,6 @@ in the picker. Save returns to the work page, with the new record in the list.
 When you open a row, Nendo moves to that record's page and offers one step back
 to the work item.
 
-**C-044 remains an Owner-reported Accepted exception and must not be converted into a
-pass**: it records what was true when W-001 closed.
-
 If Use still shows an older version after an MCP edit, leave it for Agent or
 Studio, then return to Use before you repeat a write. Over MCP, a 2026-07-28 client
 can open `subscriptions/listen` for `nendo://application/proposals`, `manifest` and
@@ -225,39 +227,38 @@ can open `subscriptions/listen` for `nendo://application/proposals`, `manifest` 
 file closes; a client that cannot hold a stream polls. Before you retry a write,
 confirm the stored record version.
 
-The setup work item is `nd.work.r.dogfood`. Its acceptance checks distinguish
-schema/record reads, real UI observations, owner reports, offline use and
-recovery on a disposable copy. Future checks start Not run. Historical reports
-are preserved in source context, and they are never converted to fresh passes.
-This is the living development backlog. Do not add invented projects,
+Checks start Not run. An owner's report and an accepted exception are never
+converted into fresh passes. This is the living development backlog. Do not add invented projects,
 placeholder work, fake estimates or test records to make its screens look
 populated. Exercise artificial/failure scenarios on a disposable copy.
 
 ### Commands
 
-The skill lists the eight `pl.cmd.*` commands and what each sets.
+The skill lists the seven `pl.cmd.*` commands and what each sets. *Complete* also
+clears Held by and Next action.
 
 ## Screens and calculations
 
 | Screen | What it answers |
 | --- | --- |
 | Now | Board by status, horizon Now; its Review column is the review queue |
-| Plan | Board by horizon, open work only |
-| By initiative | Board by initiative, open work only |
-| Breakdown | Outline of Part of, drag to reorder |
-| All work | List, with a count and a status breakdown |
-| Delivery history | Timeline from start to completion, delivered work |
-| Dependencies | The Work dependencies graph over `nd.link` |
+| Plan | Board by horizon, open work only; the empty-horizon column is the inbox |
+| All work | Every item, newest first |
+| Triage | Findings not yet Resolved or Accepted limitation, by disposition |
+| All findings | Every finding |
+| Checks | Every check |
+| Decisions | Board by status |
+| Initiatives | List with work counts |
 
-A shared work page carries Brief, Plan, Evidence and Links tabs; a Blocker section
-appears only while the work is Blocked. Initiatives have a gallery and a page with
-open and delivered work; Findings a triage board and a list; Checks a board by
-outcome and a list; Decisions a board and a page with the work waiting on each.
+A work page heads with status, horizon, standing, Held by and Next action, and carries
+Brief, Evidence, Handoff and Details tabs; a Blocker section appears only while the work
+is Blocked. Findings, Checks, Decisions and Initiatives each have a page; a decision's
+lists the work waiting on it, and an initiative's its open and delivered work.
 
-The calculated fields are *Is blocked*, *Days from start to done*, and counts: a
-work item's Checks, Findings and Parts, an initiative's Work, and the work waiting
-on a Decision. Value and Effort are ratings. **There are no automatic actions**, so
-a schema change never asks this device for behaviour consent again.
+The calculated fields are *Is blocked* and two counts: an initiative's Work and the work
+waiting on a Decision. **There are no automatic actions**, so a schema change never asks
+this device for behaviour consent again. The file has a full-text index, so
+`nendo://application/search` finds work by what it says.
 
 ## Unavailable planner and recovery
 

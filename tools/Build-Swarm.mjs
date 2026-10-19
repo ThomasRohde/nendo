@@ -23,7 +23,7 @@ if (!args.includes('--endpoint') || !/^http:\/\/127\.0\.0\.1:\d+\/mcp$/.test(opt
 const client = createNendoMcpClient({ endpoint: option('--endpoint') }, 'nendo-swarm-builder');
 const read = async uri => JSON.parse((await client.rpc('resources/read', { uri })).contents[0].text);
 const file = await read('nendo://application/manifest');
-if (['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'].includes(file.applicationId)) throw Error('Refused: this endpoint is a development planner.');
+if (['application-d0b7c0e877744c1c81cf0fdd013cae2e', 'application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'].includes(file.applicationId)) throw Error('Refused: this endpoint is a development planner.');
 if ((await read('nendo://application/entities')).length) throw Error('Refused: build only into an empty, newly created Swarm file.');
 if ((await read('nendo://application/proposals')).length) throw Error('Refused: this file already has pending proposals.');
 const lease = await client.tool('nendo.lease.acquire'), owned = { applicationHandle: lease.applicationHandle, leaseId: lease.leaseId };

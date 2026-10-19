@@ -5,8 +5,7 @@ The demo files are tracked; the live planner and the owner's working manuscript 
 
 | File | What it is | In git |
 | --- | --- | --- |
-| `Planner.nendo` | The live [Nendo Development planner](../docs/dogfooding.md) since 2026-09-29: work items, findings, checks, decisions and initiatives. Real work, not a fixture. [Designed](../docs/design/planner.md) and built by `tools/Build-Planner.mjs`. | **No** — ignored |
-| `PlannerNG.nendo` | The next planner, built empty on 2026-10-19 and not yet the live one: the same record types made leaner, with Next action, Held by and a handoff log. Nothing was migrated. [Designed](../docs/design/planner-ng.md) and built by `tools/Build-Planner.mjs --ng`. | **No** — ignored |
+| `Planner.nendo` | The live [Nendo Development planner](../docs/dogfooding.md) since 2026-10-19, when it replaced the planner of 2026-09-29 and started empty: work items, findings, checks, decisions and initiatives. Real work, not a fixture. [Designed](../docs/design/planner.md) and built by `tools/Build-Planner.mjs`. | **No** — ignored |
 | `Nendo Station.nendo` | [Nendo Station](../docs/nendo-station.md), the fourth reference application: a fictional habitat run as an operations room, with the [Systems Lens](../extensions/systems-lens/README.md) schematic. Rebuilt by `tools/Build-NendoStation.mjs` rather than edited. | Yes |
 | `BCM.nendo` | Capability Atlas: a business capability model of the fictional Northstar organisation, 635 capabilities with applications and initiatives, and the [Capability Atlas package](../extensions/bcm-atlas/README.md) in the file. | Yes |
 | `Archi.nendo` | An ArchiMate 3.2 model with the [Archi workbench](../extensions/archi/README.md) in the file. Built by `tools/Build-Archi.mjs`. | Yes |

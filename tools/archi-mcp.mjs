@@ -7,7 +7,7 @@ import path from 'node:path';
 import { createNendoMcpClient, isRunning } from './Nendo-McpClient.mjs';
 
 export const TARGET_FILE_NAME = process.env.NENDO_ARCHI_TARGET || 'Archi.nendo';
-const PLANNER_APPLICATION_IDS = ['application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
+const PLANNER_APPLICATION_IDS = ['application-d0b7c0e877744c1c81cf0fdd013cae2e', 'application-5c52097771f342d5a648fcb514318e7c', 'application-7efd926c073f4be9974be19bbc39ff41'];
 
 export function fail(message) {
   console.error(`\n${message}\n`);

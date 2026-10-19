@@ -1,7 +1,0 @@
-{
-  "packageId": "dev.nendo.planner",
-  "title": "Working the Nendo Development planner",
-  "kind": "skill",
-  "version": "2.0.0",
-  "description": "How an agent finds, takes, moves and records work in the next Nendo Development planner: reference codes, decision standing, Held by and Next action, the pl.cmd commands and the evidence rules."
-}

@@ -69,8 +69,8 @@ make a task easier.
   Reference and title.
 - **Standing is the authority gate.** *Needs decision/ADR* means no `src/` change
   until the owner accepts an entry, however obvious the implementation looks. The
-  item's description carries the next action; write the next action back into it
-  whenever you leave the item open.
+  item's *Next action* says what happens next and *Held by* says who has it; keep
+  both true whenever you leave the item open, and log the handoff in its *Handoff log*.
 - **You author; the person accepts.** Validate a change set into a proposal,
   release the lease, and hand over by the proposal's exact title so they can find
   it. Never describe a proposal as applied before they have accepted it.

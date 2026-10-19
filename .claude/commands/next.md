@@ -30,10 +30,8 @@ An item in **Review** is waiting on the owner rather than on work. Name any that
 exist at the top of the report — a review is the cheapest thing on the board to
 move — then carry on to the item chosen above.
 
-**Ratings never choose the work.** Value, effort and Value per effort are set on
-every open item and are worth reporting, because they inform whether the plan is
-right. They are not a sort key, and an item is not next because its score is
-highest.
+**Held by says whose it is.** A Doing item held by another client is theirs: name it
+and its holder, and do not plan to take it over without a handoff.
 
 ## Process
 
@@ -43,8 +41,9 @@ highest.
    Decision (`nd.work.decision`).
 2. Read `nendo://application/entity/nd.work/records` once, and choose from it by
    the rule above.
-3. Read the chosen item's **Decision standing**, its description (which carries
-   the next action), its acceptance criteria and its sources.
+3. Read the chosen item's **Decision standing**, its **Next action** and **Held by**,
+   its brief, its acceptance criteria, its sources and the latest entry of its
+   handoff log.
 4. Read `nendo://application/entity/nd.finding/records` and
    `nendo://application/entity/nd.check/records`, and name the findings and
    acceptance checks linked to that item. The findings say what the work is for;
@@ -63,7 +62,7 @@ highest.
   of those are Blocked.
 - Any item in Review, by Reference and title.
 - The chosen item by **Reference and title**, with horizon, status, standing,
-  initiative, and its value/effort as reported context.
+  initiative, Held by and Next action.
 - **What blocks it.** If standing is *Needs decision/ADR*, say plainly that no
   `src/` change is authorised until the owner accepts an entry, and say which
   entry.

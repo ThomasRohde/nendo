@@ -1,157 +1,95 @@
 # Planner.nendo: the planner, designed
 
-`workspace/Nendo.nendo` (retired 2026-10-06) grew by adding each new host feature as a
-test of it. It worked, but it carried the history of how it was built: twelve work screens that
-overlap, a Horizon that is required so that closed work is left at *Later*, planning
-orders numbered by hand into open, delivered and dropped ranges, a Score calculation
-and an action whose flag was always on.
+`workspace/Planner.nendo` is the Nendo Development planner. **The owner switched to it on
+2026-10-19.** It replaced the planner of 2026-09-29, which had been designed from the
+host as it was then. That planner had seven work screens, a dependency graph, ratings
+that never chose work, a four-tab front page, and a handoff that had to be written into
+the description. When it was retired it held 293 work items, all closed, with 736 checks
+and 342 findings. The work was done serially, one item at a time, by the owner and two
+agent clients, and most of that structure was never read.
 
-`workspace/Planner.nendo` does the same job, designed from the feature set as it is
-now. It uses a feature only where it answers a question the planner has. It holds
-every record of the old planner under its own record ID and Reference code.
-
-**Planner.nendo is the primary planner since 2026-09-29**, when the owner switched.
-[Dogfooding](../dogfooding.md), `AGENTS.md` and the MCP registrations point at it.
-`Nendo.nendo` was kept as the archive until the owner retired it on 2026-10-06. W-099 built it.
+This planner is the same planner rebuilt for daily work and nothing else. It was built
+empty under the working name PlannerNG.nendo and renamed when the owner switched.
+**Nothing was migrated**: its codes start again at W-001, F-001, C-001, D-001 and I-001.
+A code in a commit or document from before 2026-10-19 names a record of the retired
+planner, which the owner keeps outside this repository.
 
 ## How it is built
 
-`tools/Build-Planner.mjs` builds the file from an empty one over MCP alone.
-`tools/planner-definition.mjs` holds the shape. The script is the source and the file is
-the output, as it is for Nendo Station.
+`node tools/Build-Planner.mjs` builds it from an empty file over MCP alone, from
+`tools/planner-definition.mjs`, in seven stages: schema, colour, behaviour, work,
+records, front, finish. It writes the shape only, no records. At Unattended the script
+accepts its own proposal; below it, it names the proposal for the person to accept.
+The file's skill is `tools/planner-skill/` ([dogfooding](../dogfooding.md) says how to
+propose it).
 
-```text
-node tools/Build-Planner.mjs --list       the stages
-node tools/Build-Planner.mjs              every stage not yet applied, in order
-```
+## What it keeps, so its readers keep working
 
-- **Finding the file.** The script finds `Planner.nendo` among the running Nendo
-  windows by its name, and writes the shape only: no records.
-- **Proposals.** Each stage is one change set, validated into a proposal. At
-  Unattended the script accepts its own proposal. Below Unattended it stops and names
-  the proposal for the person to accept.
-The records came from the planner it replaced, once, on 2026-09-29: a `migrate`
-and `catch-up` pass, measured by `compare`, that read the old file and was removed
-with it.
+Entity, field and command IDs keep their `nd.*` and `pl.cmd.*` names wherever the
+meaning is the same: `nd.work.status`, `nd.work.horizon`, `nd.work.order`,
+`nd.work.isBlocked`, `pl.cmd.start` and the rest. The planner mod in
+`.claude/skills/nendo-planner`, `/next` and the evidence rules read it as they read the
+planner before. Status, horizon, decision standing, the evidence method and outcome, the
+finding dispositions and the guard with its falsification are unchanged, because
+`AGENTS.md` names them.
 
-## The model
+## What changed, and why
 
-Entity and field IDs keep the `nd.*` prefix where the meaning is unchanged. Every reader
-of the old file therefore reads the new one: the `/next` skill, `docs/dogfooding.md`, and
-anyone who knows `nd.work.status`.
-
-| Type | What changed, and why |
+| Change | Why |
 | --- | --- |
-| **Work** (`W-`) | **Horizon is optional.** *Complete* and *Drop* clear it, because a horizon on closed work said nothing and the old file could not say so. **Part of** is a self-reference declared as the type's hierarchy ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)), with Planning order as the sibling order: the *Breakdown* outline drags work into place and splits a bundle into parts, replacing the hand-kept 1/100/200 ranges. **Waits on decision** points at a Decision. Value and effort stay (60 items are rated); the Score that divided them is gone, because no screen used it. |
-| **Initiative** (`I-`) | **Status** (Active, Paused, Closed) added; migrated initiatives are Active. The *Review needed* flag and the action that raised it are gone: the action set it on nearly every work edit, so it was always on and said nothing ([dogfooding](../dogfooding.md) records the clear it needed). *Last reviewed* and the *Mark reviewed* command stay. |
-| **Finding** (`F-`) | Disposition *Linked to work* is now *Tracked in work*, because the Work item field already says which work. **Guard and its falsification** is new: the reported-broken loop in `AGENTS.md` ends by recording exactly this, and until now it went into the context text. |
-| **Check** (`C-`) | Unchanged but for colour. |
-| **Dependency** | Unchanged. It is the edge type of the [Work dependencies](../../extensions/work-dependencies/README.md) graph, whose code the file now carries. |
-| **Decision** (`D-`, new) | Question, options, recommendation, what was decided, when, and the ADR. The owner-picks-a-direction canvases and *Needs decision/ADR* standing now have a record to point at. It starts empty: no decision in the old file has a record to copy. |
+| **Next action** (`nd.work.next`), one line on every open item | `AGENTS.md` asks for the next action whenever an item is left open. It was buried in the description; now the Now board, the work page and the front page show it. *Complete* clears it. |
+| **Held by** (`nd.work.heldBy`: Owner, Claude Code, Codex) | "Respect work already Doing" needs to know whose it is. *Complete* and *Drop* clear it. |
+| **Handoff log** (`nd.work.handoff`), its own tab | The handoff (client, paths, commands, outcomes) went into the description and overwrote the brief. |
+| **Markdown** for brief, acceptance criteria, sources, observations, guards, decisions and outcomes | The host shows Markdown formatted, and these fields are written as lists and code. |
+| **Full-text search index** | Finding an item by what it says, not only by its code. |
+| **Dependencies removed** (`nd.link` and the graph view) | In a serial project the planning order and *Part of* already say what comes first. The Blocker text says what an item waits for. |
+| **Value, Effort, Target date and the lead-time calculation removed** | Ratings never chose work, and six items in 293 had a target date. |
+| **Standing has two choices** | *Outside current scope* was never used. |
+| **Findings merge Observation and Reproduction** | One Markdown field; sources go into it. |
+| **Checks lose Evidence reference** | It said what *Actual result* says. *Environment* is now *Build / environment*. |
+| **Decisions merge Question and Options** | One Markdown field; *ADR and sources* is now a one-line *ADR*. |
+| **Initiatives are title, status and outcome** | Area, target, last reviewed, sources and *Mark reviewed* were not read. |
+| **Teal P** | So it is not mistaken for the violet planner it replaced. |
 
-- **Colour.** Every choice that a board groups by, or that a page takes its accent
-  from, carries a tone.
-- **References.** Every Reference is unique and numbered. Decisions start at `D-001`.
-  The others continue after the highest code copied.
+The calculations are *Is blocked* (it shows the Blocker section, and the mod reads it),
+an initiative's work count and the work waiting on a decision. Related lists state their
+own counts, so the work item's check, finding and part counts are gone. **There are no
+automatic actions**, so a schema change never asks this device for behaviour consent
+again.
 
-### What it works out
+## Screens
 
-- **Work.**
-  - *Is blocked* shows the Blocker section only while the work is Blocked.
-  - *Days from start to done* stays empty until both dates exist.
-  - It counts its Checks, its Findings and its Parts.
-- **Initiative.** It counts its Work.
-- **Decision.** It counts the work waiting on it.
-
-That is all it works out. A count of only the passed checks, or only the delivered work,
-would need a FilteredCount. A FilteredCount reads a *stored*, required Boolean, so it
-would mean adding a field that repeats the status. The initiative page lists its open
-work and its delivered work as related lists, and each list states its own count.
-
-**There are no automatic actions.** The only one in the old file was the always-on flag.
-Every trigger also asks this device for consent again on each schema change.
-
-### Screens
-
-The twelve work screens are now six, plus the dependency graph:
+A front page, eight screens and five record pages, down from fourteen screens and a
+four-tab front page.
 
 | Screen | What it answers |
 | --- | --- |
-| Now | Board by status, horizon Now |
-| Plan | Board by horizon, open work only |
-| By initiative | Reference board, open work only |
-| Breakdown | Outline, drag to reorder |
-| All work | List, with a count and a status breakdown |
-| Delivery history | Timeline from start to completion, delivered work |
-| Dependencies | The graph view |
+| Front page | Now (doing, review, blocked, ready in Now, and the Now list with next actions); waiting for the owner (in review, open decisions); untriaged findings; delivered by month and lately |
+| Now | Board by status, horizon Now; its Review column is the owner's queue |
+| Plan | Board by horizon, open work only; the empty-horizon column is the inbox |
+| All work | Every item, newest first: history and search |
+| Triage | Board of findings that still need a hand (not Resolved, not Accepted limitation) |
+| All findings | Every finding |
+| Checks | Every check; a work item's own are on its page |
+| Decisions | Board by status |
+| Initiatives | List with work counts |
 
-The six old screens are covered by these:
+**The work page** heads with status, horizon, standing, Held by and Next action, shows a
+Blocker section only while the work is blocked, and has four tabs: **Brief** (title,
+brief, acceptance criteria, sources), **Evidence** (its checks and findings), **Handoff**
+(the log) and **Details** (kind, initiative, decision, parent, order, dates, blocker, and
+its parts).
 
-- **Review queue** is Now's Review column.
-- **Delivery progress** existed only to give a completion ring a denominator without
-  Dropped work. Delivery history and the front page's Delivery tab replace it.
-- **Open work by target date** and **Target dates** covered only a handful of targets.
-  The work page states each one.
-- **Horizon against status** always showed 46 Done items in Now, which was the defect
-  this design removes.
-
-**The work page.** The header shows the title, Reference and status accent, and the
-status, horizon and standing. A Blocker section appears only while the work is blocked.
-Four tabs follow:
-
-- **Brief**: what the work is, its acceptance criteria, initiative, decision and sources.
-- **Plan**: parent, order, ratings and dates.
-- **Evidence**: its Checks and Findings, each with Add.
-- **Links**: its parts, and what it blocks or is blocked by.
-
-**The other record types.**
-
-| Type | Screens |
-| --- | --- |
-| Initiatives | Gallery; page with open and delivered work |
-| Findings | Triage board and list |
-| Checks | Board by outcome and list |
-| Decisions | Board; page with the work waiting on each |
-| Dependencies | List and page |
-
-**The front page** is a tab group:
-
-- **Now**: doing, in review, blocked, ready in Now, the Now list in planning order, and
-  open work by horizon.
-- **Delivery**: delivered, the span, by month, the days anything was delivered, and
-  recently delivered.
-- **Evidence**: checks by outcome and by method, findings by disposition, untriaged, and
-  the latest findings.
-- **Decisions**: open decisions, and open work needing one.
-
-**Commands.** Work has *Plan now*, *Start*, *Send to review*, *Complete*, *Drop* and
-*Reopen*. Initiatives have *Mark reviewed*, and decisions have *Decide*. The file is
-violet with the letter P, so it is not mistaken for the amber N beside it.
-
-## The switch, 2026-09-29
-
-The owner switched on 2026-09-29, with Planner.nendo already open.
-
-- **Not rebuilt; caught up.** The copy was the same day's, and the owner had already
-  edited one record in it. So instead of a rebuild from empty, `catch-up` imported the
-  25 Checks the copy lacked and set the 38 fields that had changed since. It leaves alone
-  a record the copy has already edited (version past 1), and names it. `compare` then
-  found two differences, both that edit: C-281, W-089's owner shell, set to Passed in
-  the new file.
-- **Port.** Planner.nendo keeps 41766 on this device. `.mcp.json` and
-  `.codex/config.toml` name it, so Nendo.nendo keeps 41763 and nothing had to be
-  released.
-- **Documents.** `docs/dogfooding.md`, `AGENTS.md`, `workspace/README.md` and the
-  `/next` command name the new file.
-- **Guards.** `tools/Build-NendoStation.mjs` refuses both planners' application IDs.
-- **The old file.** `Nendo.nendo` was kept as the archive until the owner retired it
-  on 2026-10-06.
+**Commands**: *Plan now*, *Start*, *Send to review*, *Complete*, *Drop* and *Reopen* on
+work, *Decide* on decisions. *Complete* also clears Held by and Next action; *Drop* clears
+Held by.
 
 ## Known limitations
 
-- **Deleted codes.** A code deleted in the old file can be issued again, because the new
-  file's counter starts at the highest code it holds.
-- **History does not move.** History, receipts and record versions stay in the old
-  file; a copied record starts at version 1.
-- **Screen checks.** The screens are compiled and valid, but no check measures how they
-  lay out.
+- **Old codes are not continued.** W-001 here is not W-001 of the retired planner.
+- **History does not move.** The retired planner's records, history and receipts stay in
+  that file.
+- **Screen checks.** The screens compiled and the file is valid (`surfaces` reports no
+  diagnostics), but no check measures how they lay out.
+- **The Work dependencies view** (`extensions/work-dependencies`) is no longer carried by
+  the planner; the package and its lane remain.
