@@ -1,14 +1,12 @@
 # Studio contract
 
-This contract gives the requirements for the permanent host-owned database editor.
-
-- **Decision:** [ADR-0015](../decisions/0015-host-owned-database-studio-and-ag-grid-community.md)
+The requirements for the permanent host-owned database editor.
+Decision: [ADR-0015](../decisions/0015-host-owned-database-studio-and-ag-grid-community.md).
 
 ## 1. Axiom
 
-Every valid `.nendo` file opens with a permanent human workspace that the host supplies. This workspace is **Nendo Studio**.
-
-Studio is available when:
+Every valid `.nendo` file opens with a permanent human workspace that the host
+supplies: **Nendo Studio**. It is available when:
 
 - the database contains no user entities;
 - no agent is connected;
@@ -19,18 +17,15 @@ Studio is available when:
 Application content cannot remove, replace or hide the route back to Studio.
 
 Agent connection settings are bound to the file session at request admission
-inside the controller gate. Switching files while a request waits refuses it;
-port and lease duration are both validated before either preference is saved or
-the listener restarts. A refused combined request keeps the current connection
-and edit lease.
+inside the controller gate. Switching files while a request waits refuses it. Port
+and lease duration are both validated before either preference is saved or the
+listener restarts; a refused combined request keeps the current connection and
+edit lease.
 
-## 2. Experience target
+## 2. Destinations
 
-The default Data workspace should feel closer to a modern Notion database table than to a raw SQLite browser. This is a target for interaction quality. It is not a target for visual imitation or feature parity.
-
-A user should experience records as typed objects with understandable properties, relations, validation and history. The user should not see anonymous rows and foreign-key values.
-
-The minimum Studio destinations are:
+Records read as typed objects with understandable properties, relations,
+validation and history, not anonymous rows and foreign-key values.
 
 1. **Data**: table, record inspector, search, filters, sorts, import and export;
 2. **Structure**: entities, fields, constraints, relationships and physical mapping,
@@ -48,9 +43,11 @@ The minimum Studio destinations are:
 5. **Health**: compatibility, integrity, drift, backup, recovery and safe mode, and
    whether custom views run.
 
-## 3. Empty database experience
+## 3. Empty database
 
-A new Nendo file contains only kernel metadata and a genesis revision. Studio opens on Data and offers **Create record type**. When a known application recipe applies, Data also offers a button that starts it. The navigation also reaches:
+A new Nendo file contains only kernel metadata and a genesis revision. Studio opens
+on Data and offers **Create record type**. When a known application recipe applies,
+Data also offers a button that starts it. The navigation also reaches:
 
 - **Agent**, for agent access and its Activity, Launch and Connect tabs: Connect
   carries the connection guidance for a client the person runs, and Launch starts an
@@ -58,13 +55,13 @@ A new Nendo file contains only kernel metadata and a genesis revision. Studio op
   ([launched agents](launched-agents.md));
 - **Health**, for file identity, versions and health.
 
-File → **Import CSV** becomes available when the file has a record type that is not retired.
+File → **Import CSV** is available when the file has a record type that is not
+retired. Studio never adds a sample entity, record or custom surface.
 
-Studio does not add a sample entity, record or custom surface implicitly.
+## 4. Every entity
 
-## 4. Automatic experience for every entity
-
-When an entity exists, Studio immediately supplies:
+When an entity exists, Studio supplies, as runtime projections from the semantic
+schema that are not stored application content:
 
 - a table in **Data**, headed with the record type's name (`<Type> data`);
 - a generated record inspector/form;
@@ -73,181 +70,174 @@ When an entity exists, Studio immediately supplies:
 - schema and record-history inspection;
 - CSV import and export.
 
-These are runtime projections from the semantic schema. A generated default does not have to become stored application content until the user customises or names it.
+## 5. The table
 
-## 5. Table interaction contract
+The table gives typed inline editing with explicit pending, committed,
+validation-failed and conflicted states; keyboard focus, navigation, edit, commit
+and cancel; a persistent new-record affordance; a record inspector for long text,
+relationships and metadata; deterministic row ordering and block loading; light,
+dark and high-contrast presentation; accessible names, roles, errors and focus;
+and stable semantic test targets based on entity, field and record IDs.
 
-The first MVP should provide:
+**A cell save.** A saved cell keeps the keyboard on that cell and the columns where
+they were scrolled, and the message line says it saved. A refused edit puts the
+stored value back in its cell beside the reason. Enter saves a cell and continues in
+the same field on the next row. Escape cancels the editor; Tab outside editing
+leaves the grid so it does not trap keyboard users. The filter takes values as the
+grid shows them: Yes and No for a Boolean, a choice by its label, and a reference by
+choosing its record in the picker a record form uses; its status names the value as
+given, never a stored ID. A delete says what it deleted and offers **Open
+History**, where the entry names the record and Undo brings it back.
 
-- inline editing for scalar fields;
-- explicit pending, committed, validation-failed and conflicted states;
-- keyboard focus, navigation, edit, commit and cancel behaviour;
-- a persistent new-record affordance;
-- resizable, movable and hideable columns;
-- field-aware sort and filter operations;
-- row selection and a small set of atomic bulk operations;
-- bounded TSV copy and paste;
-- a record inspector for long text, relationships and metadata;
-- deterministic row ordering and block loading for large entities;
-- light, dark and high-contrast presentation;
-- accessible names, roles, errors and focus;
-- stable semantic test targets based on entity, field and record IDs.
+**Leaving a record with unsaved typing.** Every move off a record page declines while
+it holds unsaved typing, Health included, and says "Save or discard your changes
+before …". Closing the record, by its close button, Back to Data or Escape, asks
+"Discard your changes?" first.
 
-**A cell save, as built.** A saved cell keeps the keyboard on that cell and the columns where
-they were scrolled, and the message line says it saved. A refused edit puts the stored value
-back in its cell beside the reason, rather than leaving the refused one drawn as if it were
-saved. The filter takes values as the grid shows them: Yes and No for a Boolean, a choice by
-its label, and a reference by choosing its record in the picker a record form uses; its status
-names the value as given, never a stored ID (W-210). A delete says what it deleted and offers
-**Open History**, where the entry names the record and Undo brings it back.
+**History names what changed.** Each operation of an entry reads in words, with the
+field, the record type and the record it acts on, by the record's label even after
+a delete. The action is **Undo**, offered only where Nendo can reverse the change;
+the classes read "Can be undone", "Can be undone if nothing has changed it since"
+and "Cannot be undone", except that a created record and a record an undo brought
+back read "Undone by deleting the record; its ID stays reserved". A structure change
+is offered only while it is the file's latest, and an undo of an undo is named Redo.
+It is not universal undo. Undo of one record's edit acts at once. An undo that
+reaches more than one record, or a definition or package change, first asks in a
+dialog that names the entry and says what undoing it does (*deletes 3 records this
+change added or brought back*); Cancel sends nothing. View changes opens a
+revision's operations whatever the file has done since, and what is open stays open
+across a redraw.
 
-**Leaving a record with unsaved typing.** Every move off a record page declines while it holds
-unsaved typing, Health included, and says "Save or discard your changes before …". Closing the
-record, by its close button, Back to Data or Escape, asks "Discard your changes?" first.
+**Columns.** A column's header carries the field's name. Clicking it, or Enter on the
+focused header, sorts every record of the type by that field through
+`data.queryRecordWindow` — ascending, descending, then record order — never a
+reorder of the loaded page; a calculated column sorts the same way, and the outline
+does not sort. The filter keeps the sort and the sort keeps the filter. A width is
+dragged at the column's edge, or fitted by double-clicking it. The header's pencil,
+or F2, renames the field: Enter prepares `schema.renameField` as a proposal to
+review, titled *Rename Owner on Task to Lead*. A rename that does not open its
+review, refused or pressed while another action runs, puts the header back and says
+why. Opening a record is an icon at the row's start, faint until the row is pointed
+at or focused; Enter or Space on that cell opens it too. Drag headers to reorder
+columns. **Columns** hides or pins fields and **Reset columns** restores the layout.
+The record-open column stays visible and pinned. Width, order, visibility and
+pinning are validated device preferences keyed by application ID and record type,
+never in the file. **Copy cell** (or Ctrl+C outside an editor) copies one formatted
+value; clipboard refusal is reported. There is no rectangular selection, bulk paste
+or saved table view.
 
-**History names what changed.** Each operation of an entry reads in words, with the field, the
-record type and the record it acts on, by the record's label even after a delete. The action is
-**Undo**, offered only where Nendo can reverse the change; the classes read "Can be undone",
-"Can be undone if nothing has changed it since" and "Cannot be undone", except that a created
-record and a record an undo brought back read "Undone by deleting the record; its ID stays
-reserved", which is what History's Undo does to them (W-212, R2RM-05). A structure change is
-offered only while it is the file's latest, and an undo of an undo is named Redo. It is not
-universal undo. Undo of one record's edit acts at once. An undo that reaches more than one
-record, or a definition or package change, first asks in a dialog that names the entry and says
-what undoing it does (*deletes 3 records this change added or brought back*); Cancel sends
-nothing (WSP-05, accepted 2026-10-13). View changes opens a revision's operations whatever the
-file has done since, since they never change, and what is open stays open across a redraw
-(WSP-16).
-
-**Columns as built.** A column's header carries the field's name. Clicking it, or Enter
-on the focused header, sorts every record of the type by that field through
-`data.queryRecordWindow` — ascending, descending, then record order — never a reorder of the
-loaded page; a calculated column sorts the same way, and the outline does not sort. The
-filter above the table keeps the sort and the sort keeps the filter. A width is dragged at
-the column's edge, or fitted by double-clicking it, and kept for the device by application
-ID and record type, never in the file. The header's pencil, or F2, renames the field: Enter
-prepares `schema.renameField` as a proposal to review, titled *Rename Owner on Task to Lead*. A
-rename that does not open its review, refused or pressed while another action runs, puts the
-header back and says why (WSP-18). Opening a record is an icon at the
-row's start, faint until the row is pointed at or focused; Enter or Space on that cell
-opens it too. Drag headers to reorder columns. **Columns** hides or pins fields and
-**Reset columns** restores the layout. The record-open column stays visible and pinned.
-Order, visibility and pinning are validated device preferences keyed by application and
-record type. **Copy cell** (or Ctrl+C outside an editor) copies one formatted value;
-clipboard refusal is reported. Rectangular selection, bulk paste and Enterprise modules
-are not part of this delivery.
-
-Enter saves a cell and continues in the same field on the next row. Escape cancels
-the editor; Tab outside editing leaves the grid so it does not trap keyboard users.
-
-**Flat tables load while scrolling (W-233).** AG Grid Community's Infinite Row Model
-requests blocks of 100 records through the typed window query, with five cached blocks
-and at most two concurrent requests. Evicted blocks reload under the same signed query
-and revision. The grid remains mounted as blocks arrive. No total is invented before
-an end block is read; loading, empty results, Retry and Refresh have local status.
-A write from elsewhere marks the table stale without moving the reader; Refresh reads
-again. Edits use the same versioned typed operations and refresh the focused record's
-neighborhood by stable ID, including a record that moves under sorting. Missing anchors
-are reported. The outline and Use renderers retain their existing loading policies.
+**Flat tables load while scrolling.** AG Grid Community's Infinite Row Model requests
+blocks of 100 records through the typed window query, with five cached blocks and at
+most two concurrent requests. Evicted blocks reload under the same signed query and
+revision. The grid stays mounted as blocks arrive. No total is invented before an
+end block is read; loading, empty results, Retry and Refresh have local status. A
+write from elsewhere marks the table stale without moving the reader; Refresh reads
+again. Edits use the same versioned typed operations and refresh the focused
+record's neighbourhood by stable ID, including a record that moves under sorting.
+Missing anchors are reported.
 
 **An outline for a declared hierarchy** ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)).
-A record type that declares a hierarchy opens as an outline, with a switch to the flat
-table. The outline is a pinned first column: each record indented by its depth, a toggle
-and a child count on a record with children, and "Show more" where a level has more than
-the 200 read. Enter or Space opens or closes the focused record. Move up, Move down, Indent
-and Outdent — or Alt+Shift and an arrow — move it with `data.moveRecord`; a move that would
-pass siblings not yet read is not offered. The other columns edit as in the table. When the
-file moves, each open level is read again as far as Show more had read it (WSP-13).
+A record type that declares a hierarchy opens as an outline, with a switch to the
+flat table. The outline is a pinned first column: each record indented by its
+depth, a toggle and a child count on a record with children, and "Show more" where a
+level has more than the 200 read. Enter or Space opens or closes the focused record.
+Move up, Move down, Indent and Outdent — or Alt+Shift and an arrow — move it with
+`data.moveRecord`; a move that would pass siblings not yet read is not offered. The
+other columns edit as in the table. When the file moves, each open level is read
+again as far as Show more had read it.
 
-Outline rows, layout choices and pending reads belong to the open file session. A file
-switch clears them even when both files have the same type IDs and change sequence;
-late replies from the old session cannot refill the cache. Background reads wait to
-redraw while the person is interacting or holds an edited or retained draft. A failed
-read offers **Try reading again**, which can retry the same revision.
+Outline rows, layout choices and pending reads belong to the open file session. A
+file switch clears them even when both files have the same type IDs and change
+sequence; late replies from the old session cannot refill the cache. Background
+reads wait to redraw while the person is interacting or holds an edited or retained
+draft. A failed read offers **Try reading again**, which can retry the same
+revision.
 
 **Unique and numbered fields** ([ADR-0020](../decisions/0020-unique-and-generated-fields.md)).
-Structure shows a field's rules beside its requirement: a *Unique* tag, and *Numbered* with an
-example code (`Numbered W-001`). A single-line Text or plain Integer field offers **Make unique**
-or **Allow duplicates**; a unique Text field offers **Number automatically**, a form with a prefix
-and a digit count whose example follows the inputs, or **Stop numbering**. Each is a reviewed
-proposal. Allow duplicates is disabled on a numbered field, saying why. On a new record a numbered
-field that is empty is not required and says *Assigned when saved*, with the next code as an
-example; a code typed there is kept if it is free.
+Structure shows a field's rules beside its requirement: a *Unique* tag, and
+*Numbered* with an example code (`Numbered W-001`). A single-line Text or plain
+Integer field offers **Make unique** or **Allow duplicates**; a unique Text field
+offers **Number automatically**, a form with a prefix and a digit count whose example
+follows the inputs, or **Stop numbering**. Each is a reviewed proposal. Allow
+duplicates is disabled on a numbered field, saying why. On a new record a numbered
+field that is empty is not required and says *Assigned when saved*, with the next
+code as an example; a code typed there is kept if it is free.
 
-**A reference's label** (ADR-0003, 2026-10-14 note, W-232). A bound reference's row says which
-record type it points at and the field it shows them by, and offers **Label by…**: a form
-listing the target's other active Text fields, which prepares a reviewed
-`schema.setReferenceLabel`. It is disabled, saying why, when the target has no other one.
-History names the change *Change a reference's label* and offers Undo while it is the latest
-definition change.
+**A reference's label.** A bound reference's row says which record type it points at
+and the field it shows them by, and offers **Label by…**: a form listing the
+target's other active Text fields, which prepares a reviewed
+`schema.setReferenceLabel`. It is disabled, saying why, when the target has no other
+one. History names the change *Change a reference's label* and offers Undo while it
+is the latest definition change.
 
 ### Calculated fields in Structure
 
 A record type's calculated fields ([calculations and actions](calculations-and-actions.md))
-follow its stored fields in a read-only **Calculated** group: name, stable ID, result type
-(and *May be empty* where the result can be), the formula as written, and the fields it reads.
-The heading counts them apart: *6 stored fields · 1 calculated*. A stored field that a
-calculation reads says so under its name (*Seeds per gram reads this field, so it cannot be
-retired while that calculation stays*) and does not offer **Retire**, since the host would
-refuse the retirement as `retired-binding`; **Retire record type** is withheld the same way
-while the type owns a calculation or one elsewhere reads it. A calculation that reads other
-calculations names them among its reads. The reads come from the record type's schema,
-`derivedFields[].readsFieldIds`, `readsCalculationIds` and `readsEntityIds`, matched by ID as
-the host's check matches them (UIT-19, accepted 2026-10-13).
+follow its stored fields in a read-only **Calculated** group: name, stable ID, result
+type (and *May be empty* where the result can be), the formula as written, and the
+fields it reads. The heading counts them apart: *6 stored fields · 1 calculated*. A
+stored field that a calculation reads says so under its name (*Seeds per gram reads
+this field, so it cannot be retired while that calculation stays*) and does not
+offer **Retire**, since the host would refuse it as `retired-binding`; **Retire
+record type** is withheld the same way while the type owns a calculation or one
+elsewhere reads it. A calculation that reads other calculations names them among its
+reads. The reads come from the record type's schema, `derivedFields[].readsFieldIds`,
+`readsCalculationIds` and `readsEntityIds`, matched by ID as the host's check
+matches them.
 
 ### Making a field required
 
-**Make required** and **Reactivate** of a required field list the records that have no value,
-50 at a time, each by its label, and ask for a value for each. Nothing is filled in for the
-person: a choice starts on *Choose…*, which the form refuses, and a rating is chosen on its scale
-(WSP-02, WSP-08). A batch that only fills values is titled *Fill missing Status values (first 50)*;
-the requirement changes with the last batch (WSP-20). The form is drawn only while the person is
-still on the page they pressed it on (WSP-22). **Convert reference** heads each record by its
-label too, and a record counts as mapped only once a target is chosen or Clear is pressed in its
-own picker (WSP-01, WSP-21). A rating's Lowest and Highest are required while the rating type is
-chosen; an empty one is refused, not read as 0 (WSP-10).
+**Make required** and **Reactivate** of a required field list the records that have
+no value, 50 at a time, each by its label, and ask for a value for each. Nothing is
+filled in for the person: a choice starts on *Choose…*, which the form refuses, and a
+rating is chosen on its scale. A batch that only fills values is titled *Fill missing
+Status values (first 50)*; the requirement changes with the last batch. The form is
+drawn only while the person is still on the page they pressed it on. **Convert
+reference** heads each record by its label too, and a record counts as mapped only
+once a target is chosen or Clear is pressed in its own picker. A rating's Lowest and
+Highest are required while the rating type is chosen; an empty one is refused, not
+read as 0.
 
 ### Reviewing a proposal Studio prepared
 
-A change the host refuses on its copy of the file opens no review: Studio rejects that proposal
-in the host and says the host's words in the form, which keeps what was typed. A press while
-another action runs says *Wait for the current action to finish, then try again.* (WSP-18,
-WSP-19).
+A change the host refuses on its copy of the file opens no review: Studio rejects
+that proposal in the host and says the host's words in the form, which keeps what
+was typed. A press while another action runs says *Wait for the current action to
+finish, then try again.*
 
-Accepting a proposal that Structure, Screens or Data prepared returns to that page, with the
-outcome on it (*Add Effort points field accepted.*). Only a proposal that builds the file's
-first screens lands on Use, where they now are; a view the Add view form made lands on the
-view. For a proposal Studio itself prepared (origin `workbench`) the review's first button
-is **Discard**: it rejects the proposal (`proposal.reject`) and says so, so no validated copy
-of the file is left waiting where nothing reaches it. Any other proposal opened there, a
-custom view's or an agent's, has **Back**, which leaves it waiting for its author or for the
-Agent page, where Reject asks first. Escape leaves the review without rejecting anything, and
-the trail's Back returns to it; a package import or update is not lost to a stray key. The **Preview** panel names the record
-types and screens the change addresses, read from the IDs its lines carry, and the read-only
-preview opens on the first of them. Each line is marked as an addition, a removal (a retired
-field or a removed package, among others) or a change. Where History would not undo the
-proposal as a whole, each line reads *Can be undone, but not from History*, and History says the
-same beside an entry it does not offer to undo. A proposal that removes a package names each
-screen and panel that will then say the package is missing.
-
-Saved views are desirable, but they are secondary to correct editing. The MVP may ship one default view plus one saved custom view per entity before it supports a general view-management system.
+Accepting a proposal that Structure, Screens or Data prepared returns to that page,
+with the outcome on it (*Add Effort points field accepted.*). Only a proposal that
+builds the file's first screens lands on Use, where they now are; a view the Add view
+form made lands on the view. For a proposal Studio itself prepared (origin
+`workbench`) the review's first button is **Discard**: it rejects the proposal
+(`proposal.reject`) and says so, so no validated copy is left waiting where nothing
+reaches it. Any other proposal opened there, a custom view's or an agent's, has
+**Back**, which leaves it waiting for its author or for the Agent page, where Reject
+asks first. Escape leaves the review without rejecting anything, and the trail's Back
+returns to it. The **Preview** panel names the record types and screens the change
+addresses, read from the IDs its lines carry, and the read-only preview opens on the
+first of them. Each line is marked as an addition, a removal (a retired field or a
+removed package, among others) or a change. Where History would not undo the
+proposal as a whole, each line reads *Can be undone, but not from History*, and
+History says the same beside an entry it does not offer to undo. A proposal that
+removes a package names each screen and panel that will then say the package is
+missing.
 
 ### What a new file keeps
 
-Every grid has an *In new files* column (ADR-0022): *Kept* or *Left out* for a record's own
-mark, *Kept (type)* or *Left out (type)* for one that follows its record type. Choosing in the
-cell writes `data.setKeptInNewFiles`, which moves no version. Above the grid a sentence says the
-type's default, with a button that prepares `schema.setKeptInNewFiles` as a proposal.
+Every grid has an *In new files* column (ADR-0022): *Kept* or *Left out* for a
+record's own mark, *Kept (type)* or *Left out (type)* for one that follows its record
+type. Choosing in the cell writes `data.setKeptInNewFiles`, which moves no version.
+Above the grid a sentence says the type's default, with a button that prepares
+`schema.setKeptInNewFiles` as a proposal.
 
 ## 6. Field presentations
-
-The Studio maps semantic storage and constraints to editors:
 
 | Semantic form | Storage/relationship | Table experience |
 | --- | --- | --- |
 | short text | `text` | inline text editor |
 | long text | `text` + presentation hint | clipped cell and record inspector editor |
-| Markdown text | `text` + `markdown` presentation (host 1.44.0, W-173) | clipped cell; the record page shows it formatted (headings, nested lists, tables, code, emphasis, quotes, hard line breaks and backslash escapes; links not followed; each block takes its direction from its own text). It is written in place in a Tiptap editor with a toolbar (bold, italic, strikethrough, code, two heading levels, lists, quote, code block, link) and Tiptap's keys; a **Markdown** disclosure under it holds the source, the form's control, and an edit in either shows in the other. The editor writes Markdown back only when the person changes the text, reads raw HTML as text and writes no HTML entities (2026-10-16, W-275; `markdown-editor.test.mjs`, Gate-WorkbenchShell). A value edited there may come back normalised as `markdown.ts` reads it the same: table padding, `_` emphasis as `*`, escaped `_` and brackets; an entity typed literally, such as `&amp;`, comes back as its character. Structure offers **Show as Markdown** on a long text field and **Show as long text** back, a reviewed `schema.setFieldPresentation` that changes no value |
+| Markdown text | `text` + `markdown` presentation (host 1.44.0) | clipped cell; the record page shows it formatted (see below) |
 | integer/decimal | numeric scalar | locale-aware numeric editor |
 | checkbox | `boolean` | direct toggle with nullable state where declared |
 | date/datetime | canonical date value | date picker; a date and time is shown and typed in this device's time and saved as an exact timestamp with its offset (Studio's grid edits it as text) |
@@ -256,28 +246,41 @@ The Studio maps semantic storage and constraints to editors:
 | reference | relationship/foreign key | related-record label and picker |
 | UUID | `uuid` | normally read-only abbreviated value |
 
-The numeric editor takes a decimal with a dot or with one comma, as the numpad types it on a
-Danish, German or French keyboard: `12,5` is saved as `12.5`. Where this device's language writes
-its decimals with a dot, `1,234` (one to three digits without a leading zero, a comma, then three
-digits) could be a thousands grouping and is refused; `0,125` and `1234,567` are decimals
-everywhere. Where the language writes them with a comma, `1,234` is 1.234. Grouping, a second
-separator and an exponent are refused. A whole number takes digits only, and its input asks a
-touch keyboard for the numeric keypad.
+**Markdown text.** The record page shows it formatted: headings, nested lists,
+tables, code, emphasis, quotes, hard line breaks and backslash escapes; links are not
+followed, and each block takes its direction from its own text. It is written in
+place in a Tiptap editor with a toolbar (bold, italic, strikethrough, code, two
+heading levels, lists, quote, code block, link) and Tiptap's keys; a **Markdown**
+disclosure under it holds the source, and an edit in either shows in the other. The
+editor writes Markdown back only when the person changes the text, reads raw HTML as
+text and writes no HTML entities. A value edited there may come back normalised as
+`markdown.ts` reads it the same: table padding, `_` emphasis as `*`, escaped `_` and
+brackets; an entity typed literally, such as `&amp;`, comes back as its character.
+Structure offers **Show as Markdown** on a long text field and **Show as long text**
+back, a reviewed `schema.setFieldPresentation` that changes no value. Guarded by
+`markdown-editor.test.mjs` and `Gate-WorkbenchShell`.
 
-The Data filter takes a plain date (`YYYY-MM-DD`) against a date and time as this device's day:
-Equals is the whole day, from its start to the next day's start, and the comparisons are made
-against the start of the day, which the status line says. Does not equal with a plain date is
-refused, because a filter cannot say or.
+The numeric editor takes a decimal with a dot or with one comma, as the numpad types
+it on a Danish, German or French keyboard: `12,5` is saved as `12.5`. Where this
+device's language writes its decimals with a dot, `1,234` (one to three digits
+without a leading zero, a comma, then three digits) could be a thousands grouping and
+is refused; `0,125` and `1234,567` are decimals everywhere. Where the language writes
+them with a comma, `1,234` is 1.234. Grouping, a second separator and an exponent are
+refused. A whole number takes digits only, and its input asks a touch keyboard for the
+numeric keypad.
 
-Multi-choice is not an MVP scalar type. It requires a relationship/join model and is deferred. Binary fields/assets and general JSON editing are also deferred.
+The Data filter takes a plain date (`YYYY-MM-DD`) against a date and time as this
+device's day: Equals is the whole day, from its start to the next day's start, and
+the comparisons are made against the start of the day, which the status line says.
+Does not equal with a plain date is refused, because a filter cannot say or.
 
-Unknown future types stay visible and read-only. They do not disappear.
+Multi-choice is not a scalar type; it needs a relationship/join model. General JSON
+editing is not offered. Unknown future types stay visible and read-only.
 
 ## 7. Authority boundary
 
-The table component is a renderer and interaction surface. It does not own persistence or the Nendo application model.
-
-It receives no:
+The table component is a renderer and interaction surface. It does not own
+persistence or the Nendo application model. It receives no:
 
 - SQLite connection or SQL;
 - database or filesystem path;
@@ -300,94 +303,35 @@ data.executeCommand
 ```
 
 `data.searchRecords` backs the *Search text* box in the per-type table's filter bar
-([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)). It finds that type's records by
-any word in their text, best match first, and lists them under the bar with an excerpt. The table
-and its filter stay as they are, and a result opens the record. It searches once two letters are
-typed, as Ctrl K and the @ menu do, and says so below that: one letter is a prefix of most of the
-index and about twenty times the work (PERF-09, 2026-10-13). While the file has no index, the
-box offers *Build the search index*: `data.buildSearchIndex`, one host-owned Definition revision
-that changes no record. The same search lists records under the commands in Ctrl K.
+([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)). It finds that type's
+records by any word in their text, best match first, and lists them under the bar
+with an excerpt. The table and its filter stay as they are, and a result opens the
+record. It searches once two letters are typed, as Ctrl K and the @ menu do, and
+says so below that: one letter is a prefix of most of the index. While the file has
+no index, the box offers *Build the search index*: `data.buildSearchIndex`, one
+host-owned Definition revision that changes no record. The same search lists records
+under the commands in Ctrl K.
 
 The bridge has no bulk-paste or saved-table-view method.
 
-Every mutation includes an active application/session identifier, stable semantic IDs, optimistic version preconditions and an idempotency key. A value is authoritative only after the host commits it and returns the resulting version.
+Every mutation includes an active application/session identifier, stable semantic
+IDs, optimistic version preconditions and an idempotency key. A value is
+authoritative only after the host commits it and returns the resulting version.
 
-Schema actions that start from a column menu are application-lane operations. The table never executes DDL.
+Schema actions that start from a column menu are application-lane operations. The
+table never executes DDL.
 
-## 8. Component and containing architecture status
+## 8. Grid component
 
-ADR-0002 selected a single local web workbench in a thin WinUI host. DS1 then
-compared AG Grid Community and Tabulator through that containing boundary. It
-recommended AG Grid Community for DS2. DS2 qualified the Windows provider,
-automation, high-contrast, focus, packaging and lifecycle paths. ADR-0015 then
-accepted AG Grid Community behind an adapter that Nendo owns. The real 200%
-Windows scale has no recorded pass. It is an explicit hardening obligation after
-selection and before release.
+ADR-0015 selects AG Grid Community behind an adapter that Nendo owns, in the single
+local web Workbench inside a thin WinUI host (ADR-0002). No AG Grid Enterprise module
+is used. Windows scaling, keyboard/focus and screen-reader checks are owner-reported;
+no lane instruments them ([roadmap](../roadmap.md)).
 
-The acceptance of ADR-0015 resolved the component decision. Before acceptance,
-the decision had to price the full system, and not only the grid. The ADR records
-these costs:
+## 9. Safe-mode fallback
 
-- duplicate typed editors;
-- theming and high contrast;
-- accessibility rigs;
-- UI automation rigs;
-- focus and clipboard seams;
-- virtualisation and paging;
-- JavaScript/NuGet supply chains;
-- packaging and crash isolation;
-- long-term replacement cost.
-
-The semantic renderer, containing-architecture and functional-grid experiments
-are complete. Their prototypes stay disposable evidence. They are not production
-scaffolding. Acceptance of the direction does not select the production source
-structure, and it does not waive the host/service boundary.
-
-## 9. Prototype gates
-
-ADR-0015 was accepted after the following evidence and the explicit owner risk
-disposition were recorded. The ADR is now the only record of them. The
-gates below are the record of what the acceptance required. They are not open
-work. The one obligation that remains is the real 200% Windows scale in DS2, as
-section 8 states.
-
-### DS1 — functional grid spike — complete
-
-The DS1 result
-records a pass for both candidates and recommends AG Grid Community for DS2.
-
-Prove against the chosen containing architecture:
-
-- empty and populated database states;
-- 100, 10,000 and 100,000-row fixtures through one bounded query contract;
-- text, numeric, boolean, date, choice and reference editors;
-- inline edit, row creation, deletion, selected-row bulk action and bounded TSV paste;
-- optimistic conflicts and idempotent retry;
-- database session survival after renderer reload/crash;
-- all application assets local and offline;
-- no commercial/Enterprise module dependency when evaluating AG Grid Community.
-
-### DS2 — accessibility, automation and lifecycle
-
-Prove:
-
-- keyboard-only use;
-- Narrator or equivalent Windows accessibility evidence;
-- visible focus across shell/component boundaries;
-- 200% text/display scaling and high contrast;
-- stable semantic automation targets;
-- light/dark theme propagation;
-- packaged offline launch;
-- dependency inventory and update policy;
-- measured implementation duplication for the chosen architecture.
-
-### Exit rule
-
-Vendor documentation and a mock-up that looks convincing are not sufficient. The experiment result must record commands, versions, measurements, observations, failures and unresolved limitations.
-
-## 10. Safe-mode fallback
-
-If the primary table renderer cannot initialise, Studio must keep a bounded fallback that can:
+If the primary table renderer cannot initialise, Studio keeps a bounded fallback
+that can:
 
 - list entities;
 - inspect one record at a time;
@@ -395,21 +339,24 @@ If the primary table renderer cannot initialise, Studio must keep a bounded fall
 - inspect file health;
 - reach backup and recovery actions.
 
-A renderer crash must not close the database, replay an unconfirmed mutation or corrupt the application session.
+A renderer crash must not close the database, replay an unconfirmed mutation or
+corrupt the application session.
 
-Studio never hosts custom-view code. A custom view runs in a frame with a renderer process of its own, and its crash or hang stays in its own place on the page; only a failure of the Workbench's own renderer or of the browser brings up the native recovery panel, which can also restart without custom views ([custom views](custom-views.md#when-a-view-fails)).
+Studio never hosts custom-view code. A custom view runs in a frame with a renderer
+process of its own, and its crash or hang stays in its own place on the page; only a
+failure of the Workbench's own renderer or of the browser brings up the native
+recovery panel, which can also restart without custom views
+([custom views](custom-views.md#when-a-view-fails)).
 
-## 11. MVP acceptance criteria
+## 10. Requirements
 
-- [ ] Empty `.nendo` files open into a useful Studio without an agent.
-- [ ] Every entity receives a usable table and record editor automatically.
-- [ ] Users can create and edit records without SQL or a custom surface.
-- [ ] Basic entity/field creation stays available through host-owned tooling.
-- [ ] A large flat table is block-loaded. It is not copied whole into the UI process.
-- [ ] Edits are atomic, attributed, idempotent and version checked.
-- [ ] Invalid or conflicting edits are never presented as committed.
-- [ ] Custom surfaces can fail while Studio stays usable.
-- [ ] Keyboard, accessibility, scaling, high-contrast and automation gates pass.
-- [ ] The packaged experience works offline.
-- [ ] CI enforces the selected grid/component licence and dependency boundary.
-- [ ] Ordinary SQLite inspection still exposes understandable user data.
+- An empty `.nendo` file opens into a useful Studio without an agent.
+- Every entity receives a usable table and record editor automatically.
+- Records are created and edited without SQL or a custom surface.
+- Entity and field creation stays available through host-owned tooling.
+- A large flat table is block-loaded, never copied whole into the UI process.
+- Edits are atomic, attributed, idempotent and version checked.
+- Invalid or conflicting edits are never presented as committed.
+- Custom surfaces can fail while Studio stays usable.
+- The packaged experience works offline.
+- Ordinary SQLite inspection still exposes understandable user data.

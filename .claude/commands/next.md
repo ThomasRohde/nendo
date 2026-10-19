@@ -35,7 +35,7 @@ and its holder, and do not plan to take it over without a handoff.
 
 ## Process
 
-1. Read `docs/dogfooding.md` — the horizons paragraph, the Reference codes and
+1. Read `docs/dogfooding.md` — the live planner section, the Reference codes and
    the reading mechanics. The planner is `workspace/Planner.nendo`; closed work
    has no horizon, and an item that waits on an owner's choice points at a
    Decision (`nd.work.decision`).

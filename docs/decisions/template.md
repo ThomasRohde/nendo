@@ -3,44 +3,18 @@
 - **Status:** Proposed
 - **Date:** YYYY-MM-DD
 - **Owners:** Nendo maintainers
-- **Confidence:** Low | Medium | High
-- **Evidence:** Pending, or links to concrete experiment/review results
-- **Depends on:** Optional
-- **Supersedes:** Optional
-- **Related design:** Optional
+- **Confidence:** Low | Medium-low | Medium | High
+- **Evidence:** Pending, or the tests and lanes that hold the decision, in one line
 
 ## Context
 
-What problem requires a decision? State the constraints and facts. Do not assume the preferred option.
-
-## Decision drivers
-
-1. Driver
-2. Driver
-
-## Options considered
-
-### Option A
-
-Description, benefits, costs and failure modes.
-
-### Option B
-
-Description, benefits, costs and failure modes.
-
-### Do nothing / defer
-
-Explain the consequence if the current state stays.
+The problem and its constraints, briefly. Do not assume the preferred option.
 
 ## Decision
 
-For a Proposed ADR, state the leading hypothesis and what is still undecided. For an Accepted ADR, state the chosen option and its boundaries precisely.
-
-## Evidence and validation obligations
-
-- Experiment/result link or explicit pending evidence
-- Exact acceptance/failure criteria
-- Required compatibility, security, accessibility, performance and recovery checks
+For a Proposed ADR, the leading hypothesis and what is still undecided. For an
+Accepted ADR, the current rules, grouped by topic. Link the contract that holds the
+detailed behaviour rather than restating it.
 
 ## Consequences
 
@@ -54,7 +28,7 @@ For a Proposed ADR, state the leading hypothesis and what is still undecided. Fo
 
 ## Rejected alternatives
 
-Explain why the recorded evidence caused each alternative to be rejected. Do not only name the alternatives.
+- Alternative: one line on why it was rejected.
 
 ## Revisit triggers
 

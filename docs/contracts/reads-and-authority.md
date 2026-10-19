@@ -1,223 +1,126 @@
 # Reads and authority contract
 
-A custom view reads the file through the Workbench's own bounded reads, under the
-same bounds: `data.queryRecords`, `data.treeRecords`, `data.searchRecords`,
-`data.countRecords` and the aggregate reads, which the Workbench's broker calls for it
-from a closed method table (`extension-broker.ts`). It adds no host read
-of its own and no MCP endpoint, and it reaches no SQL and no path. See
-[custom views](custom-views.md#the-method-table).
+This contract covers bounded reads, cursor discipline and the scope of read authority. It
+refines the write coordinator and changes no file format, journal, operation vocabulary or
+trust boundary.
 
-This contract covers bounded reads, cursor discipline and the scope of read
-authority. It refines the write coordinator. It does not change the file format,
-the journal, the operation vocabulary or the trust boundary.
+A custom view reads through the Workbench's own bounded reads (`data.queryRecords`,
+`data.treeRecords`, `data.searchRecords`, `data.countRecords`, the aggregate reads), called
+by the broker from a closed method table (`extension-broker.ts`): no host read of its own, no
+MCP endpoint, no SQL, no path ([custom views](custom-views.md#the-method-table)).
 
-ADR-0008 is delivered. Calculation and action reads use a shared bounded budget,
-capture read-record versions, and take conservative data revision preconditions
-for related membership. The [historical experiment](../design/adr-0008-evidence.md)
-that established them ran in a copied Engine and is history. A schema read carries
-each calculated field with its calculation ID and its expression.
-
-The query APIs below still do not expose two things, and this is intentional.
-The first is a behaviour grant, which belongs to the person and is given at this
-device. The second is any way to suppress a trigger. No read or write here
-reaches either of them.
+Calculation and action reads share a bounded budget, capture read-record versions and take
+conservative data revision preconditions for related membership. A schema read carries each
+calculated field with its calculation ID and expression. No read or write exposes a
+behaviour grant (the person's, given at this device) or a way to suppress a trigger.
 
 ## Bounded reads
 
-`QueryRecordsAsync`, `QueryHistoryAsync` and `QueryRevisionOperationsAsync` use
-typed semantic IDs and limits 1–200. Normal writable-session queries run in one
-SQLite read transaction. The orders are as follows:
+`QueryRecordsAsync`, `QueryHistoryAsync` and `QueryRevisionOperationsAsync` take typed
+semantic IDs and limits 1–200, in one SQLite read transaction. Records use BINARY record-ID
+keyset order, or a named sort field with record ID as the final key; history the unique
+change sequence, either direction; revision operations the immutable ordinal. A record query
+takes up to eight AND filters (`RecordQuerySemantics` refuses a ninth); the
+[query contract](queries.md) governs sorting, predicates and cursors.
 
-- Records use SQLite BINARY record-ID keyset order, unless the query names a sort
-  field; record ID is then the final key ([query contract](queries.md)).
-- History uses the unique change sequence, ascending or descending.
-- Revision operations use the immutable ordinal.
+SQL identifiers come only from verified storage mappings; values, continuation keys and
+limits are parameters. History summaries exclude payloads and report the operation count;
+detail is paged separately. An advisory compensation flag only permits requesting server
+validation.
 
-SQL identifiers come only from verified storage mappings. Values, continuation
-keys and limits are parameters. History summaries exclude operation payloads and
-report the operation count. Operation detail is paged separately. An advisory
-compensation flag gives only eligibility to request server validation. It does
-not promise that an inverse stays applicable.
+`SearchRecordsAsync` ([ADR-0028](../decisions/0028-full-text-search-in-the-file.md)) reads
+1–100 records over the file's FTS5 index, ranked by BM25, paged by position under the same
+cursor. A read-only session indexes the snapshot into a private in-memory database. Read-only
+recovery uses bounded projections of the classified inspection snapshot.
 
-Cursors authenticate the query scope, the application/instance identity and the
-change sequence under a random key for this coordinator. Any coordinated edit or
-definition change invalidates continuation with `stale-cursor`. Callers then
-restart and replace their displayed page. A cursor from another query, another
-file or a reopened coordinator fails with `invalid-cursor`. The MCP wrapper of the
-host adds its own agent-access-generation key. This keeps invalidation when
-access is disabled and enabled without closing the file. MCP keeps its 1–100
-public limit. Among its resources:
-
-- History returns summaries and `operationsUri`.
-- The revision operations resource returns only sanitized operation descriptors.
-- The CSV export resource returns one page of the faithful profile. The header
-  row is on the first page only (see the [CSV contract](csv.md)).
-- The packages resource lists every custom-view package in the file, with each
-  file's path, media type, SHA-256 and size, and no content.
-- The package-file resource returns one package file, a page of bytes at a time. It
-  pages by byte `offset` and `length`, at most 131,072 bytes, not by the 1–100
-  record limit. Each page carries the whole file's SHA-256 (see the
-  [custom-view contract](custom-views.md#packages-in-the-file)).
-
-A page query is read as a set: `cursor` and `limit` in either order, and an empty
-`cursor=` as the first page. A parameter the template does not declare, or one
-given twice, is refused naming the parameters it takes.
-
-`SearchRecordsAsync` (ADR-0028) is a bounded read of 1–100 records in one SQLite read
-transaction over the file's FTS5 index. It ranks with BM25 and pages by position under the same
-authenticated cursor. In a read-only session it indexes the snapshot's records into a private
-in-memory database and answers from that.
-
-Read-only recovery uses the immutable inspection snapshot that is already
-classified, and bounded projections of that snapshot. It cannot claim a
-streaming recovery open.
-
-A record query also takes one sort field, a descending direction and up to eight AND
-filters (`NendoRecordQuery`; `RecordQuerySemantics` refuses a ninth), and full-text
-search is the read above. The [query contract](queries.md) governs sorting, predicates
-and their cursors.
+Cursors authenticate the query scope, the application/instance identity and the change
+sequence under a random per-coordinator key. Any edit or definition change makes
+continuation `stale-cursor`: restart and replace the displayed page. A cursor from another
+query, file or reopened coordinator is `invalid-cursor`. The MCP wrapper adds its
+agent-access-generation key, so disabling and re-enabling access also invalidates cursors.
+MCP's own page limit, query rules and resources are in the
+[MCP interface](mcp-interface.md#paging).
 
 ## Authority reuse argument
 
-1. The coordinator serializes its one connection. It acquires the existing
-   instance ownership, write lease and delete-denying path pin. After normal
-   open/inspection validation, initial authority still fingerprints the complete
-   schema, mappings, records, definitions, audit, canonical operations, inverse
-   evidence and idempotency evidence in one read transaction.
-   It uses the existing streaming storage-content fingerprint, which includes the
-   raw schema, row IDs, storage types and every audit/inverse value. A second
-   typed serialization of the same complete contents is not necessary. The
-   inspection comparison of the open path reuses this exact digest only after it
-   checks the same connection token again in a read transaction. Every local
-   commit invalidates this content-digest cache. Later explicit copy/inspection
-   requests compute it again.
-   Writable open acquires its read-only, delete-denying path pin before any
-   classification. It no longer performs a redundant unpinned full
-   classification first. No writer sidecar or writable connection exists until
-   a classification permits authority. The active connection still checks the
-   complete content against the inspected state. If a cooperative writer changes
-   the contents between inspection and authority, the connection rejects it.
-   Since 2026-09-26 (W-026), an open that carries the host's observation of the
-   same physical file does not classify it again. Only the Engine makes an
-   observation, from a full inspection, so the pinned file's physical facts are
-   checked instead: no journal or WAL sidecar, within the size bound, a
-   rollback-journal header. Under the write lease, the content digest must
-   equal the observed one, and the writable connection's first, cold authority
-   read runs SQLite's `integrity_check` and refuses anything but `ok`; until
-   2026-10-13 a second, uncounted scan followed it (ESC-09). Any difference
-   refuses with `file-changed-before-open`, and the host inspects again. An open without an observation still classifies once.
-   During advisory recent-file collision checks, Desktop does not observe the
-   same physical candidate a second time. When it records that successful open,
-   it reuses the exact observation that the Engine checked. Desktop still
-   inspects other physical originals. This device-history reuse never grants
-   storage authority. Startup consumes metadata. The renderer then requests its
-   selected record window.
-2. That connection records SQLite `data_version` while it holds the same read
-   snapshot. Later queries and writes fix a read snapshot before they check that
-   token. SQLite documents that the value changes for commits on other
-   connections. It does not change for commits on the same connection.
-   Comparisons are meaningful only on that one connection. See [SQLite PRAGMA data_version](https://www.sqlite.org/pragma.html#pragma_data_version).
-3. Ordinary writes already acquire `BEGIN IMMEDIATE` before they check
-   authority. Another SQLite writer cannot commit between that check and the
-   commit of this transaction. Read transactions keep their snapshot through
-   projection. See [SQLite transaction isolation](https://www.sqlite.org/isolation.html).
-4. Any different external token permanently taints this store. The store fails
-   closed. This includes a change that is confined to audit/inverse/schema with
-   unchanged manifest counters. The coordinator enters recovery and revokes
-   adapters. It never adopts outside content only because the counters match.
-   It never computes a new hash again and accepts it silently. Reopen performs
-   full classification and validation.
-5. A local mutation still performs typed validation, record preconditions,
-   replay lookup, revision/audit writes and the manifest update in its
-   transaction. It prepares a new internal session token and reads the resulting
-   manifest before commit. Only a successful commit publishes that authority in
-   memory. Failed/cancelled transactions keep the old authority. Replay returns
-   the original receipt and keeps the current authority. Publication does no SQL
-   or cancellable work after commit. The next check detects a later outside
-   commit.
-6. The authority token is expressly connection-scoped. It is not a content
-   digest, and it is never an adapter credential. Exact file copying still uses
-   the independent full storage-content digest. A second read-only backup
-   connection holds one source snapshot. It compares that complete digest before
-   copy and through validation/activation. It must not compare the session token
-   of another connection. The existing source-authority checks and the
-   no-overwrite destination/retained-original checks stay in the coordinator.
+1. **One connection, one fingerprint.** The coordinator serializes one connection holding
+   the instance ownership, write lease and delete-denying path pin, taken before any
+   classification; no writer sidecar or writable connection exists until a classification
+   permits authority. Initial authority takes the streaming storage-content fingerprint
+   (schema, mappings, records, definitions, audit, operations, inverse and idempotency
+   evidence, row IDs, storage types) in one read transaction. Inspection reuses that digest
+   only after re-checking the connection token; every local commit invalidates the cache.
+2. **An observed open is not classified twice.** Only the Engine makes an observation, from
+   a full inspection. An open carrying it checks the pinned file's physical facts instead (no
+   journal or WAL sidecar, within the size bound, a rollback-journal header); under the write
+   lease the content digest must equal the observed one, and the first authority read runs
+   `integrity_check` and refuses anything but `ok`. Any difference is
+   `file-changed-before-open`, and the host inspects again. Desktop records a successful open
+   with the observation the Engine checked. This reuse never grants storage authority.
+3. **`data_version`.** The connection records SQLite `data_version` under the same read
+   snapshot; later reads and writes fix a snapshot before checking it. It changes only for
+   commits on other connections
+   ([SQLite PRAGMA data_version](https://www.sqlite.org/pragma.html#pragma_data_version)).
+4. **Writes check under `BEGIN IMMEDIATE`**, so no other writer commits between the check and
+   this commit ([SQLite isolation](https://www.sqlite.org/isolation.html)).
+5. **Any outside change taints the store.** A different external token, even confined to
+   audit/inverse/schema with unchanged counters, fails closed: recovery, adapters revoked. It
+   never adopts outside content or a recomputed hash. Reopen classifies and validates fully.
+6. **Authority is published only on commit.** A local mutation validates, checks
+   preconditions and replay, writes revision, audit and manifest, and prepares its new token
+   inside the transaction; only a successful commit publishes it. Failure or cancellation
+   keeps the old authority; replay returns the original receipt. Nothing cancellable runs
+   after commit.
+7. **The token is connection-scoped**: not a content digest, never an adapter credential.
+   Exact copying compares the full content digest on a separate read-only backup connection,
+   never another connection's token.
 
-Only `ApplyAsync` and `ApplyChangeSetAsync` mutate an authority-bearing active
-connection. Creation initializes before authority exists. Identity transition
-and legacy migration stay private staged-store operations. They must reject the
-reuse of an authority-bearing connection. No raw connection is exposed. This
-argument does not protect against malware, hostile VFS/raw-byte writes, physical
-failure or cloud synchronization. This optimization does not add support for
-those cases.
+Only `ApplyAsync` and `ApplyChangeSetAsync` mutate an authority-bearing connection.
+Identity transition and legacy migration are private staged-store operations that reject
+one. No raw connection is exposed. The argument does not cover malware, hostile VFS or
+raw-byte writes, physical failure or cloud synchronization.
 
 ## Workbench and verification scope
 
-The current renderer opts into `boundedRead` on its version-7 envelope.
-This is a projection preference and grants no authority: the opaque
-file-generation checks still run under the controller gate. Native/compatibility
-full inspection stays available explicitly. An ordinary renderer snapshot or
-post-commit view contains metadata and the time/sequence of the last integrity
-verification. It contains no records. `data.queryRecords`, `history.query` and
-`history.operations` provide windows; each operation in a `history.operations`
-window carries the `attribution` of the automatic action that made it, or null
-([calculations-and-actions.md](calculations-and-actions.md#identity-retries-and-history)). In this mode, `semantic.compile` compiles
-the definition alone. The renderer binds its separate current record window for
-display. The definition digest does not represent a digest of the visible
+The renderer opts into `boundedRead` on its version-7 envelope, a projection preference
+that grants no authority. A snapshot or post-commit view carries metadata and the last
+integrity verification, no records. `data.queryRecords`, `history.query` and
+`history.operations` provide windows; each `history.operations` entry carries its automatic
+action's `attribution`, or null
+([calculations-and-actions.md](calculations-and-actions.md#identity-retries-and-history)).
+`semantic.compile` compiles the definition alone, so its digest is not a digest of visible
 records.
 
-Data, Use and History show 50-item pages with Previous/Next controls. The
-selected Studio entity and the custom entity can each have one loaded window. A
-refresh/committed change rebuilds the first pages. A stale continuation causes a
-refresh and announces that reset. Metadata, definition and page sequences must
-agree before the renderer publishes a refreshed view. Bounded retries handle an
-agent write that occurs between them. A failed derivative read keeps the
-successful receipt and the existing explicit Refresh view action.
-The recent-file lists do not inspect their files. Since 2026-10-04 the no-file
-screen and the taskbar Jump List read only each file's identity through
-`NendoWriteCoordinator.IdentifyAsync`: its physical file key and the application
-and instance its manifest declares, behind the same sidecar and header guards as
-an inspection, with no integrity check, classification or digest. A file that
-would fail inspection can therefore be listed as available; opening it inspects
-it in full and reports that. The no-file screen is the only renderer view that
-asks for the list. For an application that is already open, the initial view and
-the file-action refresh do not read unrelated recent files. Close still refreshes
-that list, and native admission continues to validate every selected file again.
-The Jump List refreshes at startup and on every open. It reads outside the
-Desktop request gate, so neither the startup open nor a Workbench read waits for
-it, and it confirms the open file from the observation that file was opened with.
+Data, Use and History show 50-item pages. A refresh or commit rebuilds the first pages; a
+stale continuation refreshes and announces it. Metadata, definition and page sequences must
+agree before a refreshed view is published, with bounded retries. A failed derivative read
+keeps the receipt and offers Refresh view.
 
-The application service caches unchanged definitions by verified application,
-instance and definition revision. Record projection/validation, versions, data
-revision and render digest stay current. Ordinary status returns the date and
-sequence of the last full integrity check. It also returns how many committed
-changes the file has taken since that check. Thus a result measured thirty-two
-changes ago is reported as an old result, and not as a current verdict. When a
-user enters writable Health, it uses `health.verify` for a new check. An agent
-uses `nendo.health.verify_integrity`. This scans only when the file has changed
-since the last scan. Otherwise it returns the recorded result unchanged.
-Read-only/recovery sessions direct users to explicit reinspection. Open,
-classification, staged copy and recovery checks stay full validations.
-Inspection writes nothing, with one exception (ADR-0012, 2026-10-13): when the host says the
-person opened this file themselves outside a synced folder (`NendoInterruptedWrite.RollBack`),
-and a lone rollback journal beside it could, by plain reads, be the file's, and a read-only
-SQLite connection reports it hot, SQLite plays it back on one read-write connection under the
-write-ownership lease, after the file and journal are kept beside it under names SQLite does not
-pair; the kept copy is never removed automatically. On that same open a journal that holds
-nothing to roll back is removed under the RESERVED lock. Every other observation, the
-recent-file collision check and a backup chosen for Restore included, refuses untouched.
-Instrumentation counts full reads, integrity checks and definition compilations.
-It is internal test/benchmark evidence and is not an adapter API.
+The no-file screen and the Jump List read each recent file's identity only, through
+`NendoWriteCoordinator.IdentifyAsync` (physical key, declared application and instance,
+behind the sidecar and header guards): no integrity check, classification or digest, so a
+damaged file can be listed and opening it inspects it in full. Only the no-file screen asks
+for the list. The Jump List refreshes at startup and on every open, outside the request gate.
 
-## Required regression evidence
+Status reports the date and sequence of the last full integrity check and how many changes
+the file has taken since, so an old result reads as old. Writable Health runs `health.verify`;
+`nendo.health.verify_integrity` scans only when the file changed since the last scan.
+Open, classification, staged copy and recovery stay full validations.
 
-Keep the suites for delayed replay, cancellation before commit, failure after
-commit, compensation, proposal and lifecycle. Add these cases:
+Inspection writes nothing, with one exception
+([ADR-0012](../decisions/0012-safe-mode-compatibility-and-migration.md)): when the host says
+the person opened the file themselves outside a synced folder
+(`NendoInterruptedWrite.RollBack`), a lone rollback journal beside it could by plain reads be
+the file's, and a read-only connection reports it hot, SQLite plays it back on one
+read-write connection under the write-ownership lease, after keeping the file and journal
+beside it under names SQLite does not pair. The kept copy is never removed automatically. On
+that open a journal with nothing to roll back is removed under the RESERVED lock. Every other
+observation, the recent-file check and a Restore backup included, refuses untouched.
 
-- uncounted external schema/audit/inverse/data edits after repeated local commits
-- read/receipt/page rejection
-- rollback and read-only external connections
-- outside commits immediately after a local commit
+## Regression coverage
 
-Record the full-scan counters and the final matrix timings. Correctness alone is
-not a performance result.
+The suites cover delayed replay, cancellation before and failure after commit,
+compensation, proposals, lifecycle, uncounted external edits after local commits, read,
+receipt and page rejection, rollback and read-only external connections, and outside
+commits right after a local commit. A performance claim records the full-scan counters
+(internal instrumentation, not an adapter API) and matrix timings.

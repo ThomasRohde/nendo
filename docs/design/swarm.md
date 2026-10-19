@@ -1,55 +1,43 @@
 # Swarm
 
-Status: **built**. `workspace/Swarm.nendo` carries the app and `extensions/swarm/` is its
-view, at package 0.2.0 on 2026-10-10. Where this design and the code disagree, the code is
-current.
+An offline creature-behaviour playground as a Nendo app. `workspace/Swarm.nendo` carries the app
+and `extensions/swarm/` is its view. It stays within ADR-0013: a custom view carries its code in
+the file and uses typed application services. It needs no host change and runs no background
+simulation.
 
-W-133 builds an offline creature-behaviour playground as a Nendo app. The owner
-requested it on 2026-10-04. It stays within ADR-0013: a custom view carries its
-code in the file and uses typed application services. No host change or
-background simulation is required.
+The main screen pairs a habitat with a bpmn-js behaviour editor. The habitat is the visual focus;
+controls and the inspector use Nendo's theme tokens. At narrow widths the editor sits below the
+habitat. Colour identifies creature states, with names and counts beside it. The simulation starts
+paused, so the person chooses when motion begins.
 
-The main screen pairs a habitat with a bpmn-js behaviour editor. The habitat is
-the visual focus; controls and the inspector use Nendo's theme tokens and leave
-the Mica shell and Studio route intact. At narrow widths the editor sits below
-the habitat. Colour identifies creature states, with names and counts beside it.
-The simulation starts paused so the owner chooses when motion begins.
+Species, behaviour nodes, transitions, habitats and experiments are ordinary records. bpmn-js is a
+projection of the node and link records, not the authoritative XML document. Diagram gestures stay
+in a local draft until Save behaviour commits the net difference as one version-checked batch,
+with target versions for references. A refused save keeps the draft; a change elsewhere is
+reported and cannot be overwritten.
 
-Species, behaviour nodes, transitions, habitats and experiments are ordinary
-records. bpmn-js is a projection of the node/link records, not the authoritative
-XML document. Diagram gestures stay in a local draft until Save behaviour commits
-the net difference as one version-checked batch. Refused saves retain the draft.
+Supported behaviour is one start, actions (Wander, Gather, Align, Flee, Rest), exclusive decisions
+(Nearby, Disturbed, Crowded) with Yes and No paths, and optional ends. There are no parallel
+tokens, general expressions or workflow execution. A bounded interpreter drives each creature
+independently. Spatial buckets bound neighbour searches; a seeded generator and fixed steps make
+runs repeatable. Population and steps are bounded. Pointer disturbances are simulation events, not
+database writes.
 
-Supported behaviour is one start, actions (Wander, Gather, Align, Flee, Rest),
-exclusive decisions (Nearby, Disturbed, Crowded), and optional ends. Decisions
-have Yes/No paths. No parallel tokens, general expressions or workflow execution
-are claimed. A bounded interpreter drives each creature independently. Spatial
-buckets bound neighbour searches; a seeded generator and fixed steps make runs
-repeatable. Pointer disturbances are simulation events, not database writes.
+An experiment stores the captured model, seed, step count and disturbances in a text snapshot,
+with a name and summary as separate fields. Replay uses that captured model, even after the live
+behaviour changes. Creature positions are derived, never written on animation frames.
 
-An experiment stores the captured model, seed, step count and disturbances in
-a text snapshot, with a name and summary as separate fields. Replay uses that
-captured model, even after the live behaviour changes. Creature positions are
-derived, never written on animation frames. Runs stop at their documented bound.
+## Build and checks
 
-## Acceptance
+- `tools/Build-Swarm.mjs` authors the complete app over MCP into an empty, host-created file and
+  validates it as a proposal; it never accepts one. It refuses a development planner and any
+  non-empty target, and releases its lease after validating.
+- `tools/Add-SwarmSpecies.mjs` adds a species recipe through typed writes, with no schema change.
+- `tools/swarm/` holds the definition, the dependency bundle recipe and the unit tests
+  (`node --test tools/swarm/*.test.mjs`).
+- `pwsh ./tools/Review-Swarm.ps1` (`tools/Gate-Swarm.mjs`) drives the view.
 
-- Editing a connected graph changes measured creature trajectories.
-- Presets produce distinct motion; invalid graphs fail with useful diagnostics.
-- Play, Pause, Reset and pointer disturbance work; population and steps are bounded.
-- Saving behaviour uses one typed batch, including target versions for references.
-- Save refusal preserves the draft; changes elsewhere are reported and cannot be overwritten.
-- Experiments replay the same captured run after reopening, independently of current rules.
-- Light/Dark, narrow layout, geometry and readable state counts are measured.
-- The complete app is authored through MCP into a new task-owned file and validated
-  as a proposal. Acceptance remains the owner's action.
-
-## Build and handoff
-
-Source: `extensions/swarm/`; dependency recipe and measurements: `tools/swarm/`;
-MCP authoring: `tools/Build-Swarm.mjs`; intended file: `workspace/Swarm.nendo`.
-The build refuses the development planner and any nonempty target. It takes a
-short lease and releases it after validating the proposal.
-
-Exact commands, outcomes and remaining owner actions are recorded on W-133 and
-its linked Checks. Build logs and screenshots under `artifacts/swarm/` are scratch.
+Between them they measure that editing a graph changes trajectories, presets differ, invalid
+graphs fail with diagnostics, Play, Pause, Reset and disturbance work, a save is one batch, a
+refusal keeps the draft, experiments replay after reopening, and Light, Dark, the narrow layout and
+the state counts read.

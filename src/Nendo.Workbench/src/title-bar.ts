@@ -2,7 +2,7 @@ import type { WindowTitleBar, WorkbenchClient } from './host-types';
 import { readTitleBar, sameBoxes, sameTitleBar, titleBarControls, type TitleBarBox } from './title-bar-model';
 
 /**
- * Nendo's top bar is the window's title bar (W-093; docs/design/console-direction.md).
+ * Nendo's top bar is the window's title bar (docs/design/mica-direction.md).
  *
  * The host draws no title bar of its own. The page starts at the window's top edge, and Windows
  * draws its Minimise, Maximise and Close over the right end of the top bar and moves the window

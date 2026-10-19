@@ -1,56 +1,55 @@
 # Launched agents contract
 
-This contract covers the agent a person launches from the Agent page: which programs
-the host offers, the `agentSession.*` bridge methods, what the host tells the agent over
-the Agent Client Protocol (ACP), the conversation the tab reads, and what ends it.
+This contract covers the agent a person launches from the Agent page: which programs the
+host offers, the `agentSession.*` bridge methods, what the host tells the agent over the
+Agent Client Protocol (ACP), the conversation the tab reads, and what ends it.
 
 - **Decision:** [ADR-0030](../decisions/0030-launch-the-persons-own-agent-over-acp.md)
-- **Code:** `src/Nendo.Desktop/Agents/` (the catalogue, the process, the ACP conversation
-  and the bridge methods); the Workbench's Launch tab and conversation tab in
-  `agent-launch-model.ts`, `agent-chat-model.ts`, `agent-context-model.ts` and
-  `view-agent-chat.ts`.
+- **Code:** `src/Nendo.Desktop/Agents/`; in the Workbench, `agent-launch-model.ts`,
+  `agent-chat-model.ts`, `agent-context-model.ts` and `view-agent-chat.ts`.
 
-The host is an ACP client and nothing more. It contains no model client, carries no
-provider dependency and holds no credential. A launched agent reaches the open file only
-through the file's own MCP address, at the access level the person chose, under the same
-boundary, leases and change-set gate as any other client ([MCP interface](mcp-interface.md)).
-The tab's gating is a convenience, not the protection.
+The host is an ACP client and nothing more: no model client, no provider dependency, no
+credential. A launched agent reaches the open file only through the file's own MCP address,
+at the person's access level, under the same boundary, leases and change-set gate as any
+client ([MCP interface](mcp-interface.md)). The tab's gating is a convenience, not the
+protection.
 
 ## When Launch is offered
 
-Launch is possible when a file is open with agent access, its listener is ready, and the
-level is **Inspect or higher** (`DesktopSessionController.LaunchRefusal`). Otherwise
-`agentSession.list` says `canLaunch: false` with the `reason` the Agent page shows: no file
-open, a file open read-only, a file that is not healthy, a level of Off, or a listener that
-is not ready. `agentSession.launch` then refuses as `agent-launch-unavailable` with the same
-sentence.
-
-One launched agent runs per file window. While one runs, another launch is
-`agent-already-running`. Launching after it has ended replaces the ended conversation.
+Launch needs a file open with agent access, a ready listener and a level of **Inspect or
+higher** (`DesktopSessionController.LaunchRefusal`). Otherwise `agentSession.list` says
+`canLaunch: false` with the `reason` the page shows (no file, read-only, not healthy, Off,
+listener not ready), and `agentSession.launch` refuses as `agent-launch-unavailable` with
+that sentence. One launched agent runs per file window: another launch while it runs is
+`agent-already-running`; launching after it ended replaces the ended conversation.
 
 ## What is offered
 
 `DesktopAgentCatalog` knows five agents and the command that starts each as an ACP agent on
-stdio: `copilot` (`copilot --acp`), `gemini` (`gemini --experimental-acp`), `claude`
-(`claude-agent-acp`), `codex` (`codex-acp`) and `opencode` (`opencode acp`). It looks for
-each on this computer's `PATH`, as a terminal would, accepting `.exe`, `.cmd`, `.bat` and
-`.com`; a batch file runs under the command interpreter, anything else directly. `PATH` is
-the one Windows holds now, not the copy the host took when it started: the machine's and the
-person's variables are read from the registry each time, over the host's own, so a program
-installed since Nendo started is found and a variable set since reaches the agent
-(`AgentEnvironment.cs`, DAE-12). The host's identity and per-sign-in variables (`USERNAME`,
-`USERDOMAIN`, `USERDOMAIN_ROAMINGPROFILE`, `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`,
-`APPDATA`, `LOCALAPPDATA`, `LOGONSERVER`) stay its own, since the machine's key names
-`USERNAME=SYSTEM`, and an expandable value is expanded against the environment being built,
-not the host's old copy. The person
-may add one command line of their own, offered as `custom`, at most 1,000 characters.
+stdio:
+
+| ID | Command |
+| --- | --- |
+| `copilot` | `copilot --acp` |
+| `gemini` | `gemini --experimental-acp` |
+| `claude` | `claude-agent-acp` |
+| `codex` | `codex-acp` |
+| `opencode` | `opencode acp` |
+
+Each is looked for on `PATH` as a terminal would, accepting `.exe`, `.cmd`, `.bat` and
+`.com`; a batch file runs under the command interpreter, anything else directly. `PATH` and
+the other variables are the ones Windows holds now: the machine's and the person's are read
+from the registry each time, over the host's own (`AgentEnvironment.cs`). `USERNAME`,
+`USERDOMAIN`, `USERDOMAIN_ROAMINGPROFILE`, `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`,
+`LOCALAPPDATA` and `LOGONSERVER` stay the host's (the machine key names `USERNAME=SYSTEM`),
+and an expandable value is expanded against the environment being built. The person may add
+one command line of their own, `custom`, at most 1,000 characters.
 
 The host never downloads, installs or updates an agent and reads no registry over the
-network. For each known agent it names the npm package that provides it. A missing agent
-carries `installCommand` (`npm install -g <package>`). An agent whose npm shim (read only
-when it is a `.cmd` of at most 16 KiB) starts a package that was renamed and no longer gets
-updates carries `renamedFrom` and `updateCommand`, one command a line. These commands are
-for the person to run in a terminal; the host shows them and never runs them.
+network. For each known agent it names the npm package. A missing agent carries
+`installCommand` (`npm install -g <package>`). An agent whose npm shim (read only when it is
+a `.cmd` of at most 16 KiB) starts a renamed package carries `renamedFrom` and
+`updateCommand`. The person runs these in a terminal; the host never runs them.
 
 `agentSession.list` answers:
 
@@ -60,50 +59,42 @@ for the person to run in a terminal; the host shows them and never runs them.
   customCommandLine, running, hidden }
 ```
 
-`found` is whether the program was found on `PATH`. `package`, `installCommand`,
-`renamedFrom` and `updateCommand` are null for the person's own command. `running` is
-`{ agentId, name, state, working }` for an agent that has not ended, else null. `hidden`
-lists the agents the person hid on this device, by ID, `custom` for their own command. A
-hidden agent is still listed in `agents`, so the page can offer to show it again
-(`host-types.ts`, `LaunchableAgents`).
-
-The command line and the hidden IDs are kept for this device only, never in the file, in
-`agent-launch.json` under the device state (at most 4,096 bytes, written under the device
-state lock). An ID this build does not know is dropped when it is read.
+`found` is whether the program is on `PATH`. The package fields are null for `custom`.
+`running` is `{ agentId, name, state, working }` for an agent that has not ended, else null.
+`hidden` lists the agents hidden on this device (`custom` included); a hidden agent is still
+in `agents` so it can be shown again (`host-types.ts`, `LaunchableAgents`). The command line
+and hidden IDs are kept only on this device, in `agent-launch.json` under the device state
+(at most 4,096 bytes, written under the device state lock); an unknown ID is dropped on read.
 
 ## The bridge methods
 
-The Workbench reaches the conversation with eleven methods
-(`WorkbenchProtocol.Agents.cs`). Each names the file session it belongs to in the request's
-`fileSessionId`; a request for a session that is no longer open is `stale-file-session`.
-All eleven run away from the UI thread (`WorkbenchMethods.OffUiThread`). They are dispatched
-after the actor check, so a request that names a custom view's `actor` is refused as
-`actor-not-allowed`; the extension broker's closed method table names none of them.
+Eleven methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
+`fileSessionId`; a session no longer open is `stale-file-session`. All run off the UI thread
+(`WorkbenchMethods.OffUiThread`) and are dispatched after the actor check, so a request
+naming a custom view's `actor` is `actor-not-allowed`; the extension broker's method table
+names none of them.
 
-Four methods take the request gate: `agentSession.list`, `agentSession.setCommand`,
-`agentSession.setHidden` and `agentSession.launch`. Each finds the agents before it takes the
-gate, since that reads nothing of the file: one search of `PATH` at a time, shared by the
-requests that come while it runs or within two seconds of its start, so a `PATH` folder that
-does not answer holds no other request (DAE-07). The other seven do not wait on it, and
-check `fileSessionId` themselves: the tab must keep reading while an agent's own write holds
-the file. Each of those seven except `read` refuses as `agent-not-launched` when no agent
-has been launched for the file. Each of those six may also name the `conversationId` the tab
-holds; one that names a conversation since replaced is refused as
-`agent-conversation-replaced` and reaches nothing. Entry IDs start again with every launch, so
-without it an answer to a replaced conversation's question could land on the new one's.
+`list`, `setCommand`, `setHidden` and `launch` take the request gate, finding the agents
+first, since that reads nothing of the file: one `PATH` search at a time, shared by requests
+that arrive while it runs or within two seconds of its start. The other seven do not wait on
+the gate and check `fileSessionId` themselves, so the tab keeps reading while an agent's own
+write holds the file. Each of those except `read` is `agent-not-launched` when no agent was
+launched for the file, and may name the `conversationId` the tab holds; one naming a
+replaced conversation is `agent-conversation-replaced` and reaches nothing, since entry IDs
+restart with every launch.
 
 | Method | Payload | Answer and refusals |
 | --- | --- | --- |
 | `agentSession.list` | none | The list above. |
 | `agentSession.setCommand` | `commandLine`, at most 1,000 characters; empty or absent forgets it | The list. `agent-command-not-saved` when the device could not keep it. |
-| `agentSession.setHidden` | `agentId` (at most 40 characters), `hidden` | The list. An ID that is neither a known agent nor `custom` is a validation refusal; `agent-choice-not-saved` when the device could not keep it. The file is not written. |
-| `agentSession.launch` | `agentId` (at most 40 characters) | The conversation at `starting`; the handshake runs on. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (the program was not found on this computer), `agent-start-failed` (Windows could not start it), or a validation refusal for an agent the page does not offer. |
-| `agentSession.read` | `after` | The conversation, or `exists: false` when none was launched. |
-| `agentSession.prompt` | `text`, `after`, optional `context` | Below. `agent-not-ready` (still starting, signing in or ended), `agent-working` (a turn is running). |
-| `agentSession.answer` | `entryId` (at most 40), `optionId` (at most 200), absent to cancel | `agent-question-gone` when the agent no longer waits; a validation refusal for an option the agent did not offer. |
-| `agentSession.cancel` | `after` | Stop: `session/cancel` for the running turn, and every open permission request answered as cancelled. |
-| `agentSession.authenticate` | `methodId` (at most 200) | `agent-not-signing-in` unless the agent waits to sign in; `agent-signing-in` while a sign-in started here still runs; a validation refusal for a way it did not offer. The sign-in runs on, and `signingIn` is true until it ends. |
-| `agentSession.setOption` | `configId` (at most 200), `value` (at most 300), `after` | `agent-not-ready`; a validation refusal for an option or value the agent did not offer; `agent-option-refused` when the agent refused or did not answer within 30 seconds. |
+| `agentSession.setHidden` | `agentId` (at most 40), `hidden` | The list. An unknown ID is a validation refusal; `agent-choice-not-saved` when the device could not keep it. The file is not written. |
+| `agentSession.launch` | `agentId` (at most 40) | The conversation at `starting`; the handshake runs on. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), or a validation refusal. |
+| `agentSession.read` | `after` | The conversation, or `exists: false`. |
+| `agentSession.prompt` | `text`, `after`, optional `context` | Below. `agent-not-ready` (starting, signing in or ended), `agent-working` (a turn is running). |
+| `agentSession.answer` | `entryId` (at most 40), `optionId` (at most 200), absent to cancel | `agent-question-gone` when the agent no longer waits; a validation refusal for an option not offered. |
+| `agentSession.cancel` | `after` | `session/cancel` for the running turn; every open permission request answered as cancelled. |
+| `agentSession.authenticate` | `methodId` (at most 200) | `agent-not-signing-in` unless the agent waits to sign in; `agent-signing-in` while a sign-in started here runs; a validation refusal for a way not offered. `signingIn` is true until it ends. |
+| `agentSession.setOption` | `configId` (at most 200), `value` (at most 300), `after` | `agent-not-ready`; a validation refusal for an option or value not offered; `agent-option-refused` when the agent refused or did not answer within 30 seconds. |
 | `agentSession.end` | `after` | Ends the agent and keeps the transcript. |
 
 Every method except `list`, `setCommand` and `setHidden` answers with the conversation:
@@ -114,228 +105,168 @@ Every method except `list`, `setCommand` and `setHidden` answers with the conver
   signingIn, commands }
 ```
 
-`conversationId` names the launch, new for each; null when none was launched. `state` is
-`none`, `starting`, `signIn`, `ready` or `ended`. `level` is the access level's display name
-now. `endpoint` is the one MCP address the agent was given. `firstOrder` is the order of the
-oldest entry the transcript still keeps. `signingIn` is true while a sign-in the person started
-runs; the tab holds the ways to sign in until it ends (DAE-10). `commands` is the agent's
-slash commands as it last stated them in an `available_commands_update`, each
-`{ name, description, hint }`: the name without its slash, and `hint` null for a command that
-takes no input. A name with white space in it, an empty one or a repeat is left out, and at most
-200 are kept. Running one is `agentSession.prompt` with text that starts with `/name`; the host
-sends it as any other message and never checks it against the list.
+`conversationId` is new for each launch, null when none was launched. `state` is `none`,
+`starting`, `signIn`, `ready` or `ended`. `level` is the access level's display name now;
+`endpoint` the one MCP address the agent was given. `firstOrder` is the order of the oldest
+entry kept. `signingIn` is true while a sign-in the person started runs; the tab holds the
+ways to sign in until then. `commands` is the agent's slash commands from its last
+`available_commands_update`, each `{ name, description, hint }` (name without its slash,
+`hint` null for no input); a name with white space, an empty one or a repeat is left out,
+and at most 200 are kept. Running one is `agentSession.prompt` with text starting `/name`,
+sent like any message and never checked against the list.
 
 ## Reading the conversation
 
-The conversation counts its changes in one revision. Each entry carries the revision at
-which it last changed, so a reader asks only for what changed after the revision it holds.
-`agentSession.read` with `after` returns the entries whose revision is later, in revision
-order, at most 200 at a time. When more remain, `more` is true and `revision` is the last
-returned entry's, so the next read continues from it; otherwise `revision` is the
-conversation's own (`AgentConversation.Read`).
+The conversation counts its changes in one revision, and each entry carries the revision at
+which it last changed. `agentSession.read` with `after` returns the entries changed later, in
+revision order, at most 200 at a time. When more remain, `more` is true and `revision` is the
+last returned entry's; otherwise it is the conversation's (`AgentConversation.Read`).
 
-The `agentSessionChanged` event carries the conversation's revision and nothing else
-(`WorkbenchEvents.AgentSessionChanged`). The tab reads what changed with
-`agentSession.read`. A conversation that has been replaced, or whose file has closed,
-raises no event. A new access level that keeps the agent raises the event too, with the
-revision unchanged, since the tab shows the level and what it does with a change.
-
-The tab fixes the launch a read is of before the read goes out, and drops an answer that
-arrives after New session or a file change; it also never merges a read whose
-`conversationId` differs from the one it holds (`agent-chat-model.ts`, `mergeChat`). It
-drops every entry before `firstOrder`, so a tab open from the start holds what a tab opened
-now would.
+The `agentSessionChanged` event carries only the revision
+(`WorkbenchEvents.AgentSessionChanged`). A replaced conversation, or one whose file closed,
+raises none. A new access level that keeps the agent raises it with the revision unchanged.
+The tab fixes which launch a read is of before sending it, drops an answer that arrives
+after New session or a file change, never merges a read whose `conversationId` differs
+(`mergeChat`), and drops every entry before `firstOrder`.
 
 An entry is `{ id, order, revision, kind, text, title, toolKind, status, input, options,
-answer, plan, origin }`, where `kind` is `you`, `agent`, `thought`, `tool`, `plan`,
-`permission` or `notice`. The agent's message and thought chunks are joined into one entry
-until something else intervenes. A tool call is one entry, updated in place. A diff in a
-tool's content is kept as its path and the text before and after (each cut at 8,000
-characters). The plan is one entry, replaced whole each time the agent states it.
+answer, plan, origin }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
+`permission`, `notice`. Message and thought chunks join into one entry until something else
+intervenes. A tool call is one entry, updated in place; a diff in its content is kept as its
+path and the text before and after (each cut at 8,000 characters). The plan is one entry,
+replaced whole each time.
 
-`origin`, on a tool or a permission request, is judged only from what names the tool: the
-tool name in the agent's `_meta` (as `toolName`, at most two levels down), its title, and
-its kind. It is `nendo` when that name or the title names this file's MCP tools, or the title
-names a `nendo://` address and the tool's kind is not `execute`; otherwise `agent`. When
-the agent gives the tool's own name, that name alone decides, since a title can name another
-server's tool by its bare name or echo the tool's input. A server prefix counts only when it
-is the session's own server, `nendo`: every Nendo file's server offers the same tools, so
-`mcp__nendo-planner__nendo_data_delete_record` is a server the person registered for another
-file, and `agent`. What a
-tool sends is never evidence: a shell command that prints a `nendo://` address is still the
-agent's own.
+`origin`, on a tool or permission request, is judged only from what names the tool: the
+tool name in the agent's `_meta` (`toolName`, at most two levels down), its title and its
+kind. It is `nendo` when that name or the title names this file's MCP tools, or the title
+names a `nendo://` address and the kind is not `execute`; otherwise `agent`. A given tool
+name alone decides. A server prefix counts only when it is the session's own server,
+`nendo`: `mcp__nendo-planner__nendo_data_delete_record` is another registered server, so
+`agent`. What a tool sends is never evidence.
 
-A permission request's entry keeps, as its `text`, what the request's tool call says it
-would do: its content (a diff, text) and the places it names (`Where: path:line`), or else
-the text of the tool call it is about. The tab offers to show that text and the input before
-the person answers.
+A permission request's `text` is what its tool call says it would do: its content (a diff,
+text) and the places it names (`Where: path:line`), or else the tool call's text. The tab
+offers that text and the input before the person answers.
 
-Everything an entry holds is the agent's or a tool's text and is kept as text. Every text
-the agent writes into the transcript, its messages and reasoning, a plan, a tool's title,
-input and output, and a notice that carries its error output, has the value of any
-application handle replaced by `(hidden)`: after its key (`applicationHandle`,
-`resumeApplicationHandle` or `application_handle`), quoted or not, and, for any handle a
-lease grant in this process has carried, wherever its value appears, in prose, a table or
-on its own. Whoever holds the handle may write as the agent
-([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md)). The
-redaction runs again on each entry as it is read, so a handle split across streamed chunks
-is hidden once they meet, and a value cut off at the end of a message still streaming is
-hidden too. The Workbench draws every entry as text; an agent's message goes through the
-Markdown subset, which escapes every character before it adds a tag.
+Everything an entry holds is kept as text. Every text the agent writes into the transcript
+(messages, reasoning, plans, a tool's title, input and output, a notice carrying its error
+output) has any application handle replaced by `(hidden)`: after its key
+(`applicationHandle`, `resumeApplicationHandle` or `application_handle`), quoted or not, and,
+for any handle a lease grant in this process carried, wherever its value appears. Whoever
+holds the handle may write as the agent
+([ADR-0009](../decisions/0009-local-mcp-transport-authority-and-change-sets.md)). Redaction
+runs again on each entry as it is read, so a handle split across chunks, or cut off in a
+streaming message, is hidden too. The Workbench draws every entry as text; an agent message
+goes through the Markdown subset, which escapes every character before adding a tag.
 
-The transcript is bounded: at most 1,000 entries, the oldest dropped first; at most 200,000
-characters in one entry; a tool's output cut at 20,000 characters and its input at 2,000.
+The transcript holds at most 1,000 entries (oldest dropped first) and 200,000 characters per
+entry; a tool's output is cut at 20,000 characters and its input at 2,000.
 
 ## A prompt, and what the person points at
 
 `agentSession.prompt` takes `text`, at most 100,000 characters and not empty once trimmed.
-Its optional `context` is what the person pointed at with @ in the Workbench: at most eight
-items `{ uri, title, text }`. The `uri` is one of the file's own addresses, beginning
-`nendo://`, at most 600 characters, with no whitespace. The `title` is 1 to 120 characters
-once trimmed. Each `text` is at most 8,000 characters, and the texts together at most
-32,000. One refused item refuses the whole message: nothing reaches the agent and no turn
-starts (`AgentConversation.Context.cs`). The person's entry names the items in its `title`.
+Its optional `context` is what the person pointed at with @: at most eight items
+`{ uri, title, text }`. `uri` is one of the file's `nendo://` addresses, at most 600
+characters, no whitespace; `title` 1–120 characters once trimmed; each `text` at most 8,000
+characters and all together at most 32,000. One refused item refuses the message: nothing
+reaches the agent and no turn starts (`AgentConversation.Context.cs`). The person's entry
+names the items in its `title`.
 
-The Workbench keeps a message within those bounds before it is sent
-(`agent-context-model.ts`, `withAttachment`): a description is cut to the room the message
-has left, keeping the `nendo://` address that reads the rest; a thing that no longer fits, or
-a ninth, is not added, its @name is not left in the message, and a line under the chips says
-why, and which item says the most, to take back, as well as saying it aloud (WAU-03); names
-are cut to 120 characters. New session starts the composer again, with nothing pointed at.
+The Workbench keeps a message within those bounds before sending
+(`agent-context-model.ts`, `withAttachment`): a description is cut to the room left, keeping
+the `nendo://` address that reads the rest; an item that no longer fits, or a ninth, is not
+added, its @name is not left in the message, and a line under the chips (also announced)
+says why and which item to take back. Names are cut to 120 characters. New session clears
+the composer.
 
 The ACP prompt is the person's words first, then the items. An agent that declared
-`agentCapabilities.promptCapabilities.embeddedContext` at `initialize` gets each item as a
-`resource` block carrying its address and its text as `text/markdown`. Any other agent gets
-a `resource_link` for each item, which every ACP agent reads, followed by one text block with
-the descriptions. The Workbench writes those descriptions, with the IDs the agent needs, in
-`agent-context-model.ts`.
+`agentCapabilities.promptCapabilities.embeddedContext` gets each item as a `resource` block
+with its address and its text as `text/markdown`; any other gets a `resource_link` per item
+followed by one text block with the descriptions, which `agent-context-model.ts` writes with
+the IDs the agent needs.
 
 ## What the host tells the agent
 
 The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversation.cs`).
 
-- `initialize` declares no file-system and no terminal client capability
-  (`fs.readTextFile`, `fs.writeTextFile` and `terminal` all false). An agent that answers
-  another protocol version, or does not declare `agentCapabilities.mcpCapabilities.http`, is
-  ended with a sentence that names why. A version sent as text, as an MCP server sends its
-  date-named versions, is named in that sentence as not ACP. A number the agent sends as
-  another kind of JSON is read as absent, and anything else that goes wrong in the handshake
-  ends the conversation with a sentence rather than leaving it at `starting` (DAE-03). An
-  error answer whose `code` is not a number is an internal error, never the end of the
-  connection (DAE-04).
-- `session/new` names exactly one MCP server: the open file's own address, as an `http`
-  server called `nendo` with no headers. The working directory is a new, empty folder.
-- When the agent answers `session/new` with ACP's `auth_required`, the conversation waits
-  at `signIn` and names the ways the agent offered (at most eight). The agent program does
-  the signing in, within five minutes; no secret passes through Nendo. One sign-in runs at a
-  time, and an update that names another session than the one open is not drawn (DAE-10).
-- The only request from the agent the host answers is `session/request_permission`. Any
-  other is answered as a method not found. A permission request is shown with the agent's
-  own options, at most eight, and waits for the person. The host never answers one by
-  itself; Stop, End, or the end of the connection answers it as cancelled, which the tab
-  draws as cancelled when the turn stopped, never as the person's choice. The card names the
-  tool's kind (Read, Edit, Delete, Run) beside the agent's title for it (WAU-12).
-- The agent's own options (its model, effort, mode, or anything else it offers as a
-  `select` config option; at most 16, each with at most 300 values) are shown as the agent
-  states them and set with `session/set_config_option` only when the person picks a value.
-  An arrow key on a closed list only looks: the value is picked with Enter, from the open
-  list, or by leaving the list, and More stays open while the person steps through it.
-  An agent that sends no config options but `modes` or `models` has them shown as Mode and
-  Model and set with `session/set_mode` and `session/set_model`
-  (`AgentConversation.Options.cs`).
+- `initialize` declares no file-system or terminal capability (`fs.readTextFile`,
+  `fs.writeTextFile`, `terminal` all false). An agent answering another protocol version, or
+  not declaring `agentCapabilities.mcpCapabilities.http`, is ended with a sentence naming
+  why; a version sent as text is named as not ACP. A number sent as another JSON kind reads as
+  absent, and any other handshake failure ends the conversation with a sentence rather than
+  leaving it at `starting`. An error answer whose `code` is not a number is an internal
+  error, never the end of the connection.
+- `session/new` names exactly one MCP server: the open file's address, as an `http` server
+  called `nendo` with no headers. The working directory is a new, empty folder.
+- When `session/new` answers `auth_required`, the conversation waits at `signIn` and names
+  the ways offered (at most eight). The agent program signs in, within five minutes; no secret
+  passes through Nendo. One sign-in runs at a time, and an update naming another session is
+  not drawn.
+- The only agent request the host answers is `session/request_permission`; any other is
+  method not found. A permission request shows the agent's own options (at most eight) and
+  waits for the person; the host never answers by itself. Stop, End or the connection's end
+  answers it as cancelled, drawn as cancelled when the turn stopped. The card names the
+  tool's kind (Read, Edit, Delete, Run) beside the agent's title.
+- The agent's own `select` config options (model, effort, mode or anything else; at most 16,
+  each with at most 300 values) are shown as stated and set with `session/set_config_option`
+  only when the person picks a value. An arrow key on a closed list only looks: Enter, a pick
+  from the open list or leaving the list sets it, and More stays open while stepping through.
+  An agent that sends `modes` or `models` instead has them shown as Mode and Model and set
+  with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`).
 
 ## Lifetime
 
 The program runs in a new empty folder under the device state's `agent-sessions`, named by
-the host process and a new GUID, never in or around the folder that holds the `.nendo` file,
-with the person's own environment as Windows holds it at launch, which is where it finds its
-sign-in. It is placed in a Job Object that ends it, and every process
-it started, when the job's handle closes: when the conversation ends, and when the host
-ends for any reason (`AgentProcess.cs`). The last 4,000 characters of its error output are
-kept, so a program that stops on its own can say why in the notice.
+the host process and a new GUID, never in or around the `.nendo` file's folder, with the
+person's environment as Windows holds it at launch. It is placed in a Job Object that ends
+it and every process it started when the job's handle closes: when the conversation ends and
+when the host ends for any reason (`AgentProcess.cs`). The last 4,000 characters of its
+error output are kept for the notice.
 
-Ending the agent ends the program and everything it started, removes its folder and keeps
-the transcript (`DesktopLaunchedAgent.EndAsync`). Each launch first removes every folder no
-running agent can be using: one of this host's own that no agent of it runs in, one of
-another host process once that process has ended, and one named before folders carried the
-process unless a program still works in it. A host that was killed, upgraded over or logged
-off, or a delete that gave up, so leaves its folder only until the next launch (DAE-11). Every way the conversation ends ends the
-program too, a refusal at the handshake included: a refused agent that keeps its input open
-does not run on. It ends when:
+Ending the agent ends the program and everything it started, removes its folder and keeps the
+transcript (`DesktopLaunchedAgent.EndAsync`). Each launch first removes every folder no
+running agent can use: this host's own with no agent in it, another host process's once that
+process has ended, and one whose name carries no process unless a program still works in it. Every way the
+conversation ends ends the program, a refusal at the handshake included. It ends when:
 
 - the person ends it (`agentSession.end`), or starts a new session, which ends it and
   launches the same agent again;
 - the Workbench closes the tab that owns the conversation, which calls `agentSession.end`
-  (`view-agent-chat.ts`). That is the tab that last showed it, known by the tab and not by
-  what its trail still holds, wherever it has gone since: a trail drops the conversation
-  when the person goes Back and then somewhere new, and after 50 more places (WAU-01). A new
-  tab opened beside the conversation starts from the place before it, or the Agent page, and
-  Open conversation goes to the owning tab and moves it to the conversation rather than
-  opening another, so one conversation never has two tabs (`workspace-tabs.ts`, WAU-15);
-- the program stops on its own, or its connection ends while it runs: the notice says why,
-  for example that Nendo ended the connection over a message larger than the 8 MiB it
-  accepts, rather than that the agent stopped answering (DAE-14);
-- agent access stops: the level set to Off, a listener that could not start again, or a
-  file replacement;
-- the listener restarts at another address, which happens without a fixed port: the notice
-  names the new address;
+  (`view-agent-chat.ts`). The owner is the tab that last showed it, known by the tab, not by
+  its trail (a trail drops the conversation after Back and somewhere new, and after 50 more
+  places). A new tab opened beside it starts from the place before it, or the Agent page; Open
+  conversation goes to the owning tab, so one conversation never has two tabs
+  (`workspace-tabs.ts`);
+- the program stops, or its connection ends while it runs: the notice says why, for example
+  a message over the 8 MiB Nendo accepts;
+- agent access stops: Off, a listener that could not restart, or a file replacement;
+- the listener restarts at another address (no fixed port): the notice names the new one;
 - the file closes, which also drops the conversation.
 
-A level change that keeps the address keeps the agent; its next MCP call meets the new
-level.
+A level change that keeps the address keeps the agent; its next MCP call meets the new level.
 
-The transcript lives in the host's memory from launch until the file closes or another
-agent is launched. It is never written to the file or to the device. What the device keeps
-is the person's command line and the agents they hid, and, while an agent runs and until
-the next launch sweeps it, its working folder.
+The transcript lives in host memory from launch until the file closes or another agent is
+launched, never in the file or on the device. The device keeps the command line, the hidden
+agents and, until the next launch sweeps it, a working folder.
 
 ## What Nendo cannot confine
 
 The program is the one the person would run in a terminal, with the same abilities. Nendo
 gives it no file-system or terminal capability, an empty working folder and only the file's
-MCP address at the person's level. It does not sandbox the program, and an agent's own
-tools are its own. The axiom that agents never receive raw SQL or file-system authority
-holds for what Nendo grants, not for what the person's own program can do on this computer.
+MCP address at the person's level. It does not sandbox the program, and an agent's own tools
+are its own. The axiom that agents never receive raw SQL or file-system authority holds for
+what Nendo grants, not for what the person's own program can do on this computer.
 
-## What pins it
+## Tests
 
-- [`DesktopLaunchedAgentTests`](../../tests/Nendo.Desktop.Tests/DesktopLaunchedAgentTests.cs),
+- [`DesktopLaunchedAgentTests`](../../tests/Nendo.Desktop.Tests/DesktopLaunchedAgentTests.cs)
   against a stand-in agent that records what it was told
-  (`tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`): the capabilities declared
-  off, one MCP server and it the file's address, an empty working folder outside the file's
-  folder, the refusals by name, Launch from Inspect upward and refused at Off, permission
-  requests that wait for the person, Stop, the handle hidden, the end on file close with the
-  program, its child and its folder gone, a level change that keeps the agent and Off that
-  ends it, an address that moves, sign-in, the agent's options, `origin` (a shell that names
-  `nendo://` stays the agent's own), what the person points at with its bounds, a refused
-  agent ended with its folder, the handle hidden in every channel and across chunks, a
-  permission request's diff and places, `firstOrder`, `agent-conversation-replaced`, and the
-  event a new level raises; a version as text and a null line (DAE-03), an error code as text
-  with the listener stopped at file close (DAE-04), the catalogue off the gate (DAE-07), one
-  sign-in at a time (DAE-10), left-over folders swept (DAE-11), today's `PATH` and variables
-  (DAE-12), and the size limit named as Nendo's (DAE-14).
+  (`tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`).
 - [`WorkbenchAgentSessionProtocolTests`](../../tests/Nendo.Desktop.Tests/WorkbenchAgentSessionProtocolTests.cs):
-  the methods on the bridge, `stale-file-session`, `agent-launch-unavailable`,
-  `agent-not-launched`, every method off the UI thread, no file path in the list, and hiding
-  kept on the device without a write to the file.
-- The Workbench's node tests
-  [`agent-chat.test.mjs`](../../src/Nendo.Workbench/scripts/agent-chat.test.mjs),
-  [`agent-context.test.mjs`](../../src/Nendo.Workbench/scripts/agent-context.test.mjs) and
-  [`agent-launch.test.mjs`](../../src/Nendo.Workbench/scripts/agent-launch.test.mjs): reads
-  merged by revision, a late read of a replaced conversation dropped, entries before
-  `firstOrder` dropped, a permission request's details shown as text, nothing an agent, a
-  tool, the file or the host names becoming markup, the bounded @ menu and its descriptions,
-  a message kept within the host's bounds, and the Launch tab's missing, renamed and hidden
-  agents, a cancelled request and the tool's kind (WAU-12), markup built only for an item that
-  changed (WAU-05), disclosures named by entry and part (WAU-09) and sign-in held while it runs
-  (DAE-10); `navigation-trail.test.mjs` for which tab owns the conversation (WAU-01);
-  `preview-agent-session.test.mjs` for the preview's script, whose steps belong to their
-  launch and turn and which refuses a second launch (WAU-16).
+  the bridge methods, their refusals, off-UI-thread dispatch and device-only hiding.
+- The Workbench node tests `agent-chat.test.mjs`, `agent-context.test.mjs`,
+  `agent-launch.test.mjs`, `navigation-trail.test.mjs` and `preview-agent-session.test.mjs`
+  in `src/Nendo.Workbench/scripts/`.
 - [`tools/Review-AgentChat.ps1`](../../tools/Review-AgentChat.ps1), run by
-  `Test-Production.ps1`: the built Workbench against the browser preview's scripted agent,
-  measuring the level shown after a change on the Agent page, keyboard focus on a fold and a
-  permission's details, where More opens at 1,024 to 760 pixels in both themes, New session
-  with nothing pointed at, the tab that owns the conversation, after Back too (WAU-01), Open
-  conversation reusing it (WAU-15), a double press on Launch and on Enter and a message that
-  waits (WAU-10), an open disclosure kept with its step (WAU-09), and a ninth thing refused on
-  screen without its @name (WAU-03).
+  `Test-Production.ps1`: the built Workbench against the preview's scripted agent, in both
+  themes.

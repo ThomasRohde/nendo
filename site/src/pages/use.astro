@@ -38,7 +38,7 @@ const demo = [
   description="What you need, how to build Nendo, how to open a .nendo file, what Studio gives you, how to connect a coding agent, and two walkthroughs to try."
   eyebrow="Using Nendo"
   heading="Build it from source, then open a file."
-  lede="There is no download yet. Nendo installs per user on Windows x64, unsigned, with no releases, no updates and no support. That is where the project is today, and everything below assumes it."
+  lede="There is no download. Nendo installs per user on Windows x64, unsigned, with no releases, no updates and no support, and everything below assumes it."
 >
   <section class="page section">
     <div class="note note-warning">
@@ -65,7 +65,7 @@ const demo = [
         <pre><code>git clone https://github.com/ThomasRohde/nendo
 cd nendo
 pwsh ./tools/Test-Production.ps1</code></pre>
-        <p>After the first restore this takes about a minute. Run it in an unlocked desktop session.</p>
+        <p>After the first restore this takes several minutes. Run it in an unlocked desktop session.</p>
       </article>
       <article>
         <h3>Package an installer</h3>
@@ -108,7 +108,7 @@ pwsh ./tools/Build-NendoInstaller.ps1</code></pre>
     <div class="grid studio-areas">
       <article><h3>Data</h3><p>The table and the record editor. This part can never be removed.</p></article>
       <article><h3>Structure</h3><p>Record types, fields and relationships. Changes here become proposals to review.</p></article>
-      <article><h3>Surfaces</h3><p>The screens in the file, and what each one is bound to.</p></article>
+      <article><h3>Screens</h3><p>The screens in the file, and what each one is bound to.</p></article>
       <article><h3>History</h3><p>Every revision in order, and whether it can be undone.</p></article>
       <article><h3>Health</h3><p>Compatibility, integrity and trust checks, and this computer's approval for automatic actions.</p></article>
     </div>
@@ -143,7 +143,7 @@ codex mcp add nendo --url http://127.0.0.1:41763/mcp</code></pre>
       <p>
         Claude Code and Codex are the only clients that have been tested. Other MCP
         clients may work, but nobody has checked. Launch offers more agents, over ACP;
-        apart from one live check with GitHub Copilot CLI, those are untested too.
+        apart from GitHub Copilot CLI, checked live by hand, those are untested too.
       </p>
     </Prose>
   </section>

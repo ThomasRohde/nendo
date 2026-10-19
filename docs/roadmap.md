@@ -1,876 +1,220 @@
 # Roadmap
 
-This file describes where Nendo goes next and what is not yet true. It replaces
-the running milestone changelog. [architecture.md](architecture.md) describes
-delivered work, and this file does not discuss that work again.
+This file says where Nendo stands, what is not qualified and what is known not to
+work yet. [architecture.md](architecture.md) describes what is built. Priorities and
+execution live in the [development planner](dogfooding.md): its Now and Next horizons
+are the plan, and this file does not repeat them. Accepted ADRs and contracts keep
+architecture authority.
 
-## Development planning
+## Where Nendo stands
 
-**Nendo Development is the primary work planner.** [dogfooding.md](dogfooding.md)
-describes its connection, record types and agent handoff. Use its
-Now / Next / Later horizons, work statuses, Findings and Checks for detailed
-priorities and execution evidence. This roadmap keeps product direction,
-qualification limits and source context. Accepted ADRs and contracts keep
-architecture authority. A backlog import is not acceptance of a future design.
+Nendo 1.0.0 is a local, unsigned, per-user Windows x64 install for the owner's own
+use. The core loop works end to end: an external agent connects over local MCP,
+inspects a real application, authors and reshapes it, and the owner reviews a semantic
+diff and accepts. Four reference applications test the claim from different shapes:
+Idea Garden, Decision Log, the Axiom Register and [Nendo Station](nendo-station.md).
+The last two were built from an empty file through MCP alone.
 
-The initial inventory covers the unfinished work and intentional limitations
-below, the linked surface plan and the remaining review findings. The inventory
-does not import delivered slices or resolved historical defects as new
-unfinished work.
-
-## State
-
-The MVP loop works end to end on Windows x64. An external agent connects over
-local MCP, inspects a real installed application, and authors and reshapes it.
-The owner then reviews a semantic diff and accepts. Four reference applications
-(Idea Garden, Decision Log, the Axiom Register and Nendo Station) test the
-claim from different shapes. The last two were built from an empty file through
-the MCP interface alone. [Nendo Station](nendo-station.md) carries every kind of
-screen that this host compiles except the outline, added at 1.36.0, plus a custom
-view of its own.
-
-Delivery is a local, unsigned, per-user Windows x64 install. Product 1.0.0
-(2026-10-14, I-010) is a release for the owner's own use. It promises that a file 1.0
-opens normally keeps opening normally in every later 1.x
-([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md), 2026-10-14
-amendment). It is not a public release, and every row below still stands.
+1.0 promises that a file 1.0 opens normally keeps opening normally in every later 1.x
+([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md)). It is not a
+public release, and every gap below stands.
 
 ## Not qualified
 
-Each area below is a gap. Do not read a gap as a feature.
+Each row is a gap. Do not read a gap as a feature.
 
 | Area | Status |
 | --- | --- |
 | Public distribution, code signing, ARM64 | Not started |
-| Clean-machine install | Owner-reported pass on a machine that is now used for all other work. No automated assertion exists, and none is planned. Accepted limitation 2026-09-19 (W-027 dropped): a disposable environment costs about an afternoon of work, and it gives evidence only about a path that only the owner uses |
-| Installed startup on large datasets | Accepted measured exception. It is not a pass. Since 2026-09-26 (W-026) one open inspects the file once, not twice: on 10,000 records and 10,000 revisions the Engine's open fell from about 2.4 s to 1.5 s (`Review-DesktopPerformance.ps1`, published payload). Whole startup still misses 5 s on the largest cells, and most of it, and nearly all its variance, lies outside the Engine: the first launch of each cell took 7.6 to 7.9 s. Since 2026-10-04 (W-132) the recent-file lists read each file's identity rather than inspecting it, the taskbar Jump List no longer holds the request gate the startup open and the Workbench's reads wait on, and the browser starts while the file opens. With this device's real recent-file history, a copy of an 18 MB file opened to a usable view in a median 2.2 s instead of 5.1 s, and launching to the Start page took 1.5 s instead of 3.8 s (five interleaved warm runs each, a CDP probe against a Release publish and the installed build). `Review-DesktopPerformance.ps1` was not run, so the exception stands |
-| Human usability and accessibility | Owner-reported. The owner ran the Windows 100%/200% scaling, keyboard/focus and screen-reader checks. No lane instruments them. Accepted limitation 2026-09-20 (W-028 dropped): instrumentation of these checks is not valuable for this prototype |
-| Cloud sync and live-root writes | Unsupported. The host warns about known sync paths. There is no sync-safety claim |
-| Physical power loss | Not qualified |
-| Reference MCP Inspector | Opt-in lane only. `Test-Production.ps1 -Inspector` runs the reference Inspector's `tools/list` against a host and compares it with the host's own list; the package is not on the development machine, so the lane has reported Inconclusive and never a pass. The gate ports four of the Inspector's lint rules instead |
-| Broad MCP client parity | Not promised. Claude Code and Codex both connect with only the address, and opt-in installed-client lanes check this. That is not a general parity claim |
-| Account boundary on a shared machine | Removed with the credential ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)). This was chosen for iteration speed on a single-user machine. It is not a gap that work is closing |
 | Cross-platform | Windows only |
-| Custom views | Phases 0 to 4 are delivered, and of Phase 5 the `extensionView` root; the front-page `extensionTile` is not built. Phase 2's journey passed on 2026-09-25 against a Debug build. No product lane measures the clipboard, downloads or pop-ups in a view, or the memory budget with the eight real packages under `extensions/`. A received file's code runs when its view is shown: an accepted limitation ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) |
-| The notification area and Windows notifications | Owner-reported. `Review-ShellRuntime.ps1` checks four things: close hides the window, the process and its file survive, opening the same file again brings the hidden window back, and the exit pin exits. A script cannot observe the icon, its menu or the notifications, and no lane instruments them. By default, Windows puts a new tray icon in the overflow. No test checks whether a first-time person finds their window again |
-| What the Windows shell draws | Owner-reported. The line between measured and not measured is stated precisely here. Measured, item by item: the registry writes that setup makes and removes; the shell identity, read back from the running window and from the notification registration that Windows filed under it; the Jump List file that Windows stored, and the fact that it names the open file; and the `-new` command line, run by hand against both an empty placeholder and an existing file (agent-observed, not a lane). Not measured, and not reachable from a script: Explorer draws the document icon; the taskbar paints the overlay badge or progress; the menu appears on right-click; a file dragged from Explorer arrives; the Jump List is rebuilt when the open file changes. `SetOverlayIcon` and `SetProgressState` report nothing back, and nothing can read them, so the call is unobserved as well as the paint. WebView2 itself refuses a page-made file, and that refusal is measured |
+| Cloud sync and live-root writes | Unsupported. The host warns about known sync paths. No sync-safety claim |
+| Physical power loss | Not qualified |
+| Clean-machine install | Owner-reported pass. No automated assertion, and none planned: a disposable environment costs more than the evidence is worth for a path only the owner uses |
+| Installed startup on large datasets | Accepted measured exception, not a pass. On the largest cells of `Review-DesktopPerformance.ps1` (10,000 records, 10,000 revisions) whole startup misses 5 s, mostly outside the Engine |
+| Human usability and accessibility | Owner-reported: Windows 100%/200% scaling, keyboard and focus, screen reader. No lane instruments them |
+| The notification area and Windows notifications | Owner-reported. `Review-ShellRuntime.ps1` checks that close hides the window, the process and its file survive, opening the same file again brings the window back, and the exit pin exits. No script can observe the tray icon, its menu or the notifications. Windows puts a new tray icon in the overflow, and nothing tests whether a first-time person finds their window again |
+| What the Windows shell draws | Owner-reported. Measured: the registry writes setup makes and removes; the shell identity, read back from the running window and the notification registration; the stored Jump List and that it names the open file; WebView2's refusal of a page-made file. Not measured, and not reachable from a script: the Explorer document icon, the taskbar overlay badge and progress (`SetOverlayIcon` and `SetProgressState` report nothing back), the right-click menu, a file dragged from Explorer, the Jump List rebuilt when the open file changes |
+| Reference MCP Inspector | Opt-in lane only. `Test-Production.ps1 -Inspector` compares the Inspector's `tools/list` with the host's; the package is not on the development machine, so it reports Inconclusive. The gate ports four of its lint rules instead |
+| Broad MCP client parity | Not promised. Claude Code and Codex connect with only the address, and opt-in installed-client lanes check that |
+| Account boundary on a shared machine | None. There is no credential ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)): every process under every account connects at the file's access level. Chosen for iteration speed on a single-user machine. The route back is a peer-process user check, not built |
+| Custom views | Phases 0 to 4 and the `extensionView` root are delivered; the `extensionTile` on the front page and dashboards is not built. No product lane measures the clipboard, downloads or pop-ups in a view, or the memory budget with the real packages under `extensions/`. A received file's code runs when its view is shown: an accepted limitation ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) whose only controls are the kill switches |
 
-## Lazy data views
+## Known limitations
 
-W-233 delivers continuous loading for Studio's flat table. Use lists, related records,
-boards and date-range views still need separate loading policies; outlines retain
-bounded sibling reads. Rectangular paste and bulk edits need their own decision.
-The 2026-10-14 synthetic Engine run reached the final block of 100,000 records in one
-request (19.43 ms), versus 1,000 cursor requests (3709.31 ms), with no full-record read.
-Unindexed text sorting at that size measured 1525.69 ms p95 across 12 samples and
-locating an edited record took 867.14 ms. These exceed the proposed 250 ms ordinary-block
-budget: bounded transport is delivered, but fast deep sorting of arbitrary large tables
-is not qualified. Timings are observations on the development machine, not guarantees.
-See [the plan](design/lazy-data-views.md) for the remaining acceptance scope.
+### Agent authoring and MCP
 
-## Archi in Nendo
+- **A sum totals a required field only.** Installation refuses a `Sum` over an optional
+  field. A `Coalesce` or per-member default needs its own semantics.
+- **Concurrent proposals are announced, not rebased.** `change_set.begin` reports other
+  open change sets and `proposals` lists what is pending; a staleness conflict still
+  appears at validate, and `nendo.change_set.revalidate` validates the same operations at
+  the current revision. An automatic rebase changes what a conflict means under
+  [ADR-0007](decisions/0007-proposal-clone-validation-and-replay-promotion.md) and needs
+  its own ADR.
+- **An agent that lost its application handle can see a pending proposal but not act on
+  it.** One that kept its handle resumes under it with `nendo.lease.acquire`. Binding a
+  proposal to something more durable is an authority change.
+- **A minimum-host-version raise is shown, not chosen.** The diff carries
+  `raiseMinimumHostVersion` as an irreversible line, but a change set cannot be authored
+  to stay within an older host, and a file's minimum host never goes down, even when the
+  property that raised it is removed or undone.
+- **The discovery advertisement names the file, not its path.** `displayName` is
+  present; `filePath` is not, and a path put there is cut to its last segment. Agents
+  never receive a database path ([vision](vision.md)).
+- **At Unattended nobody reads the change before the file takes it.** It is off by
+  default, confirmed before it takes effect, remembered only for the file it was chosen
+  for (a copy made outside Nendo keeps the level), and every acceptance is a History
+  revision. Nothing records that a change went in unreviewed, and nothing warns a person
+  who leaves the level on.
+- **Closing the window does not close the file.** Close hides to the notification area,
+  so access stays on. The tray menu shows the access mode and can end it.
+- **An import is not atomic.** `nendo.data.import_records` commits fifty rows per
+  revision; an exact retry replays what committed. The caller cannot ask which row was
+  refused, except from the message, or skip it.
+- **A JSON import is taken in the order sent.** A CSV import of a declared tree is put
+  parents first; a JSON record that names a later one is refused as `target-not-found`.
+- **An agent's import reads as plain creates in History** ("Create 50 Tasks"), where a
+  person's reads "CSV import".
+- **An agent cannot write a value larger than one 256 KiB request**, though Studio
+  stores longer text.
+- **The transport has no session.** A client is named from its `initialize` request, then
+  from the `User-Agent` header's first product token, else "Local agent".
 
-I-007 builds an offline ArchiMate modeller as a Nendo application, following
-archi-online, to find how far Nendo can be pushed. [The design](design/archi-in-nendo.md)
-names the record types, the scope and the host features it needs. All four are
-delivered: batch writes from a view (W-102, 2026-09-29), a way past the operation-row
-bound (W-101, 2026-09-30), a file a view can open (W-104, 2026-10-01) and undo (W-103,
-2026-10-04). The bound was the binding one: measured on Archisurance, a file reached it
-after about 100 hours of active diagram editing. Since 2026-09-30 a person folds older
-history into a checkpoint from History (ADR-0021, host 1.39.0), so a modelling file keeps
-accepting writes. `workspace/Archi.nendo` carries the workbench.
+### Launching the person's own agent
 
-## Launching the person's own agent
+[ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md) is built. AG-UI is
+not adopted.
 
-[ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md) is built (W-195,
-2026-10-08). The Agent page starts the person's own installed agent program over ACP,
-at Inspect or higher, and the conversation opens in a new tab. The
-[architecture](architecture.md#agent-surface) describes what the agent is told and
-what ends it. AG-UI is not adopted.
-
-Since then the owner has chosen each part from a design canvas, and each is built:
-
-- the conversation tab, direction A of six (2026-10-08): a reading column where the
-  steps between two messages fold into one line, permission requests inline, and the
-  agent's own options (model, effort, mode) in the composer;
-- the Agent page as three tabs, Activity, Launch and Connect, layout A of four
-  (2026-10-09, W-199), where any agent can be hidden from Launch on this device; since
-  2026-10-10 the tabs are cards that say what is behind each (design C);
-- the composer, design A of four with design D's @ menu (2026-10-09, W-200): chips for
-  the file, the access level and the agent above the box, and @ to point the agent at the
-  file's record types, fields, views, records and waiting proposals, which travel with
-  the message as their nendo:// addresses;
-- New session in the tab's heading, which ends the agent and starts it again; closing
-  the tab, which ends the agent; and a mark on the tab while the agent starts, works,
-  thinks or waits for the person (2026-10-09).
-
-These are not done:
-
-- No gate journey through the real host. The Desktop suite drives a stand-in agent.
-  The headless preview tours and a live check with Copilot CLI were agent-observed.
-- A conversation cannot be resumed (`session/load`). The transcript lives in host
-  memory until the file closes or another agent is launched.
+- No gate journey runs through the real host; the Desktop suite drives a stand-in agent.
+- A conversation cannot be resumed (`session/load`). The transcript lives in host memory
+  until the file closes or another agent is launched.
 - Nendo cannot confine the program, and says so.
 
-## Surfaces and charts
-
-The vision admitted charts and dashboards on 2026-09-14.
-[design/surfaces-and-charts-plan.md](design/surfaces-and-charts-plan.md) states
-what that means, which surfaces it could add and the order to build them. The
-first slice is a foundation: a colour tone on choice options, an exact grouped
-aggregate and one renderer chart kit. The ADR-0004 amendment was accepted on
-2026-09-14.
-
-All eight slices, S0 to S7, are delivered:
-
-- S0 is delivered at minimum host 1.19.0. It adds a tone on every choice option
-  and a record-page header.
-- S1 is delivered at 1.20.0, built from
-  [design/s1-first-charts-plan.md](design/s1-first-charts-plan.md). It adds the
-  exact grouped aggregate, a breakdown chart and a progress ring on lists, boards
-  and record pages, and drill-through into a narrowed list.
-- S3, the timeline, was requested before S2. It is delivered at 1.21.0, built
-  from [design/s3-timeline-plan.md](design/s3-timeline-plan.md). It places records
-  on a spine by a Date field, draws an optional end date as a span, and has an
-  undated view.
-- S2 is delivered at 1.22.0, built from
-  [design/s2-gallery-and-rating-plan.md](design/s2-gallery-and-rating-plan.md). It
-  adds a gallery of cards over a list's window, and a rating drawn as dots on a
-  closed scale.
-- S4, the overview page, is delivered at 1.23.0, built from
-  [design/s4-overview-plan.md](design/s4-overview-plan.md). The overview page is
-  one root that belongs to the file and not to a record type. It has a recent
-  list and a range tile.
-- S5, the trend chart and the activity grid, is delivered at 1.25.0. These are
-  the first groupings whose groups are generated from a resolved range and not
-  read from a field.
-- S6, the matrix and the ranked list, is delivered at 1.26.0. The matrix is a
-  grid of two crossed choice fields, and one read answers it. An empty cell is
-  therefore a cell, and each cell states an exact number beside the cards it
-  holds.
-- S7, a board grouped by a reference, is delivered at 1.27.0. Its columns are
-  records of another type.
-
-## P7: scripting delivered, custom views running from the file
-
-On 2026-09-10, the owner scheduled general scripting
-([ADR-0008](decisions/README.md)) and the general extension model
-([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md)) for P7. This moved
-them from "deferred indefinitely" to "scheduled". ADR-0008 is now delivered.
-
-**ADR-0013 is what remains of P7.** Since 2026-09-25 it decides that a custom
-view's code lives in the `.nendo` file and runs inline in the Workbench, with the
-full typed API and no install or consent step. It lands in phases:
-
-- Phase 0, a disposable WebView2 spike, is done. Its
-  [findings](../prototypes/iframe-views/FINDINGS.md) settled the browser
-  particulars.
-- Phase 1 is delivered, at host 1.33.0 and product 0.13.0. Packages live in the
-  file, a person reviews them as code in a proposal, and an agent writes and reads
-  them through MCP.
-- **Phase 2 is delivered**, at host 1.34.0 and product 0.14.0. A view that is shown
-  runs its code from the file, inline in the Workbench, as a cross-origin frame with
-  a renderer of its own for each package, and reads the file through `window.nendo`.
-  The kill switches, open view definitions, import and export, and the four packages
-  under `extensions/` ported to `window.nendo` came with it. The contained helper is
-  deleted ([custom-view contract](contracts/custom-views.md)).
-
-The later phases have been delivered since, all but Phase 5's tile:
-
-- **Phase 3, views that write**: creating, updating and deleting records and
-  running commands through the same typed operations and version checks as a
-  person's edit, attributed to the view's package, is delivered (2026-09-26, W-065),
-  and so are preparing a proposal the person reviews and following it, and keeping
-  state in the file through `nendo.state` (W-069). Phase 3 is complete.
-- **Phase 4, develop from a folder**: a device-local link from a package to a
-  folder on disk, reload on save, and saving the folder back as a proposal, is
-  delivered (2026-09-26, W-063).
-- **Phase 5, views anywhere**: the `extensionView` root, which the Use "Showing"
-  picker offers and a file may open on, is delivered at host 1.42.0 (2026-10-02,
-  W-106). The `extensionTile` on the front page and dashboards takes the next rung,
-  not yet built. The rungs once reserved for this phase went to what was delivered first: 1.35.0 to 1.37.0 to ADR-0019's hierarchies and outline and ADR-0020's unique fields, 1.38.0 to a file's own look, 1.39.0 to folded history, 1.40.0 to filtering and sorting on calculated fields, and 1.41.0 to ADR-0022's new files.
-
-**Accepted limitation: a received file's code runs.** A view that is shown runs,
-and a file somebody else wrote brings its views' code with it. Nobody on this device
-has read that code, and it can read the file's records through Nendo, reach the
-network and use the clipboard. At Unattended an agent can accept its own package
-proposal. The owner chose this over consent steps. The kill switches are the whole
-control: **Run custom views** on this device, a switch for each file, safe mode, and
-**Restart without custom views**. The ADR names when to revisit it: harm the
-switches do not cover, a guard that shows a view reaching the Workbench, or use
-with files from people the owner does not trust, or on a shared computer.
-
-What Phase 2 has not measured is listed in the
-[contract's evidence](contracts/custom-views.md#evidence): among others, the
-clipboard, downloads and pop-ups in a product lane, and the memory budget against
-the real packages under `extensions/` rather than the journey's probes.
-
-**ADR-0008 is accepted for bounded calculations and local actions, and its
-implementation plan is complete.** Stages S0–S9 are delivered:
-
-- calculated fields, reusable functions, explicit actions and automatic
-  triggers;
-- this device's consent before any of them run;
-- reviewed proposals promoted by exact replay;
-- the whole user-facing surface;
-- MCP authoring and causal compensation;
-- measurements on fixtures ten thousand records large.
-
-[calculations-and-actions.md](contracts/calculations-and-actions.md) records
-what each ADR obligation rests on.
-
-**What it does.** A calculated field is stored as a definition, never as an
-editable column. It shows its own state wherever it appears: a value,
-`Not set`, `Calculating…` or `Cannot calculate` with the reason. It appears in
-Studio's record page, as a read-only column in its table, and on a custom
-surface wherever a stored field binds. Since 2026-09-30 a surface may filter and sort
-by one, worked out over at most 10,000 records (host 1.40.0). It may not group or
-total by a calculated field. Each of these is refused at compile time with
-diagnostic `NUI214`, which names the field and states that it is calculated. The
-host does not silently order the loaded page. Expressions run through a bounded NCalc adapter: integer
-division stays in the decimal domain, the function set is closed, and finite
-ceilings bound parser input, recursion, work and generated changes, with one
-budget for a whole causal transaction.
-
-An edit and every automatic action that it triggers commit together, or the
-file stays unchanged. If a file carries a trigger, nobody can edit it until this
-device approves exactly that behaviour, in exactly that file. The device must
-also still approve it at the commit boundary. Approvals live in device state
-under `%LocalAppData%\Nendo`, never in a `.nendo` file, and the store fails
-closed. A reviewed proposal freezes what its actions did, together with the
-record versions and data revision that those results depended on. Promotion
-replays exactly that.
-
-An agent authors all of it through ordinary proposals. The agent uses a
-catalogue that is published at `nendo://application/vocabulary` and generated
-from the tables that the Engine enforces. Below the Unattended access level,
-acceptance and consent stay host actions with no MCP equivalent. At Unattended,
-`nendo.change_set.accept` accepts a validated proposal and records this
-device's consent for the actions that it installs (see below). Every write route fires the same triggers under
-one budget: field edit, form, create, command, delete, bounded paste and
-proposal. Compensation of a causal revision reverses the edit and everything
-its actions wrote. It does not run the actions again.
-
-`tools/Journey-Behaviour.mjs` drives the user-facing half through the real
-WinUI/WebView2 host against the live DOM, with isolated file and device-state
-roots.
-
-**Stage S9 is measured.** On the 1,000 and 10,000-record benchmark fixtures, a
-bounded page and a save that fires a chain both stay near their small-file cost
-(about 2 ms and 12 ms), because each reads a bounded set. A whole-file snapshot
-does not stay near its small-file cost. It evaluates the calculations of every
-record, so it scales linearly: 49 ms to 474 ms cold. Design against that
-scaling. [calculations-and-actions.md](contracts/calculations-and-actions.md)
-publishes it with its limits. Cancellation is observed and joined in about a
-millisecond.
-
-**The ADR-0008 part of P7 is delivered.** Of the ADR-0013 custom-view work above,
-only Phase 5's `extensionTile` is still ahead. The owner ran the keyboard, focus and screen-reader lane on
-2026-09-13 and reported that all four checks passed. The owner also ran the
-clean-user installer lane, and it passed. (`Test-NendoInstaller.ps1` refuses
-that lane on a machine where Nendo is already installed.) The run covered the
-NSIS bootstrapper, payload extraction and the HKCU uninstall registration. The
-Start Menu shortcut moved out of the NSIS script on 2026-09-19, so that part of
-the run now belongs to the setup lane, which runs on every build.
-
-Both results are recorded as reported results, not as measurements taken here.
-The scripts to repeat them are in
-[calculations-and-actions.md](contracts/calculations-and-actions.md) and
-`tools/Test-NendoInstaller.ps1`.
-
-This was built from the [ADR-0008 plan](design/adr-0008-implementation-plan.md).
-The plan was the handoff to an implementer who did not take part in the
-experiments. It is kept unchanged as that handoff, beside the execution
-semantics and reconstructed regression cases. If the plan and the shipped code disagree, the
-contract is current.
-
-Keep declarative capabilities for the cases that they already cover.
-`summaryTile` and `commandStep` were both answers to "we need logic here", and
-both stayed declarative and exact. The 2026-09-12 widening added three more:
-
-- A per-column total is one stored choice predicate.
-- A tab is a titled section.
-- A calendar is a stored Date on a month grid.
-
-None of them stores layout, an expression or executable logic. The accepted
-bounded expression model adds reusable calculations and atomic local triggers.
-It does not change those declarative surface meanings, and it does not create a
-general execution escape.
-
-## Agent authoring ergonomics
-
-The vision depends on agents that author successfully on the first or second
-attempt. On 2026-09-11, two blackbox reviews each built a complete CRM from an
-empty file through MCP alone. Each review recorded what the build cost. The
-second review succeeded: four record types, 55 records, ten compiled surfaces
-and zero data corruption.
-
-The [MCP interface contract](contracts/mcp-interface.md) and the
-[semantic surfaces contract](contracts/semantic-surfaces.md) answer its thirteen
-findings and describe what replaced them. Twelve findings are closed as asked.
-One has a different answer by intent, and it is listed below. Two findings show
-the typical form of this class of problem:
-
-- **The read path existed and was not discoverable.** `resources/list` returns
-  only the parameterless resources. The records resource is a URI template, so
-  it appeared in none of the seven entries that a client listed. The review
-  concluded that the data API was write-only. It then opened the SQLite file
-  directly to check that a button did what the button said. The host already
-  served everything that the review needed, but nothing told the client so.
-  `describe` now names every resource URI, templates included.
-- **A refusal named the symptom, not the cause.** A write to a record type whose
-  creating proposal still waited for acceptance returned
-  `NENDO_ENTITY_NOT_FOUND`. That code reads as a bad identifier. The host knew
-  about the outstanding proposal all the time.
-
-A third review, on 2026-09-13, built a seed library from an empty file with
-Claude's native MCP tools. It spent most of its effort on the calculation layer.
-Numbers, the semantic compiler's refusals and the approval boundary were
-"exactly as advertised". Every expensive surprise was in the argument layer,
-where four unrelated causes read `NENDO_INVALID_REQUEST: The request arguments are invalid.`
-Its record is [`reviews/2026-09-13-blackbox-behaviour-review.md`](reviews/2026-09-13-blackbox-behaviour-review.md),
-and it states what each finding became. Two findings are named here, beside the
-earlier two:
-
-- **The engine had written the message, and the boundary threw it away.** Each
-  of these was in a `NendoValidationException`: the key that a sum needs, the
-  field that a create was missing, and the choices that a value was not one of.
-  The tool boundary replaced each one with one constant sentence. The reviewer
-  guessed the sum's key three times, abandoned the calculation, and filed the
-  choice path as broken. The value that they sent had its quote characters
-  inside it, and the message would have shown this. Refusals now pass the
-  engine's sentence through under one audited rule. If a body does not fit, it
-  is refused where it is sent, before it can cost a draft.
-- **A validate that threw left the draft frozen.** The documented remedy,
-  `amend`, was the one call that was refused. The cost was ninety operations for
-  one guessed key.
-
-A fourth round, on 2026-09-14, drove the installed host with a scripted MCP
-client instead of a conversation. It made 223 recorded calls over every tool and
-resource, and the host made every refusal that it is meant to make. All six
-findings were about what the host said, not about what it did. Its record is
-[`reviews/2026-09-14-installed-host-mcp-review.md`](reviews/2026-09-14-installed-host-mcp-review.md).
-The MCP interface and calculations contracts answer each finding. Two findings
-are named here:
-
-- **The binder failed before Nendo could speak.** A page limit that was not an
-  integer was rejected inside the SDK. It reached the client as a bare internal
-  error with no code. But `0` and `101` got the named refusal
-  `NENDO_INVALID_LIMIT` one line further in. Template variables now arrive as text, and every malformed limit gets the
-  same refusal as an out-of-range limit.
-- **A calculated field was refused as one that did not exist.** The schema read
-  listed it under `derivedFields`, and the records read carried its result. The
-  write path looked only at stored columns. The refusal now says that the field
-  is calculated and names the calculation. It also reaches a form save and a
-  create, as well as a single edit.
-
-The other four findings were these:
-
-- A validated change set answered `add_operations` and `amend` as missing, not
-  as frozen.
-- A receipt and a replay could not name what an action changed, although the
-  attribution table held it.
-- An action whose target reference was empty selected nothing, and no published
-  text said that this was the rule.
-- Five tool-argument nodes advertised no type at all.
-- Consent to automatic actions was first mentioned after acceptance. A proposal's
-  review, Pending changes and the MCP preview now say what accepting means for it
-  beforehand, and Accept is withheld where promotion would be refused (W-008,
-  [ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)
-  2026-09-29 amendment). Consent stays a separate act. One shape still cannot be
-  accepted: a proposal that changes the actions and also sets them off. The review
-  says so and asks for the actions first and the records after.
-- Validation reported one error per pass, so each mistake cost a round trip. A refused
-  change set now reports every independent refusal together, up to five, each naming
-  its operation (W-010). The first refusal still ends a clone's transaction, so each
-  further one costs another clone of the file, run without what was refused and without
-  whatever names something it introduced. A version conflict that this causes is never
-  reported, and ends the search. Leaving out a whole mutation moves every later
-  definition revision, so a mistake after such a mutation is found on the next pass
-  rather than this one.
-
-A fifth round, on 2026-10-04, read the adapter's code against the specification as
-published that day rather than driving it. Its record is
-[`reviews/2026-10-04-mcp-layer-review.md`](reviews/2026-10-04-mcp-layer-review.md),
-with the state of each of its twenty work items at the top. It found four defects in
-the accept and validate paths, all fixed with falsified guards, and a set of Engine
-reads and writes the adapter never exposed: records by ID, filtered and sorted, counts
-and aggregates, multi-field and cross-type writes, an agent's undo of its own revision,
-one proposal in full, and a stale proposal validated again in one call. It adopted
-`subscriptions/listen`, the Tasks extension and a host-level skill, and wrote
-[ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md) (a file carries its
-own skill, built 2026-10-05 as W-160, with the planner's own skill, `dev.nendo.planner`,
-in the same change) and
-[ADR-0025](decisions/0025-mcp-apps-and-a-proposal-review-card.md) (MCP Apps,
-deferred). The Tasks extension was withdrawn on 2026-10-08: GitHub Copilot CLI declared
-it and then refused the task that validate returned, so every tool is now answered within
-its request ([MCP contract](contracts/mcp-interface.md), ADR-0009's 2026-10-08 amendment).
-
-A sixth, on 2026-10-05, came from outside: a team that built an app over MCP alone,
-without this repository. Its record is
-[`reviews/2026-10-05-outside-app-builder-review.md`](reviews/2026-10-05-outside-app-builder-review.md),
-with the answer to each point at the top (W-164 to W-173). It brought published byte
-limits and a refusal in place of a transport error for an oversized request, references
-to records earlier in a batch, `isValid` on validation, node positions and
-before/after placement, record-level listen notifications, a Markdown field, and a
-filter a person picks on a list, board or matrix. Transient History writes and a shared
-data lease were declined against ADR-0021 and ADR-0009.
-
-An assignment bound to the wrong record no longer installs: installation validates each
-trigger with its action and refuses a step that writes a field its target record lacks as
-`action-target-mismatch`, naming the action, the step and the field
-([calculations and actions](contracts/calculations-and-actions.md#actions-and-triggers)).
-
-What remains open:
-
-- **A sum totals a required field only.** A member with no value is an error.
-  Installation refuses a `Sum` over an optional field, because it does not
-  promise a total that the first empty value breaks. A `Coalesce` or a
-  per-member default would widen it, and needs its own semantics.
-- **Concurrent proposals are announced, not rebased.** `change_set.begin` now
-  reports how many other change sets are open and names the captured revision.
-  `nendo://application/proposals` lists what is already pending. A staleness
-  conflict still appears at validate. An automatic rebase of a UI-lane proposal
-  onto a newer revision would remove the conflict completely. But by an accepted
-  architecture invariant
-  ([ADR-0007](decisions/0007-proposal-clone-validation-and-replay-promotion.md)),
-  promotion replays validated operations against the active file, and a rebase
-  changes what a conflict means. It needs its own ADR. Since 2026-10-04 (W-157,
-  ADR-0007 note) an agent whose proposal the file moved under calls
-  `nendo.change_set.revalidate`, which validates the same operations again at the
-  current revision instead of rejecting and resending them. Inline node properties
-  removed most of the pressure, because they cut what a build spends: a complete
-  application's screens now fit one change set and one approval. A large enough
-  application still serializes.
-- **A reconnecting agent that lost its application handle can see a pending
-  proposal but not act on it.** Since 2026-10-04 (W-143) an agent that kept its
-  handle resumes under it with `nendo.lease.acquire`, and preview, reject and accept
-  work on what it validated; `nendo://application/proposals` names each proposal's
-  `changeSetId` and `owner`. An agent that kept nothing can still only ask the
-  person to accept or reject. To bind a proposal to something more durable than a
-  handle is an authority change, not a projection change.
-- **A proposal's minimum-host-version raise is shown, not chosen.** The diff now
-  carries `raiseMinimumHostVersion` as its own irreversible line, so nobody
-  approves a compatibility change that they did not see. There is still no way
-  to author a change set that intentionally stays within an older host's
-  version. There is also no statement of which Nendo versions are in use
-  anywhere to check against.
-- **The discovery advertisement names the file, not its path.** The review asked
-  for `filePath` and `displayName`, so that an agent can prove which file it is
-  connected to. `displayName` is present. It is the file's name, as the window
-  title shows it, and it answers "which of the two open windows is this".
-  `filePath` is not present, and it will not be present without an accepted
-  ADR. A product axiom ([vision.md](vision.md)) says that agents never receive a
-  database path, and the advertisement is a file that an agent reads. If a
-  caller puts a path into that field, the path is reduced to its last segment.
-- **A closed window is no longer a closed file.** The close button minimises to
-  the notification area. The interval in which the item below applies therefore
-  continues past the point where a person would say that they shut Nendo. The
-  tray menu shows the live access mode and offers to end it. The first close on
-  a device tells the person where the window went. Neither is a credential. A
-  person who wants the old behaviour can toggle it from the same menu.
-- **At Unattended, nobody reads the change before the file takes it.** The fifth
-  access level lets an agent accept its own validated proposals. It also lets
-  the host grant this device's consent for the automatic actions that those
-  proposals install. A shape change and running code can therefore both reach
-  the active file unreviewed
-  ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md),
-  2026-09-22 amendment). This is chosen for the build of a new file to order,
-  where the review that it removes did not yet protect anything. Three things
-  bound it, and no more:
-  - It is off by default, and only the file it was chosen for comes back at it
-    on this device; a Duplicate, a Fork or another file begins at Off (W-126). A
-    copy made outside Nendo keeps the instance ID and opens at the same level.
-  - It is confirmed before it takes effect.
-  - Every acceptance is an ordinary History revision.
-
-  What is **not** there is any record that a change went in unreviewed. History
-  says what was done; it does not say that nobody looked. Also, nothing warns a
-  person who leaves the level on. Neither is built.
-- **An import is not atomic and says so, which is not the same as being resumable well.**
-  `nendo.data.import_records` commits fifty rows per revision. If a refusal
-  occurs partway, the batches before it stay committed. The answer states the
-  count. An exact retry with the same key replays what committed; it does not
-  duplicate it. But the caller has no way to ask *which* row was refused, except
-  to read the message. The caller also has no way to skip that row and continue.
-  The remedy is to correct the payload and send the whole call again.
-- **Anything on this computer can reach an open file.** There is no credential
-  ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)).
-  While a file is open with access on, every process under every account on the
-  machine connects at that access level. This is chosen for iteration speed on
-  a single-user machine. It is the wrong posture for a shared machine. The route
-  back is a peer-process user check, and it is not built.
-- **A handshake client is named from its User-Agent.** The host is stateless. A
-  client on the `initialize` handshake sends its name only in that request; since
-  2026-10-04 (W-150) a later request is named from the HTTP `User-Agent` header's
-  first product token, sanitised as a client name is, and "Local agent" remains
-  only for a client that sends neither. A 2026-07-28 client is named on every
-  request. The transport still has no session, by design.
-
-## Left open by the broad review's decisions (2026-10-12)
-
-- **ToText has no format.** It writes digits, stored decimal digits and `yyyy-MM-dd`, the same
-  everywhere. Thousands separators, another date order or a currency need a format argument
-  that ADR-0008's 2026-10-13 amendment leaves out. Its rung is found by the name, as
-  `IsEmpty`'s is, so `ToText(` inside a text literal, or a function of the file named `ToText`,
-  also raises a file to 1.49.0 without needing it.
-- **A file's minimum host never goes down.** Clearing a property with `ui.removeProperty`, or
-  undoing the change that raised a rung, leaves the rung where it was.
-- **History does not show a blocked trigger condition yet.** A save whose trigger condition
-  could not be worked out says so on its write result, in the Workbench and to an agent (EBH-01),
-  but the list is not stored with the revision, so History, a receipt read back and a replay do
-  not carry it. Nor does a proposal: `CaptureBehaviourPlan` keeps the generated changes of a
-  prepared chain but not its blocked conditions, and promotion replays the reviewed plan with
-  actions off, so neither the proposal's review nor the accept result (the Workbench's or
-  `nendo.change_set.accept`'s) names an action a condition blocked. ADR-0008 §12 asks for
-  History too. Storing it needs a new protected table as the next rung of the layout ladder.
-- **A decimal into a whole-number field is refused unless the formula rounds to 0 digits.**
-  An action that writes `total / count` into an Integer field is refused at install (EBH-04);
-  `RoundAway(…, 0)` or `RoundEven(…, 0)` as the whole formula is accepted. A decimal result that
-  happens to be whole is not recognised any other way.
-
-## Left open by the storage and reversibility pass (W-212, 2026-10-13)
-
-- **A busy read is not yet a typed outcome.** A save another program keeps busy is refused as
-  `file-busy` (ESC-06). A read meets SQLITE_BUSY only while another connection holds the file to
-  itself for longer than the 2-second timeout, which a DELETE-mode writer does only while it
-  commits, so the read paths still let that raw error through. Mapping every bounded read is a
-  wider change than the finding asked for.
-- **Some unfinished writes stay refused.** The open plays back a journal only once plain reads
-  show it could be this file's (ADR-0012, 2026-10-13). A journal of a write that crashed before
-  SQLite counted a saved page 1, or before it saved the manifest page that names the instance (a
-  large import that spilled pages early can leave one), is refused untouched, as every journal was
-  before, and the person opens a backup.
-- **A journal from a copy of the same file cannot be told apart.** An Explorer copy, a backup or
-  the file synced to another machine shares the instance, and SQLite's format cannot tell its
-  journal from this file's. Nendo therefore plays back only on the person's own open outside a
-  recognised synced folder, and always keeps the file as it was, named until the person removes
-  it. Folder detection is incomplete, and a copy made by hand beside the file is not detected; a
-  per-write marker that binds each save to its journal would close it, and is not built. The
-  playback is opt-in for the host: a host that never passes `RollBack` never rolls back.
-- **Two messages are unchecked by a test.** A write-protected volume now refuses the lease as a
-  place Nendo cannot write rather than "another Nendo window", and a journal over 256 MiB is named
-  as the journal; neither has a headless test, since neither condition can be made in a test
-  folder.
-- **A busy save on a stage is a raw error.** `file-busy` covers the open file's writes and its
-  history fold (ESC-06). The identity transition, a new file's transformation, the legacy upgrade
-  and a new file's schema run on a host-owned stage or a file Nendo has just created, which no
-  other program has reason to hold; a busy there still reaches the host flow as a SQLite error,
-  which that flow reports as its own failure.
-- **An exact retry across the presentation change may be refused.** `schema.setFieldPresentation`
-  became `ReversibleWithRetainedState`, and its undo writes `presentation: null` for a field that
-  had none (ESS-06). The class and the payload are part of the idempotency digest, so a request
-  sent by an older host and resent by this one after an upgrade, which the Workbench's save
-  journal can do, is refused as `idempotency-conflict`. The first request committed, so the file
-  is right; only that answer is misleading. Keeping every older digest stable would need the old
-  class kept beside the new one.
-- **Only a definition's latest change can be undone.** History now offers Undo on a structure
-  change only while it is the file's latest, and says so when it refuses (R2RM-02). Walking back
-  several definition changes, with a subject guard as packages and screen properties have,
-  is not built.
-- **History still offers Undo on a fill of a required field.** The undo of the fill the
-  Reactivate form writes is refused in words while the field is required (R2RM-04), because the
-  offer cannot see required-ness cheaply. Making the field optional first lets it run.
-- **A reference index can still lose its name to another table.** The covering index
-  `nendo_ref_<table>_<column>` has the same naming ambiguity a unique index had (ESS-04). It is
-  never dropped, so a collision costs only speed on the second field, and it is left as it is.
-  A unique index already lost to a collision in an existing file comes back only when its field
-  is declared unique again.
-
-## Left open by the MCP data parity pass (W-214, 2026-10-13)
-
-- **An agent cannot write back a value larger than one request.** The agent value bounds are now
-  the 256 KiB request body's (R2AP-03, the owner's choice), so an agent writes back any value a
-  request can carry. Studio's large-text editor stores up to a million characters and the Desktop
-  bridge about 256 K characters, so a value past the body is still one the person can store and an
-  agent cannot send whole.
-- **A JSON import is not put parents first.** A record may name an earlier record of the same
-  import by record ID or code (MTD-03); a CSV import of a declared tree is reordered so parents come
-  first, a JSON one is taken in the order sent, and a record that names a later one is refused as
-  `target-not-found`.
-- **An agent's import still reads as plain creates in History.** The person's CSV import now reads
-  "by you (CSV import)" (R2AP-10); an agent's import batches are named "Create 50 Tasks" under the
-  agent, as any batch create is. Naming them as an import would need a description on the batch
-  create, a design change the finding's verifier set aside.
-
-## Left open by the queries, CSV and locale pass (W-217, 2026-10-13)
-
-- **Search does not find a word inside Thai, Chinese or Japanese text.** The index splits words at
-  spaces and punctuation, and these scripts put no space between words; Thai is also cut at every
-  vowel sign. Turkish dotless `ı` is not folded to `i`. The owner chose to record it (R2LAT-02;
-  ADR-0028, 2026-10-13 note): a trigram or bigram index routed by script would change the protected
-  layout and needs its own ADR, and the product sets no localisation goal.
-- **Two clocks still decide today.** The Engine now reads the machine's time zone again within a
-  minute (R2LAT-06), so after a zone change it and the Workbench agree again within that minute
-  rather than at the next restart. They are still two clocks; one shared civil date would mean the
-  Workbench sending its date with command and chart requests, a protocol change.
-- **No lane drives a real midnight.** The day in every read's freshness, the midnight timer, the
-  catch-up on the first key or pointer press after a sleep and the views' `context` event are held
-  by Workbench unit tests and a source check of `main.ts` (R2LAT-01). A shell-lane step that moves the page's clock past midnight and measures the reads
-  sent again is written down but not added: the lane's script belongs to another pass.
-- **External CSV still refuses a spreadsheet's `TRUE` and `FALSE`.** The refusal now names the form
-  it wants (ESQ-12). Accepting other spellings is a change to the scalar and CSV contracts, which
-  fix `true` and `false`.
-- **A Danish Excel still opens an export in one column.** The export now starts with the UTF-8 BOM,
-  so æ, ø and å read correctly (R2LAT-11), but Excel with Danish regional settings separates columns
-  with `;`, and the profile's delimiter is a comma. Data > From Text/CSV reads it. The recovery
-  export already started with the BOM (checked in W-221).
-- **A decimal like `1,234` is refused where the language writes decimals with a dot.** `12,5`,
-  `0,125` and `1234,567` are decimals everywhere (R2LAT-05), and in a comma-decimal language
-  `1,234` is 1.234; elsewhere it cannot be told from a thousands grouping and is refused with that
-  reason.
-- **Does not equal with a plain date on a date-and-time field is refused.** Equals reads the plain
-  date as the whole day on this device (R2LAT-12); leaving a whole day out would need an OR, which a
-  filter cannot say.
-- **A matrix keeps its unset row and column under a grouping-field `ne`.** A board no longer draws an
-  Ungrouped lane that can hold no record (ESQ-05); a matrix's own unset lanes were not part of the
-  finding and are unchanged.
-- **The views' page language is checked in their source only.** No browser lane loads a first-party
-  view with a Danish locale and reads `document.documentElement.lang` (R2LAT-10);
-  `view-language.test.mjs` holds the rule in each view's source and in the authoring guide.
-
-## Left open by the write coordinator and safe mode pass (W-221, 2026-10-13)
-
-- **One unreadable cell or one renamed table rejects the whole file.** A blob in any cell, a
-  mapped column that is missing, or a record type's table that is renamed or replaced by a view
-  makes the inspection refuse the file outright, with no data readable, while an unrelated extra
-  table only puts it in recovery (R2SMA-02). The owner chose to record it (2026-10-13): the typed
-  reader reads every mapped column of a record type in one query, so opening the rest of such a
-  file in recovery needs per-record-type and per-field omission in the reader first, which is
-  feature work. Only an edit made outside Nendo produces such a file, and a SQLite tool repairs it.
-- **A file that records less than its screens need stays read-only.** The finding now says it in
-  file-format terms (R2SMA-11), but nothing in Nendo raises the recorded format: ADR-0012 refuses
-  to adopt changed bytes silently, and this host never writes such a file. Open a backup from
-  before the outside change.
-- **A read-only session without a verifiable digest cannot read package files.** Package files and
-  view state are read from the file only while it still holds the content the session inspected
-  (ECO-07). A session whose file could not yield a backup at open has no digest to compare, so
-  those reads are still refused there, and Help shows only the built-in pages.
-- **A reader that holds the file through a restore is refused, not waited for.** The original's
-  exclusive handle is now taken before any recovery record is written (ECO-01, W-221 review). A
-  reader that lets go within about a second — Nendo's own short-lived reads, such as another
-  window refreshing its Jump List or a read-only session checking its digest, or an indexer — is
-  waited out; one that holds on longer gets `replacement-target-in-use` with nothing changed, and
-  the person tries again. Nothing waits for a program that keeps the file open.
-- **A fold that could not compact the file does not say so on screen.** The result carries
-  `spaceReclaimed: false` (ECO-02) and the fold stands, but History's outcome sentence does not
-  read it yet.
-- **The native recovery panel's InfoBar and the native dialogs' theme are held in source only.**
-  No lane drives the native panel through an action or flips the Windows theme under an open
-  dialog (R2SMA-09, R2SMA-14); `DesktopWindowChromeTests` holds the markup and the helper.
-
-## Left open by the extension packages and scale pass (W-228, 2026-10-13)
-
-- **A file never folded has no history indexes.** A fold, and a new file's fold, add them
-  (ADR-0021, 2026-10-13 note), so the cascade a fold makes is fast, but the receipt read by
-  proposal and the compensation read still scan every revision in a file that was never folded:
-  about 25-30 ms each at 90,000 revisions (PERF-04). Adding them to a file at any other moment
-  would raise its host version on an ordinary write.
-- **Preparing and promoting a proposal still read every record.** The MCP identity checks read
-  the manifest now (PERF-07), but `PrepareProposalAsync` reads the active file and the clone in
-  full, and promotion reads the active file again, for the touched records' versions, the counts
-  and the 50-per-type preview the review shows. Reading those by key, by `COUNT(*)` and with a
-  limit is a reshaping of the prepare path, not a fix of the lookups, which are keyed now.
-- **A commit still counts every table.** The record tables are counted once now (PERF-08), but
-  each commit still counts every table, `__nendo_operation` before staging and again after, which
-  is tens of milliseconds near the row bound. Counting only what the mutation wrote, with cached
-  counts for the rest, would weaken a deliberate check, and is left for a measured need.
-- **Only some filters seek an index.** Equality on text, a reference or a date, and the null
-  checks, carry a comparison an index can serve (PERF-02). A UUID's equality, which compares in
-  either case, every range comparison and `contains` still scan with the host function, which the
-  queries contract already allows.
-- **A review's first read of a package file still opens the clone under the write gate.** Each
-  later window of the same file is served from the bytes read once (EXT-12); the first open and
-  `quick_check` of the clone still hold the coordinator's gate and the Desktop request gate.
-  Moving it outside them needs the proposal's workspace held against rejection during the read.
-- **Half a skill package cannot be undone from History.** A change set may put a skill
-  package's `SKILL.md` in a later mutation than the package, and each mutation is a revision.
-  Undoing the revision that put `SKILL.md` is refused, since it would leave the skill without one
-  and every later proposal invalid (EXT-14). Removing the package, or changing it, takes a new
-  proposal.
-- **Three writes to one view-state key in one mutation can repeat a version.** A version is at
-  least the change sequence that wrote it (EXT-09), so a second write in one mutation goes one
-  past it, and a third and a later forget could meet a number seen before. The broker sends one
-  write per mutation and MCP writes no state, so nothing in Nendo makes such a mutation.
-
-## Left open by the 2026-09-12 vocabulary widening
-
-The amendment is delivered
-([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md)). It leaves these
-limitations by design.
-
-- **Eight roots per kind per entity is a product guess.** It is a bounded
-  initial choice, not a measured optimum. Nothing observed so far reaches it.
-  The selector wraps and scrolls at sixteen list/board choices. Whether that
-  reads well at eight of each is owner-reported, not instrumented.
-- **A calendar is a Date field on a month.** DateTime, time zones, week and day
-  scheduling, duration, recurrence and drag-to-date are all outside the
-  amendment. The host does not guess a time zone for a DateTime. It refuses the
-  binding, and the refusal names the field and states that it is a DateTime. To
-  place one
-  on a month grid, the host must choose a time zone to group by.
-- **A calendar month is read a page at a time.** The grid states how much of the
-  month is loaded, and it offers Load more until the cursor is exhausted. This
-  is accurate, but a month with hundreds of entries takes several reads before a
-  day can be called empty. No server-side month aggregate exists to make this
-  shorter.
-- **A rating's scale is set once.** `min` and `max` travel with the field, as
-  every presentation does. No operation changes either value afterwards, so a
-  wider scale needs a new field. The scale bounds the drawing and not the
-  column. A value outside the scale is therefore kept and stated; it is not
-  refused. This makes it safe to declare a scale over existing values. It also
-  leaves a file able to hold a number that no dot can show.
-- **A timeline places a record by its start date.** A span that began in an
-  earlier year is on that year's spine, and the year header states this. An
-  overlap query (every span that touches the year) needs an OR, and the closed
-  clause set does not have one. A record with no end date would also need two
-  windows. The range is one civil year. It was chosen for the month headings
-  that it gives the spine, and it is not measured.
-- **Per-tile reads are bounded at four concurrent.** A board with a tile in
-  every column issues one exact read per column, four at a time. The number was
-  chosen, not measured. Nothing has profiled a wide board on a large file.
-- **Tab and surface selection are renderer state.** By design, the `.nendo`
-  file does not store which tab was open or which surface was selected, so they
-  do not survive when the file closes. That is the intended boundary, because
-  this state is not application meaning. As a result, a person returns to the
-  first tab of every group on reopen.
-
-## Carried forward from the 2026-09-10 cleanup
-
-Three items carried forward. One is closed. The other two were never blocking.
-
-**Binary assets had no test; they have one now** (W-019, 2026-09-19).
-`tools/Test-BinaryAssets.ps1` opens every tracked binary and reads the structure
-that the format declares about itself. The lane decodes nothing and writes no
-byte back.
-
-The four formats (`.png`, `.ico`, `.mp4` and `.nendo`) do not allow equal checks, and the lane states which is which
-instead of implying parity. A PNG carries a CRC over every chunk, so the lane
-catches a single flipped byte anywhere. An ICO check is as strong, because every
-frame of every icon here is itself a PNG. The lane refuses a bitmap-framed icon
-and does not half-check it: a DIB carries no checksum, and a reader can confirm
-at most that plausible header bytes are present. An MP4 has no checksum at all,
-so the lane cannot catch a flipped byte in its media.
-
-For an MP4, the lane checks these things:
-
-- The box tree tiles at every level.
-- `moov` and `mdat` are both present.
-- The sample-table offsets point inside the file.
-
-A `.nendo` file is a SQLite database, and SQLite has no checksum over the main
-database file. The lane therefore cannot catch a flipped byte inside a page. It
-checks the SQLite header, Nendo's application id, and that the page size and
-page count agree with the file length. This catches truncation and a
-half-written page tail.
-
-The lane reads the set to check from what git stores as binary. Separately, the
-lane requires `.gitattributes` to declare each one. A selection on the
-declaration alone would have left a gap. The declaration names nine extensions,
-so git would store a `.webp` or a `.woff2` as binary. Every text check in the
-gate would skip that file, and this lane would skip it too.
-
-This lane replaces an earlier suggestion here: a hash check over
-`src/**/Assets/*`. That would have been the wrong design. A hash needs a
-known-good baseline, and a baseline becomes out of date every time an asset
-changes legitimately. The baseline then becomes a file that nobody updates. A
-structural read needs no baseline at all.
-
-The lane guards against this history. The 2026-09-10 cleanup corrupted all
-eleven image assets under `src/` (CRLF collapsed into binary data during a
-`git add -A`). The full gate passed four times and did not detect it, because
-nothing in the suite opened an icon. The defect appeared only when NSIS refused
-to build an installer.
-
-That exact mutation was replayed against the new lane before the lane was
-trusted. If the carriage returns are removed from `nendo.png`, the lane reports
-*"does not begin with the PNG signature"*. If they are removed from
-`AppIcon.ico`, the lane reports a failing CRC inside an embedded image.
-
-**The product has no CI. Its CI was removed deliberately**, and it was not
-lost. The repository has one CI lane, `.github/workflows/pages.yml`, and it
-builds and deploys the public website only (see below). The product CI failed
-19 consecutive
-runs at 0s, with zero jobs created. The most likely cause was an exhausted
-Actions allowance on a private repo, where Windows runners bill at 2×. This
-cause is unconfirmed, because the billing API needs a scope that the local token
-does not have (`gh auth refresh -s user`, then
-`gh api users/<user>/settings/billing/actions`). Settle that before you add
-product CI again. See [architecture.md](architecture.md) for the `DOTNET_INSTALL_DIR` trap
-that the old workflows encoded.
-
-**The NSIS wrapper is unchecked, and that is now a position and not a backlog
-item.** `Test-NendoInstaller.ps1` is the only lane that covers the bootstrapper,
-payload extraction, HKCU uninstall registration and the real `Uninstall.exe`.
-It also checks the Start Menu shortcut in the real per-user location. The setup
-script writes that shortcut, so the setup lane below checks it too. The
-installer lane is also the only lane that asserts that the real `Uninstall.exe`
-leaves a person's `.nendo` files untouched. The setup lane asserts only that
-setup's own uninstall keeps an unowned file in the install folder. The installer lane runs only under a clean Windows
-user, because its last step uninstalls from the real per-user location.
-`Test-NendoSetupIsolated.ps1` covers the setup logic against a task-owned root
-and runs on every build. It never invokes the wrapper.
-
-This was accepted as a limitation on 2026-09-19 (W-021 dropped). Everyone who
-runs this installer built it. Every in-place upgrade exercises the wrapper, but
-it asserts nothing about the wrapper. What matters is a condition, not a
-schedule. If Nendo is ever handed to somebody who did not build it, run this
-lane under a throwaway user first. This lane is also the only way to fill in the
-`nsisWrapper` entry of `installer-status.json`. If that field reads "not run for
-this build", that is the expected steady state here, and it says nothing about
-the build.
-
-## The public website
-
-`site/` is an Astro project. The one CI lane that this repository has deploys it
-to [thomasrohde.github.io/nendo](https://thomasrohde.github.io/nendo/)
-([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It carries
-five authored pages (home, concept, how it works, using Nendo, status) and a small
-set of hand-written guides in `site/src/content/docs/`. Since 2026-09-23 it does
-not render `docs/`: the guides describe the product for outsiders, and `docs/`
-stays the engineering record on GitHub. `tools/Capture-SiteScreenshots.ps1` captures the
-screenshots from a running host against `workspace/Nendo Station.nendo`. The
-screenshots are committed, because the deployment runs on Linux and cannot take
-them.
-
-`site/scripts/check-links.mjs` runs at the end of every build. It fails the
-build if any internal reference in the built site does not resolve. An internal
-reference is a page, a file beside a page, or an anchor. The script was written
-after the rewriter sent a link to `docs/design/adr-0008-dependencies.lock.json`
-to a copied asset that is never copied. It was falsified against that defect on
-2026-09-22:
-
-```text
-Checked 2810 internal reference(s) across 47 page(s).
-1 broken internal reference(s):
-  /docs/decisions/0008-general-scripting-and-capability-isolation/index.html ->
-  /nendo/repo-docs/design/adr-0008-dependencies.lock.json -- no such page or file in the build
-```
-
-To falsify it, both `site/.astro` and `site/node_modules/.astro` had to be
-cleared. The content layer caches a rendered document by its source digest. With
-only the first cleared, the build passed, although the defect was back in the
-code. A CI checkout has neither cache, so that trap is local only.
-
-These things about the site are not checked:
-
-- Nothing asserts that the authored pages and the guides still match the code,
-  this roadmap or the vision after any of them changes.
-- No check follows an external link.
-- No accessibility or first-read evaluation was run on it.
-
-The standing risk below applies to the site even more strongly: the person who
-wrote the copy is the person who built the product.
+### Calculations and actions
+
+- **ToText has no format argument.** It writes digits and `yyyy-MM-dd` everywhere. Its
+  rung is found by name, so `ToText(` in a text literal, or a file function named
+  `ToText`, also raises a file to 1.49.0.
+- **A blocked trigger condition is not stored with the revision.** The write result says
+  so, but History, a receipt read back, a replay, a proposal's review and the accept
+  result do not. Storing it needs a new protected table on the layout ladder.
+- **A decimal into a whole-number field is refused** unless the whole formula is
+  `RoundAway(…, 0)` or `RoundEven(…, 0)`.
+- **A whole-file snapshot evaluates every record's calculations**, so it scales linearly
+  with the file; [calculations-and-actions.md](contracts/calculations-and-actions.md)
+  publishes the figures.
+
+### Storage, history and recovery
+
+- **A busy read is not a typed outcome.** A busy save is `file-busy`; a read that meets
+  `SQLITE_BUSY` past the 2-second timeout lets the raw error through. So does a busy save
+  on a host-owned stage (identity transition, new-file transformation, legacy upgrade).
+- **Some unfinished writes stay refused.** A journal that cannot be shown to be this
+  file's, for example from a crash before the manifest page was saved, is refused
+  untouched and the person opens a backup.
+- **A journal from a copy of the same file cannot be told apart.** Playback runs only on
+  the person's own open outside a recognised synced folder, and keeps the file as it was.
+  Folder detection is incomplete and a hand-made copy beside the file is not detected; a
+  per-write marker would close it. A host that never passes `RollBack` never rolls back.
+- **Two messages have no headless test:** a write-protected volume refusing the lease, and
+  a journal over 256 MiB.
+- **An exact retry across an upgrade may be refused** as `idempotency-conflict`. The
+  reversibility class and payload are in the idempotency digest, and
+  `schema.setFieldPresentation` is `ReversibleWithRetainedState` with an undo that writes
+  `presentation: null`, so an older host's request resent by this one (the Workbench's
+  save journal can) no longer matches. The first request committed; only the answer
+  misleads.
+- **Only a definition's latest change can be undone.** History offers Undo on a structure
+  change only while it is the file's latest.
+- **History offers Undo on a fill of a required field**, then refuses it in words while
+  the field is required.
+- **A reference index can lose its name to another table** (`nendo_ref_<table>_<column>`).
+  It costs only speed. A unique index lost to a collision returns when its field is
+  declared unique again.
+- **One unreadable cell or one renamed record-type table rejects the whole file**, with
+  no data readable. Recovery of the rest needs per-type and per-field omission in the
+  reader. Only an edit outside Nendo produces such a file.
+- **A file that records less than its screens need stays read-only.** Nendo never raises
+  the recorded format silently ([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md)).
+  Open a backup.
+- **A read-only session without a verifiable digest cannot read package files**, and
+  Help shows only the built-in pages.
+- **A reader that holds the file through a restore is refused**, not waited for, after
+  about a second: `replacement-target-in-use`, nothing changed.
+- **A fold that could not compact the file does not say so on screen.** The result
+  carries `spaceReclaimed: false`; History does not read it.
+- **A file never folded has no history indexes**, so the receipt-by-proposal and
+  compensation reads scan every revision. Adding them at any other moment would raise
+  the host version on an ordinary write.
+- **Preparing and promoting a proposal read every record** of the active file and clone.
+- **Every commit counts every table**, `__nendo_operation` twice.
+- **Only some filters seek an index:** equality on text, a reference or a date, and the
+  null checks. UUID equality, ranges and `contains` scan.
+- **A review's first read of a package file opens the clone under the write gate.**
+- **Half a skill package cannot be undone from History.** Undoing the revision that put
+  `SKILL.md` is refused; change or remove the package by a new proposal.
+- **Three writes to one view-state key in one mutation can repeat a version.** Nothing in
+  Nendo makes such a mutation.
+
+### Search, dates, locale and CSV
+
+- **Search does not find a word inside Thai, Chinese or Japanese text**, and does not
+  fold Turkish `ı`. A script-routed index changes the protected layout and needs its own
+  ADR ([ADR-0028](decisions/0028-full-text-search-in-the-file.md)).
+- **Two clocks decide today**, the Engine's and the Workbench's. They agree within a
+  minute of a time-zone change.
+- **No lane drives a real midnight.** Workbench unit tests and a source check of
+  `main.ts` hold the day rollover.
+- **External CSV refuses `TRUE` and `FALSE`**; the contracts fix `true` and `false`.
+- **A Danish Excel opens an export in one column**, because the delimiter is a comma.
+  Data > From Text/CSV reads it.
+- **`1,234` is refused as a decimal** where the language writes decimals with a dot.
+- **Does not equal with a plain date on a date-and-time field is refused**; a filter has
+  no OR.
+- **A matrix keeps its unset row and column** under a grouping-field `ne`.
+- **A view's page language is checked in source only** (`view-language.test.mjs`).
+- **The native recovery panel's InfoBar and the native dialogs' theme are checked in
+  source only** (`DesktopWindowChromeTests`).
+
+### Screens
+
+- **Eight roots per kind per record type** is a guess, not a measured optimum.
+- **A calendar is a Date field on a month.** DateTime, time zones, week and day views,
+  duration, recurrence and drag-to-date are out; a DateTime binding is refused by name. A
+  month is read a page at a time, with Load more.
+- **A rating's scale is set once.** A wider scale needs a new field. A value outside the
+  scale is kept and stated, not refused.
+- **A timeline places a record by its start date** in one civil year. An overlap query
+  needs an OR.
+- **Per-tile reads run four at a time**, a chosen number.
+- **Tab and screen selection are renderer state**, not stored in the file, so a person
+  returns to the first tab on reopen.
+- **Only Studio's flat table loads continuously.** Use lists, related records, boards and
+  date-range views need their own loading policies; rectangular paste and bulk edits need
+  their own decision. Unindexed sorting of very large tables is bounded but not fast.
+
+### Repository and delivery
+
+- **The product has no CI, deliberately.** The one CI lane deploys the website. The old
+  product CI failed with zero jobs, most likely an exhausted Actions allowance; settle
+  that before adding product CI again.
+- **The NSIS wrapper is unchecked.** `Test-NendoInstaller.ps1` alone covers the
+  bootstrapper, extraction, HKCU uninstall registration and that the real `Uninstall.exe`
+  leaves `.nendo` files alone, and it runs only under a clean Windows user.
+  `Test-NendoSetupIsolated.ps1` covers the setup logic on every build. Before Nendo goes
+  to anyone who did not build it, run the installer lane under a throwaway user.
+  `nsisWrapper` reading "not run for this build" in `installer-status.json` is the
+  expected state.
+- **`Test-BinaryAssets.ps1` is structural.** PNG and ICO carry CRCs, so a flipped byte is
+  caught; an MP4 or a `.nendo` page has no checksum, so only structure and truncation are.
+- **The website** (`site/`, [ADR-0018](decisions/0018-public-website-and-deployment-lane.md))
+  checks its internal links on every build. Nothing checks that its pages match the code,
+  follows an external link, or evaluates accessibility. To reproduce a link failure
+  locally, clear both `site/.astro` and `site/node_modules/.astro`.
 
 ## The standing risk
 
-Everyone who used Nendo built it. Every usability, scaling and accessibility
-result on record is owner-reported. That is valid evidence about the product,
-but it says nothing about whether the product is legible to a person who
-arrives with no prior knowledge.
-
-This is validated by use, not by a study. The
-[Idea Garden journey](../fixtures/idea-garden/journey.md) is the end-to-end walk
-through the core loop, and it is the correct document to give to a new person.
-It cannot tell you whether they get there without help. Treat a confused first
-run as a finding, not as a support incident.
+Everyone who has used Nendo built it, and every usability, scaling and accessibility
+result is owner-reported. That says nothing about whether a newcomer can follow it. The
+[Idea Garden journey](../fixtures/idea-garden/journey.md) is the walk to give a new
+person. Treat a confused first run as a finding.

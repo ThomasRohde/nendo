@@ -53,6 +53,7 @@ and edited. These are the choices in Studio's **Add field** dialog:
 | Short text | Text | Single line | |
 | Long text | Text | Long text | |
 | Markdown text | Text | Markdown | A record page shows it formatted: headings, lists, tables, code and emphasis. Links show as text and are not followed. Write it formatted in place, with a toolbar for bold, italic, strikethrough, code, headings, lists, quotes, code blocks and links, or open **Markdown** under it to type the source. The field stores Markdown either way. A Long text field can become one, and back, with **Show as Markdown** in Structure; no value changes. |
+| Picture | Text | Picture | The address of a picture stored in the file, linked from this computer or shown from the web. See [Pictures](/nendo/docs/pictures). |
 | Choice | Text | Single choice | 1 to 32 options, each at most 120 characters. One value per record. |
 | Whole number | Integer | none | Large values keep every digit. |
 | Rating on a scale | Integer | Rating | Drawn as dots. The scale has a minimum and a maximum and at most ten values. |
@@ -63,8 +64,8 @@ and edited. These are the choices in Studio's **Add field** dialog:
 | UUID | Uuid | none | |
 | Reference to another record | Reference | none | See [Reference](#reference). |
 
-A field holds one value. There is no multi-choice field and no file, image or
-binary field. A choice option can carry one of eight named colours (red, orange,
+A field holds one value. There is no multi-choice field and no attachment or
+other binary field; a picture field holds an address. A choice option can carry one of eight named colours (red, orange,
 amber, green, teal, blue, violet, grey). The presentation and a rating's scale
 are set when the field is made and do not change later.
 
@@ -216,7 +217,7 @@ To reverse a change, History applies the inverse as a new revision
 ### Access level
 
 An agent connects to the open file through the Model Context Protocol (MCP). You
-choose how much it can do on the **Agent access** page:
+choose how much it can do on the **Agent** page:
 
 | Level | The agent can |
 | --- | --- |

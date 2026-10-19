@@ -1,5 +1,5 @@
 // The Nendo Station dataset. Small enough to read, large enough for the charts
-// to mean something. See docs/design/nendo-station-plan.md.
+// to mean something. See docs/nendo-station.md.
 //
 // Dates are generated relative to the day the station is built, not written
 // down. A trendChart's range and an activityGrid's range are closed words the

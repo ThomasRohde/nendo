@@ -1,29 +1,24 @@
 # Contracts
 
-These are the behavioural contracts for the delivered system. Each contract
-states what the host guarantees, what it refuses, and where the assertions live.
-Load only the contract that your task touches. Do not load all of them.
-
-The [architecture](../architecture.md) describes the structure of the system.
-The contracts give the rules. [Accepted ADRs](../decisions/README.md) remain the
-authority above both.
+The behavioural contracts of the delivered system: what the host guarantees, what it
+refuses, and where the assertions live. Load only the contract your task touches.
+The [architecture](../architecture.md) describes the structure;
+[accepted ADRs](../decisions/README.md) are the authority above both. If a contract
+and the code disagree, the code is current: fix the contract in the same change.
 
 | Contract | Covers |
 | --- | --- |
-| [mcp-interface.md](mcp-interface.md) | The resources and tools that an agent sees, lease and handle authority, cursor rules |
-| [semantic-surfaces.md](semantic-surfaces.md) | How stored surface definitions compile into render plans, in contract version 3 (versions 1 and 2 are refused as `NUI003`) |
+| [mcp-interface.md](mcp-interface.md) | The resources and tools an agent sees, lease and handle authority, cursors |
+| [semantic-surfaces.md](semantic-surfaces.md) | How stored surface definitions compile into render plans (contract version 3) |
 | [studio.md](studio.md) | The permanent host-owned database editor |
 | [scalars.md](scalars.md) | Exact values through storage, the Workbench bridge and the MCP wire |
-| [queries.md](queries.md) | Bounded record queries: sorting, predicates, cursors |
-| [relationships.md](relationships.md) | Reference fields, renames, deletion, retirement, reviewed backfill |
+| [queries.md](queries.md) | Bounded record queries, cursors, tree reads, search and record windows |
+| [relationships.md](relationships.md) | References, hierarchies, unique fields, allowed links, retirement, deletion, new files |
 | [csv.md](csv.md) | The faithful CSV profile for import and export |
 | [reads-and-authority.md](reads-and-authority.md) | Bounded reads and how read authority is scoped |
 | [operation-outcomes.md](operation-outcomes.md) | How a client learns that an operation committed, and what a lost response permits |
 | [help.md](help.md) | The permanent Help route and generated application reference |
-| [calculations-and-actions.md](calculations-and-actions.md) | Stored calculations, reusable functions, local actions and triggers (ADR-0008, stages S1-S9; P1-P8 satisfied) |
-| [custom-views.md](custom-views.md) | Custom views: packages carried in the file, how the host serves and runs them inline, the `window.nendo` API, the kill switches, view definitions, and what the host guarantees and refuses (ADR-0013) |
-| [media.md](media.md) | Media fields: the address, embedding pictures, the media rung, and how opening leaves the content out (ADR-0031) |
-| [launched-agents.md](launched-agents.md) | The person's own agent launched from the Agent page over ACP: what is offered, the `agentSession.*` bridge methods, what the agent is told, the conversation and what ends it (ADR-0030) |
-
-If a contract and the code disagree, the code is current. Fix the contract in
-the same change.
+| [calculations-and-actions.md](calculations-and-actions.md) | Calculated fields, reusable functions, automatic actions and triggers (ADR-0008) |
+| [custom-views.md](custom-views.md) | Custom views carried in the file, the `window.nendo` API, kill switches (ADR-0013) |
+| [media.md](media.md) | Media fields: addresses, embedded pictures, opening without the content, serving (ADR-0031) |
+| [launched-agents.md](launched-agents.md) | The person's own agent launched from the Agent page over ACP (ADR-0030) |

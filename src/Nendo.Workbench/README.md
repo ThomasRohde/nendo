@@ -1,24 +1,21 @@
 # Nendo Workbench
 
-Framework-free TypeScript/Vite implementation of the Nendo UI. It is a local
-asset bundle for `Nendo.Desktop`, not a hosted web application.
-
-The page talks to the host over a closed, versioned WebView message protocol.
-It never receives a database path, a connection, or generic host invocation
-capability — see [the architecture](../../docs/architecture.md).
+Framework-free TypeScript/Vite implementation of the Nendo UI: a local asset bundle for
+`Nendo.Desktop`, not a hosted web application. The page talks to the host over a closed,
+versioned WebView message protocol and never receives a database path, a connection or generic
+host invocation ([architecture](../../docs/architecture.md)).
 
 ## What it renders
 
-- **Studio** — the permanent host-owned workspace: Data, Structure, Surfaces,
-  History and Health. AG Grid Community backs the data table.
-- **Use** — compiled custom surfaces across all three contract versions: forms,
-  lists, boards, record pages, related lists, declared filters, summary tiles
-  and record commands. Hand-rolled DOM; AG Grid stays in Studio.
-- **Proposal review** — the read-only semantic diff and the accept gate.
-- **Help** and **Agent** — offline guides and the MCP connection surface.
+- **Studio**: the permanent host-owned workspace (Data, Structure, Surfaces, History, Health).
+  AG Grid Community backs its grids.
+- **Use**: compiled custom surfaces (forms, lists, boards, record pages, related lists, filters,
+  summary tiles, record commands) in hand-rolled DOM, and custom views in their own frames.
+- **Proposal review**: the read-only semantic diff and the accept gate.
+- **Help** and **Agent**: offline guides and the MCP connection surface.
 
-Studio stays reachable when a custom surface is absent, invalid or fails to
-render. That is a product axiom, not a fallback.
+Studio stays reachable when a custom surface is absent, invalid or fails to render. That is a
+product axiom, not a fallback.
 
 ## Commands
 
@@ -26,40 +23,35 @@ render. That is a product axiom, not a fallback.
 npm ci
 npm run check                 # tsc --noEmit
 npm test                      # node --test over scripts/*.test.mjs
-npm run verify:dependencies   # AG Grid Community only; no React, no Enterprise
-npm run build                 # bundled into the Desktop output
+npm run verify:dependencies   # the production dependency boundary
+npm run build                 # bundled into the Desktop output, plus the view API
 npm run dev                   # local dev server on 127.0.0.1
 ```
 
-`Test-Production.ps1` runs all of these, so prefer it before handing work off.
+`Test-Production.ps1` runs all of these.
 
 ## Dependency boundary
 
-The package intentionally contains `ag-grid-community` only. React, AG Grid
-Enterprise, licence keys, CDNs and arbitrary host-object bridges are out of
-scope. What enforces which:
+Production dependencies are exactly AG Grid Community (Studio's grids,
+[ADR-0015](../../docs/decisions/0015-host-owned-database-studio-and-ag-grid-community.md)) and
+the Markdown field's editor: Tiptap and `marked`
+([ADR-0017](../../docs/decisions/0017-production-composition-and-build-layout.md)). React, AG Grid
+Enterprise, licence keys, CDNs and host-object bridges are out of scope.
 
-- `verify:dependencies` requires the production dependencies to be exactly
-  `ag-grid-community`, refuses a lockfile that holds AG Grid Enterprise, React
-  or React DOM, and builds the notices the Workbench build writes to
-  `dist/THIRD-PARTY-NOTICES.txt` (from the same `scripts/third-party-notices.mjs`)
-  and requires them to carry the licence of every production package in the
-  lockfile, Lucide's and Nendo's own. It reads no built `dist/`; the installer
-  lanes check the notices in the payload. It does not look for licence keys,
-  CDN URLs or host-object bridges.
-- `scripts/csp.test.mjs` pins the page's content-security policy, so a script,
-  stylesheet or fetch from a CDN is refused at runtime. It does not scan the
-  source for URLs.
-- Host objects are switched off by the Desktop host's WebView2 settings; no
-  test here covers that.
+- `verify:dependencies` requires that exact list, each pinned to one version; refuses a lockfile
+  holding AG Grid Enterprise, React or React DOM; and requires the notices the build writes to
+  `dist/THIRD-PARTY-NOTICES.txt` (`scripts/third-party-notices.mjs`) to carry every production
+  licence, Lucide's and Nendo's. It reads no built `dist/`; the installer lanes check the payload.
+  It does not look for licence keys, CDN URLs or host-object bridges.
+- `scripts/csp.test.mjs` pins the page's content-security policy, so a CDN script, stylesheet or
+  fetch is refused at runtime. It does not scan the source for URLs.
+- Host objects are switched off by the Desktop host's WebView2 settings; no test here covers that.
 
-AG Grid calculates theme styles at runtime, so the page CSP allows inline
-styles while keeping scripts and network access restricted to the bundled
-origin.
+AG Grid computes theme styles at runtime, so the CSP allows inline styles while scripts and
+network access stay restricted to the bundled origin.
 
 ## Browser preview
 
-Append `?preview=1` for browser-only visual work. That mode uses an in-memory
-protocol double and labels itself **Browser preview · not saved**. It is not
-storage, bridge or durability evidence — the normal browser page fails closed
-unless Nendo Desktop is hosting it.
+Append `?preview=1` for browser-only visual work. It answers the same protocol from in-memory
+fixtures in the tab (`src/host-preview.ts`) and reaches no file, so it is not storage, bridge or
+durability evidence. Without it the page fails closed unless Nendo Desktop hosts it.

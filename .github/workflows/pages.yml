@@ -1,8 +1,8 @@
 name: Website
 
 # The only workflow in this repository, and it builds and deploys site/ to GitHub
-# Pages. It does not run the product gate: that runs locally in about a minute and
-# stays the gate. See docs/decisions/0018-public-website-and-deployment-lane.md.
+# Pages. It does not run the product gate: that runs locally and stays the
+# gate. See docs/decisions/0018-public-website-and-deployment-lane.md.
 on:
   push:
     branches: [main]

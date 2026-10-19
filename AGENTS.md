@@ -123,9 +123,8 @@ Do not spend a round on this:
 - Run `tools/*.ps1` through the PowerShell tool from the repository root.
 
 **A Bash command longer than ~8,186 bytes is silently truncated** on this machine
-(measured 2026-09-15: 8,166 bytes of payload plus a 20-byte wrapper is the last
-length that survives; Git Bash cuts `bash -c` at an 8 KiB buffer). The cut usually
-lands inside a quoted string, so bash reports:
+(Git Bash cuts `bash -c` at an 8 KiB buffer). The cut usually lands inside a quoted
+string, so bash reports:
 
 ```text
 /usr/bin/bash: -c: line N: unexpected EOF while looking for matching `''
@@ -133,8 +132,7 @@ lands inside a quoted string, so bash reports:
 
 That message names a quoting bug in the text you wrote. **It is not one**, and the
 line number it gives is not where the problem is. It means the command was too
-long. This has cost several sessions a wrong diagnosis, because the obvious reading
-is to go hunting for an apostrophe in the content.
+long.
 
 It bites heredocs hardest, since they carry a whole file in one command — a
 `cat > file <<'EOF'` or a `python - <<'PY'` script. So:
@@ -163,10 +161,8 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 
 ## UI work
 
-- Use [`docs/design/mica-direction.md`](docs/design/mica-direction.md) as
-  the selected visual direction (Mica with tabs, chosen 2026-10-03). Console and
-  the Molded Workbench mockups are superseded for look and feel. The mockups'
-  workflow coverage still says which states each area has to present.
+- Use [`docs/design/mica-direction.md`](docs/design/mica-direction.md) (Mica with
+  tabs) as the visual direction.
 - Preserve the shared shell (Mica title band with the tabs, navigation, address
   row, status line), the permanent Studio route and the Nendo logo treatment.
   Colours come from the tokens in `02-tokens.css`, never from a literal. One
@@ -174,17 +170,15 @@ It bites heredocs hardest, since they carry a whole file in one command — a
 - Support the device theme preference: System follows Windows; Light and Dark are
   explicit overrides. Apply the effective theme to the app frame, Studio, custom
   surfaces, dialogs, title bar and safe mode, and verify UI work in both states.
-- Mockups are product and visual reference, not architecture authority. Contracts
-  and accepted ADRs govern behaviour. Record any intentional divergence.
+- Design documents are product and visual reference, not architecture authority.
+  Contracts and accepted ADRs govern behaviour. Record any intentional divergence.
 - **A screenshot in a gate proves nothing on its own.** Whatever the eye would
-  check, measure: the geometry, the number, the screen that opens by default. Two
-  S4 defects reached the owner through screenshots the gate had already passed,
-  and S2 had learned the same thing before it.
+  check, measure: the geometry, the number, the screen that opens by default.
 
 ## Validation and handoff
 
 - Run the narrowest applicable build and tests, plus `pwsh ./tools/Test-Repository.ps1`.
-- **Which gate a change needs** (owner, 2026-10-17):
+- **Which gate a change needs:**
   - An app-only change, one that touches nothing but a view package under
     `extensions/`, its `tools/<app>/` folder and its own lane (`Review-<App>.ps1`,
     `Gate-<App>.mjs`), needs that app's lane, with every new guard falsified, plus
@@ -211,19 +205,27 @@ It bites heredocs hardest, since they carry a whole file in one command — a
   has a structural reader for `.png`, `.ico`, `.mp4` and `.nendo` only.
 - When rebuilding the app, rebuild the installer in the same task:
   `Publish-NendoPayload.ps1` → `Build-NendoInstaller.ps1` → `Test-NendoInstaller.ps1`.
-  Build it **before** the full gate, not after (owner, 2026-10-18): the owner tries it while
+  Build it **before** the full gate, not after: the owner tries it while
   the gate runs and can stop the gate on a bug. Never both at once — the publish and the
   gate build into the same output. Commit only once the gate passes.
   Deliver `artifacts/installer/Nendo-Setup.exe`, upgrading the per-user
   `Programs/Nendo` installation in place. Do not run the install/uninstall smoke
   over an owner installation — use `Test-NendoSetupIsolated.ps1`.
-- Windows x64 only for interim installers; ARM64 waits for final production.
+- Installers are Windows x64 only.
 - Keep verbose logs under task-owned `artifacts/` and return summaries plus
   actionable failures. See [Artifacts](#artifacts) — that directory is scratch,
   not a record.
 - Update the affected contract, ADR or architecture document in the same change
   as the behaviour. Inspect the final changed-file set and remove only transient
   artefacts your task created.
+
+## Documents describe the current state
+
+Docs, ADRs, contracts and site guides say what Nendo is now, not how it got there.
+Change an ADR by editing its decision in place: no dated amendment sections, no
+"was", "since" or "replaced" narration, no planner or review codes, no record of
+past gate runs. The history is in git and in the planner. A plan or review that
+has been carried out is deleted, not kept as a record.
 
 ## When something is reported broken
 
@@ -250,7 +252,7 @@ sidecars to Nendo — `.gitignore` already keeps every `-wal`, `-shm`, journal a
 write-owner file out of git. Use host-owned backup/copy flows for these files;
 `.nendo` storage is never edited directly by an agent.
 
-**The planner itself is git-ignored**, and so, since 2026-10-18, is
+**The planner itself is git-ignored**, and so is
 `workspace/Manuscript.nendo`, the owner's paper in progress. Each changes on every
 write and git would store each version whole, so they are owner data that lives
 here and is backed up by the owner, not by this repository. The demo files are tracked, because they
@@ -266,13 +268,12 @@ and fails until you close it or open another file.
 `artifacts/` is git-ignored scratch: build output, the current payload and
 installer, and whatever a run writes while you work. Delete freely, subject to
 the checks below, and clean up what your task created. Nothing owner-owned lives
-here any more — that is what `workspace/` is for.
+here — that is what `workspace/` is for.
 
 The evidence for this project is the test suite. It runs in a few minutes and
 lives in git, so a stored run output from last week proves nothing it cannot
 prove now. Do not build a retention scheme on top of this directory, do not
-archive run outputs "for traceability", and do not turn `workspace/` into one — that is how this directory reached 5.7 GB of dead
-weight.
+archive run outputs "for traceability", and do not turn `workspace/` into one.
 
 Three things are worth a second's thought before deleting:
 

@@ -26,15 +26,17 @@ const operations = [
   ['schema.setFieldRequired', 'data.backfillRetiredField', 'ui.removeProperty', 'extension.setState †'],
   ['schema.setFieldPresentation', 'data.convertLegacyReference', 'behaviour.setDefinition', ''],
   ['schema.setFieldUnique', 'data.restoreDeletedRecord *', 'behaviour.removeDefinition', ''],
-  ['schema.setFieldSequence', 'identity.transition *', '', ''],
-  ['schema.setRetired', '', 'application.setPurpose', ''],
-  ['schema.setChoiceMetadata', '', 'application.setLook', ''],
-  ['schema.configureReference', '', 'application.setNewFileLabel', ''],
-  ['schema.declareHierarchy', '', 'application.buildSearchIndex', ''],
+  ['schema.setFieldSequence', 'identity.transition *', 'application.setPurpose', ''],
+  ['schema.setRetired', 'media.put ‡', 'application.setLook', ''],
+  ['schema.addChoice', '', 'application.setIcon', ''],
+  ['schema.setChoiceMetadata', '', 'application.setNewFileLabel', ''],
+  ['schema.removeChoice *', '', 'application.buildSearchIndex', ''],
+  ['schema.configureReference', '', '', ''],
+  ['schema.setReferenceLabel', '', '', ''],
+  ['schema.declareHierarchy', '', '', ''],
   ['schema.removeHierarchy', '', '', ''],
   ['schema.declareLinkRule', '', '', ''],
   ['schema.removeLinkRule', '', '', ''],
-  ['schema.setReferenceLabel', '', '', ''],
   ['schema.setKeptInNewFiles', '', '', ''],
 ];
 
@@ -81,7 +83,7 @@ const screens = [
       <p>
         Each file records a <code>minimumHostVersion</code>. An older version of Nendo
         refuses to open a newer file instead of opening part of it, and opening an older
-        file never upgrades or rewrites it. A file can grow to 256&nbsp;MiB, roughly 75,000
+        file never upgrades or rewrites it. A file can grow to 256&nbsp;MiB besides its pictures, roughly 75,000
         text-heavy records; a cold open at that size takes several seconds.
       </p>
       <p>
@@ -115,12 +117,14 @@ const screens = [
 
   <section class="page section">
     <p class="eyebrow">The vocabulary</p>
-    <h2>Forty-one operations, thirty-eight of them open to agents.</h2>
+    <h2>Forty-five operations, forty of them open to agents.</h2>
     <p class="lede">
       These are the only ways the file can change. There is no raw SQL and no
-      general-purpose escape hatch. The two marked <code>*</code> are available only in
-      the Nendo app itself, and the one marked <code>†</code> only to a custom view
-      keeping its own state.
+      general-purpose escape hatch. The three marked <code>*</code> are made only by
+      Nendo itself: a restore, a change of identity and the undo of an added option. The
+      one marked <code>†</code> is written only by a custom view keeping its own
+      state, and the one marked <code>‡</code> stores a picture's bytes, through the
+      picture calls of the app, an agent or a view rather than a change set.
     </p>
     <div class="table-scroll operations">
       <table>
@@ -206,7 +210,7 @@ const screens = [
     <h2>Studio is always there.</h2>
     <p class="lede">
       Every valid file has Nendo Studio and its five areas: Data, Structure,
-      Surfaces, History and Health. It works with no record types, no agent, no custom
+      Screens, History and Health. It works with no record types, no agent, no custom
       screens, a broken definition, or a file opened in safe mode.
     </p>
     <div class="studio-shots">
@@ -221,8 +225,8 @@ const screens = [
     <p class="lede">
       Agents talk to a stateless MCP server that listens only on this computer, at
       <code>http://127.0.0.1:41763/mcp</code>; each further open file keeps a port of its
-      own. Twenty-five resources are read-only and need no lease. There are
-      twenty-seven tools. Two of them, <code>nendo.read.resource</code> and
+      own. Twenty-seven resources are read-only and need no lease. There are
+      twenty-eight tools. Two of them, <code>nendo.read.resource</code> and
       <code>nendo.read.list</code>, read the same resources and need no lease either;
       the ones that write need the lease.
     </p>

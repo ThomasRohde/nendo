@@ -76,22 +76,18 @@ If Studio succeeds but semantic surfaces cannot deliver value that the table
 alone does not, Nendo has not passed its hypothesis. That result is a signal to
 pivot or stop. It is not a backlog item.
 
-Four reference applications exist as falsification tests. Each one has a
-different shape from the one before it:
+Four reference applications are the falsification tests, each a different shape:
 
-- **Idea Garden** (the original form and board).
-- **Decision Log** (the neutrality proof that the path is not Idea-specific).
-- The **Axiom Register** (record pages, related lists, declared filters, summary
-  tiles and multi-step commands; the earlier vocabulary could express none of
-  these).
-- **Nendo Station** (every kind of screen this host compiles except the outline,
-  added at 1.36.0, with the charts, the calculations, an automatic action and a
-  custom view of its own).
+- **Idea Garden**: a form and a board.
+- **Decision Log**: the proof that the path is not specific to one record type.
+- The **Axiom Register**: record pages, related lists, declared filters, summary
+  tiles and multi-step commands.
+- **Nendo Station**: every kind of screen the host compiles except the outline,
+  with charts, calculations, an automatic action and a custom view of its own.
 
-The Axiom Register was authored end to end through the MCP interface alone. Its
-author read the vocabulary from the wire and not from this repository. The
-station was built the same way from an empty file. [Its walkthrough](nendo-station.md)
-performs the loop above for an observer.
+The Axiom Register and the station were authored from an empty file through the MCP
+interface alone, reading the vocabulary from the wire. [The station's
+walkthrough](nendo-station.md) performs the loop above for an observer.
 
 ## Scope boundary
 
@@ -114,25 +110,19 @@ an embedded agent (a model client in the host), scalar multi-choice, binary and 
 cloud sync, background agents, other database engines, cross-platform parity.
 
 The scope list covers what is shipped and what an accepted ADR has decided.
-Bounded calculations and local actions are in it because
-[ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) is
-delivered, and its bounded expressions stay the formula language. Custom views are
-in it because ADR-0013 decides them. A view's code travels in the file and runs in
-the view's own frame. It is one more client of the same typed services, so the
-axioms above hold for it. The [custom-view contract](contracts/custom-views.md)
-states how much of this is delivered at any moment. Extension code that runs
-without a view, such as a contributed command or a background job, still needs its
-own accepted decision.
+[ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md)'s bounded
+expressions are the formula language. A custom view's code travels in the file and
+runs in the view's own frame; it is one more client of the same typed services, so
+the axioms hold for it. The [custom-view contract](contracts/custom-views.md) states
+what is delivered. Extension code that runs without a view, such as a contributed
+command or a background job, needs its own accepted decision.
 
-**Charts and dashboards came into scope on 2026-09-14**, and the slices S0 to S7
-are delivered. A chart in Nendo is an exact aggregate over a closed grouping: a
-choice field's options, a Boolean, or a Date field's weeks or months. Nendo draws the
-chart as a proportion and shows its numbers beside it. A dashboard is a page of
-such tiles and charts over one file. Neither one stores layout, an expression or
-a sample. The ideas and their order are in
-[surfaces-and-charts-plan.md](design/surfaces-and-charts-plan.md). Each idea
-lands as an accepted [ADR-0004](decisions/0004-versioned-semantic-ui-contract.md)
-amendment, and the axioms above hold throughout.
+**Charts and dashboards are in scope.** A chart is an exact aggregate over a closed
+grouping: a choice field's options, a Boolean, or a Date field's weeks or months.
+Nendo draws it as a proportion and shows its numbers beside it. A dashboard is a page
+of such tiles and charts over one file. Neither stores layout, an expression or a
+sample. A new kind lands as an accepted
+[ADR-0004](decisions/0004-versioned-semantic-ui-contract.md) amendment.
 
 ## Success criterion
 

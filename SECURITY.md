@@ -36,14 +36,14 @@ device remembers it for the file it was chosen for, so that file reopens at
 Unattended until the level is lowered to Off. A Duplicate or a Fork, a restore
 from Health and a read-only or recovery open begin at Off. A copy made outside
 Nendo keeps the file's identity, so on this device it opens at the same level
-([ADR-0009](docs/decisions/0009-local-mcp-transport-authority-and-change-sets.md),
-2026-09-29 amendment). That it can change a file with nobody
-reading the diff is the documented point of it, not a defect.
+([ADR-0009](docs/decisions/0009-local-mcp-transport-authority-and-change-sets.md)).
+That it can change a file with nobody reading the diff is the documented point of
+it, not a defect.
 
-**Custom views are code, and a file carries them.** Since 2026-09-25
-([ADR-0013](docs/decisions/0013-custom-views-with-code-in-the-file.md)) a view's
-code lives in the `.nendo` file and runs when its view is shown: no install step,
-no consent, no pin. That is the owner's chosen trade for an exploratory project.
+**Custom views are code, and a file carries them.** A view's code lives in the
+`.nendo` file and runs when its view is shown
+([ADR-0013](docs/decisions/0013-custom-views-with-code-in-the-file.md)): no install
+step, no consent, no pin. That is the owner's chosen trade for an exploratory project.
 A received file's code can read all of that file's records, reach the network
 (loopback included) and the clipboard, and start downloads. The controls are the
 kill switches: **Run custom views** on this device, a switch for each file, and

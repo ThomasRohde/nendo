@@ -1,15 +1,7 @@
 # Mica with tabs: the visual direction
 
-- **Status:** Selected by the owner on 2026-10-03. It replaces [Console](console-direction.md)
-  as the visual reference.
-- **Source:** the design canvas <https://claude.ai/artifact/E2vDLAauruVcEeLV6x1aZC> set out six
-  directions for making Nendo look like a native, professional Windows app: A Mica, B Ribbon,
-  C Three-pane, D Workspace, E Explorer and F Inspector. The owner asked for A with E's tabs,
-  drawn as G. G was built as a trial, tested in the running window, and then adopted. The canvas is
-  private to the owner. This document describes the direction as it is built.
-
-This is a product and visual reference, not an architecture authority. Contracts
-and accepted ADRs govern behaviour.
+Nendo's visual reference: a native, professional Windows app. This is a product and visual
+reference, not an architecture authority. Contracts and accepted ADRs govern behaviour.
 
 ## The look in one paragraph
 
@@ -24,22 +16,18 @@ inverted. Ids, counts, versions and key names stay in a mono face.
 
 ## Mica
 
-`MainWindow.xaml` has always set a `MicaBackdrop`; the page painted over it. Now `ShellGrid`
-in `MainPage.xaml` is transparent and the WebView2's `DefaultBackgroundColor` has an alpha of 0,
-so the backdrop shows wherever the page leaves its ground. The page knows it is in the Desktop host
-and sets `data-backdrop="mica"` on `:root`, which makes `html`, `body` and the app shell
-transparent. In a browser there is no backdrop, and `--mica` stands in for it: the colour Mica takes
-over a neutral wallpaper. `--mica` is not one of the tokens a custom view is handed, because a view
-draws on the layer and never on the ground.
-
-The recovery panel keeps its own opaque brush.
+`MainWindow.xaml` sets a `MicaBackdrop`. `ShellGrid` in `MainPage.xaml` is transparent and the
+WebView2's `DefaultBackgroundColor` has an alpha of 0, so the backdrop shows wherever the page
+leaves its ground. In the Desktop host the page sets `data-backdrop="mica"` on `:root`, which makes
+`html`, `body` and the app shell transparent. In a browser `--mica` stands in for the backdrop: the
+colour Mica takes over a neutral wallpaper. A custom view is not handed `--mica`, because a view
+draws on the layer and never on the ground. The recovery panel keeps its own opaque brush.
 
 ## Tokens
 
 The colours live in `src/Nendo.Workbench/src/styles/02-tokens.css`, except `--mica`, which
-`21-native.css` declares because no view is handed it. The names predate both
-Console and this direction, and stay, because custom views are handed exactly these tokens
-(`themeTokenNames` in `extension-model.ts`, and the custom-views contract). `--cobalt` is the
+`21-native.css` declares. Custom views are handed exactly these names (`themeTokenNames` in
+`extension-model.ts`, and the custom-views contract), so they stay as they are. `--cobalt` is the
 accent, whatever hue it carries.
 
 | Token | Light | Dark | Role |
@@ -53,113 +41,116 @@ accent, whatever hue it carries.
 | `--cobalt` / `--cobalt-soft` | `#005fb8` / `#e5eff9` | `#60cdff` / `#1f3a4a` | Accent, selected fill |
 | `--mica` (ground only) | `#eef1f6` | `#1e2024` | The ground in a browser; transparent in the host |
 
-Text on an accent fill is white in light and `--canvas` in dark, because the dark accent is light.
-`21-native.css` declares that as `--on-accent`, and everything drawn on the accent uses it: the
-primary button, the send button, the step marker, the entity icon and a switch's knob when the
-switch is on.
+Text on an accent fill is `--on-accent`: white in light and `--canvas` in dark, because the dark
+accent is light. The primary button, the send button, the step marker, the entity icon and an
+on switch's knob use it.
 
-No rule writes a colour itself (`scripts/css-cascade.test.mjs`). Besides the tokens above,
-`21-native.css` declares the stylesheet's own, which no view is handed: `--on-accent`,
-`--switch-knob` and `--shadow-knob`; `--shadow-tab-hover`, the agent tab's hover; `--scrim`, the dark wash behind the About and Delete dialogs;
-and `--scrim-palette` with `--shadow-palette`, the lighter wash and the shadow of the command
-palette. `13-refinements-pages.css` declares `--shadow-card` and `--shadow-raised` for each theme;
-a shadow is dark in both.
+No rule writes a colour itself (`scripts/css-cascade.test.mjs`). The stylesheet's own tokens, which
+no view is handed, are declared in `21-native.css`: `--on-accent`, `--switch-knob`, `--shadow-knob`,
+`--shadow-tab-hover` (the agent tab's hover), `--scrim` (behind the About and Delete dialogs),
+`--scrim-palette` and `--shadow-palette` (the command palette). `13-refinements-pages.css` declares
+`--shadow-card` and `--shadow-raised` for each theme; a shadow is dark in both.
 
-Radii are `--radius-control` (4px) and `--radius-panel` (8px), with `--radius-shell` (8px) for the
-record form's card, declared in `21-native.css`. Three more come from canvases the owner chose for
-the Agent page and the conversation: `--radius-small` (6px) for a chip or icon inside a card,
-`--radius-conversation` (10px) for the agent tabs and the conversation's cards, and
-`--radius-composer` (12px) for the message box and the @ menu over it. Only 2px and 3px marks,
-circles and pills are written as numbers. The root font size is 14px. Body text is not set
-below 0.75rem. A few small labels go below it on purpose: key caps, the count of waiting changes
-on the Agent page's Activity card, a type tile's letters (10px), a launch command on the Agent
-page and the note that it was renamed, and in the agent conversation its tags, the context line
-under a message, an option's name, the @ menu and the line under the box, down to 0.68rem (about
-9.5px). Tool output and a command to copy by hand are content, not labels, and stay at 0.75rem.
+Radii are tokens, declared in `21-native.css`:
+
+| Token | Size | Use |
+| --- | --- | --- |
+| `--radius-control` | 4px | Controls |
+| `--radius-panel` | 8px | Panels and cards |
+| `--radius-shell` | 8px | The record form's card |
+| `--radius-small` | 6px | A chip or icon inside a card |
+| `--radius-conversation` | 10px | The agent tabs and the conversation's cards |
+| `--radius-composer` | 12px | The message box and the @ menu over it |
+
+Only 2px and 3px marks, circles and pills are written as numbers.
+
+The root font size is 14px. Body text is not set below 0.75rem. These small labels go below it on
+purpose, down to 0.68rem (about 9.5px): key caps, the count of waiting changes on the Agent page's
+Activity card, a type tile's letters (10px), a launch command on the Agent page and the note that
+it was renamed, and in the agent conversation its tags, the context line under a message, an
+option's name, the @ menu and the line under the box. Tool output and a command to copy by hand
+are content, not labels, and stay at 0.75rem.
 
 The data grid (`nendoGridTheme` in `view-data.ts`) repeats these values, because it cannot read
 a CSS variable. Change them together.
 
 ## The shell
 
-- **Title band (48px).** It is the window's title bar (W-093). Over the navigation it carries the
-  Nendo mark, the file's name and the File menu. Over the layer it carries the tab strip. Windows
-  draws Minimise, Maximise and Close at its right end, and the strip keeps their width free
-  (`--title-bar-right`). Every part of the band that is not a control moves the window.
+- **Title band (48px).** The window's title bar. Over the navigation it carries the Nendo mark, the
+  file's name and the File menu; over the layer, the tab strip. Windows draws Minimise, Maximise
+  and Close at its right end, and the strip keeps their width free (`--title-bar-right`). Every
+  part of the band that is not a control moves the window.
 - **Navigation (280px).** A NavigationView on the ground: 36px items, a fill and a 3×16px accent
-  pill for the selected one. **Use** heads the first section and is still the way to Use (Ctrl 1).
-  Under it are the file's front page, its own views and its record types (`rail-places.ts`), and
-  choosing one opens Use on it from anywhere. **Studio** heads the second section (it opens Data),
-  with Data, Structure, Surfaces, History and Health under it. Agent and Help sit at the foot. A
-  file with many record types scrolls its own list, so Studio stays in reach. The hamburger above
-  Use folds the navigation to 56px of icons (Ctrl B); the fold is kept for the device.
-- **Record type icons.** A record type's icon is guessed from its name (`type-icons.ts`). The
-  head noun, which is the last word in English, is looked up in a short table of everyday nouns:
-  Crew gets people, Incidents a warning, Readings a gauge. A name that matches nothing gets its
-  letters on a tile tinted in one of the choice tones, the same tone for the same name every time.
-  The navigation, the tabs and the address row use the same icon. A file cannot yet choose a type's
-  icon; that would need it in the file.
-- **Tabs.** Each tab is a place kept open (`workspace-tabs.ts`). A tab is a trail. Each one keeps
-  its own places and cursor, so Back and Forward belong to the tab, as in File Explorer.
-  Switching tabs swaps the saved trail into `navigationTrail` and puts its current place back the
-  way a step back does (`revisitCurrent`). A tab that is not on screen costs a list of places and
-  nothing else: no frame, no read. Tabs belong to the window, and they are cleared with the file.
-  A place carries its Filter pick and Studio's sort and filter, so two tabs on one screen keep
-  their own (ADR-0004, 2026-10-06); changing them amends the place on screen, not a new step.
+  pill for the selected one. **Use** heads the first section (Ctrl 1). Under it are the file's
+  front page, its own views and its record types (`rail-places.ts`); choosing one opens Use on it
+  from anywhere. **Studio** heads the second section (it opens Data), with Data, Structure,
+  Surfaces, History and Health under it. Agent and Help sit at the foot. A long list of record
+  types scrolls on its own, so Studio stays in reach. The hamburger above Use folds the navigation
+  to 56px of icons (Ctrl B); the fold is kept for the device.
+- **Record type icons.** A record type's icon is guessed from its name (`type-icons.ts`). The head
+  noun, the last word in English, is looked up in a short table of everyday nouns: Crew gets
+  people, Incidents a warning, Readings a gauge. A name that matches nothing gets its letters on a
+  tile tinted in one of the choice tones, the same tone for the same name every time. The
+  navigation, the tabs and the address row use the same icon. A file cannot choose a type's icon.
+- **Tabs.** Each tab is a place kept open (`workspace-tabs.ts`) and a trail with its own places and
+  cursor, so Back and Forward belong to the tab, as in File Explorer. Switching tabs swaps the saved
+  trail into `navigationTrail` and puts its current place back the way a step back does
+  (`revisitCurrent`). A tab not on screen costs a list of places and nothing else: no frame, no
+  read. Tabs belong to the window and are cleared with the file. A place carries its Filter pick
+  and Studio's sort and filter, so two tabs on one screen keep their own (ADR-0004); changing them
+  amends the place on screen, not a new step.
   - **+**, Ctrl T: a new tab on the place on screen.
   - Ctrl W, a tab's close button, a middle click on a tab: close it. The last tab cannot be closed.
   - Ctrl Tab and Ctrl Shift Tab: the next and previous tab. The arrow keys move between tabs, and
     Delete closes the focused one. The tab on screen is the strip's one Tab stop; the close
     buttons are the pointer's, and New tab stands after the tabs.
-  - Once the tabs reach their narrowest the strip scrolls sideways, and the tab on screen is kept
-    in view, with New tab beside it.
+  - Once the tabs reach their narrowest the strip scrolls sideways, keeping the tab on screen in
+    view with New tab beside it.
   - A Ctrl-click or a middle click on anything in the navigation opens it in a new tab.
   - A tab is named after the place on screen: the record type and the view (*Incidents · Ops
     board*), or Studio and its page. A view named after its type is named once.
-  - A page can put a status mark on its own tab (`setTabStatus`). The launched agent's
-    conversation uses it to show, from any other tab, that the agent is starting or working (a
-    turning ring), thinking (a breathing dot) or waiting for the person (a still amber dot).
+  - A page can put a status mark on its own tab (`setTabStatus`). The agent conversation shows
+    there that the agent is starting or working (a turning ring), thinking (a breathing dot) or
+    waiting for the person (a still amber dot).
   - A page that is one of a kind in the window opens in a tab of its own, or moves to the tab
-    already on it (`openTabOn`). The agent conversation opens this way, and so does the Agent page
-    when the conversation opens it beside itself.
+    already on it (`openTabOn`): the agent conversation, and the Agent page when the conversation
+    opens it beside itself.
   - Closing a tab tells the page it showed (`onTabClosed`). Closing the conversation's tab ends
     the launched agent and everything it started (ADR-0030).
 - **Address row.** The first row of the layer: Back and Forward (Alt Left and Alt Right), the
   breadcrumb, and the command box (Ctrl K). On a Use screen the breadcrumb carries the record-type
-  and view pickers (W-092), and where the window has room the Use toolbar sits in the row's middle,
-  one bar. The page names itself here and nowhere larger.
+  and view pickers, and where the window has room the Use toolbar sits in the row's middle, one
+  bar. The page names itself here and nowhere larger.
 - **Status line (28px).** On the ground, in the UI face: the file's icon and name on the left; the
   agent pill, the health pill, the theme (System, Light, Dark), the key hints toggle and the
   version on the right.
 - **Notices.** What happened is said in a stack over the bottom right of the layer, just above the
-  status line, and never in the page, so nothing on the page moves when a notice comes or goes
-  (W-283, `#notice-stack` in `shell.ts`; the owner chose "Corner toasts" from a canvas on
-  2026-10-17). A notice is a raised card on `surface-raised` with `shadow-raised`, a tone icon
-  (`healthy` check, `danger` alert, `warning` alert for something that stays wrong), its sentence,
-  its button and a close button. A success goes by itself after five seconds or more, longer for
-  a long sentence or one with a button, with its time running down a 2px bar along its foot; the
-  pointer on it, or the keyboard on one of its buttons, holds it. A success the next action
-  replaces stays above the new notice for the rest of its time, three notices at most. An alert
-  keeps its rules: a refusal goes at the next press, a kept alert and a Refresh view notice stay
-  until dealt with. A notice still belongs to the screen it was said on. The stack rises above
-  the page's own action shelf whenever it would cover one: a form's Save and Cancel, the agent
-  conversation's message box, a list's Previous and Next.
+  status line (`#notice-stack` in `shell.ts`), never in the page, so nothing on the page moves when
+  a notice comes or goes. A notice is a raised card on `surface-raised` with `shadow-raised`: a
+  tone icon (`healthy` check, `danger` alert, `warning` alert for something that stays wrong), its
+  sentence, its button and a close button. A success goes by itself after five seconds or more,
+  longer for a long sentence or one with a button, its time running down a 2px bar along its foot;
+  the pointer on it, or the keyboard on one of its buttons, holds it. A success the next action
+  replaces stays above the new notice for the rest of its time, three notices at most. A refusal
+  goes at the next press; a kept alert and a Refresh view notice stay until dealt with. A notice
+  belongs to the screen it was said on. The stack rises above the page's own action shelf whenever
+  it would cover one: a form's Save and Cancel, the agent conversation's message box, a list's
+  Previous and Next.
 - **A narrow window.** Below 841px, at every height, the navigation is the bar across the top and
-  the title bar, keeping the width of Windows' buttons free. Once the bar is wider than the window
-  it scrolls sideways, and a thin scrollbar shows that it does. Tabs wait for a wider window, and
-  the tab keys (Ctrl T, Ctrl W, Ctrl Tab) do nothing until they are on screen again. The File menu
-  opens below the bar, on the window. The bar keeps a hairline under it, and scrolls only sideways.
-  The address row stays one row, and the status line keeps its pills; at 480px or less a pill is
-  its dot, and its words stay for a screen reader and as its tooltip. With no file open in a wide window there are no tabs, and the address row keeps the width
-  of Windows' buttons free instead.
+  the title bar, keeping the width of Windows' buttons free. A bar wider than the window scrolls
+  sideways only, with a thin scrollbar, and keeps a hairline under it. Tabs wait for a wider
+  window, and the tab keys (Ctrl T, Ctrl W, Ctrl Tab) do nothing until they are on screen again.
+  The File menu opens below the bar, on the window. The address row stays one row, and the status
+  line keeps its pills; at 480px or less a pill is its dot, and its words stay for a screen reader
+  and as its tooltip. With no file open in a wide window there are no tabs, and the address row
+  keeps the width of Windows' buttons free instead.
 - **Contrast themes.** Under a Windows contrast theme (forced colors) every fill becomes the
-  theme's background and shadows go, so a selected or pressed state that was only a fill gets a
-  mark there that focus never draws: a 3px Highlight bar under a record page's tab, a view switcher
-  segment, the theme buttons, the Data view's Outline and Table buttons and the key hints toggle,
-  and Highlight rules above and below the outline's selected row. The navigation's selection
-  pill, a chosen rating and a filled rating dot keep a Highlight fill. Focus stays the outline, so
-  it shows on a selected control too; the @ menu's option and today's calendar cell take a Highlight
-  outline.
+  theme's background and shadows go, so a selected or pressed state that is only a fill gets a
+  mark focus never draws: a 3px Highlight bar under a record page's tab, a view switcher segment,
+  the theme buttons, the Data view's Outline and Table buttons and the key hints toggle, and
+  Highlight rules above and below the outline's selected row. The navigation's selection pill, a
+  chosen rating and a filled rating dot keep a Highlight fill. Focus stays the outline, so it shows
+  on a selected control too; the @ menu's option and today's calendar cell take a Highlight outline.
 
 ## Fonts
 
@@ -182,18 +173,17 @@ The app uses the Windows faces, Segoe UI Variable and Cascadia Mono. A bundled w
 
 ## A custom view's controls
 
-These are unchanged from Console (W-090, W-092; ADR-0013), but for where the row stands. Nendo draws
-a view's declared controls in the Use toolbar, before Add: where the window has room, that toolbar
-shares the address row, between the breadcrumb (which then hugs what it says) and the command box,
-which narrows to 240px (one bar, `one-bar.ts`); where the middle is narrower than the
-toolbar needs, it keeps its own row under the address row. On a record page they sit in the
-panel's header. A toolbar menu and a right-click menu are the File menu's panel.
+Nendo draws a view's declared controls in the Use toolbar, before Add (ADR-0013). Where the window
+has room, that toolbar shares the address row, between the breadcrumb (which then hugs what it
+says) and the command box, which narrows to 240px (one bar, `one-bar.ts`); where the middle is
+narrower than the toolbar needs, it keeps its own row under the address row. On a record page the
+controls sit in the panel's header. A toolbar menu and a right-click menu are the File menu's panel.
 
 ## Studio's record page and the split pane
 
-These are unchanged from Console (W-071). The record page is a sheet and a sidebar, and the record
-inspector beside a list is the split pane. Since W-242 a record's long text is one document on that
-sheet, one field under another, each box as tall as its text.
+The record page is a sheet and a sidebar, and the record inspector beside a list is the split
+pane. A record's long text is one document on that sheet, one field under another, each box as
+tall as its text.
 
 ## Where it lives
 

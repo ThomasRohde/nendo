@@ -5,548 +5,346 @@ vocabulary table is `src/Nendo.Engine/SemanticVocabulary.cs`, and the host
 publishes it live as `nendo://application/vocabulary`. This document covers the
 rules around that table.
 
-ADR-0008's bounded calculation and action design is delivered.
-[calculations-and-actions.md](calculations-and-actions.md) is its implementation
-contract, and the [design notes](../design/adr-0008-semantics.md) behind it are
-history. The design adds no expressions to this surface vocabulary and does not
-change stored declarative commands. A surface binds a calculated field by ID like
-any other field, and a surface never carries a formula. Calculation consumers use
-the shared Engine service and preserve Studio, typed writes and proposal review.
-Arbitrary HTML/code and custom controls remain outside that authority.
+A surface binds a calculated field by ID like any other field and never carries a
+formula ([calculations-and-actions.md](calculations-and-actions.md)). Arbitrary
+HTML, code and custom controls are outside this vocabulary; custom views are
+[at the end](#custom-view-definitions).
 
-**Contract version 3 is the only shape this host compiles.** Versions 1 and 2
-were removed on 2026-09-12, before the format had users. Their fixed
-form/list/board/command slots were removed with them. There is one compile path,
-one plan shape and one digest projection. If the stored roots declare
-`definitionVersion` 1 or 2, `NUI003` refuses them and names the supported version.
-Roots that declare different versions are `NUI002`.
-Every custom plan is then suppressed; Studio, the data and recovery are
-unaffected.
+**Contract version 3 is the only shape this host compiles**, with one compile path,
+one plan shape and one digest projection. Roots that declare `definitionVersion` 1
+or 2 are `NUI003`, which names the supported version; roots that declare different
+versions are `NUI002`. Every error suppresses all custom plans, and the host never
+returns a partial app; Studio, the data and recovery are unaffected.
 
 Each surface has one root with ordered children. A file may have several entity
 groups, selected explicitly in Use. With zero custom nodes, permanent Studio
-remains. Board card fields come from ordered `fieldBinding` children. The
-parallel `cardFieldIds` property no longer exists.
+remains. Missing roots stay absent: the host does not invent a board, command or
+custom form. A form-only application offers bounded record selection, and list or
+board records without a custom form open the Studio inspector. Commands are
+selected by their stable ID and apply only to their declared entity.
 
 **A surface nests at most twenty-four levels**, its root counted as the first
-(`MaximumNodeDepth`, published as `limits.nodeDepth`). A section may hold a section,
-so without a bound a deep tree threw out of the plan digest or exhausted the
-compiler's stack; the first node past it is `NUI456`, said once per branch, before
-anything is compiled. Every record type's surfaces are compiled even when an
-earlier type's are broken, so one validation reports them all.
+(`MaximumNodeDepth`, published as `limits.nodeDepth`). The first node past it is
+`NUI456`, said once per branch, before anything is compiled. Every record type's
+surfaces are compiled even when an earlier type's are broken, so one validation
+reports them all.
 
 **A filter clause compiles only if storage can read it.** `today` compares with a
 Date or DateTime field and `now` with a DateTime field; anything else is `NUI457`.
-`thisWeek` and `thisMonth` (W-248, host 1.53.0) are spans of days on a Date or
-DateTime field, a week from Monday, compared by an edge: `lt` before it, `gte` from
-its first day, `lte` to its last day and `gt` after it, so a clause stays one filter
-and *within this month* is `gte` and `lte` together. Any other operator is `NUI460`,
-and a command step cannot assign one (`NUI287`). The reader resolves them when it
-reads, in the person's own calendar, as it resolves `today`.
-Neither takes a `value`: one beside them is ignored and warned about (`NUI458`), as
-no operation removes a property. A literal must be written as storage keeps the
-field: a Date as `yyyy-MM-dd`, a DateTime as an ISO timestamp with seconds and its
-zone, a Uuid hyphenated (`NUI277`). The same rules hold for a custom view's
-filters, where `today`, `now` or a period on the wrong field, or a period with
-another operator, is refused as `NUI450` and a
-malformed literal as `NUI277`. A command step that sets a retired choice is warned
-about (`NUI286`), since every press would be refused; a filter may still match one.
+`thisWeek` and `thisMonth` are spans of days on a Date or DateTime field, a week
+from Monday, compared by an edge: `lt` before it, `gte` from its first day, `lte` to
+its last day and `gt` after it, so *within this month* is `gte` and `lte` together.
+Any other operator is `NUI460`, and a command step cannot assign one (`NUI287`). The
+reader resolves these words when it reads, in the person's own calendar. None takes
+a `value`; one beside them is ignored and warned about (`NUI458`). A literal is
+written as storage keeps the field: a Date as `yyyy-MM-dd`, a DateTime as an ISO
+timestamp with seconds and its zone, a Uuid hyphenated (`NUI277`). In a custom
+view's filters the same mistakes are `NUI450`, and a malformed literal `NUI277`. A
+command step that sets a retired choice is warned about (`NUI286`), since every
+press would be refused; a filter may still match one.
+
+Sibling `filterClause` children are ANDed. Contract version 3 has no OR and no
+grouping, and the vocabulary publishes the combinator.
+
+### Rules every surface shares
+
+- **Renderer state.** The selected surface, open tab, calendar month, timeline year,
+  drill, quick filter and step back are file-session renderer state: never written
+  to the `.nendo` file, and cleared by a file switch.
+- **Entries.** An entry, card or row opens the record page or the Studio inspector.
+  New records, edits and date changes go through the typed forms; a calendar, a
+  timeline or a gallery writes nothing itself.
+- **Layout under the inspector.** Opening an entry never recomputes a calendar's day
+  tracks or a gallery's columns. When the side inspector takes horizontal space,
+  the surface keeps its width and scrolls horizontally; at the compact overlay
+  breakpoint it stays at the viewport width.
+- **Dates.** Grouping uses civil `YYYY-MM-DD` values and never a JavaScript `Date`
+  (`new Date('2026-03-01')` is UTC midnight read back locally, which moves the day
+  west of Greenwich). A DateTime is refused by name wherever records are grouped
+  by day, because that would need a time zone this contract does not define.
+- **Calculated fields** cannot group, bucket, be an axis or be a date bound
+  (`NUI214`); a calculated Integer or Decimal may be totalled.
+- **Proposal preview** draws each surface over the validated clone's bounded sample
+  and labels it as a sample. Numbers that are live reads over a whole record type
+  (a ring, the front page) are described, not drawn.
+- **Review lines.** A node that arrives with its terms is one line in the person's
+  words (*Show only records where Status is not Done*, *Order by Amount, largest
+  first*). A property that changes on a node the file already has keeps its own
+  line.
 
 ## How many roots of a kind an entity may own
 
-Every kind that can be a root declares its ceiling in the vocabulary table. The
-compiler reads the ceiling from that table and does not hard-code it. The ceiling
-that applies depends on what the root belongs to:
+Every root kind declares its ceiling in the vocabulary table, and the compiler
+reads it from there: `maxRootsPerEntity` for a root about a record type,
+`maxRootsPerFile` for a root that belongs to the file. No kind declares both, and
+the vocabulary publishes both.
 
-- `maxRootsPerEntity` applies to a root about a record type.
-- `maxRootsPerFile` applies to a root that belongs to the file.
+| Ceiling | Kinds |
+| --- | --- |
+| eight per entity | `recordList`, `boardSurface`, `calendarSurface`, `recordCommand`, `timelineSurface`, `gallerySurface`, `outlineSurface`, `matrixSurface`, `extensionGraphSurface`, `extensionRecordsSurface` |
+| one per entity | `detailSurface`, `recordForm`; a page uses the detail first, otherwise the form |
+| one per file | `overviewSurface` |
+| eight per file | `extensionView` |
 
-The S4 `overviewSurface` declares one and the `extensionView` (ADR-0013 Phase 5,
-W-106) declares eight. No kind declares both. A client that read only `maxRootsPerEntity` would find no
-ceiling at all on the front page, so the vocabulary publishes both.
-Under the ADR-0004 2026-09-12 amendment, `recordList`, `boardSurface`,
-`calendarSurface` and `recordCommand` each declare **eight**. `timelineSurface`
-(the 2026-09-14 amendment, S3), `gallerySurface` (S2) and `outlineSurface` (the
-2026-09-27 amendment) declare the same.
-`matrixSurface` (the 2026-09-17 amendment, S6) and the two custom-view roots,
-`extensionGraphSurface` and `extensionRecordsSurface` (ADR-0013), also declare eight. `detailSurface` and `recordForm` keep one, with their existing page precedence:
-detail first, otherwise form. Eight is a bounded initial product choice. It is
-not a measured optimum.
-
-A number of roots over the ceiling is `NUI153`. Its message counts the roots found
-and the number accepted. Its hint is generated from the same table: the hint
-states the ceiling in grammar that agrees with the number, and it names the kinds
-inside which a further root may be nested. A hint that reads "more than one"
-against a table that permits eight is worse than no hint. That is why the message
-and the hint are both generated from the table and not written by hand.
-
-A nested `recordCommand` remains supported and still carries the `commandId` that
-`nendo.data.execute_command` takes. It was previously the only way to have a
-second command on an entity. It is now one of two ways, and nothing was migrated.
-
-Sibling `filterClause` children are ANDed: a record must satisfy every one of them
-to appear. Contract version 3 has no OR and no grouping. The vocabulary publishes
-the combinator because the rule was previously true but not stated. An author who
-declared two clauses and intended AND had no way to confirm it from the
-interface. In a proposal, a clause added with its terms is one line, for example
-*Show only records where Status is not Done*, or on a progress ring *Count only
-records where Stage is Closed won*. It is not a line that says nothing, followed
-by the field, the comparison and the value on one line each. If a term changes on
-a clause the file already has, that term keeps its own line, because that is a
-change to something the person has.
-
-Missing roots remain absent in compiled plans. The host does not invent a board,
-command or custom form. A form-only application offers bounded record selection.
-List/board records without a custom form can open the host-owned Studio
-inspector. Commands are selected by their stable ID and apply only to their
-declared entity. Every error suppresses all custom plans; the host does not
-return a partial app.
+Eight is a bounded product choice, not a measured optimum. Too many roots is
+`NUI153`. Its message counts the roots found and accepted, and its hint, generated
+from the same table, states the ceiling in agreeing grammar and names the kinds
+inside which a further root may be nested. A nested `recordCommand` is supported and
+carries the `commandId` that `nendo.data.execute_command` takes.
 
 ## Selecting a surface, not a kind
 
 Use offers every `recordList`, `boardSurface`, `gallerySurface`, `calendarSurface`,
 `timelineSurface`, `matrixSurface`, `outlineSurface`, `extensionGraphSurface` and
 `extensionRecordsSurface` root of the selected record type, in compiled order, each by
-its own title. The file's `overviewSurface` is not among them. It belongs to the
-file, so Use offers it beside the record types and not among the surfaces of one
-type, and the file's `extensionView` roots after it, before the record types. When an
-`extensionView` says `opensFile` and custom views run in the file, Use opens on that
-view; otherwise, when the file has an overview, Use opens it first. The selection is a
-stable surface ID per entity; the default is the first compiled root. Resolution
-by kind returned the first root of a kind, so seven of eight lists on an entity
-could not be shown at all. Also, a board/list *mode* could not name a third view.
+its own title. The file's `overviewSurface` and then its `extensionView` roots are
+offered beside the record types, before them. When an `extensionView` says
+`opensFile` and custom views run in the file, Use opens on that view; otherwise an
+overview opens first. The selection is a stable surface ID per entity; the default
+is the first compiled root.
 
-**A record type with no screen is not a place** (W-184, 2026-10-08). The navigation and
-the breadcrumb's first picker offer a record type only when it has at least one of the
-roots above. A type whose only roots are its record page and its commands, such as a type
-whose rows join two others, is reached from a related row, a view or `ui.openRecord`, and
-never offered to be chosen. While one of its records is open, the picker still lists it, so
-it can say where Use is. Before, every type with any root was a place, and a join type's
-place opened on a bare list of rows. A type with no screen is also never the one Use shows
-by default.
+**A record type with no screen is not a place.** The navigation and the breadcrumb's
+first picker offer a record type only when it has one of the roots above. A type
+whose only roots are its record page and commands, such as a join type, is reached
+from a related row, a view or `ui.openRecord`; while one of its records is open, the
+picker lists it to say where Use is. It is never the type Use shows by default.
 
-If the selected root is missing, Use falls back to the first eligible one
-**without erasing the remembered choice**. Thus, if one proposal removes a surface
-and the next proposal restores it, the surface comes back selected. Selection,
-the open tab and the month a calendar shows are file-session-local renderer state
-and never reach the `.nendo` file. A file switch clears them.
+A missing selected root falls back to the first eligible one **without erasing the
+remembered choice**, so a surface removed by one proposal and restored by the next
+comes back selected.
 
-**A list draws every field it binds** (2026-09-30, F-225): its first `fieldBinding` as the
-row's heading and each later one as a column, in order, under a head row that names them.
-Before, a row drew the first three and dropped the rest without a word, so a column bound
-fourth was never seen. A list that binds no field shows its record type's first three.
+**A list draws every field it binds**: the first `fieldBinding` as the row's heading
+and each later one as a column, under a head row that names them. A list that binds
+no field shows its record type's first three. Board card fields come from ordered
+`fieldBinding` children.
 
-Each surface owns its own query and its own read window, keyed by its stable
-semantic ID. A window carries the query it was opened with, from page one onward.
-Every continuation resends exactly those arguments. The host hashes the whole
-query into the cursor scope, so it refuses an unfiltered continuation of a
-filtered query as `invalid-cursor`. It does not answer that continuation over the
-wider set.
-
-Only the selected surface is read. An unselected surface keeps any window it
-already had for the current revision, and it is reloaded when it is chosen. If a
-selected surface has no loaded window, it shows loading, empty or a failure with
-retry. It never shows the records of another surface and never an unfiltered
-default. Studio keeps its own independent browsing and query state.
+Each surface owns its query and read window, keyed by its semantic ID. Every
+continuation resends exactly the query the window was opened with. The host hashes
+the whole query into the cursor scope and refuses an unfiltered continuation of a
+filtered query as `invalid-cursor`. Only the selected surface is read. An
+unselected surface keeps any window it had for the current revision and reloads
+when chosen. A selected surface with no window shows loading, empty or a failure
+with retry, never another surface's records or an unfiltered default. Studio keeps
+its own browsing and query state.
 
 ## Totals on a list or board
 
-`summaryTile` is a child of `recordList`, `boardSurface`, `gallerySurface` and
-`matrixSurface`, and also of a record page, the front page, a section and a
-related list. On a list or board, the tile states one exact
-number over the records that the surface shows. That set is the root filters AND
-the tile's own clauses, independent of which page is loaded. The renderer labels
-the tile with what it covers, because a total over a filtered set otherwise reads
-as a count of the cards on screen.
-
-In a proposal, a tile that arrives with its terms is one line. The line says what
-the tile counts, over what, and its label, for example *Count the records in each
-column as "Delivered"*, *Total Amount over every record shown as "Pipeline"* or
-*Count the records over every related record as "Axioms"*. An ordering that
-arrives with its surface is one line in the field's own terms: *Order by Completed
-on, newest first*, *Order by Title, A to Z*, *Order by Amount, largest first*. If
-a property changes on a tile or an ordering the file already has, that property
-keeps its own line, because that is a change to something the person has.
+`summaryTile` is a child of `recordList`, `boardSurface`, `gallerySurface`,
+`matrixSurface`, a record page, the front page, a section and a related list. On a
+list or board it states one exact number over the records the surface shows, the
+root filters AND the tile's own clauses, independent of the loaded page, and is
+labelled with what it covers. Review lines read *Count the records in each column
+as "Delivered"* or *Total Amount over every record shown as "Pipeline"*.
 
 **A number may be as of a moment ago.** Every total, chart, ring and range is its
-own exact read at a stated revision. A surface asks again when the file moves on,
-and when the person's civil day turns, because an answer read under `today` or a
-range word was about the day it was read on (W-217): at most once a second, one pass at a time, and never while somebody has hold of
-the page. A person has hold of the page while a menu or a dialog is open, while a
-text field or a picker has focus, for a short time after an interaction, and while a
-record page has unsaved changes. If an answer arrives after the file has moved, the surface keeps it,
-because that answer is about the revision it names. If the surface discarded it,
-a file that receives continuous writes could never show a number at all. So while
-writing continues, two tiles on one page may show different revisions. Each is
-exact for the revision it names, and they converge when the writing stops. A
-surface never shows a number that belongs to another view or another file.
+own exact read at a stated revision. A surface asks again when the file moves on and
+when the person's civil day turns (an answer under `today` or a range word was about
+its day): at most once a second, one pass at a time, and never while somebody has
+hold of the page — a menu or dialog open, a text field or picker focused, a short
+time after an interaction, or a record page with unsaved changes. An answer that
+arrives after the file has moved is kept, because it is exact for the revision it
+names; discarding it would leave a file under continuous writes with no number. Two
+tiles may therefore show different revisions until writing stops. A surface never
+shows another view's or another file's number.
 
-**A board draws the columns it can contain.** Its columns are the grouping field's
-options, in the field's own order, less any that the board's own clauses exclude.
-An `eq` on the grouping field leaves one column, and each `ne` removes one. The
-board reads only those two operators. A comparison or a null test over a choice
-says nothing definite about which options remain, and a board that guessed would
-hide a column that could hold a record. The rule exists because the alternative
-gives false information.
+**A board draws the columns it can contain**: the grouping field's options, in the
+field's order, less those its own clauses exclude. An `eq` on the grouping field
+leaves one column, and each `ne` removes one. Only those two operators are read;
+any other says nothing definite and guessing would hide a column that could hold a
+record. Clauses on other fields change which records go into a column, never which
+columns exist.
 
-For example, a board filtered to `status ne Done` that still draws a Done column
-reads 0 under that heading. That 0 states that nothing is done. It does not state
-the true fact, which is that this board does not show done records. Clauses on
-other fields change which records go into a column, but never which columns
-exist.
+`ne` never matches an unset value, and every operator except `isNull` leaves out an
+unset record (`queries.md`); Studio and Help say so beside the operator. So a board
+with any clause on its grouping field other than `isNull` draws no Ungrouped column
+for its total. A loaded record whose value is outside the columns still appears
+there with its data issue stated. Without such a clause, Ungrouped stays whenever it
+carries a total.
 
-The ungrouped column follows the same rule. Every operator except `isNull` leaves
-out a record whose value is not set (`queries.md`), so a board with `status ne
-Done` can hold no record without a status. Its Ungrouped column would read 0
-under every circumstance, which is the same false 0, so the board does not draw it
-for its total when any of its own clauses on the grouping field is an operator
-other than `isNull` (owner, 2026-10-13: `ne` keeps never matching an unset value,
-and Studio and Help say so beside the operator). A loaded record whose value is
-outside the columns still appears there, with its data issue stated. A board
-without such a clause keeps the column whenever it carries a total.
+A tile's `scope` is closed to `surface` (the default) and `group`, which narrows
+the number to one board column and is accepted **only on a direct child of a
+`boardSurface`**. An unknown value is `NUI296`; `group` elsewhere is `NUI297`. A
+column is addressed by its stored choice ID and the ungrouped column by `isNull`,
+never by a display name or `eq null`. A loaded card whose stored choice is neither
+absent nor configured is stated as a data issue, not folded into the null total. A
+configured column stays visible when it carries a total.
 
-A tile's optional `scope` is closed to `surface` (the default) and `group`.
-`group` narrows the number to one board column. It is accepted **only on a direct
-child of a `boardSurface`**. A tile nested deeper has no column to belong to, and
-a search upward for a column would invent a grouping rule that nothing publishes.
-An unknown value is `NUI296`; `group` in the wrong place is `NUI297`.
-
-A column is addressed by its stored choice ID, and the ungrouped column by
-`isNull`. A column is never addressed by a display name, and never by `eq null`.
-If a loaded card's stored choice is neither absent nor one of the configured
-options, the column states this as a data issue. The record is not folded into
-the null total. A configured column stays visible when it carries a total,
-because the number is the answer.
-
-Existing page and relation tile meanings are unchanged. Exact aggregates, numeric
-lexemes, the empty-set result and the named refusal of `avg` are also unchanged.
-
-A sum is exact or absent. Past int64 for an integer field, or past 28 significant
-digits for a decimal field, the tile reads *Unavailable* with the reason and no
-Retry. The host answered `aggregate-not-representable`, and a recomputation cannot
-change that refusal. A stored integer can itself reach int64 max, so a total of
-several such integers is a real ceiling. The tile states that ceiling; it does not
-wrap the value.
+Aggregates are exact and carried as numeric lexemes, with a defined empty-set
+result; `avg` is refused by name. A sum is exact or absent: past int64 for an
+integer field, or 28 significant digits for a decimal one, the host answers
+`aggregate-not-representable` and the tile reads *Unavailable* with the reason and
+no Retry. It never wraps.
 
 ## Named tabs on a record page
 
-`tabGroup` is non-root, takes an optional `title`, and contains one or more
-`section` children and nothing else. So a tab is always a titled section, and its
-name is the title that a section already requires. `tabGroup` is accepted beneath
-`detailSurface`, `recordForm`, `overviewSurface` and `section`. An empty group is `NUI310`. A nested
-group is `NUI311`, also through an intervening section: because `section` is
-shared, the compiler tracks the ancestor and does not infer it from the parent.
-Tabs organise named record information. They are not a generic layout API, and
-this adds no commands to the section child vocabulary.
+`tabGroup` is non-root, takes an optional `title`, and holds one or more `section`
+children and nothing else, so a tab is a titled section. It is accepted beneath
+`detailSurface`, `recordForm`, `overviewSurface` and `section`. An empty group is
+`NUI310`. A nested group is `NUI311`, also through an intervening section; the
+compiler tracks the ancestor. Tabs add no commands to the section vocabulary.
 
-The record page is rendered as an ordered recursive walk of the tree, so fields,
-tiles and related lists keep the positions they were authored at. The old
-flattening collected every field into a list of titled groups. It could not keep
-a related list between two sections and had no place for a tab.
+The record page is an ordered recursive walk of the tree, so fields, tiles and
+related lists keep their authored positions. Every panel is in one record form, so a
+tab change is a visibility change and an unsaved value in a tab left behind is still
+there to save. A field bound twice gets one editor, at its first position, with one
+draft value and one validation state; the repeat says where the editor is.
 
-Every panel is rendered into one record form, so a tab change is a visibility
-change and not a re-render. An unsaved value in the tab that the person leaves is
-still there to save. If a field is bound twice on one page, it gets one editor, at
-its first authored position, and the repeat says where that editor is. The field
-has one draft value and one validation state.
+Where a page has tabs the renderer owns validation, because a required control in a
+hidden panel cannot take focus: it checks every declared field, opens the tab of the
+first invalid one, focuses it, then reports. Saving is one typed record mutation
+against the expected version.
 
-Where a page has tabs, the renderer owns validation. A required control inside a
-hidden panel is not focusable, and the browser would block the submit with an
-error that nobody can act on. So the renderer checks every declared field, opens
-the tab of the first invalid field and focuses that field, and only then reports
-the failure. Saving remains one typed record mutation against the expected
-version.
+**What unsaved typing survives.** A page is dirty exactly when saving would write. A
+field typed into and put back is not an edit, nor is a reference picker's search
+box. A save with nothing to send says *No changes to save.* and leaves the page
+clean. A tab change and paging a related list patch the page in place and keep a
+draft. Every other move redraws the page, so each declines with *Save or discard
+your changes before …*: another surface, record type or the front page; another
+record; another page of records; Add; a calendar or timeline move; a drill or its
+dismissal; a retry; a command on the record; another view; both history arrows.
+Closing the record (close button, Back to Data or Escape) asks *Discard your
+changes?* first.
 
-**What unsaved typing survives, and what declines.** A record page is dirty
-exactly when saving it would write. A field typed into and put back is not an
-edit. A reference picker's search box names no field and never counts. If a save
-finds nothing to send, it says *No changes to save.* where a person can see it,
-and it leaves the page clean. Two moves preserve a dirty page by patching its
-read-only parts in place: a tab change, and paging a related list, which reads
-the next page and redraws only the relation.
-
-Every other move off the page redraws it, and a redraw removes the typing. So
-each of these moves declines, in the words of the board drag, *Save or discard your
-changes before …*. Closing the record itself, by its close button, Back to Data or Escape,
-asks *Discard your changes?* first (W-210):
-
-- another surface, another record type or the front page
-- another record
-- another page of records
-- Add
-- a calendar or timeline move
-- a drill or its dismissal
-- a retry
-- a command on the record
-- another view
-- both history arrows.
-
-A redraw that nobody asked for waits while the page holds unsaved typing. Such a
-redraw is a read that the screen chases, or the file being followed after a write
-from elsewhere. It already waits in the same way while a menu is open. It occurs
-as soon as the draft is saved or closed. Nothing saves on the person's behalf so
-that their next click can proceed. A draft retained read-only after authority
-loss also holds autonomous refresh after focus leaves the form. Its values stay
-readable through file-change/read-chase notifications and backup dialogs until
-the person deliberately leaves the page.
+A redraw nobody asked for (a chased read, or following a write from elsewhere) waits
+while the page holds unsaved typing, as it waits while a menu is open, and runs once
+the draft is saved or closed. Nothing saves on the person's behalf. A draft retained
+read-only after authority loss also holds refresh after focus leaves the form, and
+stays readable through file-change notifications and backup dialogs until the person
+leaves the page.
 
 ## The Date calendar
 
 `calendarSurface` is a root with `definitionVersion`, `entityId`, a required
-`dateFieldId`, an optional `title` and the existing ordering properties. Its
-children are `fieldBinding` and `filterClause`.
+`dateFieldId`, an optional `title` and the ordering properties; its children are
+`fieldBinding` and `filterClause`. The field must be an active **Date** field; a
+DateTime is `NUI321`. The default order is the date ascending with the record-ID
+tie-break; a declared order orders entries within each day.
 
-The bound field must be an active **Date** field. `NUI321` refuses a DateTime by
-name. To place a DateTime on a month grid, the host must choose a time zone to
-group by, and that needs its own contract change. Dates are civil `YYYY-MM-DD`
-values throughout. Nothing constructs a JavaScript `Date` for grouping, because
-`new Date('2026-03-01')` is UTC midnight read back locally, which moves the day
-west of Greenwich. The default order is the date ascending, with the existing
-stable record-ID tie-break. A declared order overrides it and then orders entries
-within each day.
-
-A month is a Monday-first seven-column grid with previous/next month and Today.
-The current month opens first. The month query is the calendar's own clauses
-plus `date >= monthStart AND date < nextMonthStart`. **A first page is never
-presented as a complete month.** Bounded cursor pages accumulate, and each loaded
-entry is placed on its date. Load more continues until the cursor is exhausted.
-
-While a cursor is open, the calendar says so, and a day with no loaded entry
-reads as "None loaded yet" and not as empty. When the cursor is exhausted, the
-calendar says that the month is complete. A revision change discards the
-accumulated pages; the calendar does not merge two snapshots. A separate Undated
-view is the same root filters plus `isNull(dateFieldId)`, so a record with no
-date is never silently lost.
-
-An entry opens the existing record page or the Studio inspector. New records,
-edits and date changes go through the existing typed forms. The calendar writes
-nothing itself.
-
-Opening a calendar entry must not recompute the seven day tracks. When the side
-inspector takes horizontal space, the calendar keeps its existing width and the
-surface scrolls horizontally. At the compact overlay breakpoint, the calendar
-stays at the viewport width.
+A month is a Monday-first seven-column grid with previous/next month and Today,
+opening on the current month. Its query is the calendar's clauses plus `date >=
+monthStart AND date < nextMonthStart`. **A first page is never presented as a
+complete month**: cursor pages accumulate, Load more continues until the cursor is
+exhausted. While a cursor is open the calendar says so and a day with nothing loaded
+reads "None loaded yet"; once exhausted, it says the month is complete. A revision change discards the pages rather
+than merging snapshots. The Undated view is the same root filters plus
+`isNull(dateFieldId)`, so no record is silently lost.
 
 ## The timeline
 
-`timelineSurface` (ADR-0004, 2026-09-14 amendment, S3) is a root with
-`definitionVersion`, `entityId`, a required `dateFieldId`, an optional `title`, the
-existing ordering properties, and three optional field roles. Its children are
-`fieldBinding` and `filterClause`. Like a calendar, it owns eight roots per
-entity. It reads exactly what a calendar reads: bounded cursor pages between two
-civil-date bounds, and the same undated view. It draws them as a spine.
+`timelineSurface` is a root with `definitionVersion`, `entityId`, a required
+`dateFieldId`, an optional `title`, the ordering properties and three optional field
+roles; its children are `fieldBinding` and `filterClause`. It reads what a calendar
+reads and draws it as a spine.
 
 | Property | Accepts | Refused by |
 | --- | --- | --- |
-| `dateFieldId` | an active stored Date field; a DateTime is refused by name, as the calendar refuses it | `NUI370` when absent, `NUI371` |
+| `dateFieldId` | an active stored Date field; a DateTime is refused by name | `NUI370` when absent, `NUI371` |
 | `endDateFieldId` | an active stored Date field other than `dateFieldId` | `NUI372` |
 | `titleFieldId` | an active stored Text field that is not a single choice, as on a record page | `NUI373` |
 | `accentFieldId` | an active single-choice field, as on a record page | `NUI374` |
 
-A calculated field in `dateFieldId` or `endDateFieldId` is `NUI214`, as
-everywhere a bounded query would read one. A calculated field in `titleFieldId` or
-`accentFieldId` is refused by that property's own code. The date rule is the
-calendar's rule, and the title and accent rules are the record page's rules. The
-compiler shares these rules and does not copy them, so the same field is refused
-by the same rule wherever it is misused, in words that name the surface. A timeline with no `fieldBinding` is `NUI211`.
+A calculated field in either date property is `NUI214`; in `titleFieldId` or
+`accentFieldId` it is refused by that property's code. The compiler shares these
+rules with the calendar and the record page. A timeline with no `fieldBinding` is
+`NUI211`.
 
-**One civil year at a time.** The year query is the timeline's own clauses plus
-`date >= 1 January AND date < 1 January next`. So, like a month, a year is two
-implicit predicates, and a timeline carries at most six declared clauses. The
-year shown is renderer state per surface. At first open it is this year in the
-device's calendar. Earlier and Later move it, and This year returns to it. A file
-switch clears it, and it is never written to the file.
+**One civil year at a time.** The year query is the timeline's clauses plus `date >=
+1 January AND date < 1 January next`, so it carries at most six declared clauses. It
+opens on this year in the device's calendar; Earlier, Later and This year move it.
+The spine is a heading for every month, with loaded entries under the month of their
+date. As on the calendar, the first page is never the whole year: a month reads
+*None loaded yet* until the cursor is exhausted, then *Nothing this month*, and the
+state line says whether the year is complete. The default order is the date
+ascending; a declared order orders entries within a month, and months run December
+first only when the effective sort is the date field descending.
 
-The spine is a heading for every month of the year, in order. The loaded entries
-are placed under the month their date falls in. Grouping is client-side over the
-accumulated pages, as the calendar groups by day:
+An entry carries a dot in its `accentFieldId` option's tone (the derived hue when the
+option has none, muted when unset), the day and short month, its title (the
+`titleFieldId` value, else the first bound field) and the remaining bound fields.
 
-- The first page is never presented as the whole year.
-- Load more continues until the cursor is exhausted.
-- Until then, a month with nothing loaded reads *None loaded yet*. After that, it
-  reads *Nothing this month*.
-- The state line says whether the year is complete.
-
-A revision change discards the pages; the timeline does not merge snapshots. The
-default order is the date ascending. A declared order orders entries within a
-month. The months run December first only when the effective sort is the date
-field itself, descending.
-
-**An entry** is a button that opens the record page or the Studio inspector, as a
-calendar entry does. It carries:
-
-- a dot in the tone of its `accentFieldId` option (the derived hue when the
-  option has none; muted when the field is unset)
-- the day and short month
-- its title: the `titleFieldId` value, else the first bound field
-- the remaining bound fields.
-
-The timeline writes nothing itself.
-
-**A span.** When `endDateFieldId` is named and the record's end is on or after its
-start, the entry states the span in words, for example *14 Sep – 30 Nov · 78
-days*, with both ends counted. Beside the sentence, it draws a bar whose width is
-those days over the year's days. One line under the year header states the
-denominator and the placement rule: *Spans are drawn to scale over the 365 days
-of 2026; a span that began before 1 Jan 2026 is on that year's spine.* So the
-proportion is of numbers that are on screen, and the bar is decoration that a
-screen reader skips.
-
-If the end of a span lies past the year, the span is cut at 31 December, and the
-entry says how many days are shown and that the span continues. If the end is
-before the start, the entry states this as a data issue and draws no bar. It
-never draws a bar backwards. **Placement is by the start date only**: a record
-appears on the year its `dateFieldId` falls in, and a span that began in an
-earlier year is on that year's spine. An overlap query would need an OR, which
-the closed clause set does not have, and two windows would double the
-accumulator. The surface states the rule, so the reader does not have to infer
-it.
-
-**The undated view** is the calendar's: the same root filters plus
-`isNull(dateFieldId)`, as a record list. So a record with no start date is never
-silently lost, whatever its end date.
-
-Proposal preview draws the same spine over the validated clone's sample, and says
-so. It shows the year the sample falls in, the months that hold a sample entry,
-the dots and the spans. The diff reads *Add a timeline of a date field, with its
-own undated view*, *Place each record on the timeline by Decided*, *End each span
-at Review date*, *Title each entry with Title* and *Colour each entry by State*.
-A timeline raises the file's minimum host to 1.21.
+**A span.** When `endDateFieldId` is named and the end is on or after the start, the
+entry states the span, both ends counted (*14 Sep – 30 Nov · 78 days*), beside a bar
+of those days over the year's days. A line under the year header states the
+denominator and placement rule (*Spans are drawn to scale over the 365 days of 2026;
+a span that began before 1 Jan 2026 is on that year's spine.*); the bar is
+decoration a screen reader skips. A span past the year is cut at 31 December and
+says how many days are shown and that it continues. An end before the start is a
+data issue with no bar. **Placement is by the start date only**; an overlap query
+would need an OR. The undated view is the calendar's.
 
 ## Folding a section away
 
-The person who reads a record page or the front page can fold away every
-`section` on it and open it again. The section heading is the control, and it
-opens and closes from the keyboard as it does from a pointer
-([ADR-0004](../decisions/0004-versioned-semantic-ui-contract.md), 2026-09-20
-amendment). Nothing is authored for that. The one thing an author states is how
-the section starts: `opens`, one of the closed words `open` and `closed`, and
-`open` when absent.
+The person can fold away every `section` on a record page or the front page; the
+heading is the control, by keyboard as by pointer. An author states only how it
+starts: `opens`, `open` (the default) or `closed`. Another word is `NUI312`. A tab's
+body does not fold and does not take `opens` (`NUI313`); a section inside it may.
+`visibleWhen` decides whether a section is on the page, `opens` how it starts.
 
-A word outside the set is `NUI312`. A tab's body does not fold and does not take
-`opens` (`NUI313`), because the tab strip already opens and closes it. A section
-inside the tab may fold and take `opens`. `visibleWhen` and `opens` compose:
-`visibleWhen` decides whether the section is on the page, and `opens` decides how
-it starts when it is on the page.
+**A closed section reads nothing**: its tiles, charts, ranges, recent and ranked
+lists and related lists read when it opens, showing the pending state first. A value
+once read stays until the file changes. A closed section's fields stay in the form,
+hidden, and a required field left empty reveals its section.
 
-**A closed section reads nothing.** While a section is closed, its tiles, charts,
-ranges, recent and ranked lists and related lists are not read. Otherwise folding
-would save the person nothing and cost the file the same reads. When the section
-opens, they become pending and read then, and they show the state a tile shows
-before its first read. A value once read stays until the file changes. On a
-record page, a closed section's fields stay in the form, hidden and not removed,
-exactly as `visibleWhen` keeps them. A required field left empty reveals its
-section in the same way it reveals its tab.
-
-What the person does with a fold is their own view of the page, and it never reaches
-the file. It is kept for the device in the Workbench's local storage, the way the theme
-and the rail are, under `nendo.sectionFolds.<applicationId>` as a map from section node
-ID to `open` or `closed` (ADR-0004, 2026-09-24 entry). So a fold survives closing and
-reopening the file and restarting Nendo. The key is the application ID, not the
-instance ID, so a duplicate or fork of the file on the same device opens with the same
-folds. A section the person has never touched starts as `opens` says; after that their
-choice wins. A section the page opened by itself to reveal a required field is not
-remembered. Storage that is unavailable or unreadable leaves `opens` in charge, without
-an error. The diff reads *Add the section "Lately", starting closed.* when the
-property arrives with the section. It reads *Start the section closed.* or *Start
-the section open.* when the property changes on a section the file already has.
-The review preview draws a section as it starts. A `section` carrying `opens`
-raises the file's minimum host to 1.28.
+A fold never reaches the file. The device keeps it in the Workbench's local storage
+under `nendo.sectionFolds.<applicationId>`, a map from section node ID to `open` or
+`closed`, so it survives reopening and restarting, and a copy of the file on the
+same device opens with the same folds. An untouched section starts as `opens` says;
+after that the person's choice wins. A section opened by the page to reveal a
+required field is not remembered. Unavailable storage leaves `opens` in charge
+silently. Review lines: *Add the section "Lately", starting closed.*, *Start the
+section closed.*, *Start the section open.*
 
 ## Showing a field only when a calculation says so
 
-`fieldBinding` and `section` accept an optional `visibleWhen`. It names a
-**calculated** field of the record type in context whose result type is Boolean.
-A stored Boolean is refused (`NUI330`), and so is a calculation of any other type
-(`NUI331`). To hide one field behind the typed value of another field is a form
-rule that this contract does not define. What this adds is a read-only consumer
-of the bounded expression service, ADR-0008's P8.
+`fieldBinding` and `section` accept an optional `visibleWhen`: the `fieldId` (not the
+`definitionId`; the vocabulary's `propertyNotes` says so) of a **calculated** field of
+the record type in context whose result is Boolean. A stored Boolean is `NUI330`; a
+calculation of another type is `NUI331`.
 
-`visibleWhen` decides what is on screen and nothing else.
+- It decides what is on screen and nothing else. The field stays in the form with its
+  value, so a save carries what it would carry visible.
+- Studio never reads it, so a surface cannot hide the permanent route into a file.
+- Only a definite `false` hides. An empty, pending or failed result leaves the node on
+  screen.
 
-- The field stays in the form and keeps its value, so a save carries exactly what
-  it would carry with the node visible. Visibility grants no write authority and
-  removes none.
-- Studio never reads it. A surface cannot conceal the permanent route into a
-  file. For this reason, an invalid surface disables the custom surfaces and leaves
-  Studio reachable.
-- Only a definite `false` hides anything. If a result is empty, not yet
-  calculated, or impossible to calculate, the node stays on screen. If a node
-  were hidden on uncertainty, a person would no longer be told that something is
-  there. Also, an empty page cannot be distinguished from a page with nothing to
-  say.
-
-A file that uses it records a minimum host of 1.18, because a host that cannot
-evaluate the calculation has no way to know whether to show the node.
-
-The value is the calculated field's `fieldId`. It is not the calculation's
-`definitionId`. A review sent the `definitionId` first, and the refusal corrected
-it one round trip late. `nendo://application/vocabulary` states this under
-`propertyNotes`, beside the kinds. The review of a proposal that sets it reads
-*Show this only when Needs retest is yes*. A `fieldBinding` to a calculated field
-reads *Show the calculated field …* and not *Bind to unknown field*. Studio's
-editor never reads `visibleWhen`; it is a rule for the Use view's record page.
+Review lines: *Show this only when Needs retest is yes*; a binding to a calculated
+field reads *Show the calculated field …*.
 
 ## The gallery
 
-`gallerySurface` (ADR-0004, 2026-09-14 amendment, S2) is a root with
-`definitionVersion`, `entityId`, an optional `title`, the existing ordering
-properties and three optional field roles. Its children are `fieldBinding`,
-`filterClause` and the tiles and charts that a list takes. It owns eight roots per
-entity.
+`gallerySurface` is a root with `definitionVersion`, `entityId`, an optional `title`,
+the ordering properties and three optional field roles. Its children are
+`fieldBinding`, `filterClause` and the tiles and charts a list takes.
 
 | Property | Accepts | Refused by |
 | --- | --- | --- |
 | `titleFieldId` | an active stored Text field that is not a single choice | `NUI380` |
 | `accentFieldId` | an active single-choice field | `NUI381` |
-| `coverFieldId` | an active media field (ADR-0031, the 2026-10-16 amendment) | `NUI459` |
+| `coverFieldId` | an active media field ([ADR-0031](../decisions/0031-media-in-user-data.md)) | `NUI459` |
 
-A calculated field in any of them is refused by that property's own code. All three are
-optional. If a card has no
-declared title, it leads with its **first bound field**, as a timeline entry does.
-So one rule titles a gallery card and a board card, and one function draws the
-card itself. A gallery with no `fieldBinding` is `NUI211`.
+A calculated field in any of them is refused by that property's code. A gallery with
+no `fieldBinding` is `NUI211`. A card without a declared title leads with its first
+bound field, as a board card and timeline entry do.
 
-**It is a list's window drawn as cards.** The read is the surface's own
-`filterClause` children and nothing else. A gallery adds no implicit predicate, so
-it carries the full eight. It pages with the same Previous and Next that a list
-has, against the same cached window. Its tile and chart children sit in the same row above the grid, scoped and composed
-exactly as a list's are. `scope: group` is refused, because a gallery has no
-columns. Drill-through still opens the record type's first `recordList`, so a
-gallery's charts navigate away and do not narrow the cards.
+**It is a list's window drawn as cards**: its own clauses only, so the full eight, the
+same Previous and Next and cached window, and tiles and charts in a row above the
+grid. `scope: group` is refused. Drill-through opens the record type's first
+`recordList`.
 
-**A card** is a button that opens the record page or the Studio inspector. The
-title leads. A choice value among the bound fields reads as a chip, as it does on
-a board card. Everything else is a labelled value pair.
-
-Where `accentFieldId` is named, the record's option tones the card's border and
-tints its background, in the same way the record-page header band is tinted. No
-card or callout carries a coloured left stripe (W-096). A record whose choice is unset gets the neutral card.
-
-Where `coverFieldId` is named, the record's picture tops the card at a square, edge to edge
-above the title, from the file's media origin; a record with no picture gets an empty square of
-the soft surface, and a picture that does not load a dashed one. The cover field is not repeated
-among the card's values. A gallery with a cover needs host `1.52.0`. Without one, cards are
-typographic, which is a strength of the card when the hierarchy is good.
-
-Opening a card must not recompute the grid. When the side inspector takes
-horizontal space, the gallery keeps its existing width and the surface scrolls
-horizontally, as the calendar's day tracks do. At the compact overlay breakpoint,
-the grid stays at the viewport width. If the column count recomputes under the
-pointer that opened a card, the layout moves while the person reads it.
-
-Proposal preview draws the same cards over the validated clone's sample and
-labels it. The diff reads *Add a gallery of cards, one per record.*, *Title each
-card with Title* and *Colour each card by State*. A gallery raises the file's
-minimum host to 1.22.
+A card shows the title first, choice values as chips and everything else as labelled
+pairs. `accentFieldId` tones the card's border and tints its background; an unset
+choice gets the neutral card. No card or callout carries a coloured left stripe.
+`coverFieldId` tops the card with the record's picture in a square, edge to edge, from
+the file's media origin; no picture gives an empty square of the soft surface, and one
+that fails to load a dashed one. The cover field is not repeated among the values.
+Without a cover, cards are typographic.
 
 ## The outline
 
-`outlineSurface` (ADR-0004, 2026-09-27 amendment; [ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)
-stage 6) draws a record type's declared hierarchy as an expandable outline. It is a root
-with `definitionVersion`, `entityId`, an optional `title` and the properties below. Its only
-children are `fieldBinding`, drawn as columns beside the title. It owns eight roots per
-entity.
+`outlineSurface` ([ADR-0019](../decisions/0019-hierarchies-in-the-schema.md)) draws a
+record type's declared hierarchy as an expandable outline. It is a root with
+`definitionVersion`, `entityId`, an optional `title` and the properties below; its
+only children are `fieldBinding`, drawn as columns beside the title.
 
 | Property | Accepts | Refused by |
 | --- | --- | --- |
@@ -556,211 +354,129 @@ entity.
 | `expandDepth` | a whole number from 1 to 4, the levels open when it first shows; 2 without it | `NUI433` |
 | `reorder` | `true` to let a person move records, `false` or absent to only read | `NUI434` |
 
-**It takes no filter and no ordering.** The tree is read in the hierarchy's own sibling
-order, and a filtered tree would hide the ancestors that give a match its meaning. A find box
-reads up to 20 records whose title contains the text and opens each one's path instead.
+**No filter and no ordering**: the tree is read in the hierarchy's sibling order, and
+a filter would hide the ancestors that give a match meaning. A find box reads up to 20
+records whose title contains the text and opens each one's path.
 
-**Reads.** The top level, then each open record's children, through `data.treeRecords` in
-pages of 100, each record with its child count; a level with more says *Show more*. The first
-draw opens `expandDepth` levels with at most 40 level reads. A calculated field bound as a
-column reads as it does anywhere, so a subtree aggregate there is the outline's rollup.
+It reads the top level, then each open record's children, through `data.treeRecords`
+in pages of 100, each record with its child count; a level with more says *Show
+more*. The first draw opens `expandDepth` levels with at most 40 level reads. A
+calculated column is the outline's rollup. Rows a person opens or closes are kept on
+the device under `nendo.outlineRows.<applicationId>`, by node and record ID, and win
+over `expandDepth`.
 
-**The person's rows.** What a person opens or closes is kept on the device under
-`nendo.outlineRows.<applicationId>`, by node ID and record ID, and wins over `expandDepth`.
-The file is unchanged by it.
-
-**Keys.** The rows are an ARIA treegrid with one tab stop: Up and Down move between rows,
-Right opens a record or steps into it, Left closes it or steps out, Space opens or closes, and
-Enter opens the record page. With `reorder` on and the file editable, Alt, Shift and an arrow
-move the focused record, Move up, Move down, Outdent and Indent do the same, and a row can be
-dragged: onto the top or bottom quarter of another row to sit beside it, onto the middle to
-become its last child. Each move is `data.moveRecord`, so the Engine's cycle rule and sibling
-numbering apply, and a refusal leaves the rows as they were and says why. Without the
-hierarchy's order field only Outdent, Indent and a drop onto a row are offered.
-
-**The hierarchy stays while an outline shows it.** `schema.removeHierarchy` is refused as
-`hierarchy-field-in-use` until the outline is removed.
+The rows are an ARIA treegrid with one tab stop: Up and Down move, Right opens or
+steps in, Left closes or steps out, Space toggles, Enter opens the record page. With
+`reorder` on and the file editable, Alt+Shift+arrow, Move up, Move down, Outdent and
+Indent move the focused record, and a row can be dragged onto the top or bottom
+quarter of another row to sit beside it, or the middle to become its last child. Each
+move is `data.moveRecord` under the Engine's cycle and sibling rules; a refusal leaves
+the rows and says why. Without the hierarchy's order field only Outdent, Indent and a
+drop onto a row are offered. `schema.removeHierarchy` is refused as
+`hierarchy-field-in-use` while an outline shows the hierarchy.
 
 ## The overview page
 
-A file may own one `overviewSurface`. It is the first root that belongs to the
-file and not to a record type (ADR-0004, 2026-09-14 amendment, S4). It carries
+A file may own one `overviewSurface`, a root of the file. It carries
 `definitionVersion`, an optional `title`, an optional `description`, and **no
-`entityId`**. An overview that declares an `entityId` is `NUI390`. A second
-overview in the same file is `NUI391`, and its hint states the ceiling that the
-vocabulary publishes as `maxRootsPerFile`. Every other root keeps
-`maxRootsPerEntity`, and no kind states both.
-
-Because there is no record type in context, every child that reads records names
-its own record type:
+`entityId`** (`NUI390`). A second overview is `NUI391`. Every child that reads records
+names its own record type:
 
 | Kind | Properties | Children | What it states |
 | --- | --- | --- | --- |
-| `summaryTile`, `breakdownChart`, `progressTile`, `trendChart`, `activityGrid` | their existing properties plus `entityId` | unchanged | what they state elsewhere, over the record type they name |
+| `summaryTile`, `breakdownChart`, `progressTile`, `trendChart`, `activityGrid` | their usual properties plus `entityId` | unchanged | what they state elsewhere, over the record type they name |
 | `rangeTile` | `entityId`, `fieldId` (required), `title`, `scope` | `filterClause` | the smallest and largest value of one field, as two exact aggregates |
 | `recentList` | `entityId` (required), `title`, `limit`, `orderByFieldId`, `orderDirection` | `fieldBinding`, `filterClause` | a list's ordered window, bounded to at most ten records |
 | `rankedList` | `entityId` and `rankByFieldId` (required), `orderDirection`, `limit`, `title` | `fieldBinding`, `filterClause` | the few records at the top of one stored number (see [Grids](#grids)) |
 
-`entityId` on a tile or a chart is **required under an overview and refused
-anywhere else** (`NUI394`). On a surface, a tile takes its record type from the
-surface it sits on, and a tile that named a different record type would have two
-answers to one question. A tile that names a record type the file does not have
-is `NUI393`.
+`entityId` on a tile or chart is **required under an overview and refused anywhere
+else** (`NUI394`); a record type the file lacks is `NUI393`. A `recentList` outside an
+overview is `NUI395`; its `limit` outside one to ten is `NUI396`, not clamped; one with
+no `fieldBinding` is `NUI401`.
 
-A `recentList` outside an overview is `NUI395`, because on a surface that already
-has a record type, a `recordList` shows the same records with a pager. Its
-`limit` is refused outside one to ten (`NUI396`) and is not clamped, so the stored
-definition and the screen cannot say different things. A recent list with no
-`fieldBinding` is `NUI401`.
+A `rangeTile` is not a chart: no grouping, proportion or drill. It reads an Integer,
+Decimal or **Date** field, since `min` and `max` over ISO dates are comparisons; `sum`
+over a date stays refused (`NUI397` names what a range can read). It shows both ends
+or neither, and an empty set says it has no range.
 
-A `rangeTile` is **not a chart**. It has no grouping, so it draws no proportion
-and has nothing to drill into. It reads an Integer, Decimal or **Date** field.
-`min` and `max` over a set of civil dates is a comparison over the fixed-width ISO
-form and needs no arithmetic. That is why the range is the one aggregate that
-reads a date, and why `sum` over a date stays refused by name (`NUI397` names the
-shape a range can read). The tile shows both ends or neither, because one end of
-a range is a bound. A set with no records has no range, and the tile says so; it
-does not read zero to zero.
-
-A `fieldBinding`, a `relatedList` and a custom record panel need a current record,
-and the front page has none, so all three are `NUI398`. A `visibleWhen` calculation answers per record and is
-`NUI399` for the same reason. An overview with no `summaryTile`,
+A `fieldBinding`, `relatedList` or custom record panel needs a current record, so each
+is `NUI398` here, and `visibleWhen` is `NUI399`. An overview with no `summaryTile`,
 `breakdownChart`, `progressTile`, `rangeTile`, `recentList`, `rankedList`,
-`trendChart` or `activityGrid` is `NUI400`. A heading over an empty space is not
-a front page. A description is not
-a substitute for one, because a statement of what the file is for does not show
-any of the file.
+`trendChart` or `activityGrid` is `NUI400`; a description does not count.
 
-The overview's `description` belongs to the overview. What the **file** is for is
-a different thing. It is stored on the file itself and carried by
-`application.setPurpose`, and `nendo://application/describe` leads with it. A file
-with no front page has a purpose too, and the two never stand in for each other.
-The MCP interface contract describes it.
+The overview's `description` is not the file's purpose, which is stored on the file,
+set by `application.setPurpose`, and leads `nendo://application/describe` (see the
+MCP interface contract).
 
-The overview composes **nothing** across record types. Each child reads the one
-type it names, and the overview adds no predicate of its own, so a child carries
-the full eight declared clauses, less any predicates that its own kind adds (two
-for a `trendChart` or an `activityGrid`, one for a `rankedList`). There is no join, no number made from two record
-types, and no expression over a result.
-
-Use opens the overview first when one exists. Use offers it beside the record
-types and not among the surfaces of one type, because it is not one of them and
-it has no entity to be listed under. A file without an overview opens exactly as
-it did before. Each tile is read live over the whole record type it names, four
-reads at a time, and each tile has its own loading, empty and failed state.
-Drill-through from a front-page chart opens that record type's first list, so the
-person leaves the front page. The narrowed list belongs to the type, not to the
-file.
-
-Proposal preview **describes** the front page and does not draw it. Every number
-on the front page is a live read over a whole record type, and the clone carries a
-bounded sample. So the only accurate thing to draw is a statement of what each
-tile will count, as it already is for a ring. The diff reads *Add a front page for
-this file, whose tiles each name the record type they read.*, *Say what this file
-is for: …*, *Read Axiom for this number.*, *State the smallest and largest
-Accepted.* and *Show at most 5 of them.* Any of the three kinds raises the file's
-minimum host to 1.23.
+The overview composes **nothing** across record types: no join, no number from two
+types, no expression over a result, and no predicate of its own, so each child keeps
+the full eight clauses less any its own kind adds. Each tile is read live over its
+whole record type, four reads at a time, with its own loading, empty and failed
+state. A front-page chart drills into that type's first list. Review lines: *Add a
+front page for this file, whose tiles each name the record type they read.*, *Say
+what this file is for: …*, *Read Axiom for this number.*, *State the smallest and
+largest Accepted.*, *Show at most 5 of them.*
 
 ## A scale on an Integer field
 
-An Integer field may carry `presentation: rating` with a closed `min` and `max`
-(ADR-0004, 2026-09-14 amendment, S2). A rating requires both bounds together.
-Every other presentation refuses them by name, in the same way `options` are
-refused off a single choice. The span counts both ends and carries **at most ten
-values**. A scale that a person cannot count at a glance is a number, and the
-plain Integer presentation already shows numbers. Like every presentation, a
-scale is set when the field is created and does not change afterwards.
+An Integer field may carry `presentation: rating` with a closed `min` and `max`, both
+required together; any other presentation refuses them by name. The span counts both
+ends and holds **at most ten values**. Like every presentation, it is set when the
+field is created.
 
-The scale is stored in its own protected table, `__nendo_field_scale`. This table
-is a rung of the layout ladder after the choice-tone table, for the same reason
-that table gives. The application-purpose table is the rung after it. The protected layout is a fingerprint of verbatim
-DDL, so a column on the field table would move every known layout and need an
-`ALTER TABLE` on files that already exist. A row exists only for a rating field.
-The first row creates the whole prefix, and a file that rates nothing keeps the
-layout and the minimum host it had. A rating field without a scale, or a scale on
-a field that is not a rating Integer, is mapping drift and not an unknown
-presentation.
+The scale is stored in its own protected table, `__nendo_field_scale`, the layout
+ladder's rung after the choice-tone table; the application-purpose table follows it.
+The protected layout is a fingerprint of verbatim DDL, so the scale is never a column
+on the field table. A row exists only for a rating field; the first row creates the
+whole prefix, and a file that rates nothing keeps its layout. A rating without a
+scale, or a scale on anything else, is mapping drift.
 
-**The scale bounds the drawing, not the column.** A write is never refused for
-being outside the scale. A rating can be declared over values that already exist,
-so a number outside the scale is stored and read back exactly. The compiler
-reports it as a data warning, beside the warning it already makes for a value
-outside a field's choices. The renderer shows that number with *outside 1–5* next
-to it. The editing control leaves every dot unchosen, so that if the person
-touches nothing, nothing is rewritten. A CSV import is not checked against the
-scale either.
+**The scale bounds the drawing, not the column.** No write or CSV import is refused
+for being outside it. Such a number is stored exactly, reported as a data warning,
+shown with *outside 1–5* beside it, and leaves every dot of the editing control
+unchosen, so touching nothing rewrites nothing.
 
-The renderer draws the scale as dots, filled to the value, with the number carried
-in the accessible name. The name is *4 of 5* when the scale starts at one, and *4
-on a scale of 2 to 6* otherwise, because the short form would state a different
-fact. The value is edited as one radio per value of the scale, plus *Not set* when
-the field is optional, in the record form and in Studio's record dialogs.
-Studio's table draws the dots and edits them through a choice of one of the
-scale's numbers. A rating raises the file's minimum host to 1.22 through the field
-operation's own evidence, as a choice tone raises it to 1.19.
+Dots fill to the value, with the number in the accessible name: *4 of 5* when the
+scale starts at one, else *4 on a scale of 2 to 6*. It is edited as one radio per
+value, plus *Not set* when optional, in the record form and Studio's record dialogs;
+Studio's table edits it by choosing one of the scale's numbers. **The radio is the
+dot**, with no browser radio beside it, and the rating's own rule restates the size,
+padding and minimum height that the base input rule (39 pixel minimum height, 8 by
+10 padding) would impose; the gate measures all three.
 
-**One value carries one mark.** The radio *is* the dot. The first build drew a
-dot beside the browser's own radio, so every value showed two circles of the same
-shape, and the chosen value looked chosen twice. A dot is also not a control sized
-for typing. The base rule gives every input a 39 pixel minimum height and 8 by 10
-padding. That rule drew the dot as a 21 by 39 oval in a pill twice the height of
-the fields around it. So the rating's own rule restates the size, the padding and
-the minimum height, and the gate measures all three.
-
-**A form's field names are chrome, not content.** Previously, a press that landed
-on a name or a legend and slid a few pixels swept a selection across the whole
-form. That is how a form full of controls looks when it is dragged through.
-Names, legends and the rating's pills now start no selection at all. The values
-keep their selection, because people copy a record out of the page. A
-`user-select: none` on an ancestor reaches into a control, so each value restates
-the setting.
+**A form's field names are chrome.** Names, legends and the rating's pills start no
+selection. Values keep theirs, and each restates the setting because a
+`user-select: none` on an ancestor reaches into a control.
 
 ## Colour on a choice option
 
-A choice option may carry a `tone`. The existing `schema.setChoiceMetadata`
-operation sets it, beside the option's label and availability. The set is closed,
-and the vocabulary publishes it as `choiceTones`: `red`, `orange`, `amber`,
-`green`, `teal`, `blue`, `violet`, `grey`. A tone is a semantic token in the same
-sense as a field presentation. The file stores the name, and the renderer owns the
-Light and Dark colours behind it. So a hex value is refused by name, and so is
-`gray`.
+A choice option may carry a `tone`, set by `schema.setChoiceMetadata` with its label
+and availability. The closed set, published as `choiceTones`, is `red`, `orange`,
+`amber`, `green`, `teal`, `blue`, `violet`, `grey`; the renderer owns the Light and
+Dark colours. A hex value is refused by name, and so is `gray`.
 
-The operation sets the whole of an option's metadata. A rename that carries the
-tone keeps it; a rename that omits the tone clears it. The review line says which:
-*Name the Stage choice Trying, mark it available and colour it teal; preserve its stored ID*
-against *… and give it no colour*. Compensation of either puts the previous
-label, availability and tone back together.
+The operation sets the whole of an option's metadata: a rename that omits the tone
+clears it, and the review line says which (*Name the Stage choice Trying, mark it
+available and colour it teal; preserve its stored ID* against *… and give it no
+colour*). Compensation restores label, availability and tone together.
 
-A new option arrives with `schema.addChoice` (2026-10-17, W-280), which appends it to
-the end of the field's options with its label and, optionally, its tone. The review
-line names both: *Add the option Table to Kind on Block, after its other options, and
-colour it teal; records can choose it at once*. A board grouped by the field gains the
-column at its end. The undo takes the option away again and is refused while a record
-holds it.
+`schema.addChoice` appends a new option with its label and optional tone (*Add the
+option Table to Kind on Block, after its other options, and colour it teal; records
+can choose it at once*). A board grouped by the field gains the column at its end.
+The undo is refused while a record holds the option.
 
-Where an option has a tone, everything that shows the option draws with it:
-
-- the board column and its dot
-- the card chips
-- the dot beside a list row or a calendar entry (the first single-choice field
-  the surface binds)
-- Studio's choice cells
-- the record-page header below.
-
-An option without a tone keeps the renderer's older behaviour: a hue derived from
-its stored ID. So a file authored before tones existed looks as it did.
+A tone colours the board column and its dot, card chips, the dot beside a list row or
+calendar entry (the first single-choice field the surface binds), Studio's choice
+cells and the record-page header. An option without a tone takes a hue derived from
+its stored ID.
 
 A tone is stored in its own protected table, `__nendo_choice_tone`, on the layout
-ladder after the behaviour table. The first tone a file takes creates the whole prefix, as a
-first choice edit or a first behaviour definition does. A file that never colours
-anything keeps the layout it had. A file that carries a tone records a minimum
-host of 1.19. A host that does not know the table would draw the option grey and,
-on the next choice edit, would not know to keep the colour.
+ladder after the behaviour table; the first tone creates the whole prefix. A file
+that colours nothing keeps its layout.
 
 ## The record-page header
 
-`detailSurface` accepts three optional properties. Each is the `fieldId` of a
-field on the page's record type:
+`detailSurface` accepts three optional field IDs:
 
 | Property | Accepts | Refused by |
 | --- | --- | --- |
@@ -768,448 +484,240 @@ field on the page's record type:
 | `subtitleFieldId` | an active stored or calculated field other than the title | `NUI341` |
 | `accentFieldId` | an active single-choice field | `NUI342` |
 
-The renderer draws them as a band above the form. The title is a heading, the
-subtitle is under it, and the accent is a chip in its option's tone. The band
-itself has the same tint. The record's commands sit directly under the band,
-above the form. A command is the action a person opens the page for, and under
-the Save button of a long form, people did not find it.
-
-The values are read from the record and never edited in the band. The form below
-remains the only place where a value changes. A page that names none of the three
-is unchanged. `recordForm` takes none of them, because a form is where a record is
-typed in, not read. Proposal preview draws the same band over the validated
-clone's sample record.
-
-The diff reads *Head the page with Handle*, *Show Statement under the page title*
-and *Colour the page by Status*. A page with any of the three raises the file's
-minimum host to 1.19 through the capability table, like every other shape of the
-tree.
+They draw as a band above the form: the title as a heading, the subtitle under it,
+the accent as a chip in its tone, the band in the same tint. The record's commands
+sit directly under the band. The band is read-only; the form is where values change.
+`recordForm` takes none of them. Review lines: *Head the page with Handle*, *Show
+Statement under the page title*, *Colour the page by Status*.
 
 ## Charts
 
-A chart is an exact aggregate over a **closed grouping**, drawn as proportion with
-its numbers beside it (ADR-0004, 2026-09-14 amendment, S1). Two kinds exist. Both
-are tiles in the same sense as a `summaryTile`:
-
-- They are accepted where a `summaryTile` is accepted: `recordList`,
-  `boardSurface`, `gallerySurface`, `matrixSurface`, `overviewSurface`,
-  `detailSurface` and `section`. They are not yet accepted inside
-  a `relatedList`, where they are refused and not drawn empty.
-- A `breakdownChart` takes a summary tile's `scope`; a `progressTile` takes none,
-  and counts over the records where it sits.
-- They refuse the numbers it refuses, by the same codes.
+A chart is an exact aggregate over a **closed grouping**, drawn as proportion with its
+numbers beside it. Charts are accepted where a `summaryTile` is: `recordList`,
+`boardSurface`, `gallerySurface`, `matrixSurface`, `overviewSurface`, `detailSurface`
+and `section`; inside a `relatedList` they are refused. They refuse the numbers a
+summary tile refuses, by the same codes.
 
 | Kind | Properties | Children | What it states |
 | --- | --- | --- | --- |
 | `breakdownChart` | `groupByFieldId` and `aggregate` (required), `fieldId`, `title`, `scope`, `entityId` | `filterClause` | one exact number per group, over the records its scope covers |
 | `progressTile` | `title`, `entityId` | `filterClause` (at least one) | the records matching its own clauses over everything its scope covers, as two exact counts |
 
-The closed groupings are a single-choice field's options, in their configured
-order, and `false` then `true` for a Boolean. The unset group comes last. A
-stored value that is none of them is counted apart as *unrecognised*, and the
-chart states it. It is never folded into a group that nobody configured and never
-drawn as a segment.
+A `progressTile` takes no `scope` and counts over the records where it sits; with no
+clause it would always be full (`NUI360`).
 
-A `breakdownChart` may also group by a **Reference** whose target and label are set
-(W-249, host 1.54.0). That grouping is open: a group for each record the data points
-at, ordered by its label and then its ID, each group carrying the target's `label`, and
-the unset group last. Past 365 groups the read is refused whole as
-`aggregate-too-many-groups`, never answered in part; a filter narrows it. A board's
-reference grouping is unchanged.
+The closed groupings are a single-choice field's options in their order, and `false`
+then `true` for a Boolean, with the unset group last. A stored value outside them is
+counted apart as *unrecognised*, never folded into a group or drawn as a segment. A
+breakdown may also group by a **Reference** whose target and label are set: a group
+per record the data points at, ordered by label then ID, unset last; past 365 groups
+the read is refused whole as `aggregate-too-many-groups`. Any other grouping field is
+`NUI350`. At `group` scope on a board, the grouping must not be the board's own
+(`NUI352`).
 
-The grouping field must be active and one of those three kinds (`NUI350`); a reference
-must be bound. A calculated field cannot group. The number a breakdown totals may be a
-calculated Integer or Decimal, as a summary tile's may
-([calculations](calculations-and-actions.md)). At `group` scope on a
-board, the grouping field must not be the board's own grouping, because every
-column would break down into itself (`NUI352`). A ring with no clause would always
-be full, so it is refused (`NUI360`).
+The grouping is not a filter. The Engine answers a grouped aggregate in one streamed
+fold into a bucket per group, capped at 366 groups, shared by the SQLite read and the
+safe-mode snapshot. A ring is two counts, its clauses over its scope and the scope
+alone, drawn only when both have answered.
 
-The grouping is not a filter and spends none of the budget of eight. The Engine
-answers a grouped aggregate in one read: one streamed fold into a bucket per
-group, capped at 366 groups. The SQLite read and the safe-mode snapshot share
-that fold, so the two cannot disagree. A ring is two counts: the numerator is its
-clauses over its scope, and the denominator is the scope alone. The ring is drawn
-only when both counts have answered, because one number is a count and not a
-proportion.
+A breakdown is one stacked bar in the options' tones with a legend carrying every
+group's exact lexeme; a ring has both numbers in its centre. A zero total is an empty
+track that says so; an absent number reads *Unavailable* with the reason. A table of
+the numbers is one toggle away, and each segment is a button named with its label and
+number. A segment or ring drills into the record type's first list narrowed by one
+predicate that replaces the list's own clauses, so it can never refuse a list that
+compiled. It shows as a dismissible pill, and while it lasts the surface's own totals
+and charts are suspended. Preview counts the sample per group whatever the
+aggregate. Review lines: *Add a breakdown chart of the records this surface covers,
+one exact number per group*, *Break the numbers down by Status*, *Add a progress ring
+of the records matching its conditions over everything this surface covers*.
 
 ### Over time
 
-Two kinds group by a civil date and not by a closed set of options (ADR-0004,
-2026-09-16 amendment, S5). They are accepted where the other charts are accepted
-and scoped as those are scoped, and they take `filterClause` children in the same
-way.
+Two kinds group by a civil date, accepted and scoped where the other charts are.
 
 | Kind | Properties | Children | What it states |
 | --- | --- | --- | --- |
 | `trendChart` | `dateFieldId`, `bucket`, `range` and `aggregate` (required), `fieldId`, `title`, `scope`, `entityId` | `filterClause` | one exact number per bucket of the range |
 | `activityGrid` | `dateFieldId` and `range` (required), `title`, `scope`, `entityId` | `filterClause` | one exact count per day of the range |
 
-**Their groups are generated, not declared**, and every rule below follows from
-this. A single-choice field's options are written into the definition, so an
-option that nobody has used is a group with no further action by anyone. A month
-is written down nowhere. The host produces every bucket from the resolved bounds
-before it reads a single row. So **a bucket with nothing in it is still a
-bucket**: a month with no records is stated as empty and drawn as a gap at zero,
-and a quiet day is the lightest square and not a hole. A chart that returned only
-the buckets that the data touched would show only where the data is, but it would
-look exactly like a chart of the whole range.
+**Groups are generated, not declared**: the host makes every bucket from the resolved
+bounds before reading, so an empty month is a gap at zero and a quiet day the
+lightest square, never a missing bucket.
 
-`bucket` is closed to `month` and `week`. `range` is a closed word that the host
-resolves to civil-date bounds **each time it reads**. It is never a stored date,
-and it has no literal alternative. Otherwise, a definition written in January
-would still mean January in December.
+`bucket` is `month` or `week` (`NUI355`). `range` is a closed word resolved to
+civil-date bounds **each time it reads**, never a stored date: a `trendChart` takes
+`last12Months`, `last6Months`, `last90Days` or `last30Days` (`NUI356`); an
+`activityGrid` takes `thisYear` or `lastTwelveMonths` (`NUI358`), since one square
+per day fits 366 groups only for a year. Each refusal names its kind's set.
+`dateFieldId` is an active stored Date field; a DateTime is refused by name (`NUI354`,
+`NUI357`), not truncated.
 
-A `trendChart` takes `last12Months`, `last6Months`, `last90Days` or `last30Days`
-(`NUI356`). An `activityGrid` takes `thisYear` or `lastTwelveMonths` (`NUI358`),
-because it draws one square per day, and only a range of about one year fits the
-366-group ceiling. A word outside the set of its own kind is refused, and the
-refusal names the set that the kind may use. An unknown `bucket` is refused in the
-same way (`NUI355`).
+An `activityGrid` **counts only**, with no `aggregate` or `fieldId`. A `trendChart`
+takes a summary tile's aggregates, `avg` refused. Signed trend columns share a zero
+baseline, negatives below it; labels state negative and zero values, and only an
+empty aggregate is called none.
 
-`dateFieldId` is an active stored Date field. A DateTime is refused by name
-(`NUI354`, `NUI357`) and is not truncated, as on a calendar and a timeline. To
-truncate a DateTime to its date, the host must choose a time zone to group by,
-and this contract version does not define that. A calculated field cannot bucket,
-as it cannot group or be totalled.
+**The range spends two of the filter budget**, so these kinds carry at most six
+authored clauses, and a `group` scope's column predicate is a third; `NUI300` names
+the two added predicates. A record with no date or outside the range never reaches
+the fold, so there is **no unset group**, and a leap-year day grid uses exactly 366.
 
-An `activityGrid` **counts only** and has no `aggregate` or `fieldId` at all. A
-square toned by a sum is a heat map of a number that a person cannot recover from
-the square. A `trendChart` takes the same exact aggregates as a `summaryTile`,
-and `avg` stays refused by name. Signed numeric trend columns share a zero
-baseline: negative values extend below it and positive values above it. Labels
-state negative and zero values; only an empty aggregate is called none.
+A trend is one column per bucket; an empty one keeps its slot and label with a
+baseline tick. An activity grid is squares in week columns, toned in five steps
+against the busiest day with zero as its own step. Both have the table toggle, and a
+bucket drills with its two bounds.
 
-**The range spends two of the filter budget.** The two bounds are predicates that
-the host adds to the query. So a `trendChart` or an `activityGrid` carries at
-most six authored `filterClause` children, where a tile elsewhere carries eight.
-At `group` scope on a board, the column predicate is a third. The `NUI300`
-refusal names the two predicates that the host adds, so the author does not have
-to work out why the number is six. Because the bounds are in the query, a record
-with no date, or one outside the range, never reaches the fold. So the result has
-**no unset group**, and a day grid over a leap year uses the 366-group ceiling
-exactly and not one short.
-
-The renderer draws a trend as one column per bucket. An empty bucket keeps its
-slot and its label and draws a baseline tick. The renderer draws an activity grid
-as squares in week columns, toned in five steps against the busiest day, with
-zero as its own step. Both put every number in the table behind the same single
-toggle that the other charts use. Both drill: a bucket opens the record type's
-first list narrowed to the two bounds of that bucket. This is the one drill in the
-product that spends two clauses.
-
-**An edge bucket is clipped to the range** (owner, 2026-10-13). `last30Days` and
-`last90Days` start mid-month, and a week bucket starts on the Monday on or before
-the range's first day and can end after its last. The host counts only the days
-inside the resolved bounds, and the result carries those bounds beside the
-buckets. The renderer clips each bucket's two bounds to them: a clipped bucket is
-labelled with the days it holds, as `Sep 11–30` for a month or `1–2 Nov` for a
-week, and its drill opens exactly those days. So `last30Days` by month on 10
-October is two bars, `Sep 11–30` and `Oct 1–10`, and the first drills into
-11 to 30 September. A bucket the range does not cut keeps its whole-period label.
-When the resolved range covers two calendar years, a clipped bucket names its year
-too, as `Oct 13–31 2025`.
-
-Safe mode folds the same buckets over the snapshot and does not decline. A chart
-that is exact against the file and *Unavailable* against a read-only copy of it
-would give two answers to one question.
-
-The renderer draws a breakdown as one stacked bar of segments in the options'
-tones, with a legend that carries the exact lexeme of every group. It draws a
-ring with both numbers in its centre. A zero total is an empty track that says so.
-An absent number reads *Unavailable* with the reason. A table of the same numbers
-is one toggle away. Each segment is a button named with its label and number.
-
-A click on a segment or a ring opens the record type's first list narrowed to
-that group. The narrowing is one predicate that replaces the list's own clauses
-and does not compose with them. So it spends one filter and can never refuse a
-list that compiled. It is renderer state, like the selected surface: it shows as
-a dismissible pill, a file switch clears it, and it is never written to the file.
-While it lasts, the surface's own totals and charts are suspended, because they
-would describe the surface's set and not the records on screen.
-
-Proposal preview counts the validated clone's bounded sample per group, whatever
-the chart aggregates, and says so. A ring in preview is described, because its
-counts are live reads.
-
-The diff reads *Add a breakdown chart of the records this surface covers, one exact
-number per group*, *Break the numbers down by Status* and *Add a progress ring of
-the records matching its conditions over everything this surface covers*. Either
-kind raises the file's minimum host to 1.20.
+**An edge bucket is clipped to the range.** `last30Days` and `last90Days` start
+mid-month, and a week bucket starts on the Monday on or before the range's first day.
+The host counts only days inside the resolved bounds and returns them with the
+buckets; the renderer labels a clipped bucket with the days it holds (`Sep 11–30`,
+`1–2 Nov`) and drills exactly those days. So `last30Days` by month on 10 October is
+`Sep 11–30` and `Oct 1–10`. An uncut bucket keeps its whole-period label. Across two
+calendar years a clipped bucket names its year (`Oct 13–31 2025`). Safe mode folds
+the same buckets over the snapshot.
 
 ### Grids
-
-Two kinds state a number that the surfaces above cannot state (ADR-0004,
-2026-09-17 amendment, S6). A `matrixSurface` is a root of its own; a `rankedList`
-is a front-page tile.
 
 | Kind | Properties | Children | What it states |
 | --- | --- | --- | --- |
 | `matrixSurface` | `definitionVersion`, `entityId`, `rowByFieldId` and `columnByFieldId` (required), `title`, `orderByFieldId`, `orderDirection` | `fieldBinding`, `filterClause`, and the tiles and charts a board takes | one exact count in every cell of two crossed groupings |
 | `rankedList` | `entityId` and `rankByFieldId` (required), `orderDirection`, `limit`, `title` | `fieldBinding`, `filterClause` | the few records at the top of one stored number, each against the exact largest |
 
-**A matrix is one read, not one read per cell.** Before it reads a record, the
-host makes every cell key from the cross product of the two option sets, and each
-axis carries its own unset lane. The host then folds the record type once into
-those keys. So a grid costs the same one read at four cells or two hundred, and
-**a cell with nothing in it is still a cell**. Every number the grid states is
-exact over everything that the surface's clauses cover, not over the page of
-records in view. The alternative that was considered and not taken was a
-`summaryTile` per cell. That is one read for each cell, the reads arrive four at a
-time, and the grid fills in slowly, like a slow page.
+**A matrix is one read.** The host makes every cell key from the cross product of the
+two option sets, each with its own unset lane, then folds the record type once, so a
+cell with nothing in it is still a cell and every number is exact over the surface's
+clauses. A cell also shows the loaded window and says **showing 4 of 17** where the
+window holds fewer.
 
-The cell holds both an exact number and the surface's one loaded window, so it
-states them as the two different quantities they are. Where the window holds
-fewer records than the number, the cell says **showing 4 of 17**. A board column
-has never been able to say that without a tile of its own.
+The axes are active single-choice or Boolean fields (`NUI410` rows, `NUI411` columns)
+and **must differ** (`NUI412`). Rows and columns are the options less those the
+surface's own `eq` and `ne` exclude, every reachable one drawn even when empty. An
+unset lane is drawn only when its number is not zero. Each covered record is in
+exactly one cell; a value outside the options is counted as *unrecognised*.
 
-`rowByFieldId` and `columnByFieldId` are active single-choice or Boolean fields,
-which is the grouping rule a `breakdownChart` already applies. They **must be
-different fields** (`NUI412`), because a field against itself fills one diagonal
-and leaves every other cell empty. An axis that is neither kind is `NUI410` for
-the rows and `NUI411` for the columns. A calculated field cannot be an axis, as it
-cannot group.
+**The cross product spends the group ceiling**: `MaximumAggregateGroups` is 366, so
+options plus unset lanes on both axes must multiply within it (about nineteen by
+nineteen). It counts every option, whatever the clauses, so `NUI413` names fewer
+options as the remedy and states the rows, columns and cells. A definition over the
+ceiling is refused when authored; one that grows over it later is refused **when
+read**, and the surface says it cannot draw the grid. It never draws only the cells
+that fit.
 
-Rows and columns are the field's options **less the ones that the surface's own
-`eq` and `ne` clauses exclude**. This is the board's rule, applied twice, and only
-those two operators are read. Every reachable option is drawn even when it is
-empty, because an option is something a person arranged, and its emptiness is the
-answer.
+A cell drills with **two predicates**, one per axis (`isNull` for an unset lane). A
+matrix does not move cards, since one movement would write two fields. Safe mode uses
+the same `CellAggregateFold` as the SQLite read. Review lines: *Add a matrix crossing
+two choice fields, with an exact count in every cell*, *Make one row per Status*,
+*Make one column per Priority*.
 
-The **unset lane** on each axis is different. Nobody arranged it, so each unset
-lane is drawn only when its own exact number is not zero. Every record that the
-surface covers is in exactly one cell. A stored value that is none of the field's
-options is counted apart as *unrecognised* and is never folded into a cell that
-nobody configured.
+**Filter.** A `recordList`, `boardSurface` or `matrixSurface` in Use offers one select
+per active single-choice field and bound reference field of its type. A pick adds one
+clause, `eq` on the value or `isNull` for *Not set*, to the screen's own clauses for
+its window (`effectiveSurfaceQuery`), a matrix's cells and a cell's drill. It is
+renderer state (`quickFilters`) carried by each place on the trail, so tabs keep their
+own pick and Back, Forward or a tab switch restores it; changing it amends the place.
+A drill on the same list replaces both the pick and the list's clauses. While a pick
+stands, the screen's surface and column tiles and charts are neither drawn nor read. A
+reference offers at most 100 targets ordered by its label field, read when the menu
+opens, and says so when there are more. A screen whose own clauses spend all eight
+offers no Filter.
 
-**The cross product spends the group ceiling.** `MaximumAggregateGroups` is 366,
-and the two option sets plus their unset lanes must multiply to a value inside it.
-The ceiling counts every option of both fields: a surface's `eq` and `ne` clauses
-narrow the records and the lanes drawn, not the ceiling, so `NUI413` names fewer
-options as the remedy and not a filter.
-So the widest grid that fits is about nineteen by nineteen. A definition that is
-already over the ceiling is refused when it is authored (`NUI413`, which states
-the rows, the columns and the cells, unset lanes included). A definition that grows over the ceiling later is
-refused **when it is read**, and the surface states that it cannot draw the grid.
-Option sets change without any change to the screen, so both checks are
-necessary. To draw only the cells that fit is the one wrong answer, because a
-matrix that is missing its last four columns looks exactly like a matrix.
-
-A cell drills with **two predicates**, one per axis, and opens the record type's
-first list narrowed to that cell. This is the second two-clause drill in the
-product, after a bucket's two bounds, and it is renderer state on the same terms.
-An unset lane drills with `isNull`. Moving a card between cells is not in this
-slice. A board's drag sets one field, and the same gesture here would set two,
-which is a different promise about what one movement writes.
-
-**Filter** (W-172, ADR-0004 2026-10-05). A `recordList`, `boardSurface` or
-`matrixSurface` in Use offers one select per active single-choice field and bound
-reference field of its record type. A pick adds one clause, `eq` on the value or
-`isNull` for *Not set*, to the screen's own clauses: for its record window
-(`effectiveSurfaceQuery`), for a matrix's cells, and for a cell's drill. It is
-renderer state for the file session (`quickFilters`), never written to the file, and
-part of the place: each place on the trail carries a copy, so two tabs on one screen keep
-their own pick, and Back, Forward or a tab switch puts a place's pick back (ADR-0004,
-2026-10-06). Changing it amends the place on screen. A drill on the same list replaces both, as it replaced the list's own
-clauses before. While a pick stands the screen's surface and column tiles and
-charts are not drawn or read, because they describe its whole set. A reference
-offers at most 100 target records ordered by its label field, read each time the
-menu opens; more than that is said in place of the list. A screen whose own
-clauses spend the budget of eight offers no Filter.
-
-A `rankedList` goes where a `recentList` goes: under an `overviewSurface`, or under
-a `section` within one. Elsewhere it is refused (`NUI422`), because on a surface
-that already has a record type, a list ordered by the same field shows the same
-records with a pager. `rankByFieldId` is an active stored Integer or Decimal. A
-**Date is refused by name** (`NUI420`). This is the one place where a Date is
-refused but a `rangeTile` accepts one, because `min` and `max` over a Date are
-comparisons, while a bar is arithmetic. `limit` is one to fifty. A value above
-fifty is refused and not clamped (`NUI421`), and an absent `limit` means the
-ceiling.
-
-**A record with no number is not ranked.** The host adds an `isNotNull` predicate
-on the rank field. So a ranking carries at most **seven** authored `filterClause`
-children, where a tile elsewhere carries eight, and the `NUI300` refusal names the
-one predicate that the host adds. The bar is against one exact `max` over
-everything the ranking covers, not over the page, so it means the same thing
-however many rows are shown. When the largest value is **not greater than zero, no
-bars are drawn at all** and every row states its number, because a proportion of a
-non-positive maximum draws nothing. **Equal numbers share a rank numeral and the
-next numeral skips it.** The limit is a limit on rows, so a tie that crosses the
-limit is cut: *the top ten by value* is ten rows, not everyone who reached tenth.
-
-Safe mode folds the same cells over the snapshot and does not decline. It uses the
-same `CellAggregateFold` that the SQLite read uses, so the two cannot disagree
-about which cell a pair of stored values lands in.
-
-The diff reads *Add a matrix crossing two choice fields, with an exact count in every
-cell*, *Make one row per Status*, *Make one column per Priority*, *Rank the records by
-Value, largest first* and *Rank at most 10 of them*. Either kind raises the
-file's minimum host to 1.26.
+A `rankedList` goes only under an `overviewSurface` or a `section` within one
+(`NUI422`). `rankByFieldId` is an active stored Integer or Decimal; a **Date is refused
+by name** (`NUI420`), since a bar is arithmetic. `limit` is one to fifty, refused above
+(`NUI421`), and the ceiling when absent. The host adds `isNotNull` on the rank field,
+so at most **seven** authored clauses (`NUI300` names it). Bars are against one exact
+`max` over everything ranked; when it is **not greater than zero, no bars are drawn**
+and every row states its number. **Equal numbers share a rank numeral and the next
+numeral skips it**, and a tie crossing the limit is cut. Review lines: *Rank the
+records by Value, largest first*, *Rank at most 10 of them*.
 
 ## A board grouped by a reference
 
-Under the ADR-0004 2026-09-17 amendment (S7), `boardSurface.groupByFieldId` takes
-a single-choice field, whose options are its columns, or a **bound Reference
-field**, whose target records are its columns. Nothing else about the board
-changes: the same kind, the same properties, the same children, the same cards
-and the same group-scoped tiles.
+`boardSurface.groupByFieldId` takes a single-choice field, whose options are its
+columns, or a **bound Reference field**, whose target records are; nothing else about
+the board changes.
 
-**The columns are every active record of the target type**, ordered by the
-reference's configured label field, ascending. That is the order in which the
-reference picker already reads them. The columns are not only the records that
-something points at, for these reasons:
+**The columns are every active record of the target type**, ordered by the reference's
+label field ascending, not only those something points at, so the layout never
+depends on which page loaded. `orderByFieldId` orders cards inside a lane, never the
+lanes.
 
-- A lane that nobody has used is an answer, as an empty cell and an empty month
-  are.
-- A column that appeared and vanished with the data would make the board's
-  layout depend on which page had loaded.
-- "The records in use" could only be computed from the board's own loaded window,
-  so it would mean the records in use *on this page*.
+**At most `boards.maximumReferenceColumns` (24).** Above that the board draws **no
+columns at all** and states the record type, its record count and the ceiling. The
+ceiling is checked when the board is read, by asking for one record more than it, and
+an exact count is read only then. A target type with no records is `ready` with no
+columns: the board names the type, says it has no columns, keeps every card in
+Ungrouped, and points to the breadcrumb's record-type picker and Add, or to Studio
+when the target type has no view.
 
-`orderByFieldId` continues to order the cards inside a lane and never the lanes,
-because a record type carries no order that an author arranged.
+The Ungrouped lane's advice is true of its board: *Move a card to a named column to
+assign it.* with named columns, otherwise that there is none. A board or grid whose
+own `eq` and `ne` exclude every option of its grouping field says its own filter
+emptied it and names the field.
 
-**The board draws at most `boards.maximumReferenceColumns` of them, which is 24.**
-Above that number, the board draws **no columns at all** and states the record
-type, how many records it holds and the ceiling. To draw the first twenty-four
-would be the one wrong answer, for the same reason as a partial grid: a board that
-is missing its last lanes looks exactly like a board. Because the rule is
-all-or-nothing, no card can point at a column that the board did not draw.
+An unbound Reference is `NUI237`; a missing or retired target type `NUI238`; a missing
+or retired label field `NUI239`. `NUI236` reads *The board needs an active bounded
+choice field or a bound reference.* A reference column carries no tone, only the
+derived hue.
 
-**At the other end it draws the board and states the absence.** A target type with
-no records is `ready` with no columns, not a failure. The rule that every record
-of the type is a column is as true at zero as it is at four. The board names the
-type, says that it has no columns, and continues to draw. Over the ceiling, the
-replacement of the board loses nothing. At zero, the Ungrouped lane holds every
-card there is, and to hide the records in order to explain the columns would
-answer a smaller question than the one asked.
+Ungrouped holds records with no reference, and a drag into it clears the field. A
+stored reference outside the target type is stated as a data issue; the host refuses
+deleting a referenced record (`record-referenced`). **A drag between reference
+columns writes the target record's current version**, required for a reference write
+(`target-version-required`); if the target moved, the write is refused
+(`target-version-conflict`), and the board says so in its own words and reads its
+columns again.
 
-The sentence names what a person can do from the screen they are on, because the
-record-type picker in the breadcrumb and Add are both on that screen (since W-092 the
-breadcrumb holds the record type and the view). When the target type has no view of
-its own, the sentence sends the person to Studio instead.
-
-**The Ungrouped lane's advice is true of the board it is on.** With named columns,
-it still reads *Move a card to a named column to assign it.* With none, it says
-that there is no named column to move a card to. It does not tell a person to do
-something that the screen cannot do. The same is true of a board or a grid whose
-own `eq` and `ne` clauses have excluded every option of the field it groups by. It
-states that its own filter emptied it, and it names the field from which to
-remove a condition.
-
-This ceiling is checked **when the board is read, not when it is authored**. That
-is the one place where it departs from the grid ceiling it is modelled on. A
-matrix is refused at authoring because the definition carries both option sets. A
-definition cannot carry how many records a record type holds. The renderer learns
-the count from the read it makes anyway: it asks for one record more than the
-ceiling. It reads an exact count only in the case that refuses, so the sentence
-names a number and not "more than".
-
-**An unbound Reference field is refused when the board is authored** (`NUI237`).
-It has no target type to read columns from and no label to head them with.
-Binding it is a separate reviewed proposal. A target type that is missing or
-retired is `NUI238`, and a missing or retired label field is `NUI239`. Each names
-the field and what is absent. It does not repeat the choice-field diagnostic,
-which would send an author to look for the wrong fix. `NUI236` now reads *The
-board needs an active bounded choice field or a bound reference.*
-
-**A reference column carries no tone.** A tone is something an author put on an
-option, and a record has no place to hold one. The column takes the hue that the
-renderer already derives for an option that nobody coloured. That hue is stable
-per value and shared by every surface. So no new rule is written and nothing new
-is stored.
-
-**Ungrouped is unchanged**: a record with no reference is in it, and a drag into it
-clears the field. A stored reference to a record that is not in the target type
-is stated as a data issue beside the lane, as a value outside a field's options
-already is. Nothing that the host offers can reach this state: the host refuses
-to delete a record that something points at, with the named refusal
-`record-referenced`. No promise is made that the state can occur.
-
-**Dragging a card between reference columns writes the grouping field with the
-target record's current version.** A reference write is refused without it
-(`target-version-required`), where a choice literal needs none. The board holds the versions
-because it read the target type to draw the columns. If the target moved under the
-board, the write is refused (`target-version-conflict`). The board then says so
-in its own words and reads its columns again. It does not pass on the host's
-message about selecting the target, because a board has no picker to select one
-in.
-
-A reference board spends no new filter budget. A column tile still composes the
-board's clauses, its own clauses, and one column predicate, which is an `eq` on
-the reference field. The diff reads *Give the board one column per Client record,
-from Client, and draw nothing above 24 of them*. The preview's size sentence reads
-*one column per Client record, 12 of them*. It says "per {name} record" because
-the name is the person's, and a plural name read as *one column per Initiatives, 6
-of them*. A reference board raises the file's minimum host to 1.27.
+A column tile composes the board's clauses, its own, and one `eq` on the reference
+field. Review line: *Give the board one column per Client record, from Client, and
+draw nothing above 24 of them*; preview: *one column per Client record, 12 of them*.
 
 ## Adding and opening from a related list
 
-A `relatedList` offers two actions on a record page (ADR-0004, 2026-09-18
-amendment):
-
-- **Add** opens a new record of the related type, with the reference back at the
-  record in view already filled in.
-- **open** opens a related row as its own record page.
-
-Nothing is authored and nothing is stored for either action. The node already
-carries `targetEntityId` and `viaFieldId`. The compiler has already proved that
-the target is an active record type and that the field is an active Reference
-aimed at this one (`NUI260`–`NUI266`). So an author has nothing left to state.
-**The file is unchanged, so nothing raises its minimum host.** A rung states what
-a file needs, and an unchanged file needs what it needed before. A host without
-this feature draws the same relation without the buttons.
+A `relatedList` offers **Add**, a new record of the related type with the reference
+back already filled in, and **open**, a related row as its own record page. Nothing is
+authored or stored: the node's `targetEntityId` and `viaFieldId` are already proved
+(`NUI260`–`NUI266`), so the file and its minimum host are unchanged.
 
 | What it does | The rule |
 | --- | --- |
-| Add | The related type's own record page, rendered as a create form in the place of the record page. Its sections, its tabs and its required fields apply unchanged. A type with no page falls back to its field list, as a create form already does. The form shows no relations of its own, so an Add cannot nest. |
-| The reference back | Filled in before the form is shown. It is named by the label field that the reference was configured with, not by the stable ID. It carries the record's current version, without which a non-null reference write is refused (`target-version-required`). It stays editable. |
-| A page that does not bind it | The reference is added to the form anyway, first, because the form is open for it. A child's record page usually does not bind the field that points back at the parent. A form wired to only what the page binds would save a record that points at nothing. |
-| open | The related record is read by its own ID and opened as its own page. It is not looked for in the loaded window of the target surface. A relation is ordered as its author arranged it, so the clicked row need not be in that window. To narrow that surface to one record would answer a question that nobody asked about the surface. |
-| Getting back | One step, named after the record it returns to, and removed once it is taken. It is not a history: a third record that opens replaces the step and does not stack behind it. Renderer state, like a drill or a selected surface: never in the file, and cleared when the record context is left. |
-| A record page with unsaved edits | Declines both, in the board drag's own words. Both redraw the page, and a redraw discards a form's drafts. A tab change and paging the relation still preserve a draft, because those paths patch in place and never redraw. A picker searched and cancelled is not an edit, and neither is a field put back to its stored value. |
-| A row whose record has gone | Says so (*That record is no longer there*) after the redraw that follows the click. It leaves the person on the page they were on, with busy cleared. The read comes before anything moves, so nothing moves. |
-| A related type with no screen | Offers neither, and says so beside the heading. Use shows the record types that have a compiled surface. Without one, the new record has no place to go, and there is no page to open a row on. |
+| Add | The related type's record page as a create form in place of this page, with its sections, tabs and required fields; a type with no page falls back to its field list. It shows no relations, so an Add cannot nest. |
+| The reference back | Filled in first, named by the reference's label field, carrying the record's current version (`target-version-required` otherwise). It stays editable, and is added to the form first even where the page does not bind it. |
+| open | Reads the related record by its own ID and opens its page, not looking in the target surface's window. |
+| Getting back | One step named after the record it returns to, removed once taken and replaced, not stacked, by a third record. Cleared when the record context is left. |
+| Unsaved edits | Declines both, as the board drag does; a tab change and paging the relation keep the draft. |
+| A row whose record has gone | Says *That record is no longer there* and stays on the page with busy cleared; the read comes before anything moves. |
+| A related type with no screen | Offers neither, and says so beside the heading. |
 
 ### A related list of links
 
-A related list whose record type is a link offers two more actions (ADR-0004,
-2026-09-29 amendment; W-076). A type is a link when the field pointing back is
-required and at least one other reference of the type is required too: a record of
-it means nothing without both ends. That is read from the schema; nothing is
-authored or stored, and the file's minimum host does not move.
+A record type is a link when the field pointing back is required and at least one
+other reference is required too. That is read from the schema; nothing is stored and
+the minimum host does not move.
 
 | What it does | The rule |
 | --- | --- |
-| Link ‹other type› | One button per other required reference, beside Add. It opens the same create form as Add, with the reference back filled in and the other end's picker already open. The link type's own fields are on the form, so a link is never saved without them. |
-| Remove link | On each row. It asks first, naming the row, then deletes the link record at the version the row was read at: an ordinary delete, kept in History and restorable there. The records at either end are not touched. |
-| Either side | Wherever a page shows the relation. A capability's page shows its supports through `support.capability`, an application's through `support.application`; each offers Link at the other end. |
-| A custom view | Does the same through the typed calls it already has: `records.create` with both references in `targetVersions`, and `records.delete` ([custom views](custom-views.md)). |
-| Unsaved edits | Declines both, as Add and open do. |
+| Link ‹other type› | One button per other required reference, beside Add: Add's form with the other end's picker open, so a link is never saved without its own fields. |
+| Remove link | On each row; asks first, naming the row, then deletes the link record at the version the row was read at, an ordinary delete restorable in History. The ends are untouched. |
+| Either side | Wherever a page shows the relation, each side offers Link at the other end. |
+| A custom view | Uses `records.create` with both references in `targetVersions`, and `records.delete` ([custom views](custom-views.md)). |
+| Unsaved edits | Declines both. |
 
-If a relation's window was read against an older revision, it is not the answer
-for that relation. It reads as loading until it is read again, as every other
-window here already does. A record page chases its relations on the same bounded
-terms on which it chases its totals.
+A relation window read at an older revision reads as loading until read again; a
+record page chases its relations on the same terms as its totals.
 
-The relation flows above allocate no code of their own for the record they create.
-A code field the file's convention names, such as a Reference, is what its schema
-makes it ([ADR-0020](../decisions/0020-unique-and-generated-fields.md)). Declared
-unique, a duplicate is refused as `value-not-unique` on every write. Numbered too
-(`schema.setFieldSequence`), the create form says "Assigned when saved" and the host
-writes the next code inside the create when the field is left empty. A field with
-neither rule is only text: a required one must be filled, and in a file whose records
-are named by hand a person still decides which name is next
-([relationships](relationships.md#unique-fields)).
+These flows allocate no code. A code field is what its schema makes it
+([ADR-0020](../decisions/0020-unique-and-generated-fields.md)): unique refuses a
+duplicate as `value-not-unique`; numbered (`schema.setFieldSequence`), the form says
+"Assigned when saved" and the host writes the next code when the field is left empty;
+otherwise a required one must be filled ([relationships](relationships.md#unique-fields)).
 
 ## Bounded query composition
 
-One bounded query carries at most **eight** effective filters, and this count
-includes the filters that the host adds itself. `MaximumEffectiveFilters` is one
-constant. Both the published vocabulary and the record-query validation that
-refuses read it, so the stated ceiling cannot drift from the ceiling that
-refuses. Composition spends the budget as follows:
+One bounded query carries at most **eight** effective filters, including those the
+host adds. `MaximumEffectiveFilters` is one constant, read by the vocabulary and by the
+validation that refuses.
 
 | Context | Effective filters |
 | --- | --- |
@@ -1229,18 +737,15 @@ refuses. Composition spends the budget as follows:
 | Progress ring | its own clauses over its scope, and the scope alone, as two counts |
 | Custom view | its `filterClause` children on each record type, one query per type: the node type's, and on a graph the edge type's |
 
-An over-budget definition is `NUI300`. The refusal names the node, the property
-path, the count it composes to and the source of each clause. The host never
-drops a clause, widens a query, deduplicates, or raises the limit as a
-convenience.
+Over budget is `NUI300`, naming the node, the property path, the composed count and
+each clause's source. The host never drops a clause, widens a query, deduplicates or
+raises the limit.
 
 ## Capability versions
 
-The tree of contract version 3 is preserved across the widening. So the version
-number on a root no longer says what a host must understand: a plain form and a
-tabbed page with two boards are both version 3. `NendoSemanticCapability`
-computes what a stored definition needs from its **shape**, plus one thing that
-the shape cannot show (below). The ladder is:
+A root's version number does not say what a host must understand.
+`NendoSemanticCapability` computes it from the definition's **shape**, plus the stored
+fields where the shape cannot tell. The ladder is:
 
 | Feature | Minimum host |
 | --- | --- |
@@ -1269,253 +774,145 @@ the shape cannot show (below). The ladder is:
 | An `outlineSurface` | 1.36 |
 | A `filterClause` on, or an `orderByFieldId` naming, a calculated field | 1.40 |
 | An `extensionView` (a custom view as a screen of the file) | 1.42 |
-| A `filterClause` whose value kind is `thisWeek` or `thisMonth` (W-248); a formula that calls `AddDays` states it on its own evidence | 1.53 |
-| A `summaryTile`, `breakdownChart` or `rankedList` over a calculated number, or a `breakdownChart` grouped by a Reference (W-249) | 1.54 |
+| A `gallerySurface` with a `coverFieldId` | 1.52 |
+| A `filterClause` whose value kind is `thisWeek` or `thisMonth`; a formula that calls `AddDays` states it on its own evidence | 1.53 |
+| A `summaryTile`, `breakdownChart` or `rankedList` over a calculated number, or a `breakdownChart` grouped by a Reference | 1.54 |
 
 Every rung above 1.11 that is not in the table is not a shape of the node tree: 1.17,
-1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51, 1.52 and 1.55 (`NendoFormat`).
-`1.17.0` goes to a file that stores behaviour definitions (ADR-0008), `1.24.0`
-to a file that carries a purpose (the ADR-0004 2026-09-15 amendment), `1.33.0` to a file
-that carries a custom-view package (ADR-0013), `1.35.0` to a file that declares a hierarchy
-(ADR-0019), `1.37.0` to one with a unique field (ADR-0020), `1.38.0` to one that chose its
-own look (ADR-0004, 2026-09-28), `1.39.0` to one whose older history was folded into a
-checkpoint (ADR-0021), `1.41.0` to one that marks what a new file keeps, and to a file
-started with New (ADR-0022), `1.43.0` to one that carries a skill package (ADR-0024),
-`1.44.0` to one with a text field presented as Markdown (ADR-0003's named presentation),
-`1.45.0` to one that declares a link rule (ADR-0026), `1.46.0` to one that built its
-full-text index (ADR-0028), `1.47.0` to one whose behaviour uses a create step's links,
-`IsEmpty` or a total over a calculation, `1.48.0` to one that cleared a screen property with
-`ui.removeProperty` (ADR-0004, 2026-10-13), `1.49.0` to one whose formula calls `ToText`
-(ADR-0008, 2026-10-13), `1.50.0` to one carrying the three history indexes a fold adds
-(ADR-0021, 2026-10-13 note), `1.51.0` to one that changed a reference's label with
-`schema.setReferenceLabel` (ADR-0003, 2026-10-14 note), `1.52.0` to one with a media field or
-an embedded picture (ADR-0031), and `1.55.0` to one with its own picture as its icon (ADR-0004,
-2026-10-19, W-001). Each operation declares that version on its own evidence. A
-history fold, which is not an operation, states it in the manifest itself: 1.50.0 since
-2026-10-13, which covers the fold table's 1.39.0, and a file started with New states 1.50.0
-too, because its copy is folded.
+1.24, 1.33, 1.35, 1.37, 1.38, 1.39, 1.41, 1.43, 1.44, 1.45, 1.46, 1.47, 1.48, 1.49, 1.50, 1.51 and 1.55 (`NendoFormat`).
+An operation declares each on its own evidence, as it does 1.52 for a media field:
 
-Every row except the 1.27, 1.34, 1.40 and 1.54 rows is a shape of the node tree. At 1.19 and 1.22 a
-field operation also raises the rung through its own evidence: a choice tone and a
-rating scale. The 1.27 row is not a shape of the tree. A board grouped by a
-reference and a board grouped by a choice carry the same kind, the
-same `groupByFieldId` and the same children. Only the storage kind of the grouping
-field tells them apart. So the calculation reads the stored fields beside the
-tree. Without that, it would return 1.26 for a file that needs 1.27. One refused
-surface makes a whole definition invalid, so a host on the older rung would report
-that a custom surface cannot run safely over every authored screen in the file,
-and it would name none of them. The 1.34 row reads the stored fields too: a view
-the 1.32 rules accepted bound stored fields only, so a calculated label or field
-is beyond them. A view those rules accept keeps its earlier rung, and a question the
-tree cannot answer without the fields counts as not beyond. The 1.40 row reads them too: a
-filter on a calculated field and one on a stored field are the same shape, and a field the
-record type names but does not store is a calculated one. The record type is the nearest
-node above that names one: a list's `entityId`, a related list's `targetEntityId`.
+| Rung | A file that |
+| --- | --- |
+| 1.17.0 | stores behaviour definitions (ADR-0008) |
+| 1.24.0 | carries a purpose |
+| 1.33.0 | carries a custom-view package (ADR-0013) |
+| 1.35.0 | declares a hierarchy (ADR-0019) |
+| 1.37.0 | has a unique field (ADR-0020) |
+| 1.38.0 | chose its own look |
+| 1.39.0 | had its older history folded into a checkpoint (ADR-0021) |
+| 1.41.0 | marks what a new file keeps, or was started with New (ADR-0022) |
+| 1.43.0 | carries a skill package (ADR-0024) |
+| 1.44.0 | has a text field presented as Markdown |
+| 1.45.0 | declares a link rule (ADR-0026) |
+| 1.46.0 | built its full-text index (ADR-0028) |
+| 1.47.0 | has behaviour that uses a create step's links, `IsEmpty` or a total over a calculation |
+| 1.48.0 | cleared a screen property with `ui.removeProperty` |
+| 1.49.0 | has a formula that calls `ToText` |
+| 1.50.0 | carries the three history indexes a fold adds (ADR-0021) |
+| 1.51.0 | changed a reference's label with `schema.setReferenceLabel` |
+| 1.52.0 | has a media field or an embedded picture (ADR-0031) |
+| 1.55.0 | has its own picture as its icon |
 
-The calculation runs over the tree that a mutation leaves behind, not over the
-operations it submitted, for two reasons:
+A history fold, which is not an operation, states 1.50.0 in the manifest, covering the
+fold table's 1.39.0; a file started with New states 1.50.0 too, since its copy is
+folded. At 1.19 and 1.22 a field operation also raises the rung: a choice tone and a
+rating scale.
 
-- An inline `ui.addNode` expands to a node operation plus one property operation
-  each. So a judgement of operations one at a time would answer differently,
-  depending on the expansion order.
-- A `ui.moveNode` that puts an existing tile under a board, or an existing section
-  into a tab group, adds no node and sets no property, but it changes what the
-  definition needs.
+Rows 1.27, 1.34, 1.40 and 1.54 read the stored fields beside the tree, because the
+shape alone cannot tell: a board or breakdown grouped by a reference looks like one
+grouped by a choice, and a filter, ordering or total on a calculated field like one on
+a stored field (a field the nearest record type names but does not store is
+calculated; that type is a list's `entityId` or a related list's `targetEntityId`).
+Without this an older host would refuse every authored screen without naming one. For
+1.34, a view the 1.32 rules accept keeps its earlier rung, and a question the tree
+cannot answer without the fields counts as not beyond.
 
-Only a mutation that touches UI nodes recomputes it.
-
-A file's recorded minimum is only ever raised. So if a feature is removed, the
-file still states the host it once needed. An ordinary existing definition keeps
-its minimum, and opening a file never rewrites it. A raise appears in the
-semantic diff as its own irreversible `raiseMinimumHostVersion` line, because the
-operations alone do not state it. Rejection leaves the active file untouched, and
-promotion remains canonical operation replay. File inspection reports an
-insufficient minimum and names the widened features that the file uses, not only
-the number.
-
-Product release version, semantic contract version and file capability version
-remain three separate things.
+The calculation runs over the tree a mutation leaves behind, not the operations
+submitted: an inline `ui.addNode` expands into several operations, and a `ui.moveNode`
+can change what a definition needs without adding anything. Only a mutation that
+touches UI nodes recomputes it. A file's recorded minimum is only ever raised, and
+opening a file never rewrites it. A raise is its own irreversible
+`raiseMinimumHostVersion` line in the semantic diff. File inspection reports an
+insufficient minimum with the features that need it. Product release version, semantic
+contract version and file capability version are three separate things.
 
 ## The mutation is the materialization boundary — for the definition lane only
 
-A record type exists physically from the end of the mutation that created it, not
-from the end of the change set. So a required field must be in the same mutation
-as its `schema.createEntity`. If a later mutation adds it, that mutation refuses
-with `NPROP004`, which names the field, the record type and both remedies. The
-other remedy is to add the field as optional and require it with
-`schema.setFieldRequired` in a later mutation of the same change set. The rule
-has a reason: an intervening mutation may write records, and a required column
-added after them would leave those rows with no value.
+A record type exists physically from the end of the mutation that created it. So a
+required field must be in the same mutation as its `schema.createEntity`; a later
+mutation that adds one is refused as `NPROP004`, which names the field, the record type
+and both remedies, the other being to add it optional and require it with
+`schema.setFieldRequired` in a later mutation. An intervening mutation may write
+records that would have no value. UI nodes are exempt: a root added in one mutation
+accepts children in a later one, so a large tree can be split across calls.
 
-UI nodes are exempt. A surface root added in one mutation accepts children added
-in a later mutation. Only this makes it possible to split a large surface tree
-across calls. The asymmetry is real. It is between the physical materialization of
-the definition lane and the stored node tree of the UI lane, and no document
-described it before.
+Within one change set, the definition revision advances once per definition-lane
+mutation and not for a data-only one. A caller may omit `expectedDefinitionRevision`;
+the MCP adapter fills in the value for that position before compiling, and the stored
+operation carries the exact integer.
 
-Within one change set, the definition revision advances by one per
-definition-lane mutation and does not advance for a data-only mutation. A caller
-may omit `expectedDefinitionRevision` entirely. The MCP adapter then fills in the
-value for the position of that operation before it compiles. The stored canonical
-operation still carries an exact integer, so replay and promotion concurrency are
-unchanged.
+`ui.removeProperty {surfaceId, nodeId, propertyName}` removes one property, as if never
+given; it is how an optional property (`subtitleFieldId`, `visibleWhen`, `opens`, an
+ordering) is cleared, since validators refuse null. It refuses an absent property
+(`ui-property-absent`), retains the removed value, and is the undo of a
+`ui.setProperty` that gave a first value.
 
-`ui.removeProperty {surfaceId, nodeId, propertyName}` takes one property off a node, so it
-behaves as if it had never been given it (ADR-0004, 2026-10-13): the way to clear an optional
-property such as `subtitleFieldId`, `visibleWhen`, `opens` or an ordering, which a null value
-does not do, since every validator refuses null. It refuses a property the node does not carry
-(`ui-property-absent`), retains the value it removed, and is the undo of a `ui.setProperty`
-that gave a property its first value.
+Over MCP, `ui.addNode` accepts an inline `properties` map, which the adapter expands
+before compilation, diff, history or promotion into the canonical `ui.addNode` plus one
+`ui.setProperty` per property in property-name order. The two budgets are published and
+echoed separately.
 
-`ui.addNode` accepts an inline `properties` map over MCP. It is a boundary
-convenience, and nothing behind the boundary sees it. Before compilation, diff,
-history or promotion, the adapter expands it into the canonical `ui.addNode` plus
-one `ui.setProperty` per property, in stable property-name order. What changes is
-the cost of a build: a node and its configuration are one submitted operation, not
-one plus one per property. The two budgets are published and echoed separately,
-so the expansion is bounded and not implicit.
+A node's `position` is a sort key among siblings (then surface and node ID), stored as
+given. Over MCP, `ui.addNode` and `ui.moveNode` may name `beforeNodeId` or
+`afterNodeId` instead. The adapter resolves the anchor when the operation is added,
+against the file and the change set's earlier operations, to the key between the
+neighbours; with no free key it takes the next one and adds a `ui.moveNode` for each
+later sibling that must move up, stopping at the first already clear. Those moves are
+ordinary, budgeted, reviewed operations. The node takes the anchor's parent; a
+differing `parentNodeId` is refused.
 
-A node's `position` is a sort key among its siblings, not an index: they draw in
-position order, then by surface and node ID, and the store keeps the integer it is
-given. Over MCP, `ui.addNode` and `ui.moveNode` may instead name a sibling with
-`beforeNodeId` or `afterNodeId` (W-168). The adapter resolves the anchor when the
-operation is added, against the file's definition and the change set's earlier
-operations, to the key between the two neighbours. Where no free key lies between
-them, it takes the next key and adds a `ui.moveNode` for each later sibling that has
-to move up, stopping at the first already clear. Those moves are ordinary operations
-in the change set, counted against its budget and reviewed with it. The node takes
-the anchor's parent; a `parentNodeId` that differs is refused. Nothing behind the
-boundary sees an anchor.
-
-Proposal preview renders the validated derivative's bounded plans and record
-values, with no mutation handlers or write authority. Its summary counts are
-taken over the validated clone, not over the compiled plans, so a schema-only
-change set previews as what it adds. A raise in the file's minimum host version is
-a `raiseMinimumHostVersion` line in the semantic diff, because it is a durable
-compatibility change that the operations alone do not state. Root/record
-selection is preview-local. Promotion continues canonical operation replay against
-current definitions and touched-record versions. It never swaps in the derivative
-file.
-
-Acceptance fixtures cover each optional root, multiple entities, mixed versions,
-over-ceiling roots, invalid bindings, retired definitions, unknown effects,
-bounded records, host command targeting, reject/accept/reopen and renderer
-recovery. `Gate-AgentAuthoring.mjs` builds the widened vocabulary through MCP
-alone and then drives the running app through:
-
-- the surface selector
-- a surface total and per-column totals
-- a second list with its own filter
-- the month grid and undated view
-- the timeline's year, with a span cut at its end, and its own undated view
-- a gallery of toned cards that shows a rating as dots
-- a tab change that keeps an unsaved value.
-
-On a reopened file, the gate then measures the record page's own rules:
-
-- A picker searched and cancelled and a save with nothing to save both leave the
-  way back open, while a reference that is chosen holds it.
-- A related row that points at a record that has gone says so and stays on the
-  page.
-- A page that holds typing keeps it across a paged relation and a write from
-  elsewhere. It declines another record type, Add, another record, another
-  surface and another page of records.
-
-Each refusal is measured as readable in Light and Dark. Render and Computer checks
-remain required separately.
+Proposal preview renders the validated derivative's bounded plans and values with no
+write authority; its summary counts come from the validated clone, so a schema-only
+change set previews as what it adds. Root and record selection is preview-local.
+Promotion is canonical operation replay against current definitions and touched-record
+versions, never a swap of the derivative file. `Gate-AgentAuthoring.mjs` builds the
+vocabulary through MCP alone and drives these surfaces and page rules in Light and
+Dark.
 
 ### Use navigation and layout
 
-Use keeps the selected surface name visible in a View disclosure picker and in
-the page heading. The picker lists each surface with its kind. It supports
-keyboard focus, and Escape closes it. Surface totals have an inset below the
-toolbar. Board headers and group summaries size to their content. The remaining
-column height goes to the card area, and summary values do not stretch.
+The View disclosure picker and the page heading show the selected surface; the picker
+lists each surface with its kind, takes keyboard focus and closes on Escape. Surface
+totals sit inset below the toolbar. Board headers and group summaries size to content
+and the card area takes the remaining height. Calendar controls, grid and undated rows
+share the 16px content inset of lists and boards. Studio row actions are compact
+outlined buttons centred in their cells.
 
-Calendar controls, status, grid and undated rows share the same 16px content
-inset as lists and boards. Studio row actions use compact outlined buttons,
-centered in their grid cells.
+A record opened from a related row offers one step back, named after its record, in
+the toolbar group with the surface picker and drill pill.
 
-A record page opened from a related row offers one step back to the record it was
-opened from. The step is named after that record and sits in the same toolbar
-group as the surface picker and the drill pill. It is removed once it is taken.
-It is cleared with the rest of the view whenever the record context is left.
+The address row over each tab starts with back and forward arrows, before the place it
+names and the command box. Each arrow says where it goes with the header's eyebrow and
+title ("Back to Use · Work — All work"), or is disabled and named only for itself.
+Alt+Left and Alt+Right do the same, yielding to a dialog, the file menu and a focused
+field. A place is the view, record type, front-page choice, surface, record, drill,
+open tab of each tab group on the type's page, a calendar's month and view or a
+timeline's year and view, the Help topic, the labelled step back, and for a proposal
+review the destination of its Close button. They are carried as values, so going back
+to a since-drilled list returns it whole. The trail is bounded, belongs to the open
+file and empties when another opens. Until somebody uses the picker, Use shows the
+first compiled type that has a screen.
 
-The workspace header, the address row over each tab's content, starts with a back
-arrow and a forward arrow, before the place the row names and the command box. They
-are available from every view, not only from a relation. The theme control sits at
-the end of the status line and the File menu in the title band over the navigation
-(the Mica-with-tabs shell, 2026-10-03), so neither is beside the arrows.
+A place that no longer exists (a deleted record, a removed surface, a type without a
+screen, a retired type behind a Studio page, a removed front page, a view the file's
+capabilities no longer allow) is declined with a sentence and dropped, never resolved
+to a neighbour. A Studio page is judged on its own record type only. While a record
+form holds unsaved typing, both arrows decline.
 
-Each arrow says where it goes, with the same eyebrow and title that the header
-shows: "Back to Use · Work — All work". If a direction leads nowhere, its arrow is
-disabled and named only for itself. Alt+Left and Alt+Right do the same as the
-arrows. They yield to a dialog, the file menu and any field that has focus.
-
-A place is:
-
-- the view
-- the record type
-- the front-page choice
-- the surface
-- the record
-- the drill
-- the open tab of each tab group on that record type's page
-- the month and view of a calendar, or the year and view of a timeline
-- the Help topic
-- the labelled step back, where there was one
-- for a proposal review, the destination of its Close button.
-
-These are carried as values and not as names. So when a person goes back to a
-list that has since been drilled, the list returns whole. Nothing of this reaches
-the `.nendo` file. The trail is bounded, belongs to the open file, and is emptied
-when another file is opened. The record type that a place names is the one on
-screen, which is not always the one that was picked. Until somebody uses the
-picker, Use shows the first compiled type that has a screen while nothing is selected.
-
-If a place no longer exists, it is declined with a sentence and dropped from the
-trail. It is not resolved to a neighbouring screen and presented as the screen
-that was asked for. This covers:
-
-- a deleted record
-- a surface that a proposal removed
-- a record type that no longer has a screen
-- a retired record type behind a Studio page
-- a front page that the file no longer has
-- a view that the file's capabilities no longer allow.
-
-A Studio page is judged on its own record type. A place carries the Use selection
-so that a step back restores the whole view. But a Structure page is not refused
-because a proposal removed a screen somewhere else. While a record form holds
-unsaved typing, both arrows decline, in the same words that the labelled step
-back uses.
-
-**How long a sentence lasts.** A screen that reads on its own account redraws
-when those reads arrive, and a redraw rebuilds the slot a sentence is shown in. So
-every sentence is kept with the view it was shown on and put back after each
-redraw. What ends a sentence depends on its type:
-
-- A success stays until an action clears it or the view is left.
-- A notice with a Refresh view button stays until that button succeeds.
-- A refusal stays until the person does the next thing: their next press or key
-  anywhere except on the sentence itself, or a move off the view. Refusals
-  include a declined step back, a declined move off a page that holds typing, a
-  row whose record has gone, and a failed write.
-
-When a refusal was only written into the pane, it lasted exactly as long as the
-next chased read. On a screen with a tile, that is under a second. The sentence
-about a place that had gone was once wiped before the authoring gate could read
-it, and a person who pressed Back at that moment saw nothing at all (F-086). The
-gate now writes to the file from elsewhere after the sentence, watches the screen
-follow the write, and reads the sentence again.
+**How long a sentence lasts.** Each sentence is kept with its view and put back after
+every redraw. A success stays until an action clears it or the view is left; a notice
+with Refresh view until that succeeds; a refusal (a declined step or move, a vanished
+record, a failed write) until the person's next press or key off the sentence, or a
+move off the view. The authoring gate checks a refusal survives a write from elsewhere.
 
 ## Custom view definitions
 
 ADR-0013 authorizes four custom-view kinds: the `extensionGraphSurface` and
-`extensionRecordsSurface` roots, the `extensionRecordPanel` on a record page or
-a record form, and the `extensionView` root, a screen of the file. Each names a package that the file carries by `packageId`, and the
-view runs that package's code when it is shown. They use the same canonical UI
-operations, semantic review and replay as other roots. A view whose package is not
-in the file compiles with the warning `NUI452`, and the definition is preserved.
-The properties, the rungs from 1.29.0 to 1.34.0 and what the view's code may do are
-in [custom views](custom-views.md#view-definitions).
+`extensionRecordsSurface` roots, the `extensionRecordPanel` on a record page or form,
+and the `extensionView` root, a screen of the file. Each names a package the file
+carries by `packageId` and runs that package's code when shown, through the same
+canonical UI operations, review and replay as other roots. A view whose package is
+missing compiles with the warning `NUI452`, and the definition is preserved.
+Properties, the rungs from 1.29.0 to 1.34.0 and what view code may do are in
+[custom views](custom-views.md#view-definitions).

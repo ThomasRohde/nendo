@@ -94,15 +94,16 @@ These are enforced by `Test-Production.ps1` and by review:
 - Every operation declares its reversibility class. Nendo does not claim
   universal undo.
 
-Out of scope without an accepted ADR: general JavaScript or expressions, binary
-and asset fields, scalar multi-choice, EF Core, a second persistence provider, an
-in-process AI framework, or a broad new abstraction layer.
+Out of scope without an accepted ADR: JavaScript outside a custom view
+([ADR-0013](docs/decisions/0013-custom-views-with-code-in-the-file.md)), expressions
+beyond ADR-0008's formula language, binary and asset fields beyond ADR-0031's media,
+scalar multi-choice, EF Core, a second persistence provider, an in-process AI
+framework, or a broad new abstraction layer.
 
 ## If you are a coding agent
 
 Read [`AGENTS.md`](AGENTS.md); [`CLAUDE.md`](CLAUDE.md) imports it. It carries
-the working style, the planner handoff and several environment traps that have
-each cost a session.
+the working style, the planner handoff and the environment traps.
 
 ## Licence
 

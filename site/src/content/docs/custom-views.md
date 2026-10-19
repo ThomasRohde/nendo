@@ -32,7 +32,7 @@ A package arrives the way every other change to the application does: as a propo
 
 There are three ways to propose a package:
 
-- **Studio › Screens › Custom views › Import package…** Pick a folder's `nendo-package.json`, a `.zip` of the folder, or an older `.nendoview` file. **File › Custom views…** opens the same panel.
+- **Studio › Screens › Custom views › Import package…** Pick a folder's `nendo-package.json`, a `.zip` of the folder, or a `.nendoview` file. **File › Custom views…** opens the same panel.
 - **An agent** writes the package over MCP with the operations `extension.setPackage` and `extension.putFile`, in a change set, and you accept it. See [Agents](/nendo/docs/agents).
 - **A script.** From a clone of the repository, `node tools/Put-NendoPackage.mjs <folder>` proposes a package folder into the file that a running Nendo has open.
 
@@ -137,7 +137,7 @@ A package can also carry help for the people who use the file: Markdown files un
 
 A file that carries a package or defines a view records that it needs a Nendo that can run them. See [Minimum host version](/nendo/docs/files-and-data#minimum-host-version).
 
-## Not yet
+## Not included
 
-- A view as a tile on the front page is not built.
+- A view cannot be a tile on the front page.
 - Packages are not signed. There is no marketplace, download or update channel: packages move inside files and as folders.

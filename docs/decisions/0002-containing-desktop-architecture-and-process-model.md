@@ -4,399 +4,174 @@
 - **Date:** 2026-09-01
 - **Owners:** Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** EX-0002 result and EX-0003 result
-- **Depends on:** EX-0001 typed kernel services and the EX-0002 host-neutral semantic plan
-- **Related design:** [`../architecture.md`](../architecture.md)
+- **Evidence:** `WorkbenchProtocolTests`, `WorkbenchAgentSessionProtocolTests`, `DesktopCloseActionTests`, `DesktopTabWindowTests`, `DesktopNotificationContentTests`, `DesktopViewFailureLogTests`, `DesktopAgentFailureLogTests`, `read-chase.test.mjs` and `tools/Review-ShellRuntime.ps1`
 
 ## Context
 
-Nendo needs a permanent Studio/recovery route, rich table/editor mechanics, and
-compiled semantic forms and boards. It must also keep one portable `.nendo` file
-and host-owned authority. One primary maintainer must be able to maintain the
-containing choice. The choice must not expose storage or generic privileged calls
-to a renderer.
-
-EX-0003 compared real WinUI-plus-island, one-web-workbench and Avalonia stacks
-against the same real fixture and typed contract. Alternative B scored 88/100.
-C scored 72 and A scored 71. B kept real renderer-failure recovery and needed the
-least candidate-specific normal-UI code.
-
-## Decision drivers
-
-1. One coherent renderer for Studio, forms and boards.
-2. Permanent host-owned Studio, recovery and `.nendo` lifecycle.
-3. Closed, testable typed authority boundaries.
-4. Mature table/grid path without rebuilding a grid substrate.
-5. Renderer crash isolation and restart without losing the host session.
-6. Sustainable theme, accessibility, automation and editor maintenance.
-7. Local/offline operation and replaceable UI adapters.
-
-## Options considered
-
-### A — WinUI normal shell with WebView2 Studio island
-
-A has the strongest native Windows surface and the smallest failure blast radius.
-But it needs two normal renderers for selection, themes, forms, boards,
-inspectors, editors and automation. The experiment measured the largest
-candidate source and the same seven-process WebView2 runtime tree as B.
-
-### B — thin WinUI host with one local web workbench
-
-One WebView2 renderer owns all normal Studio and semantic surfaces. WinUI owns
-only the desktop lifecycle and a bounded native recovery/safe-mode surface. B has
-the clearest mature-grid path and the smallest normal-UI duplication. It also
-keeps a real renderer process boundary.
-
-### C — one Avalonia native/cross-platform stack
-
-C has one in-process renderer and the lowest idle process count. It also has no
-renderer failure isolation and a broad restored native-asset graph. It showed
-weaker Windows automation behavior, and it has no qualified native grid path for
-DS1.
-
-### Defer
-
-Deferral would block DS1. It would also encourage production UI work to choose
-an architecture because of component or prototype momentum.
+Nendo needs a permanent Studio and recovery route, rich table and editor mechanics,
+and compiled semantic surfaces, while keeping one portable `.nendo` file and
+host-owned authority. One maintainer must be able to sustain the choice, and no
+renderer may receive storage or generic privileged calls.
 
 ## Decision
 
-Nendo will use **alternative B** as its containing desktop architecture:
+### Host and renderer
 
-- a thin WinUI 3 / Windows App SDK host owns the desktop window, title-bar and
-  operating-system integration;
-- the host owns `.nendo` file discovery/open/close, the kernel, typed application
-  services, revisions, validation, mutation coordination and recovery;
-- one local WebView2 workbench owns every normal Studio, form, board, inspector
-  and future product surface;
-- WebView2 is a renderer and client of typed application services, never a
-  storage or authority boundary;
-- a bounded native host surface stays available when the renderer cannot start
-  or has failed. It may inspect health, list bounded recovery data and
-  restart/repair the renderer. It is not a second normal editor stack;
-- renderer requests use a closed, versioned, named message vocabulary with
-  stable semantic IDs, optimistic preconditions and idempotency keys;
-- no SQL, SQLite connection/type, database/file path, raw filesystem/network/
-  process authority, host-object exposure or generic invocation crosses into
-  web content;
-- web assets are local/offline and use a restrictive content-security policy.
+- A thin WinUI 3 / Windows App SDK host owns the windows, title bar and operating
+  system integration (notification area, notifications, taskbar, Jump List). It owns
+  `.nendo` open and close, the Engine, typed application services, revisions,
+  validation, write coordination, recovery and the MCP host.
+- One local WebView2 Workbench per window owns every normal Studio, form, board,
+  inspector and product surface. It is a renderer and a client of typed services,
+  never a storage or authority boundary.
+- A bounded native recovery surface stays available when the renderer cannot start
+  or has failed. It shows health, lists bounded recovery data, restarts or repairs
+  the renderer, and offers **Restart without custom views**. It is not a second
+  editor stack.
+- Web assets are local and offline under a restrictive content-security policy.
+- Frameworks, the grid and packaging are decided elsewhere
+  ([ADR-0015](0015-host-owned-database-studio-and-ag-grid-community.md),
+  [ADR-0017](0017-production-composition-and-build-layout.md)) and may not weaken
+  this boundary.
 
-This ADR does not select React, TypeScript, AG Grid, Node-based production
-tooling, packaging technology or the production source-tree layout. Those
-choices need their own evidence and may not weaken this responsibility boundary.
+### The bridge
 
-## Evidence and validation obligations
+- Renderer requests use a closed, versioned, named message vocabulary with stable
+  semantic IDs, optimistic preconditions and idempotency keys. No SQL, SQLite
+  connection or type, database or file path, raw filesystem, network or process
+  authority, host-object exposure or generic invocation crosses into web content.
+- The host serves bridge protocol 7 only. A request at any other version is refused
+  as `unsupported-protocol` before anything runs. Host and Workbench ship together,
+  so new methods do not change the version.
+- Unsolicited host messages are a closed set of events. `fileChanged` carries the
+  change sequence the coordinator reached and nothing else: no record contents, no
+  description of the change, no notification.
+- `data.queryRecordWindow` is Studio's named, cancellable, revision-bound read of a
+  record window (open, read, locate) through the existing typed service. Its bounds
+  and token are in the [query contract](../contracts/queries.md). It carries no SQL,
+  path or write authority and is not exposed to custom-view actors.
 
-EX-0003 proved real windows, equal semantic snapshots, stable targets, typed
-mutation/replay/conflict behavior, Light/Dark/System propagation and real
-WebView2 crash recovery. Its result records the exact packages, commands,
-measurements, screenshots and limitations.
+### Reads, refresh and redraw
 
-Before ADR-0015 or a production grid choice is Accepted:
+- A screen chases missing reads one pass at a time and at most once a second. A pass
+  that leaves work outstanding asks to be woken once; it does not redraw into the
+  next pass.
+- An answer is about the revision it was read at, carries that revision and is kept
+  even if the file moved meanwhile. Generation and file-session guards keep it from
+  landing on another view or file. While writes continue, tiles on one page may show
+  slightly different revisions; they converge when writes stop.
+- The coordinator raises `Committed` for every writer it serves; the host forwards it
+  as `fileChanged`. It is a nudge, not a refresh: the renderer re-reads through the
+  same bounded chase. A replay commits nothing and announces nothing. The host does
+  not resend a missed event. A handler marshals and returns and never waits on a
+  coordinator operation. Drafts key on the file session, which a write does not
+  change.
+- Nothing redraws automatically while a menu, dialog or focused control is open, or
+  within 750 ms of a pointer, key or focus event.
 
-- DS1 must qualify the functional table/editor journey and 100/10,000/100,000
-  row cases without adding renderer authority;
-- DS2 must qualify keyboard focus across the native/WebView seam, UIA/Narrator,
-  high contrast, 200% scaling, clipboard, theme/title-bar consistency, renderer
-  lifecycle and offline packaging;
-- dependency/licence checks must prove that only authorised packages and
-  component editions ship;
-- safe mode must remain reachable if WebView2 cannot initialize at all.
+### Process and window lifetime
 
-## 2026-09-02 downstream disposition
+- The close button hides the window into the notification area. The process stays
+  resident with its file open, its Engine alive and its MCP host listening. The tray
+  menu carries the real exit, the live agent access mode with a control to turn it
+  off, a switch that makes the close button exit, and **Record failures**. The
+  tooltip names the file and says when it waits on approval; the first close on a
+  device explains where the window went. The close preference is device state,
+  defaulting to the notification area; `NENDO_DESKTOP_CLOSE_ACTION` (`tray` or
+  `exit`) pins it.
+- One process holds one file; a second file is a second process.
+- A tab dragged out of the tab strip and dropped outside the window, or pulled down
+  into the page, opens in a new window of the same process at the drop point, with
+  the source window's size. It shares the file's `DesktopSessionController` (Engine,
+  file session, agent host, launched agent) and has its own WebView2 and Workbench,
+  so its own tabs, trail and drafts. Nothing about the file opens twice.
+- The first window is the **main window**. It alone carries the notification-area
+  icon, taskbar badge, notifications, Jump List and the file's saved window place. A
+  tab window's place is not remembered. A tab window closes when its file session
+  ends, hides and shows with the main window, and closing it closes only its tabs.
+  Moving a tab does not end a launched agent's conversation.
+- `window.detachTab` hands a tab's trail to the host as an opaque string, and
+  `window.takeTab` lets the new window take it once; the host never parses a trail.
+  Session events (`fileChanged`, `agentActivity`, `agentSessionChanged`,
+  `extensionDevelopmentChanged`, `extensionSettingsChanged`) go to every window of
+  the file; a notification's route goes to the main window.
+- The device-local save journal (`pending-mutations.ts`) keeps one slot per file,
+  shared by its windows. A save while another window's is unconfirmed is refused
+  unsent.
+- Not built: dropping a tab into another window, a window that follows the pointer
+  during the drag, and moving tabs between two files' processes.
 
-DS1 and DS2 then produced the required functional, provider, focus,
-high-contrast, packaging and lifecycle evidence. DS2 remains **revise** because
-nobody observed a real 200% Windows scale. Repository owner Thomas Klok Rohde
-deferred that check to post-selection, pre-release hardening, and accepted
-ADR-0015 at Medium confidence. This is not a 200% pass. A material scaling,
-accessibility, focus or recovery failure reopens ADR-0015 and this containing
-decision.
+### Notifications route, never grant
 
-## 2026-09-15 amendment — the host outlives its window
-
-The original decision gave the host "the desktop window, title-bar and operating-
-system integration". It made window lifetime and process lifetime the same thing.
-They are now separate.
-
-**What changes.** The close button hides the window into the notification area.
-The process stays resident with its file open, its Engine alive and its MCP host
-listening. The tray icon's menu carries the real exit, a readout of the current
-agent access mode, a control to turn that access off, and a toggle that makes the
-close button exit again. The preference is device state under the per-user root,
-and its default is the notification area. The process owner can pin it with
-`NENDO_DESKTOP_CLOSE_ACTION`. The scripted window lanes use this variable because
-none of them can click a tray menu. Nendo is multi-instance and each window holds
-a different file, so there is one icon per window.
-
-The host also gains a notification surface. It raises Windows notifications for
-the states that need a person, and only while the window is hidden or minimised.
-There are four states:
-
-- a validated proposal is waiting;
-- a file's automatic actions need consent;
-- the open file stopped being writable;
-- the workspace failed.
-
-Routing them needs the first unsolicited message on the Workbench bridge, which
-is bridge protocol version 7. A renderer at 2–6 drops it, as it always dropped a
-message without a request id.
-
-**Notifications route; they never grant.** A notification may say that a person
-is needed and open the page where they answer. It may not carry the answer.
-Acceptance of a proposal depends on promotion verifying the digest that the
-person reviewed ([ADR-0007](0007-proposal-clone-validation-and-replay-promotion.md)).
-Consent binds an exact digest, contract version, definition revision and
-capability set ([ADR-0008](0008-general-scripting-and-capability-isolation.md)).
-A notification cannot show either of these, so a person may not answer either
-from a notification. Also, anyone at the machine can click a notification.
-`Test-Production.ps1` keeps the notification types out of the MCP adapter in the
-same way that it keeps approval out. A test asserts that no notification payload
+While the window is hidden or minimised, the host raises Windows notifications for
+four states: a validated proposal is waiting, a file's automatic actions need
+consent, the open file stopped being writable, and the workspace failed. A
+notification may open the page where the person answers; it never carries the
+answer. Acceptance depends on promotion verifying the digest the person reviewed
+([ADR-0007](0007-proposal-clone-validation-and-replay-promotion.md)), and consent
+binds an exact digest, contract version, definition revision and capability set
+([ADR-0008](0008-general-scripting-and-capability-isolation.md)); neither fits in a
+notification, and anyone at the machine can click one. `Test-Production.ps1` keeps
+the notification types out of the MCP adapter, and a test asserts that no payload
 carries an approve, accept, promote or grant argument.
 
-**What this costs.**
-[ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) records that
-while a file is open with access on, any process on this machine can connect at
-that access level. Before this amendment, the owner could close the window to
-turn that off, because closing the window closed the file. That is no longer
-true: a window that looks shut can be a process that still serves MCP. This is
-the intended behaviour, because the purpose is an agent that works while nobody
-watches. But it makes the ADR-0009 posture apply for a longer interval. This
-amendment changes nothing else about that posture. This amendment takes these
-measures:
+### Custom views
 
-- the tray menu shows the live access mode and offers to turn it off;
-- the tooltip names the open file and shows when it is waiting on approval;
-- the first close on a device explains where the window went.
+Each custom view is a cross-origin frame of its window's WebView2, served by the
+host from the open file on an origin of its own under `.example`, in a renderer
+process apart from the Workbench's. It reaches the file only through the
+Workbench's broker and the same typed bridge. A view's renderer ending stops that
+view alone; only a failure of the Workbench's renderer or of the browser sends the
+app to recovery. See the [custom-view contract](../contracts/custom-views.md).
 
-This amendment does *not* add a new credential or peer check. ADR-0009 calls
-that check the route back, and it is still not built.
+### Launched-agent conversation
 
-**Where this is not qualified.** The notification-area icon, its menu and the
-notifications are owner-reported. `tools/Review-ShellRuntime.ps1` drives a real
-window. It checks that closing hides the window, that the process and its file
-survive, and that the exit pin still exits. No script can enumerate another
-process's tray icon or observe a shell notification. The lane states this in its
-own output, and it does not imply coverage that it does not have.
+For [ADR-0030](0030-launch-the-persons-own-agent-over-acp.md) the bridge carries
+eleven `agentSession.*` methods and the `agentSessionChanged` event (see the
+[launched-agents contract](../contracts/launched-agents.md)):
 
-## 2026-09-16 amendment — a screen may not chase its reads without a bound
+- `list`, `setCommand`, `launch` and `setHidden` take the request gate, like every
+  Agent page request.
+- `read`, `prompt`, `answer`, `cancel`, `authenticate`, `setOption` and `end` do not,
+  so the conversation keeps reading while the agent's own write holds the file. Each
+  names its file session and is refused as `stale-file-session` for a closed file.
+- All eleven run off the UI thread. A request naming a custom view's actor is
+  refused, as on every method except the record writes.
+- `prompt` may carry `context`: up to eight `{uri, title, text}` items, `nendo://`
+  addresses only, bounded.
+- `agentSessionChanged` carries the conversation's revision only. The tab reads what
+  changed after the revision it holds and patches those entries in place; it never
+  redraws the composer.
 
-The app view stopped responding four times in two days. The record from the
-amendment below identified it on the fourth time: `RenderProcessUnresponsive`,
-the window visible, and 9.7 GB of the machine's memory free. The pressure that
-Chromium logged came from inside the renderer, not from Windows.
+### Failure records
 
-**What it was.** A surface that draws exact numbers asks for the missing numbers
-for the current revision, and redraws when they arrive. That is a loop, and it
-stopped only because the answers usually arrived. While an agent wrote, they did
-not arrive. The surface issued each read against one change sequence and
-discarded it when the file moved. The discard cleared the in-flight marks, so the
-next draw found the same tiles missing and asked again. The front page redrew as
-fast as the host could answer, and rebuilt the page every time. Then WebView2
-declared the renderer unresponsive. The record count had no effect: 125 records
-caused it as readily as 33,000. Only an agent that wrote continuously could cause
-it. For this reason it started on the day the front page became the screen that
-Use opens on.
+- When the app view fails, the host appends one line to `view-failures.jsonl`: the
+  `ProcessFailedKind`, how long the view was up, whether the window was out of
+  sight, and Windows' free physical memory and memory load.
+- When an MCP request fails inside Nendo, the refusal carries a failure reference,
+  and `agent-failures.jsonl` gets one line under it: the source (`tool`, `resource`,
+  `sdk` or `web server`), the request's name, the exception types from the outermost
+  in, and the frames without file names or line numbers. The SDK's and web server's
+  warnings and errors reach it by event and exception type. A refusal the agent has
+  read and a cancellation are not failures. It records only while the listener
+  serves, so a port fallback at start is not recorded.
+- Both records are device-local, keep the newest 50 lines and fail soft. A line
+  carries no file path, application or instance identity, record contents,
+  exception or log message, argument, handle or lease. Nothing leaves the device or
+  enters the `.nendo` file. Recording is on by default, because a person cannot
+  predict the failure; the tray's **Record failures** switches both off and is read
+  at each failure.
+- The Desktop tests use a device-state folder of their own (`DesktopTestDeviceState`)
+  and never the owner's.
 
-**The rule.** A screen may not chase its reads without a bound. It runs one pass
-at a time, and at most one pass a second. If a pass leaves work outstanding, it
-asks to be woken once. It does not redraw into the next pass. `refreshDerived`
-already bounded the same chase: it counted attempts and refused the third. This
-rule applies the same bound to the reads that are per tile.
+### Not covered by a lane
 
-**And an answer is not stale because the file moved while it was being read.**
-The answer is about the revision that it was read at. It carries that revision,
-and the surface keeps it. When the surface discarded such answers, a file under
-continuous writes could never show a number: every answer arrived after the file
-moved, so the surface discarded every answer. An answer must still not land on
-another view or another file. The generation and file-session guards prevent
-that. The cost is that while writes continue, tiles on one page can show slightly
-different revisions. Each tile is exact for the revision it names, and the tiles
-converge when the writes stop.
-
-**Nothing redraws under the person's hands.** These hold the automatic redraws
-off: an open menu, a focused control, an open dialog, or any pointer, key or
-focus event in the last 750 milliseconds. The first version of this fix honoured
-only the open menu. The owner reported that the picker was still "a bit
-finicky". A redraw between the pointer going down and the menu opening moves the
-target away from the click. The Agent page's poll already refused to redraw over
-a field that somebody was editing. This rule applies that behaviour to every
-surface.
-
-**Where this is not qualified.** `read-chase.test.mjs` measures the bound and the
-hold against a clock that the test controls. Behaviour under a real agent is
-owner-observed. A task-owned harness measured it, not a lane that runs on its
-own. The harness ran 254 rounds, about 50,800 records and twenty minutes of
-continuous writes, with the front page open and the owner switching views
-throughout, against a build that died at round 160. When the bound is
-falsified, no assertion fails: the suite stops returning, which is the defect
-itself. For this reason the tests cap their own loops, so that they report a
-count and do not hang a run.
-
-## 2026-09-15 amendment — a view failure is written down
-
-The owner accepted this amendment on 2026-09-15. On that day the app view stopped
-responding twice and left nothing behind but a screenshot. The host already
-detects the failure: `ProcessFailed` raises the recovery panel, and the tray
-notifies a person whose window is out of sight. But if the host does not record
-the detection, it is lost when the view restarts, and a person restarts the view
-at exactly that moment.
-
-The host now keeps one device-local line per failure, in `view-failures.jsonl`
-beside the other device state. The line contains:
-
-- the `ProcessFailedKind` as given;
-- how long the view was up;
-- whether the window was out of sight at that moment;
-- what Windows reports about free physical memory and memory load.
-
-The last item is there because it is the contested reading. Before both failures,
-the renderer was told that memory was critical while the machine had gigabytes
-free. Nothing kept the data to show which of those two was true.
-
-**Bounds, and why this is not a logging framework.** The host writes one file,
-with one line per event. It keeps the newest fifty lines and drops the rest. The
-line contains no file path, no application or instance identity and no record
-contents. This is the same limit that the saved diagnostics report uses. Nothing
-leaves the device, and nothing goes into the `.nendo` file: a file carries what
-an application is, not what one machine's WebView did on a Tuesday. The record
-fails soft, because a diagnostic that could stop the app from starting would be a
-worse defect than the defect it exists to catch.
-
-**It records by default, and the tray switches it off.** The default is the
-important choice. A rare failure that costs a person their window cannot be
-captured if the person must enable recording first, because that asks them to
-predict the failure. The notification-area menu carries "Record view failures"
-beside the close-button switch. It is one click, it is checked when it is on,
-and Nendo remembers the choice. A device that chose its close behaviour before
-this setting existed never made a choice about recording. That device gets the
-default, not an off that nobody asked for.
-
-**Where this is not qualified.** No automated lane covers the write of the record
-when a real renderer fails. No script can make WebView2 hang on demand, and the
-gate that drives a real window cannot make it stop responding.
-`DesktopViewFailureLogTests` measures the record itself: the cap, the round trip,
-the survival of an unreadable line, the default and its persistence. The path
-from a live `ProcessFailed` to a written line is wired but not exercised. The
-next occurrence will exercise it.
-
-## 2026-09-27 amendment — an agent request that fails inside Nendo is written down too
-
-The owner pre-accepts amendments of this kind (since 2026-09-24); this one was written
-first, as that standing asks. An MCP code review on 2026-09-27 found that the local
-MCP host cleared every log provider, and that `NENDO_INTERNAL_ERROR` named only an
-exception type (F-181). An agent that met one could report a type name, and the
-device kept nothing that report could be matched against.
-
-The host now gives the agent a failure reference in the refusal, and hands the
-device one line under the same reference: the source (`tool`, `resource`, `sdk` or
-`web server`), the request's name, the exception types from the outermost in, and
-the frames the failure passed through with their file names and line numbers
-removed. The SDK's and the web server's own warnings and errors reach the same line
-by event and exception type; a refusal the agent has already read and a cancellation
-are not failures and are not recorded.
-
-**The same bounds as a view failure.** The Desktop keeps these in
-`agent-failures.jsonl` beside `view-failures.jsonl`, newest fifty, device-local,
-failing soft. A line carries no exception message and no formatted log message,
-because a message is where a stored value, a request body or a location would
-travel; no argument, handle or lease; and no file path. Nothing leaves the device
-and nothing goes into the `.nendo` file.
-
-**Only while the host serves.** The record opens once the listener has started and
-closes when it begins to stop. A start that fails throws to its caller, and a start
-that recovers is not a failure: when the fixed port is taken, the hosting layer logs
-every refused bind as an error before the host falls back to another port. The first
-build recorded those, and on its first day a test run that met a running Nendo on the
-fixed port wrote fifty such lines into the owner's real folder — the Desktop tests
-built their controllers without a device-state root, so they used the owner's folder,
-read the owner's saved agent settings and announced their hosts in the owner's
-discovery folder. The test process now gives itself a device-state folder of its own
-(`DesktopTestDeviceState`), a controller built without options keeps its discovery
-entries inside a named profile as the window already did, and the fifty lines were
-removed from the owner's folder.
-
-**One switch.** The notification-area item that turned view-failure recording off is
-now "Record failures", and it governs both records. It is read at the moment of each
-failure, so switching it off stops the next line without a restart. The stored
-setting keeps its name, so a device that switched recording off before keeps it off.
-
-**Where this is not qualified.** `UnattendedAcceptanceTests` produces a real internal
-failure through the host (a consent store that cannot be written) and checks the one
-line, the reference in the refusal, and the absence of the handle, the lease, the
-path and the message. `DesktopAgentFailureLogTests` measures the cap, the round trip,
-the switch, and that the suite never defaults to the owner's folder;
-`AStartThatFallsBackFromABusyPortRecordsNoFailure` holds the port fallback out of the
-record, and failed with four lines per start when the record was left open. No lane drives an installed Desktop host into an internal failure
-end to end.
-
-## 2026-09-17 amendment — a screen is told when the file moves
-
-The owner accepted this amendment on 2026-09-17. The coordinator raises
-`Committed` with the change sequence that it reached. The host forwards that
-number to the renderer as `fileChanged`, the second member of the closed
-unsolicited-event set. The renderer re-reads through the bounded chase of the
-2026-09-16 amendment. The full record, with its limits and its recorded outcomes,
-is the entry for this date in the [decision index](README.md#amendments-in-force).
-
-## 2026-09-25 note — custom views run as frames of the one WebView2
-
-The Decision above gives every normal surface to one WebView2 workbench. Custom
-views now run inside it too
-([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Each view is a
-cross-origin frame whose code the host serves from the open file, on an origin of
-its own under `.example`. Chromium puts each package in a renderer process of its
-own, separate from the Workbench's. A view reaches the file only through the
-Workbench's broker, which calls the same typed bridge as every other surface. It
-is not a second Studio and not a storage authority.
-
-The host keeps the process model's promise that it outlives the renderer: only a
-failure of the Workbench's own renderer or of the browser sends the app to
-recovery. A view's renderer ending stops that view alone, and the recovery panel
-can restart without custom views. The contained helper of 2026-09-20 to
-2026-09-24, `Nendo.ExtensionHost`, with its own WebView2 in an AppContainer and a
-Job Object, is deleted. The [custom-view contract](../contracts/custom-views.md)
-describes the current behaviour.
-
-## 2026-10-04 note — the bridge serves protocol 7 only
-
-The owner chose on 2026-10-04 (W-135) that the host no longer serves a Workbench
-older than bridge protocol 7. The bundled Workbench sends 7; the review and gate
-lanes under `tools/` that sent 5 or 6 moved to 7 in the same change, and no
-extension or prototype sends a version at all. The host's compatibility layer for
-versions 2 to 6 is deleted: the Idea Garden methods of version 2, the session
-pinning of versions 2 to 4, the file pickers the host ran itself before 7, and the
-serializer that left numbers bare before 6. A request at any other version gets
-one refusal, `unsupported-protocol`, at version 7 and before anything runs.
-
-The 2026-09-15 amendment's remark that a renderer at 2–6 drops an unsolicited
-message is history: no such renderer is served any more.
-
-## 2026-10-08 note — the conversation with a launched agent
-
-[ADR-0030](0030-launch-the-persons-own-agent-over-acp.md) lets the Agent page start
-the person's own agent program. Its conversation reaches the Workbench through
-protocol 7, which gains ten methods and one unsolicited event. The Workbench and
-the host ship together, so the version does not change.
-
-- `agentSession.list`, `agentSession.setCommand` and `agentSession.launch` take the
-  request gate, like every Agent page request. `agentSession.setHidden` joined them
-  on 2026-10-09 (W-199): it hides an agent from Launch on this device, so the count
-  below is eleven.
-- `agentSession.read`, `prompt`, `answer`, `cancel`, `authenticate`, `setOption` and `end` do not.
-  The conversation tab has to keep reading while an agent's own write holds the
-  file. Each of them still names its file session, and the host checks it against
-  the open one, so a renderer of a closed file is refused as `stale-file-session`.
-- All eleven run away from the UI thread.
-- `agentSession.prompt` may carry `context`, the things the person pointed at with @
-  (2026-10-09, W-200): up to eight `{uri, title, text}`, nendo:// addresses only, bounded
-  (ADR-0030).
-- A request that names a custom view's actor is refused, as on every method except the
-  record writes.
-- `agentSessionChanged` carries the conversation's revision and nothing else. It is
-  a nudge, like `fileChanged`: the tab reads what changed after the revision it
-  holds and patches those entries in place. It never redraws the composer, so a
-  half-typed message survives the agent's own writes.
+The notification-area icon, its menu and shell notifications are owner-checked: no
+script can enumerate another process's tray icon or observe a notification.
+`tools/Review-ShellRuntime.ps1` drives a real window and checks that closing hides
+it, that the process and file survive, and that the exit pin exits. The path from a
+live `ProcessFailed` to a written line is wired but not exercised, since nothing can
+make WebView2 hang on demand.
 
 ## Consequences
 
@@ -404,100 +179,32 @@ the host ship together, so the version does not change.
 
 - Studio and semantic surfaces share one renderer, theme, accessibility model,
   automation model and editor vocabulary.
-- The host remains the sole authority and can outlive/restart the renderer.
-- A mature web grid can be evaluated without creating a second normal UI stack.
+- The host is the sole authority and can outlive and restart the renderer.
 - The renderer is replaceable behind Nendo-owned semantic and service contracts.
 
 ### Negative
 
-- Windows accessibility and keyboard quality depend on WebView2 integration. They
-  must pass DS2; nobody may assume them from browser behavior.
-- The runtime uses a host plus a WebView2 process family. The single EX-0003
-  observation had roughly 601 MB aggregate Debug working set.
-- A full renderer failure temporarily removes every normal surface. Only bounded
-  native recovery remains until restart.
-- A resident host keeps the WebView2 process family alive behind a hidden window.
-  The working set above is now also the cost of a window that somebody thought
-  they had closed.
-- Closing the window no longer ends agent access; see the 2026-09-15
-  amendment.
-- The product carries both .NET/Windows App SDK and web asset/tooling concerns,
-  but it has only one normal UI implementation.
+- Windows accessibility and keyboard quality depend on WebView2 integration.
+- The runtime is a host plus a WebView2 process family per window, kept alive behind
+  a hidden window.
+- A full renderer failure removes every normal surface until restart; only the
+  native recovery surface remains.
+- Closing the window does not end agent access. The
+  [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) posture applies
+  for as long as the process runs; the tray shows and can turn off the access mode.
+- The product carries both .NET / Windows App SDK and web tooling, with one normal UI
+  implementation.
 
 ## Rejected alternatives
 
-A is rejected because its native Windows benefits did not justify duplicated
-normal UI and the cross-boundary maintenance surface. C is rejected because its
-single-process recovery and unqualified grid path are poor fits for permanent
-Studio. This is so although C has a lower idle process count and potential
-portability.
-
-Neither rejection claims that WinUI controls or Avalonia are generally inferior.
-It is a decision for Nendo's recorded constraints and evidence.
+- WinUI normal shell with a WebView2 Studio island: two normal renderers for
+  selection, themes, forms, editors and automation.
+- One Avalonia stack: no renderer failure isolation and no qualified grid path.
 
 ## Revisit triggers
 
-- DS1 cannot produce a credible Studio table in the selected workbench.
-- DS2 finds a material WebView2 focus, accessibility, scaling or lifecycle
-  failure that cannot be bounded without a second normal UI stack.
-- WebView2 or Windows App SDK deployment becomes incompatible with Nendo's
-  offline/portable requirements.
-- A mature native grid demonstrates equivalent product quality and materially
-  lower total system cost.
-- Cross-platform delivery becomes an explicit product requirement with funded
-  validation, not an architectural option value.
-
-## 2026-10-14 note — bounded Studio record windows
-
-The owner approved the lazy-data-views plan (W-233). The bundled Workbench gains
-`data.queryRecordWindow`, a named, cancellable read through the existing typed
-application service. It opens, reads and locates within a revision-bound query;
-its bounds and token are specified in the query contract. It carries no SQL,
-path or write authority and is not exposed to custom-view actors. Host and
-Workbench ship together under the existing protocol 7 policy. ADR-0015's
-Community-only component and transient grid-state boundaries are unchanged.
-
-## 2026-10-16 amendment — a file's tabs may stand in more than one window
-
-The owner asked for tabs that can be dragged out of the window into a window of
-their own, to put a place on another monitor (W-277). Until now one process had
-one window, one WebView2 and one file. That stays true for the process and the
-file, but no longer for the window.
-
-**What changes.** A tab dragged out of the tab strip and let go outside the window,
-or pulled down into the page (the way out of a maximised window, added 2026-10-17),
-opens in a new window of the same process, where it was let go. That window shows
-the same open file through the same `DesktopSessionController`: the same Engine,
-the same file session, the same agent host and the same launched agent. It has its
-own WebView2 and its own Workbench, and so its own tabs, trail and drafts. Nothing
-about the file is opened twice, and no second process starts.
-
-- The window the process started with stays the **main window**. It alone carries
-  the notification-area icon, the taskbar badge, notifications, the Jump List and
-  the file's saved window place. A tab window opens at the drop point with the size
-  of the window it came from, and its place is not remembered: tabs never are.
-- A tab window lives as long as its file session. When the file changes under it
-  (another file opened, the file closed or replaced), it closes, as the window's
-  own tabs are cleared with the file. Hiding the main window into the notification
-  area hides the tab windows with it, *Open* shows them again, and exit closes them.
-  Closing a tab window closes its tabs; it does not end the process or the file.
-- Moving a tab is not closing it. A launched agent's conversation keeps running
-  when its tab moves, and ends with its tab only when that tab is closed.
-- The bridge gains `window.detachTab` (the page hands over a tab's trail as an
-  opaque string and the host opens the window at the pointer) and `window.takeTab`
-  (the new window's page takes that trail once). The host never parses a trail.
-  Events the session raises (`fileChanged`, `agentActivity`, `agentSessionChanged`,
-  `extensionDevelopmentChanged`, `extensionSettingsChanged`) go to every window of
-  the file; a notification's route goes to the main window.
-- The device-local save journal (`pending-mutations.ts`) keeps one slot per file,
-  and every window of that file shares it, as they share the browser profile. A save
-  in one window while another's is unconfirmed is refused unsent, as before.
-
-**What does not change.** One process holds one file; a second file is a second
-process (W-089). Custom views still run as frames of their window's WebView2. The
-typed services, the bridge's protocol version and every authority boundary are
-unchanged: a tab window's requests are the same requests, under the same file
-session check, as the main window's.
-
-**Not built.** Dragging a tab into another window to join it, a live window that
-follows the pointer during the drag, and tabs moving between two files' processes.
+- A material WebView2 focus, accessibility, scaling or lifecycle failure cannot be
+  bounded without a second normal UI stack.
+- WebView2 or Windows App SDK deployment conflicts with offline, portable use.
+- A native grid shows equivalent quality at materially lower total cost.
+- Cross-platform delivery becomes a funded product requirement.

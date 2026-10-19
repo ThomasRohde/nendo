@@ -4,252 +4,128 @@
 - **Date:** 2026-09-02
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** EX-0001 result and EX-0002 result
-- **Depends on:** ADR-0001 local one-file product boundary
-- **Related design:** [`../architecture.md`](../architecture.md)
+- **Evidence:** `SemanticMetadataTests`, `StorageReviewTests`, `ReferenceTests`, `ReferenceLabelTests`, `ChoiceAdditionTests`, `MarkdownPresentationTests` and `ExtensionPackageTests` (Engine)
 
 ## Context
 
-### Accepted note — 2026-09-09 (covering index on configured reference columns)
-
-The ADR-0004 contract version 3 amendment adds `relatedList`. A `relatedList`
-reads the inverse of a reference: the records of one entity whose reference field
-points at one record of another entity. Reference values are an ordinary column,
-and the schema had no index on any field column. Thus that read was a table walk.
-
-EX-0010 lane C
-measured the read on the production table shape at 1,000 parents and 10,000
-children. A dense parent met the R06 bounded-read target easily. For
-`ORDER BY __nendo_record_id`, SQLite walks the primary-key index and stops when
-the page is full. A sparse or empty relation cannot stop early: p50 3.97 ms and
-3.86 ms against a 150 ms target. Both results pass, and this note does not repair
-a failure.
-
-The cost is linear in table size and not in result size. A register with many
-parents that each own few children is the ordinary case, not the edge case.
-Thus this note accepts one covering index per configured reference field. The
-same explicit typed operation that configures the reference creates the index:
-
-```sql
-CREATE INDEX <name> ON <entity table>(<reference column>, __nendo_record_id);
-```
-
-The index is host-owned. Only the supported schema service creates it. It does so
-inside the transaction that configures the reference, after the physical column
-exists, because the same change set may add both. The host never creates the
-index on open and never creates it as a repair. An ordinary open of an existing
-file does not add it. Files configured before this note continue to work and read
-without it. On the same fixture, the index took the sparse case to p50 0.05 ms and
-changed the plan into a covering search.
-
-The index name is outside the `__nendo_` namespace by design. Thus the index is
-not part of the protected schema signature. That signature is a fixed set of
-recognised layouts, and the number of reference indexes varies per application.
-If the signature included them, every configured reference would produce an
-unrecognised layout, and the file would refuse to open. Thus a lost index is not
-drift and not a fault: the inverse read stays correct without it, but is slower.
-The existing required-constraint table rebuild already captures and recreates
-indexes on the table. Thus when a field is retired, the rebuild does not drop the
-index without notice.
-
-This note authorises that index and nothing else. It adds no index for any other
-field kind and introduces no user-defined indexes. It changes no storage engine,
-journal or copy-discipline decision.
-
-*Correction, 2026-10-13 (PERF-02, W-228):* the covering search measured above was the plan
-of a plain `=`. The read the Engine shipped wrapped every filtered column in a host function,
-`nendo_query_filter_N(CAST(column AS TEXT), @value)`, which no index can serve, so the related
-list scanned the child type and called the function once per row, and the index was never used.
-A filter now carries, beside the function, the comparison SQLite answers the same way: `column =
-@value` for equality on text, a reference or a date, whose comparison is ordinal, and `column IS
-NULL` or `IS NOT NULL` for the null checks. The function stays the authority on the answer. A
-UUID compares in either case (ESQ-17), so its equality has no such comparison and still scans;
-so does every other operator. With the comparison, the related list seeks this index.
-
-Nendo must support ordinary relational data. It must also keep stable semantic
-identity, mutable human labels, application definitions, history and format
-compatibility. A storage model that is optimized only for renderer convenience
-would make recovery and independent inspection unnecessarily difficult. If raw
-SQL were the product mutation model, it would bypass semantic history and
-validation.
-
-## Decision drivers
-
-1. Useful independent SQLite inspection and recovery.
-2. Stable entity/field identity across display-name changes.
-3. Typed schema changes with deterministic history and validation.
-4. Straightforward filtering, sorting, relationships and indexing.
-5. A closed storage boundary with no SQL leakage to UI or MCP adapters.
-6. A small format-version-one type system.
-
-## Options considered
-
-### Ordinary relational user tables plus protected metadata
-
-Materialize each entity as a table. Map stable semantic IDs to constrained
-physical names in host-owned metadata.
-
-### Entity-attribute-value storage
-
-Store all values in generic rows. This option makes some dynamic-schema changes
-simpler. But it degrades direct inspection, constraints, query planning and type
-clarity.
-
-### One JSON application document
-
-Store schema, data and UI as a document blob. This option couples unrelated
-edits and weakens relational behavior. It also encourages whole-document
-replacement.
+Nendo must hold ordinary relational data and also keep stable semantic identity,
+mutable labels, application definitions, history and format compatibility. Storage
+shaped for renderer convenience would make recovery and independent inspection
+hard, and raw SQL as the mutation model would bypass history and validation.
 
 ## Decision
 
-Nendo format version 1 uses ordinary relational tables for user data and a
-reserved protected metadata namespace for Nendo state.
+Format version 1 stores user data in ordinary relational tables and Nendo state in a
+reserved, protected metadata namespace (`__nendo_*`).
 
-- Stable semantic entity and field IDs are distinct from mutable display names
-  and constrained physical table/column names.
-- Protected metadata records the manifest, application/instance identity,
-  semantic mappings, UI nodes/properties, revisions, canonical operations and
-  idempotency evidence. This ADR does not freeze the exact prototype schema.
-- Protected metadata also holds custom-view packages, by decision of
-  [ADR-0013](0013-custom-views-with-code-in-the-file.md). Four tables hold them:
-  `__nendo_extension_package`, `__nendo_extension_blob` (content keyed by its
-  SHA-256, kept after it is replaced or removed, so compensation restores exact
-  bytes), `__nendo_extension_file` and `__nendo_extension_state` (a view's
-  durable state). The host
-  creates them on the first extension write, never at file creation, as the layout
-  ladder's new last rung. A file that has them needs host 1.33.0. Only the typed
-  `extension.*` operations write them.
-- A package's files are code and assets that run in the Workbench's WebView2. So
-  the file can carry an executable payload. This is deliberate, and ADR-0013
-  states the trust trade.
-- `format_version` and `minimum_host_version` are mandatory from the first
-  production format. SQLite application/user version markers supplement the
-  protected manifest. They do not replace it.
-- Only the host schema service may mutate physical DDL or protected metadata.
-  Storage-specific SQL and SQLite types remain inside the SQLite adapter.
-- The host detects external changes as drift. Drift produces a normal, read-only
-  or recovery-required open classification. The host does not guess a repair.
-- MVP scalar storage kinds are text, integer, decimal, boolean, date, datetime,
-  UUID and reference. Long text, single choice, email, URL, color and Markdown
-  are presentation/validation semantics over those kinds. (Note, 2026-09-22:
-  the schema service accepts the presentations `singleLine`, `longText`,
-  `singleChoice`, `date` and `rating`. Email, URL, color and Markdown
-  presentations are not implemented. Note, 2026-10-05: `markdown` is implemented
-  on Text fields, host 1.44.0 (W-173). A record page shows the text formatted
-  from a fixed subset, escaped before any tag is added, with links not followed,
-  and edits the source as plain text. `schema.setFieldPresentation` moves a Text
-  field between `singleLine`, `longText` and `markdown`, the presentations that keep
-  every value valid, so a long text field written earlier can be shown formatted;
-  it is reversible and changes no value. Email, URL and color are still not
-  implemented. Note, 2026-10-13 (ESM-10): `singleLine` and `longText`, like
-  `markdown`, are presentations of a Text field only, and `schema.addField` refuses
-  them on any other storage kind. A file where an earlier host stored one on a
-  number, a yes/no, a date or a reference reads it as no presentation, so the field
-  draws its own input again; the stored row is left as it was.)
-- Scalar multi-choice, JSON-as-a-user-type and binary or asset fields other than
-  media are deferred. A package file's content is stored as a BLOB, but it is
-  protected metadata, not a user field. Media is a Text field with the presentation
-  `media` holding an address; embedded content lives once per distinct content in
-  protected tables outside history ([ADR-0031](0031-media-in-user-data.md)), so no
-  user column holds bytes.
-- Relationships use explicit relational metadata and foreign-key/join
-  structures. They do not use encoded scalar lists.
-- Note, 2026-10-14 (W-232, the ESS-09 follow-up): a bound reference's label field can
-  change. `schema.setReferenceLabel` `{entityId, fieldId, labelFieldId,
-  expectedDefinitionRevision}` is a definition-lane operation that points one bound,
-  active reference at another active Text field of its target record type, the rule
-  `schema.configureReference` applies, and updates only that reference's row of
-  `__nendo_reference`. No stored value moves: a reference stores the target record ID,
-  so only the label a read, a picker, a column or a board shows changes. It refuses an
-  unbound or retired reference, a label that is not an active Text field on the target,
-  an unchanged label (`reference-label-unchanged`) and a stale definition revision. It is
-  reversible with retained state: its evidence keeps the previous label field, and the
-  inverse sets it back while the change is the file's latest definition change. Once the
-  label has moved, the old field is no longer held by `reference-label-in-use` and can be
-  retired. Only an active reference on an active record type holds its label: a retired
-  one draws and groups nothing and cannot be relabelled, so it does not keep its label from
-  retirement. A file that changed a label needs host 1.51.0.
-- Note, 2026-10-17 (W-280): a single-choice field's options can grow. Until now they were
-  fixed when `schema.addField` made the field, and `schema.setChoiceMetadata` only renames,
-  colours, retires or brings back an option that exists, so an application whose choices
-  grow (the Manuscript app's Table, Row and Cell kinds) had no way to add one, from an
-  agent or from Studio. `schema.addChoice` `{entityId, fieldId, choiceId, displayName,
-  tone?, expectedDefinitionRevision}` is a definition-lane operation that appends one new
-  stable option to the end of an active single-choice Text field on an active record type.
-  It holds the option to the rules `schema.addField` already applies: an ID of at most 120
-  characters, new to the field with retired options counted, and at most 32 options in all;
-  and to the label and tone rules of `schema.setChoiceMetadata`: a label of 1 to 200
-  characters, unique within the field case-insensitively (`label-conflict`), and a tone from
-  the closed set or none. It writes the options list on `__nendo_field` and a row for every
-  option in `__nendo_choice`, exactly as a first label edit does, so the two stay one list,
-  and a tone through the tone table; no protected table is altered and no rung is added. No
-  record is touched, and records can choose the option from the next write. It is reversible
-  with retained state: its evidence keeps whether the field had option metadata before, and
-  the undo, a compensation-only `schema.removeChoice` no client can send, takes the option,
-  its label and its tone away again while the addition is the file's latest definition
-  change. The undo is refused, naming the record, while any record holds the option, or a
-  deleted record keeps it for the undo of its deletion; retiring the option is the remedy
-  then. The operation states host 1.7.0, the rung of choice metadata, or 1.19.0 with a tone,
-  as `schema.setChoiceMetadata` does: it needs no storage a label edit does not, and a host
-  that predates it reads the field's options as they are and refuses to undo it by name.
-- Generated display-label recovery views are not part of format version 1.
-  Stable physical names plus the semantic map are the inspectability baseline.
+### Identity and metadata
 
-## Evidence and validation obligations
+- Stable semantic entity and field IDs are distinct from mutable display names and
+  from constrained physical table and column names.
+- Protected metadata holds the manifest, application and instance identity, semantic
+  mappings, UI nodes and properties, revisions, canonical operations and idempotency
+  evidence.
+- `format_version` and `minimum_host_version` are mandatory in the protected
+  manifest. SQLite application and user version markers supplement it.
+- Only the host schema service changes physical DDL or protected metadata.
+  Storage-specific SQL and SQLite types stay inside the SQLite adapter.
+- The host treats an external change as drift and classifies the open as normal,
+  read-only or recovery required ([ADR-0012](0012-safe-mode-compatibility-and-migration.md)).
+  It does not guess a repair.
+- Generated display-label recovery views are not part of format version 1. Stable
+  physical names plus the semantic map are the inspectability baseline. Direct
+  SQLite inspection is a recovery aid, not a mutation API.
 
-- EX-0001 reopened an empty file and a populated Idea Garden file with coherent
-  ordinary tables, stable mappings and protected history.
-- EX-0002 compiled the stored schema and UI through typed services. It did not
-  expose physical identifiers or SQLite authority.
-- Production migrations must be versioned, deterministic and transactional.
-  Before a format version ships, old-file/new-host fixtures must cover them.
-- Adversarial identifiers, rename collisions, reserved words, relationship
-  integrity and externally modified schemas require implementation tests.
-- Direct SQLite inspection is a recovery aid, not a supported mutation API.
+### Custom-view packages
+
+Protected metadata holds custom-view packages
+([ADR-0013](0013-custom-views-with-code-in-the-file.md)) in four tables:
+`__nendo_extension_package`, `__nendo_extension_blob` (content keyed by SHA-256 and
+kept after replacement or removal, so compensation restores exact bytes),
+`__nendo_extension_file` and `__nendo_extension_state` (a view's durable state). The
+host creates them on the first extension write, never at file creation, and only the
+typed `extension.*` operations write them. A file that has them needs host 1.33.0. A
+package's files are code and assets that run in the Workbench's WebView2, so the
+file deliberately carries an executable payload; ADR-0013 states the trust trade.
+
+### Field types
+
+- Storage kinds are text, integer, decimal, boolean, date, datetime, UUID and
+  reference.
+- Presentations are validation and display over a kind: `singleLine`, `longText`,
+  `markdown` and `media` on Text only, `singleChoice`, `date` and `rating`. Email, URL
+  and colour presentations are not implemented. A stored `singleLine` or `longText` on
+  a non-Text field reads as no presentation.
+- `markdown` (host 1.44.0) shows a fixed subset, escaped before any tag is added,
+  with links not followed, and edits the source as plain text.
+  `schema.setFieldPresentation` moves a Text field between `singleLine`, `longText`,
+  `markdown` and `media` without changing a value; it is reversible with retained
+  state.
+- Media is a Text field with the presentation `media` holding an address; embedded
+  content lives once per distinct content in protected tables outside history
+  ([ADR-0031](0031-media-in-user-data.md)), so no user column holds bytes.
+- Scalar multi-choice, JSON as a user type and binary or asset fields other than
+  media are deferred. A package file's content is a BLOB in protected metadata, not
+  a user field.
+- A single-choice field's options can grow: `schema.addChoice` appends one stable
+  option, with a label and optional tone, under the rules of `schema.addField` and
+  `schema.setChoiceMetadata` (an ID of at most 120 characters, new to the field; at
+  most 32 options; a unique label of 1 to 200 characters, `label-conflict`). Its undo,
+  the compensation-only `schema.removeChoice`, is refused while any record, or a
+  deleted record kept for its undo, holds the option. Host 1.7.0, or 1.19.0 with a
+  tone. See the [semantic-surfaces contract](../contracts/semantic-surfaces.md).
+
+### Relationships
+
+- Relationships use explicit relational metadata and foreign-key and join
+  structures, never encoded scalar lists. See the
+  [relationships contract](../contracts/relationships.md).
+- The typed operation that configures a reference also creates one covering index,
+  inside the same transaction and after the column exists:
+
+  ```sql
+  CREATE INDEX nendo_ref_<table>_<column> ON <table>(<column>, __nendo_record_id);
+  ```
+
+  The name is outside `__nendo_` on purpose: the protected schema signature is a
+  fixed set of layouts, and the number of reference indexes varies. A missing index is
+  not drift; the inverse read stays correct and gets slower. The host never creates
+  it on open or as a repair. No other field kind gets an index, and there are no
+  user-defined indexes.
+- A filtered read keeps its host comparison function as the authority and adds,
+  where SQLite answers the same way, a plain comparison an index can seek: `column =
+  @value` for equality on text, a reference or a date, and `IS NULL` or `IS NOT NULL`.
+  UUID equality and every other operator still scan.
+- `schema.setReferenceLabel` points a bound, active reference at another active Text
+  field of its target and moves no stored value. It refuses an unchanged label
+  (`reference-label-unchanged`) and is reversible with retained state while it is the
+  latest definition change. Host 1.51.0.
 
 ## Consequences
 
 ### Positive
 
-- User data remains understandable and queryable with standard SQLite tools.
+- User data stays readable and queryable with standard SQLite tools.
 - Display-name changes do not break semantic bindings.
-- Typed services can enforce history and compatibility independently of the UI.
+- Typed services enforce history and compatibility independently of the UI.
 
 ### Negative
 
-- Schema evolution requires intentional DDL migration logic.
+- Schema evolution needs deliberate DDL migration logic, versioned, deterministic and
+  transactional.
 - Protected metadata and user tables must stay transactionally consistent.
 - Some dynamic low-code patterns are harder than with EAV or a document blob.
 
 ## Rejected alternatives
 
-EAV and a single JSON document are rejected. For the bounded MVP, their
-flexibility does not justify weaker relational semantics, inspectability and
-operation-level change tracking.
+- Entity-attribute-value storage: weakens inspection, constraints, query planning
+  and type clarity.
+- One JSON application document: couples unrelated edits and invites whole-document
+  replacement.
 
 ## Revisit triggers
 
 - A required data shape cannot be represented without pathological relational
   complexity.
 - Format migrations show that stable physical mappings are insufficient.
-- A generated recovery-view experiment proves clear value without collision or
-  migration debt.
-
-## History
-
-- 2026-09-02 — accepted.
-- 2026-09-09 — a covering index on each configured reference column (the accepted
-  note under *Context*).
-- 2026-10-13 — correction to that note: filtered reads carry an indexable comparison beside
-  their host function, so the related list uses the index (PERF-02, W-228).
-- 2026-09-25 — protected metadata holds custom-view packages, an executable
-  payload, by decision of [ADR-0013](0013-custom-views-with-code-in-the-file.md);
-  host 1.33.0.
-- 2026-10-14 — `schema.setReferenceLabel` changes the field a bound reference shows its
-  records by; no stored value moves (note under *Decision*; W-232). Host 1.51.0.
-- 2026-10-16 — media fields decided by [ADR-0031](0031-media-in-user-data.md): a Text
-  presentation holding an address, with embedded content in protected tables. Not yet built.
-- 2026-10-17 — `schema.addChoice` appends a new option to a single-choice field; its undo
-  removes it and is refused while a record holds it (note under *Decision*; W-280). Host 1.7.0,
-  or 1.19.0 with a tone.
+- A generated recovery view proves clear value without collision or migration debt.

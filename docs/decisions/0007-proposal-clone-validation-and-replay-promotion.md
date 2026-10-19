@@ -4,138 +4,71 @@
 - **Date:** 2026-09-02
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** EX-0001 result, EX-0002 result and EX-0005 result
-- **Depends on:** ADR-0004 semantic UI contract, ADR-0005 write coordinator and ADR-0006 revision model
-- **Related design:** [`../architecture.md`](../architecture.md)
+- **Evidence:** `ProposalLifecycleTests`, `ProposalOutcomeTests`, `ProposalOutcomeProcessTests`, `SchemaOnlyProposalTests` (Engine), `RevalidateTests` and `UnattendedAcceptanceTests` (LocalMcp)
 
 ## Context
 
-Agent-authored schema and semantic-surface changes need realistic validation and
-human review, and they must not mutate the active file. If Nendo replaced the
-active file with a proposal clone, it would discard legitimate work committed
-after the host created the clone. It would also make file identity ambiguous.
-
-## Decision drivers
-
-1. Physical isolation of unaccepted application changes.
-2. Semantic, reviewable diff derived from canonical operations.
-3. Preservation of active work after proposal creation.
-4. Exact preview/promotion equivalence.
-5. Relevant conflict detection and all-or-nothing active mutation.
-6. Bounded cleanup and recovery of proposal derivatives.
-
-## Options considered
-
-### SQLite backup clone plus operation replay
-
-Apply canonical operations to a host-owned clone, and validate and preview them.
-Then check the preconditions, and replay the exact digest against the active
-file.
-
-### Replace the active file with the validated clone
-
-Activation is simple. But this option can overwrite post-clone work, and it
-changes instance/path authority outside the typed operation model.
-
-### Preview without a physical clone
-
-Simulate against an in-memory model. This option costs less, but it may miss
-real storage, migration and validation failures.
+Agent-authored schema and surface changes need realistic validation and human
+review without touching the active file. Replacing the active file with a proposal
+clone would discard work committed after the clone was made and make file identity
+ambiguous.
 
 ## Decision
 
-Agent-authored application changes use a host-owned proposal workspace. They
-reach the active file only by exact operation replay.
+Agent-authored application changes are validated in a host-owned proposal workspace
+and reach the active file only by exact operation replay.
 
-- The lifecycle is Draft → Validating → Invalid or Previewable → Rejected,
-  Stale or Applying → Active or Failed. Later compensation occurs only where the
-  accepted operations support it.
-- A proposal binds application/instance identity, required definition revision,
-  touched-record versions, canonical operations, operation/interpreter version,
-  validation evidence, semantic diff and operation digest.
-- The host creates the clone through SQLite backup into a protected proposal
-  workspace. It applies the canonical operations there and validates the complete
-  result.
-- Preview comes from the same canonical operation stream that clone
-  application, semantic diff, history and eventual promotion use.
-- Acceptance is an explicit host-owned user action. An agent or MCP adapter
-  cannot call a generic promotion escape hatch.
+- The lifecycle is Draft → Validating → Invalid or Previewable → Rejected, Stale or
+  Applying → Active or Failed. Later compensation happens only where the accepted
+  operations support it.
+- A proposal binds application and instance identity, the required definition
+  revision, touched-record versions, canonical operations, operation and interpreter
+  version, validation evidence, semantic diff and operation digest.
+- The host clones the file by SQLite backup into a protected workspace, applies the
+  canonical operations there and validates the complete result. Schema-only proposals
+  validate on the same clone and reach Studio without a custom surface; custom
+  definitions that are present must still compile fully.
+- Preview, semantic diff, history and promotion all come from the same canonical
+  operation stream.
+- Acceptance is an explicit host-owned action of the person. Below the Unattended
+  access level, MCP has no promotion tool. At Unattended, `nendo.change_set.accept`
+  promotes a proposal the same session validated, pinned to its reviewed digest,
+  through the same promotion service as the person's Accept
+  ([ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md)).
 - Promotion rechecks identity, interpreter version, definition revision and
-  touched-record versions. Then it replays the exact validated operation digest in
-  one coordinator-owned active-file transaction.
-- Promotion never replaces the active file with the clone.
-- Invalid, stale or failed proposals leave the active semantic state unchanged.
-- Proposal workspaces contain user data and use host-owned ACL, retention and
-  explicit cleanup. The MVP does not promise cross-process proposal resume.
-  Abandoned work may be listed for recovery and safely rejected/recreated.
-
-**Note, 2026-09-22.** The ADR-0009 amendment of 2026-09-22 adds the Unattended
-access level. At that level, MCP has one tool, `nendo.change_set.accept`, that
-promotes a proposal that the same session validated. It calls the same promotion
-service as the person's Accept, with the same rechecks and replay. Below
-Unattended, acceptance stays a host-owned user action.
-[ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md) records the
-change.
-
-**Note, 2026-10-04 (W-157).** `nendo.change_set.revalidate` validates a proposal's
-operations again at the file's current definition revision: the old proposal is
-rejected, the same canonical operations become a draft captured now, and that draft
-goes through the clone validation above. Promotion then replays the newly validated
-digest exactly as before. This is validation of the same operations at a new captured
-revision, within this decision as written; it is not a rebase, which would merge two
-concurrent proposals and change what a conflict means, and which still needs its own
-ADR. Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24).
-
-## Evidence and validation obligations
-
-- EX-0001 proved clone isolation, semantic diff, exact digest replay, preservation
-  of a post-clone record edit, relevant staleness and promotion rollback.
-- EX-0002 proved all-or-nothing semantic compilation and actionable diagnostics.
-- EX-0005 proved explicit begin/add/validate/preview/reject authoring without a
-  promotion tool through the installed Codex path.
-- Production must test cleanup, restart-abandoned proposals, schema migration,
-  relationships, cancellation, large proposals and every typed operation class.
-- Before acceptance, human review must show the affected semantics, records,
-  validation and reversibility.
+  touched-record versions, then replays the exact validated digest in one
+  coordinator-owned transaction. It never replaces the active file with the clone.
+- Invalid, stale and failed proposals leave the active semantic state unchanged.
+- `nendo.change_set.revalidate` rejects a proposal and validates the same canonical
+  operations again as a draft captured at the current definition revision. It is not
+  a rebase; merging two concurrent proposals would need its own ADR.
+- Proposal workspaces hold user data and use host-owned ACLs and cleanup. A proposal
+  is kept until it is accepted or rejected, or until its file closes or Nendo exits,
+  which discards it.
 
 ## Consequences
 
-The 2026-09-05 review remediation
-adds bounded production evidence for three items: canonical proposal receipts
-after process loss, repeated promotion after reopen, and retryable derivative
-cleanup. The receipt comes from existing proposal-tagged revisions. The
-remediation introduces no clone replacement, no second commit log and no durable
-continuation of unaccepted proposals. The disposition records R03
-transport/lifecycle qualification and its limits.
-
-Schema-only proposals now validate on the same physical clone and reach Studio
-without a custom surface. Custom definitions that are present must still compile
-fully. Malformed or partial custom trees remain invalid. This change permits the
-empty/schema-only file boundary. It does not permit a partial render plan or a
-new UI vocabulary.
-
 ### Positive
 
-- Unaccepted work cannot partially mutate the active application.
-- If active changes made after clone creation are not relevant, they survive
-  promotion.
-- Preview and applied history share one canonical evidence stream.
+- Unaccepted work cannot partially change the active application.
+- Active changes made after the clone survive promotion unless they conflict.
+- Preview and applied history share one evidence stream.
 
 ### Negative
 
-- Proposal clones consume temporary storage and may contain sensitive data.
-- Large proposals require progress, cancellation and cleanup behavior.
-- The MVP may discard abandoned in-progress proposal sessions after restart.
+- Clones use temporary storage and may contain sensitive data.
+- Large proposals need progress, cancellation and cleanup.
+- An unaccepted proposal does not survive closing its file.
 
 ## Rejected alternatives
 
-Clone replacement is rejected because it loses post-clone authority and bypasses
-typed history. In-memory-only preview is rejected as the sole validator because
-it cannot exercise the actual SQLite/schema result.
+- Replacing the active file with the validated clone: loses post-clone work and
+  bypasses typed history.
+- In-memory preview as the only validator: cannot exercise the real SQLite and schema
+  result.
 
 ## Revisit triggers
 
 - Cross-device or multi-user proposal continuation becomes product scope.
-- Clone cost is unacceptable for the intended modest local datasets.
-- A deterministic storage-level sandbox can prove equivalent isolation with
-  materially lower complexity.
+- Clone cost becomes unacceptable for modest local datasets.
+- A deterministic storage-level sandbox proves equivalent isolation more simply.

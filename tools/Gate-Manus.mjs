@@ -601,7 +601,7 @@ async page => {
   assert((await record(BLOCK, 'b-0501')).values[T].endsWith('The posts were numbered.'), `Kept draft: ${JSON.stringify({ stored: await record(BLOCK, 'b-0501'), beforeRemount, batches: (await batches()).slice(-3) })}`);
   checks.push('unsaved text outlasts the view');
 
-  // Stage 1 of the plan (docs/design/manuscript-plan.md): nothing unsaved is lost, and a draft
+  // Nothing unsaved is lost, and a draft
   // brought back writes only the person's own changes.
   const restart = async () => {
     const before = frame;

@@ -14,7 +14,7 @@ A Nendo file can hold four kinds of behaviour beside its records and screens:
 | Action | Ordered steps that set a field, create a record or delete a record. |
 | Trigger | Runs an action when a record of one type is created, updated or deleted. |
 
-Behaviour is part of the app definition. You add or change it through a change set that becomes a proposal, and a person accepts the proposal. Today an agent writes these definitions through the MCP server. Studio shows them but has no editor for them. See [Agents](/nendo/docs/agents) for the authoring flow and [Concepts](/nendo/docs/concepts) for the terms.
+Behaviour is part of the app definition. You add or change it through a change set that becomes a proposal, and a person accepts the proposal. An agent writes these definitions through the MCP server. Studio shows them but has no editor for them. See [Agents](/nendo/docs/agents) for the authoring flow and [Concepts](/nendo/docs/concepts) for the terms.
 
 ## Calculated fields
 

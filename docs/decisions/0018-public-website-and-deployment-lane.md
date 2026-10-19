@@ -4,147 +4,79 @@
 - **Date:** 2026-09-22
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** [ADR-0017](0017-production-composition-and-build-layout.md), [ADR-0001](0001-local-one-file-product-boundary.md), `docs/vision.md` axioms, and a built site at `site/` deployed from `.github/workflows/pages.yml` on 2026-09-22
+- **Evidence:** The Astro site at `site/`, built by `tools/Test-Site.ps1` and deployed by `.github/workflows/pages.yml`
 - **Depends on:** Accepted ADRs 0001 and 0017
 - **Related design:** [`../architecture.md`](../architecture.md)
 
 ## Context
 
-Nendo is public on GitHub. All the information that a person can learn about it
-is Markdown in this repository. The central material is inside documents of 30 to
-45 KB:
-
-- the eight axioms;
-- the guarantee that no error an agent makes reaches the data before a person
-  accepts it;
-- the table of what is not qualified.
-
-A new reader with no context does not find this material.
-
-Two repository positions prevent a direct build of a site.
-
-**ADR-0017 names the production composition** as Engine, Desktop, Workbench and
-LocalMcp. It states that this composition is the smallest one that enforces the
-boundaries. A fifth top-level directory needs an explicit statement. Without one,
-the next person reads `site/` as a product component and starts to connect it to
-one.
-
-**`architecture.md` says "There is no CI, deliberately."** That sentence is a real
-position, not an omission. The gate runs in a few minutes locally. On a solo
-project with no pull requests, a hosted copy of the gate adds no value. A GitHub
-Actions workflow contradicts the sentence as written. If the contradiction
-stayed, the document would be wrong, and the position would not change.
+Nendo is public on GitHub, and a reader with no context needs a short account of what it
+is, its axioms and what is not qualified. [ADR-0017](0017-production-composition-and-build-layout.md)
+names the production composition, so a new top-level directory needs an explicit statement
+that it is not a product component. The product gate runs locally; a hosted copy adds
+nothing to a one-person project with no pull requests.
 
 ## Decision
 
-**A public website is at `site/`, outside the product boundary. Exactly one CI
-lane exists: it builds and deploys that website and nothing else.**
+**A public website lives at `site/`, outside the product boundary. Exactly one CI lane
+exists, and it builds and deploys that website and nothing else.**
 
-1. **`site/` is not a product component.** It is an Astro project that produces
-   static HTML. The Engine, the Desktop host, the Workbench and the MCP adapter
-   reference nothing in it. Nothing in it ships in the payload or the installer.
-   No `.nendo` file, storage path or application service is reachable from it.
-   The minimal production composition of ADR-0017 is unchanged, and the
-   dependency arrows that it enforces do not change.
+1. **`site/` is not a product component.** It is an Astro project that produces static
+   HTML. The Engine, Desktop, Workbench and MCP adapter reference nothing in it. Nothing in
+   it ships in the payload or the installer, and no `.nendo` file, storage path or
+   application service is reachable from it. ADR-0017's composition and dependency
+   direction are unchanged.
 
-2. **The website is a reader, not a second source.** At build time, the site
-   renders the repository documents under `docs/` from their own files. It does
-   not copy them. Every rendered page links to its source on GitHub. A build step
-   copies the brand assets and the application icon from `docs/assets/brand/` and
-   `src/Nendo.Desktop/Assets/` into git-ignored directories. Thus no binary is
-   committed twice. Screenshots are the exception, and they are committed. Only a
-   run of the Windows host can capture them, and the deployment runs on Linux.
+2. **The site carries its own guides.** A small set of hand-written guides in
+   `site/src/content/docs/` describes the product as it is now, for outsiders, with no ADR
+   numbers, work codes or amendment history. The site does not render `docs/`; `docs/` is
+   the engineering authority, read on GitHub, and the site links there for contributors.
+   The code is the ground truth: when a change alters something a guide states, the guide
+   is updated in the same change.
 
-3. **`docs/design/` and `docs/reviews/` are not rendered.** They are the working
-   material of the project: plans that the project has moved past, and review
-   records that are evidence and not documentation. The build rewrites links into
-   them to GitHub.
+3. **Assets.** The build copies the brand assets from `docs/assets/brand/` and the
+   application icon from `src/Nendo.Desktop/Assets/` into git-ignored directories, so no
+   binary is committed twice. Screenshots are committed, because only the Windows host can
+   capture them (`tools/Capture-SiteScreenshots.ps1`) and the deployment runs on Linux.
+   They are PNGs, which `.gitattributes` declares binary and `Test-BinaryAssets.ps1` reads
+   structurally. A `.webp`, `.jpg` or `.woff2` under `site/` fails that lane.
 
-4. **One CI lane, with a named scope.** `.github/workflows/pages.yml` runs on a
-   push to `main` that touches `site/`, `docs/`, the application icon
-   (`src/Nendo.Desktop/Assets/AppIcon.ico`) or the workflow itself. It also runs
-   when somebody starts it by hand. It builds
-   the Astro project and deploys it to GitHub Pages. It does not restore, build or
-   test any .NET project. It does not run `Test-Repository.ps1` or
-   `Test-Production.ps1`. It cannot pass or fail on anything that the product gate
-   covers.
+4. **One CI lane, with a named scope.** `.github/workflows/pages.yml` runs on a push to
+   `main` that touches `site/`, `docs/assets/brand/`, the application icon,
+   `Directory.Build.props` or `global.json` (the site prints the product version and the
+   pinned SDK), `docs/roadmap.md` (the Status page reproduces its Not qualified table) or
+   the workflow itself, and when started by hand. It builds the Astro project and deploys it
+   to GitHub Pages. It restores, builds and tests no .NET project and runs neither
+   `Test-Repository.ps1` nor `Test-Production.ps1`, so it cannot pass or fail on anything the
+   product gate covers.
 
-5. **The product gate stays local and stays fast.** `tools/Test-Site.ps1` is the
-   narrowest applicable build for website work. It is **not** added to
-   `Test-Production.ps1`. That addition would put a second `npm ci` into a
-   one-minute gate for a subproject that ships nothing.
+5. **The product gate stays local.** `tools/Test-Site.ps1` is the narrowest build for
+   website work. It is not part of `Test-Production.ps1`, which would gain a second
+   `npm ci` for a subproject that ships nothing.
 
-6. **The honest-reporting rule applies to the copy on the website.** The site
-   names what was measured and what was owner-reported. It reproduces the
-   not-qualified table and does not summarise it away. It does not use
-   "verified". If the roadmap refuses a claim, the website also refuses that
-   claim.
+6. **Honest reporting applies to the site.** It names what was measured and what was
+   owner-reported, reproduces the Not qualified table rather than summarising it away, does
+   not use "verified", and refuses any claim the roadmap refuses.
 
 ## Consequences
 
-- The repository now has CI. It has one lane, for something outside the product.
-  `architecture.md` and `CONTRIBUTING.md` now state this precisely, and no longer
-  state a position that they do not hold.
-- A push catches a broken site build; no check catches it before the push. This
-  is accepted: the deployment fails with a clear error, the previous site stays
-  up, and the product is not affected. Anyone who wants the check locally first
-  can use `tools/Test-Site.ps1`.
-- The website can drift from the documents that it summarises. The rendered
-  `docs/` section cannot drift, because it is the documents. The five authored
-  pages can drift. Re-read those pages when the roadmap changes.
-- `.gitignore` excludes `site/node_modules` and `site/dist`.
-  `Test-Repository.ps1` refuses a tracked path under any `node_modules`
-  directory. It does not check `dist` directories. The committed
-  screenshots are PNGs. `.gitattributes` declares PNGs binary, and
-  `Test-BinaryAssets.ps1` checks them structurally. This decision introduces no
-  new binary extension, and none may be introduced: a `.webp`, `.jpg` or `.woff2`
-  would fail that lane for two reasons.
-- This decision adds no new behavioural contract. Thus the blackbox review
-  coverage check in `Test-Repository.ps1` is not affected (that check was removed
-  with the blackbox prompt on 2026-10-06). The website is not part
-  of the blackbox review. That review exercises the product, and when a reviewer
-  reads marketing copy, that is not evidence about the host.
+- The repository has one CI lane, for something outside the product. `architecture.md`
+  and `CONTRIBUTING.md` say so.
+- A broken site build is caught on push, not before. The deployment fails with a clear
+  error, the previous site stays up, and the product is unaffected. `tools/Test-Site.ps1`
+  checks it locally first.
+- The guides can drift from the code; updating them with the change is the control.
+- `.gitignore` excludes every `dist/`, `site/.astro/` and the copied assets, and
+  `Test-Repository.ps1` refuses a tracked path under any `node_modules`.
+- The website is not evidence about the host.
 
-## Alternatives considered
+## Rejected alternatives
 
-**Put the site in `src/`.** Rejected. `Test-ApplicationNeutrality.ps1` recurses
-`src/` and fails any `.ts`, `.json` or `.css` file that contains `decision` or
-`idea`. A page that lists the architecture decisions would fail that check
-immediately. More importantly, `src/` is the product, and the site is not.
-
-**A separate repository.** Rejected. The site renders `docs/` directly. If the
-two were split, the rendered documentation would certainly go stale. The one
-thing that this site can do and a hand-written marketing page cannot do is stay
-attached to the source.
-
-**Keep no CI and publish by hand.** Rejected. A manual deploy from a Windows
-machine is a step that somebody forgets. The resulting site would then be older
-than the documents that it claims to render, and nothing would show it.
-
-**Run the full gate in the Pages workflow.** Rejected. It would need a Windows
-runner for the Desktop host and take minutes instead of one minute. It would also
-make the website deployment depend on the test suite of the product. This
-decision exists to keep those two things apart.
-
-## 2026-09-23 amendment — the site carries its own guides, not `docs/`
-
-The owner accepted this amendment on 2026-09-23. It replaces items 2 and 3 of the
-Decision and the drift consequence.
-
-**The site no longer renders `docs/`.** The repository documents record how
-Nendo was made: amendments, findings, review rounds and dated decisions. For a
-reader who has never seen Nendo, that reads as process, and there is too much of
-it. The site now carries a small set of hand-written guides in
-`site/src/content/docs/`. They describe the product as it is now, and possible
-future directions on a roadmap page. They carry no ADR numbers, work codes or
-amendment history.
-
-- `docs/` stays the engineering record and the authority for changing the
-  product. It is read on GitHub. The site links there for contributors.
-- The guides are a second description of the product, so they can drift from the
-  code. The code is the ground truth. When a change alters something a guide
-  states, update the guide in the same change.
-- The build still copies the brand assets and the application icon. It no longer
-  copies document images or rewrites repository links.
-- The Pages workflow now runs on changes under `docs/assets/brand/`, not on every
-  change under `docs/`.
+- **The site in `src/`.** `src/` is the product, and `Test-ApplicationNeutrality.ps1`
+  would refuse a page that lists the architecture decisions.
+- **A separate repository.** The site's assets and version come from this repository.
+- **No CI, publishing by hand.** A forgotten manual step leaves the site older than the
+  product, and nothing shows it.
+- **The full gate in the Pages workflow.** It needs a Windows runner and ties the website's
+  deployment to the product's test suite.
+- **Rendering `docs/` on the site.** The engineering record reads as process to an outsider.

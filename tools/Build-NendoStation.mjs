@@ -6,7 +6,7 @@
 //
 // The file is the output and this script is the source: when a surface slice
 // lands, its screen is added here and the station is rebuilt. See
-// docs/design/nendo-station-plan.md.
+// docs/nendo-station.md.
 //
 // A schema, behaviour or screen stage is one change set, validated into a
 // proposal; the data stages write records directly (see DATA_STAGES). This script never

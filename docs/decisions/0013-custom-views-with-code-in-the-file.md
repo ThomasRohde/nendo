@@ -4,176 +4,85 @@
 - **Date:** 2026-09-25
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** The measured cost of a contained view (2026-09-24, under *Context*);
-  the code paths named under *Context*; the Phase 0 spike,
-  [`prototypes/iframe-views/FINDINGS.md`](../../prototypes/iframe-views/FINDINGS.md)
-  (2026-09-25, WebView2 runtime 153); guards G1–G26, each recorded as a planner
-  Check when its phase lands
+- **Evidence:** The WebView2 spike in [`prototypes/iframe-views/FINDINGS.md`](../../prototypes/iframe-views/FINDINGS.md); the guards the [custom-view contract](../contracts/custom-views.md) names
 - **Depends on:** ADR-0001, ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0007,
   ADR-0008, ADR-0009 and ADR-0012
 - **Related design:** [custom-view contract](../contracts/custom-views.md),
   [authoring a custom view](../custom-view-authoring.md),
   [architecture](../architecture.md)
 
-Accepted 2026-09-25 on the owner's standing pre-acceptance of 2026-09-24:
-"I pre-accept any ADR change - this is still an experimental project."
-
 ## Context
 
-Nendo is an exploratory personal project about malleable software. On 2026-09-25
-the owner asked for this decision:
+Nendo explores malleable software. A person or an agent should be able to write a view
+with full powers, keep it inside the `.nendo` file, and see it run straight away: many
+views at once, anywhere in the app, carried by any copy of the file.
 
-> This is meant to be an exploratory personal project of the concept of malleable
-> software. Create a plan to remove these restrictions in order to really explore
-> what can be done. We are going for max flexibility.
+A view in its own contained helper process (an AppContainer and a Job) paid for its own
+browser engine, measured at 219 to 270 MiB per running view, so views could run only one
+at a time. A device cache of packages pinned by digest meant an install and a consent on
+every device for every rebuild, and a copy of the file did not carry the view.
 
-The restrictions were those of the custom-view slice built from 2026-09-20 to
-2026-09-24:
-
-- A view was a read-only renderer. It received a small, bounded projection of
-  records. It could not write, run a command or prepare a proposal.
-- Each running view had its own contained helper process: a zero-capability
-  AppContainer and a Job, with its own browser engine and no network, clipboard or
-  storage.
-- One running view measured 219 MiB started and 230 to 270 MiB shown (2026-09-24,
-  a 41-node graph). The page was about 30 MiB of that. The rest was the view's own
-  browser engine, mostly GPU compositing. So embedded views started only on
-  request, one at a time per window.
-- Packages sat in a device cache, pinned by digest. Every rebuild meant installing
-  the package and allowing it again, on each device and for each file. A copy of
-  the file did not carry the view.
-- MCP could not install or allow a package, so an agent could not deliver a view
-  that runs.
-- Each widening needed an ADR amendment and a host version rung.
-
-The goal is that a person or an agent can write a view with full powers, keep it
-inside the `.nendo` file, and see it run straight away: many views at once,
-anywhere in the app.
-
-Three facts in the current code shape the design:
-
-- The Workbench's WebView2 answers 403 to every request outside the Workbench's
-  own origin, through a catch-all `"*"` resource filter.
-- Every `ProcessFailed` kind sends the app to recovery. A crashed frame would take
-  Studio down with it.
-- Nendo's MCP endpoint refuses a request whose `Origin` is not its own. A web page
-  cannot drive it.
-
-## Decision drivers
-
-1. Maximum flexibility, so that the project can explore what malleable software
-   can do.
-2. A view travels with its file. Copy the file and the view comes along.
-3. Nothing stands between writing a view and seeing it run: no install, no
-   consent, no pin.
-4. Many views at once, anywhere in the app. A running view costs a renderer, not a
-   browser engine.
-5. The product axioms hold: Studio is permanent and host-owned, all clients share
-   one typed authority path, there is no raw SQL, preview happens on a clone, and
-   every operation declares its reversibility.
-6. A crashed or spinning view does not take Studio down, and a person can always
-   turn views off.
-7. Agents author views through the same MCP change sets as everything else.
-
-## Options considered
-
-### A. Frames in the Workbench, code in the file, full API
-
-Each view is a cross-origin frame in the Workbench's own WebView2. The host serves
-it from the file, and each package in each file is its own site. The view talks to
-a broker in the Workbench, and the broker calls the typed services that the
-Workbench already calls. A running package costs a renderer process. The OS
-boundary is given up.
-
-### B. Keep the contained helper and widen its API
-
-Keep one AppContainer and Job helper per running view, and add writes to its
-channel. The OS boundary stays. But each view keeps its own browser engine, at 219
-to 270 MiB measured, so views still run one at a time. The install and consent
-steps stay, and so does a child window laid over a scrolling page.
-
-### C. One contained helper for all views
-
-One helper hosts every running view, so the browser engine is paid once. But
-different packages then share one AppContainer and one Job, where one package's
-memory, CPU or process use stops the others. The second engine, the overlay and
-the install and consent steps stay. The 2026-09-24 decision rejected it because of
-the shared AppContainer and Job.
-
-### D. View code in the Workbench's own document or site
-
-Run the view's script in the Workbench page, or serve it from a site the Workbench
-shares. This is the cheapest option. But a same-site frame shares the Workbench's
-renderer process, so a view in a `while (true)` loop freezes Studio. A same-origin
-view can also reach the Workbench DOM and the host bridge.
-
-### Do nothing
-
-Keep the bounded slice. The owner rejected this on 2026-09-25.
+Three host facts shape the design: the Workbench's WebView2 serves only its own origin
+unless the host answers for another; a main-frame failure sends the app to recovery; and
+Nendo's MCP endpoint refuses a request whose `Origin` is not its own, so a web page cannot
+drive it.
 
 ## Decision
 
-Custom views carry their code in the `.nendo` file. They run inline in the
-Workbench, as cross-origin frames, with the full typed API. There is no install
-step, no consent and no digest pin. A view that is shown runs.
+Custom views carry their code in the `.nendo` file. They run inline in the Workbench, as
+cross-origin frames, with the full typed API. There is no install step, no consent and no
+digest pin. A view that is shown runs. The [custom-view contract](../contracts/custom-views.md)
+holds the method table, refusals, limits and review wording.
 
 ### Views run as frames in the Workbench
 
-- A view is a cross-origin iframe in the Workbench's own WebView2. The contained
-  helper (`Nendo.ExtensionHost`), its child-window overlay, its Job limits and its
-  own browser engine are deleted.
-- Each package in each file has its own origin, `https://{slug}-{key}.example`:
-  - `slug` is the package ID lowercased, with every character other than a letter
-    or digit changed to `-`, runs of `-` collapsed, cut to 40 characters and
-    trimmed of `-` at both ends;
-  - `key` is 10 hex characters of SHA-256(`applicationId\ninstanceId\npackageId`).
-    The instance ID is in the key since 2026-10-13 (DAE-06): a Duplicate keeps its
-    original's application ID (ADR-0010), and an origin keyed by application ID alone
-    let the Duplicate's views read the original's drafts and unanswered writes. One
-    instance per application keeps the old key, SHA-256(`applicationId\npackageId`): the
-    instance this device opened most recently when it first started a host with the new
-    key, recorded once in `view-origin-carry.json`, so the person's views keep their
-    storage at the upgrade.
-- `.example` is a reserved top-level domain (RFC 2606). No real site shares a
-  view's origin, and the host answers every request to it.
-- Each package in each file is therefore its own site. Chromium gives it its own
-  renderer process, never the Workbench's (`app.nendo.local`), and its own browser
-  storage. The spike measured this without any flag: the Workbench and each
-  package ran in separate renderers, and two frames of one package shared one
-  (S1). Storage survived a restart and stayed with its origin (S16).
+- A view is a cross-origin iframe in the Workbench's own WebView2. There is no helper
+  process.
+- Each package in each file instance has its own origin, `https://{slug}-{key}.example`:
+  - `slug` is the package ID lowercased, every character other than a letter or digit
+    changed to `-`, runs of `-` collapsed, cut to 40 characters and trimmed of `-` at both
+    ends;
+  - `key` is 10 hex characters of SHA-256(`applicationId\ninstanceId\npackageId`). A
+    Duplicate keeps its original's application ID ([ADR-0010](0010-file-identity-duplicate-fork-backup-and-restore.md))
+    but not its instance ID, so it never shares the original's view storage, drafts or
+    unanswered writes. A byte-for-byte copy made outside Nendo keeps the instance ID and
+    shares.
+  - One instance per application keeps the key SHA-256(`applicationId\npackageId`): the
+    one `view-origin-carry.json` in device state names, written once under its lock from
+    the recent-file list, so views kept their storage when the instance joined the key.
+    Settings and development links stay keyed by application ID.
+- `.example` is reserved (RFC 2606), so no real site shares a view's origin, and the host
+  answers every request to it.
+- Each package site gets its own renderer process, never the Workbench's
+  (`app.nendo.local`), and its own browser storage. Two frames of one package share one
+  renderer.
 - The frame's sandbox allows everything except top-level navigation
   (`allow-top-navigation*`).
-- The Workbench cannot be framed. The host cancels any frame navigation to
-  `app.nendo.local`, nested frames included (S9b), and the Workbench refuses to
-  start when `window.top !== window`.
-- A redraw does not reload a running view. Before a redraw, the Workbench parks
-  each live frame and adopts it into its new placeholder by mount key, with
-  `Element.moveBefore`, which keeps the frame's document (S12). Where a browser
-  lacks `moveBefore`, the frame reloads.
-- A frame starts when its placeholder comes into view. `loading="lazy"` alone
-  started frames about 2,400 pixels early (S17).
+- The Workbench cannot be framed: the host cancels any frame navigation to
+  `app.nendo.local`, nested frames included, and the Workbench refuses to start when
+  `window.top !== window`.
+- A redraw does not reload a running view. The Workbench parks each live frame and adopts
+  it into its new placeholder by mount key with `Element.moveBefore`, which keeps the
+  document. Without `moveBefore` the frame reloads.
+- A frame starts when its placeholder comes into view.
 
 ### The host serves each view from the file
 
-- The host answers `WebResourceRequested` for `https://*.example/*`, from every
-  source kind, and checks the parsed host itself: the filter also matches other
-  addresses (S11). It takes a deferral and reads the content with a typed Engine
-  read off the UI thread. Which origin is which package comes from the last view
-  read, so serving never waits behind the Workbench's own requests. Content is
-  cached by its SHA-256, at most 64 MiB, so a cached file can never be stale. The
-  spike served 5 MiB in about 40 ms (S5).
-- The serving order is: views off → 403; `/_nendo/api.js`; a development folder
-  link (Phase 4); the file's content; 404. `/` serves the package's entry point.
-  The path `/_nendo/` is reserved on every view origin. Responses carry the stored
-  media type, `no-store` and `nosniff`, and honour a single byte range for media.
-- The catch-all `"*"` filter goes. The Workbench's own content-security policy
-  keeps its document local and gains only `frame-src https://*.example`.
+- The host answers `WebResourceRequested` for `https://*.example/*`, from every source
+  kind, and checks the parsed host itself, because the filter also matches other
+  addresses. It reads content with a typed Engine read off the UI thread, maps origins to
+  packages from the last view read, and caches content by SHA-256, at most 64 MiB.
+- The serving order is: views off → 403; `/_nendo/api.js`; a development folder link;
+  the file's content; 404. `/` serves the package's entry point. `/_nendo/` is reserved
+  on every view origin. Responses carry the stored media type, `no-store` and `nosniff`,
+  and honour a single byte range for media.
+- The Workbench's own content-security policy keeps its document local and allows only
+  `frame-src https://*.example` beyond it.
 
 ### The code lives in the file (rung 1.33.0)
 
-A package is protected definition metadata. Four tables hold it. The host creates
-them on the first extension write, never at file creation, as the layout ladder's
-new last rung, after the file-purpose table (1.24.0).
+A package is protected definition metadata. The host creates its four tables on the first
+extension write, never at file creation, as a rung of the layout ladder.
 
 | Table | Holds |
 | --- | --- |
@@ -182,11 +91,8 @@ new last rung, after the file-purpose table (1.24.0).
 | `__nendo_extension_file` | Package, path, media type, and the SHA-256 of the blob the path holds |
 | `__nendo_extension_state` | Package, view (`''` for the whole package), key, JSON of at most 64 KiB, version |
 
-Replaced and removed content stays in the blob store. That is what lets
-compensation restore a put's exact bytes, so there is no separate table of
-retained content.
-
-Five canonical operations write them. `extension.setState` arrives with Phase 3.
+Replaced and removed content stays in the blob store, so compensation restores a put's
+exact bytes.
 
 | Operation | Lane | Reversibility |
 | --- | --- | --- |
@@ -196,50 +102,31 @@ Five canonical operations write them. `extension.setState` arrives with Phase 3.
 | `extension.removePackage`, refused while files remain | Definition | ReversibleWithRetainedState |
 | `extension.setState` | Data | Reversible |
 
-- `putFile` takes the content in one of three forms: `text`, stored as UTF-8
-  exactly as written; `base64`, for any bytes; or the `sha256` and `byteLength` of
-  content the file already holds. The canonical operation carries the SHA-256, the
-  byte length and the media type, never the bytes. The bytes travel beside it into
-  the blob store. An optional `expectedSha256` makes a put or a removal
-  conditional: a hash, or `absent` for a put that must add a new file. A path is a
-  safe relative path, unique ignoring case, and never under `_nendo/`.
-- History rows carry the hash and the size, never the content, so nothing needs
-  eliding. Opening a file does not read every version of every script.
-- The definition operations go through change sets and proposals, like every
-  other definition change. The review names each change in a sentence:
-  - "Add the custom-view package ‹title› (‹id›), starting at ‹entry point›. Its
-    code is kept in this file."
-  - "Update the custom-view package ‹title› (‹id›): it starts at ‹entry point›."
-    When a version is set, the sentence ends "and is version ‹version›."
-  - "Add ‹path› to the package ‹title› (‹media type›, ‹size›)."
-  - "Replace ‹path› in the package ‹title› (‹size› before, ‹size› after); the old
-    version stays in history."
-  - "Keep ‹path› in the package ‹title› as it is; the content sent is identical."
-  - "Serve ‹path› in the package ‹title› as ‹media type› instead of ‹media type›;
-    the content is unchanged."
-  - "Remove ‹path› from the package ‹title›; its content stays in history."
-  - "Remove the package ‹title› from this file."
-- The review shows a line diff for each text file of at most 1 MiB, with three
-  lines of context: at most 400 changed lines per file and 2,000 per proposal, with
-  a truncation flag. Any other file shows its sizes. Each file a proposal adds or
-  replaces can also be read whole before accepting, from the proposal's own copy and
-  bound to the reviewed digest (2026-10-06, review R-017).
-- A proposal that puts code into the file also carries one fixed sentence, once:
-  "This code runs when a view that uses its package is shown. It can read and
-  change this file's records through Nendo, reach the network and use the
-  clipboard." It arrived with Phase 2, when view code began to run.
-- MCP authors packages. The four definition operations are authoring operations.
-  `extension.setState` is not exposed. A file larger than one operation's payload
-  arrives in parts: a first `putFile`, then `putFile` operations with `append` for
-  the same package and path, later in the same change set. `append` is an MCP
-  authoring convenience. The adapter joins the parts in order before validation,
-  and the Engine never sees it. Two resources read packages:
-  `nendo://application/extensions` and
-  `nendo://application/extension/{packageId}/file{?path,offset,length}`, with the
-  path percent-encoded, in pages of at most 128 KiB.
+- `putFile` takes the content as `text` (stored as UTF-8 exactly as written), `base64`, or
+  the `sha256` and `byteLength` of content the file already holds. The canonical operation
+  carries the hash, length and media type, never the bytes. An optional `expectedSha256`
+  (a hash, or `absent`) makes a put or removal conditional. A path is a safe relative
+  path, unique ignoring case, and never under `_nendo/`.
+- History rows carry the hash and size, never the content.
+- Definition operations go through change sets and proposals. The review names each change
+  in a sentence, shows a line diff for each text file of at most 1 MiB (three lines of
+  context, at most 400 changed lines per file and 2,000 per proposal, with a truncation
+  flag) and the sizes of any other file. Each file a proposal adds or replaces can be read
+  whole before accepting, through `proposal.readPackageFile`, from the proposal's copy and
+  bound to the reviewed digest.
+- A proposal that puts code into the file carries one fixed sentence: "This code runs when
+  a view that uses its package is shown. It can read and change this file's records
+  through Nendo, reach the network and use the clipboard."
+- MCP authors packages through the four definition operations; `extension.setState` is not
+  exposed. A file larger than one operation's payload arrives as a first `putFile` and then
+  `putFile` operations with `append` for the same path in the same change set; the adapter
+  joins them before validation, and the Engine never sees `append`. Packages are read
+  through `nendo://application/extensions` and
+  `nendo://application/extension/{packageId}/file{?path,offset,length}`, in pages of at
+  most 128 KiB.
 
-The Engine declares the package bounds once, in `NendoExtensionLimits`. The
-vocabulary publishes them under `limits.extensions`.
+The Engine declares the bounds once, in `NendoExtensionLimits`, and the vocabulary
+publishes them under `limits.extensions`.
 
 | Limit | Value |
 | --- | --- |
@@ -251,667 +138,289 @@ vocabulary publishes them under `limits.extensions`.
 | MCP `putFile` payload | 96 KiB. The local MCP's 256 KiB request body limits a call to about two such parts |
 
 The write reserve below the open bound ([ADR-0012](0012-safe-mode-compatibility-and-migration.md))
-is 32 MiB, so the byte write ceiling is 224 MiB. The largest package commit
-carries 4 MiB of new content. Guard G4 asserts that such a commit grows the file by
-more than 4 MiB and by less than a quarter of the reserve. The measured growth is
-about 4.3 MB, so 32 MiB is the smallest power of two that holds.
+is 32 MiB, so the byte write ceiling is 224 MiB: the smallest power of two that holds the
+growth of a commit carrying 4 MiB of new content.
 
 ### The API: one more client of the typed services
 
-- A package includes `<script src="/_nendo/api.js">`, which sets up
-  `window.nendo`. The script opens a `MessageChannel` to the Workbench broker. The
-  broker checks `event.source` and `event.origin`.
-- The broker has a closed method table. It calls the Workbench's existing host
-  bridge with an actor taken from the frame's mount, never from the view's
-  parameters. The host accepts that actor only on the permitted methods, and
-  refuses it elsewhere with `actor-not-allowed`. The request then takes the
-  ordinary path to the application services, under the request context
-  `extension:<package>`. History attributes the write to that name.
-- A view can:
-  - read everything the Workbench reads, calculated fields included, with labels
-    and exact decimals;
-  - create, update and delete records and run commands, through the same typed
-    operations and version checks as a person's edit;
-  - prepare a proposal, follow its status and open its review;
-  - subscribe to changes (at most 4 events a second per frame), navigate, show a
-    toast, set its own height and read the theme;
-  - keep durable state in the file through `nendo.state`.
-- The broker's table contains none of `proposal.promote`, `proposal.reject`,
-  `behaviour.*`, `agent.*`, `file.*`, `session.open*`, `appearance.set` or
-  `history.compensate`. The production gate pins the table.
-- At most 8 requests are in flight per frame, with a queue of 64, so that a busy
-  view does not starve a person's save.
-- `nendo.apiVersion` and `nendo.has(name)` version the API. Adding a method costs a
-  line in the contract's History. It needs no ADR change and no rung.
+- A package includes `<script src="/_nendo/api.js">`, which sets up `window.nendo` and
+  opens a `MessageChannel` to the Workbench broker. The broker checks `event.source` and
+  `event.origin`.
+- The broker has a closed method table. It calls the Workbench's host bridge with an actor
+  taken from the frame's mount, never from the view's parameters. The host accepts that
+  actor only on permitted methods and refuses it elsewhere with `actor-not-allowed`. The
+  request runs under the context `extension:<package>`, and History attributes the write to
+  that name.
+- A view can read everything the Workbench reads, calculated fields included, with labels
+  and exact decimals; create, update and delete records and run commands with the same
+  version checks as a person's edit; undo and redo its own batches
+  ([ADR-0023](0023-a-view-undoes-its-own-revisions.md)); prepare a proposal; subscribe to
+  changes (at most 4 events a second per frame); navigate, show a toast, set its height,
+  read the theme and keep a place in Back and Forward (`ui.setPlace`); and keep state in the
+  file.
+- The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`, `agent.*`,
+  `file.*`, `session.open*`, `appearance.set` or `history.compensate`. The production gate
+  pins it.
+- At most 8 requests are in flight per frame, with a queue of 64, so a busy view does not
+  starve a person's save.
+- A view that moves the page on its own, its frame not focused, does so at most once a
+  second (`ui.openRecord`, `ui.openScreen` and `ui.openStudio` together; the next is
+  `busy`). A view held off screen while the person reviews its proposal may not move the
+  page, draw a menu or keep a place.
+- `nendo.apiVersion` and `nendo.has(name)` version the API. A new method is a line in the
+  contract and needs no ADR change and no rung.
 
-### Proposals and state (the rest of Phase 3)
+### Views that write (Phase 3)
 
-A view that writes records (delivered with W-065) still cannot shape the app or keep
-anything of its own with the file. Two more things finish Phase 3.
+**Records.** A view's record writes and commands take effect without a host-drawn
+confirmation, like a person's edit. The person reads them in History under the package's
+name and compensates them there. A view that wants confirmation draws its own.
 
-**Proposals.** A view prepares a definition change; the person reads and decides.
+**Unanswered writes.** `records.batch` takes an optional `writeKey`. The broker writes the
+batch under the idempotency key `view:‹package›:‹writeKey›`, so a batch whose answer was
+lost is kept once however often it is sent, and the same key with other writes is refused.
+A single write kept but not read back answers `written-not-read`. The person's form journal
+is not shared with views.
 
-- `nendo.proposals.prepare({title, operations})` prepares the change through the
-  same path as the Workbench's own `proposal.prepareChangeSet`: the same canonical
-  operations, the same validation, the same diagnostics. The broker sends it with
-  the frame's actor, and the host admits the actor on `proposal.prepareChangeSet`
-  and on `proposal.get`, which join the four record writes in the actor's table.
-- The proposal's origin, and each mutation's, is `extension:‹package›`. The preview
-  carries that origin, and the review says, above the changes, "Prepared by the
-  custom view ‹title› (‹package›). Nothing changes until you accept." When the
-  person accepts, History attributes the change to the package, as it does a view's
-  record write, and the person's acceptance is the promotion.
-- Preparing opens the ordinary review at once, in the Workbench, over the view. The
-  view does not choose when the person is interrupted; it chooses only to ask.
-- `nendo.proposals.get(id)` follows the proposal: its state (`previewable`,
-  `active` once accepted, `rejected`, `stale`, `invalid`, `failed`) and its
-  diagnostics. `nendo.proposals.open(id)` opens its review again. The view learns the
-  outcome from `get`, or from the `changes` event that an acceptance causes.
-- A view can read only proposals its own package prepared. Another origin's
-  proposal answers `not-found`, so a view cannot watch an agent's or a person's work.
-- One waiting proposal per package: while a proposal the package prepared is still
-  `previewable`, another `prepare` is refused with `proposal-waiting`, naming it.
-  Every prepared proposal validates against a copy of the file, so a view that asked
-  in a loop would fill the disk; this bound also keeps the person from being asked
-  twice at once.
-- Never `proposal.promote` or `proposal.reject`: the broker's table has neither, the
-  host refuses the actor on both, and the production gate pins it. A proposal that
-  puts code into a package reviews like any other, code diff and fixed sentence
-  included, so a view can propose its own next version and the person reads it.
+**Drafts.** Nendo ends a view's frame whenever it leaves the screen, and on reload, Stop,
+revocation and the kill switches, without asking. A view that holds unsaved typing keeps it
+recoverable in its origin's storage and restores it when it starts again; it never saves it
+as records for the person.
+
+**Proposals.** A view prepares a definition change; the person decides.
+
+- `nendo.proposals.prepare({title, operations})` uses the same path as the Workbench's
+  `proposal.prepareChangeSet`: the same operations, validation and diagnostics. The host
+  admits the frame's actor on `proposal.prepareChangeSet` and `proposal.get`.
+- The proposal's origin is `extension:‹package›`. The review says above the changes:
+  "Prepared by the custom view ‹title› (‹package›). Nothing changes until you accept."
+  Preparing opens the review at once, over the view.
+- `nendo.proposals.get(id)` reports its state (`previewable`, `active`, `rejected`,
+  `stale`, `invalid`, `failed`) and diagnostics; `nendo.proposals.open(id)` opens the
+  review again. A view reads only proposals its own package prepared; another origin's
+  answers `not-found`.
+- One waiting proposal per package: while one is `previewable`, another `prepare` is
+  refused with `proposal-waiting`, naming it.
+- A view never promotes or rejects. A proposal that changes a package reviews like any
+  other, code diff and fixed sentence included.
 
 **State.** `nendo.state` keeps small JSON values with the file.
 
-- `nendo.state.get(key)`, `nendo.state.set(key, value, {expectedVersion})`,
-  `nendo.state.delete(key)` and `nendo.state.keys()`. Each value is scoped to the
-  view that set it (its view definition's node ID); `{scope: 'package'}` shares one
-  across the package's views, stored with the view `''`.
-- A write is the canonical `extension.setState` operation, already declared: the
-  Data lane and **Reversible**, because the retained previous value is the inverse.
-  A deletion is a set to null, which deletes the row. History names the package as
-  its author and describes it as "Keep ‹key› for the view ‹title›", and
-  compensation restores the value before.
-- Each row has a version, as a record does. `expectedVersion` makes a write
-  conditional, and a stale one is refused with `state-version-conflict` without a
-  change. Without it, the last write wins.
-- Bounds: a key of 1 to 128 characters; a value of at most 64 KiB of JSON; at most
-  256 keys per view and 1 MiB of state per package. `api.js` coalesces writes to the
-  same key and sends at most 2 a second per frame, so a view that stores a scroll
-  position on every frame costs two History rows a second, not sixty.
-- A state write changes no record, so it triggers no automatic action. It passes the
-  same gates as a record write all the same: views on, the file writable, and this
-  device's behaviour approval where the file has actions. It raises the `changes`
-  event like any other commit, so another frame of the package can read it again.
-- **No rung.** The table was created with the package tables at 1.33.0, and a view
-  can write state only for a package the file carries. A file with state opens on
-  any host that opens a file with packages.
-- It travels with the file: a copy carries it, and Export does not, because state is
-  the file's, not the package's. Removing a package keeps its rows, so compensating
-  the removal gives the package its state back; a package imported again under the
-  same ID reads them.
-- MCP neither reads nor writes view state. It is the view's, and an agent works
-  through the records and the definition.
+- `get(key)`, `set(key, value, {expectedVersion})`, `delete(key)` and `keys()`. A value is
+  scoped to the view that set it (its view definition's node ID); `{scope: 'package'}`
+  shares one across the package's views, stored with the view `''`.
+- A write is `extension.setState`: Data lane, Reversible. A deletion is a set to null.
+  History describes it as "Keep ‹key› for the view ‹title›" under the package's name.
+- Each row has a version. A stale `expectedVersion` is refused with
+  `state-version-conflict`; without one the last write wins.
+- Bounds: a key of 1 to 128 characters, a value of at most 64 KiB of JSON, at most 256 keys
+  per view and 1 MiB per package. `api.js` coalesces writes to one key and sends at most 2 a
+  second per frame.
+- A state write changes no record and triggers no action, but passes the same gates as a
+  record write: views on, the file writable, and behaviour approval where the file has
+  actions. It raises the `changes` event.
+- No rung of its own. A copy of the file carries state; Export does not. Removing a package
+  keeps its rows. MCP neither reads nor writes view state.
 
 ### The browser is open
 
-A view origin may use the network, loopback included; runtime 153 has no
-local-network gate for it (S11). It may read and write the clipboard, make several
-downloads, show script dialogs and open DevTools, in every build. A user-initiated
-`http(s)` or `mailto` pop-up opens in the system browser, and a window a script
-opens by itself opens nowhere (S15). A frame does not start another app: a
-navigation to a scheme other than `http(s)`, `data`, `blob`, `about` or
-`javascript` is cancelled, and a followed `mailto` link opens the mail app
-(2026-10-12, DAE-13). Context menus work inside frames; the host
-tells a view's menu from the Workbench's by the frame's address, because the
-browser's main-frame flag is false for both (S13). Any asset type is served.
-
-A permission request from a view carries the Workbench's origin, not the view's
-(S10). So the host answers each view on its own frame: clipboard reads and several
-downloads are allowed, anything else is refused, and no answer is saved, where it
-would cover every view. The Workbench's own requests are denied.
-
-A download goes to the person's Downloads folder under a name that overwrites nothing, and
-WebView2's own downloads panel is never shown (2026-10-02, F-237). The panel asked whether an
-`.xml` file a view saved from a command in Nendo's row "can harm your device", because such a
-command carries no click into the view; after Keep, the browser process spun and Nendo's window
-stayed white. Not asking is the trade: a view can put a file of any type in Downloads without the
-browser's question. It cannot open or run it, and the person still has to. Nendo says where each
-file went, in its notice line, with Show in folder.
-
-### Files a person hands a view (2026-10-01)
-
-A view reads a file the way a web page does, and Nendo adds no call for it, as it
-adds none for downloads. Measured in a real host (G34, G35):
-
-- **The file input.** A view's own `<input type="file">`, clicked by the person,
-  opens Windows' Open dialog, owned by Nendo's window. The choice is the consent:
-  the view gets that one file as a `File`, with its name, size and bytes, and never
-  its path. `accept` filters the dialog, whose *All files* stays, so a view checks
-  what it got. Cancel reaches the view as the input's `cancel` event.
-- **No size limit from Nendo.** A `File` is a handle. The view reads it in its
-  package's own renderer, and a view that reads a very large file whole costs that
-  renderer, not the Workbench.
-- **No file handles.** The browser refuses `showOpenFilePicker`,
-  `showSaveFilePicker` and `showDirectoryPicker` to a frame of another origin
-  ("Cross origin sub frames aren't allowed to show a file picker."). A view never
-  holds a file it could write back to, and it saves by download.
-- **Drops.** A file dragged over a view is the view's. It takes the file by
-  cancelling `dragover` and reads the drop's `dataTransfer.files`. A view that does
-  not take drops lets one fall: nothing opens and nothing moves. Nendo's drop hint
-  takes no pointer, so it shows while the drag is over Nendo's own parts and steps
-  aside over a view. A file dropped on Nendo's parts is Nendo's, as before.
-
-W-104 proposed a `files.open` call that would show a picker with a size cap. The
-measurement made it unnecessary: it would be a second picker beside the browser's,
-and it would add no protection. No rung: nothing reaches the file.
+- A view origin may use the network, loopback included. It may read and write the
+  clipboard, make several downloads, show script dialogs and open DevTools, in every build.
+- A user-initiated `http(s)` or `mailto` pop-up opens in the system browser; a window a
+  script opens by itself opens nowhere. A frame navigation to a scheme other than
+  `http(s)`, `data`, `blob`, `about` or `javascript` is cancelled.
+- Context menus work inside frames. The host tells a view's menu from the Workbench's by the
+  frame's address.
+- A permission request carries the Workbench's origin, not the view's, so the host answers
+  each view on its own frame: a clipboard read and several downloads are allowed, anything
+  else is refused, and no answer is saved. The frame does not delegate location. The
+  Workbench's own requests are denied.
+- A download goes to the person's Downloads folder under a name that overwrites nothing,
+  and WebView2's downloads panel is never shown. Nendo's notice line says where each file
+  went, with Show in folder. A view cannot open or run what it saved.
+- **Files a person hands a view.** A view's own `<input type="file">` opens Windows' Open
+  dialog; the choice is the consent, and the view gets a `File` without its path. Nendo adds
+  no size limit and no file call. The browser refuses `showOpenFilePicker`,
+  `showSaveFilePicker` and `showDirectoryPicker` to a cross-origin frame, so a view saves by
+  download. A file dragged over a view is the view's if it cancels `dragover`; Nendo's drop
+  hint steps aside over a view.
 
 ### A view's failure stays with the view
 
-- Only a main-frame or browser-process failure sends the app to recovery. A
-  frame's renderer exit becomes `extensionFramesFailed`, naming the frames: every
-  frame of that package, because they share the renderer (S4). Each shows an
-  overlay with Reload. The browser restarts a GPU or utility process by itself,
-  and the Workbench is not told.
-- Nothing in the browser reports a spinning frame (S2), so the broker pings each
-  frame every 5 seconds. After 10 seconds without an answer, the overlay says "not
-  responding", with Stop and Reload. Stop points every frame of the package at
-  `about:blank`, which ended a spinning renderer in about half a second, and then
-  removes them; removing a frame alone left its renderer running for 10 seconds
-  (S3).
-
-### A view's drafts and unanswered writes (2026-10-06)
-
-- **Drafts are the view's to keep.** Nendo ends a view's frame whenever the view leaves
-  the screen, and on reload, Stop, revocation and the kill switches. It does not ask
-  first and does not keep offscreen renderers running: a prompt could not cover Stop, a
-  crash or a kill switch anyway, and those must stay prompt. A view that holds unsaved
-  typing keeps it recoverable in its origin's storage, which is per file instance and
-  package on this device (2026-10-13), never as records and never saved for the person, and restores it over
-  the version it was made from when it starts again. A host leave prompt was considered
-  and not taken; recovery is the one mechanism that covers every way a frame ends.
-- **An unanswered write is finished, not repeated.** `records.batch` takes an optional
-  `writeKey`. The broker writes the batch under `view-‹package›-‹writeKey›`, so a batch
-  whose answer was lost to a timeout or a reconnect is sent again and kept once, and the
-  same key with other writes is refused. A single write kept but not read back answers
-  `written-not-read`. The person's form journal is not shared with views.
+- Only a main-frame or browser-process failure sends the app to recovery. A frame
+  renderer's exit becomes `extensionFramesFailed`, naming every frame of that package. Each
+  shows an overlay with Reload.
+- The broker pings each frame every 5 seconds. After 10 seconds without an answer the
+  overlay says "not responding", with Stop and Reload. Stop points every frame of the
+  package at `about:blank`, which ends a spinning renderer, and then removes them.
+- A hung or crashed view's overlay takes focus when the view had it.
 
 ### Views anywhere, many at once
 
-- Views appear on Use screens (`extensionGraphSurface`,
-  `extensionRecordsSurface`), in record-page panels (`extensionRecordPanel`,
-  started lazily, with no cap), as an `extensionView` root, and as an
-  `extensionTile` on the front page and dashboards.
-- **Open view definitions (rung 1.34.0).** The pins `packageVersion`,
-  `packageDigest`, `protocolVersion` and `configurationVersion` become optional.
-  They are kept and ignored. `configuration` may be any JSON object. A
-  `fieldBinding` may name any active field, calculated ones included. A
-  `filterClause` may use any value kind. The panel cap goes. A view whose package
-  is not in the file gets the warning NUI452, with one step: "Add package to
-  file…". NUI451 and the binding digest are retired.
-- **`extensionView` (rung 1.42.0; 1.35.0 and 1.36.0 went to ADR-0019's hierarchies and outline, 1.37.0 to ADR-0020's unique fields, 1.38.0 to a file's own look, 1.39.0 to ADR-0021's folded history, 1.40.0 to filtering and sorting on calculated fields and 1.41.0 to ADR-0022's new files, delivered first).** `extensionView` is a root
-  of the file, not of a record type, with a package, a title, a configuration and an
-  optional `entityId`. It appears in the Use "Showing" picker. See *A view as a screen of
-  its own*, below.
-- **`extensionTile` (the next free rung, not yet delivered; 1.43.0 went to ADR-0024's skill packages).** A child of
-  `overviewSurface`, `section` or `tabGroup`, sized `tile` or `wide`, with a height. It was
-  to share 1.42.0 with `extensionView`. The view came first (W-106), so the tile takes the
-  next rung when it lands.
+- Views appear on Use screens (`extensionGraphSurface`, `extensionRecordsSurface`), in
+  record-page panels (`extensionRecordPanel`, started lazily, no cap) and as an
+  `extensionView` root.
+- **Open view definitions (rung 1.34.0).** `packageVersion`, `packageDigest`,
+  `protocolVersion` and `configurationVersion` are optional, kept and ignored.
+  `configuration` may be any JSON object. A `fieldBinding` may name any active field,
+  calculated ones included, and a `filterClause` may use any value kind. A view whose
+  package is not in the file gets the warning `NUI452`, with "Add package to file…".
+- **A view as a screen of its own (`extensionView`, rung 1.42.0).** A root of the file, as
+  the front page is; a file holds at most eight. It carries `definitionVersion`, `title` and
+  `packageId`, and may carry `configuration` and `entityId`, which reaches the view in its
+  context without moving the screen under that type. It has no children. The first picker of
+  the Use breadcrumb lists the front page, then each view in authored order, then the record
+  types; it is a place in Back and Forward, and `ui.openScreen` opens it. `opensFile: true` on
+  one view makes the file open on it; at most one may say so (`NUI453`). When views do not
+  run, the file opens as if no view said so. A missing record type refuses the view
+  (`NUI450`).
+- **`extensionTile`** (a child of `overviewSurface`, `section` or `tabGroup`, sized `tile`
+  or `wide`, with a height) is decided but not built. It takes the next free rung when it
+  lands.
 
-#### A view as a screen of its own (2026-10-02)
+### Views in Nendo's own chrome
 
-The Archi workbench is a whole application in one view: a model tree, a drawing, properties
-and its own menus. Until now a view could only be one screen of a record type, so Archi.nendo
-put the workbench under its View type and opened on its front page, two steps from it. W-106
-builds `extensionView` and settles what Phase 5 left open: which screen a file opens on.
-
-- **Where it belongs.** An `extensionView` root belongs to the file, as the front page does.
-  The file may hold eight. It carries `definitionVersion`, `title` and `packageId`, and may
-  carry `configuration` and `entityId`. It has no children: it names no fields and no
-  filters, because its code reads the file through the API, and a binding is not a
-  permission. `entityId` names the record type the view is about and reaches the view in its
-  context. It does not move the screen under that type.
-- **Where it is listed.** The first picker of the Use breadcrumb lists the front page, then
-  each view of the file in authored order, then the record types. Studio lists the view among
-  the surfaces. A view of this kind is a place in Back and Forward like any screen, and
-  `ui.openScreen` can open it.
-- **The screen a file opens on.** `opensFile: true` on one `extensionView` makes the file
-  open on it, rather than on the front page or the first record type. At most one view may
-  say so (`NUI453`). It is a Use screen like any other. The navigation and the breadcrumb's
-  picker reach every other screen, and Studio and recovery stay as reachable as before.
-- **When views do not run.** When the device switch, the file's switch, safe mode, a restart
-  without custom views or the file's health keeps views from running, the file opens as if no
-  view said so: the front page, or else the first record type. The view stays in the picker
-  and shows its notice there.
-- **Validation.** The package and the `entityId` follow the rules of every view: a missing
-  record type refuses the view (`NUI450`), and a package the file does not carry is the warning
-  `NUI452`. A file with an `extensionView` needs host 1.42.0, by the rung rule of ADR-0012.
-
-### Views in Nendo's own chrome (2026-09-28)
-
-A view draws its content, and Nendo draws its controls. On 2026-09-28 the owner asked for
-views "more like the native interface with menu and button integration" (W-090; the design
-canvas is <https://claude.ai/artifact/S3dzbpQpnVX3uJ44JuwP8Y>, direction A). Until then a
-view drew every control inside its own frame, in its own sizes. The Capability Atlas spent
-three rows on its own tabs, levels, search, selects, zoom and Export before the map started,
-beside a second Add button. The palette, the shortcut hints and right-click knew nothing of
-any of it, and Nendo's own keys did nothing while a view had focus, because a key pressed
-inside a cross-origin frame never reaches the Workbench's document.
+A view draws its content, and Nendo draws its controls.
 
 - **The toolbar.** `ui.setToolbar({items, add})` declares the view's controls as data:
-  buttons, toggles, choices (a segmented control), selects, a search box, menus, joined
-  groups, text, separators and spacers. Nendo draws them with its own controls: on a screen
-  in the screen's one row under the top bar, beside Nendo's Add (see *One row above a
-  view*, below), on a record page in the panel's header. Each call
-  replaces the whole toolbar, and an empty list removes it. The declaration is text and a
-  closed set of kinds and icons, so nothing a view sends becomes markup, and a label stays
-  text. It is bounded: 32 items in the row, 16 KiB of JSON in all, labels of 80 characters.
-  (Until 2026-10-14 this said 128 in all, a bound the code never had; the contract's Limits
-  table was right, WXS-19.)
+  buttons, toggles, choices, selects, a search box, menus, joined groups, text, separators
+  and spacers. Nendo draws them with its own controls: on a screen in the one row under the
+  top bar, before Nendo's Add; on a record page in the panel's header. Each call replaces
+  the whole toolbar. The declaration is text and a closed set of kinds and icons, so nothing
+  a view sends becomes markup. It is bounded: 32 items in the row, 16 KiB of JSON in all, labels of 80 characters.
+- **One row.** On a Use screen the breadcrumb's two names are the record-type picker and
+  the view picker, and a custom view's controls share that row. A view may declare its
+  summary as `text` in the row and keep an explanation behind a `toggle`. The row keeps to
+  one line: what does not fit goes, from the end, into Nendo's **More** menu. Add keeps its
+  width.
 - **Commands.** A press, a menu pick, a palette entry or a declared key reaches the view as
-  the event `command`, `{id, value, source}`. Nendo shows the new state at once, such as a
-  toggle pressed or an option chosen. The view's next declaration decides it.
-- **Add.** `add` names one of the view's command IDs. On a screen, Nendo's own Add button
-  then sends that command instead of opening Nendo's form, so the screen has one Add. With
-  no `add`, the button opens Nendo's form as before.
-- **Menus.** A toolbar menu and a right-click menu are Nendo's menu. `ui.showMenu({items, x,
-  y})` draws one at a point in the frame and answers the item picked, or null when the
-  person dismisses it. One menu is open at a time in the window, and a view may ask at most
-  four times a second. A menu is drawn only while the view's frame has focus, or within two
-  seconds of a command from Ctrl K, a declared key or Add (2026-10-12, WXS-08).
-- **Keys.** A command may declare a key. Nendo shows the key beside the control, in the
-  palette and in the shortcut hints, and runs the command wherever focus is in the window,
-  except while the person types in a field. Nendo's own keys stay Nendo's. A view cannot
-  declare one. When one is pressed inside a view, api.js hands it to the Workbench, so Ctrl K
-  works with a view focused. That is the only way a key crosses the frame, and the broker
-  takes only Nendo's keys and the keys the view has declared. The Workbench runs a handed-back
-  key only while the view's frame has focus (2026-10-12, WXS-08).
-- **Ctrl K** lists a view's commands under its title. Each option of a choice or a select,
-  and each item of a menu, is an entry of its own.
-- **Unchanged.** The frame, its origin, the broker's table, its bounds, the actor and the
-  kill switches stay as they are. The strip and the menus are the Workbench's own markup,
-  drawn from a checked declaration, so none of this reaches the Workbench's document for the
-  view.
+  the event `command`, `{id, value, source}`. Nendo shows the new state at once; the view's
+  next declaration decides it.
+- **Add.** `add` names one of the view's command IDs; Nendo's Add then sends that command
+  instead of opening Nendo's form.
+- **Menus.** `ui.showMenu({items, x, y})` draws Nendo's menu at a point in the frame and
+  answers the item picked, or null. One menu is open at a time, a view asks at most four
+  times a second, and a menu is drawn only while the view's frame has focus or within two
+  seconds of a command from Ctrl K, a declared key or Add.
+- **Keys.** A command may declare a key, shown beside the control, in the palette and in
+  the shortcut hints, and run wherever focus is in the window except while the person types
+  in a field. Nendo's own keys stay Nendo's; when one is pressed inside a view, `api.js`
+  hands it to the Workbench, which runs it only while the view's frame has focus. That is
+  the only way a key crosses the frame.
+- **Ctrl K** lists a view's commands under its title, each option and menu item as its own
+  entry.
 
-On a host without these methods a view draws its own controls. It asks with
-`nendo.has('ui.setToolbar')`.
-
-#### One row above a view (2026-09-28)
-
-With the controls in Nendo's chrome, four bars stood above a view's drawing: the window's
-title bar, Nendo's top bar, the Use toolbar with Showing and View, and the view's own strip,
-with the view's summary and hint below them, about 256 px of a 900 px window. The owner asked
-for less of it and chose A with C from the canvas
-<https://claude.ai/artifact/BqQj31q6FRmeHAk2BzBKc1> (W-092):
-
-- **A.** The breadcrumb that already named the record type and the view is where they are
-  chosen: on a Use screen its two names are the record-type picker and the view picker.
-  The Showing and View controls leave the Use toolbar, and on a custom view's screen Nendo
-  draws the view's declared controls in that same row, before Nendo's Add. On the front
-  page, which has no view to pick, the row goes.
-- **C.** A view may declare its summary as text in that row, and keep an explanation behind
-  a button it declares, rather than spend lines of its frame on them. The packages in
-  `extensions/` do. Nothing new crosses the frame: both are ordinary `text` and `toggle`
-  items.
-
-The title bar holding the top bar (option E) was built as W-093 on 2026-09-28; the Console
-direction and the architecture describe it.
-
-On 2026-10-03 the owner saw the Archi workbench's row wrap to three lines in a narrower window,
-with Add pushed off its edge, and chose both of two ways out (W-115): the workbench shows its
-editing controls as icons, and the row keeps to one line, putting what does not fit, from the
-end, in Nendo's own **More** menu; Ctrl K lists every command as before. Add keeps its width
-whatever the row holds.
+A view on a host without these methods draws its own controls; it asks with
+`nendo.has('ui.setToolbar')`. None of this reaches the file.
 
 ### No install, no consent, no pins
 
-A view that is shown runs. The controls are kill switches, all of them
-device-local:
+A view that is shown runs. The controls are device-local kill switches:
 
 - **Run custom views**, a device setting;
-- a switch for each file;
+- **Run this file's views**, per file;
 - safe mode, recovery, and any file whose health is not `normal`;
-- **Restart without custom views**, in the recovery panel. Views stay off until
-  the person turns **Run custom views** on again or starts Nendo again.
+- **Restart without custom views**, in the recovery panel, until the person turns **Run
+  custom views** on again or starts Nendo again.
 
-Each switch is enforced twice: the Workbench mounts no frame, and the host answers
-403 on the view's origin.
+Each switch is enforced twice: the Workbench mounts no frame, and the host answers 403 on
+the view's origin. A switch pressed while an action runs is made when the action ends, and
+never dropped.
 
 ### Develop from a folder (Phase 4)
 
-A person writing a view should see an edit the moment they save it, not after a
-proposal. A development link does that on one device, for one package of one file,
-and it never reaches the file.
+A development link shows an edit the moment it is saved, on one device, for one package of
+one file, and never reaches the file.
 
-- **The link.** In Studio → Surfaces → Custom views, **Develop from folder…** on a
-  package the file carries picks a folder holding a `nendo-package.json` with the same
-  `packageId`. The host keeps the link in this device's custom-view settings, keyed by
-  the file's application ID and the package ID. It is never written to the file, and
-  the Workbench is only ever told the folder's name, never its path. A package the file
-  does not carry yet goes in by Import first.
-- **Serving.** While the link stands and views run, the package's origin answers from
-  the folder: the serving order's development step. The folder is read with the same
-  rules as Import (`NendoExtensionArchives.ReadFolder`: its manifest's entry point,
-  paths confined to the folder, media types by extension, the package bounds), so what
-  runs is what Save would propose. A folder that no longer reads is answered with a
-  503 whose text says why, never with the file's code. Responses carry `no-store`.
+- **The link.** **Develop from folder…** in Studio's Custom views, on a package the file
+  carries, picks a folder holding a `nendo-package.json` with the same `packageId`. The host
+  keeps the link in this device's custom-view settings, keyed by application ID and package
+  ID. The Workbench is told only the folder's name, never its path.
+- **Serving.** While the link stands and views run, the origin answers from the folder,
+  read with Import's rules (`NendoExtensionArchives.ReadFolder`), so what runs is what Save
+  would propose. A folder that no longer reads answers 503 with the reason, never the
+  file's code.
 - **Reload on save.** The host watches the folder. A burst of changes becomes one
-  `extensionDevelopmentChanged` event about a quarter of a second after the last, and
-  the Workbench reloads every running view of that package. Starting and stopping a
-  link send the same event, so the Workbench has one path that reloads.
-- **The banner.** Every view of a linked package is drawn with a strip above its frame:
-  Development, the folder's name, and that this computer runs it rather than the code in
-  the file. The strip is the Workbench's own markup, outside the view's frame, so the
-  view cannot hide it. It carries **Save to file…** and **Stop developing**.
-- **Save to file.** Reads the folder and prepares the proposal Import would prepare,
-  only what differs, for the ordinary review. Nothing is written until it is accepted.
-- **Stop developing** removes the link. The view runs the file's reviewed code again.
-- **What does not change.** The kill switches stop linked views like any other. Safe
-  mode and recovery run no view. A copy of the file, or the same file on another device,
-  runs the reviewed package in the file. The API, the broker's table and the actor are
-  the same: a linked view writes as its package, and History says so.
-- **No rung.** Nothing about a link is in the file, so no file needs a newer host.
-
-The trust trade is unchanged: the person who picks the folder is the one who reads the
-code, on their own device.
+  `extensionDevelopmentChanged` event about a quarter of a second after the last, and the
+  Workbench reloads every running view of the package.
+- **The banner.** Every view of a linked package has a strip above its frame, outside the
+  view's reach: Development, the folder's name, **Save to file…** and **Stop developing**.
+- **Save to file** prepares Import's proposal, only what differs. **Stop developing**
+  removes the link.
+- The kill switches stop linked views. Safe mode and recovery run no view. A copy of the
+  file, or another device, runs the reviewed code. A linked view writes as its package.
+- No rung.
 
 ### Kept on purpose
 
-These are architecture, not security, and they stay:
-
 - Studio never hosts extension code, and it stays reachable.
-- Writes go only through the typed services. There is no SQL and no generic
-  invocation.
-- Definition changes go through proposals. A view can prepare a proposal but never
-  promote or reject one. Acceptance stays with the person, or with an agent at
-  [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md)'s Unattended
-  level.
-- A file with automatic actions still needs this device's
-  [ADR-0008](0008-general-scripting-and-capability-isolation.md) behaviour approval
-  before any write, a view's write included.
+- Writes go only through the typed services. There is no SQL and no generic invocation.
+- Definition changes go through proposals. A view never promotes or rejects one.
+  Acceptance stays with the person, or with an agent at
+  [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md)'s Unattended level.
+- A file with automatic actions needs this device's
+  [ADR-0008](0008-general-scripting-and-capability-isolation.md) behaviour approval before
+  any write, a view's included. View code needs no approval of its own, but the grant binds
+  the definition revision, so an accepted package change asks again in such a file.
 - Every operation declares its reversibility.
 
 ### The trust trade
 
-A received file's code runs when its view is shown. It can read and change all of
-that file's records through the API. It can reach the network, loopback included,
-and the clipboard, and it can trigger downloads. A proposal's code diff is read
-only where the change is made: a received file's code arrives already accepted,
-and nobody on this device has read it. At ADR-0009's Unattended level, an agent
-can accept its own package proposal, so its code can run before anybody reads it.
+A received file's code runs when its view is shown, and nobody on this device has read it.
+It can read and change all of that file's records, reach the network and the clipboard, and
+download files. At the Unattended level an agent can accept its own package proposal, so
+its code can run before anybody reads it. The owner chose this over consent steps; the kill
+switches are the whole control.
 
-View code cannot:
-
-- reach the Workbench DOM, the host bridge, SQL, file paths, other files or device
-  settings;
-- use Nendo's MCP endpoint, which refuses browser origins;
-- accept a proposal.
-
-The owner chose this over consent steps. The kill switches are the whole control.
-
-That includes a view's writes. A record a view changes and a command it runs take
-effect without a host-drawn confirmation. The person reads what changed in History,
-under the package's name, and compensates it there like any other write. A view
-that wants the person to confirm an act shows its own confirmation. The owner
-settled this on 2026-09-26, over an earlier ask (W-065) for a native confirmation
-before a view runs a command.
+View code cannot reach the Workbench DOM, the host bridge, SQL, file paths, other files or
+device settings; cannot use Nendo's MCP endpoint; and cannot accept a proposal.
 
 ### Compatibility
 
-- A file that carries packages needs host 1.33.0. A view definition that only the
-  open rules accept needs 1.34.0. A definition that the earlier rules accept keeps
-  its rung, 1.29.0 to 1.32.0. `extensionView` needs 1.42.0, and `extensionTile` will need
-  the rung after it.
-- An older host refuses writable open of such a file by the rung rule of
-  ADR-0012. There is no downgrade-in-place.
-- A file without packages gains no table and keeps its layout.
-- `.nendoview` archives from the contained slice stay importable. The old device
-  state (`extension-packages/`, `extension-grants.json`, `extension-runs/`) is left
-  alone, and the contract lists it as obsolete.
-
-## Effect on other decisions
-
-- [ADR-0001](0001-local-one-file-product-boundary.md): view code may travel in the
-  file.
-- [ADR-0003](0003-relational-user-data-and-protected-metadata.md): protected
-  metadata includes extension packages, an executable payload.
-- [ADR-0004](0004-versioned-semantic-ui-contract.md): `extensionView` and
-  `extensionTile` join the vocabulary by the ordinary new-kind path, and view
-  definitions open up at 1.34.0.
-- [ADR-0008](0008-general-scripting-and-capability-isolation.md): its bounded
-  expressions stay the formula language. View code needs no behaviour approval.
-  The approval still gates every write in a file with automatic actions. Its grant
-  binds the definition revision, so in such a file an accepted package change asks
-  for approval again, as any definition change does.
-- [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md): MCP authors
-  packages through change sets. The perimeter does not change.
-- [ADR-0012](0012-safe-mode-compatibility-and-migration.md): safe mode and
-  recovery never run view code.
-- [ADR-0002](0002-containing-desktop-architecture-and-process-model.md) and
-  [ADR-0017](0017-production-composition-and-build-layout.md): the contained helper
-  process and its payload are gone; views are frames of the Workbench's browser.
-
-## Delivery
-
-This ADR decides the whole design, and the design lands in phases. The
-[custom-view contract](../contracts/custom-views.md) states what is delivered at
-any moment. Phases 0 to 4 are delivered, and of Phase 5 `extensionView` and the screen a
-file opens on (W-106); `extensionTile` is not built (2026-10-10). Since Phase 2 views run
-inline from the file, and the contained helper is deleted.
-
-| Phase | Delivers | Rung |
-| --- | --- | --- |
-| 0 | A disposable spike that answers the WebView2 questions below | — |
-| 1 | Code in the file: the tables, the operations, the review and MCP authoring. Nothing runs yet | 1.33.0 |
-| 2 | Views run inline from the file, and the helper is deleted: serving, the read API, the kill switches, open definitions, package import and export as folders, and the four packages ported | 1.34.0 |
-| 3 | Views that write: records and commands, proposals to prepare, and state (delivered 2026-09-26) | — |
-| 4 | Develop from a folder: a device-local link, reload on save, and saving the folder as proposals (delivered 2026-09-26) | — |
-| 5 | Views anywhere: `extensionView` and the screen a file opens on (delivered 2026-10-02, W-106); `extensionTile` not yet | 1.42.0; the tile the next rung |
-
-## Evidence and validation obligations
-
-**Measured.** The cost of a contained view, 2026-09-24, under *Context*. It is the
-reason the helper goes.
-
-**Measured: the Phase 0 spike** (2026-09-25; WebView2 runtime 153.0.4234.48,
-SDK 1.0.3179.45; a synthetic harness in `prototypes/iframe-views/`, not the
-Workbench). Its [findings](../../prototypes/iframe-views/FINDINGS.md) settled the
-particulars, each cited above by its number:
-
-- Each package site gets its own renderer without a flag (S1).
-- A spinning frame raises no failure event and leaves the Workbench responsive
-  (S2). `about:blank` ends its renderer; removal alone does not (S3). A crash
-  names every frame of the package (S4).
-- `moveBefore` keeps a frame's document (S12).
-- Six panels from three packages plus a screen used 108–126 MiB of view renderers
-  and 310–335 MiB across all WebView2 processes (S14). G15's budget is one
-  renderer per package, view renderers at most 160 MiB and all WebView2 processes
-  at most 420 MiB, to be re-based on the real packages.
-- Serving is fast (S5); workers, modules, downloads, storage and a secure context
-  work on `.example` (S16, S18, S19, S21); the sandbox blocks top-level navigation
-  (S9); `chrome.webview` in a frame reaches no host handler (S8).
-- Three browser flags do not mean what their names say: the main-frame flag on a
-  context menu (S13), the origin on a permission request (S10), and the resource
-  filter's match (S11). The design above goes round each.
-
-**Guards.** Each phase lands with guards. Each guard measures its property, is
-falsified once, and has the failure text quoted in its planner Check.
-
-| Property | Guards |
-| --- | --- |
-| Packages round-trip byte-exact, compensate exactly, fit the write reserve and review as a code diff | G1–G7 |
-| A spinning, hung or crashed view leaves the Workbench and Studio responsive, with no recovery, and can be stopped or reloaded | G8, G9, G14 |
-| A view cannot reach the Workbench or navigate the top frame, and the Workbench's content-security policy holds | G10, G12 |
-| Network, clipboard, storage, downloads and pop-ups work in a view | G11 |
-| A redraw keeps frames, and many views run within the memory budget | G13, G15 |
-| Every kill switch gives no frame and a 403 | G16 |
-| Code runs only after its proposal is accepted | G17 |
-| Reads are exact; writes are attributed, version-checked and approval-gated; a view cannot promote; state round-trips; a busy view does not starve a save | G18, G19, G21, G22 |
-| Develop from a folder | G20, and `DesktopExtensionDevelopmentTests` |
-| `extensionView` and `extensionTile` | G26 |
-| Views in Nendo's chrome: the declaration is checked and drawn with Nendo's controls; a press, a pick, a palette entry and a key each reach the view; Add, the right-click menu and Nendo's keys inside a view | G27–G30 |
+- A file that carries packages needs host 1.33.0. A view only the open rules accept needs
+  1.34.0; a definition the earlier rules accept keeps its rung, 1.29.0 to 1.32.0.
+  `extensionView` needs 1.42.0. An older host refuses writable open by the rung rule of
+  ADR-0012; there is no downgrade in place.
+- A file without packages gains no table.
+- `.nendoview` archives from the contained slice still import. Its device state
+  (`extension-packages/`, `extension-grants.json`, `extension-runs/`) is obsolete and left
+  alone.
 
 ## Consequences
 
-### Positive
+**Positive.** A view travels with its file and runs when its proposal is accepted. An agent
+delivers a working view through MCP alone. Many views run at once, at a renderer each. A
+view is one more client of the typed services, so validation, versions, History,
+attribution and reversibility cover its writes. The API grows without an ADR change or a
+rung.
 
-- A person or an agent writes a view with full powers, keeps it in the file and
-  sees it run when the proposal is accepted. A copy of the file carries the view.
-- There is no install, consent or pin step. An agent can deliver a working view
-  through MCP alone.
-- Many views run at once, anywhere, at the cost of a renderer each.
-- A view is one more client of the typed services. Validation, versions, History,
-  attribution and reversibility cover its writes.
-- The API grows without an ADR change or a rung.
-
-### Negative
-
-- A received file's code runs when its view is shown, and nobody here has read it.
-  It can change all of that file's records, reach the network and the clipboard,
-  and download files.
-- The OS boundary is gone. Views share the WebView2 browser and GPU processes with
-  the Workbench. A view that floods the broker with huge messages can crash the
-  Workbench renderer. **Restart without custom views** is the way back.
-- Chromium changes under the Evergreen runtime can move this boundary. The guards
-  run on every production check.
-- Packages make files larger, and the larger write reserve lowers the writable
-  ceiling.
-- View state writes add History rows. They are debounced to 2 a second.
-- A file that carries packages can be written only by host 1.33.0 or later.
+**Negative.** A received file's code runs unread and can change all of that file's records.
+There is no OS boundary: views share the WebView2 browser and GPU processes, and a view
+that floods the broker can crash the Workbench renderer (**Restart without custom views**
+is the way back). Evergreen Chromium can move this boundary, so the guards run on every
+production check. Packages make files larger, the write reserve lowers the writable
+ceiling, and view state adds History rows. A file with packages is writable only by host
+1.33.0 or later.
 
 ## Rejected alternatives
 
-- **The contained helper, per view or shared** (options B and C). Each view needs
-  a browser engine, measured at 219 to 270 MiB, or shares one AppContainer and Job
-  with other packages. The install and consent steps and the child window over a
-  scrolling page stay. Views one at a time do not meet the owner's goal.
-- **Packages in a device cache, pinned by digest.** Every rebuild is an install
-  and an approval on each device, and a copy of the file does not carry the view.
-- **Same-site or same-document views** (option D). A spinning view would freeze
-  Studio, and a view could reach the Workbench DOM and the host bridge.
-- **Consent per package or per digest.** The owner chose flexibility over consent
-  steps. The kill switches replace it.
+- **A contained helper per view, or one shared helper.** A browser engine per view, or one
+  AppContainer and Job shared across packages; install and consent steps; a child window over
+  a scrolling page.
+- **Packages in a device cache, pinned by digest.** An install and approval per device per
+  rebuild, and a copy does not carry the view.
+- **Same-site or same-document views.** A spinning view would freeze Studio and could reach
+  the Workbench DOM and host bridge.
+- **Consent per package or per digest.** The kill switches replace it.
+- **A `files.open` call.** A second picker beside the browser's, with no added protection.
+- **A host leave prompt for a view's drafts.** It cannot cover Stop, a crash or a kill
+  switch; recovery in the view's storage covers every way a frame ends.
 
 ## Revisit triggers
 
-- A received file's code causes harm that the kill switches do not cover.
-- A guard shows that a view can reach the Workbench or the host bridge, or can
-  stall Studio, and the fallback does not restore the boundary.
-- Nendo is used with files from people the owner does not trust, or on a shared
-  computer.
-- Extensions without a view are wanted: contributed commands, event handlers or
-  background work. They are the natural next step, and they need their own
-  decision. The commands a view offers while it runs are decided above, under
-  *Views in Nendo's own chrome*.
-- A view needs to accept proposals, or an extension needs raw SQL. Both stay out
-  of scope.
-
-## History
-
-- 2026-09-02 — deferred: the general extension model stayed out of the MVP.
-  Format 1 carried no plug-in, script or executable payload.
-- 2026-09-10 — scheduled for P7. Scheduling granted no implementation authority.
-- 2026-09-12 — bounded behaviour accepted separately as
-  [ADR-0008](0008-general-scripting-and-capability-isolation.md): calculations,
-  functions, local actions and triggers. The extension model stayed deferred.
-- 2026-09-20 — accepted for a bounded slice: read-only custom views over a host
-  projection, each in its own zero-capability AppContainer and Job helper, with
-  packages in a device cache pinned by digest and device consent per file and
-  view; `extensionGraphSurface` at host 1.29.0. The owner: "I accept the
-  architecture changes. Proceed".
-- 2026-09-24 — protocol 2: a view discloses more typed fields and narrows its
-  record types with literal filters, all bound into its consent; host 1.30.0
-  (W-060).
-- 2026-09-24 — a record-set shape (`extensionRecordsSurface`, host 1.31.0) and a
-  record-page placement (`extensionRecordPanel`, host 1.32.0), started on request
-  and one at a time per window, because a running view measured 219 to 270 MiB
-  (W-061).
-- 2026-09-25 — opened: code in the file, views inline in the Workbench, the full
-  typed API, no install and no consent; the helper goes. Accepted on the owner's
-  standing pre-acceptance of 2026-09-24.
-- 2026-09-25 — storage refined in implementation: a content-addressed blob store
-  and a hash-only canonical form.
-- 2026-09-25 — Phase 2 delivered: views run as frames of the Workbench, served from
-  the file; the contained helper is deleted. The spike's findings refined the
-  permission, context-menu, hang and lazy-start particulars; no flag was needed
-  for isolation.
-- 2026-09-26 — writes need no host confirmation: a view's record writes and
-  commands take effect like a person's edit and are read and compensated in
-  History. The owner followed the recommendation over W-065's earlier ask for a
-  native confirmation. Phase 3 starts with records and commands (W-065).
-- 2026-09-26 — Phase 4 detailed: a device-local development link per file and
-  package, serving from the folder, reload on save, a banner the view cannot hide, and
-  Save to file as Import's proposal (W-063). Written before any code, on the owner's
-  standing pre-acceptance.
-- 2026-09-26 — the rest of Phase 3 detailed: a view prepares a proposal that opens in
-  the ordinary review naming the package, one waiting per package, and never promotes
-  or rejects; `nendo.state` through `extension.setState`, per view or per package,
-  versioned, bounded and attributed, with no rung (W-069). Written before any code,
-  on the owner's standing pre-acceptance.
-- 2026-09-28 — views in Nendo's own chrome: `ui.setToolbar` and `ui.showMenu`, the
-  `command` event, Nendo's Add taken by a view, a view's commands in Ctrl K and its keys,
-  and Nendo's keys working inside a view (W-090, direction A of the design canvas). No
-  rung: nothing reaches the file. Written before any code, on the owner's standing
-  pre-acceptance.
-- 2026-09-28 — one row above a view: the breadcrumb picks the record type and the view, and
-  a custom view's controls share the Use toolbar's row with Add (W-092, options A and C of
-  its canvas). Accepted on the owner's pick and standing pre-acceptance.
-- 2026-09-29 — a view takes part in Back and Forward: `ui.setPlace` declares its place as a
-  step or a correction, the Workbench keeps it for the session against the screen it is on,
-  and hands it back as the event `place` or in `context.place` (W-127, the owner's F-215). No
-  rung: nothing reaches the file. Written with the code, on the owner's standing
-  pre-acceptance.
-- 2026-10-01 — files a person hands a view: the browser's own file input and a drop on the
-  view's frame, measured in a real host; the system file pickers are refused to a view by the
-  browser, and Nendo's drop hint steps aside over a view. No `files.open` call and no rung
-  (W-104). Written with the measurement, on the owner's standing pre-acceptance.
-- 2026-10-02 — downloads without the browser's panel: the host saves a view's download to
-  Downloads and never shows WebView2's downloads panel, whose question about an `.xml` file froze
-  Nendo after Keep (F-237). On the owner's standing pre-acceptance.
-- 2026-10-02 — a view as a screen of its own: `extensionView` is a root of the file, listed in
-  the first picker of the Use breadcrumb, and `opensFile` on one makes the file open on it,
-  unless views do not run there (W-106, rung 1.42.0). `extensionTile` moves to the next rung.
-  Written before the code, on the owner's standing pre-acceptance.
-- 2026-10-04 — undo and redo of a view's own batches ([ADR-0023](0023-a-view-undoes-its-own-revisions.md),
-  W-103): `records.batch` answers its revision, and `records.undo` and `records.redo` compensate a
-  revision this frame was answered in this visit, through `data.undoRecordWrites`, which admits the
-  view's actor for its own package's record revisions only. No rung. On the owner's standing
-  pre-acceptance.
-- 2026-10-06 — a view's drafts and unanswered writes (review R-001, R-011): a view keeps its own
-  drafts recoverable in its origin's storage, because Nendo ends frames off screen without
-  asking; `records.batch` takes a `writeKey`, so an unanswered batch is finished once, and a
-  write kept but not read back answers `written-not-read`. No rung. On the owner's standing
-  pre-acceptance.
-- 2026-10-06 — a proposed package file can be read whole in the review, through the host's
-  `proposal.readPackageFile`, from the proposal's validated copy and bound to its reviewed
-  digest (review R-017). No rung. On the owner's standing pre-acceptance.
-- 2026-10-11 — a view's permission requests other than a clipboard read and several
-  downloads are refused, and its frame no longer delegates location. They had gone to
-  WebView2's own prompt, whose answer is kept for the Workbench's origin and so would have
-  covered every view of every file (DAE-02 in a broad review). No rung. On the owner's
-  standing pre-acceptance.
-- 2026-10-13 — a view's storage is per file instance (DAE-06 in a broad review, the owner's
-  choice of 2026-10-13): the origin's key hashes the instance ID with the application and
-  package IDs. A Duplicate, or any file stating another file's application ID, no longer
-  shares that file's view storage, drafts or unanswered writes. The cost, accepted: a
-  Duplicate's views start with empty storage. A byte-for-byte copy made outside Nendo keeps
-  the instance ID and still shares. Settings and development links stay keyed by
-  application ID. Rider, so the upgrade does not move the person's own views off their
-  storage: on the device's first start of a host with this key, before the file being opened
-  is recorded, the host writes `view-origin-carry.json` to device state under its lock,
-  naming for each application in the recent-file list the instance opened most recently.
-  That instance keeps the old key; every other instance, and every Duplicate made afterwards
-  (a new instance ID), takes the new one. The document is written once and never again; an
-  empty or absent list writes an empty map, and a list that cannot be read just then writes
-  nothing until a later start. No rung. On the owner's standing pre-acceptance.
-- 2026-10-14 — sandbox and broker hardening (W-229, the WXS findings of a broad review),
-  within driver 6 and the kill switches. A view that moves the person's page on its own, its
-  frame not focused, does so at most once a second (`ui.openRecord`, `ui.openScreen` and
-  `ui.openStudio` together; the next is `busy`), because a view asking in a loop kept the
-  Workbench busy and the person's clicks, the switches among them, were dropped. The bound is
-  kept by mount through reconnects, counts only moves that started, and does not apply while
-  the person is in the view. A switch pressed while an action runs is held on its own and made
-  when the action ends, however it ended; it is never replaced or dropped. A view that is not on screen, held for the review of its own proposal, may not
-  move the page, draw a menu or keep a place (`not-allowed`, or a null menu). The refusal over
-  unsaved typing is said on the page only when the view's frame has focus. A hung or crashed
-  view's overlay takes focus when the view had it, since its keys reach Nendo only through the
-  view's own script. The toolbar's bound is 16 KiB of JSON in all, as built, not "128 in all".
-  No method, no rung. On the owner's standing pre-acceptance.
+- A received file's code causes harm the kill switches do not cover.
+- A guard shows a view can reach the Workbench or the host bridge, or stall Studio.
+- Nendo is used with files from people the owner does not trust, or on a shared computer.
+- Extensions without a view are wanted: contributed commands, event handlers or background
+  work. They need their own decision.
+- A view needs to accept proposals, or an extension needs raw SQL. Both stay out of scope.

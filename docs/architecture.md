@@ -1,120 +1,11 @@
 # Architecture
 
-This document describes the current state of the system as built. The
-[contracts](contracts/) hold the behavioural detail. The
-[decision records](decisions/README.md) hold the reasoning behind each boundary.
-If this document and the code disagree, the code is correct. Report the
-difference and fix this file.
+This document describes the system as built. The [contracts](contracts/) hold the
+behavioural detail; the [decision records](decisions/README.md) hold the reasoning
+behind each boundary. If this document and the code disagree, the code is correct. Fix
+this file.
 
 ## Composition
-
-[ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md), accepted
-2026-09-25, puts a custom view's code in the `.nendo` file and runs views inline in
-the Workbench. Phases 0 to 5 are delivered, except Phase 5's tile; Phase 2 (product
-0.14.0) put the frames in place:
-
-- A view's code is a package that the file carries, at host 1.33.0 (see
-  [The file](#the-file)). It arrives through a proposal, and a person reviews it as
-  code.
-- A view is a cross-origin frame in the Workbench's own WebView2. Each package in
-  each file instance has an origin of its own under the reserved `.example` domain, so
-  Chromium gives each package a renderer process of its own, apart from the
-  Workbench's, and a Duplicate's views storage of their own. The instance each
-  application last opened before the instance ID entered the key keeps its old
-  origin, recorded once in `view-origin-carry.json` (`ExtensionOriginCarry.cs`,
-  ADR-0013 2026-10-13).
-- The host answers every view origin from the open file, through the browser's
-  resource-request event, and serves the view API, `/_nendo/api.js`, from the
-  installed Workbench.
-- A view calls `window.nendo`. The Workbench's broker checks each request against a
-  closed method table and answers it through the Workbench's own typed bridge, so a
-  view is one more client of the same application services. The table holds reads,
-  navigation, record writes and commands under the package's own name, proposals the
-  person reviews, and the view's own state; never promotion, behaviour or file actions.
-- Device-local kill switches decide whether views run. A view's renderer ending
-  stops that view alone. Only a failure of the Workbench's own renderer or of the
-  browser sends the app to recovery, whose panel can restart without custom views.
-
-The contained helper, `Nendo.ExtensionHost`, which ran one view at a time in an
-AppContainer and a Job Object with a browser of its own, is deleted. So are the
-device package cache, device consent and the native pane. The
-[custom-view contract](contracts/custom-views.md) has the rules, and
-[Authoring a custom view](custom-view-authoring.md) tells how to write a view.
-A view writes records, runs commands, proposes changes and keeps state in the file,
-and a package can be developed from a folder on this device (Phases 3 and 4). A view
-can be a screen of the file, listed beside the front page, and the screen the file
-opens on (`extensionView`, Phase 5, W-106); the tile of the same phase is not yet
-delivered ([roadmap](roadmap.md)). Since 2026-09-28 a
-view's controls can be the Workbench's own: the view declares them, and the Workbench
-draws them in its toolbar and menus, lists them in Ctrl K and runs their keys, and api.js
-hands Nendo's own keys back when they are pressed inside a view (W-090).
-
-[ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) accepts
-bounded calculations and host-owned local actions. Stages S0–S9 of its
-[implementation plan](design/adr-0008-implementation-plan.md) are delivered. The
-Engine holds a protected definition table, a bounded expression runtime over NCalc,
-calculated fields, and trigger expansion inside the initiating write transaction.
-The file format gained these rungs and operations:
-
-- The behaviour rung (minimum host 1.17.0) and two new canonical definition
-  operations.
-- A rung for a field or section that a calculation shows or hides (1.18.0).
-- A rung for colour and the record-page header (1.19.0, ADR-0004's 2026-09-14
-  amendment). It adds a `tone` on a choice option, in its own protected table on
-  the layout ladder's tone rung, after the behaviour rung. It also adds a `detailSurface` that names a title,
-  subtitle or accent field.
-- A rung for the first charts (1.20.0): a `breakdownChart` or a `progressTile`. The
-  host reads each through one exact grouped aggregate over a closed grouping.
-- A rung for the timeline (1.21.0): a `timelineSurface` that places records on a
-  spine by a Date field, one civil year at a time. An optional end date draws as a
-  span from its start.
-- A rung for the gallery and the rating scale (1.22.0): a `gallerySurface` of cards
-  over a list's window, and an Integer field drawn on a closed scale. The scale is
-  stored in the layout ladder's then-last rung.
-- A rung for the front page (1.23.0): an `overviewSurface` that belongs to the file
-  and not to a record type, with a `recentList` and a `rangeTile` under it.
-- A rung for what the file is for (1.24.0): prose that the file carries itself. The
-  prose is in its own protected table, on the layout ladder's rung below the
-  custom-view package tables.
-  The describe resource leads with it, and it belongs to no record type and no
-  node.
-- A rung for a file's own look (1.38.0, ADR-0004's 2026-09-28 amendment): the tone
-  and letter of the badge its icons carry, in its own protected table on the layout
-  ladder. Only what a file chose is stored; the defaults come from the application ID
-  and the file's name.
-- A rung for folded history (1.39.0, ADR-0021): the evidence of each fold in its own
-  protected table on the layout ladder's fold rung, after the look's, added by a file's
-  first fold.
-- A rung for a file's own picture as its icon (1.55.0, ADR-0004's 2026-10-19
-  amendment, W-001): `__nendo_application_icon` names an embedded square PNG, on the
-  rung above media, added when a file first chooses one. The look's tone and letter
-  stay in their own table.
-
-Every other boundary below is unchanged.
-
-Only the Engine references NCalc. The Engine withholds the NCalc compile and build
-assets from every consumer. Thus an expression can reach NCalc only through the
-typed adapter in `Nendo.Engine/Behaviour/`. If a file holds no calculations, the
-host never loads NCalc.
-
-If a file carries a trigger, nobody can edit the file until this device approves
-that exact behaviour. The host checks the approval again at the commit boundary.
-Approvals are device state under the per-user root, and never go inside a `.nendo`
-file. Thus a file can never carry its own permission, and a copy always asks
-again. The Engine consumes a narrow authority interface and never learns where the
-host keeps approvals.
-
-Studio and custom surfaces both show calculated fields, and since 2026-09-30 (ADR-0008's
-amendment of that date, host 1.40.0) a list, board, calendar or tile filters and sorts by one.
-The store reads every record the query's stored predicates leave, at most 10,000, calculates
-them, and gives the SQL of the page, the count and each aggregate the records that pass and
-their order as two functions of the record ID. A plain related count on a read is the store's
-own `COUNT(*)`, without the related-row ceiling. The approval route is in
-File status. The real-host journey drives all of this through the real
-WinUI/WebView2 host.
-[calculations-and-actions.md](contracts/calculations-and-actions.md) records the
-evidence for each ADR obligation. Production retains coordinator-owned atomic
-writes, exact proposal replay, and permanent Studio/recovery access.
 
 ```text
 Nendo.Workbench  --closed typed bridge-->  Nendo.Desktop  -->  Nendo.Engine
@@ -124,194 +15,230 @@ Nendo.Workbench  --closed typed bridge-->  Nendo.Desktop  -->  Nendo.Engine
 custom-view frames (an origin, and a renderer, per package per file)
 ```
 
-| Project | Role | Size |
-| --- | --- | --- |
-| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. | ~32.0k lines |
-| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, serving custom views from the open file, and the launched agent's ACP client. | ~12.7k lines |
-| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (how-to guides, how Nendo works, and an agent reference that the production gate ties to the MCP surface). Vite builds it and the view API, and the host bundles both. | ~27.1k lines of TypeScript |
-| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. | ~12.1k lines |
+| Project | Role |
+| --- | --- |
+| `src/Nendo.Engine` | Storage, typed operations, revisions, proposals, the semantic compiler. The only code that opens SQLite. |
+| `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, serving custom views from the open file, and the launched agent's ACP client. |
+| `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (guides, how Nendo works, and an agent reference the production gate ties to the MCP surface). Vite builds it and the view API; the host bundles both. |
+| `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. |
 
-The sizes count the non-blank lines of each project's tracked `.cs` files, or `.ts` files
-without `.d.ts` for the Workbench, on 2026-10-10. Styles, Markdown and generated output
-are not counted.
+No UI or MCP adapter receives SQL, a SQLite handle, physical identifiers, the database
+path, arbitrary filesystem/network/process capability, or a generic host invocation.
+Nor does a custom view: it reaches the file only through the broker's closed method
+table ([ADR-0005](decisions/0005-host-application-services-and-write-coordinator.md),
+[ADR-0017](decisions/0017-production-composition-and-build-layout.md)).
 
-A gate enforces the dependency arrows. `Test-Production.ps1` fails the build if
-`Microsoft.Data.Sqlite`, a SQLite connection type or `SQLitePCL` appears anywhere
-in Desktop or LocalMcp. It also fails the build if any project under `src/` or
-`tests/` references `prototypes/`, if `src/Nendo.ExtensionHost` comes back, if the
-Desktop registers a catch-all `"*"` resource filter, or if a package source under
-`extensions/` names `chrome.webview`.
+`Test-Production.ps1` fails the build if `Microsoft.Data.Sqlite`, a SQLite connection
+type or `SQLitePCL` appears in Desktop or LocalMcp; if any project under `src/` or
+`tests/` references `prototypes/`; if `src/Nendo.ExtensionHost` exists; if the Desktop
+registers a catch-all `"*"` resource filter; or if a package source under `extensions/`
+names `chrome.webview`.
 
-No UI or MCP adapter receives SQL, a SQLite handle, physical identifiers, the
-database path, arbitrary filesystem/network/process capability, or a generic
-host invocation. Nor does a custom view: it reaches the file only through the
-broker's closed method table. See
-[ADR-0005](decisions/0005-host-application-services-and-write-coordinator.md)
-and [ADR-0017](decisions/0017-production-composition-and-build-layout.md).
+### Custom views
+
+A custom view's code is a package the `.nendo` file carries, run inline in the
+Workbench ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md),
+[custom-view contract](contracts/custom-views.md),
+[Authoring a custom view](custom-view-authoring.md)).
+
+- A package arrives through a proposal, and a person reviews it as code. It can also be
+  developed from a folder on this device.
+- A view is a cross-origin frame in the Workbench's own WebView2. Each package in each
+  file instance has its own origin under the reserved `.example` domain, so Chromium
+  gives it a renderer process apart from the Workbench's, and a Duplicate's views get
+  their own storage. The instance each application last opened before the instance ID
+  entered the origin key keeps its old origin, recorded once in
+  `view-origin-carry.json` (`ExtensionOriginCarry.cs`).
+- The host answers every view origin from the open file through the browser's
+  resource-request event, and serves the view API, `/_nendo/api.js`, from the installed
+  Workbench.
+- A view calls `window.nendo`. The broker checks each request against a closed method
+  table and answers it through the Workbench's own typed bridge. The table holds reads,
+  navigation, record writes and commands under the package's own name, proposals the
+  person reviews, and the view's own state; never promotion, behaviour or file actions.
+- A view can be a screen of the file (`extensionView`), listed beside the front page and
+  able to be the screen the file opens on. The tile kind is not built
+  ([roadmap](roadmap.md)).
+- A view can declare controls that the Workbench draws in its toolbar and menus, lists in
+  Ctrl K and runs the keys of. api.js hands Nendo's own keys back when pressed in a view.
+- Device-local kill switches decide whether views run. A view's renderer ending stops
+  that view alone. Only a failure of the Workbench's renderer or of the browser sends the
+  app to recovery, whose panel can restart without custom views.
+
+### Calculations and actions
+
+[ADR-0008](decisions/0008-general-scripting-and-capability-isolation.md) accepts bounded
+calculations and host-owned local actions: a protected definition table, a bounded
+expression runtime over NCalc, calculated fields, and trigger expansion inside the
+initiating write transaction
+([calculations-and-actions contract](contracts/calculations-and-actions.md)).
+
+- Only the Engine references NCalc, and it withholds NCalc's compile and build assets
+  from every consumer, so an expression reaches NCalc only through the typed adapter in
+  `Nendo.Engine/Behaviour/`. A file with no calculations never loads NCalc.
+- If a file carries a trigger, nobody can edit it until this device approves that exact
+  behaviour; the host checks again at the commit boundary. Approvals are device state
+  under the per-user root, never in a `.nendo` file, so a file cannot carry its own
+  permission and a copy asks again. The Engine consumes a narrow authority interface and
+  never learns where approvals are kept. The approval route is in File status.
+- A list, board, calendar or tile can filter and sort by a calculated field. The store
+  reads every record the stored predicates leave, at most 10,000, calculates them, and
+  gives the page's SQL, the count and each aggregate the passing records and their order
+  as two functions of the record ID. A plain related count is the store's own
+  `COUNT(*)`, without the related-row ceiling.
 
 ## The file
 
-At rest, the file is one SQLite file with the extension `.nendo`, the application
-ID `0x4E454E44` and the identifier `nendo.sqlite.application`. Journals, proposal
-clones and backups are host-owned operational derivatives. They are never
-user-managed artefacts. A rollback journal that a crashed writer left is played back
-by SQLite itself only when the person opens that file outside a synced folder, once plain
-reads show it could be the file's and SQLite reports it hot, under the file's write lease
-and after keeping both files under names SQLite does not pair; the kept copy is named until
-the person removes it. Any other journal is refused untouched, with its reason (ADR-0012,
-2026-10-13).
+At rest a file is one SQLite file with the extension `.nendo`, the application ID
+`0x4E454E44` and the identifier `nendo.sqlite.application`. Journals, proposal clones and
+backups are host-owned operational derivatives, never user-managed artefacts.
 
-Storage uses rollback DELETE with `synchronous=FULL` and a 2,000 ms busy timeout.
-In measurements, WAL had materially better long-read and read-throughput
-behaviour. It also exceeded the allowed writer-tail regression, so the project did
-not select it
-([ADR-0011](decisions/0011-local-sqlite-journal-and-copy-discipline.md)).
+Storage uses rollback DELETE with `synchronous=FULL` and a 2,000 ms busy timeout; WAL
+exceeded the allowed writer-tail regression
+([ADR-0011](decisions/0011-local-sqlite-journal-and-copy-discipline.md)). A rollback
+journal a crashed writer left is played back by SQLite only when the file is opened
+outside a synced folder, once plain reads show it could be the file's and SQLite reports
+it hot, under the file's write lease and after keeping both files under names SQLite
+does not pair; the kept copy is named until the person removes it. Any other journal is
+refused untouched, with its reason
+([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md)).
+
+**Cloud sync is unsupported.** Where practical, the host detects known sync-managed paths
+(OneDrive, Dropbox, Google Drive) and warns. The project makes no sync-safety claim.
+
+### Host versions
 
 A file records the `minimumHostVersion` that it needs. The constants are in
-`src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes
-what a file can contain. `1.11.0` is for composable surfaces. After it, each
-version adds one capability, usually a widened semantic shape. The highest version
-is `1.55.0`, for a file's own picture as its icon (ADR-0004, 2026-10-19, W-001). `1.54.0` is for a
-summary tile, breakdown or ranking over a calculated number, or a breakdown grouped
-by a reference (ADR-0004, 2026-10-18, W-249). `1.53.0` is for a formula that calls `AddDays` or a filter on
-`thisWeek` or `thisMonth` (ADR-0008 and ADR-0004, 2026-10-18, W-248). `1.52.0` is for a media field or an
-embedded picture (ADR-0031). `1.51.0` is for a reference
-whose label changed with `schema.setReferenceLabel` (ADR-0003, 2026-10-14 note). `1.50.0` is for the three history indexes a fold adds (ADR-0021, 2026-10-13
-note), which a file never folded does not have. `1.49.0` is for a formula that calls `ToText` (ADR-0008,
-2026-10-13). `1.48.0` is for a
-cleared screen property (`ui.removeProperty`, ADR-0004, 2026-10-13), `1.47.0` for a create
-step's links, `IsEmpty` or a total over a calculation (ADR-0008, 2026-10-10), and `1.46.0`
-for a full-text index (ADR-0028). `1.45.0` is for a link rule (ADR-0026, W-105). `1.44.0` is for a text field shown as Markdown
-(W-173), and `1.43.0` for a package of kind skill (ADR-0024, W-160). `1.42.0` is for a custom view
-as a screen of the file (`extensionView`, ADR-0013 Phase 5, W-106). `1.34.0` is for a custom view defined by rules that earlier hosts refused
-(ADR-0013, 2026-09-25). `1.33.0` is for custom-view packages carried in the file, `1.32.0` a
-custom view on a record page (`extensionRecordPanel`), `1.31.0` a custom view of one
-record type as typed columns (`extensionRecordsSurface`), `1.30.0` a view at
-protocol 2 and `1.29.0` a custom graph (`extensionGraphSurface`). A view that the
-earlier rules accept keeps its earlier rung.
+`src/Nendo.Engine/NendoFormat.cs`. They step with each capability that changes what a
+file can contain. `1.11.0` is for composable surfaces. After it, each version adds one
+capability, usually a widened semantic shape. The highest version is `1.55.0`, for a
+file's own picture as its icon.
 
-`src/Nendo.Engine/SemanticCapability.cs` computes from its shape which of these
-versions a stored definition needs. It computes this over the tree that a mutation
-leaves, not over the operations that the mutation submitted. Contract version 3
-covers both a plain form and a tabbed page with two boards, so the version on a
-root cannot give the answer. Also, a move that relocates a node changes the answer
-without setting any property.
+| Rung | Capability | Rung | Capability |
+| --- | --- | --- | --- |
+| 1.12 | `summaryTile` on a list or board | 1.34 | a view defined by rules earlier hosts refused |
+| 1.13 | several `recordCommand` roots | 1.35 | a declared hierarchy |
+| 1.14 | several `recordList`/`boardSurface` roots | 1.36 | `outlineSurface` |
+| 1.15 | `tabGroup` | 1.37 | a unique field and its sequence |
+| 1.16 | Date `calendarSurface` with an undated view | 1.38 | a file's own look (badge tone and letter) |
+| 1.17 | behaviour definitions | 1.39 | folded history |
+| 1.18 | a field or section a calculation shows or hides | 1.40 | filter or sort by a calculated field |
+| 1.19 | choice `tone`, record-page header (`detailSurface`) | 1.41 | records kept in new files |
+| 1.20 | `breakdownChart`, `progressTile` | 1.42 | `extensionView` |
+| 1.21 | `timelineSurface` | 1.43 | a package of kind skill |
+| 1.22 | `gallerySurface`, the rating scale | 1.44 | a text field shown as Markdown |
+| 1.23 | `overviewSurface`, `recentList`, `rangeTile` | 1.45 | a link rule |
+| 1.24 | what the file is for | 1.46 | a full-text index |
+| 1.25 | `trendChart`, `activityGrid` | 1.47 | a create step's links, `IsEmpty`, a total over a calculation |
+| 1.26 | `matrixSurface`, `rankedList` | 1.48 | `ui.removeProperty` |
+| 1.27 | a board grouped by a Reference field | 1.49 | `ToText` |
+| 1.28 | `opens` on a section | 1.50 | the three history indexes a fold adds |
+| 1.29 | `extensionGraphSurface` | 1.51 | `schema.setReferenceLabel` |
+| 1.30 | a view at protocol 2 | 1.52 | a media field or an embedded picture |
+| 1.31 | `extensionRecordsSurface` | 1.53 | `AddDays`, a `thisWeek` or `thisMonth` filter |
+| 1.32 | `extensionRecordPanel` | 1.54 | a tile, breakdown or ranking over a calculated number; a breakdown grouped by a reference |
+| 1.33 | custom-view packages in the file | 1.55 | a file's own picture as its icon |
 
-The host only raises a recorded minimum, and never lowers it. An older host
-refuses a newer file explicitly, and does not open it partially. Opening an older
-file never upgrades or rewrites it.
+[semantic-surfaces.md](contracts/semantic-surfaces.md) places each rung as a node shape
+or in its list of the rest. A view the earlier rules accept keeps its earlier rung.
 
-From product 1.0.0, a file that 1.0.0 opens normally opens normally in every later 1.x,
-with its definitions and data intact. The ladder stood at 1.51.0 then. A 1.x host adds
-rungs and never drops one ([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md),
-2026-10-14 amendment). `FormatPromiseTests` holds this against the frozen files in
+`src/Nendo.Engine/SemanticCapability.cs` computes the required version from the shape of
+the tree a mutation leaves, not from the operations submitted: version 3 covers both a
+plain form and a tabbed page with two boards, and a move changes the answer without
+setting any property. The host only raises a recorded minimum, never lowers it. An older
+host refuses a newer file explicitly and never opens it partially. Opening an older file
+never upgrades or rewrites it.
+
+A file that product 1.0.0 opens normally opens normally in every later 1.x, with its
+definitions and data intact; a 1.x host adds rungs and never drops one (ADR-0012).
+`FormatPromiseTests` holds this against the frozen files in
 `tests/Nendo.Engine.Tests/Fixtures/Format1/`.
 
-Custom-view packages in the file are four protected tables on the layout ladder's
-extension rung, after the purpose's: the packages, a content store, the files and view state. The Engine
-creates them on the first extension write, never at file creation. A file that
-never carries a package keeps its layout and the host version it states. The
-content store is addressed by SHA-256. Each distinct content is stored once, a file
-row names it, and replaced or removed content stays, so compensation restores the
-exact bytes. Operation and history rows carry the hash, the size and the media
-type, never the bytes. An ordinary open checks the tables' shape and bounds. An
-explicit integrity verification also reads every stored content and compares it
-with its hash. A view that is shown runs its package's code, which the host serves
-from these tables through a content cache keyed by SHA-256. The
-[custom-view contract](contracts/custom-views.md#packages-in-the-file) has the
-operations, the bounds and the review.
+### Protected tables on the layout ladder
 
-A package of kind skill ([ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md))
-holds a `SKILL.md` and supporting files for an agent instead of view code. Its kind is a row in
-`__nendo_extension_kind`, the ladder's skill rung after the new-file rung, which the first skill package creates; a
-package without a row is a view. The package table's text is fixed by released layouts, so
-a skill package's required entry point column holds `SKILL.md` and every read ignores it.
-Validation refuses a skill package whose `SKILL.md` lacks the frontmatter that names it
-(`NPROP012`). The local MCP host lists each skill package in `skills/list` after its own
-skill and serves its files under `skill://{packageId}/`; the Desktop host gives it no
-origin, so nothing serves it to a frame or writes in its name.
+Each optional capability that needs storage is a protected table on the layout ladder,
+created by its first write and never at file creation, so a file that never uses it keeps
+its layout and stated host version.
 
-A package's Markdown files under `help/` are the file's own help pages
-([ADR-0027](decisions/0027-a-file-carries-its-own-help.md)). The Desktop host reads them
-for the Workbench with `help.readPages`, and Help shows them first under *About this app*,
-rendered by the Workbench's escaping Markdown renderer. They are ordinary package files, so
-storage, review and serving are unchanged.
-
-A file may embed pictures ([ADR-0031](decisions/0031-media-in-user-data.md)). A media field is
-a Text field presented as `media` whose value is an address; an embedded picture is the ladder's
-media rung, after search: `__nendo_media` holds each item's metadata and `__nendo_media_content`
-its bytes, once per SHA-256, put by `media.put` with the bytes beside the operation and never in
-history. The end of every mutation refuses a `media:` address the file does not hold. Opening
-counts and checks every page but the media content's, and the content digest hashes its keys,
-so a file's pictures do not lengthen its open; the explicit integrity check hashes them. The
-[media contract](contracts/media.md) has the address, the bounds and the measurements.
-
-A file may carry a full-text index of its text fields
-([ADR-0028](decisions/0028-full-text-search-in-the-file.md)). The index is the layout
-ladder's search rung, built on the link-rule rung: `__nendo_search_doc` maps each record and searched field to a row of
-`__nendo_search`, an FTS5 table.
-
-- **Created by** `application.buildSearchIndex`, never at file creation.
-- **Kept current by** `MaintainSearchIndexAsync`, at the end of every mutation in both choke
-  points: a written record is indexed again from its row, and a record type whose searched
-  fields changed is indexed again whole.
-- **Derived, so left out of the checks:** the content digest leaves the index out. The layout
-  signature skips the five tables FTS5 writes itself, and a test pins their DDL. The commit's
-  per-table row ceiling skips the index tables.
-- **Damage:** a damaged index fails `PRAGMA integrity_check` at open.
-- **One read for every client:** the Workbench's Ctrl K and Studio, custom views
-  (`records.search`) and MCP use the same search.
-
-**Cloud sync is unsupported.** Where practical, the host detects known
-sync-managed paths (OneDrive, Dropbox, Google Drive) and shows a warning. The
-project makes no sync-safety claim and has no live-provider evidence.
+- **Custom-view packages**: four tables on the extension rung, after the purpose's (the
+  packages, a content store, the files, view state). Content is addressed by SHA-256 and
+  stored once; replaced or removed content stays, so compensation restores exact bytes.
+  Operation and history rows carry hash, size and media type, never bytes. An ordinary
+  open checks shape and bounds; an explicit integrity verification also hashes every
+  content. The host serves a shown view's code through a content cache keyed by SHA-256
+  ([contract](contracts/custom-views.md#packages-in-the-file)).
+- **Skill packages** ([ADR-0024](decisions/0024-a-file-carries-its-own-agent-skill.md)):
+  a `SKILL.md` and supporting files for an agent. Its kind is a row in
+  `__nendo_extension_kind` (the skill rung, after the new-file rung); a package without a
+  row is a view. Its required entry-point column holds `SKILL.md` and every read ignores
+  it. Validation refuses a `SKILL.md` without the frontmatter that names it (`NPROP012`).
+  MCP lists each in `skills/list` after its own skill and serves its files under
+  `skill://{packageId}/`. The Desktop gives it no origin, so nothing serves it to a frame
+  or writes in its name.
+- **Help pages** ([ADR-0027](decisions/0027-a-file-carries-its-own-help.md)): a package's
+  Markdown under `help/`, read with `help.readPages` and shown first in Help under *About
+  this app* through the Workbench's escaping Markdown renderer.
+- **Media** ([ADR-0031](decisions/0031-media-in-user-data.md),
+  [contract](contracts/media.md)): the media rung, after search. `__nendo_media` holds
+  metadata and `__nendo_media_content` the bytes, once per SHA-256, put by `media.put`
+  with the bytes beside the operation and never in history. Every mutation ends by
+  refusing a `media:` address the file does not hold. Opening skips the media content's
+  pages and the content digest hashes only its keys, so pictures do not lengthen an open;
+  the explicit integrity check hashes them.
+- **Full-text search** ([ADR-0028](decisions/0028-full-text-search-in-the-file.md)): the
+  search rung, on the link-rule rung. `__nendo_search_doc` maps each record and searched
+  field to a row of the FTS5 table `__nendo_search`. `application.buildSearchIndex`
+  creates it; `MaintainSearchIndexAsync` keeps it current at the end of every mutation in
+  both choke points. It is derived: the content digest leaves it out, the layout
+  signature skips the five FTS5 shadow tables (a test pins their DDL), and the per-table
+  row ceiling skips it. A damaged index fails `PRAGMA integrity_check` at open. Ctrl K,
+  Studio, `records.search` and MCP share the same search.
+- **Look and icon**: the badge's tone and letter, stored only when chosen (defaults come
+  from the application ID and file name); `__nendo_application_icon`, on the rung above
+  media, names an embedded square PNG as the file's icon.
+- **Purpose**: prose on the rung below the package tables. The describe resource leads
+  with it; it belongs to no record type and no node.
+- **Folded history**: `__nendo_history_fold` on the fold rung, after the look's.
 
 ## Studio record windows
 
 Studio flat tables use AG Grid Community's Infinite Row Model through
-`data.queryRecordWindow` and `NendoApplicationService.QueryRecordWindowAsync`.
-The Engine shares the cursor query's typed predicates, exact comparisons, calculated
-query limits and deterministic ordering. A signed token binds file/session, complete
-query and revision. Storage performs a bounded offset read (maximum 200 records);
-an optional stable-ID lookup returns the record's current position in that same query.
-The Workbench requests 100 rows per block, retains five blocks and discards obsolete
-generations. This adds no custom-view or MCP authority and changes no file format.
-See [the query contract](contracts/queries.md) and [delivery plan](design/lazy-data-views.md).
+`data.queryRecordWindow` and `NendoApplicationService.QueryRecordWindowAsync`, sharing the
+cursor query's typed predicates, exact comparisons, calculated query limits and
+deterministic ordering. A signed token binds file/session, complete query and revision.
+Storage performs a bounded offset read (maximum 200 records); an optional stable-ID lookup
+returns the record's position in that query. The Workbench requests 100 rows per block,
+retains five blocks and discards obsolete generations
+([query contract](contracts/queries.md)).
 
 ## Data model
 
-User entities materialise as ordinary relational tables. Stable semantic IDs map
-entities and fields to physical names, so a display name can change without
-breaking bindings. The schema service is the only path to physical DDL and
-protected metadata. The host detects external changes as drift. Drift produces a
-normal, repairable-safe or read-only open, never a guessed repair
-([ADR-0003](decisions/0003-relational-user-data-and-protected-metadata.md)).
+User entities materialise as ordinary relational tables. Stable semantic IDs map entities
+and fields to physical names, so a display name can change without breaking bindings. The
+schema service is the only path to physical DDL and protected metadata. External changes
+are detected as drift, which produces a normal, repairable-safe or read-only open, never
+a guessed repair ([ADR-0003](decisions/0003-relational-user-data-and-protected-metadata.md)).
 
-The scalar storage kinds are `text`, `integer`, `decimal`, `boolean`, `date`,
-`datetime`, `uuid` and `reference`. Presentation and constraints refine these
-kinds. Long text, single choice, email, URL and Markdown are all semantics over
-`text`. Multi-choice is a relationship, and it is out of scope.
-
-Numeric exactness is a contract. `decimal` is the .NET decimal domain stored as
-exact TEXT. No numeric value passes through a JavaScript number anywhere in the
-Workbench transport or edit path. See [contracts/scalars.md](contracts/scalars.md).
+The scalar storage kinds are `text`, `integer`, `decimal`, `boolean`, `date`, `datetime`,
+`uuid` and `reference`. Long text, single choice, email, URL, Markdown and media are
+semantics over `text`. Multi-choice is a relationship, and out of scope. `decimal` is the
+.NET decimal domain stored as exact TEXT; no numeric value passes through a JavaScript
+number in the Workbench transport or edit path ([scalars contract](contracts/scalars.md)).
 
 ## Two lanes
 
-The mutation model divides changes by what they affect. A single global revision
-would make every agent proposal stale after any unrelated cell edit.
+Changes are divided by what they affect, so an unrelated cell edit does not make every
+agent proposal stale.
 
-**Data lane**: record create/update/delete, bounded paste and import. Each change
-is a direct validated transaction against the active file, with optimistic
-record-version checks and idempotency keys. Each accepted transaction makes one
-attributable revision.
+- **Data lane**: record create/update/delete, bounded paste and import. Each change is a
+  direct validated transaction against the active file, with optimistic record-version
+  checks and idempotency keys, making one attributable revision.
+- **Application lane**: schema, semantic UI, constraints and declarative commands. Agent
+  work occurs in a proposal clone; validation and semantic diff occur before promotion;
+  acceptance is an explicit host-owned action.
 
-**Application lane**: schema, semantic UI, constraints and declarative commands.
-Agent work occurs in a proposal clone. Validation and semantic diff occur before
-promotion. Acceptance is an explicit host-owned action.
-
-A bootstrap proposal may carry schema, initial records and surfaces together.
-Ordinary record entry never incurs the clone-and-preview cost.
+A bootstrap proposal may carry schema, initial records and surfaces together. Ordinary
+record entry never incurs the clone-and-preview cost.
 
 ### Revision lineages
 
@@ -320,16 +247,15 @@ Ordinary record entry never incurs the clone-and-preview cost.
 - `change_sequence` — monotonic audit ordering across both
 - per-record versions — optimistic concurrency for touched records
 
-A proposal is stale if its required definition revision moved. It is also stale
-if a record that it reads or transforms no longer matches its captured version.
-An edit to an unrelated record does not invalidate a UI-only proposal
+A proposal is stale if its required definition revision moved, or if a record it reads or
+transforms no longer matches its captured version. An edit to an unrelated record does not
+invalidate a UI-only proposal
 ([ADR-0006](decisions/0006-split-revisions-audit-and-compensation.md)).
 
 ### Typed operations
 
-Forty-three operation types are the primitive: every type that a revision can
-record, including the four that only host services create. Semantic diff, undo
-evidence and replay all derive from the same operation stream.
+Forty-five operation types are every type a revision can record. Semantic diff, undo
+evidence and replay derive from the same operation stream.
 
 ```text
 schema.createEntity         data.createRecord              ui.addNode
@@ -340,11 +266,10 @@ schema.setFieldRequired     data.backfillRetiredField      ui.removeProperty
 schema.setRetired           data.convertLegacyReference    behaviour.setDefinition
 schema.setChoiceMetadata    data.setKeptInNewFiles         behaviour.removeDefinition
 schema.configureReference   identity.transition *          application.setPurpose
-schema.setReferenceLabel                                   application.setLook
+schema.setReferenceLabel    media.put **                   application.setLook
 schema.declareHierarchy                                    application.setIcon
-                                                           application.setNewFileLabel
-schema.removeHierarchy                                     application.buildSearchIndex
-schema.setFieldUnique
+schema.removeHierarchy                                     application.setNewFileLabel
+schema.setFieldUnique                                      application.buildSearchIndex
 schema.setFieldSequence     extension.setPackage           extension.removeFile
 schema.setFieldPresentation extension.putFile              extension.removePackage
 schema.setKeptInNewFiles    extension.setState *
@@ -354,40 +279,33 @@ schema.addChoice
 schema.removeChoice *
 ```
 
-`*` marks an operation that only host services create: a restore from deletion
-history, an identity transition, the undo of an added choice option, and a custom
-view's kept state (`nendo.state`, written through the application service). The
-other forty are the closed union that
-the canonical change-set parser accepts and an MCP client may author (see
-`NendoAuthoringOperations.cs`). Whole-definition
-convenience APIs must expand into typed operations before the host records, diffs
-or promotes anything.
+`*` marks an operation only host services create: a restore from deletion history, an
+identity transition, the undo of an added choice option, and a view's kept state
+(`nendo.state`). `**` `media.put` is written by the media service
+(`nendo.data.put_media`, the Workbench), never by a change set. The other forty are the
+closed union the canonical change-set parser accepts and an MCP client may author
+(`NendoAuthoringOperations.cs`). Whole-definition convenience APIs expand into typed
+operations before the host records, diffs or promotes anything.
 
 Every operation declares a reversibility class: `reversible`,
-`reversibleWithRetainedState` or `irreversibleDeclared`, as the wire spells them. A lossy conversion is
-never labelled reversible only because a backup exists. There is no universal
-undo. Compensation applies a proven inverse as a *new* revision and never rewinds
-history.
+`reversibleWithRetainedState` or `irreversibleDeclared`. A lossy conversion is never
+labelled reversible because a backup exists. There is no universal undo: compensation
+applies a proven inverse as a *new* revision and never rewinds history.
 
-A revision of record changes is compensated as a whole, in reverse order, up to 12,800
-operations ([ADR-0023](decisions/0023-a-view-undoes-its-own-revisions.md)): a field is put
-back, a deleted record restored, and a created or restored record deleted, each against the
-version the revision left. A record whose later changes have all been taken back since --
-each change paired with its compensation -- is expected at the version that taking back left.
-A compensation of record changes can itself be compensated, which is how a custom view redoes
-an undo; `data.undoRecordWrites` lets a view do both for a batch its own package wrote. A
-compensated create stays declared irreversible: its record ID stays reserved in deletion
-history.
-
-A definition revision of one operation is compensated only while the definition stands as it
-left it. Most definition operations carry their expected revision; a screen edit
-(`ui.setProperty`, `ui.removeProperty`, `ui.addNode`, `ui.moveNode`) does not, so its inverse
-compares the revision's own definition revision with the file's, and an added node is removed,
-a moved node put back to its retained parent and place, a property's first value cleared or a
-cleared property given back only then. Going back over later edits could restore a binding
-a later revision retired. A compensation of the definition is also compiled before it commits,
-and refused if it would turn screens that compile into ones that do not: the state it returns
-to may be the middle of a proposal of several mutations, which was never compiled.
+- **Record changes** are compensated a revision at a time, in reverse order, up to 12,800
+  operations ([ADR-0023](decisions/0023-a-view-undoes-its-own-revisions.md)): a field put
+  back, a deleted record restored, a created or restored record deleted, each against the
+  version the revision left (or, for a record whose later changes were all taken back,
+  the version that left). A compensation can itself be compensated, which is how a view
+  redoes an undo; `data.undoRecordWrites` lets a view do both for a batch its package
+  wrote. A compensated create stays irreversible: its record ID stays reserved.
+- **A definition revision** of one operation is compensated only while the definition
+  stands as it left it. A screen edit (`ui.setProperty`, `ui.removeProperty`,
+  `ui.addNode`, `ui.moveNode`) carries no expected revision, so its inverse runs only when
+  the file's definition revision is the revision's own; going back over later edits
+  could restore a binding a later revision retired. A definition compensation is
+  compiled before it commits and refused if it would turn compiling screens into ones
+  that do not.
 
 ## Proposal lifecycle
 
@@ -397,725 +315,437 @@ Draft → Validating → Invalid | Previewable
                    → Active | Failed
 ```
 
-Compensation is not a proposal state. Where the accepted operations support it,
-compensation applies their inverse as a new revision.
-
-A proposal binds application and instance identity, required definition revision,
-touched record versions, canonical operations, validation evidence and the
-semantic diff.
+Compensation is not a proposal state. A proposal binds application and instance
+identity, required definition revision, touched record versions, canonical operations,
+validation evidence and the semantic diff.
 
 **Promotion never replaces the active file with the clone.** The host checks every
-precondition. Then it replays the exact validated operations against the active
-file. Preview and promotion must use the same interpreter and validation version
+precondition, then replays the exact validated operations against the active file.
+Preview and promotion use the same interpreter and validation version
 ([ADR-0007](decisions/0007-proposal-clone-validation-and-replay-promotion.md)).
 
-Below the Unattended access level, there is no MCP accept or promote tool, and
-acceptance is native-owned. The Workbench review calls `PromoteProposalAsync` with
-the reviewed digest. The write gate verifies that digest before replay. At
-Unattended, `nendo.change_set.accept` calls the same service with the same digest
-(see [Agent surface](#agent-surface)).
+Below Unattended there is no MCP accept or promote tool; acceptance is native-owned. The
+Workbench review calls `PromoteProposalAsync` with the reviewed digest, which the write
+gate verifies before replay. At Unattended, `nendo.change_set.accept` calls the same
+service with the same digest ([Agent surface](#agent-surface)).
 
 ## Semantic surfaces
 
 Stored surfaces follow a strict versioned contract
-([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md)). **Contract
-version 3 is the only shape this host compiles.** It is an ordered composable node
-tree that one vocabulary table governs. It covers `recordForm`, `recordList`,
-`boardSurface`, `gallerySurface`, `calendarSurface`, `timelineSurface`,
-`detailSurface`, `overviewSurface`, `recordCommand`, `section`, `tabGroup`,
-`relatedList`, `fieldBinding`, `recentList`, `filterClause`, `commandStep`, a
-bounded `summaryTile` and the three tiles that draw a number: `breakdownChart`,
-`progressTile` and `rangeTile`. It also covers `matrixSurface`, `rankedList`,
-`trendChart` and `activityGrid` (see [Studio and safe mode](#studio-and-safe-mode)),
-the `outlineSurface` of a declared hierarchy (host 1.36.0), and the four custom-view
-kinds: the `extensionGraphSurface` and `extensionRecordsSurface` roots, the
-`extensionView` root that is a screen of the file (host 1.42.0), and the
-`extensionRecordPanel` on a record page.
+([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md),
+[semantic surfaces contract](contracts/semantic-surfaces.md)). **Contract version 3 is the
+only shape this host compiles**: an ordered composable node tree governed by one
+vocabulary table. It covers `recordForm`, `recordList`, `boardSurface`, `gallerySurface`,
+`calendarSurface`, `timelineSurface`, `detailSurface`, `overviewSurface`,
+`recordCommand`, `section`, `tabGroup`, `relatedList`, `fieldBinding`, `recentList`,
+`filterClause`, `commandStep`, `summaryTile`, `breakdownChart`, `progressTile`,
+`rangeTile`, `matrixSurface`, `rankedList`, `trendChart`, `activityGrid`,
+`outlineSurface`, and the custom-view kinds `extensionGraphSurface`,
+`extensionRecordsSurface`, `extensionView` and `extensionRecordPanel`.
 
-`relatedList` is the one kind that does something the vocabulary does not
-describe. It adds a record of the related type with the reference back already
-filled in. It also opens the row that the person clicks (2026-09-18 amendment).
-The file stores nothing for either action, and no rung moves. The node already
-names the target type and the field that points back, and the compiler already
-proved them. Thus an author has nothing more to specify, and every file built
-before the amendment already has the actions.
+`src/Nendo.Engine/SemanticVocabulary.cs` holds that table. The compiler validates against
+it and the host generates the published vocabulary from it, served as
+`nendo://application/vocabulary`, so the host never advertises a kind it will not accept.
+Unknown kinds, unknown properties, illegal parenting and mixed contract versions fail
+closed with `NUIxxx` diagnostics carrying `semanticId` and `propertyPath`. A root at
+version 1 or 2 is refused with `NUI003`. Any error suppresses every custom plan, and the
+host never renders a partial application; Studio, the data and recovery are unaffected.
+Rules a flat table cannot express (which parent admits a property, how a query composes
+against the eight-filter ceiling, whether a tab group encloses a node) move down the
+compiler's recursion as `SurfaceContext`.
 
-Two roots belong to the file and not to a record type: `overviewSurface`
-(2026-09-14 amendment, S4) and, since host 1.42.0, `extensionView` (W-106). The
-compiler groups every other root by its `entityId` and builds one
-`NendoApplicationPlan` for each group. The compiler separates the file's roots
-before that grouping. The overview arrives as its own plan on the compile result,
-and it carries the entity plans that its tiles name; the file's views arrive as
-`Views`, each compiled without children. An entity plan for the overview would need
-an invented entity that nothing stores. Every consumer would then need to know which
-plan was the invented one.
-
-The 2026-09-12 amendment widened that vocabulary within version 3:
-
-- eight `recordList`, `boardSurface`, `calendarSurface` and `recordCommand` roots
-  for each record type, which Use selects by stable ID and not by kind;
-- `summaryTile` on a list or board, with a closed `surface`/`group` scope;
-- `tabGroup`, which names record sections as tabs;
-- a Date-field month calendar with its own undated view.
-
-A flat kind table cannot express some rules: which parent admits a property, how a
-bounded query composes against the eight-filter ceiling, and whether a tab group
-already encloses a node. This information moves down the compiler's recursion as
-`SurfaceContext`. [The semantic surfaces contract](contracts/semantic-surfaces.md)
-gives the rules and the diagnostics.
-
-The project removed contract versions 1 and 2 on 2026-09-12, before the format had
-users. There is one compile path, one plan shape and one digest projection. If a
-stored root declares version 1 or 2, `NUI003` refuses it and the host suppresses
-every custom plan. Studio, the data and recovery are not affected. Board card
-fields come from ordered `fieldBinding` children. The parallel `cardFieldIds`
-property no longer exists.
-
-`src/Nendo.Engine/SemanticVocabulary.cs` holds a single table. The compiler
-validates against this table, and the host generates the published vocabulary
-description from it. Thus the host can never tell a client about a kind that the
-host will not accept. The host serves the table as `nendo://application/vocabulary`,
-so an authoring client reads the contract and does not probe for it.
-
-Unknown kinds, unknown properties, illegal parenting and mixed contract versions
-all fail closed with `NUIxxx` diagnostics that carry `semanticId` and
-`propertyPath`. Any error suppresses every custom plan, and the host does not
-render a partial application. With zero custom nodes, the permanent Studio
-remains.
-
-`summaryTile` computes exact `count`, `sum`, `min` and `max` over an Integer or
-Decimal field. The host folds these values over stored lexemes. `rangeTile` states
-the `min` and `max` of one field. It is the one place where either tile reads a
-**Date**. The host chooses the extremes of a set of civil dates by ordinal
-comparison over the fixed-width ISO form. This comparison needs no arithmetic, and
-so it needs no rounding rule.
-
-The safe-mode fold also answers for a date. Otherwise an aggregate would be exact
-in SQLite and *Unavailable* in safe mode, which gives two answers to one question.
-The host still refuses a sum over a Date, and the refusal names it. The host also
-refuses `avg`, and the refusal names it. The host publishes `avg` with its reason:
-the mean of exact decimals is not generally an exact decimal.
-
-On a list or board, a tile covers the whole filtered set, not the loaded page. The
-renderer labels the tile to show this. The host accepts `scope` group only on a
-direct board child. That scope addresses a column by its stored choice ID, and the
-ungrouped column by `isNull`.
+- Up to eight `recordList`, `boardSurface`, `calendarSurface` and `recordCommand` roots
+  per record type, selected in Use by stable ID. Board card fields are ordered
+  `fieldBinding` children.
+- `overviewSurface` and `extensionView` belong to the file. The compiler separates them
+  before grouping every other root by `entityId` into one `NendoApplicationPlan` each.
+  The overview is its own plan on the compile result, carrying the entity plans its tiles
+  name; file views arrive as `Views`, compiled without children.
+- `relatedList` adds a record of the related type with the reference back filled in, and
+  opens the row clicked. The file stores nothing for either.
+- `summaryTile` computes exact `count`, `sum`, `min` and `max` over Integer or Decimal,
+  folded over stored lexemes. `rangeTile` states the `min` and `max` of one field and may
+  read a **Date**, compared ordinally over the fixed-width ISO form; the safe-mode fold
+  answers the same. A sum over a Date and `avg` are refused by name (the mean of exact
+  decimals is not generally exact).
+- On a list or board a tile covers the whole filtered set, not the loaded page, and is
+  labelled so. `scope` group is accepted only on a direct board child and addresses a
+  column by stored choice ID, the ungrouped column by `isNull`.
 
 ## The window, and what outlives it
 
-When the person closes the window, the host hides it into the notification area.
-The process stays resident with its file open and its MCP host listening. The tray
-menu contains the real exit. This behaviour is the 2026-09-15 amendment to
-[ADR-0002](decisions/0002-containing-desktop-architecture-and-process-model.md).
+Closing the window hides it into the notification area. The process stays resident with
+its file open and its MCP host listening, so the person can still accept a proposal or
+consent to automatic actions, which an agent below Unattended cannot do for itself. The
+tray menu holds the real exit
+([ADR-0002](decisions/0002-containing-desktop-architecture-and-process-model.md)). The
+close behaviour is device state (`shell.json`), defaulting to the notification area and
+toggled from the tray. `NENDO_DESKTOP_CLOSE_ACTION` pins it; every scripted window lane
+sets it to `exit`. There is one icon per window.
 
-Below the Unattended access level, an agent cannot do two things for itself:
-accept a proposal and consent to automatic actions. These two actions belong to
-the person. Before the amendment,
-the person had to keep a window open to receive the request.
+Four conditions raise a Windows notification, only while the window is hidden or
+minimised: a validated proposal is waiting; automatic actions need consent; the open file
+stopped being writable; the workspace failed. The activation argument carries a view
+name, the raising process's number, which of its file sessions raised it, a count, and
+nothing else. The text names the open file, never a path, digest or proposal id.
+Notifications **route; they do not grant**: a click opens the page where the person
+answers, because promotion verifies the reviewed digest and a grant binds an exact
+digest, revision and capability set. `Test-Production.ps1` keeps the notification types
+out of the MCP adapter; `DesktopNotificationContentTests` asserts no payload carries an
+approve or promote argument.
 
-The close behaviour is device state (`shell.json`, beside the appearance and grant
-stores). Its default is the notification area, and the person toggles it from the
-tray menu. The process owner pins it with `NENDO_DESKTOP_CLOSE_ACTION`. Every
-scripted window lane sets it to `exit`, because no lane can click a tray menu.
-There is one icon for each window.
+**Agent work is visible from every screen.** The MCP host brackets every tool and
+resource call and sends `(busy, client, what)` to the shell, forwarded as an unsolicited
+event. The status bar draws a pill after 700 ms, the busy bar's wait, and the busy bar
+names the cause (*Claude Code is writing to this file…*). The lease-status read is a
+gate-free peek, so asking who is editing never waits for the edit.
 
-Four conditions raise a Windows notification, and only while the window is hidden
-or minimised:
-
-- a validated proposal is waiting;
-- a file's automatic actions need consent;
-- the open file stopped being writable;
-- the workspace failed.
-
-The activation argument of a notification carries a view name, the number of the
-process that raised it and which of that process's file sessions raised it, a count,
-and nothing else (see *Several files at once*).
-The text names the open file, but it carries no path, no digest and no proposal
-id. Notifications **route; they do not grant**. A click on a notification
-opens the page where the person answers. No notification carries the answer,
-because promotion verifies the reviewed digest, and a grant binds an exact digest,
-revision and capability set. `Test-Production.ps1` keeps the notification types
-out of the MCP adapter. `DesktopNotificationContentTests` asserts that no payload
-carries an approve or promote argument.
+**What this costs.** While a file is open with agent access on, any process on this
+machine can connect at that level, and closing the window does not end it
+([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)). The tray
+menu shows the access mode and offers to turn it off; the tooltip names the file and
+shows when it waits on approval; the first close on a device explains where the window
+went. There is no credential or peer check.
 
 ## What Nendo is to Windows
 
 Setup writes five items into the per-user class store, and one shortcut:
 
-- A `.nendo` file has its own icon, and a double-click on it opens Nendo.
-- *New > Nendo application* in Explorer runs `Nendo.Desktop.exe -new "%1"`.
-  Explorer picks the name and Nendo makes a real empty file. Thus the project does
-  not ship a template and keep it in step with what *New file* already produces.
-- `OpenWithProgids` puts Nendo in *Open with*.
-- An `Applications\Nendo.Desktop.exe` key lets *Open with* reach Nendo also for a
-  file whose extension another program owns.
-- An `AppUserModelId` key carries the display name and icon that the notification
-  centre reads.
+- the `.nendo` icon and double-click to open;
+- *New > Nendo application*, which runs `Nendo.Desktop.exe -new "%1"` to make a real
+  empty file (no template ships);
+- `OpenWithProgids`, for *Open with*;
+- an `Applications\Nendo.Desktop.exe` key, so *Open with* reaches Nendo for an extension
+  another program owns;
+- an `AppUserModelId` key with the display name and icon the notification centre reads.
 
-The `AppUserModelId` key gives the application's identity to the shell. Three
-places must agree on it:
+Three places must agree on the `AppUserModelId`: `DesktopShellIdentity` sets it on the
+process in the `App` constructor, before the first window (a later rename gives two
+taskbar buttons); it sets it again on the window, against the Windows App SDK
+notification registration renaming the process, and as the only way to read it back; and
+setup stamps it on the Start Menu shortcut as `System.AppUserModel.ID`, without which a
+pinned copy groups apart from the running window. `Test-Repository.ps1` checks the C#
+constant and the setup script hold the same string. `Invoke-NendoSetup.ps1`, not the NSIS
+script, writes the shortcut, because NSIS cannot set a shell property.
 
-- `DesktopShellIdentity` sets it on the process in the `App` constructor, before
-  the first window. If a window is created under one identity and renamed later,
-  the application gets two taskbar buttons.
-- `DesktopShellIdentity` sets it again on the window itself. This is a second
-  protection against the Windows App SDK notification registration, which can
-  rename the process later. It is also the only way to read the identity back.
-- Setup stamps the same string onto the Start Menu shortcut as
-  `System.AppUserModel.ID`. Windows pins a shortcut without it, but the pinned copy
-  then groups separately from the running window. The result is two buttons for
-  one application, with the Jump List on the wrong one.
+The taskbar button shows a badge when the file waits on approval or recovery, a lock
+when it is read-only, and indeterminate progress while a file action runs or once an
+agent's work has lasted 700 ms. One `DesktopShellBadge` decides the state, and the tray
+tooltip reads the same one. When the open file changes, the host rebuilds the Recent list
+from `DesktopFileHistory`, honouring destinations the person removed (re-adding one fails
+the whole commit).
 
-`Test-Repository.ps1` checks that the C# constant and the setup script still
-contain the same string. No other check can see both files, and the failure is
-silent.
+A `.nendo` file dragged onto the window or the taskbar button opens by the *Open file*
+route. The page draws the hint and hands the host the shell's own file object through
+`postMessageWithAdditionalObjects`; the host asks Windows for the path. The page never
+names a path. The WebView2 and the `WebHost` grid holding it set `AllowDrop`, without
+which no drop from Windows arrives.
 
-`Invoke-NendoSetup.ps1` writes the Start Menu shortcut, and the NSIS script does
-not. The reason is the same as for the association: NSIS cannot set a shell
-property, and the setup script is the part that a lane can run.
-
-The taskbar button carries the state that the window shows but that nobody can
-see:
-
-- a badge when the open file is waiting on approval or recovery;
-- a lock when the file is read-only;
-- indeterminate progress while a file action runs, or while an agent's work has lasted
-  700 ms, the wait the status bar's pill makes, so a client's quick read does not flash it.
-
-One `DesktopShellBadge` decides the state, and the notification-area tooltip reads
-the same one. Thus the two cannot disagree. When the open file changes, the host
-rebuilds the button's Recent list from `DesktopFileHistory`. It honours the
-destinations that the person removed, because re-adding one makes the whole
-commit fail.
-
-If a person drags a `.nendo` file onto the window or onto the taskbar button, the
-file opens by the same route as *Open file*. The page sees the drag and draws the
-hint. It then gives the host the shell's own file object through
-`postMessageWithAdditionalObjects`. The host asks Windows for the path. The page
-never names a path, so a tampered page can at most ask about a file that somebody
-physically dropped.
-
-To route a click, the host must send the first message. Bridge protocol version 7
-adds this: an unsolicited `{protocolVersion, event, payload}` message that carries
-a route name. The message has no `requestId`, so it cannot be mistaken for a reply.
-
-Version 7 is the only bridge protocol the host serves. Versions 2 to 6, with the
-Idea Garden methods of version 2 and the file pickers the host ran for versions
-before 7, were retired on 2026-10-04 (W-135): the bundled Workbench speaks 7, and
-the review and gate lanes under `tools/` that still sent 5 or 6 were moved to 7 in
-the same change. A request at any other version gets `unsupported-protocol`,
-answered at version 7, before any file binding, read, write or file action runs.
+Bridge protocol version 7 is the only one the host serves. Unsolicited
+`{protocolVersion, event, payload}` messages carry a route name and no `requestId`. A
+request at any other version gets `unsupported-protocol`, answered at version 7, before
+any file binding, read, write or file action runs.
 
 ### The title band is the title bar
 
-Since W-093 the window draws no title bar of its own, and since 2026-10-03 the band is the
-Mica-with-tabs title band ([Mica direction](design/mica-direction.md)). `MainWindow.TitleBar.cs`
-extends the page into the title bar and asks Windows for the tall title bar, 48 pixels, the
-band's own height. The page fills the window from its top edge. Over the navigation the band
-carries the Nendo mark, the file's name and the File menu; over the work it carries the tab
-strip. Under it, on the layer, the address row holds Back, Forward, the breadcrumb and the
-command box, and nothing else stands above a screen's content. Windows draws Minimise,
-Maximise and Close over the right end of the band, and holds the rest of those 48 pixels as
-the caption: a drag moves the window, a double-click maximises it, a right-click opens its menu,
-and Maximise offers the snap layouts.
+The window draws no title bar of its own; the page's Mica-with-tabs band is the title bar
+([Mica direction](design/mica-direction.md)). `MainWindow.TitleBar.cs` extends the page
+into the title bar and asks for the tall title bar, 48 pixels. Over the navigation the
+band carries the Nendo mark, the file's name and the File menu; over the work, the tab
+strip. Under it the address row holds Back, Forward, the breadcrumb and the command box;
+nothing else stands above a screen's content. Windows draws Minimise, Maximise and Close
+at the band's right end and treats the rest as caption (drag, double-click, system menu,
+snap layouts).
 
-The window's ground is Mica. `MainWindow.xaml` sets a `MicaBackdrop`, `ShellGrid` in
-`MainPage.xaml` is transparent, and the WebView2's `DefaultBackgroundColor` has an alpha of 0,
-so the backdrop shows wherever the page leaves its ground: the band, the navigation and the
-status line. The page marks itself `data-backdrop="mica"` in the Desktop host and keeps its
-ground transparent there; in a browser it paints `--mica` instead.
+The ground is Mica: `MainWindow.xaml` sets a `MicaBackdrop`, `ShellGrid` in
+`MainPage.xaml` is transparent, and the WebView2's `DefaultBackgroundColor` has alpha 0.
+The page marks itself `data-backdrop="mica"` in the Desktop host and keeps its ground
+transparent; in a browser it paints `--mica`.
 
-The page's controls in that band would be caption too, so the page claims them.
-`title-bar.ts` measures every control in the navigation and the tab strip that shows in the
-band, and sends their boxes with `window.setTitleBarControls` whenever one moves, appears or
-goes. The host hands them to Windows as passthrough regions
-(`InputNonClientPointerSource`) in the screen's own pixels. Its answer is the title bar:
-its height and the width Windows keeps for its buttons, 144 pixels in the tall bar. The
-tab strip keeps that width free (`styles/21-native.css`, from `--title-bar-right`).
-`titleBarChanged`, a member of the closed unsolicited-event set, carries the same answer when a
-new display scale changes it. While a menu or a dialog is open the page claims the whole bar up
-to Windows' buttons, so a press there closes the menu as it did before. The file is named at the
-band's left end, in the status line with its icon, and on the taskbar. In a window at most 840
-pixels wide and more than 600 tall the navigation is the bar across the top, and it is the title
-bar instead; tabs wait for a wider window.
+`title-bar.ts` measures every control showing in the band and sends their boxes with
+`window.setTitleBarControls` whenever one moves, appears or goes. The host hands them to
+Windows as passthrough regions (`InputNonClientPointerSource`) in screen pixels and
+answers with the bar's height and the width kept for Windows' buttons (144 pixels in the
+tall bar), which the tab strip keeps free (`--title-bar-right`). `titleBarChanged`
+carries the same answer when the display scale changes. While a menu or dialog is open
+the page claims the whole bar up to Windows' buttons, so a press there closes the menu.
+In a window at most 840 pixels wide and more than 600 tall, the navigation bar across the
+top is the title bar, and there are no tabs.
 
 Each tab is a trail of places (`workspace-tabs.ts`). The window draws from one trail,
-`navigationTrail`; switching tabs saves it on the tab being left and loads the other tab's,
-then puts its current place back as a step back does (`revisitCurrent` in
-`navigation-actions.ts`). A tab off screen holds a list of places and nothing else. Tabs are
-the window's, are never written to the file, and are cleared with the file, like the trail.
+`navigationTrail`; switching tabs saves it on the tab left, loads the other's, and
+revisits its current place (`revisitCurrent` in `navigation-actions.ts`). Tabs belong to
+the window, are never written to the file, and are cleared with the file.
 
-A tab can move to a window of its own (W-277, ADR-0002's 2026-10-16 amendment). Dragged out of
-the strip and let go past the window's edge or more than 40 pixels below the strip (a maximised
-window has no edge to drag past), or moved by *Move tab to new window* in the command palette, it leaves the strip as a close would take it, without the closed-tab listeners hearing
-it, so a launched agent's conversation keeps running. The page hands its trail to
-`window.detachTab` as an opaque string. The host opens another `MainWindow` in the same process
-(`MainWindow.TabWindows.cs`), at the pointer with the size of the window it came from (the size
-it had before, when that window is maximised), or one step down and to the right of it, and gives it a `MainPage` on the same `DesktopSessionController`.
-That page's Workbench takes the trail once with `window.takeTab` and shows its place. A browser
-keeps sending a held mouse's moves to the page past the window's edge, aimed at the document,
-which is why the drag listens on the window rather than the strip.
+A tab can move to a window of its own: dragged past the window's edge or more than 40
+pixels below the strip, or by *Move tab to new window*. It leaves the strip without the
+closed-tab listeners hearing it, so a launched agent keeps running. The page hands its
+trail to `window.detachTab` as an opaque string; the host opens another `MainWindow` in
+the same process (`MainWindow.TabWindows.cs`) at the pointer, with the source window's
+restored size, and a `MainPage` on the same `DesktopSessionController`, whose Workbench
+takes the trail once with `window.takeTab`. The drag listens on the window, because a
+browser sends a held mouse's moves past the edge to the document.
 
-The first window stays the main window: it alone has the notification-area icon, the taskbar
-badge, notifications, the Jump List and the file's saved place, and it owns and ends the session.
-A tab window subscribes its page to the session's events (`fileChanged`, `agentActivity`,
-`agentSessionChanged`, the extension events), draws the theme set in any window
-(`appearanceChanged`), hides and shows with the main window and closes with the process. Every
-way out of the process goes through `MainWindow.ExitAsync`, which closes the tab windows first:
-`Window.Close` raises no `AppWindow.Closing`, so the tray's Exit had closed the main window alone. It
-closes when its file session changes, and its Workbench offers, and its bridge runs, none of the
-file actions that open, close or replace the file (`DesktopTabWindowRules.MainWindowOnly`,
-`window-role.ts`): they answer `main-window-only`. Every window of the file shares the browser
-profile and so the one device-local save journal slot for the file.
+The first window is the main window: it alone has the tray icon, the taskbar badge,
+notifications, the Jump List and the file's saved place, and it owns and ends the
+session. A tab window subscribes to the session's events (`fileChanged`,
+`agentActivity`, `agentSessionChanged`, the extension events, `appearanceChanged`),
+hides and shows with the main window, and closes with the process or when its file
+session changes. Every exit goes through `MainWindow.ExitAsync`, which closes tab windows
+first, since `Window.Close` raises no `AppWindow.Closing`. File actions that open, close or
+replace the file answer `main-window-only` in a tab window (`DesktopTabWindowRules`,
+`window-role.ts`). All windows of a file share the browser profile, and so the one save
+journal slot for the file.
 
-The recovery panel loads the Nendo mark when it is shown, not with the page. Once the
-TitleBar control's icon was gone, that picture in the collapsed panel was the first the
-window loaded, and it brought the process down inside XAML at every start (F-202).
+The recovery panel loads the Nendo mark when shown, not with the page; loading it first
+at start brings the process down inside XAML.
 
 `diagnostics.titleBar` and `diagnostics.resizeWindow` answer only under
-`NENDO_NATIVE_DIAGNOSTICS=1`: the regions Windows holds, what Windows answers at points
-of the page, and a window of a given size. The extension-view journey measures with them
-(G32): the page starts at the window's top edge and only the band and the address row stand
-above the content on a Use screen and in Studio; every control is passed through and none sits under Windows'
-buttons, which answer as Minimise, Maximise and Close; an open menu takes the bar and gives
-it back; and a 760 × 700 window's navigation bar is the title bar. Windows answers `WM_NCHITTEST` over
-a passed-through control as caption all the same, so only a real pointer shows that a press
-there reaches the page.
+`NENDO_NATIVE_DIAGNOSTICS=1`, and the extension-view journey measures the band with them.
+Windows answers `WM_NCHITTEST` over a passed-through control as caption all the same, so
+only a real pointer shows that a press there reaches the page.
 
 ### Several files at once
 
-Each open file is its own process and its own main window (ADR-0002), and a person can
-have several open (W-089). A tab moved out of a window opens a tab window of the same process and
-file, described under the title band above (W-277).
+Each open file is its own process and main window (ADR-0002).
 
-- **Each file reopens where its window was.** `DesktopWindowStore` keeps the device's
-  last place in `window.json` and each file's own in `window-files.json`, keyed by a
-  digest of where the file is and capped at the 64 most recently placed. A launch
-  that names a file opens on that file's place, and any other launch, or a file with
-  no place yet, opens on the device's last one. Before, there was only the device's
-  place, so a second file opened exactly on top of the first. A file opened into an
-  existing window leaves the window where it is. `DesktopDeviceStateLock` is the
-  named mutex that stops two processes from overwriting each other's writes to a
-  device-state document they share, the view-failure and agent-failure logs included.
-  Readers take no lock, and `File.Move` is refused over a document a reader has open,
-  so `DesktopStateFile` replaces it with the POSIX rename Windows offers, which a reader
-  that shares delete does not block, and otherwise tries the move again for up to half a
-  second.
-  Settings that are the device's, such as the agent connection settings, are read
-  again before each listener start and each Agent page read, so a choice saved in one
-  window reaches the others.
-- **A file another window has open goes to that window.** Opening it again, by a
-  double-click, the taskbar's Recent list, *Open file*, the recent list or a drop,
-  used to start a second process that could only refuse it ("already open for editing
-  in another Nendo session") and offer read-only, Duplicate or Fork, while the window
-  that had it stayed where it was, often hidden. `DesktopWindowHandoff` reads the
-  owner's process from the write-owner sidecar the Engine keeps beside every file it
-  holds for editing. It then sends that process's notification-area window a
-  `WM_COPYDATA` request, which every Nendo window has and which exists while the main
-  window is hidden. The request is sent with a three-second timeout and after
-  `AllowSetForegroundWindow`. The owner shows its window exactly as the tray's
-  *Open* does and answers 1. A second launch then exits without drawing anything;
-  an open from inside a window leaves that window's own file open. A second launch
-  that starts while the first is still opening the file finds no sidecar yet and is
-  refused by the first's guard, which an open takes just before writing its sidecar; it
-  then looks for the owner again, for up to 750 ms, and closes once that window answers.
-  A refusal that names nobody (a folder Nendo may not write in, a guard it cannot make)
-  goes to the read-only offer at once. The recent
-  list and the taskbar's Recent list keep a file whose sidecar names a live Nendo
-  while that Nendo is writing to it, when its journal makes it unreadable. When nothing
-  answers (the owner is hung, elevated or gone), the open goes ahead as before, and
-  the refusal still offers read-only, Duplicate and Fork. A request names the window
-  and at most one of the views a notification can route to. It carries no file and
-  nothing to approve, so it can do no more than a click on the tray icon.
-- **Each file has its own icon.** Every window carried the same icon, so several
-  open files were identical in Alt+Tab, in the notification area and on
-  notifications. `DesktopFileIcon` draws the file's look as the Nendo mark with a
-  badge bottom left, in the file's tone with its letter from 24 pixels up (a dot
-  below), and keeps the result by look under `icons/` in the device state. The
-  badge sits bottom left because Windows draws a taskbar button's status badge
-  bottom right. The mark comes from the shipped icon's own frames, the badge is
-  computed with exact coverage, and the letter is set in Segoe UI Semibold at four
-  times the size and scaled down. The window icon, the notification-area icon and a
-  notification's `appLogoOverride` picture carry it, and inside the window the status
-  bar draws it beside the file's name (the title bar that carried it is Nendo's top
-  bar since W-093); the tones are the light theme's choice tones, which a test holds to
-  `02-tokens.css`. `Review-ShellRuntime.ps1` reads the running window's icon back
-  through `WM_GETICON` and checks the badge. A file with its own picture (W-001) is
-  drawn as that picture alone at every frame, read from the file by
-  `DesktopSessionController.ReadIconPictureAsync` and kept by its SHA-256; one that
-  cannot be read falls back to the badge. On About this file the page draws a dropped
-  or picked picture whole onto a transparent 256-pixel square (192 or 128 if the PNG
-  would not fit one message), sends the PNG with `look.embedIcon`, and proposes
-  `application.setIcon`; a colour and a picture chosen together are two mutations of
-  one proposal, so each undoes on its own. `DesktopFileIconIndex` remembers, under
-  `icons/files.json`, the icon drawn for each file (64 newest), and the Jump List gives
-  each Recent row that icon, or `DocumentIcon.ico` for a file this device never drew; a
-  pinned row keeps the icon it was pinned with. A file dragged in from Windows reaches
-  the page only because the WebView2 and the `WebHost` grid holding it set `AllowDrop`:
-  without it no drop arrived at all (the CDP drags the lanes use go round XAML and
-  never showed this). Taskbar buttons still group under one
-  Nendo identity, so the grouped button shows one icon; a button per file needs a
-  shell identity per file, which is not built.
-- **Each window's notifications are its own.** Every process posted under one
-  notification group with the same tags, so a second file's *A change is waiting*
-  replaced the first file's, and bringing back any window cleared every file's. The
-  group is now `nendo-<process>`. Windows hands a click to whichever Nendo holds the
-  notification activation, which need not be the one whose file it was about, so a
-  click carries `window=<process>`. A process that receives another's click forwards
-  it with the same request, and routes it itself only when that process has gone.
-  The click also carries `generation=<n>`, which of that window's file sessions raised
-  it: a window that has since opened another file comes forward and goes to no view,
-  and it clears its notifications when its file changes or it is activated.
-
-**Agent work is now visible from every screen.** The MCP host brackets every tool
-and resource call and sends `(busy, client, what)` to the shell. The shell
-forwards it as the third unsolicited event. The status bar draws a pill after the
-same 700 ms that the busy bar waits. The busy bar names the cause: *Claude Code is
-writing to this file…* and not *Still working…*. A request in the queue behind an
-agent's write is not slow; it is waiting.
-
-The gated lease read was part of the problem. It took the same semaphore that the
-write held. Thus a query about who was editing waited for the edit, and it held
-the Desktop's own gate while it waited. That read is now a gate-free peek.
-
-**What this costs.** While a file is open with agent access on, any process on this
-machine can connect at that level
-([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)).
-Before, closing the window ended this access. Now it does not. The tray menu shows
-the live access mode and offers to turn it off. The tooltip names the open file
-and shows when the file is waiting on approval. The first close on a device
-explains where the window went. The project added no credential or peer check.
+- **Each file reopens where its window was.** `DesktopWindowStore` keeps the device's last
+  place in `window.json` and each file's in `window-files.json`, keyed by a digest of the
+  file's location, capped at the 64 most recent. A launch naming a file opens on its
+  place; otherwise on the device's last one.
+- **Device state is shared safely.** `DesktopDeviceStateLock` is the named mutex that
+  serialises writers of a shared device-state document, including the view-failure and
+  agent-failure logs. Readers take no lock; `DesktopStateFile` replaces a document with
+  the POSIX rename Windows offers, which a reader that shares delete does not block, and
+  otherwise retries for up to half a second. Device settings are read again before each
+  listener start and Agent page read, so a choice saved in one window reaches the others.
+- **A file another window has open goes to that window.** `DesktopWindowHandoff` reads
+  the owner's process from the write-owner sidecar beside the file and sends that
+  process's notification-area window a `WM_COPYDATA` request (three-second timeout, after
+  `AllowSetForegroundWindow`). The owner shows its window as the tray's *Open* does and
+  answers 1; a second launch then exits without drawing. A launch that starts while the
+  first is still opening finds no sidecar, is refused by the first's guard, and looks
+  again for up to 750 ms. A refusal that names nobody goes straight to the read-only
+  offer. When nothing answers (hung, elevated or gone), the open goes ahead and the
+  refusal offers read-only, Duplicate and Fork. The recent lists keep a file whose
+  sidecar names a live Nendo writing to it. A request names the window and at most one
+  routable view; it carries no file and nothing to approve.
+- **Each file has its own icon.** `DesktopFileIcon` draws the Nendo mark from the shipped
+  icon's frames with a badge bottom left (Windows draws a status badge bottom right), in
+  the file's tone with its letter from 24 pixels up (a dot below), the letter set in Segoe
+  UI Semibold at four times size and scaled down, and keeps it by look under `icons/` in
+  device state. The tones are the light theme's choice tones, which a test holds to
+  `02-tokens.css`. A file with its own picture is drawn as that picture alone, read by
+  `DesktopSessionController.ReadIconPictureAsync` and kept by SHA-256; an unreadable one
+  falls back to the badge. The window icon, tray icon, a notification's `appLogoOverride`
+  and the status bar carry it; `Review-ShellRuntime.ps1` reads it back through
+  `WM_GETICON`. On About this file the page draws a picked picture onto a transparent
+  256-pixel square (192 or 128 if the PNG would not fit one message), sends it with
+  `look.embedIcon`, and proposes `application.setIcon`; a colour and a picture chosen
+  together are two mutations of one proposal. `DesktopFileIconIndex` keeps the icon drawn
+  for each file (64 newest) in `icons/files.json`, and the Jump List gives each Recent row
+  that icon, or `DocumentIcon.ico`; a pinned row keeps its icon. Taskbar buttons group
+  under one identity, so a grouped button shows one icon.
+- **Each window's notifications are its own.** The notification group is
+  `nendo-<process>`. Windows hands a click to whichever Nendo holds the activation, so a
+  click carries `window=<process>`; a process that receives another's click forwards it
+  with the same request and routes it itself only when that process has gone. The click
+  also carries `generation=<n>`, the file session that raised it: a window that has since
+  opened another file comes forward and goes to no view. A window clears its
+  notifications when its file changes or it is activated.
 
 ## Studio and safe mode
 
-Every valid file opens with **Nendo Studio**. Studio is the permanent, host-owned
-human workspace, and it covers Data, Structure, Screens, History and Health.
-Studio is available when there are no user entities, no connected agent or no
-custom surface. It is also available with an invalid definition, or with a file in
-restricted safe mode. Application content cannot remove, replace or hide the route
-back to Studio
-([ADR-0015](decisions/0015-host-owned-database-studio-and-ag-grid-community.md)).
-
-Some charts group over a civil date. A `trendChart` shows one number for each
-month or week, and an `activityGrid` shows one count for each day. These are the
-first groupings whose groups come from a resolved range and not from a field's
-options. Thus the host makes every bucket before it reads. A period with no
-records shows as empty, and the host does not leave it out. A range is a closed
-word that the host resolves at read time. It is never a stored date. Minimum
-host 1.25.0 ([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md),
-2026-09-16).
-
-A `matrixSurface` crosses two choice dimensions. A `rankedList` states the few
-records at the top of one stored number. The grid is **one** grouped read, whatever
-its size. The host makes every cell key from the cross product of the two option
-sets before it reads a record. Thus an empty cell is still a cell, and each number
-is exact over all that the surface covers. The cards in a cell come from the
-surface's one loaded window, so a cell can state how many records it does not
-show.
-
-The cross product uses the same 366-group ceiling. The host refuses an excess when
-it is authored and states it when it is read. A ranking adds one predicate of its
-own to keep the records that have a number. Thus it carries seven authored
-clauses, not eight. Minimum host 1.26.0
-([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md), 2026-09-17).
-
-A `boardSurface` also groups by a **bound Reference field**. Its columns are then
-records of another record type, not a field's options. It is the first grouping in
-the product whose members are not written in the definition and not computed from
-a range. People make and remove these records while the board is open, so the
-board reads them. Every active record of the target type is a column, in the order
-of the reference's label, because a lane that nobody has used is also an answer.
-
-A board draws at most `MaximumReferenceBoardColumns` (24) columns. Above that
-bound it draws no columns, and it names the type, its count and the bound. This is
-a read-time rule, because a definition cannot carry how many records a record type
-holds. A drag between lanes writes the reference with the target's current
-version, which the board already holds. Minimum host 1.27.0
-([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md), 2026-09-17).
-
-**The reference-grouped board is the one capability the node tree cannot show.**
-For this reason, `NendoSemanticCapability.RequiredHostVersion` takes the stored
-fields in addition to the nodes. A board grouped by a reference and a board
-grouped by a choice are the same kind, with the same property and the same
-children. Only the storage kind of the grouping field makes them different. Every
-other rung of the node tree is a shape. The recompute still occurs only when a
-mutation touches UI nodes. This is sound because no conversion changes a choice
-field into a reference field: the storage kind of a field never changes under a
-board.
-
-**A section can be folded away.** Every section on a record page or the front page
-is a disclosure, and its heading is the control. A closed section reads none of
-its content. The walkers that decide what a page is still waiting for stop at a
-closed section (`fold-state.ts`, `overview-model.ts`, `plan-selection.ts`). The one
-stored word is the initial state: `opens` on `section`. What the person does with
-the section never reaches the file. It is kept for the device in the Workbench's
-local storage under `nendo.sectionFolds.<applicationId>`, as the theme and the rail
-are (and, since 2026-09-26, whether keyboard shortcuts are shown: `nendo.shortcuts`), so it
-survives a reopen (2026-09-24). Minimum host 1.28.0, only for a file that
-carries the property ([ADR-0004](decisions/0004-versioned-semantic-ui-contract.md),
-2026-09-20 and 2026-09-24).
-
-The host tells the renderer when the open file changes. For every writer that it
-serves, the coordinator raises `Committed` with the change sequence. The shell
-forwards it as `fileChanged`, the second member of the closed unsolicited-event
-set. The event carries that number and nothing else. It is only a signal. The
-renderer reads again through the same bounded chase that the tiles use, at most
-once a second and never while somebody holds the page. Thus a surface updates
-itself, and the person does not need to leave it and return to it
-([ADR-0002](decisions/0002-containing-desktop-architecture-and-process-model.md),
-2026-09-17).
-
-Open states are explicit: normal, read-only, recovery and rejected. Safe mode is a
-permanent host capability. It is not a failure path added later
+Every valid file opens with **Nendo Studio**, the permanent host-owned workspace covering
+Data, Structure, Screens, History and Health. It is available with no user entities, no
+agent, no custom surface, an invalid definition, or a file in restricted safe mode.
+Application content cannot remove, replace or hide the route back to Studio
+([ADR-0015](decisions/0015-host-owned-database-studio-and-ag-grid-community.md),
+[Studio contract](contracts/studio.md)). Open states are explicit: normal, read-only,
+recovery and rejected. Safe mode is a permanent host capability
 ([ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md)).
 
-Before the host grants any capability, the open inspects the whole file. For this
-reason, the file has a size bound of **256 MiB**. The project raised it from
-64 MiB on 2026-09-16. The ADR-0012 amendment records this change with its measured
-cost. A record that carries 1,306 bytes of text uses 3,554 bytes on disk, a
-multiple of 2.72. Thus a file reaches the bound at approximately 75,500 such
-records, and one cold open at that size takes about 6.6 seconds.
+The [semantic surfaces contract](contracts/semantic-surfaces.md) has the read rules for
+each surface. In brief:
 
-A separate bound of 100,000 rows applies to each audit and definition table.
-`__nendo_operation` carries one row for each record write and one for each later
-edit. Thus a file reaches that bound at approximately 100,000 writes, whatever
-their size. The host also enforces both bounds at write. Before it stages a
-mutation or a promotion, it refuses the write when the file has reached a write
-ceiling: 32 MiB below the size bound, at 224 MiB, or 1,000 rows below the row
-bound. The reserves provide early refusals; a 200-record batch editing 64 fields
-per record can exceed the row reserve in one transaction. Before either write
-path commits, storage measures the expanded transaction's physical pages, schema
-objects, rows in every table and total user records against the actual open
-limits, including automatically generated operations. Crossing a limit rolls the
-whole transaction back. The refusal states that nothing changed and that the
-file still opens. The original early-refusal policy came from
-[ADR-0012](decisions/0012-safe-mode-compatibility-and-migration.md) (2026-09-17).
+- `trendChart` and `activityGrid` group over a range resolved at read time, never a
+  stored date; the host makes every bucket before it reads, so empty periods show.
+- A `matrixSurface` makes every cell from the cross product of two option sets before it
+  reads, in **one** grouped read under the 366-group ceiling (refused when authored,
+  stated when read). A `rankedList` adds one predicate of its own, so it carries seven
+  authored clauses, not eight.
+- A `boardSurface` grouped by a Reference field has the target type's active records as
+  columns, in label order, at most `MaximumReferenceBoardColumns` (24); above that it
+  draws none and names the bound. This is the one capability the node tree cannot show,
+  so `NendoSemanticCapability.RequiredHostVersion` also reads the stored fields; a
+  field's storage kind never changes under a board.
+- Every section is a disclosure. A closed section reads nothing, and the walkers that
+  decide what a page waits for stop at it (`fold-state.ts`, `overview-model.ts`,
+  `plan-selection.ts`). Only the initial state, `opens`, is stored; what the person does
+  stays on the device under `nendo.sectionFolds.<applicationId>`.
+- For every writer, the coordinator raises `Committed` with the change sequence, which the
+  shell forwards as `fileChanged`, carrying that number only. The renderer re-reads
+  through the bounded chase, at most once a second and never while somebody holds the
+  page.
 
-Since 2026-09-30 a person can fold a file's older history into one checkpoint revision
-([ADR-0021](decisions/0021-folding-old-history.md)), and History says how much of the row
-bound is used and warns from 80%. The host backs the file up beside itself, then replaces every
-revision older than the kept window (the last 1,000, or fewer when those hold more than 25,000
-operation rows) with a checkpoint that carries their counters and a digest of what they were,
-and records the fold in `__nendo_history_fold`, the layout ladder's fold rung (1.39.0).
-Records, tombstones, later revisions, counters and the change sequence do not change. A folded
-change cannot be compensated or retried as the same write, and its operations are only in the
-backup. A file in daily use therefore keeps accepting writes; the bound itself is unchanged.
+### Size and row bounds
+
+The open inspects the whole file before granting any capability, so a file is bounded at
+**256 MiB**. A record carrying 1,306 bytes of text uses 3,554 bytes on disk, a multiple of
+2.72, so a file reaches the bound at about 75,500 such records; a cold open at that size
+takes about 6.6 seconds.
+
+Each audit and definition table is bounded at 100,000 rows. `__nendo_operation` carries a
+row for each record write and each later edit, so a file reaches that bound at about
+100,000 writes, whatever their size.
+
+Before it stages a mutation or a promotion, the host refuses a write once the file reaches
+a write ceiling: 224 MiB (32 MiB below the size bound) or 1,000 rows below the row bound.
+Because one transaction can exceed the reserve, storage also measures the expanded
+transaction's pages, schema objects, rows per table and user records against the open
+limits, generated operations included, before either write path commits. Crossing a limit
+rolls the whole transaction back, and the refusal says nothing changed and the file still
+opens (ADR-0012).
+
+### Folding history
+
+A person can fold older history into one checkpoint revision
+([ADR-0021](decisions/0021-folding-old-history.md)). History shows how much of the row
+bound is used and warns from 80%. The host backs the file up beside itself, then
+replaces every revision older than the kept window (the last 1,000, or fewer when those
+hold more than 25,000 operation rows) with a checkpoint carrying their counters and a
+digest, and records the fold in `__nendo_history_fold`. Records, tombstones, later
+revisions, counters and the change sequence do not change. A folded change cannot be
+compensated or retried as the same write; its operations are only in the backup.
 
 ## Agent surface
 
-MCP is an adapter over application services. It is not the authority model.
+MCP is an adapter over application services, not the authority model
+([MCP contract](contracts/mcp-interface.md)).
 
-The transport is loopback, stateless Streamable HTTP with no credential. The
-address, `http://127.0.0.1:41763/mcp` for the first file on a device, is the whole
-client configuration. The host
-serves both MCP eras: the `initialize` handshake on any version that the SDK
-supports, and the 2026-07-28 `server/discover` path. Thus Claude Code and Codex
-can both connect. Lease acquisition mints an opaque `applicationHandle` together
-with the `leaseId`, and every owned operation requires both. Possession of the
-handle governs ownership. Claimed client names and HTTP connection identity do
-not govern it.
+The transport is loopback, stateless Streamable HTTP with no credential. The address,
+`http://127.0.0.1:41763/mcp` for the first file on a device, is the whole client
+configuration. The host serves the `initialize` handshake on any version the SDK supports
+and the `2026-07-28` `server/discover` path. Lease acquisition mints an opaque
+`applicationHandle` with the `leaseId`, and every owned operation requires both.
+Possession of the handle governs ownership; client names and HTTP connection identity do
+not.
 
-The MCP surface is listed in the [MCP contract](contracts/mcp-interface.md). Resources are reads and
-need no lease. Tools are writes and need a lease. The exceptions are
-`nendo.lease.status`, `nendo.data.get_receipt` and
-`nendo.health.verify_integrity`: they read authority or file state, and they
-neither hold nor grant authority. So are `nendo.read.resource` and `nendo.read.list`
-(since 2026-10-08), which serve the resources as tools, from Inspect, for a client that
-calls tools but cannot read resources. `Test-Production.ps1` asserts both surfaces by
-name. Thus a new resource or tool fails the gate until somebody updates the
-contract. Full map: [contracts/mcp-interface.md](contracts/mcp-interface.md).
+Resources are reads and need no lease; tools are writes and need one. The exceptions read
+authority or file state and neither hold nor grant it: `nendo.lease.status`,
+`nendo.data.get_receipt`, `nendo.health.verify_integrity`, and `nendo.read.resource` and
+`nendo.read.list`, which serve the resources as tools from Inspect. `Test-Production.ps1`
+asserts both surfaces by name, so a new resource or tool fails the gate until the contract
+is updated.
 
-Visible access modes, as the Agent page names them: *Off*, *Inspect*, *Edit data*,
-*Shape app* and *Unattended*. `NendoAccessLevels` in LocalMcp holds these names
-for the MCP instructions, the access refusals and the Desktop's tray menu, tray
-tooltip and notifications. The Workbench's Agent page carries the same five in
-TypeScript (`agentModeLabel` in `format.ts`).
+Access modes: *Off*, *Inspect*, *Edit data*, *Shape app* and *Unattended*.
+`NendoAccessLevels` in LocalMcp holds the names for the MCP instructions, refusals, tray
+and notifications; the Workbench carries the same five (`agentModeLabel` in `format.ts`).
 
-**In the fifth mode, an agent decides for itself.** At Unattended, and at no lower
-level, `nendo.change_set.accept` promotes a proposal that the same session
-validated. It uses the same `PromoteProposalAsync` that the person's Accept button
-calls, with the reviewed digest, so every staleness and digest check still
-applies. The host also records this device's consent for the automatic actions
-that the acceptance installs. It records the same consent once before it retries
-a data write that was refused for lack of it. The mode gives up a real protection, and that is its
-purpose: a shape change and an action can reach the active file when nobody has
-read either. The mode is off by default, and the host confirms it before it takes
-effect. It ends when the level is lowered or the file closes, and since 2026-09-29
-this device remembers it for that file: the same file opens again at it, and a
-Duplicate, a Fork or another file begins at Off (a copy made outside Nendo keeps
-the instance ID, so it opens at the same level)
-([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md),
-2026-09-22).
+**At Unattended an agent decides for itself.** At that level only,
+`nendo.change_set.accept` promotes a proposal the same session validated, through the
+same `PromoteProposalAsync` and reviewed digest as the person's Accept, so every staleness
+and digest check applies. The host also records this device's consent for the automatic
+actions the acceptance installs, and records it once before retrying a data write refused
+for lack of it. The mode gives up a real protection on purpose. It is off by default and
+confirmed before it takes effect; it ends when the level is lowered or the file closes.
+The device remembers the level per file: the same file reopens at it, while a Duplicate,
+a Fork or another file starts at Off (a copy made outside Nendo keeps the instance ID and
+the level) ([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md)).
 
-**Bulk data crosses the same boundary as a single record.**
-`nendo://application/entity/{entityId}/export` is a page of faithful Nendo CSV, in
-the profile that the person's own Export writes. `nendo.data.import_records` takes
-CSV text or typed JSON at *Edit data*. It commits the rows through the same
-`CreateRecordsAsync` that a single create uses: fifty rows to a revision, and up to
-five hundred rows in a call. Export is a resource and not a tool, like every read;
-a client that calls tools and cannot read resources reaches it, and every other read,
-through `nendo.read.resource`, one of the two read-only tools Inspect serves since
-2026-10-08. Neither export nor import carries a path, in either direction.
+**Bulk data crosses the same boundary as one record.**
+`nendo://application/entity/{entityId}/export` is a page of faithful Nendo CSV in the
+person's Export profile. `nendo.data.import_records` takes CSV text or typed JSON at *Edit
+data* and commits through the same `CreateRecordsAsync` as a single create: fifty rows to
+a revision, up to five hundred in a call. Neither carries a path.
 
-The security boundary is this computer, at the owner's chosen access level. While
-a file is open with access on, any process on the machine can connect, under any
-account. Exact Host and Origin matching keeps out browser-origin requests and DNS
-rebinding. The owner's controls are the access level (Off by default), lease
-revocation, and the approval dialog for application changes. **It is not an
-anti-malware boundary, and it is the wrong posture for a shared machine.**
-([ADR-0009](decisions/0009-local-mcp-transport-authority-and-change-sets.md))
+The security boundary is this computer, at the owner's chosen access level. While a file
+is open with access on, any process on the machine can connect, under any account. Exact
+Host and Origin matching keeps out browser-origin requests and DNS rebinding. The owner's
+controls are the access level (Off by default), lease revocation, and the approval dialog
+for application changes. **It is not an anti-malware boundary, and it is the wrong
+posture for a shared machine.**
 
-The local defaults suit single-user work:
+- Each file has a fixed loopback port, kept by `DesktopAgentPortStore` under its
+  application ID: the first file 41763, each further file the next free port. If the port
+  is unavailable, the host falls back to an ephemeral port and reports it.
+- An edit lease has no expiry; it ends on explicit release or owner revocation.
 
-- a fixed loopback port for each file, kept by `DesktopAgentPortStore` under its
-  application ID (ADR-0009, 2026-09-28 amendment). The first file keeps 41763 and
-  each further file the next free port, so several open files can be registered
-  side by side and an agent reaches the same file whatever order they open in.
-  Before, the first file to switch access on took 41763 and every other file got
-  a new temporary port each run. If the host cannot use the file's port, it falls
-  back to an ephemeral port and reports it.
-- an edit lease with no expiry, which ends on explicit release or owner revocation.
+The Agent page's Connect tab edits both (a port another file keeps is refused by that
+file's name), shows the live address, and copies the registration command for Claude
+Code or Codex under a server name made from the file (`nendo` for Nendo.nendo,
+`nendo-bcm` for BCM.nendo). A controller built without a device-state root, as only a
+test does, keeps its settings, grants and ports in a folder of its own. Closing an agent
+does not end a lease. Closing, switching, replacing or recovering the file invalidates
+all authority; a healthy renderer-only restart preserves it.
 
-The person can change both on the Agent page's Connect tab, where the Port field is this
-file's own and a port another file keeps is refused by that file's name. That page
-also shows the live address and copies the registration command for Claude Code or
-Codex, under a server name made from the file (`nendo` for Nendo.nendo, `nendo-bcm`
-for BCM.nendo), so a second registration does not replace the first. A controller
-built without a device-state root, which only a test does, keeps its settings,
-grants and ports in a folder of its own that goes with it; it used to fall back to
-the person's real device state. Closing an
-agent does not end a lease. Closing, switching, replacing or recovering the file
-invalidates all authority. A healthy renderer-only restart preserves it.
-
-There is no embedded agent, and the project did not adopt AG-UI
+There is no embedded agent
 ([ADR-0014](decisions/0014-drop-embedded-agent-mcp-is-the-agent-surface.md)).
 
-**The Agent page can launch the person's own agent program**
-([ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md), W-195). The
-host is an ACP client (`Desktop/Agents/`). It keeps no model client and no credential.
+### Launched agents
 
-- **What it offers.** `DesktopAgentCatalog` knows five programs: Copilot CLI,
-  Gemini CLI, the Claude Code and Codex ACP adapters, and OpenCode. It finds them on
-  `PATH` as a terminal would, the `PATH` Windows holds now rather than the host's copy
-  from its start (`AgentEnvironment.cs`, read from the registry each time), and outside
-  the request gate, one search at a time (W-220). A `.cmd` shim runs under the command interpreter. The
-  person may add one command line and hide any agent, their own command included;
-  this device keeps both in `agent-launch.json`, never the file (W-199). Launch is
-  offered at Inspect and above. Each known program carries its npm package:
-  a missing one shows `npm install -g <package>`, and a found npm shim that starts a
-  package the catalog lists as renamed shows the commands that move it. The page
-  copies them for a terminal; the host runs neither.
-- **Where it sits.** The Agent page is the state, the access level as one row, and
-  three tabs (W-199, the owner's design A), drawn since 2026-10-10 as three cards that
-  each give an icon, what the tab is for and what is behind it now (design C): Activity (pending changes, recent
-  activity, who is working; the default), Launch (a tile per agent) and Connect
-  (the address and the port and lease settings). Anything waiting for the person
-  stays above the tabs. `view-agent.ts` keeps the tab and focus through the status
-  poll's redraw; `agent-launch-model.ts` draws the tabs and tiles.
-- **How the program runs.** `AgentProcess` starts it in a new empty folder under
-  `agent-sessions/` in device state, named by the host process, with the person's own
-  environment as Windows holds it at launch, inside a Job Object. Closing the job's handle
-  ends the program and everything it started. Each launch first sweeps the folders no
-  running agent can be using (W-220).
-- **What the agent is told.** `AgentConversation` speaks ACP version 1 on the
-  program's stdio:
-  - `initialize` declares no file-system or terminal capability;
-  - `session/new` names one MCP server, this file's loopback address, as `http`;
-  - an agent that cannot connect over HTTP, or speaks another protocol version, is
-    refused by name before a session opens.
-- **What the tab shows.** It follows the owner's direction A (2026-10-08): a heading with
-  the access level and the state, then a reading column. Message chunks are merged into
-  one message. Each run of tool calls, thoughts and plan between two messages folds into
-  one line that opens. Each tool says whether it went through Nendo or was the agent's
-  own, judged from its name and kind, never from what it sends. All of it stays bounded
-  text, and every text the agent writes passes one redaction of the application handle
-  as the tab reads it. The tab itself carries a mark while the agent
-  starts or works, thinks, or waits for the person (2026-10-09).
-- **The agent's own options.** Model, effort, mode and anything else the agent offers
-  are drawn in the composer as it offers them (`AgentConversation.Options.cs`):
-  - ACP session config options, set with `session/set_config_option` and restated by
-    `config_option_update`;
-  - or, from an older agent, `modes` and `models`, set with `session/set_mode` and
-    `session/set_model`.
+The Agent page can launch the person's own agent program over ACP
+([ADR-0030](decisions/0030-launch-the-persons-own-agent-over-acp.md),
+[launched-agents contract](contracts/launched-agents.md)). The host is an ACP client
+(`Desktop/Agents/`) with no model client and no credential.
 
-  The `model`, `thought_level`, `mode` and `model_config` categories sit in the
-  composer; anything else sits under More, such as Copilot's custom agent and Allow
-  All. Nendo sends only a value the agent offered, and only when the person picks it.
-- **The agent's slash commands.** The list from `available_commands_update` is kept
-  whole and read with the conversation (`AgentConversation.Commands.cs`); / at the start
-  of a message opens it in the box (`agent-command-menu.ts`). A command runs as the
-  message's own text, which Nendo sends unchecked (2026-10-15).
-- **Permission requests.** Each one waits for the person's choice, with the diff and
-  places the request supplied there to read first. Stop cancels the turn and every open
-  request.
-- **What ends it.** Turning access Off, closing, switching or replacing the file, and
-  a listener that comes back at another address all end the agent, and so does a
-  refusal at the handshake. Closing the tab that owns the conversation ends it too:
-  the tab that last showed it, known by its ID rather than by its trail, which Back
-  and the 50-place bound drop (W-220); Open conversation goes to that tab, and New session in the tab's heading ends it and starts the same agent
-  again in the tab, with an empty composer (2026-10-09). A new level at the same
-  address does not; the tab is told of it and shows it.
+- `DesktopAgentCatalog` knows Copilot CLI, Gemini CLI, the Claude Code and Codex ACP
+  adapters, and OpenCode, found on the `PATH` Windows holds now (`AgentEnvironment.cs`),
+  plus one command line of the person's; hidden agents and that command are kept in
+  `agent-launch.json`, never the file. Launch is offered at Inspect and above. A missing
+  or renamed npm package shows the commands to fix it, which the host never runs.
+- `AgentProcess` starts the program in a new empty folder under `agent-sessions/` in
+  device state, with the person's environment, inside a Job Object whose closing ends it
+  and everything it started.
+- `AgentConversation` speaks ACP version 1 on stdio: `initialize` declares no file-system
+  or terminal capability, and `session/new` names one MCP server, this file's loopback
+  address, as `http`. An agent that cannot connect over HTTP or speaks another version is
+  refused by name.
+- The Agent page has three tabs: Activity (the default), Launch and Connect. The chat tab
+  merges message chunks, folds tool calls, thoughts and plans between messages into one
+  line, says whether each tool went through Nendo, and redacts the application handle
+  from everything the agent writes. The composer offers only options the agent offered
+  (`AgentConversation.Options.cs`), its slash commands, and @ mentions of the file's own
+  things sent as `nendo://` resources.
+- The conversation reaches the tab through the `agentSession.*` bridge methods and the
+  `agentSessionChanged` nudge, keyed by `conversationId`. The transcript lives in host
+  memory, at most 1,000 entries.
+- Turning access Off, closing, switching or replacing the file, a listener returning at
+  another address, a handshake refusal, or closing the tab that owns the conversation
+  ends the agent.
 
-The message box (W-200) names the file, the level and the agent in small chips above it, and
-@ points the agent at the file's own things: what other tabs show, record types, fields, views,
-records found through the search index, and proposals waiting. `agent-context-model.ts`
-matches and describes them, cheap on a large file; `agent-mention.ts` drives the menu; the host
-sends each as an embedded resource or a resource link with its nendo:// address
-(`AgentConversation.Context.cs`), refusing any other address.
-
-The conversation reaches the tab through eleven `agentSession.*` bridge methods and
-the `agentSessionChanged` nudge (ADR-0002, 2026-10-08 note). `view-agent-chat.ts`
-reads what changed and patches it in place, so the composer is never redrawn. Each read
-carries the launch's `conversationId`; a read or an answer of a replaced conversation is
-dropped, and a request that names one is refused. The transcript lives in host memory until
-the file closes or another agent is launched, at most 1,000 entries, and each read says where
-it now starts so the tab lets the same entries go.
-
-**What Nendo does not confine.** The program keeps every ability it has on this
-computer, including its own shell and file tools. ACP lets an agent ask permission
-but does not make it ask. Nendo gives it nothing beyond the MCP address at the
-person's level.
+**What Nendo does not confine.** The program keeps every ability it has on this computer,
+including its own shell and file tools. ACP lets an agent ask permission but does not make
+it ask. Nendo gives it nothing beyond the MCP address at the person's level.
 
 ## File lifecycle
 
-Typed Duplicate, Fork, Backup and Restore have defined identity semantics. The host
+Typed Duplicate, Fork, Backup and Restore have defined identity semantics, and the host
 classifies raw copies before any write
-([ADR-0010](decisions/0010-file-identity-duplicate-fork-backup-and-restore.md)).
+([ADR-0010](decisions/0010-file-identity-duplicate-fork-backup-and-restore.md)). An
+interrupted replacement is resolved explicitly, never repaired silently. There is no
+guessed migration and no identity repair.
 
 A new file of the same application
-([ADR-0022](decisions/0022-new-file-keeping-the-records-an-application-ships-with.md)) keeps
-the definition and only the records kept in new files: a record type's default
-(`schema.setKeptInNewFiles`) or a record's own mark (`data.setKeptInNewFiles`), stored on the
-`newfile` layout rung (host 1.41.0) with the application's name for one
-(`application.setNewFileLabel`). `NendoWriteCoordinator.NewFile.cs` stages a copy,
-`SqliteNendoStore.NewFile.cs` removes what is left out with every tombstone and view state,
-restarts sequences, and folds every revision into one checkpoint with ADR-0021's fold, and an
-identity transition of kind New gives the copy a new instance ID. A kept record that points at
-a left-out one refuses it. The source is never changed.
-The host resolves an interrupted replacement explicitly and never repairs it
-silently. There is no guessed migration and no identity repair.
+([ADR-0022](decisions/0022-new-file-keeping-the-records-an-application-ships-with.md))
+keeps the definition and only the records kept in new files: a record type's default
+(`schema.setKeptInNewFiles`) or a record's mark (`data.setKeptInNewFiles`), on the
+`newfile` layout rung, with the application's name for one
+(`application.setNewFileLabel`). `NendoWriteCoordinator.NewFile.cs` stages a copy;
+`SqliteNendoStore.NewFile.cs` removes what is left out with every tombstone and view
+state, restarts sequences and folds every revision into one checkpoint; an identity
+transition of kind New gives the copy a new instance ID. A kept record that points at a
+left-out one refuses it. The source never changes.
 
 ## Product version
 
-The whole tree has one version number, declared as `<Version>` in
-`Directory.Build.props`. `NendoProduct.Version` reads it back from the assembly at
-runtime. Everything that shows the version reads it from there:
-
-- the Workbench status bar;
-- the MCP `server/discover` handshake;
-- the installer's `DisplayVersion`, which now carries the release. A `BuildId`
-  beside it carries the payload identity.
-
-A version change occurs in one place.
-
-This is the application's version. It is not related to
-`NendoFormat.CurrentHostVersion`. That constant states the file-format capability
-that a `.nendo` file needs from the host that opens it. It changes only when the
-format gains a capability.
+The tree has one version, `<Version>` in `Directory.Build.props`. `NendoProduct.Version`
+reads it from the assembly; the status bar, the MCP `server/discover` handshake and the
+installer's `DisplayVersion` all use it, with a `BuildId` beside `DisplayVersion` for the
+payload identity. It is unrelated to `NendoFormat.CurrentHostVersion`, the file-format
+capability a `.nendo` file needs, which changes only when the format gains a capability.
 
 ## Where things live
-
-This table gives the current locations, so that you do not need to search.
 
 | Concern | Path |
 | --- | --- |
@@ -1127,43 +757,38 @@ This table gives the current locations, so that you do not need to search.
 | Write authority | `Engine/NendoWriteCoordinator*.cs` |
 | SQLite (only here) | `Engine/Storage/SqliteNendoStore*.cs` |
 | Bounded reads and cursors | `Engine/ReadQueries.cs`, `NendoQueryCursor.cs` |
-| Bridge | `Desktop/DesktopShellContract.cs`, `WorkbenchProtocol.cs` |
-| Notification area | `Desktop/DesktopTrayIcon.cs`: one hidden top-level window, `Shell_NotifyIcon`, one popup menu. The same window hears Windows end the session (shutdown, restart, sign-out), which closes no window, and ends Nendo's session within a bound (`DesktopSessionEnd` in `DesktopWindowChrome.cs`) |
-| Notifications | `Desktop/DesktopNotifier.cs` (the OS side), `DesktopNotificationContent.cs` (the wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
-| Close behaviour | `Desktop/DesktopShellStore.cs` (device state), `DesktopCloseAction.cs` (the decision, pure), `MainWindow.xaml.cs` |
-| Title bar | `Desktop/MainWindow.TitleBar.cs` (the tall bar, the passthrough regions, the diagnostics), `MainPage.TitleBar.cs` (where the page is in the window), `WorkbenchProtocol.TitleBar.cs` (`window.setTitleBarControls` and its checks, pure); `Workbench/src/title-bar.ts` (measuring the bar's controls), `title-bar-model.ts` (what the page claims, pure), `styles/20-title-bar.css` |
-| Shell (Mica with tabs) | `Workbench/src/workspace-tabs.ts` (the tabs, one trail each), `rail-places.ts` (the file's places in the navigation), `type-icons.ts` (record type icons guessed from names), `styles/21-native.css`; `Desktop/MainPage.xaml` (transparent, so Mica shows) |
-| Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled: no WebView2 panel, F-237), `MainPage.Downloads.cs` (the saved files a notice may show), `WorkbenchProtocol.Downloads.cs` (`downloads.show`); `Workbench/src/main.ts` (the notice of `downloadSaved`) |
-| Renderer entry point | `Workbench/src/main.ts`: the router and the frame. It gives `render` and `updateChrome` to `shell.ts`, so that a view never imports it back |
-| One view per file | `Workbench/src/view-*.ts` (Use surfaces are hand-rolled DOM; AG Grid stays in `view-data.ts`, and `main.ts` registers its modules) |
-| Renderer state | `Workbench/src/app-state.ts`: one `state` object and the caches. It imports no view, so nothing cycles through it |
-| Markup | `Workbench/src/record-markup.ts` (the pieces), `page-markup.ts` (a record page), `surface-markup.ts` (the selected surface): pure string builders, under test |
-| Reads and writes | `Workbench/src/reads.ts`, `panels.ts` (tiles and charts), `actions.ts` (the one write path and the coherent-snapshot refresh) |
-| Host bridge | `Workbench/src/host.ts` (protocol version and which client), `host-types.ts`, `host-desktop.ts`, `host-preview.ts` |
-| Stylesheet | `Workbench/src/styles.css`: an ordered `@import` list. The numbered slices in `styles/` are one cascade, not independent sheets |
-| Plan-shape resolution | `Workbench/src/surface-model.ts`: resolves selectable surfaces, roots, fields and commands from the version 3 node tree |
-| Read windows | `Workbench/src/record-window.ts`: the query snapshot that a window owns, its page requests and structured cache keys |
-| Totals | `Workbench/src/summary-tiles.ts`: tile scopes and the exact read that each one composes |
-| Outline | `Workbench/src/outline-model.ts`: the levels read of a declared hierarchy, the visible rows, where a keyboard move or a drop sends a record, and the device's remembered rows, pure; `view-data.ts` draws Studio's outline, `outline-surface-markup.ts` and `outline-surface.ts` the Use `outlineSurface` (markup, then reads and gestures) |
-| Calendars | `Workbench/src/calendar-model.ts`: civil-date arithmetic, the Monday-first month grid and month/undated queries |
-| Timelines | `Workbench/src/timeline-model.ts`: civil-year bounds, month grouping, integer day arithmetic and spans cut at the year end. The calendar's page accumulator in `reads.ts` serves both |
-| Ratings | `Workbench/src/rating.ts`: the dots, their accessible name and the radio control. `Engine/Storage/SqliteNendoStore.Scales.cs` stores the scale itself, on the layout ladder's scale rung after the tone's |
-| View failures | `Desktop/DesktopViewFailureLog.cs`: the kind, how long the view was up, whether the window was out of sight and what Windows said about memory. Capped at 50 and switched from the tray. Device state, never in the file |
-| Declared hierarchies | `Engine/HierarchyOperations.cs` (the declare and remove operations and the bounds), `Engine/Storage/SqliteNendoStore.Hierarchy.cs` (the table on the layout ladder's hierarchy rung, the scan on declaration and the placement rule every parent write passes), `Engine/NendoApplicationService.Hierarchy.cs` (a move, expanded into `data.setField` operations), `Engine/HierarchyTreeWalk.cs` (the depth-first walk that resumes after a page's last record, asking each level for the siblings after one), `Engine/Storage/SqliteNendoStore.HierarchyReads.cs` (its seeks over the tree index, the `descendantOf` predicate every filtered read shares, and a move's sibling read), `Engine/NendoWriteCoordinator.Hierarchy.cs` (the same reads over a read-only snapshot) ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)) |
-| Custom-view packages in the file | `Engine/Extensions/ExtensionPackageOperations.cs` (the four operations), `ExtensionPackageModel.cs` (the bounds, the path rules and the media types), `ExtensionPackageDiff.cs` (the review's line diff), `ExtensionArchive.cs` (reading a folder, a zip or a `.nendoview`, the import change set and the exported manifest). `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs` stores them on the layout ladder's extension rung. `Workbench/src/package-diff-markup.ts` draws the review's Code section |
-| Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs` (the four kinds and their properties), `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452` to `NUI454`), `SemanticCapability.cs` (which rung a view needs, 1.29.0 to 1.34.0, and 1.42.0 for `extensionView`), `SemanticDiff.cs` (the review sentences and the line that code runs) |
-| Custom views: the host | `Desktop/Extensions/ExtensionOrigins.cs` (an origin per package per file instance), `ExtensionOriginCarry.cs` (the instance that keeps its old origin), `ExtensionAssetServer.cs` (answers every view origin from the open file), `DesktopSessionController.Extensions.cs` (what each origin serves, the switches, the content cache, import and removal proposals), `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `ExtensionWebViewPolicy.cs` (menus, DevTools, permissions, new windows, frame navigation), `WorkbenchProtocol.Extensions.cs` (the `extension.*` bridge methods), `ExtensionFrameDiagnostics.cs` (`diagnostics.frameProcesses`). `MainPage.xaml.cs` turns a view renderer's exit into `extensionFramesFailed` and holds Restart without custom views; `MainPage.Extensions.cs` holds the import and export pickers |
-| Custom views: the Workbench | `Workbench/src/view-frames.ts` (mounts, lazy start, park and adopt, heartbeat, overlays, Stop and Reload), `view-frame-markup.ts` (placeholders, notices, overlays, the frame's attributes, the Studio panel's markup), `extension-broker.ts` (the closed method table and the caps), `extension-model.ts` (the context, records, schema and theme tokens a view is handed), `extension-ui.ts` (what a view may ask the Workbench to do), `view-packages.ts` (Studio → Screens → Custom views), `frame-guard.ts` (refuses to run framed). A view's controls in Nendo's chrome (W-090): `view-toolbar-model.ts` (the declaration rebuilt into closed kinds, its keys, Ctrl K's entries; `tools/Graph-FixtureServer.mjs` builds the same module for the view lanes' fixture broker, W-091), `view-toolbar-markup.ts` (the strip and the menu as markup), `view-toolbar.ts` (drawing and wiring the strip), `view-menu.ts` (Nendo's menu for a view), `styles/18-view-toolbar.css`. One row above a view (W-092): `place-pickers.ts` (the breadcrumb's record-type and view pickers, drawn by the Use page and the front page), `styles/19-one-row.css` |
-| The view API | `Workbench/src/extension-api/nendo-api.ts` (`window.nendo`) and `protocol.ts` (the messages, shapes and limits both ends share), built by `vite.api.config.ts` to `dist/_nendo/api.js` and served at `/_nendo/api.js` on every view origin |
-| What the file is for | `Engine/Storage/SqliteNendoStore.Application.cs`: a singleton row on the layout ladder's purpose rung, below the custom-view package tables, read onto the manifest. `nendo://application/describe` leads with it. `Workbench/src/file-actions.ts` shows it on its own page, from About this file in the File menu |
-| Launched agents (ADR-0030) | `Desktop/Agents/AcpConnection.cs` (JSON-RPC on two streams, bounded lines), `AgentConversation.cs` (the ACP session, the transcript, permission requests), `AgentProcess.cs` (the program in its Job Object), `DesktopLaunchedAgent.cs` (process, folder and conversation together), `DesktopAgentCatalog.cs` (the known programs, `PATH` lookup, the person's command), `AgentConversation.Options.cs` (the agent's own options, three forms), `DesktopSessionController.LaunchedAgent.cs` (launch, read and the lifecycle), `WorkbenchProtocol.Agents.cs` (`agentSession.*`); `Workbench/src/agent-chat-model.ts` (merge and markup, pure), `view-agent-chat.ts` (the tab), `preview-agent-session.ts` (the preview's scripted agent), `styles/22-agent-chat.css` |
-| Agent tools and allow-list | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`; the other tools are in `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs`, `NendoReadTools.cs` (the resources as tools) and `NendoUnattendedTools.cs` |
+| Declared hierarchies | `Engine/HierarchyOperations.cs`, `HierarchyTreeWalk.cs`, `NendoApplicationService.Hierarchy.cs`, `NendoWriteCoordinator.Hierarchy.cs`, `Storage/SqliteNendoStore.Hierarchy*.cs` ([ADR-0019](decisions/0019-hierarchies-in-the-schema.md)) |
+| Custom-view packages | `Engine/Extensions/ExtensionPackageOperations.cs`, `ExtensionPackageModel.cs` (bounds, paths, media types), `ExtensionPackageDiff.cs`, `ExtensionArchive.cs` (folder, zip, `.nendoview`); `Engine/Storage/SqliteNendoStore.ExtensionPackages.cs`; `Workbench/src/package-diff-markup.ts` |
+| Custom-view definitions | `Engine/Extensions/ExtensionViewDefinition.cs`, `NendoSemanticCompiler.Extensions.cs` (`NUI450`, `NUI452` to `NUI454`), `SemanticCapability.cs`, `SemanticDiff.cs` |
+| Purpose | `Engine/Storage/SqliteNendoStore.Application.cs`; shown by `Workbench/src/file-actions.ts` |
+| Ratings scale | `Workbench/src/rating.ts`, `Engine/Storage/SqliteNendoStore.Scales.cs` |
+| Bridge | `Desktop/DesktopShellContract.cs`, `WorkbenchProtocol*.cs` |
+| Notification area | `Desktop/DesktopTrayIcon.cs` (one hidden window, `Shell_NotifyIcon`, one menu; it also hears Windows end the session, handled within a bound by `DesktopSessionEnd` in `DesktopWindowChrome.cs`) |
+| Notifications | `Desktop/DesktopNotifier.cs` (OS side), `DesktopNotificationContent.cs` (wording and routes, pure), `DesktopNotificationTrigger.cs` (transition, never condition) |
+| Close behaviour | `Desktop/DesktopShellStore.cs`, `DesktopCloseAction.cs` (pure), `MainWindow.xaml.cs` |
+| Title bar | `Desktop/MainWindow.TitleBar.cs`, `MainPage.TitleBar.cs`, `WorkbenchProtocol.TitleBar.cs`; `Workbench/src/title-bar.ts`, `title-bar-model.ts` (pure), `styles/20-title-bar.css` |
+| Shell and tabs | `Workbench/src/workspace-tabs.ts`, `rail-places.ts`, `type-icons.ts`, `styles/21-native.css`; `Desktop/MainPage.xaml` |
+| Tab windows | `Desktop/MainWindow.TabWindows.cs`, `WorkbenchProtocol.TabWindows.cs` (`DesktopTabWindowRules`); `Workbench/src/window-role.ts` |
+| File icons | `Desktop/DesktopFileIcon.cs` (`DesktopFileIcon`, `DesktopFileIconIndex`) |
+| Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled, no WebView2 panel), `MainPage.Downloads.cs`, `WorkbenchProtocol.Downloads.cs` (`downloads.show`) |
+| View failures | `Desktop/DesktopViewFailureLog.cs` (device state, capped at 50, switched from the tray) |
+| Custom views: host | `Desktop/Extensions/ExtensionOrigins.cs`, `ExtensionOriginCarry.cs`, `ExtensionAssetServer.cs`, `ExtensionWebViewPolicy.cs`, `ExtensionFrameDiagnostics.cs`, `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `DesktopSessionController.Extensions.cs`, `WorkbenchProtocol.Extensions.cs`; `MainPage.xaml.cs` (`extensionFramesFailed`, Restart without custom views), `MainPage.Extensions.cs` (pickers) |
+| Custom views: Workbench | `Workbench/src/view-frames.ts`, `view-frame-markup.ts`, `extension-broker.ts` (method table and caps), `extension-model.ts`, `extension-ui.ts`, `view-packages.ts`, `frame-guard.ts`; view controls in `view-toolbar-model.ts`, `view-toolbar-markup.ts`, `view-toolbar.ts`, `view-menu.ts`, `place-pickers.ts` |
+| The view API | `Workbench/src/extension-api/nendo-api.ts`, `protocol.ts`, built by `vite.api.config.ts` to `dist/_nendo/api.js` |
+| Renderer | `Workbench/src/main.ts` (router and frame; hands `render` and `updateChrome` to `shell.ts`), `app-state.ts` (one `state`, imports no view), `view-*.ts` (one view per file; AG Grid only in `view-data.ts`) |
+| Markup | `Workbench/src/record-markup.ts`, `page-markup.ts`, `surface-markup.ts`: pure string builders, under test |
+| Reads and writes | `Workbench/src/reads.ts`, `panels.ts`, `actions.ts` (the one write path), `record-window.ts`, `summary-tiles.ts`, `surface-model.ts` |
+| Surface models | `Workbench/src/calendar-model.ts`, `timeline-model.ts`, `outline-model.ts`, `outline-surface*.ts` |
+| Host bridge (Workbench) | `Workbench/src/host.ts`, `host-types.ts`, `host-desktop.ts`, `host-preview.ts` |
+| Stylesheet | `Workbench/src/styles.css`: an ordered `@import` list; the numbered `styles/` slices are one cascade |
+| Launched agents | `Desktop/Agents/AcpConnection.cs`, `AgentConversation*.cs`, `AgentProcess.cs`, `DesktopLaunchedAgent.cs`, `DesktopAgentCatalog.cs`, `DesktopSessionController.LaunchedAgent.cs`, `WorkbenchProtocol.Agents.cs`; `Workbench/src/agent-chat-model.ts`, `view-agent-chat.ts`, `view-agent.ts`, `preview-agent-session.ts` |
+| Agent tools | `LocalMcp/NendoAuthoringTools.cs`, `NendoAgentAuthoringService.cs`, `NendoAuthoringOperations.cs`, `NendoLeaseTools.cs`, `NendoDataTools.cs`, `NendoHealthTools.cs`, `NendoReadTools.cs`, `NendoUnattendedTools.cs` |
 | Resources | `LocalMcp/NendoMcpResources.cs`, `NendoResourceProjection.cs` |
 
 ## Running it
 
-You must build the Workbench before the host, because the build bundles the
-Workbench into the Desktop output:
+Build the Workbench before the host, because the build bundles it into the Desktop
+output:
 
 ```powershell
 cd src/Nendo.Workbench; npm ci; npm run build; cd ../..
@@ -1171,89 +796,90 @@ dotnet build Nendo.slnx
 ./artifacts/bin/Nendo.Desktop/debug_win-x64/Nendo.Desktop.exe
 ```
 
-The host runs on Windows only. It is WinUI 3 and needs the WebView2 Evergreen
-runtime. The app opens with no file. Create a file from the File menu, and Studio
-appears.
+The host runs on Windows only (WinUI 3, WebView2 Evergreen runtime). It opens with no
+file; create one from the File menu and Studio appears.
 
-For UI work without the host, run `npm run dev` in `src/Nendo.Workbench`. It serves
-the page at `127.0.0.1`. Append `?preview=1` to get the in-memory protocol double.
-The preview is visual only and proves nothing about storage or the bridge.
+For UI work without the host, run `npm run dev` in `src/Nendo.Workbench` and append
+`?preview=1` for the in-memory protocol double. The preview is visual only and proves
+nothing about storage or the bridge.
+
+The Workbench's WebView2 profile is under `%LOCALAPPDATA%\Nendo\WebView2`
+(`DesktopBrowserProfile`) unless `WEBVIEW2_USER_DATA_FOLDER` is set; a Debug build uses
+`WebView2-debug`, so a development host never shares a browser process or page storage
+with the installed Nendo. Views keep unsaved drafts and settings in that page storage; a
+file's data is never there.
 
 ## Building and verifying
 
 ```powershell
-pwsh ./tools/Test-Repository.ps1      # fast: vendored skills, JSON manifests, tracked files, binary assets, line endings, ADR structure, MCP surface count, shell identity, no build-record archive, native lane teardown
+pwsh ./tools/Test-Repository.ps1      # fast: skills, manifests, tracked files, binary assets, line endings, ADRs, documents that state the code, MCP surface, shell identity, lane teardown
 pwsh ./tools/Test-Production.ps1      # full gate; includes the repository check
 ```
 
-Do not run `Test-Production.ps1` twice. It already includes `Test-Repository.ps1`.
-Use `-SkipRestore` only with unchanged dependencies.
+`Test-Production.ps1` restores, builds and runs the .NET and Workbench suites, the
+architecture checks in [Composition](#composition), and the repository check, writing its
+progress to `artifacts/gate-progress.json`. It takes several minutes. Do not run it twice
+for one change; use `-SkipRestore` only with unchanged dependencies. Which gate a change
+needs, and when to rebuild the installer, is in
+[AGENTS.md](../AGENTS.md#validation-and-handoff).
 
-**The product has no CI, by choice.** The gate above is the gate. It runs locally
-in a few minutes. On a solo project with no pull requests, a hosted copy of the
-gate gives no benefit. Run the gate before you push. Add CI for the product when
-there is a reason, for example a second contributor or a real release that is
-near.
-
-One GitHub Actions workflow exists: `.github/workflows/pages.yml`. It builds and
-deploys the public website in `site/`
-([ADR-0018](decisions/0018-public-website-and-deployment-lane.md)). It runs only on
-a push to `main` that touches `site/`, `docs/assets/brand/`, the application icon or the
-workflow itself, or when somebody starts it by hand. It does not restore,
-build or test a .NET project, and it runs neither gate script. Thus it cannot pass
-or fail on anything that the gate covers. `tools/Test-Site.ps1` is the local
-equivalent, and the project keeps it out of `Test-Production.ps1`. It also runs the
-site's own script tests (`npm run test`, `site/scripts/*.test.mjs`), which the
-workflow does not.
-
-These native lanes exist outside the gate, because they drive a real Desktop window
-and need a desktop session:
-
-```powershell
-pwsh ./tools/Review-OutcomeRuntime.ps1      # real file-action outcomes and recovery; -Executable for the published payload
-pwsh ./tools/Review-NeutralityRuntime.ps1   # application-neutral surfaces through MCP
-pwsh ./tools/Review-DesktopPerformance.ps1  # startup, edit, memory against the four datasets
-pwsh ./tools/Review-ShellRuntime.ps1        # closing hides the window and keeps the file open
-pwsh ./tools/Test-JourneyPilot.ps1 -Executable <Nendo.Desktop.exe>  # pilot and behaviour journeys, create and reopen
-pwsh ./tools/Test-JourneyDrag.ps1  -Executable <Nendo.Desktop.exe>  # drag journey, create and reopen
-```
-
-`Test-NendoInstaller.ps1` runs one of the two journey lanes against the installed
-copy.
-
-Each of these lanes starts its host with a device-state root, MCP discovery folder
-and browser profile of its own under its evidence folder (`NENDO_DEVICE_STATE_ROOT`,
-which every build honours, and `WEBVIEW2_USER_DATA_FOLDER`), and checks afterwards
-that the person's theme is unchanged and that `agent-ports.json` gained no port
-for one of the lane's own files. The owner's Nendo rewrites that file on every file
-open, so the check looks for the lane's traces rather than comparing the file. A host
-on a device-state root of its own and the product identity writes neither the taskbar
-Jump List nor the notification registration, which Windows files under the identity
-and which belong to the installed Nendo (`DesktopRuntimeConfiguration.WritesShellState`);
-a lane that pins an identity with `NENDO_DESKTOP_APP_ID` writes both under its own. They close
-their host through `Stop-OwnedNendo` in `tools/Lane-NativeHost.ps1`: a window that
-will not close, such as one behind a native dialog after a failure, is stopped and
-reported as a warning, so the failure that got there is still the one the lane
-reports. `Test-Repository.ps1` runs that teardown against a stand-in for a stuck
-window and refuses a lane that closes its host another way.
-
-`Review-ShellRuntime.ps1` covers the close behaviour, a second launch of an open
-file bringing the hidden window back, the shell identity of the window and the Jump
-List that Windows stores. No script can enumerate the tray icon
-of another process or observe a shell notification. Thus the icon, its menu, the
-notifications and the taskbar drawing of the Jump List and the overlay badge stay
-owner-reported. The lane prints
-this limit together with its pass, so that nobody assumes more coverage.
-
-If you add CI again, set `DOTNET_INSTALL_DIR` to a runner-local path. Then install
-the SDK version from `global.json`. The `rollForward` policy of this repository is
-`latestFeature`. Without that step, a runner's preinstalled SDK silently takes
-priority over the pin. The Node floor is the `engines` range in
-`src/Nendo.Workbench/package.json`. This document does not repeat the number,
-because a repeated number caused the last drift. Package versions come from
+**The product has no CI, by choice.** If CI is added, set `DOTNET_INSTALL_DIR` to a
+runner-local path and install the SDK from `global.json`: `rollForward` is
+`latestFeature`, so a preinstalled SDK would otherwise win over the pin. The Node floor
+is the `engines` range in `src/Nendo.Workbench/package.json`; package versions come from
 `Directory.Packages.props`.
 
-Packaging (Windows x64, unsigned, per-user install):
+The one GitHub Actions workflow, `.github/workflows/pages.yml`, builds and deploys the
+public website in `site/` ([ADR-0018](decisions/0018-public-website-and-deployment-lane.md))
+on a push to `main` touching `site/`, `docs/assets/brand/`, the application icon or the
+workflow, or by hand. It builds no .NET project and runs neither gate script.
+`tools/Test-Site.ps1` is its local equivalent, outside `Test-Production.ps1`, and also
+runs `site/scripts/*.test.mjs`.
+
+### App lanes
+
+Each view package under `extensions/` has its own lane, `tools/Review-<App>.ps1`, driving
+`tools/Gate-<App>.mjs`. An app-only change needs that lane plus `Test-Repository.ps1`.
+`Test-Production.ps1` runs every app lane except Garden's, which is run by hand.
+`Review-WorkbenchShell.ps1` is the Workbench shell's lane, run against the Vite dev
+server.
+
+### Native lanes
+
+These drive a real Desktop window, need a desktop session, and are outside the gate:
+
+```powershell
+pwsh ./tools/Review-OutcomeRuntime.ps1      # file-action outcomes and recovery; -Executable for the published payload
+pwsh ./tools/Review-NeutralityRuntime.ps1   # application-neutral surfaces through MCP
+pwsh ./tools/Review-DesktopPerformance.ps1  # startup, edit, memory against the four datasets
+pwsh ./tools/Review-ShellRuntime.ps1        # close behaviour, second launch, shell identity, Jump List
+pwsh ./tools/Test-JourneyPilot.ps1 -Executable <Nendo.Desktop.exe>   # pilot and behaviour journeys
+pwsh ./tools/Test-JourneyDrag.ps1  -Executable <Nendo.Desktop.exe>   # drag journey
+pwsh ./tools/Test-AgentAuthoringGate.ps1 -Executable <Nendo.Desktop.exe>    # an application built through MCP only, reopened offline
+pwsh ./tools/Test-UnattendedBuildGate.ps1 -Executable <Nendo.Desktop.exe>   # the same at Unattended; the status-bar indicator measured from the DOM
+pwsh ./tools/Test-BehaviourAuthoringGate.ps1 -Executable <published Nendo.Desktop.exe>  # calculations, actions, and what an agent still cannot do
+```
+
+Each lane runs its host on its own device-state root, MCP discovery folder and browser
+profile under its evidence folder (`NENDO_DEVICE_STATE_ROOT`, honoured by every build,
+and `WEBVIEW2_USER_DATA_FOLDER`), then checks the person's theme is unchanged and
+`agent-ports.json` gained no port for a lane file. A host on its own device-state root
+under the product identity writes neither the Jump List nor the notification
+registration (`DesktopRuntimeConfiguration.WritesShellState`); a lane that pins
+`NENDO_DESKTOP_APP_ID` writes both under its own identity. Lanes close their host through
+`Stop-OwnedNendo` in `tools/Lane-NativeHost.ps1`, which stops a window that will not close
+and reports it as a warning, keeping the original failure; `Test-Repository.ps1` tests
+that teardown and refuses a lane that closes its host another way.
+
+No script can enumerate another process's tray icon or observe a shell notification, so
+the tray icon, its menu, notifications and the taskbar drawing of the Jump List and badge
+are owner-reported; `Review-ShellRuntime.ps1` prints this limit with its pass. The
+behaviour gate takes definition body shapes from the wire, so a published example that
+stops working fails it.
+
+### Packaging
+
+Windows x64, unsigned, per-user install:
 
 ```powershell
 pwsh ./tools/Publish-NendoPayload.ps1
@@ -1263,99 +889,61 @@ pwsh ./tools/Test-NendoInstaller.ps1      -PilotRoot '<printed payload directory
 pwsh ./tools/Test-NendoSetupIsolated.ps1  # install/upgrade/uninstall against a task-owned root
 ```
 
-`Test-NendoInstaller.ps1` seeds its journey file through
-`artifacts/bin/Nendo.Engine.Tests/debug/Nendo.Engine.dll`, so it stops with
-*Build the Engine tests first* unless the Engine tests are built. A run of
-`Test-Production.ps1` builds them as well; the `dotnet build` line above is for a
-machine that went straight to packaging.
-
-NSIS only extracts the payload to a temporary folder. `Invoke-NendoSetup.ps1` does
-the install after the progress bar is full. It checks every file by hash, keeps the
-installed version in `Nendo.previous` as one hard link per file, and moves the
-extracted files into place (`-MovePayload`). No payload byte is written twice. Each
-step appears in the installer's details list as it starts, and in
-`%TEMP%\Nendo-Setup.log`, where the installer appends each run's exit code at the
-end.
-
-How setup treats what it finds:
-
-- **Changed bytes refuse; a missing file does not.** An owned file whose bytes
-  differ from the inventory is an edit setup will not overwrite or delete. An owned
-  file that is simply gone, removed by antivirus or by hand, carries no edit:
-  rerunning the same installer puts it back, and an upgrade or uninstall goes ahead.
-- **Nothing is removed until everything can be.** Before an uninstall or a backup
-  rotation deletes anything, setup opens every owned file of the tree for exclusive
-  access, and refuses while one is in use. A Nendo started from `Nendo.previous`
-  refuses setup like one started from the install. A removal that stops part-way
-  counts the files already gone as removed, so a rerun finishes it.
-- **The backup takes its name only when complete.** It is built in
-  `Nendo.previous.partial` and renamed to `Nendo.previous` at the end. An
-  interrupted backup, or a `Nendo.previous` with no inventory that an earlier setup
-  left, is removed by the next run when every file in it matches the installed
-  payload. Otherwise an install refuses over it, and an uninstall leaves it and says
-  so in the log.
-- **Links are refused inside the trees setup writes, not above them.** A junction or
-  symbolic link in the install folder, the backup or the payload refuses setup. A
-  junction above them, such as a profile or AppData moved to another drive, does
-  not: every owned path is kept inside its folder by a containment check.
-- **A running Nendo is reported where it is.** Closing the window leaves Nendo in
-  the notification area. The installer checks for a running Nendo before it extracts
-  anything and offers Retry, and setup's refusal and the installer's message box say
-  to choose *Exit Nendo* from the notification area icon. A Nendo in another
-  account's sign-in session does not keep this account's setup out. Every failure
-  box shows setup's own sentence rather than one fixed text.
-- **The installer says which release it is.** `Nendo-Setup.exe` carries the
-  payload's version in its file properties and its window title, and
-  `Build-NendoInstaller.ps1` reads the version back from the built file.
-
-`Build-NendoInstaller.ps1` first compiles and runs a silent probe of the macros the
-installer uses, from a folder whose name is not ASCII: the log line lands at the end
-of an existing log, the failure sentence is read back as setup wrote it, and the
-executable of a running process reads as in use. The scripts are compiled with
-`/INPUTCHARSET UTF8`. Every rebuild moves the previous build to
-`Nendo-Setup.previous.exe`, whether or not a lane checked it;
-`previous-installer-status.json` says which of its lanes ran.
-
-**The browser profile lives in device state.** The Workbench's WebView2 profile (its
-cache, cookies and page storage, about 100 MB) is created under
-`%LOCALAPPDATA%\Nendo\WebView2` (`DesktopBrowserProfile`), beside the rest of the
-device state, unless the process owner sets `WEBVIEW2_USER_DATA_FOLDER`. A Debug
-build uses `WebView2-debug` there instead, so a development host never shares a
-browser process or page storage with the installed Nendo. Before 2026-10-13 the
-profile was WebView2's default, `Nendo.Desktop.exe.WebView2` beside the executable:
-setup did not own it, so uninstall left it behind and every setup run walked it.
-
-The profile holds more than a cache: the Garden and Swarm views keep unsaved drafts
-and settings in its page storage. So setup **moves** the old folder, once, to
-`%LOCALAPPDATA%\Nendo\WebView2` when nothing is there yet, and nothing is lost. Only
-when a profile already exists there, because this version has run since, does setup
-delete the old one, and then whatever only the old one held is lost. A move that
-cannot happen, across volumes or with a file still in use, leaves the old folder
-where it was; setup logs it and tries again on its next run. Setup does this only once
-an install or uninstall has gone through, so a refused one leaves the profile alone. It
-covers the install folder, `Nendo.previous` (where a hand-run older build may have
-left one, which would otherwise block the backup rotation) and a retired pilot's
-folder. Setup's destination is the `-BrowserProfileRoot` default in
-`Invoke-NendoSetup.ps1`, and `DesktopBrowserProfileTests` pins it to the application's
-own default. A device-state root set by an environment variable is a lane's, which
-setup never sees. A file's data is never in the profile; it is in the `.nendo` file.
-
-You must install NSIS to build the installer. When you rebuild the app, rebuild the
-installer in the same task. Prune old payloads only through
+NSIS must be installed. `Test-NendoInstaller.ps1` seeds its journey file through
+`artifacts/bin/Nendo.Engine.Tests/debug/Nendo.Engine.dll` and stops with *Build the Engine
+tests first* until they are built. Prune old payloads only through
 `Remove-NendoBuildPayload.ps1`, which verifies hashes first.
+
+NSIS only extracts the payload to a temporary folder. `Invoke-NendoSetup.ps1` then checks
+every file by hash, keeps the installed version in `Nendo.previous` as one hard link per
+file, and moves the extracted files into place (`-MovePayload`), so no byte is written
+twice. Each step shows in the installer's details list and in `%TEMP%\Nendo-Setup.log`,
+which ends each run with its exit code.
+
+- **Changed bytes refuse; a missing file does not.** An owned file whose bytes differ
+  from the inventory is an edit setup will not overwrite or delete. A missing owned file
+  is put back by rerunning the installer, and does not block an upgrade or uninstall.
+- **Nothing is removed until everything can be.** Before an uninstall or backup rotation
+  deletes anything, setup opens every owned file exclusively and refuses while one is in
+  use, including a Nendo started from `Nendo.previous`. A removal that stops part-way
+  counts files already gone as removed, so a rerun finishes it.
+- **The backup is named only when complete.** It is built in `Nendo.previous.partial`
+  and renamed at the end. A leftover partial or uninventoried backup is removed when every
+  file matches the installed payload; otherwise an install refuses over it, and an
+  uninstall leaves it and logs it.
+- **Links are refused inside the trees setup writes, not above them.** A junction or
+  symlink in the install folder, the backup or the payload refuses setup; one above them
+  (a moved profile or AppData) does not, and a containment check keeps every owned path
+  in its folder.
+- **A running Nendo is reported where it is.** The installer checks before extracting and
+  offers Retry, and the refusal says to choose *Exit Nendo* from the tray icon. A Nendo in
+  another account's session does not block this account. Every failure box shows setup's
+  own sentence.
+- **The browser profile.** After an install or uninstall succeeds, setup moves a WebView2
+  profile left beside the executable (install folder, `Nendo.previous`, or a retired
+  pilot's folder) to `%LOCALAPPDATA%\Nendo\WebView2` if nothing is there, and deletes it
+  only if a profile already exists there. A move that cannot happen is logged and retried
+  next run. `DesktopBrowserProfileTests` pins the `-BrowserProfileRoot` default to the
+  application's own.
+- **The installer names its release** in its file properties and window title;
+  `Build-NendoInstaller.ps1` reads it back from the built file.
+
+`Build-NendoInstaller.ps1` first compiles and runs a silent probe of the installer's
+macros from a non-ASCII folder (the log line lands at the end of an existing log, the
+failure sentence reads back as written, a running executable reads as in use), compiles
+with `/INPUTCHARSET UTF8`, and moves the previous build to `Nendo-Setup.previous.exe`;
+`previous-installer-status.json` says which of its lanes ran.
 
 #### NSIS without winget
 
-On a managed machine `winget install NSIS.NSIS` can fail with *This operation is
-disabled by Group Policy*, and NSIS's own download host may not be an approved
-source. NSIS is also on NuGet as `NSIS-Tool` (3.13.0 was used for the 0.17.0
-installer), a third-party repackaging that contains a portable `makensis.exe`.
-The package carries NuGet.org's repository signature (`dotnet nuget verify`
-shows it); `makensis.exe` itself is not Authenticode-signed.
+On a managed machine `winget install NSIS.NSIS` can fail with *This operation is disabled
+by Group Policy*, and NSIS's download host may not be approved. NSIS is also on NuGet as
+`NSIS-Tool`, a third-party repackaging with a portable `makensis.exe`. The package carries
+NuGet.org's repository signature (`dotnet nuget verify` shows it); `makensis.exe` itself is
+not Authenticode-signed.
 
-Restore it into the NuGet cache with a throwaway project in a scratch folder
-**outside the repository**, so this repository's `Directory.Build.props` and
-central package management do not apply:
+Restore it with a throwaway project in a scratch folder **outside the repository**, so
+this repository's `Directory.Build.props` and central package management do not apply:
 
 ```xml
 <!-- fetch.csproj -->
@@ -1376,108 +964,52 @@ $env:Path = "$env:USERPROFILE\.nuget\packages\nsis-tool\3.13.0\tools;$env:Path"
 makensis /VERSION
 ```
 
-Nothing is installed: `makensis` is on `PATH` for that shell only, so run the
-packaging steps from the same shell. `Build-NendoInstaller.ps1` records the
-`makensis /VERSION` it used in `installer.json`.
+Nothing is installed: `makensis` is on `PATH` for that shell only, so package from the
+same shell. `Build-NendoInstaller.ps1` records the `makensis /VERSION` it used in
+`installer.json`.
 
 #### When `Test-NendoInstaller.ps1` refuses over its own leftovers
 
 The lane writes canary files into the real `Programs\Nendo` folder
-(`user-retention-check.txt`, and `upgrade-user-retention.nendo` when it upgrades
-a previous installer) to prove that uninstall keeps files it does not own. A run
-that stops after writing them leaves them there, and uninstall keeps them by
-design, so the folder outlives the installation and the interlock below refuses
-the next run. The lane says so by name when the folder holds nothing else. Delete
-those files and the empty folder, then rerun. The lane never deletes them itself,
-because that folder is where a real installation lives.
+(`user-retention-check.txt`, and `upgrade-user-retention.nendo` on an upgrade) to prove
+uninstall keeps files it does not own. A run that stops after writing them leaves the
+folder behind, and the interlock refuses the next run, naming them when the folder holds
+nothing else. Delete those files and the empty folder, then rerun. The lane never deletes
+them itself, because that folder is where a real installation lives.
 
 ### What gets checked, and what doesn't
 
-Two different lanes cover an installer build, and a third runs the custom-view
-journey against what the first one installs. It is important which lane you mean.
-`artifacts/installer/installer-status.json` records both lanes for the delivered
+`artifacts/installer/installer-status.json` records the first two lanes for the delivered
 file.
 
 | Lane | Covers | Runs |
 | --- | --- | --- |
-| `Test-NendoSetupIsolated.ps1` | The setup logic: install, in-place upgrade, obsolete owned file removal, unowned user file preservation, uninstall, and everything setup registers with Windows (the `.nendo` association, the *New* menu entry, the application identity and the Start Menu shortcut), against a task-owned root, class store and Start Menu folder | Always |
+| `Test-NendoSetupIsolated.ps1` | The setup logic: install, in-place upgrade, obsolete owned file removal, unowned user file preservation, uninstall, and everything setup registers with Windows (association, *New* menu entry, application identity, Start Menu shortcut), against a task-owned root, class store and Start Menu folder | Always |
 | `Test-NendoInstaller.ps1` | The NSIS wrapper: bootstrapper, payload extraction, HKCU uninstall registration, real `Uninstall.exe` | Only on a clean Windows user |
-| `Test-ExtensionInstalledJourney.ps1` | The custom-view journey (`DesktopExtensionViewJourneyTests`) against the app as setup installs it: the published payload installed by `Invoke-NendoSetup.ps1` into a task-owned root, checked byte for byte against the manifest, then uninstalled. The journey drives the page and the view frames over the browser's debugging port, so it needs no pointer and no foreground | On request, after a publish |
+| `Test-ExtensionInstalledJourney.ps1` | The custom-view journey (`DesktopExtensionViewJourneyTests`) against the published payload installed by `Invoke-NendoSetup.ps1` into a task-owned root, checked byte for byte against the manifest, then uninstalled; driven over the browser's debugging port, so it needs no pointer or foreground | On request, after a publish |
 
-The task-owned class store is a run key under a lane key of its own in HKCU
-(`Software\Nendo-Isolated-Setup`, `Software\Nendo-Installed-Journey`, and
-`Software\Nendo-Setup-Tests` for the fixture lane below). Each lane removes its
-run key in a `finally` block, so a failed run removes it as well, and then
-removes the lane key once no run is left under it. A failed run keeps its
-files under `artifacts/` for diagnosis. It does not keep its registrations.
+The task-owned class store is a run key under a lane key in HKCU
+(`Software\Nendo-Isolated-Setup`, `Software\Nendo-Installed-Journey`,
+`Software\Nendo-Setup-Tests`). Each lane removes its run key in a `finally` block, then the
+lane key once no run is left. A failed run keeps its files under `artifacts/`, not its
+registrations.
 
-The second lane installs and then **uninstalls** from the real per-user location.
-Thus it refuses to start when Nendo is installed. That refusal is a safety
-interlock that protects your installation. It is not a failure, and it is not a
-finding about the build. On a developer machine the lane never runs, so the NSIS
-wrapper is normally unchecked. State this precisely. Do not call the installer
-"unverified": that word reads as a defect, and a defect is not the meaning.
+`Test-NendoInstaller.ps1` installs and then **uninstalls** from the real per-user
+location, so it refuses to start when Nendo is installed. That refusal is a safety
+interlock protecting the installation, not a failure. On a developer machine the NSIS
+wrapper is therefore unchecked; say exactly that, not "unverified".
 
-The setup logic has three fast tests over synthetic fixtures. They use no real
-payload, and each takes seconds. Run them when you change
+The setup logic has three fast fixture tests; run them when you change
 `Invoke-NendoSetup.ps1`:
 
 ```powershell
-pwsh ./tools/Test-NendoSetup.ps1          # 26 cases: fresh install, upgrade, rollback,
-                                          # locked files, corrupt extraction, path traversal,
-                                          # moved payload and linked backup, a failed
-                                          # registration repaired by rerunning the same
-                                          # payload, a missing owned file restored, an
-                                          # interrupted backup cleared, uninstall refused
-                                          # over a file in use or a Nendo running from the
-                                          # backup, a junction above the root, the old
-                                          # browser profile removed, and this account's
-                                          # .nendo registration left untouched
+pwsh ./tools/Test-NendoSetup.ps1          # synthetic cases: install, upgrade, rollback, locks, corrupt extraction, traversal, links, interrupted backup, the old browser profile, registrations
 pwsh ./tools/Test-NendoLegacyUpgrade.ps1  # retiring a legacy pilot install
 pwsh ./tools/Test-NendoBuildPruning.ps1   # Remove-NendoBuildPayload safety
 ```
 
-`Test-NendoLegacyUpgrade.ps1` is the exception to "synthetic": RetirePilots only
-looks where a real pilot lived, so the lane compiles a small NSIS fixture that
-installs into `Programs\NendoPilot\<id>`, writes an `Uninstall\NendoPilot-<id>` key
-and a Start Menu shortcut, all named for the run. It aims setup at a task-owned
-install root, removes all three in a `finally` block on a failure as on a pass, and
+`Test-NendoLegacyUpgrade.ps1` compiles a small NSIS fixture that installs into
+`Programs\NendoPilot\<id>` with an `Uninstall\NendoPilot-<id>` key and a Start Menu
+shortcut, all named for the run, because RetirePilots only looks where a real pilot
+lived. It aims setup at a task-owned root, removes all three in a `finally` block, and
 fails if any is left.
-
-The agent-authoring gate builds a complete application from an empty file through
-the MCP interface only. Then it reopens the file offline:
-
-```powershell
-pwsh ./tools/Test-AgentAuthoringGate.ps1 -Executable <Nendo.Desktop.exe>
-```
-
-The unattended gate does the same at the fifth access level. At that level, the
-agent accepts its own proposal, and the host records the consent that its
-automatic actions need. Nobody touches the window after the level is set. The gate
-also measures what the person can see during the run: the status-bar indicator
-names the client and the call, and goes away when the agent is quiet. The gate
-reads the DOM to measure this, and does not look at a screenshot:
-
-```powershell
-pwsh ./tools/Test-UnattendedBuildGate.ps1 -Executable <Nendo.Desktop.exe>
-```
-
-The behaviour gate does the same for calculations and automatic actions. It then
-checks what an agent still cannot do: run what it authored, reach this device's
-consent, or make a board group by a calculated field:
-
-```powershell
-pwsh ./tools/Test-BehaviourAuthoringGate.ps1 -Executable <published Nendo.Desktop.exe>
-```
-
-The gate takes the definition body shapes from the wire and not from this
-repository. Thus, if a published example stops working, the gate fails, and the
-example does not mislead an agent. The gate writes what it observed beside its
-assertions. It records whether an open window noticed the new rules without a
-refresh. It also records that a grant binds the whole definition revision, so even
-a change that alters no rule asks the owner again.
-
-The three gates above were written by somebody who already knew where everything
-was, so none of them can show whether a capable client could find it. Outside reviews
-answer that when one is run; their dated reports are kept in
-[`docs/reviews/`](reviews/README.md).

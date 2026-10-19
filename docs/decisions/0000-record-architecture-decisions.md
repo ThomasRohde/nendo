@@ -4,19 +4,17 @@
 - **Date:** 2026-09-01
 - **Owners:** Nendo maintainers
 - **Confidence:** High
-- **Evidence:** An independent design critique, repository state and prior ADR inconsistencies
+- **Evidence:** `tools/Test-Repository.ps1` (ADR structure: heading, header fields, unique numbers, required ADRs)
 
 ## Context
 
-Nendo is exploration-led by design. The first baseline proposed an ADR process, but it did not create ADR-0000 or a template before later ADRs were written. One architecture-significant decision was marked Accepted without the experiments that it required of itself. The two existing ADRs used inconsistent front matter.
-
-The repository needs a simple decision process. The process must distinguish hypotheses from decisions and keep missing or reserved numbers legible. It must also prevent design momentum from licensing production architecture.
+Architecture-significant choices need one place that says what is decided, how
+confident the project is and what authorises implementation. A hypothesis must not
+read as a decision, and design momentum must not license production architecture.
 
 ## Decision
 
-### Status model
-
-Every ADR has exactly one status:
+### Status
 
 ```text
 Proposed → Accepted → Superseded
@@ -24,15 +22,16 @@ Proposed → Accepted → Superseded
         ↘ Deferred
 ```
 
-- **Proposed** — a decision is under consideration. It may authorise disposable experiments. It does not authorise architecture-significant production implementation.
-- **Accepted** — the evidence is sufficient for the stated confidence, and implementation obligations may proceed.
-- **Rejected** — the option was considered and should not be implemented under the recorded conditions.
-- **Deferred** — the decision is outside the current scope by intent, or it lacks a prerequisite.
-- **Superseded** — a later ADR replaces the decision. The original file remains unchanged. The only exception is a link to the superseding ADR, when practical.
+- **Proposed** — under consideration. It may authorise disposable experiments, not
+  architecture-significant production work.
+- **Accepted** — the evidence is sufficient for the stated confidence, and
+  implementation may proceed.
+- **Rejected** — not to be implemented under the recorded conditions.
+- **Deferred** — out of scope by intent, or a prerequisite is missing. It grants no
+  implementation authority.
+- **Superseded** — a later ADR replaces it.
 
-### Required front matter
-
-Every top-level ADR contains:
+### Header
 
 ```markdown
 # ADR-NNNN: Title
@@ -40,102 +39,72 @@ Every top-level ADR contains:
 - **Status:** Proposed | Accepted | Rejected | Deferred | Superseded
 - **Date:** YYYY-MM-DD
 - **Owners:** names or accountable maintainer group
-- **Confidence:** Low | Medium | High
-- **Evidence:** experiment/result/review links or an explicit statement that evidence is pending
+- **Confidence:** Low | Medium-low | Medium | High
+- **Evidence:** the current tests or lanes that hold the decision, in one line, or "pending"
 ```
 
-Optional fields include `Depends on`, `Supersedes`, `Superseded by`, `Review by` and `Related design`.
+`tools/Test-Repository.ps1` checks the heading and these five lines in every ADR
+except `README.md` and `template.md`, refuses a duplicate number, and requires
+ADR-0000, ADR-0015 and ADR-0016 to exist.
 
-### Required body
+### Body
 
-An ADR records:
+An ADR states the decision as it stands now:
 
-1. context and decision drivers;
-2. options considered, including doing nothing where meaningful;
-3. the decision or proposed direction;
-4. evidence and validation obligations;
-5. positive and negative consequences;
-6. rejected alternatives;
-7. revisit triggers.
+1. **Context** — the problem and its constraints, briefly.
+2. **Decision** — the current rules, grouped by topic.
+3. **Consequences** — positive and negative.
+4. **Rejected alternatives** — one line each, kept where it stops a re-proposal.
+5. **Revisit triggers** — while they are still meaningful.
 
-An ADR is not a meeting transcript, a vendor feature list or a generic technology note.
+A change to an accepted decision is folded into its Decision by topic rather than
+appended as a dated amendment; git keeps the history. Detailed behaviour belongs in
+the contracts under [`../contracts/`](../contracts/); an ADR states the decision and
+links the contract. A Superseded, Rejected or Deferred ADR is a short stub: the
+header and one paragraph saying what it decided and what holds now, with a link.
 
-### Evidence rule
+An ADR is not a meeting transcript, a vendor feature list or a generic technology
+note.
 
-An architecture-significant ADR may be Accepted only when its claimed evidence exists and can be reviewed.
+### Evidence
 
-Acceptable evidence may include:
+An architecture-significant ADR is Accepted only when its evidence exists and can
+be reviewed: tests, lanes, fault-injection or performance measurements, a measured
+comparison of alternatives, or direct repository evidence for reversible tooling
+and governance decisions. Vendor documentation establishes availability, licensing
+or documented capability. It does not by itself prove integration cost, quality,
+accessibility, performance or failure behaviour.
 
-- executable experiments with exact versions, commands and observations;
-- contract, fault-injection, accessibility or performance tests;
-- a completed reference journey evaluated against written criteria;
-- a measured comparison of alternatives;
-- direct repository evidence for reversible tooling/governance decisions.
-
-Vendor documentation can establish availability, licensing or documented capability. It does not by itself prove integration cost, product quality, accessibility, automation, performance or failure behaviour.
-
-### Exception for reversible repository housekeeping
-
-Reversible changes may be accepted from direct repository evidence when they do not decide the product runtime. Examples are documentation indexes, `.gitignore`, CI checks, skill vendoring and experiment scaffolding. Their ADR must still state consequences and provenance.
+Reversible repository housekeeping (documentation indexes, `.gitignore`, CI checks,
+skill vendoring, experiment scaffolding) may be accepted from direct repository
+evidence. This exception does not extend to product decisions.
 
 ### Numbering
 
-- ADR numbers are four digits and never reused.
-- A number may be reserved in `docs/decisions/README.md` before its file exists.
-- The index lists reserved/unwritten decisions explicitly as `Proposed — not yet written`. They are not treated as lost decisions.
-- Existing ADR-0015 and ADR-0016 keep their numbers because they were already published. The index makes 0001–0014 legible, and new decisions continue at 0017.
-- A change to a title does not change the number.
+ADR numbers are four digits and never reused. A title change does not change the
+number. [`README.md`](README.md) lists every ADR from 0000 to the latest.
 
-### Stage gates
+### Precedence
 
-A later exploration stage cannot be declared complete while a required earlier deliverable is missing. While Stage 0 is open, a disposable experiment may begin only when it directly supplies the missing evidence and is clearly isolated under `prototypes/`.
-
-### Design precedence
-
-Accepted ADRs are the architecture authority. When an ADR changes an architecture-significant statement, `../architecture.md` and any affected contract under `../contracts/` must be updated in the same change.
+Accepted ADRs are the architecture authority. A change to an architecture-significant
+statement updates [`../architecture.md`](../architecture.md) and any affected
+contract in the same change.
 
 ## Consequences
 
-### Positive
-
-- People can explore proposed ideas, and nobody mistakes them for settled architecture.
-- Evidence, confidence and implementation authority are visible.
-- Reserved decision numbers no longer look like missing history.
-- Coding agents receive one consistent source of decision precedence.
-- New evidence can change decisions, and history is not rewritten.
-
-### Negative
-
-- Maintainers must keep the decision index and design status current.
-- Some attractive implementation work will wait for an experiment result.
-- Small ADRs still add documentation overhead. The exception above must not be extended to product decisions.
+- Evidence, confidence and implementation authority are visible, and coding agents
+  get one source of decision precedence.
+- Maintainers keep the ADR, the index and the contracts current in the same change.
+- Some attractive implementation work waits for evidence.
 
 ## Rejected alternatives
 
-### Treat the initial design as a single omnibus ADR
-
-Rejected. Unrelated choices would share one status, and evidence could not accept or reject them independently.
-
-### Mark a decision Accepted with a list of future prototype obligations
-
-Rejected. Obligations for rollout may remain after acceptance. But the evidence that is required to choose the architecture must exist before acceptance.
-
-### Renumber all published ADRs immediately
-
-Rejected. When 0015/0016 keep their numbers, references and history stay intact. The index resolves the apparent gap, and prior commits are not rewritten.
-
-## Validation
-
-- `docs/decisions/template.md` matches the required structure.
-- `docs/decisions/README.md` lists every ADR number, from 0000 to the most recent
-  ADR.
-- The repository gate (`tools/Test-Repository.ps1`) checks the required front
-  matter and duplicate top-level ADR numbers.
-- ADR-0015 remained Proposed until EX-0002, EX-0003, DS1 and DS2 evidence and an explicit owner risk disposition were recorded. Its deferred obligation for an actual 200% rollout remains named and unpassed.
-- Accepted decisions link to actual evidence, not to planned evidence.
+- One omnibus ADR: unrelated choices would share one status and could not be
+  accepted or rejected independently.
+- Accepting a decision while the evidence that chooses it is still owed as future
+  obligations.
 
 ## Revisit triggers
 
-- The project adopts a formal decision-management tool with equivalent Git history and evidence links.
-- Multiple maintainers require a different approval model.
+- Several maintainers need a different approval model.
 - The number of ADRs makes the flat index impractical.

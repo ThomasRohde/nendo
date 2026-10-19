@@ -4,126 +4,78 @@
 - **Date:** 2026-09-02
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** EX-0001 result, EX-0004 result and EX-0007 result
-- **Depends on:** ADR-0003 storage boundary and ADR-0005 write coordinator
-- **Related design:** [`../architecture.md`](../architecture.md)
+- **Evidence:** `IdempotentReplayTests`, `CompensationAndIdeaServiceTests`, `RecordWritesUndoTests`, `HistoryFoldTests` (Engine) and `UndoRevisionToolTests` (LocalMcp)
 
 ## Context
 
-With a single global version, unrelated record entry would make every
-application proposal stale. If Nendo rewound the database to implement “undo”,
-it would erase later history. It would also overstate reversibility for lossy or
-identity-changing operations. Nendo needs ordered audit evidence, and definition
-work and unrelated data work must be able to proceed independently.
-
-## Decision drivers
-
-1. Relevant conflicts must fail without invalidating unrelated work.
-2. Every accepted mutation needs attributable ordered history.
-3. Retried requests must not duplicate effects or revisions.
-4. Reversibility claims must match available inverse evidence.
-5. Recovery must preserve history and must not rewrite it.
-
-## Options considered
-
-### Split revision lineages plus per-record versions
-
-Track definition and data lineages independently. Order all changes with a
-monotonic sequence, and use touched-record versions for fine-grained conflicts.
-
-### One global revision
-
-This option is simple to compare. But ordinary data entry would make unrelated
-UI proposals permanently stale.
-
-### Snapshot rewind as universal undo
-
-Restore an earlier file or revision as a whole. This option can erase later
-accepted work, and it cannot correctly invert every operation.
+With one global version, ordinary record entry would make every application proposal
+stale. Rewinding the database as "undo" would erase later history and overstate
+reversibility for lossy or identity-changing operations. Nendo needs ordered audit
+evidence while definition work and unrelated data work proceed independently.
 
 ## Decision
 
-Nendo uses separate revision lineages with one ordered semantic audit stream.
+Nendo keeps separate revision lineages and one ordered semantic audit stream.
 
-- `definition_revision` advances for schema, semantic UI, constraints, commands
-  and application settings.
-- `data_revision` advances for record-state transactions.
-- `change_sequence` monotonically orders accepted revisions across both lanes.
+- `definition_revision` advances for schema, semantic UI, constraints, commands and
+  application settings. `data_revision` advances for record-state transactions.
+  `change_sequence` orders accepted revisions across both lanes.
 - Every record carries a version for touched-record optimistic concurrency.
-- An accepted semantic transaction appends one attributable revision. The
-  revision contains its lane, canonical operations, stable operation digest,
-  origin, time and declared reversibility evidence.
-- Idempotency keys are scoped to the appropriate authority/session. For an exact
-  replay, they return the original committed outcome. Reuse with a different
-  payload fails.
-- A proposal checks its required definition revision. It also checks the versions
-  of only the records that it reads or transforms. Unrelated record changes do
-  not make UI-only work stale.
-- Every operation type is classified `reversible`,
-  `reversible-with-retained-state` or `irreversible-declared`. (Note,
-  2026-09-22: the code names these classes `Reversible`,
-  `ReversibleWithRetainedState` and `IrreversibleDeclared`. MCP payloads carry
-  them in camelCase.)
-- Compensation is a new typed transaction linked to the original revision. It
-  advances history and current versions. It never deletes or rewinds audit
+- An accepted transaction appends one attributable revision with its lane, canonical
+  operations, stable operation digest, origin, time and declared reversibility
   evidence.
-- Nendo offers an inverse only when preconditions and retained state prove that
-  it is safe. Backups do not turn an irreversible operation into a reversible one.
+- Idempotency keys are scoped to their authority and session. An exact replay returns
+  the original committed outcome, including after intervening changes; reuse with a
+  different payload fails. A replay never bypasses current authority or outside-change
+  refusal.
+- A proposal checks its required definition revision and the versions of only the
+  records it reads or transforms, so unrelated record changes do not make UI-only
+  work stale.
+- Every operation type declares a reversibility class: `Reversible`,
+  `ReversibleWithRetainedState` or `IrreversibleDeclared` (camelCase on MCP).
+- Compensation is a new typed transaction linked to the original revision. It
+  advances history and current versions and never deletes or rewinds audit evidence.
+  An inverse is offered only when preconditions and retained state prove it safe;
+  backups do not make an irreversible operation reversible.
+- A record revision is compensated as a whole, its creates and restores included
+  (each by a version-checked delete), up to 12,800 operations. A compensation of
+  record changes can itself be compensated, which is redo. A compensated create
+  leaves its record ID reserved ([ADR-0023](0023-a-view-undoes-its-own-revisions.md)).
+- An agent at Edit data may compensate a record revision its own session committed
+  with `nendo.data.undo_revision`, by the same mechanism History and a view use
+  ([ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md)). The Engine
+  refuses a revision another origin committed (`revision-not-yours`), a definition
+  revision, and one whose operations are not all compensable.
+- A person may fold older history into one checkpoint revision after a backup
+  ([ADR-0021](0021-folding-old-history.md)). Exact replay and compensation then reach
+  the revisions after the checkpoint; a folded revision's operations are kept in the
+  backup. History is still never rewound by a write.
 
-## Evidence and validation obligations
-
-- EX-0001 proved unrelated-data, changed-definition and touched-record proposal
-  outcomes, exact idempotent replay and two bounded compensation classes.
-- EX-0004/7 proved exact-once mutation and ordered coordinator writes under
-  response loss, concurrency and native SQLite rollback.
-- Production must test the lane, digest, conflict rules, reversibility class and
-  inverse evidence of each operation.
-- Regression tests for delayed mutation and compensation replay, and for
-  [one-revision form saves and retained-state form compensation](../contracts/operation-outcomes.md),
-  now verify original receipts after intervening changes. They do not discard the
-  current authority or bypass outside-change refusal.
-- Multi-operation compensation, deletion, field retirement, relationships and
-  lossy conversion require explicit operation-specific tests before UI claims.
+Outcomes per operation are in the
+[operation-outcomes contract](../contracts/operation-outcomes.md).
 
 ## Consequences
 
 ### Positive
 
 - Ordinary data entry does not invalidate unrelated semantic work.
-- Audit order remains total, and conflicts stay appropriately narrow.
-- Undo language can be accurate and operation-specific.
+- Audit order stays total and conflicts stay narrow.
+- Undo language is accurate and operation-specific.
 
 ### Negative
 
-- Callers must understand multiple counters and per-record versions.
+- Callers handle several counters and per-record versions.
 - Compensation can itself conflict and is not universal.
-- Nendo retains more protected evidence than a simple last-state store does.
+- Nendo keeps more protected evidence than a last-state store.
 
 ## Rejected alternatives
 
-A global revision and universal snapshot rewind are rejected. Each one either
-discards useful concurrency or erases/overstates history.
+- One global revision: ordinary data entry would make unrelated proposals stale.
+- Snapshot rewind as universal undo: erases later accepted work and cannot invert
+  every operation.
 
 ## Revisit triggers
 
-- Multi-user collaboration requires vector/causal semantics.
+- Multi-user collaboration needs vector or causal semantics.
 - The split counters cannot express a required cross-lane invariant.
-- Retained inverse evidence grows beyond the bounded local-file budget.
-
-## Amendments
-
-- 2026-09-30 — [ADR-0021](0021-folding-old-history.md): a person may fold a file's older history
-  into one checkpoint revision, after a backup. History is still never rewound by a write; exact
-  replay and compensation now reach the revisions after the checkpoint, and a folded revision's
-  operations are kept in the backup rather than the file.
-- 2026-10-04 — [ADR-0023](0023-a-view-undoes-its-own-revisions.md): a record revision is compensated
-  as a whole with its creates and restores, each by a version-checked delete, up to 12,800
-  operations; a compensation of record changes can itself be compensated, which is redo. The
-  declared classes are unchanged: a compensated create leaves its record ID reserved.
-- 2026-10-04 — W-153, with [ADR-0009](0009-local-mcp-transport-authority-and-change-sets.md):
-  an agent at Edit data may compensate a record revision its own session committed, through
-  `nendo.data.undo_revision`, by the same compensation History and a view use. It is a new
-  authority for an agent and the same mechanism: one linked revision, nothing rewound. The
-  Engine refuses a revision another origin committed (`revision-not-yours`), a definition
-  revision and one whose operations are not all compensable, exactly as it refuses a view.
-  Accepted on the owner's standing pre-acceptance of ADR changes (2026-09-24).
+- Retained inverse evidence grows beyond the local-file budget.

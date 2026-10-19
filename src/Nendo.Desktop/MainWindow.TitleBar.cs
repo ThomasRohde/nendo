@@ -8,7 +8,7 @@ using Windows.Graphics;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// The window's title bar is Nendo's top bar (W-093; docs/design/console-direction.md).
+/// The window's title bar is Nendo's top bar (docs/design/mica-direction.md).
 /// <para>
 /// The window draws no title bar of its own. The page fills it from its top edge, and Windows
 /// keeps drawing Minimise, Maximise and Close over the top bar's right end, at the tall title

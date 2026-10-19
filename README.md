@@ -21,14 +21,6 @@ project. No build step. No regeneration when you want a change.
 concept, how it works, how to use it, the honest status, and guides written for
 people outside this repository. It does not render `docs/`.
 
-<p align="center">
-  <img src="docs/reviews/2026-09-12-mcp-vocabulary/production-board-dark.png" alt="A Nendo board surface grouped by a choice field, with column totals, in the dark theme" width="860">
-</p>
-
-<p align="center"><sub>A board an agent authored over MCP, in the running host.
-Captured from the 2026-09-12 review build (1.0.0 is current), with the rest of
-that review in <a href="docs/reviews/README.md">docs/reviews/</a>.</sub></p>
-
 The installed host always provides **Nendo Studio**, a high-quality database
 explorer and editor. Custom surfaces add focused experiences on top, but never
 become the only route to the data — if a surface breaks, the data is still
@@ -56,7 +48,7 @@ wrong can reach your data before you say yes.
 - **[Vision](docs/vision.md)** — what malleable software means and what would
   falsify it
 - **[Architecture](docs/architecture.md)** — the system as built
-- **[Roadmap](docs/roadmap.md)** — what's next, and what is honestly not yet true
+- **[Roadmap](docs/roadmap.md)** — where Nendo stands, and what is not yet true
 - **[Development planner](docs/dogfooding.md)** — how this project plans its own
   work in a Nendo file. That file is the author's own data and is not in a clone;
   the document describes the workflow and the agent handoff
@@ -68,7 +60,7 @@ wrong can reach your data before you say yes.
 
 ## State
 
-The MVP loop works end to end, delivered as a local unsigned per-user Windows
+The core loop works end to end, delivered as a local unsigned per-user Windows
 x64 install. Four reference applications falsify the hypothesis from different
 shapes — Idea Garden, Decision Log, the Axiom Register and
 [Nendo Station](docs/nendo-station.md) — and the last two were built from an empty
@@ -76,8 +68,8 @@ file through the MCP interface alone.
 
 Version 1.0.0 promises one thing beyond that: a file Nendo 1.0 opens normally
 opens normally in every later 1.x, with its records, fields, screens and packages
-intact ([ADR-0012](docs/decisions/0012-safe-mode-compatibility-and-migration.md),
-2026-10-14 amendment). It is not a public release.
+intact ([ADR-0012](docs/decisions/0012-safe-mode-compatibility-and-migration.md)).
+It is not a public release.
 
 Public distribution, signing, ARM64, cloud sync and cross-platform support are
 **not** qualified, and the independent human evaluation has not been run. The
@@ -204,7 +196,7 @@ guessing current SDK, template, MSBuild or test behaviour.
 | `extensions/` | Source for the eight example custom-view packages; a file carries a package's code once it is imported |
 | `fixtures/` | Reference-application seed data |
 | `workspace/` | Tracked `.nendo` demo files |
-| `docs/` | Vision, architecture, ADRs, contracts and reviews |
+| `docs/` | Vision, architecture, ADRs and contracts |
 | `site/` | The public website ([ADR-0018](docs/decisions/0018-public-website-and-deployment-lane.md)) — Astro, outside the product boundary |
 
 ## Contributing and security

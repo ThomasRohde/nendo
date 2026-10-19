@@ -100,7 +100,7 @@ Reads are MCP resources. They need no lease. Start with `nendo://application/des
 | `skill://nendo-authoring/SKILL.md` | The authoring skill, for a client that speaks the Skills extension, with the vocabulary, the examples and the view API as its files. |
 | `nendo://host/instances` | Every running Nendo on this computer and the name of the file each has open. |
 
-The remaining nine are the manifest, the list of record types, the operations of one revision, health, the custom-view packages the file carries, one file of a package, the custom-view API, the reference files of the authoring skill, and the files of a skill the file carries.
+The remaining eleven are the manifest, the list of record types, the operations of one revision, health, one picture the file embeds, the custom-view packages the file carries, one file of a package, what the file's custom views did when they last ran, the custom-view API, the reference files of the authoring skill, and the files of a skill the file carries.
 
 A filter is a JSON array of clauses, each a field, an operator and a value, joined by *and*: the operators are `eq`, `ne`, `lt`, `lte`, `gt`, `gte`, `isNull`, `isNotNull`, `contains` and, for a tree, `descendantOf`. The same filter serves the records read and the aggregate, so an agent finds one record by its code, or counts the open items per status, in one read rather than by paging a type.
 
@@ -196,7 +196,7 @@ A refused call returns `CODE: message`. The code is stable. The message names wh
 ```text
 NENDO_SHAPE_APP_REQUIRED: nendo.change_set.begin is served from Shape app, and this file session is at Edit data. Ask the person to raise agent access to Shape app on the Agent page in Nendo.
 NENDO_INVALID_REQUEST: nendo.data.create_records was not called. records[0] does not take 'expectedTargetVersionz'; a record takes recordId and values, and optionally expectedTargetVersions, keptInNewFiles and references.
-NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 38 it accepts under operations.
+NENDO_UNKNOWN_OPERATION: Operation type 'sql.execute' is not one this host implements; nendo://application/vocabulary lists the 40 it accepts under operations.
 ```
 
 The last one is the same for SQL as for a typing error. There is no other way in.

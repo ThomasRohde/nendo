@@ -4,136 +4,76 @@
 - **Date:** 2026-09-02
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** EX-0004 result, EX-0006 result and EX-0007 result
-- **Depends on:** ADR-0001 local one-file boundary, ADR-0005 write coordinator and ADR-0006 revision model
-- **Related design:** [`../architecture.md`](../architecture.md)
+- **Evidence:** `IdentityCopyTests`, `NewFileTests`, `BackupTests`, `RestoreTests`, `RestoreInterruptionTests` (Engine) and `DesktopReplacementTests` (Desktop)
 
 ## Context
 
-An operating-system copy preserves bytes and embedded IDs. But users also need
-intentional Duplicate, Fork, Backup and Restore operations with different
-semantic meanings. If Nendo silently rewrote identity when a user opened a raw
-copy, it would mutate user data without consent and leave no typed history. If
-Nendo replaced an existing destination, it could destroy unrelated files.
-
-## Decision drivers
-
-1. Identity is durable semantic state, not a path-derived property.
-2. Duplicate and Fork must have distinct understandable meanings.
-3. Every identity change needs typed provenance and revision history.
-4. Source and caller-owned destination bytes must be preserved on failure.
-5. Backup/Restore must remain recovery operations, not identity transitions.
-6. Exact retries and racing destinations must fail or converge deterministically.
-
-## Options considered
-
-### Typed transitions on a verified staged SQLite backup
-
-Create a host-owned destination stage, apply one canonical identity operation and
-validate it. Then activate it without overwriting a destination.
-
-### Raw copy followed by silent identity repair
-
-Rewrite IDs when the host detects duplicate identity at open. This option hides a
-semantic mutation outside normal history and can surprise users.
-
-### Treat every copy as a new application
-
-Always generate new application and instance IDs. This option loses a useful
-distinction: another instance of the same application is not the same as a true
-fork.
+An operating-system copy preserves bytes and embedded IDs, but people also need
+deliberate Duplicate, Fork, Backup and Restore with distinct meanings. Silently
+rewriting identity when a raw copy opens would change user data without consent or
+typed history, and replacing an existing destination could destroy unrelated files.
 
 ## Decision
 
-Nendo distinguishes five lifecycle operations:
-
-| Operation | Identity and history behavior |
+| Operation | Identity and history |
 | --- | --- |
-| Raw filesystem copy | Preserves bytes, application ID and instance ID; Nendo classifies the duplicate instance and does not rewrite it silently |
-| Duplicate | Preserves application ID, assigns a new instance ID, retains history and appends one typed transition revision |
-| Fork | Assigns new application and instance IDs, retains source history as explicit lineage and appends one typed transition revision |
-| Backup | Preserves all identity/history exactly and captures current semantic state through the storage-owned backup path |
-| Restore | Replaces active state only through verified staged activation, preserves the restored identity/history and retains a recoverable pre-restore artefact |
+| Raw filesystem copy | Keeps bytes, application ID and instance ID. Nendo classifies the duplicate instance and never rewrites it silently. |
+| Duplicate | Keeps the application ID, assigns a new instance ID, retains history and appends one typed transition revision. |
+| Fork | Assigns new application and instance IDs, retains source history as explicit lineage and appends one typed transition revision. |
+| New | A Duplicate's identity with only the definition and the records the application keeps in new files, its history folded into one checkpoint ([ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md)). |
+| Backup | Keeps all identity and history exactly, through the storage-owned backup path. |
+| Restore | Replaces active state only through verified staged activation, keeps the restored identity and history, and retains a recoverable pre-restore copy. |
 
-Duplicate and Fork use one canonical `identity.transition` operation through a
-dedicated kernel/application-service path.
+- Duplicate and Fork use one canonical `identity.transition` operation through a
+  dedicated kernel and application-service path. It records the source and result
+  IDs and the source revision point in ordinary operation history, with no identity
+  sidecar or separate provenance table.
+- The transition is `irreversible-declared`. It advances the definition revision and
+  change sequence once, and neither the data revision nor any user record. Generic
+  mutation and proposal paths reject it.
+- The host stages a SQLite backup in the destination filesystem, applies the
+  transition, validates format, identity, revisions and integrity, and activates the
+  result without overwriting. New uses its own coordinator path with the same
+  staging and no-overwrite activation.
+- The [ADR-0005](0005-host-application-services-and-write-coordinator.md) coordinator
+  verifies source path authority. The source stays unchanged on success or failure.
+- Existing or racing destinations are never overwritten. Concurrent exact retries
+  converge only when the committed typed provenance matches.
+- Result IDs need to be collision-resistant only within the local product; there is
+  no global registry.
+- Move and Rename keep embedded identity and are neither Duplicate nor Fork.
+- Restore and upgrade stop MCP and reopen only the verified result with fresh session
+  authority.
 
-*Amended 2026-10-01 by [ADR-0022](0022-new-file-keeping-the-records-an-application-ships-with.md):*
-a third kind, **New**, makes a new file of the same application: a Duplicate's identity (the
-application ID kept, a new instance ID), with only the definition and the records the
-application keeps in new files, and its history folded into one checkpoint. Its own coordinator
-path stages, transforms, validates and activates it with no overwrite, as Duplicate does.
-
-- The transition records the source/result IDs and the source revision point in
-  ordinary canonical operation history. It introduces no identity sidecar and no
-  separate provenance table.
-- It is `irreversible-declared`. It advances the definition revision and change
-  sequence once. It does not advance the data revision or alter user records.
-- Generic mutation and proposal paths reject identity transitions.
-- The host creates a SQLite backup stage in the destination filesystem and
-  applies the transition. It validates format/identity/revisions/integrity. Then
-  it activates the result with no-overwrite semantics.
-- The ADR-0005 coordinator verifies the source path authority. The source
-  remains unchanged on success or failure.
-- Existing or racing destinations are never overwritten. Exact concurrent
-  retries may converge only when the committed typed provenance matches.
-- Host-generated result IDs need to be collision-resistant only inside the
-  bounded local product. Nendo does not claim a global registry.
-- Move/Rename preserves embedded identity and is not a Duplicate or Fork.
-
-## Evidence and validation obligations
-
-- [Review outcome/lifecycle audit](../contracts/operation-outcomes.md#file-lifecycle-outcomes-and-limits)
-  preserves the P4 copy/replacement evidence and retry limits. It separates a
-  completed native file-action notice from a later view-refresh failure.
-
-- EX-0006 proved both transition tables, one exact irreversible definition-lane
-  revision, restart provenance, exact/concurrent replay, staged fault cleanup and
-  no-overwrite activation.
-- EX-0004 proved storage-owned backup, corrupt/truncated rejection, verified
-  staged restore and recoverable pre-restore retention.
-- EX-0007 supplied the long-lived source path/write authority boundary.
-- The 2026-09-04 P4 implementation checkpoints
-  add production Engine Backup, typed Duplicate/Fork and staged Restore evidence.
-  This evidence includes source preservation, restart provenance,
-  failure/cancellation, no-overwrite tests and local instance admission. It also
-  includes actual Restore child-process termination with fresh-process read-only
-  recovery inspection. Desktop controller Restore/upgrade now stop MCP and reopen
-  only the verified result with fresh session authority.
-- The P4 production closure
-  completes the bounded native/Workbench naming, collision, recent-file,
-  cancel/retry, capacity and recovery journeys. It includes actual Windows
-  destination ACL denial, two Desktop instances, populated Idea/Decision offline
-  copy/Restore and delayed MCP invalidation. Human comprehension of the
-  Duplicate/Fork distinction remains unevaluated. The closure claims only local
-  tested filesystem behavior.
-- Cross-volume metadata atomicity and physical power loss are not claimed.
+Outcomes, retries and limits per operation are in the
+[operation-outcomes contract](../contracts/operation-outcomes.md). Cross-volume
+metadata atomicity and physical power loss are not claimed.
 
 ## Consequences
 
 ### Positive
 
-- Users can choose whether a result stays in an application lineage or becomes
-  a new application.
-- Identity changes use the same typed audit/idempotency model as other changes.
-- Raw copies and caller-owned destinations are never mutated silently.
+- People choose whether a result stays in an application lineage or becomes a new
+  application.
+- Identity changes use the same typed audit and idempotency model as other changes.
+- Raw copies and caller-owned destinations are never changed silently.
 
 ### Negative
 
 - Raw duplicate instances need a clear warning and resolution journey.
-- Fork retains source history, including lineage and potentially sensitive
-  provenance.
-- Same-directory activation behavior does not prove every filesystem.
+- A Fork keeps source history, including possibly sensitive provenance.
+- Same-directory activation does not prove every filesystem.
 
 ## Rejected alternatives
 
-Silent repair and “every copy is a fork” are rejected. Both erase user intent and
-bypass explicit typed history.
+- Raw copy followed by silent identity repair at open: a hidden mutation outside
+  history.
+- Treating every copy as a new application: loses the difference between another
+  instance and a true fork.
 
 ## Revisit triggers
 
-- Users cannot understand the Duplicate/Fork distinction in the installed
-  journey.
-- Cross-device or shared-folder workflows require globally coordinated identity.
-- A future privacy model requires history redaction when forking.
-- Cross-platform filesystems cannot implement equivalent no-overwrite staging.
+- People cannot tell Duplicate from Fork in the installed journey.
+- Cross-device or shared-folder workflows need globally coordinated identity.
+- A privacy model requires history redaction when forking.
+- Cross-platform filesystems cannot provide equivalent no-overwrite staging.

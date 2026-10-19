@@ -4,147 +4,78 @@
 - **Date:** 2026-09-02
 - **Owners:** Thomas Klok Rohde and Nendo maintainers
 - **Confidence:** Medium
-- **Evidence:** [Product brief](../vision.md), EX-0001 result, EX-0004 result, EX-0006 result, EX-0007 result, EX-0008 result and the implementation-readiness scope correction
-- **Related design:** [`../architecture.md`](../architecture.md)
+- **Evidence:** `FormatAndLifecycleTests`, `BackupTests`, `IdentityCopyTests`, `RestoreTests` (Engine) and `DesktopLocationTests` (Desktop)
 
 ## Context
 
 Nendo needs a durable local artefact that stays useful without an account, an
-agent, a hosted service or generated application code. SQLite creates
-operational journals, backups and proposal clones. Thus “one file” must
-distinguish two things: the canonical portable artefact at rest, and the
-host-owned derivatives that exist while the application runs.
-
-The MVP is personal, single-user and Windows-first. Cloud sync, collaboration
-and hostile same-user isolation are outside its boundary.
-
-## Decision drivers
-
-1. An empty file must be valid and reopenable.
-2. Data must outlive custom surfaces, agents and renderer failures.
-3. Users must be able to copy and back up one canonical artefact safely.
-4. Operational derivatives need explicit ownership and cleanup.
-5. The MVP must remain local/offline and bounded for one maintainer.
-6. Unsupported environments must be described accurately and not implied.
-
-## Options considered
-
-### One canonical SQLite file at rest
-
-Keep application data, protected metadata, semantic definitions and history in
-one `.nendo` SQLite file. Let the host own temporary journals, backups and
-proposal workspaces.
-
-### Directory bundle
-
-Store data, definitions, assets and history as multiple coordinated files. With
-this option, partial copies and externally reordered writes would become normal
-failure modes.
-
-### Hosted or account-backed authority
-
-Make a service the canonical authority, and treat local files as caches or
-exports. This option conflicts with the offline and durable-file proposition.
+agent, a hosted service or generated application code. SQLite creates journals,
+backups and proposal clones while the application runs, so "one file" separates the
+canonical artefact at rest from the host-owned derivatives that exist while it is
+open. The product is personal, single-user and Windows-first. Cloud sync,
+collaboration and hostile same-user isolation are outside its boundary.
 
 ## Decision
 
 Nendo's canonical artefact is one local `.nendo` SQLite file at rest.
 
-- When the host creates a file, it writes only protected compatibility/identity
-  metadata and a genesis history entry. A file with zero user entities and
-  records is valid.
-- The file contains relational user data, protected Nendo metadata, semantic
-  definitions and semantic history.
-- A custom view's code may travel in the file, as protected metadata
-  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). A copy of the file
-  carries the view. Device settings, such as the switches that turn views off,
-  stay on the device.
-- The host permanently provides Studio and recovery access. Custom surfaces,
-  custom views and agents cannot hide or revoke that route.
+- A new file holds only protected compatibility and identity metadata and a genesis
+  history entry. A file with no user entities or records is valid.
+- The file holds relational user data, protected Nendo metadata, semantic
+  definitions and semantic history ([ADR-0003](0003-relational-user-data-and-protected-metadata.md)).
+- A custom view's code travels in the file as protected metadata and runs only in
+  its view ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). A skill package
+  may carry scripts, which the connected agent's client runs on its own machine and
+  Nendo never runs ([ADR-0029](0029-a-skill-may-carry-scripts-its-client-runs.md)). A
+  package's help pages are text ([ADR-0027](0027-a-file-carries-its-own-help.md)).
+  Device settings, such as the switches that turn views off, stay on the device.
+- Media (pictures, sound and video) may be user data, embedded once per content or
+  linked by address ([ADR-0031](0031-media-in-user-data.md)). Other binary and asset
+  fields, and multi-file application bundles, are excluded.
+- The host permanently provides Studio and recovery. Custom surfaces, custom views
+  and agents cannot hide or revoke that route.
 - Journals, backup outputs, staged restores and proposal clones are operational
-  derivatives. The host defines their owner, lifetime and cleanup. They are not
-  additional canonical artefacts.
-- Open-file copies use SQLite backup or an equivalent host-coordinated snapshot.
-  A raw copy of the main file while operational derivatives exist is not
-  presented as a current backup.
-- Duplicate and Fork semantics follow ADR-0010. Journal and close discipline
-  follow ADR-0011.
-- Files in known sync-managed locations are unsupported for writable use in the
-  MVP. Nendo warns where practical and makes no sync-safety claim. Live cloud
-  provider qualification is not an implementation prerequisite.
-- The security boundary is the operating-system user account. Nendo does not
-  claim protection from malware, privileged processes or arbitrary hostile
-  writers that already run as that user.
-
-This decision selects the product boundary. It does not select the exact table
-layout or source tree of the disposable prototype.
-
-## Evidence and validation obligations
-
-- EX-0001 proved empty creation/reopen and coherent data, definition and history
-  in one SQLite file.
-- EX-0004 proved bounded backup/restore, copy and replacement-failure paths.
-- EX-0006 proved typed Duplicate/Fork candidate semantics.
-- EX-0007 proved one coordinated Windows ownership interval and fail-closed
-  outside-change detection.
-- EX-0008 proved local DELETE/WAL correctness and open-copy discipline.
-- Production tests must retain the empty validity, close/reopen, coordinated
-  backup, copy, Duplicate/Fork and recovery journeys.
-- Release qualification must not claim sync, physical power-loss or
-  hostile-writer guarantees without separately authorised evidence.
+  derivatives with a host-defined owner, lifetime and cleanup. They are not
+  canonical artefacts.
+- A copy of an open file uses SQLite backup or an equivalent host-coordinated
+  snapshot. A raw copy of the main file while derivatives exist is not presented as
+  a current backup. Duplicate, Fork and New follow
+  [ADR-0010](0010-file-identity-duplicate-fork-backup-and-restore.md); journal and
+  close discipline follow [ADR-0011](0011-local-sqlite-journal-and-copy-discipline.md).
+- Files in known sync-managed locations (OneDrive, Dropbox, Google Drive) are
+  unsupported for writable use. Nendo warns where it can and makes no sync-safety
+  claim.
+- The security boundary is the operating-system user account. Nendo does not claim
+  protection from malware, privileged processes or hostile writers running as that
+  user, and does not sandbox a received file's view code
+  ([ADR-0012](0012-safe-mode-compatibility-and-migration.md)).
 
 ## Consequences
 
 ### Positive
 
-- The durable unit of the user is simple, portable and independently
-  inspectable.
-- Studio and safe mode can recover data without generated code or an agent.
-- A host-owned lifecycle boundary contains the temporary complexity.
+- The person's durable unit is simple, portable and independently inspectable.
+- Studio and safe mode recover data without generated code or an agent.
+- Temporary complexity stays inside a host-owned lifecycle boundary.
 
 ### Negative
 
-- Multi-file application bundles are excluded. Media (pictures, sound and video)
-  may be user data, embedded in the file or linked
-  ([ADR-0031](0031-media-in-user-data.md)); other binary and asset fields stay
-  excluded. A custom-view
-  package, with its code and assets, is the one payload that Nendo runs, and only in
-  its view (ADR-0013). A skill package may also carry scripts, which the connected
-  agent's client runs on its own machine under its own approval and Nendo never runs
-  ([ADR-0029](0029-a-skill-may-carry-scripts-its-client-runs.md)); a package's help
-  pages are text (ADR-0027).
-- A received file's view code runs when its view is shown. Nendo does not sandbox
-  hostile files ([ADR-0012](0012-safe-mode-compatibility-and-migration.md)).
-- Open-file copies need an explicit host operation. An Explorer copy is not
+- Copying an open file needs an explicit host operation; an Explorer copy is not
   treated as transactionally current.
-- Sync-managed folders receive a conservative unsupported-use warning.
+- Sync-managed folders get a conservative unsupported-use warning.
+- A received file's view code runs when its view is shown.
 
 ## Rejected alternatives
 
-Directory bundles and hosted authority are rejected. They weaken the defining
-proposition of a durable local file, and they add coordination scope before the
-single-user MVP is proved.
+- Directory bundle: partial copies and externally reordered writes become normal
+  failure modes.
+- Hosted or account-backed authority: conflicts with the offline, durable-file
+  proposition.
 
 ## Revisit triggers
 
 - Binary or asset fields beyond ADR-0031's media become a product requirement.
 - Extension code needs to run outside a view, or across files.
 - Cloud sync or collaboration becomes explicit scope.
-- SQLite can no longer meet the tested local durability and inspectability
-  requirements.
-- Cross-platform delivery requires a materially different artefact contract.
-
-## History
-
-- 2026-09-02 — accepted. Assets, executable extensions and multi-file application
-  bundles were excluded from the MVP.
-- 2026-09-25 — a custom view's code may travel in the file
-  ([ADR-0013](0013-custom-views-with-code-in-the-file.md)). Asset fields and
-  multi-file bundles stay excluded.
-- 2026-10-14 — the Negative consequence names the second kind of executable content a
-  file may carry since ADR-0029 (accepted 2026-10-08): a skill package's scripts, which the
-  agent's client runs and Nendo never runs. The boundary does not move: Nendo still runs
-  only view code, in the view (R2AAV-10, W-222).
-- 2026-10-16 — the revisit trigger *binary or asset fields become a product requirement* fired:
-  [ADR-0031](0031-media-in-user-data.md) admits media as user data, embedded in the file once
-  per content or linked by address. The file stays one file; other binary fields stay out.
+- SQLite can no longer meet the local durability and inspectability requirements.
+- Cross-platform delivery needs a materially different artefact contract.
