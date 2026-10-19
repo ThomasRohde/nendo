@@ -64,7 +64,7 @@ interface VisualiserOptions {
 export function createVisualiser(host: HTMLElement, options: VisualiserOptions = {}) {
   let root: Root | null = createRoot(host);
   // archi-online's canvas starts at 100% in the corner and fits the graph in an effect after it has
-  // painted, so a new graph was seen there for a frame and then jumped (F-245). Each graph is drawn
+  // painted, so a new graph was seen there for a frame and then jumped. Each graph is drawn
   // on a canvas of its own, hidden until its camera has moved from where it starts; a fit that
   // leaves it there is shown after a moment anyway.
   let drawn = 0;
