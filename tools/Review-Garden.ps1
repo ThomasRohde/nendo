@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $output = Join-Path $repoRoot 'artifacts/garden'
 [void][IO.Directory]::CreateDirectory($output)
-# Every test file of the package, by node's own glob, so a new one is never left out (GDN-18).
+# Every test file of the package, by node's own glob, so a new one is never left out.
 & node --test 'tools/garden/*.test.mjs' tools/view-kit/kit.test.mjs
 if ($LASTEXITCODE -ne 0) { throw 'Garden definition, parser, renderer and sync checks failed.' }
 # The fixture travels from node through this shell: read it as UTF-8, or an ellipsis arrives as mojibake.

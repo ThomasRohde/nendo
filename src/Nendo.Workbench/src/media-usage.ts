@@ -1,7 +1,7 @@
 import { icon } from './icons';
 
 /**
- * The pictures a file embeds, on History (ADR-0031 point 8, W-273): how many, what they weigh
+ * The pictures a file embeds, on History (ADR-0031 point 8): how many, what they weigh
  * against the file's budget, and how much of that nothing names any more. A picture stays while a
  * record, a deleted record or a change History keeps names it, so History is where it is let go.
  */

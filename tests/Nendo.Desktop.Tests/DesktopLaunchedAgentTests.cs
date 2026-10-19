@@ -76,7 +76,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// ACP-01 (review of 2026-10-10): a refusal at the handshake ended the conversation but not
+    /// A refusal at the handshake ended the conversation but not
     /// the program, which kept its input open and ran on with its folder until the file closed.
     /// </summary>
     [TestMethod]
@@ -139,8 +139,8 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// The live check of 2026-10-08 showed the agent's application handle in a permission card:
-    /// Copilot CLI sends it with every owned call. The tab may say it was sent, never what it was.
+    /// Copilot CLI sends the agent's application handle with every owned call, so a permission card
+    /// could show it. The tab may say it was sent, never what it was.
     /// </summary>
     [TestMethod]
     public async Task TheAgentsApplicationHandleIsNeverShown()
@@ -158,7 +158,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// ACP-08 (review of 2026-10-10): only tool payloads were redacted. A handle the agent repeats
+    /// Only tool payloads were redacted. A handle the agent repeats
     /// in its reply (split across two chunks), its reasoning, its plan, a tool's title or its last
     /// words on stderr reached the tab.
     /// </summary>
@@ -169,7 +169,7 @@ public sealed class DesktopLaunchedAgentTests
         Assert.AreEqual("{\"applicationHandle\":\"(hidden)", AgentConversation.Redact("{\"applicationHandle\":\"secret-han"),
             "The start of a handle still streaming was shown.");
         Assert.AreEqual("applicationHandle: (hidden)", AgentConversation.Redact(AgentConversation.Redact("applicationHandle: abc")), "Hiding twice changed the text.");
-        // DAE-05: a handle this process granted is hidden by its value, however the agent words it.
+        // A handle this process granted is hidden by its value, however the agent words it.
         var minted = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         Nendo.LocalMcp.NendoMintedHandles.Remember(minted);
         foreach (var said in new[] { $"Your applicationHandle is {minted}", $"| applicationHandle | {minted} |", $"Keep {minted} private." })
@@ -198,7 +198,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// ACP-11 (review of 2026-10-10): a permission request that described its operation only by a
+    /// A permission request that described its operation only by a
     /// diff and a location showed Allow and Reject with nothing to inspect, and a diff was told
     /// only as "Changed path".
     /// </summary>
@@ -224,7 +224,7 @@ public sealed class DesktopLaunchedAgentTests
         await fixture.WaitAsync(view => !view.Working);
     }
 
-    /// <summary>ACP-09 (review of 2026-10-10): a shell command was badged Nendo because its input printed a nendo:// address.</summary>
+    /// <summary>A shell command was badged Nendo because its input printed a nendo:// address.</summary>
     [TestMethod]
     public async Task AShellCommandThatMentionsNendoIsStillTheAgentsOwn()
     {
@@ -240,7 +240,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// ACP-03 (review of 2026-10-10): the transcript keeps 1,000 entries, but a tab that read from
+    /// The transcript keeps 1,000 entries, but a tab that read from
     /// the start was never told which ones had gone, and kept them all.
     /// </summary>
     [TestMethod]
@@ -270,7 +270,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// ACP-07 (review of 2026-10-10): entry IDs start again with every launch, so an answer meant
+    /// Entry IDs start again with every launch, so an answer meant
     /// for a replaced conversation's question could land on the new one's.
     /// </summary>
     [TestMethod]
@@ -338,7 +338,7 @@ public sealed class DesktopLaunchedAgentTests
         Assert.AreEqual("Stopped.", stopped.Entries.Last().Text);
         Assert.AreEqual("ready", stopped.State, "Stopping a turn ended the conversation.");
 
-        // TST-08: a question open when the person stops is answered cancelled, as ACP asks, so
+        // A question open when the person stops is answered cancelled, as ACP asks, so
         // the agent's request does not wait for ever. The turn above never had one open.
         fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "permission", 0);
         await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "permission"));
@@ -379,7 +379,7 @@ public sealed class DesktopLaunchedAgentTests
         await fixture.WaitAsync(view => view.State == "ready");
         var endpoint = (await fixture.Controller.GetAgentStatusAsync()).Endpoint;
 
-        // ACP-12 (review of 2026-10-10): the tab shows the level and its review policy, and was
+        // The tab shows the level and its review policy, and was
         // not told when the level changed under an idle agent.
         var told = 0;
         fixture.Controller.LaunchedAgentChanged += _ => Interlocked.Increment(ref told);
@@ -454,7 +454,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// The owner asked for the agent's own options (2026-10-08). An agent that sends ACP session
+    /// An agent that sends ACP session
     /// config options has them shown as it offers them, groups flattened and a kind Nendo cannot
     /// draw left out; one is set only by the person's pick, to a value the agent offered; and the
     /// agent's own restatement is what the tab then shows.
@@ -509,7 +509,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// The owner asked for ACP slash commands (2026-10-15). The agent's advertised commands reach
+    /// The agent's advertised commands reach
     /// the tab as names the box can write after a slash, each once, with the hint of one that
     /// takes input; the agent's restatement replaces them whole; and a command runs as a message
     /// whose first block is the command's text, as ACP says.
@@ -566,7 +566,7 @@ public sealed class DesktopLaunchedAgentTests
     [TestMethod]
     public async Task WhatThePersonPointsAtTravelsWithTheMessage()
     {
-        // W-200: the owner's "Add more books!" stalled because the agent did not know the record
+        // The owner's "Add more books!" stalled because the agent did not know the record
         // type's ID or fields. What the person points at with @ goes with the message.
         var books = new AgentPromptContext("nendo://application/entity/books", "Books", "Record type \"Books\"\nentityId: `books`\n- Rating: fieldId `books.rating`");
         await using (var fixture = await Fixture.StartAsync("editData"))
@@ -624,7 +624,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-03 (broad review, 2026-10-13): a program that answered initialize with a version as
+    /// A program that answered initialize with a version as
     /// text (an MCP server named as the person's own command) threw out of the handshake and left
     /// the tab at Starting, saying nothing, with the next launch refused.
     /// </summary>
@@ -639,7 +639,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-03: a permission request whose location had a null line, which ACP allows, threw after
+    /// A permission request whose location had a null line, which ACP allows, threw after
     /// its entry was added, so the agent was answered "Nendo could not answer." and the tab kept a
     /// question with no answers at Waiting for you.
     /// </summary>
@@ -663,7 +663,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-04: an error answer whose code was text faulted the read loop, the conversation ended
+    /// An error answer whose code was text faulted the read loop, the conversation ended
     /// saying the agent closed its output, and the faulted loop then made closing the file throw
     /// before agent access stopped, so the file's MCP listener kept its port.
     /// </summary>
@@ -690,7 +690,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-14: when Nendo ended the connection over a message too large, the tab said the agent
+    /// When Nendo ended the connection over a message too large, the tab said the agent
     /// "stopped answering", and the person relaunched into the same failure.
     /// </summary>
     [TestMethod]
@@ -706,7 +706,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-10: a second press while the first sign-in ran sent a second authenticate and opened a
+    /// A second press while the first sign-in ran sent a second authenticate and opened a
     /// second session over the first. The read says a sign-in runs, so the tab holds its buttons.
     /// </summary>
     [TestMethod]
@@ -727,7 +727,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-11: a launch that did not end through EndAsync (a host killed, upgraded over or logged
+    /// A launch that did not end through EndAsync (a host killed, upgraded over or logged
     /// off, a delete that gave up) left its folder under device state for good. The next launch
     /// takes every folder no running agent can be using, and leaves another running window's.
     /// </summary>
@@ -770,7 +770,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-12: PATH and the variables were the snapshot this process took when it started, so a
+    /// PATH and the variables were the snapshot this process took when it started, so a
     /// program installed since stayed "not installed" and an API key set since never reached the
     /// agent. The catalogue and the launch read the environment as Windows holds it now.
     /// </summary>
@@ -818,8 +818,8 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// Review of the DAE-12 fix: the machine's key names USERNAME=SYSTEM, which every launched
-    /// agent was given. This process's identity and per-sign-in variables stay its own.
+    /// The machine's key names USERNAME=SYSTEM, which no launched agent is given. This process's identity
+    /// and per-sign-in variables stay its own.
     /// </summary>
     [TestMethod]
     public void TheAgentKeepsThisProcesssIdentityOverTheMachinesKey()
@@ -832,8 +832,8 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// Review of the DAE-12 fix: an expandable value was expanded against this process's old
-    /// variables, so a PATH folder that names a variable set since did not find it.
+    /// An expandable value is expanded against the current variables, not this process's old ones,
+    /// so a PATH folder that names a variable set since it started is found.
     /// </summary>
     [TestMethod]
     public void AnExpandableValueIsExpandedAgainstTheEnvironmentBeingBuilt()
@@ -851,7 +851,7 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     /// <summary>
-    /// DAE-07: finding the agents walks every PATH folder, about 20 seconds with an unreachable
+    /// Finding the agents walks every PATH folder, about 20 seconds with an unreachable
     /// share first; under the request gate the Agent page's 3-second poll held every save, open and
     /// switch behind it. Nothing in the file is read to find them, so the gate is not held.
     /// </summary>
@@ -886,8 +886,8 @@ public sealed class DesktopLaunchedAgentTests
     [TestMethod]
     public void AnAgentFromARenamedPackageIsToldApartAndAMissingOneSaysWhatToInstall()
     {
-        // 2026-10-08: the owner's claude-agent-acp came from @zed-industries/claude-agent-acp, which
-        // stopped at 0.23.1 when it was renamed, and refused to start. npm's shim names the package.
+        // claude-agent-acp from @zed-industries/claude-agent-acp stopped at 0.23.1 when it was renamed,
+        // and refuses to start. npm's shim names the package.
         var folder = Directory.CreateTempSubdirectory("nendo-agent-shims-");
         try
         {

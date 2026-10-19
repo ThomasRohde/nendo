@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A package of kind skill (ADR-0024, W-160): a SKILL.md and its supporting files for an agent
+/// A package of kind skill (ADR-0024): a SKILL.md and its supporting files for an agent
 /// to read, with no entry point. It is the last rung of the layout ladder and the host version
 /// that rung states, it keeps its kind, it reverses like any package, and nothing runs it or
 /// writes in its name.
@@ -243,7 +243,7 @@ public sealed class SkillPackageTests
     }
 
     /// <summary>
-    /// ESM-02. The review kept a package ID's skill kind after the package was removed, so a
+    /// The review kept a package ID's skill kind after the package was removed, so a
     /// change set that removed a skill package and re-created its ID as a view package put code
     /// that runs under the line "Nendo never runs them", without the line that says what code
     /// can do. The kind now goes with the package, both ways.
@@ -291,7 +291,7 @@ public sealed class SkillPackageTests
     }
 
     /// <summary>
-    /// EXT-14: a change set may put SKILL.md in a later mutation than its package, and each mutation
+    /// A change set may put SKILL.md in a later mutation than its package, and each mutation
     /// is a revision. Undoing the one that put SKILL.md left a skill without it, and every later
     /// proposal invalid (NPROP012) until someone repaired the package. That undo is refused.
     /// </summary>

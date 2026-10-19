@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 
-// Nendo's top bar as the window's title bar (W-093): what the page claims of the bar, through
+// Nendo's top bar as the window's title bar: what the page claims of the bar, through
 // the real module. title-bar.ts measures the boxes; the Desktop journey measures the window.
 const bundle = await build({
   configFile: false, logLevel: 'error',

@@ -14,7 +14,7 @@
 
     <!--
         The page fills the window from its top edge. Nendo's top bar is the window's title
-        bar (W-093), and Windows draws its own buttons over the bar's right end: see
+        bar, and Windows draws its own buttons over the bar's right end: see
         MainWindow.TitleBar.cs. MainPage holds the Workbench and the recovery panel.
     -->
     <Frame x:Name="RootFrame" />

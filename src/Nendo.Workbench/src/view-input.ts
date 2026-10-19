@@ -1,5 +1,5 @@
 /**
- * Whether a key or a menu a view hands back to the Workbench may act now (WXS-08).
+ * Whether a key or a menu a view hands back to the Workbench may act now.
  *
  * A key a person presses inside a view's frame, or a right-click there, leaves the frame
  * element as the Workbench's focused element, since the frame's own document is another

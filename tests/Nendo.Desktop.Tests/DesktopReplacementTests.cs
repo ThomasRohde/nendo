@@ -209,7 +209,7 @@ public sealed class DesktopReplacementTests
         await PopulateAsync(session, workspace.FilePath);
         var before = JsonSerializer.Serialize(await session.GetHistoryAsync());
         await session.CloseAsync();
-        // Same recorded P1 production layout fixture as Engine upgrade tests;
+        // Same recorded production layout fixture as Engine upgrade tests;
         // this strips only empty semantic extension metadata from the owned file.
         await using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {

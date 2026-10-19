@@ -4,8 +4,7 @@ async (page) => {
   // what only a browser can: layout at each width, the header's height, contrast and
   // focus rings in both themes, the accessible names, the page without script, motion
   // and the home page's first download. Every check records a failure and the run
-  // goes on, so one run reports every defect; the ID in each message is the FIXES.md
-  // finding the check guards.
+  // goes on, so one run reports every defect.
   const failures = [];
   const check = (condition, message) => { if (!condition) failures.push(message); };
   const SITE = '__SITE_URL__/nendo';
@@ -37,7 +36,7 @@ async (page) => {
 
   // Shared colour arithmetic, installed in every page before its own scripts run. The
   // rAF sampler records how far the document is ever wider than the window during
-  // the first 1.5 s, which a measurement after load cannot see (SITE-26).
+  // the first 1.5 s, which a measurement after load cannot see.
   await page.addInitScript(() => {
     const parse = value => {
       let match = value.match(/^rgba?\(([^)]+)\)$/);
@@ -92,7 +91,7 @@ async (page) => {
 
     // Whether the guide list was open when the parser reached the #fragment's target.
     // A list closed after that point (a deferred script) shrinks under the reader and
-    // carries the heading the browser scrolled to up past the header (SITE-04). Where
+    // carries the heading the browser scrolled to up past the header. Where
     // the browser keeps the heading in place anyway, this still sees the late close.
     window.__guidesOpenAtTarget = undefined;
     const id = location.hash ? decodeURIComponent(location.hash.slice(1)) : '';
@@ -107,7 +106,7 @@ async (page) => {
     }
   });
 
-  // ---- The documentation search: geometry and clicks (R02-021) ----
+  // ---- The documentation search: geometry and clicks ----
   for (const theme of ['light', 'dark']) {
     await setTheme(theme);
     for (const width of [1280, 1024, 768, 390]) {
@@ -138,8 +137,8 @@ async (page) => {
       });
       check(result.theme === theme, `Site theme did not become ${theme}.`);
       check(result.panelRight <= result.railRight + 1 && result.panelLeft >= 0 && result.panelRight <= width,
-        `R02-021: search panel is clipped at ${width}px ${theme}: panel right ${result.panelRight}, rail right ${result.railRight}.`);
-      check(result.linkHit, `R02-021: search result right edge is not clickable at ${width}px ${theme}; hit ${result.hit}.`);
+        `search panel is clipped at ${width}px ${theme}: panel right ${result.panelRight}, rail right ${result.railRight}.`);
+      check(result.linkHit, `search result right edge is not clickable at ${width}px ${theme}; hit ${result.hit}.`);
       check(result.scrollWidth <= baselineScrollWidth, `Search introduced horizontal overflow at ${width}px ${theme}.`);
       // Measure the right edge of every result after scrolling it into the panel.
       for (const link of await panel.locator('a').all()) {
@@ -155,7 +154,7 @@ async (page) => {
     }
   }
 
-  // ---- The search as a combobox, from the keyboard (SITE-08, SITE-09) ----
+  // ---- The search as a combobox, from the keyboard ----
   await setTheme('light');
   await open('/docs/getting-started/', 1280);
   const field = page.locator('#docs-search-input');
@@ -170,13 +169,13 @@ async (page) => {
     hrefs: [...document.querySelectorAll('.docs-search-results a')].map(a => a.getAttribute('href')),
   }));
   check(searched.role === 'combobox' && searched.expanded === 'true',
-    `SITE-08: the search field is not announced as an expanded combobox while results show (role ${searched.role}, aria-expanded ${searched.expanded}).`);
-  check(/result/.test(searched.status), `SITE-08: results arrived and the live status line announced nothing (it reads "${searched.status}").`);
+    `the search field is not announced as an expanded combobox while results show (role ${searched.role}, aria-expanded ${searched.expanded}).`);
+  check(/result/.test(searched.status), `results arrived and the live status line announced nothing (it reads "${searched.status}").`);
   check(searched.hrefs.some(href => href.includes('#the-lease')),
-    `SITE-09: searching "lease" links only to the tops of guides, not to the section "The lease": ${JSON.stringify(searched.hrefs)}.`);
+    `searching "lease" links only to the tops of guides, not to the section "The lease": ${JSON.stringify(searched.hrefs)}.`);
   await page.keyboard.press('ArrowDown');
   const arrowed = await page.evaluate(() => document.activeElement?.closest('.docs-search-results') !== null);
-  check(arrowed, 'SITE-08: ArrowDown in the search field does not move to the results.');
+  check(arrowed, 'ArrowDown in the search field does not move to the results.');
   await page.keyboard.press('Escape');
   await field.focus();
   await page.keyboard.press('ArrowDown');
@@ -186,9 +185,9 @@ async (page) => {
     hidden: document.querySelector('.docs-search-results').hidden,
     active: document.activeElement?.id ?? document.activeElement?.tagName,
   }));
-  check(escaped.hidden, 'SITE-08: Escape did not close the search results.');
-  check(escaped.value === 'lease', `SITE-08: Escape wiped the reader's query (the field reads "${escaped.value}").`);
-  check(escaped.active === 'docs-search-input', `SITE-08: Escape moved the focus out of the search field, to ${escaped.active}.`);
+  check(escaped.hidden, 'Escape did not close the search results.');
+  check(escaped.value === 'lease', `Escape wiped the reader's query (the field reads "${escaped.value}").`);
+  check(escaped.active === 'docs-search-input', `Escape moved the focus out of the search field, to ${escaped.active}.`);
   await field.fill('');
   await field.pressSequentially('lease', { delay: 30 });
   await page.locator('.docs-search-results a').first().waitFor({ state: 'visible' });
@@ -198,9 +197,9 @@ async (page) => {
     hidden: document.querySelector('.docs-search-results').hidden,
   }));
   check(tabbed.hidden && tabbed.expanded === 'false',
-    `SITE-08: tabbing out of the search field left its results open (hidden ${tabbed.hidden}, aria-expanded ${tabbed.expanded}).`);
+    `tabbing out of the search field left its results open (hidden ${tabbed.hidden}, aria-expanded ${tabbed.expanded}).`);
 
-  // ---- Layout at every width (SITE-01, SITE-02, SITE-25, SITE-13) ----
+  // ---- Layout at every width ----
   for (const width of [1440, 1024, 800, 375, 320]) {
     for (const path of pages) {
       await open(path, width, width <= 375 ? 812 : 900);
@@ -238,34 +237,34 @@ async (page) => {
         };
       });
       check(layout.scrollWidth <= layout.clientWidth,
-        `SITE-01/02/25: ${path} scrolls sideways at ${width}px: the document is ${layout.scrollWidth}px wide in a ${layout.clientWidth}px window.`);
-      for (const spill of layout.spills) check(false, `SITE-01: on ${path} at ${width}px a ${spill} (the column's edge or the On-this-page list).`);
+        `${path} scrolls sideways at ${width}px: the document is ${layout.scrollWidth}px wide in a ${layout.clientWidth}px window.`);
+      for (const spill of layout.spills) check(false, `on ${path} at ${width}px a ${spill} (the column's edge or the On-this-page list).`);
       check(layout.brokenNames.length === 0,
-        `SITE-02: on ${path} at ${width}px ${layout.brokenNames.length} operation name(s) break across lines instead of the table scrolling: ${layout.brokenNames.slice(0, 3).join(', ')}.`);
+        `on ${path} at ${width}px ${layout.brokenNames.length} operation name(s) break across lines instead of the table scrolling: ${layout.brokenNames.slice(0, 3).join(', ')}.`);
       if (layout.isGuide && width <= 1100) {
         check(layout.unreachable.length === 0,
-          `SITE-13: ${path} at ${width}px has no in-page link to ${layout.unreachable.length} of its sections (${layout.unreachable.slice(0, 3).join(', ')}).`);
+          `${path} at ${width}px has no in-page link to ${layout.unreachable.length} of its sections (${layout.unreachable.slice(0, 3).join(', ')}).`);
       }
       // The finding's own bound (the title inside the first screen) passed against the
       // defect, whose title sat at about 590px of 812. The guide list ahead of it is
       // what pushed it down, so the title must start in the top half of the screen.
       if (layout.isGuide && width <= 375) {
         check(layout.h1 < layout.innerHeight / 2,
-          `SITE-13: on ${path} at ${width}px the title starts at ${Math.round(layout.h1)}px, below the top half of a ${layout.innerHeight}px screen: the whole guide list comes first.`);
+          `on ${path} at ${width}px the title starts at ${Math.round(layout.h1)}px, below the top half of a ${layout.innerHeight}px screen: the whole guide list comes first.`);
       }
     }
   }
 
-  // ---- The hero mark's settle animation (SITE-26) ----
+  // ---- The hero mark's settle animation ----
   for (const width of [900, 1024, 1100]) {
     await page.mouse.move(1, 1);
     await open('/', width);
     await page.waitForTimeout(1700);
     const overflow = await page.evaluate(() => window.__maxOverflow);
-    check(overflow <= 0, `SITE-26: the home page was ${overflow}px wider than a ${width}px window during its first second.`);
+    check(overflow <= 0, `the home page was ${overflow}px wider than a ${width}px window during its first second.`);
   }
 
-  // ---- The sticky header's height (SITE-04) ----
+  // ---- The sticky header's height ----
   for (const width of [1440, 860, 800, 375]) {
     // A query per width makes each a fresh load: the same URL again with only the
     // fragment is a same-document jump, which re-measures the previous width's page.
@@ -278,12 +277,12 @@ async (page) => {
     }));
     if (width <= 820) {
       check(anchor.openAtTarget === false,
-        `SITE-04: at ${width}px the guide list was still open (${anchor.openAtTarget}) when the page reached #history-and-undo, so closing it afterwards moves the heading the browser scrolled to.`);
+        `at ${width}px the guide list was still open (${anchor.openAtTarget}) when the page reached #history-and-undo, so closing it afterwards moves the heading the browser scrolled to.`);
     }
     // scroll-padding-top puts the heading 24px below the header; 48px allows for the
     // heading's own margin.
     check(anchor.heading >= anchor.header - 0.5 && anchor.heading <= anchor.header + 48,
-      `SITE-04: at ${width}px a link to #history-and-undo lands the heading at ${Math.round(anchor.heading)}px, not just below the ${Math.round(anchor.header)}px header.`);
+      `at ${width}px a link to #history-and-undo lands the heading at ${Math.round(anchor.heading)}px, not just below the ${Math.round(anchor.header)}px header.`);
   }
   for (const width of [1440, 1024, 860]) {
     await open('/docs/agents/', width, 800);
@@ -295,10 +294,10 @@ async (page) => {
       rail: document.querySelector('.docs-rail').getBoundingClientRect().top,
     }));
     check(rail.rail >= rail.header - 0.5,
-      `SITE-04: at ${width}px the docs rail sticks at ${Math.round(rail.rail)}px, under the ${Math.round(rail.header)}px header, hiding its search field.`);
+      `at ${width}px the docs rail sticks at ${Math.round(rail.rail)}px, under the ${Math.round(rail.header)}px header, hiding its search field.`);
   }
 
-  // ---- The header on a phone (SITE-05, SITE-12) ----
+  // ---- The header on a phone ----
   const cdp = await page.context().newCDPSession(page);
   for (const path of ['/', '/docs/agents/']) {
     await open(path, 375, 812);
@@ -313,10 +312,10 @@ async (page) => {
       const { outerHTML } = await cdp.send('DOM.getOuterHTML', { nodeId });
       names.push(node?.name?.value?.trim() ?? '');
       check(Boolean(node?.name?.value?.trim()),
-        `SITE-05: on ${path} at 375px a header control has no accessible name: ${outerHTML.slice(0, 80)}.`);
+        `on ${path} at 375px a header control has no accessible name: ${outerHTML.slice(0, 80)}.`);
     }
     // The phone label is shortened for sight only; the link keeps its full name.
-    check(names.includes('Using Nendo'), `SITE-12: on ${path} at 375px the shortened "Using" link lost its full name; the header's names are ${JSON.stringify(names)}.`);
+    check(names.includes('Using Nendo'), `on ${path} at 375px the shortened "Using" link lost its full name; the header's names are ${JSON.stringify(names)}.`);
     const row = await page.evaluate(() => {
       const nav = document.querySelector('.site-nav nav').getBoundingClientRect();
       return [...document.querySelectorAll('.site-nav nav a')].map(a => {
@@ -324,7 +323,7 @@ async (page) => {
         return { label: a.textContent.trim(), inside: box.left >= nav.left - 0.5 && box.right <= nav.right + 0.5, right: Math.round(box.right), navRight: Math.round(nav.right) };
       });
     });
-    for (const link of row) check(link.inside, `SITE-12: on ${path} at 375px the header's "${link.label}" link is cut off at the row's edge (right ${link.right}, row ends ${link.navRight}).`);
+    for (const link of row) check(link.inside, `on ${path} at 375px the header's "${link.label}" link is cut off at the row's edge (right ${link.right}, row ends ${link.navRight}).`);
   }
   await open('/docs/agents/', 320, 700);
   const current = await page.evaluate(() => {
@@ -332,9 +331,9 @@ async (page) => {
     const link = document.querySelector('.site-nav nav a[aria-current="page"]').getBoundingClientRect();
     return { visible: link.left >= nav.left - 0.5 && link.right <= nav.right + 0.5, right: Math.round(link.right), navRight: Math.round(nav.right) };
   });
-  check(current.visible, `SITE-12: at 320px the current page's header link is off the row (right ${current.right}, row ends ${current.navRight}).`);
+  check(current.visible, `at 320px the current page's header link is off the row (right ${current.right}, row ends ${current.navRight}).`);
 
-  // ---- Contrast and focus rings in both themes (SITE-06, SITE-07) ----
+  // ---- Contrast and focus rings in both themes ----
   for (const theme of ['light', 'dark']) {
     await setTheme(theme);
     for (const path of pages) {
@@ -370,7 +369,7 @@ async (page) => {
         }
         return found;
       });
-      for (const item of low.slice(0, 6)) check(false, `SITE-06: ${theme} ${path}: ${item}.`);
+      for (const item of low.slice(0, 6)) check(false, `${theme} ${path}: ${item}.`);
     }
 
     // Tab through the home page and measure each focus ring against what is behind it.
@@ -409,13 +408,13 @@ async (page) => {
       rings.push(ring);
     }
     for (const ring of rings) {
-      check(ring.drawn, `SITE-07: ${theme}: the focused "${ring.label}" shows no focus ring.`);
-      check(!ring.drawn || ring.value >= 3, `SITE-07: ${theme}: the focus ring on "${ring.label}" is ${ring.value.toFixed(2)}:1 against what is behind it, under 3:1 (${ring.colours}).`);
-      check(ring.clippedBy === null, `SITE-07: ${theme}: the focus ring on "${ring.label}" is cut off by its ancestor .${ring.clippedBy}.`);
+      check(ring.drawn, `${theme}: the focused "${ring.label}" shows no focus ring.`);
+      check(!ring.drawn || ring.value >= 3, `${theme}: the focus ring on "${ring.label}" is ${ring.value.toFixed(2)}:1 against what is behind it, under 3:1 (${ring.colours}).`);
+      check(ring.clippedBy === null, `${theme}: the focus ring on "${ring.label}" is cut off by its ancestor .${ring.clippedBy}.`);
     }
   }
 
-  // ---- The page without script (SITE-14) ----
+  // ---- The page without script ----
   await page.route('**/*', async route => {
     if (route.request().resourceType() !== 'document') return route.continue();
     const response = await route.fetch();
@@ -433,17 +432,17 @@ async (page) => {
           [...figure.querySelectorAll('img')].filter(img => getComputedStyle(img).display !== 'none').map(img => img.className)),
       }));
       const expectedCanvas = scheme === 'dark' ? 'rgb(18, 22, 52)' : 'rgb(237, 239, 251)';
-      check(!noScript.stamped, `SITE-14: the no-script probe still ran the theme script on ${path}.`);
+      check(!noScript.stamped, `the no-script probe still ran the theme script on ${path}.`);
       check(noScript.canvas === expectedCanvas,
-        `SITE-14: without script and with a ${scheme} device preference, ${path} paints ${noScript.canvas}, not the ${scheme} canvas ${expectedCanvas}.`);
+        `without script and with a ${scheme} device preference, ${path} paints ${noScript.canvas}, not the ${scheme} canvas ${expectedCanvas}.`);
       noScript.figures.forEach((visible, index) => check(visible.length === 1 && visible[0].includes(`shot-${scheme}`),
-        `SITE-14: without script, screenshot ${index + 1} on ${path} shows ${visible.length} image(s) (${visible.join(' + ') || 'none'}) instead of the ${scheme} one alone.`));
+        `without script, screenshot ${index + 1} on ${path} shows ${visible.length} image(s) (${visible.join(' + ') || 'none'}) instead of the ${scheme} one alone.`));
     }
   }
   await page.unroute('**/*');
   await page.emulateMedia({ colorScheme: 'light' });
 
-  // ---- The home page's first download and its motion (SITE-11, SITE-10) ----
+  // ---- The home page's first download and its motion ----
   await cdp.send('Network.enable');
   await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
   // A streamed or aborted request never reaches loadingFinished, so a video fetched
@@ -466,20 +465,20 @@ async (page) => {
   }
   measurements.push({ homeTransferAt375: transfer });
   check(transfer.videoBytes < 300000,
-    `SITE-11: the home page fetched ${transfer.videoBytes} bytes of the brand video on load, though it sits far below the first screen.`);
-  check(transfer.bytes < 600000, `SITE-11: the home page's first load at 375px transferred ${transfer.bytes} bytes, over the 600 KB budget.`);
+    `the home page fetched ${transfer.videoBytes} bytes of the brand video on load, though it sits far below the first screen.`);
+  check(transfer.bytes < 600000, `the home page's first load at 375px transferred ${transfer.bytes} bytes, over the 600 KB budget.`);
   await cdp.send('Network.setCacheDisabled', { cacheDisabled: false });
 
   await page.evaluate(() => document.querySelector('.brand-video').scrollIntoView({ block: 'center' }));
   await page.waitForFunction(() => !document.querySelector('.brand-video video').paused, null, { timeout: 5000 }).catch(() => {});
   const toggle = page.locator('.brand-video button');
   const toggleCount = await toggle.count();
-  check(toggleCount === 1 && await toggle.first().isVisible(), 'SITE-10: the looping brand video has no visible pause control.');
+  check(toggleCount === 1 && await toggle.first().isVisible(), 'the looping brand video has no visible pause control.');
   if (toggleCount === 1) {
     const name = await toggle.first().getAttribute('aria-label') ?? await toggle.first().textContent();
-    check(/pause/i.test(name ?? ''), `SITE-10: the brand video's control does not offer to pause it while it plays (it says "${name}").`);
+    check(/pause/i.test(name ?? ''), `the brand video's control does not offer to pause it while it plays (it says "${name}").`);
     await toggle.first().click();
-    check(await page.evaluate(() => document.querySelector('.brand-video video').paused), 'SITE-10: pressing the brand video\'s control did not pause it.');
+    check(await page.evaluate(() => document.querySelector('.brand-video video').paused), 'pressing the brand video\'s control did not pause it.');
   }
   await page.mouse.move(1, 1);
   await open('/', 1280);
@@ -487,7 +486,7 @@ async (page) => {
   const endless = await page.evaluate(() => document.getAnimations()
     .filter(animation => animation.playState === 'running' && animation.effect?.getComputedTiming().iterations === Infinity)
     .map(animation => animation.animationName ?? 'an animation'));
-  check(endless.length === 0, `SITE-10: the home page runs animation that never stops, with no control to stop it: ${endless.join(', ')}.`);
+  check(endless.length === 0, `the home page runs animation that never stops, with no control to stop it: ${endless.join(', ')}.`);
   const mark = page.locator('.hero-mark .brand-mark');
   await mark.hover();
   await page.waitForTimeout(400);
@@ -504,7 +503,7 @@ async (page) => {
   await page.mouse.move(1, 1);
   await page.waitForTimeout(700);
   const markOpacity = await page.evaluate(() => window.__markOpacity);
-  check(markOpacity >= 0.99, `SITE-10: leaving the hero mark replays its entrance, fading it to opacity ${markOpacity.toFixed(2)}.`);
+  check(markOpacity >= 0.99, `leaving the hero mark replays its entrance, fading it to opacity ${markOpacity.toFixed(2)}.`);
 
   if (failures.length > 0) throw new Error(`${failures.length} site check(s) failed:\n${failures.join('\n')}`);
   return JSON.stringify({ complete: true, measurements });

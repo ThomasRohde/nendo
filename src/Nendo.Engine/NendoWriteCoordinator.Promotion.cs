@@ -51,10 +51,10 @@ public sealed partial class NendoWriteCoordinator
             if (committed is not null) return await FinishCommittedProposalAsync(proposalId, committed);
             var context = GetProposal(proposalId);
             // Nothing reads a rejected proposal's files back, so they are not written again first: a
-            // failed write there left a Rejected proposal listed (W-221 review).
+            // failed write there left a Rejected proposal listed.
             context.State = NendoProposalState.Rejected;
             // Removing the workspace is cleanup. A scanner or indexer holding one of its files made
-            // the reject fail and left the proposal listed (ECO-05); what it leaves is swept with the
+            // the reject fail and left the proposal listed; what it leaves is swept with the
             // other abandoned workspaces when the file closes.
             _proposals.Remove(proposalId);
             if (!ProposalWorkspace.TryDelete(context)) _proposalCleanupPending = true;
@@ -170,7 +170,7 @@ public sealed partial class NendoWriteCoordinator
             // The reviewed plan is loaded from the workspace rather than trusted from
             // memory, so a workspace somebody edited refuses instead of promoting
             // something nobody approved. A proposal does not outlive its file session:
-            // every workspace is removed when the file opens and when it closes (ECO-13).
+            // every workspace is removed when the file opens and when it closes.
             var reviewedPlan = await ProposalWorkspace.ReadPlanAsync(context.WorkspacePath, cancellationToken);
             if (reviewedPlan.Digest() != context.BehaviourPlan.Digest())
             {
@@ -207,7 +207,7 @@ public sealed partial class NendoWriteCoordinator
             {
                 // Inside the handler that puts the proposal back: a cancel or an IO error writing
                 // proposal.json here left it Applying with nothing committed, and every later accept
-                // was refused as not previewable (ECO-04).
+                // was refused as not previewable.
                 context.State = NendoProposalState.Applying;
                 BeforeApplyingPersist?.Invoke();
                 await ProposalWorkspace.PersistAsync(context, cancellationToken);
@@ -263,8 +263,7 @@ public sealed partial class NendoWriteCoordinator
                 // The reason the active file gave is carried through rather than replaced.
                 // Without it a proposal refused because the file has reached the size it
                 // can still be opened at reads as "the active file rejected the proposal",
-                // and a person is left with a bound that does not say where it came from —
-                // which is the defect F-043 records, arriving by a different route.
+                // and a person is left with a bound that does not say where it came from.
                 context.Diagnostics = new[]
                 {
                     new NendoCompilerDiagnostic(
@@ -371,7 +370,7 @@ public sealed partial class NendoWriteCoordinator
                 // Reversing a definition changes what this file's actions do, so the
                 // consent given for the old ones no longer describes it. What the file
                 // requires is read again rather than carried over, whatever the caller's
-                // token says now that the compensation stands (ECO-06).
+                // token says now that the compensation stands.
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
                     await RefreshBehaviourRequirementAsync(CancellationToken.None);
                 if (!result.IsIdempotentReplay) RaiseCommitted(result.ChangeSequence, [result], [mutation]);

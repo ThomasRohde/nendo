@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createNendoMcpClient, REFUSAL_META_KEY } from './Nendo-McpClient.mjs';
 
-// P6-F: the Axiom Register gate. An external client builds the whole application
+// The Axiom Register gate. An external client builds the whole application
 // from an empty file through the local MCP interface alone, discovering the
 // surface vocabulary from the wire rather than from this repository. The owner
 // reviews and accepts in the Workbench; this journey drives that click, which is
@@ -77,7 +77,7 @@ async function evaluate(expression) {
  * the element was already there -- and where a step did wait first, it waited in one
  * round trip and clicked in the next, so the element could still go between them. Either
  * way the failure was `TypeError: Cannot read properties of null (reading 'click')`,
- * which names no selector, no step and no screen: F-056 cost a run to work out that it
+ * which names no selector, no step and no screen, and cost a run to work out that it
  * was not a defect in the app at all.
  *
  * So this retries until something is there, and when nothing ever is, it says which
@@ -318,7 +318,7 @@ async function authorAsAgent(client, kinds) {
       `The proposal summary does not list the front page it adds: ${JSON.stringify((overviewPreview.preview?.surfaces ?? []).map(surface => surface.kind))}`);
     await acceptInWorkbench('Register front page');
 
-    // The grids (S6), their own proposal for the reason the timeline, the gallery and the
+    // The grids, their own proposal for the reason the timeline, the gallery and the
     // front page are. This one does raise the minimum host, because it is the newest shape
     // the file carries, and the review has to say so as its own line.
     const gridPreview = await changeSet(tool, owned, 'Register grids', gridOperations());
@@ -330,7 +330,7 @@ async function authorAsAgent(client, kinds) {
       `The grid proposal does not name its minimum-host raise: ${JSON.stringify(gridPreview.semanticDiff.map(entry => entry.kind))}`);
     await acceptInWorkbench('Register grids');
 
-    // The reference board (S7). Its own proposal for the reason every one above is, and
+    // The reference board. Its own proposal for the reason every one above is, and
     // the last rung this file reaches, so this is where the minimum-host raise lands now.
     const boardPreview = await changeSet(tool, owned, 'Register board by remit', referenceBoardOperations());
     assert(boardPreview.semanticDiff.some(entry => /one column per/i.test(entry.summary ?? '')),
@@ -339,7 +339,7 @@ async function authorAsAgent(client, kinds) {
       `The board proposal does not name its minimum-host raise: ${JSON.stringify(boardPreview.semanticDiff.map(entry => entry.kind))}`);
     await acceptInWorkbench('Register board by remit');
 
-    // The folded sections (W-040). Their own proposal for the reason every one above
+    // The folded sections. Their own proposal for the reason every one above
     // is, and now the last rung this file reaches: the raise lands here, and the line
     // that adds each section says how it starts.
     const foldPreview = await changeSet(tool, owned, 'Register folds', foldOperations());
@@ -740,7 +740,7 @@ function timelineOperations() {
     // The axiom page's own reference control, under Lineage beside the relation that
     // reads the same field from the other end. It rides in this proposal because the
     // register's screens fill theirs to the ceiling, and a later proposal may add a node
-    // to a page an earlier one made. W-050 is measured on it: a picker that is searched
+    // to a page an earlier one made. The picker rule is measured on it: a picker that is searched
     // and cancelled must leave nothing unsaved.
     node('axiom-supersedes-binding', 'axiom-lineage', 'fieldBinding', 1),
     property('axiom-supersedes-binding', 'fieldId', 'axiom-supersedes'),
@@ -816,7 +816,7 @@ function overviewOperations() {
     property('front-axiom-dates', 'entityId', 'axiom'),
     property('front-axiom-dates', 'fieldId', 'axiom-accepted'),
     property('front-axiom-dates', 'title', 'Accepted between'),
-    // Over time (S5). Both group by a civil date, and the register is the fixture
+    // Over time. Both group by a civil date, and the register is the fixture
     // that makes the rule visible: one axiom is accepted, so exactly one month and
     // exactly one day carry anything. Every other bucket must still be drawn.
     node('front-axiom-trend', 'register-front', 'trendChart', 4),
@@ -844,7 +844,7 @@ function overviewOperations() {
 }
 
 /**
- * The two grid kinds (S6). A matrix crossing the register's two choice fields, and a
+ * The two grid kinds. A matrix crossing the register's two choice fields, and a
  * ranking of the axioms that carry a confidence.
  *
  * The register is the fixture that makes both rules visible. Three axioms hold three
@@ -882,13 +882,13 @@ function gridOperations() {
 }
 
 /**
- * A board whose columns are records (S7), over the reference the register already has.
+ * A board whose columns are records, over the reference the register already has.
  *
  * Nothing about the board is new except where its columns come from, which is the whole
  * slice: the same kind, the same bindings, the same group-scoped total. What it proves is
  * that the lanes are read from the Remit record type rather than taken from a field.
  */
-// The two sections that start closed (ADR-0004, 2026-09-20 amendment; W-040), their own
+// The two sections that start closed (ADR-0004), their own
 // proposal because they are the last rung this file reaches and the review has to say
 // so. Each holds the one tile on its page that counts remits, which is what lets the
 // fold step tell a read the fold saved from every other read on the page.
@@ -1003,7 +1003,7 @@ async function acceptInWorkbench(title) {
   // there, behind a picker nothing had mentioned.
   // A timeout here says only that the outcome never appeared, which is true of an
   // acceptance that failed, one that never started, and one whose message was drawn and
-  // taken away again. F-056: the failure states what the screen held instead, so the next
+  // taken away again. So the failure states what the screen held instead, so the next
   // occurrence is diagnosable from its own output rather than from another run.
   const outcome = await waitFor(() => evaluate(`(()=>{const slot=document.querySelector('.message-slot');
     return slot === null || slot.hidden ? null : {text:slot.textContent, done:slot.classList.contains('is-done'), role:slot.getAttribute('role')};})()`),
@@ -1026,7 +1026,7 @@ async function acceptInWorkbench(title) {
   // hands back an empty message slot -- so this message lasted until the next tick and
   // then the screen said nothing, with nobody having touched it. Waiting past one tick is
   // what makes that deterministic; before, it surfaced as the outcome never arriving at
-  // all, about two runs in five, and read as a flake (F-056, F-057).
+  // all, about two runs in five, and read as a flake.
   await sleep(4000);
   const survived = await evaluate(`(()=>{const slot=document.querySelector('.message-slot');
     return slot === null || slot.hidden ? null : slot.textContent;})()`);
@@ -1039,7 +1039,7 @@ async function acceptInWorkbench(title) {
 }
 
 /**
- * The reference board before a single record of its target type exists (W-042, F-060).
+ * The reference board before a single record of its target type exists.
  *
  * It has to run here, in the one window between the surfaces being accepted and
  * seedRecords making the first Remit: every other step of this gate draws a board whose
@@ -1182,7 +1182,7 @@ async function assertTheButtonDidWhatItSaid(rpc, tool, owned, recordId) {
 
 /**
  * A write through MCP reaches a surface already on screen, without the person doing
- * anything (W-034).
+ * anything.
  *
  * Deliberately a board rather than a tile. A tile chases its own reads and would catch up
  * on its own eventually; a board's records only move when the view is refreshed, which is
@@ -1324,11 +1324,11 @@ async function assertRegisterRuns(label) {
 }
 
 /**
- * Adding and opening a record from a related list (ADR-0004, 2026-09-18 amendment).
+ * Adding and opening a record from a related list (ADR-0004).
  *
  * A related list showed the inverse of a reference and did nothing else, so recording a
  * linked record meant leaving the page that already knew which record you meant, finding
- * it again in a picker, and navigating back (F-031; C-044 accepted the workaround).
+ * it again in a picker, and navigating back.
  *
  * The Remit page already carries the shape this needs: an Axioms relation over
  * `axiom-remit`, with a count tile beside it. Nothing was authored to get the buttons \u2014
@@ -1337,7 +1337,7 @@ async function assertRegisterRuns(label) {
  *
  * It runs last in the reopen phase, and adds an axiom that is not removed again. Every
  * assertion that counts axioms has run by then, and this is the last thing the gate does.
- * The clicks are real pointer clicks, for the reason S7 records: `element.click()`
+ * The clicks are real pointer clicks: `element.click()`
  * dispatches no `pointerdown`, and the quiet window after a click is what decides whether
  * the relation is read again in time to show what was just added.
  */
@@ -1422,22 +1422,21 @@ async function assertARelatedRecordIsAddedAndOpenedWithoutLeavingThePage(label) 
 }
 
 /**
- * Back and forward, everywhere, not only out of a relation (W-046).
+ * Back and forward, everywhere, not only out of a relation.
  *
- * W-033 gave a related row one step back to the record it was opened from, and everything
- * else a person navigates had no way back at all. The pair in the header's control group
- * is the general answer. The labelled back stays where it is, half a screen away in the
+ * A related row has its own step back to the record it was opened from, and the pair in the
+ * header's control group is the way back for everything else. The labelled back stays where it is, half a screen away in the
  * Use toolbar, and the two agree about where they go, because the trail records the parent
  * record as a place of its own.
  *
- * The trail's own rules are asserted in the node lane (C-195), which can reach them
+ * The trail's own rules are asserted in the node lane, which can reach them
  * because they are a ring and nothing else. What can only be asserted here is that the
  * places it was built from are the places the application actually drew, and that one of
  * them can be put back. Every step is measured -- the record type in the picker, the
  * heading on the record page, which surface carries aria-pressed, the words in the drill
  * pill -- because a screenshot of a back button proves that it exists and nothing more.
  *
- * The clicks on the two arrows are real pointer clicks, for the reason S7 records:
+ * The clicks on the two arrows are real pointer clicks:
  * `element.click()` dispatches no `pointerdown`, so it never meets the quiet window that
  * decides whether the next read lands.
  *
@@ -1466,7 +1465,7 @@ async function assertBackAndForwardWalkTheTrail(label) {
     `the axiom page one step back (${label})`);
   assert(await entity() === 'axiom',
     `Going back did not move Use to the record type the place belongs to (${label}).`);
-  // The place carried W-033's own way back with it, so the labelled button is there again
+  // The place carried the related row's own way back with it, so the labelled button is there again
   // rather than swallowed by the general trail.
   const labelled = await evaluate(`document.querySelector('#related-back')?.textContent ?? null`);
   assert((labelled ?? '').includes('Back to Data'),
@@ -1497,7 +1496,7 @@ async function assertBackAndForwardWalkTheTrail(label) {
   await ready();
   await waitFor(() => evaluate(`document.querySelector('[data-testid="record-hero"] h2') === null`),
     `the axiom surface after the record was deleted (${label})`);
-  // Deleting a record leaves the record context, so W-033's own way back goes with it.
+  // Deleting a record leaves the record context, so the related row's own way back goes with it.
   // It used to stay up on the surface behind, offering a way back to a page nobody was
   // on, because the delete cleared the selection rather than the context.
   assert(await evaluate(`document.querySelector('#related-back') === null`),
@@ -1512,10 +1511,10 @@ async function assertBackAndForwardWalkTheTrail(label) {
   // The sentence has to outlive the reads the screen makes on its own account. Said the
   // way an error was, into the pane and nothing more, it lasted until the next chased read
   // landed, and on the published payload that read once landed before this step looked:
-  // the gate read nothing, and so would a person pressing Back at that moment (F-086). So
+  // the gate read nothing, and so would a person pressing Back at that moment. So
   // the read is made to land after the sentence rather than left to chance -- a write from
   // elsewhere, which the screen follows as it does for a closed draft -- and the sentence
-  // is still there afterwards (W-054). Nothing is pressed in between: a press is the
+  // is still there afterwards. Nothing is pressed in between: a press is the
   // person doing the next thing, and would release the sentence on purpose.
   const shown = await evaluate(`document.querySelector('#studio-content').textContent`);
   const axioms = await host('data.queryRecords', { entityId: 'axiom', limit: 10, filters: [] });
@@ -1753,7 +1752,7 @@ function recordOnPage() {
 
 /**
  * A reference picker's search leaves nothing unsaved, and neither does a save with
- * nothing to save (W-050).
+ * nothing to save.
  *
  * Typing in a picker's search box bubbled to the form's edit tracking, which recorded an
  * empty field name and called the page dirty. From then on Back, Forward, Add and open
@@ -1830,12 +1829,11 @@ async function assertAPickerSearchLeavesNothingUnsaved(label) {
 }
 
 /**
- * A related row whose record has gone says so (W-051).
+ * A related row whose record has gone says so.
  *
  * The sentence was there, and a `return` inside the try stepped over the line that showed
- * it: the click cleared busy, redrew the same page and said nothing. F-165 had claimed the
- * related sites fixed by inspection, and its guard covered only the trail's path; this one
- * reaches the branch itself. The row is pointed at a record ID that does not exist rather
+ * it: the click cleared busy, redrew the same page and said nothing. A guard on the trail's path alone
+ * would miss it; this one reaches the branch itself. The row is pointed at a record ID that does not exist rather
  * than deleted from another client between the draw and the click, because that race
  * cannot be timed from outside, and the branch reached is the same one.
  */
@@ -1870,7 +1868,7 @@ async function assertARelatedRowWhoseRecordHasGoneSaysSo(label) {
 }
 
 /**
- * Unsaved typing survives every move off the page, or the move is declined (W-049).
+ * Unsaved typing survives every move off the page, or the move is declined.
  *
  * Two paths lost it without a word: choosing another surface redrew the page, and paging
  * a relation on the same record redrew it too, rebuilding the parent's form from stored
@@ -1969,7 +1967,7 @@ async function assertUnsavedTypingSurvivesEveryMoveOffThePage(label) {
   await clickFound(`document.querySelector('[data-select-surface="axiom-open"]')`); await ready();
   await waitFor(() => evaluate(`document.querySelectorAll('.record-list [data-record-id]').length === 50`),
     `the first page of fifty open axioms (${label})`);
-  // F-225: a list names its columns in a head, and every row's cells start where the head's do.
+  // A list names its columns in a head, and every row's cells start where the head's do.
   const columns = JSON.parse(await evaluate(`JSON.stringify((()=>{const list=document.querySelector('.record-list');
     const lefts=e=>[...e.children].map(c=>Math.round(c.getBoundingClientRect().left));
     const head=list.querySelector('.record-list-head');
@@ -2008,7 +2006,7 @@ async function assertUnsavedTypingSurvivesEveryMoveOffThePage(label) {
 }
 
 /**
- * What the window says while a file is dragged over it (W-048).
+ * What the window says while a file is dragged over it.
  *
  * Synthetic DragEvents, and the limit is stated rather than glossed: nothing
  * scriptable can make Windows hand a real file to a window, so what is measured here
@@ -2383,7 +2381,7 @@ async function assertTheWidenedSurfacesRun(label) {
   await screenshot(`rating-control-${label}.png`);
   await click('#close-inspector'); await ready();
 
-  // The matrix (S6). The rule worth measuring is the one an eye cannot check on a
+  // The matrix. The rule worth measuring is the one an eye cannot check on a
   // screenshot: every cell of the cross product is drawn, including the ones with nothing
   // in them. Three axioms hold three different pairs, so six of the nine cells are empty —
   // a grid that drew only the three with records in them would look entirely reasonable.
@@ -2485,7 +2483,7 @@ async function assertTheWidenedSurfacesRun(label) {
     `A cell holding one axiom drilled into ${drilledRows} records (${label}): ${JSON.stringify(drilled)}`);
   await clickFound(`document.querySelector('[data-drill-clear]')`); await ready();
 
-  // The reference board (S7). The rule worth measuring is the one a screenshot cannot
+  // The reference board. The rule worth measuring is the one a screenshot cannot
   // check: a lane for the remit nobody has used. Three axioms all point at Data, so a
   // board that drew only the remits in use would show one full column and look right.
   await clickFound(`document.querySelector('[data-select-surface="axiom-remit-board"]')`); await ready();
@@ -2626,7 +2624,7 @@ async function assertTheWidenedSurfacesRun(label) {
     return rows.length > 0 ? rows : null;
   }, `the remits on the front page (${label})`);
   assert(remits.includes('Data'), `The front page does not list the remits: ${JSON.stringify(remits)} (${label}).`);
-  // Over time (S5). The rule worth measuring is the one an eye cannot check on a
+  // Over time. The rule worth measuring is the one an eye cannot check on a
   // screenshot: every bucket of the range is drawn, including the ones with nothing
   // in them. One axiom is accepted, so exactly one of the twelve months carries a
   // number and eleven are empty — a chart that drew only the month with records
@@ -2689,7 +2687,7 @@ async function assertTheWidenedSurfacesRun(label) {
   assert(tonedRow.row === expectedRow,
     `The toned day sits in row ${tonedRow.row}; its weekday puts it in row ${expectedRow} (${label}): ${JSON.stringify(tonedRow)}`);
 
-  // The ranking (S6). Three axioms, one of which carries a confidence: a record with no
+  // The ranking. Three axioms, one of which carries a confidence: a record with no
   // number is not ranked, so this is one row rather than three with two blanks at the
   // bottom. The predicate that does it is the host's, not the author's.
   const ranked = await waitFor(async () => {
@@ -2750,7 +2748,7 @@ async function assertTheWidenedSurfacesRun(label) {
    // where the breadcrumb above it starts, the line every other surface's controls are
    // drawn to. The first build set no horizontal inset at all, so the title, the
    // description and every tile sat outside the line the rest of the app is drawn to —
-   // which the owner saw in the screenshot the gate had already passed. Since W-092 the
+   // which the owner saw in the screenshot the gate had already passed. The
    // front page has no toolbar of its own: its picker is in the breadcrumb.
   const inset = await evaluate(`(()=>{const left=el=>Math.round(el.getBoundingClientRect().left);
     return {toolbar:left(document.querySelector('#place-pickers .place-root')),
@@ -2843,7 +2841,7 @@ async function assertTheWidenedSurfacesRun(label) {
 }
 
 /**
- * A section can be folded away (ADR-0004, 2026-09-20 amendment; W-040). Measured, not
+ * A section can be folded away (ADR-0004). Measured, not
  * looked at. Two sections in this file start closed: Lately on the front page and More
  * on the Remit page, each holding the one tile on its page that counts remits. So a
  * `data.countRecords` for remits crossing the bridge while the section is closed is a
@@ -2863,7 +2861,7 @@ async function watchBridge() {
     b.postMessage=(m)=>{ try { window.__gateBridge.push({method:m.method, entityId:m.payload?.entityId ?? null, protocolVersion:m.protocolVersion ?? null}); } catch {} send(m); }; })()`);
 }
 
-// W-053: a section the person left open is still open after the file is closed and
+// A section the person left open is still open after the file is closed and
 // reopened, and a fold writes nothing into the file. The built phase ends with Lately and
 // the Data remit's More section both open, and nobody touches either before this looks.
 async function assertFoldsAreKeptAcrossReopen() {
@@ -2923,7 +2921,7 @@ async function assertAFoldedSectionReadsNothingUntilOpened(label) {
   assert(opened.value === expectedRemits && opened.tile === true,
     `The opened section shows ${JSON.stringify(opened)}, not ${expectedRemits} remits drawn (${label}).`);
   // Only where Lately has never been open. On the reopened file it is drawn open as the
-  // person left it (W-053), so its tile was read then, and a value once read stays until
+  // person left it, so its tile was read then, and a value once read stays until
   // the file changes: opening it again rightly reads nothing new.
   if (label === 'built') assert(await remitCounts() >= 1, `Opening the section read nothing for its tile (${label}).`);
 
@@ -2988,7 +2986,7 @@ try {
     // record type with nothing in it.
     await assertAnEmptyTargetTypeExplainsItself();
     await seedRecords(client);
-    // W-034, and it has to be here: agent access is turned off on the next line, so this
+    // And it has to be here: agent access is turned off on the next line, so this
     // is the only moment in the run when a surface is on screen and MCP can write.
     await assertTheScreenFollowsAnAgentsWrite(client);
     await host('agent.setMode', { mode: 'off' });
@@ -3018,7 +3016,7 @@ try {
       'The front page is drawn but the picker does not say so.');
     await assertRegisterRuns('reopened');
     // The folds left open on the built file are still open here: what the person did
-    // outlives the session on this device (W-053). Folded again, the same measurements
+    // outlives the session on this device. Folded again, the same measurements
     // as the built phase then run from closed.
     await assertFoldsAreKeptAcrossReopen();
     await assertAFoldedSectionReadsNothingUntilOpened('reopened');
@@ -3028,8 +3026,7 @@ try {
     // After it, because the trail it walks is the one those steps built, and because it
     // deletes the axiom they added.
     await assertBackAndForwardWalkTheTrail('reopened');
-    // The three defects the 2026-09-19 bug hunt confirmed on record pages (W-049, W-050,
-    // W-051), in this order: the picker's search on an axiom page, then a related row
+    // Three record-page rules, in this order: the picker's search on an axiom page, then a related row
     // that has gone on the remit page while its relation still has three rows, and last
     // the moves off a page holding typing -- which gives the relation forty-eight more
     // rows, so nothing that counts them can run after it.
@@ -3043,10 +3040,10 @@ try {
 
   assert(pageErrors.length === 0, `Renderer errors: ${pageErrors.join(' | ')}`);
   await fs.writeFile(path.join(output, `gate-${phase}.json`), JSON.stringify({ phase, result: 'passed' }, null, 2));
-  console.log(`P6-F axiom register ${phase} passed.`);
+  console.log(`Axiom register ${phase} passed.`);
   process.exit(0);
 } catch (error) {
-  console.error(`P6-F axiom register ${phase} failed: ${error.message}`);
+  console.error(`Axiom register ${phase} failed: ${error.message}`);
   if (pageErrors.length > 0) console.error(`Renderer errors: ${pageErrors.join(' | ')}`);
   try { await screenshot(`failure-${phase}.png`); } catch { /* the page may be gone */ }
   // What the page was doing when it failed, because a timeout names what the script

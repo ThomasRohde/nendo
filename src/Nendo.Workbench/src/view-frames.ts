@@ -29,7 +29,7 @@ import { keepViewPlace, viewAnchor, viewPlaceKey, viewPlaceOf, viewPlacesAt } fr
  *
  * A mount is created for each placeholder a view is drawn into and starts when the
  * placeholder comes into view, with the frame's source set only then: the browser's own
- * lazy loading starts a frame about 2.4k px early (spike S17). A redraw replaces the page's
+ * lazy loading starts a frame about 2.4k px early. A redraw replaces the page's
  * markup, which would reload every frame in it, so before a redraw each live frame is parked
  * in a hidden container with `moveBefore` and adopted by its new placeholder afterwards,
  * which keeps its document (S12). A browser without `moveBefore` reloads the view instead.
@@ -56,12 +56,12 @@ interface Mount extends BrokerMount {
   height: number;
   seen: number;
   /**
-   * The controls the running view declared for Nendo's chrome (W-090), kept here so a redraw
+   * The controls the running view declared for Nendo's chrome, kept here so a redraw
    * draws them again. A view that connects afresh declares its own, so a (re)connect, a stop,
    * a crash or a reload clears them.
    */
   toolbar: ViewToolbar | null;
-  /** When Nendo last sent the view a command, so a menu may answer it without the frame's focus (WXS-08). */
+  /** When Nendo last sent the view a command, so a menu may answer it without the frame's focus. */
   commandAt: number | null;
 }
 
@@ -70,7 +70,7 @@ const byPlaceholder = new WeakMap<Element, Mount>();
 let generation = 0;
 let parking: HTMLElement | null = null;
 /**
- * Views that opened a review of their own proposal (ADR-0013 Phase 3). The review replaces the
+ * Views that opened a review of their own proposal (ADR-0013). The review replaces the
  * screen the view is on, so without this the view would end before it heard its answer; held,
  * it waits parked and carries on where it was when the person comes back.
  */
@@ -87,7 +87,7 @@ const keepsFrames = typeof Element !== 'undefined' &&
 /**
  * How long a frame sent to about:blank is kept before its element goes. Navigating a view's
  * frames away ends their renderer in about half a second, where removing the element alone
- * leaves it running for ten (spike S3).
+ * leaves it running for ten.
  */
 const retireMs = 1_000;
 
@@ -101,7 +101,7 @@ export function installViewFrames(): void {
   if (broker !== null) return;
   broker = createExtensionBroker({
     request: (method, payload) => client.request(method, payload),
-    // What a view did, for the agent that wrote it (W-251). Nobody waits on it, and a host that
+    // What a view did, for the agent that wrote it. Nobody waits on it, and a host that
     // cannot keep it is no reason to say anything to the person.
     report: (mount, event) => reportViewEvent(mount as Mount, event),
     mounts: () => [...mounts.values()].filter((mount) => mount.frame !== null),
@@ -167,7 +167,7 @@ export function installViewFrames(): void {
   }).observe(root, { attributes: true, attributeFilter: ['data-theme'] });
 }
 
-/** The civil day turned: every running view hears its context again (W-217). */
+/** The civil day turned: every running view hears its context again. */
 export function viewsDayTurned(): void {
   broker?.dayTurned();
 }
@@ -187,7 +187,7 @@ function keepTicking(): void {
 /**
  * Whether a view is on the page the person is looking at: its placeholder drawn, and its frame
  * in it rather than parked. A view held while the person reviews its own proposal runs on in the
- * parking lot, hidden, and is not (WXS-07).
+ * parking lot, hidden, and is not.
  */
 function onScreen(mount: Mount): boolean {
   return mount.placeholder !== null && mount.placeholder.isConnected &&
@@ -201,9 +201,9 @@ function viewHasFocus(mount: Mount): boolean {
 
 /**
  * A view asks Nendo to move the person's page. A view that is not on screen cannot: held for
- * the review of its own proposal, it took the person out of the review they were reading
- * (WXS-07). Answers whether the person is in the view, so a refusal over unsaved typing is
- * said on the page only then, and otherwise leaves the field they type in alone (WXS-06).
+ * the review of its own proposal, it would take the person out of the review they are reading.
+ * Answers whether the person is in the view, so a refusal over unsaved typing is
+ * said on the page only then, and otherwise leaves the field they type in alone.
  */
 function movable(mount: Mount): boolean {
   if (!onScreen(mount))
@@ -298,7 +298,7 @@ export function wireViewFrames(scope: ParentNode): void {
     }
     developmentBanner(element, stage, notice.pkg.developmentFolder ?? null, spec.packageId);
     // Views came on while the page was held, so this placeholder still says they are off; the
-    // frame starts in a stage that holds nothing else (WXS-17).
+    // frame starts in a stage that holds nothing else.
     if (stage.classList.contains('is-notice')) {
       stage.classList.remove('is-notice');
       stage.replaceChildren();
@@ -320,13 +320,13 @@ export function wireViewFrames(scope: ParentNode): void {
     else if (mount.trouble === null && !mount.restarting) start(mount);
     drawTrouble(mount);
     drawToolbar(mount);
-    // A draw that Back or Forward made hands a running view the place it moved to (W-127).
+    // A draw that Back or Forward made hands a running view the place it moved to.
     broker?.place(mount, placeOf(mount));
     broker?.refreshContext(mount);
   }
 }
 
-// --- The view's place in Back and Forward (ADR-0013, 2026-09-29; W-127) ---------------------
+// --- The view's place in Back and Forward (ADR-0013) ---------------------
 
 /** The place this view has on the page the person is on, or null when it declared none here. */
 function placeOf(mount: Mount): Json {
@@ -339,7 +339,7 @@ function placeOf(mount: Mount): Json {
  * The view says where it is. A new place is a step on the trail, and with `replace` it
  * corrects the step the person is on. A view that is not on the page, held for its review,
  * has no step to take or correct: null, which the broker refuses, rather than false, which
- * says the place was already kept (WXS-15).
+ * says the place was already kept.
  */
 function setViewPlace(mount: Mount, place: { value: Json; label: string | null; replace: boolean }): boolean | null {
   const here = navigationTrail.current();
@@ -367,7 +367,7 @@ function createMount(key: string, spec: ViewSpec, origin: string, entryPoint: st
   return mount;
 }
 
-// --- The view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090) ---------------
+// --- The view's controls in Nendo's own chrome (ADR-0013) ---------------
 
 /** The mount whose menu is open, so a view that goes away takes its menu with it. */
 let menuOwner: string | null = null;
@@ -406,7 +406,7 @@ function sendCommand(mount: Mount, id: string, value: CommandValue, source: Comm
   }
   // Ctrl K, a declared key and Nendo's Add are given outside the frame, and a view may answer
   // one with a menu. The strip's own controls are not: its search box sends a command at every
-  // pause in typing, and a menu answering that would catch the next Space (WXS-08).
+  // pause in typing, and a menu answering that would catch the next Space.
   if (source === 'palette' || source === 'key' || source === 'add') mount.commandAt = performance.now();
   broker?.command(mount, { id, value, source });
 }
@@ -451,7 +451,7 @@ function keyFromView(mount: Mount, keys: string): void {
 }
 
 /**
- * Nendo's own Add, taken by the view on this screen (W-090): the command it named, or null
+ * Nendo's own Add, taken by the view on this screen: the command it named, or null
  * when no running view on the screen took it, and Add opens Nendo's form as before.
  */
 export function viewAddCommand(): (() => void) | null {
@@ -488,7 +488,7 @@ export function viewPaletteCommands(): PaletteCommand[] {
 async function showMenuFor(mount: Mount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null> {
   const frame = mount.frame;
   // A parked frame is connected but hidden, so its box is all zeros and the menu was drawn at
-  // the window's corner, over the review of the view's own proposal (WXS-07).
+  // the window's corner, over the review of the view's own proposal.
   if (frame === null || !onScreen(mount) || document.querySelector('dialog[open]') !== null) return null;
   if (!viewMenuMayShow(document.activeElement, frame, mount.commandAt, performance.now())) return null;
   const box = frame.getBoundingClientRect();
@@ -605,13 +605,13 @@ function drawTrouble(mount: Mount): void {
   overlay.querySelector<HTMLButtonElement>('[data-view-reload]')?.addEventListener('click', () => reload(mount));
   overlay.querySelector<HTMLButtonElement>('[data-view-stop]')?.addEventListener('click', () => stop(mount));
   // A view that hangs with focus keeps every key, since the keys reach Nendo only through the
-  // view's own script: a keyboard could reach neither Stop nor any of Nendo's keys (WXS-05).
+  // view's own script: a keyboard could reach neither Stop nor any of Nendo's keys.
   // Moving focus is the parent document's own act, which needs nothing from the hung view.
   if (focused) focusWithoutInteraction(overlay.querySelector<HTMLButtonElement>('[data-view-stop], [data-view-reload]'));
 }
 
 /**
- * End every frame of one package. Its frames share one renderer (spike S1), so a view that
+ * End every frame of one package. Its frames share one renderer, so a view that
  * stopped answering has taken the others with it, and only sending all of them away ends
  * that renderer.
  */
@@ -648,7 +648,7 @@ function reload(mount: Mount): void {
     return;
   }
   if (mount.trouble === 'crashed' && mount.frame !== null) {
-    // The renderer is already gone; the same frame navigates again, into a new one (spike S4).
+    // The renderer is already gone; the same frame navigates again, into a new one.
     broker?.disconnect(mount);
     mount.loaded = false;
     setToolbar(mount, null);
@@ -661,7 +661,7 @@ function reload(mount: Mount): void {
 }
 
 /**
- * The strip above a view this device runs from a folder (ADR-0013 Phase 4). It is the
+ * The strip above a view this device runs from a folder (ADR-0013). It is the
  * Workbench's own markup, outside the view's frame, so the view cannot reach it to hide it,
  * and it says in words that this is not the code the file carries.
  */
@@ -705,7 +705,7 @@ function reloadPackageViews(packageId: string): void {
 }
 
 /**
- * What a view did, for the agent that wrote it (W-251). Nobody waits on it, and a host that cannot
+ * What a view did, for the agent that wrote it. Nobody waits on it, and a host that cannot
  * keep it is no reason to say anything to the person.
  */
 function reportViewEvent(mount: Mount, event: ViewEventReport): void {

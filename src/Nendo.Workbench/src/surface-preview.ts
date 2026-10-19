@@ -26,10 +26,10 @@ interface PreviewSurface {
 // Which tab a reviewer opened, for this preview only. The preview is a read-only
 // view of a validated clone, so nothing it selects reaches a file.
 const previewTabs = new Map<string, string>();
-// A Boolean reads Yes or No, as every live screen says it (WDV-19).
+// A Boolean reads Yes or No, as every live screen says it.
 const text = (value: unknown): string => value == null ? 'Not set' : typeof value === 'boolean' ? (value ? 'Yes' : 'No') : exactNumberText(value) ?? (typeof value === 'object' ? JSON.stringify(value) : String(value));
 function valueText(app: ApplicationPlan, record: RecordPlan | undefined, fieldId: string): string {
-  // A calculated field shows its result, where the preview has one; it stores nothing (WMX-18).
+  // A calculated field shows its result, where the preview has one; it stores nothing.
   if ((app.entity.derivedFields ?? []).some(field => field.semanticId === fieldId)) {
     const result = record?.calculations?.[fieldId] as { state?: string; value?: unknown } | undefined;
     return result?.state === 'value' ? text(result.value) : 'Calculated';
@@ -39,7 +39,7 @@ function valueText(app: ApplicationPlan, record: RecordPlan | undefined, fieldId
   if (value != null && record?.referenceLabels && fieldId in record.referenceLabels) return record.referenceLabels[fieldId] ?? '(No target label)';
   return field?.choices?.find(choice => choice.id === value)?.displayName ?? text(value);
 }
-// The other record types the preview carries, so a related list names its type (WMX-18).
+// The other record types the preview carries, so a related list names its type.
 let previewPeers: readonly ApplicationPlan[] = [];
 // Every number crossing the desktop bridge is wrapped in a $nendoNumber envelope, so a
 // plain typeof check never matches and the preview quietly printed its own default
@@ -162,7 +162,7 @@ export function surfacePreviewMarkup(
   const titleField = app.surfaces.flatMap(node => bindings(node))[0] ?? app.entity.fields[0]?.semanticId;
   const recordLabel = (item: RecordPlan): string => titleField ? valueText(app, item, titleField) : item.semanticId;
   previewPeers = peers;
-  // Every field a screen may bind is named: its own, its calculations, and a related type's (WMX-18).
+  // Every field a screen may bind is named: its own, its calculations, and a related type's.
   const fieldName = (id: string): string => app.entity.fields.find(field => field.semanticId === id)?.displayName
     ?? (app.entity.derivedFields ?? []).find(field => field.semanticId === id)?.displayName
     ?? peers.flatMap(peer => peer.entity.fields).find(field => field.semanticId === id)?.displayName
@@ -464,7 +464,7 @@ function matrixMarkup(app: ApplicationPlan, root: SurfaceNodePlan, fieldName: (i
   const columnId = property(root, 'columnByFieldId') ?? '';
   const rowField = app.entity.fields.find(field => field.semanticId === rowId);
   const columnField = app.entity.fields.find(field => field.semanticId === columnId);
-  // The live matrix's own lanes: a Boolean axis has Yes and No, and a clause narrows them (WDV-19).
+  // The live matrix's own lanes: a Boolean axis has Yes and No, and a clause narrows them.
   const view = matrixViewOf(root, app.entity.fields);
   const rows = view?.rows ?? [];
   const columns = view?.columns ?? [];
@@ -562,7 +562,7 @@ export function renderSurfacePreview(
   plans: ApplicationPlan[],
   counts: Record<string, number> = {},
   overview: OverviewPlan | null = null,
-  // Where the proposal's changes land, so the preview opens on them rather than on the first screen (UIT-01).
+  // Where the proposal's changes land, so the preview opens on them rather than on the first screen.
   start: { entityId: string; surfaceId: string | null } | null = null,
 ): void {
   if (!plans.length && overview === null) { root.remove(); return; }

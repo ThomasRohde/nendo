@@ -1,9 +1,9 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-247 (ADR-0008 amendment of 2026-10-18): the budgets are sized for a business app's rollups and
-/// batches. Billable's client rollup failed at 32 entries, its batch of defaulted entries at 20 and
-/// its invoice chain at nine definitions. The shapes here are Billable's: clients, projects, time
+/// The budgets of ADR-0008 are sized for a business app's rollups and
+/// batches. Billable's client rollup goes past 32 entries, its batch of defaulted entries past 20 and
+/// its invoice chain to nine definitions. The shapes here are Billable's: clients, projects, time
 /// entries and invoices, with its defensive formulas and missing inputs. Each limit still refuses
 /// whole at its new boundary.
 /// </summary>
@@ -234,7 +234,7 @@ public sealed class BehaviourBudgetSizingTests
         StringAssert.Contains(refused.Message, "while the 300 work units are the save's whatever its size");
     }
 
-    /// <summary>Billable's invoice: nine calculations deep, refused at eight before W-247.</summary>
+    /// <summary>Billable's invoice: nine calculations deep.</summary>
     [TestMethod]
     public async Task TheNineDeepInvoiceChainInstallsAndTotals()
     {

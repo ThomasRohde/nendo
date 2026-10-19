@@ -167,13 +167,13 @@ public sealed partial class NendoWriteCoordinator
             // The file at the name must be the one this session reviewed. A read-only session's pin
             // follows the file it opened, and the stage and digest checks read the name, so another
             // file with the same content there passed them and the rename below then interrupted
-            // the replacement (W-221 review).
+            // the replacement.
             using (var named = new FileStream(_path, FileMode.Open, FileAccess.Read, ReadOnlyPinShare))
                 if (LocalFileIdentity.Read(named) != context.CurrentIdentity) throw SourceChanged();
             // The original's exclusive handle is taken before any recovery record exists. Nendo's
             // own handles are closed for it and come back if anything below fails before the
             // session retires; a handle another reader holds is waited out briefly and otherwise
-            // refused, with nothing changed (ECO-01, W-221 review).
+            // refused, with nothing changed.
             detached = true;
             if (_store is not null) { await _store.DisposeAsync(); _store = null; }
             _pathPin?.Dispose(); _pathPin = null;
@@ -195,7 +195,7 @@ public sealed partial class NendoWriteCoordinator
             _replacementRetired = true;
             NotifyAuthorityLost();
             // Best effort: a locked file in a proposal's workspace turned a restore that had moved
-            // nothing into an interrupted replacement (ECO-05). What is left is swept when this
+            // nothing into an interrupted replacement. What is left is swept when this
             // retired session is disposed, under the instance lease it still holds.
             foreach (var proposal in _proposals.Values)
                 if (!ProposalWorkspace.TryDelete(proposal)) _proposalCleanupPending = true;
@@ -333,7 +333,7 @@ public sealed partial class NendoWriteCoordinator
     /// <summary>
     /// The instance and write leases a read-only or recovery session takes to replace its file.
     /// True when this call took them, so a replacement that fails before it retires the session
-    /// gives them back (ECO-09).
+    /// gives them back.
     /// </summary>
     private bool AcquireReplacementLeases(string instanceId, string kind)
     {
@@ -360,16 +360,15 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// A file marked read-only in File Explorer is kept from replacement (R2SMA-10, owner
-    /// 2026-10-13). ADR-0012 gives such a file inspection, export and backup; a restore or an
-    /// upgrade put a fresh file without the mark in its place and moved the mark to the retained
-    /// copy without a word.
+    /// A file marked read-only in File Explorer is kept from replacement. ADR-0012 gives such a
+    /// file inspection, export and backup; a restore or an upgrade would put a fresh file without
+    /// the mark in its place and move the mark to the retained copy without a word.
     /// </summary>
     private void RequireReplaceableTarget()
     {
         FileAttributes attributes;
         // Only a read-only session's file can move away under it; that is the file changing, said so,
-        // not a raw FileNotFoundException (W-221 review).
+        // not a raw FileNotFoundException.
         try { attributes = File.GetAttributes(_path); }
         catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         { throw SqliteNendoStore.InspectedContentChanged(); }

@@ -54,7 +54,7 @@ internal sealed partial class DesktopSessionController
             ? Path.Combine(Path.GetTempPath(), "nendo-device-state", Guid.NewGuid().ToString("N"))
             : null;
         _deviceStateRoot = deviceStateRoot ?? _ownedDeviceStateRoot!;
-        // A test's controller keeps its recent files in its own folder too (TST-16).
+        // A test's controller keeps its recent files in its own folder too.
         _fileHistory = new DesktopFileHistory(fileHistoryRoot
             ?? (_ownedDeviceStateRoot is not null ? Path.Combine(_ownedDeviceStateRoot, "file-history") : DesktopFileHistory.DefaultRoot));
         _locationPolicy = locationPolicy ?? DesktopLocationPolicy.ForDevice();
@@ -90,7 +90,7 @@ internal sealed partial class DesktopSessionController
 
     /// <summary>
     /// Keeps a request that failed inside the host, under the tray's one "Record failures"
-    /// switch that also governs view failures (ADR-0002, 2026-09-27 amendment). Read fresh
+    /// switch that also governs view failures (ADR-0002). Read fresh
     /// each time, so switching it off stops the next line without a restart. Runs on the
     /// agent's thread and never throws into it.
     /// </summary>
@@ -111,7 +111,7 @@ internal sealed partial class DesktopSessionController
 
     /// <summary>
     /// The settings as the device holds them now, which another window may have changed since
-    /// this one last looked (R2SP-02). Read before each listener start and each status read.
+    /// this one last looked. Read before each listener start and each status read.
     /// </summary>
     private DesktopAgentSettingsStore FreshSettings()
     {
@@ -129,7 +129,7 @@ internal sealed partial class DesktopSessionController
     /// <summary>
     /// Which application the open file is, and which instance of it, read once per file session:
     /// the port and the level it keeps are filed under both, so a moved or renamed file keeps
-    /// them and a Fork, a Duplicate or a new file of the application gets its own (R2SP-03).
+    /// them and a Fork, a Duplicate or a new file of the application gets its own.
     /// </summary>
     private async Task<string> AgentApplicationIdAsync(NendoApplicationService service, CancellationToken cancellationToken)
     {
@@ -141,8 +141,8 @@ internal sealed partial class DesktopSessionController
     }
 
     /// <summary>
-    /// Keeps the level the person chose for this file, or forgets it on Off (ADR-0009,
-    /// 2026-09-29, W-126). Best effort: a level that could not be kept is still this run's.
+    /// Keeps the level the person chose for this file, or forgets it on Off (ADR-0009).
+    /// Best effort: a level that could not be kept is still this run's.
     /// </summary>
     private async Task RememberAgentModeAsync(NendoApplicationService service, AgentAccessMode mode, CancellationToken cancellationToken)
     {
@@ -292,7 +292,7 @@ internal sealed partial class DesktopSessionController
             if (requested == AgentAccessMode.Disabled)
             {
                 // Off is remembered first: a listener whose cleanup throws has still stopped, and
-                // the next open must not start the level the person just turned off (R2SP-05).
+                // the next open must not start the level the person just turned off.
                 await RememberAgentModeAsync(service, requested, cancellationToken);
                 await StopAgentAccessCoreAsync();
                 return await ReadAgentStatusCoreAsync(cancellationToken);
@@ -386,7 +386,7 @@ internal sealed partial class DesktopSessionController
         RotateFileSession();
         _agentCleanupNotice = null;
         var coordinator = _coordinator!;
-        // An observer the coordinator swallowed (ECO-06) is kept by its type alone, under the same
+        // An observer the coordinator swallowed is kept by its type alone, under the same
         // "Record failures" switch, and off the Engine gate.
         coordinator.ObserverFailed = type => _ = Task.Run(() => RecordAgentFailure(new NendoAgentFailure(
             DateTimeOffset.UtcNow, Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(4)).ToLowerInvariant(),
@@ -562,7 +562,7 @@ internal sealed partial class DesktopSessionController
     /// <summary>
     /// The consent this device grants on the person's behalf at Unattended, and only
     /// there: the listener is handed this delegate for that mode alone
-    /// (ADR-0009, 2026-09-22 amendment).
+    /// (ADR-0009).
     /// <para>
     /// It writes exactly what the person's own approval writes -- the grant for the
     /// behaviour the open file currently holds, scoped to its digest -- so it appears in

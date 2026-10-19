@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// W-106: a view of the file (extensionView) is a screen beside the front page. The real
+// A view of the file (extensionView) is a screen beside the front page. The real
 // actions.ts (refreshDerived), file-view-model.ts and file-views.ts run here against a
 // stand-in host: which screen a file opens on, what the Showing picker offers and in which
 // order, and what the screen of a view is made of. Only the page, the frames and the pickers'
@@ -132,7 +132,7 @@ test('the screen of a view is one frame filling Use, about the record type it na
   assert.match(host.html, /data-view-entity=""/, 'A view that names no record type was handed one.');
 });
 
-test('a record type with only its record page is no place: not in Showing, not in the navigation, never the default (W-184)', async () => {
+test('a record type with only its record page is no place: not in Showing, not in the navigation, never the default', async () => {
   // Compiled order is by entity ID, so the joining type comes first, as gd.link does in Garden.
   const page = { semanticId: 'joins.page', automationTarget: 'joins.page', kind: 'detailSurface', properties: { entityId: 'joins' }, children: [] };
   const joins = { entity: { semanticId: 'joins', displayName: 'Joins', fields: [field], derivedFields: [] }, surfaces: [page], records: [] };
@@ -150,7 +150,7 @@ test('a record type with only its record page is no place: not in Showing, not i
   assert.deepEqual(options(p.showingOptionsMarkup({ overview: false, fileView: null, entityId: 'joins' })), ['*joins', 'tasks']);
 });
 
-test('a view’s icon: the view the file opens on is its home when it has no front page, others are guessed from their title (W-184)', async () => {
+test('a view’s icon: the view the file opens on is its home when it has no front page, others are guessed from their title', async () => {
   const home = view('home', 'Overview', { opensFile: true }), garden = view('garden', 'Garden'), archi = view('archi', 'Archi');
   await openFile({ views: [home, garden, archi], front: false });
   assert.deepEqual([home, garden, archi].map(p.viewIcon), ['home', 'sprout', 'surfaces'], 'Overview and Garden drew the same icon, or a title that says nothing lost the panels.');

@@ -112,7 +112,7 @@ internal sealed class BehaviourEvaluationVisitor : EvaluationVisitor
         };
         // A choice between a whole number and a decimal is typed decimal. Its whole-number
         // outcome reached the operator around it as a long, which then computed in Int64 and
-        // overflowed where the decimal its type promises would answer (R2AAV-02).
+        // overflowed where the decimal its type promises would answer.
         return outcome is long whole && _widenedChoices.Contains(expression) ? (decimal)whole : outcome;
     }
 

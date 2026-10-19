@@ -17,7 +17,7 @@ internal sealed partial class SqliteNendoStore
     /// comparison becomes a deterministic function over the column; <c>descendantOf</c>
     /// (ADR-0019) becomes the record's membership of the named record's subtree in the declared
     /// hierarchy. The subtree is walked once per statement, so its cost is the subtree's size;
-    /// since the 2026-10-16 amendment no size is refused.
+    /// no size is refused.
     /// </summary>
     private async Task AddFilterPredicatesAsync(EntityMapping entity, IReadOnlyList<NendoRecordFilter> filters, string functionPrefix,
         List<string> predicates, Dictionary<string, object> parameters, SqliteTransaction transaction, CancellationToken ct)
@@ -43,8 +43,8 @@ internal sealed partial class SqliteNendoStore
                 }, isDeterministic: true);
             var column = Quote(field.PhysicalColumnName);
             // The function stays the authority; beside it, where SQLite's own comparison gives the
-            // same answer, a plain one an index can seek (PERF-02). Equality on text, a reference or
-            // a date is ordinal, which is SQLite's; a UUID compares in either case (ESQ-17), so it
+            // same answer, a plain one an index can seek. Equality on text, a reference or
+            // a date is ordinal, which is SQLite's; a UUID compares in either case, so it
             // has none. Without it no index served a filter, the related list's reference index included.
             var seek = filter.Operator switch
             {
@@ -86,7 +86,7 @@ internal sealed partial class SqliteNendoStore
     /// A window of a declared hierarchy in depth-first order (ADR-0019): the records under a root,
     /// or the whole tree from the top level, down to <paramref name="query"/>'s depth, each with
     /// its parent, depth and child count. Siblings follow the order field, unordered last, then
-    /// record ID. Since the 2026-10-16 amendment a page resumes after the record the previous one
+    /// record ID. A page resumes after the record the previous one
     /// ended on (<see cref="NendoTreeWalk"/>): the cursor names that record, bound to the change it
     /// was read at, so its ancestors are the same ones when the next page reads them. No subtree
     /// size is refused.

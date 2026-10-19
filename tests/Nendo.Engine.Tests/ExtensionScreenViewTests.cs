@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A custom view as a screen of the file (ADR-0013 Phase 5, W-106): an extensionView root that
+/// A custom view as a screen of the file (ADR-0013): an extensionView root that
 /// belongs to the file as the front page does, names a package, a title and at most the record
 /// type it is about, and may say that the file opens on it. A file holding one needs host 1.42.0.
 /// </summary>

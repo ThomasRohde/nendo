@@ -4,10 +4,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-221. R2SMA-07: the read-only sweep disabled every input, select and textarea, so in a read-only
-// or recovery session Use's filters, the record-type pickers on Structure and Screens and Show
-// retired data were dead, though none of them writes the file. R2SMA-06 and R2SMA-10: which
-// recovery actions Health and the File menu offer.
+// The read-only sweep disables only what writes: in a read-only or recovery session Use's
+// filters, the record-type pickers on Structure and Screens and Show retired data stay live,
+// since none of them writes the file. And which recovery actions Health and the File menu offer.
 const controls = await bundleOf('src/read-controls.ts');
 const quickFilter = await bundleOf('src/quick-filter-model.ts');
 const recovery = await bundleOf('src/recovery-actions.ts');

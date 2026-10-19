@@ -51,7 +51,7 @@ export function shortcut(id: ShortcutId): Shortcut {
 
 /**
  * The shortcut a normalised key names ("Ctrl+K", "Alt+ArrowLeft"), as a custom view hands
- * Nendo's own keys back when they are pressed inside it (W-090); null for any other key.
+ * Nendo's own keys back when they are pressed inside it; null for any other key.
  * protocol.ts's hostKeys is this table's keys, and scripts/shortcuts.test.mjs holds the two
  * to each other.
  */
@@ -83,7 +83,7 @@ export function matchShortcut(event: KeyLike): ShortcutId | null {
   const chord = chordKey(event);
   const key = chord.key.length === 1 ? chord.key.toLowerCase() : chord.key;
   // A symbol's Shift is the layout's too, as chordOf reads it for a custom view: '/' is Shift 7 on
-  // a Danish, German or Nordic keyboard, and Ctrl / did nothing there (WCS-12).
+  // a Danish, German or Nordic keyboard, and Ctrl / did nothing there.
   const symbol = key.length === 1 && !/^[a-z0-9]$/.test(key);
   const shiftKey = event.shiftKey && !chord.layoutShift && !symbol;
   if (event.ctrlKey && !event.altKey && !shiftKey) {

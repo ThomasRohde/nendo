@@ -7,7 +7,7 @@ public sealed class SemanticDiffSummaryTests
 {
     /// <summary>
     /// The board line embeds the record type's name as the person chose it, and read
-    /// "one column per Initiatives" when the type was named in the plural (W-044). "Per
+    /// "one column per Initiatives" when the type was named in the plural. "Per
     /// {name} record" reads the same either way; the singular is asserted with the CRM's
     /// Account, this is the plural.
     /// </summary>
@@ -102,7 +102,7 @@ public sealed class SemanticDiffSummaryTests
         Assert.AreEqual("Add the section \"Details\".", entries[0].Summary,
             "A section is not a surface, and the accept gate should say which it is.");
         StringAssert.Contains(entries[1].Summary, "the section \"Details\"");
-        // Stored position 2 is the third place; the line counts from one, as tabs do (ESM-19).
+        // Stored position 2 is the third place; the line counts from one, as tabs do.
         StringAssert.Contains(entries[1].Summary, "position 3");
     }
 
@@ -148,7 +148,7 @@ public sealed class SemanticDiffSummaryTests
 
         Assert.AreEqual("Add the related records \"Notes\".", entries[0], "A relation is not a surface.");
         Assert.AreEqual("Show records of Task.", entries[1]);
-        // A clause added and filled in one change set is one line, not four (W-044).
+        // A clause added and filled in one change set is one line, not four.
         Assert.AreEqual("Show only records where Title is not Done.", entries[2], "A filter is one statement, not a node and three properties.");
         Assert.AreEqual("Add a field this command sets.", entries[3]);
         Assert.AreEqual("Set Title when the command runs.", entries[4]);
@@ -158,7 +158,7 @@ public sealed class SemanticDiffSummaryTests
 
     /// <summary>
     /// How a section starts rides on the line that adds it, and stands alone when it is
-    /// changed on a section the file already has (ADR-0004, 2026-09-20 amendment).
+    /// changed on a section the file already has (ADR-0004).
     /// </summary>
     [TestMethod]
     public void HowASectionStartsIsSaidOnTheLineThatAddsItAndAloneWhenChanged()
@@ -250,9 +250,8 @@ public sealed class SemanticDiffSummaryTests
     /// <summary>
     /// Several roots of a kind are ordinary now, so a summary naming only the
     /// noun stops identifying one. A named node is described by its name, and a
-    /// name shared with another node is counted off against its namesakes. This
-    /// test asserted the stable ID until W-041: telling two lines apart is still
-    /// the requirement, and an identifier is no longer how it is met.
+    /// name shared with another node is counted off against its namesakes. Telling
+    /// two lines apart is the requirement, and an identifier is not how it is met.
     /// </summary>
     [TestMethod]
     public void TwoSurfacesSharingATitleAreStillDistinguishableInTheDiff()
@@ -326,8 +325,8 @@ public sealed class SemanticDiffSummaryTests
     [TestMethod]
     public void ScopeAndCalendarDateBindingHaveTheirOwnEntries()
     {
-        // The scope lines stand alone on a tile the file already has (W-052 folds them
-        // into the line that adds a new tile, tested below).
+        // The scope lines stand alone on a tile the file already has (they fold into the line
+        // that adds a new tile, tested below).
         var changeSet = ChangeSet(
             new SetUiPropertyOperation("op-scope-group", "surface.task", "node.existing-tile", "scope", "group"),
             new SetUiPropertyOperation("op-scope-surface", "surface.task", "node.existing-tile", "scope", "surface"),
@@ -352,7 +351,7 @@ public sealed class SemanticDiffSummaryTests
 
     /// <summary>
     /// An ordering was two lines of which the second meant nothing alone, and a summary
-    /// tile was three for one number (W-052). Each is one line when it arrives with its
+    /// tile was three for one number. Each is one line when it arrives with its
     /// node, in the field's own terms; a property changed on a node the file already
     /// has keeps its own line, because that is a change to something the person has.
     /// </summary>
@@ -457,7 +456,7 @@ public sealed class SemanticDiffSummaryTests
         Assert.AreEqual("Colour each card by Project.", entries[2]);
     }
 
-    /// <summary>An outline's roles and choices, said as a person sees the tree (ADR-0019 stage 6).</summary>
+    /// <summary>An outline's roles and choices, said as a person sees the tree (ADR-0019).</summary>
     [TestMethod]
     public void OutlinePropertiesHaveTheirOwnEntries()
     {
@@ -532,7 +531,7 @@ public sealed class SemanticDiffSummaryTests
         return entries[0].Summary;
     }
 
-    // F-058: every stored field read as its display name and nothing else — "Add Pages
+    // Every stored field read as its display name and nothing else — "Add Pages
     // field.", "Add Author field." — so a reviewer could not tell an Integer from a
     // reference to another record type and could not see which fields were required.
     // Every fact asserted here is on the addField operation being described.
@@ -642,7 +641,7 @@ public sealed class SemanticDiffSummaryTests
         Assert.IsFalse(entries[0].Contains("unknown", StringComparison.Ordinal), entries[0]);
     }
 
-    // Owner-reported from the rendered review panel, 2026-09-17: a board read "Add grouped
+    // From the rendered review panel: a board read "Add grouped
     // board." with its name six lines below, under five configuration lines belonging to a
     // screen the reviewer could not yet name. The same complaint the binding pair carried.
     [TestMethod]
@@ -681,9 +680,9 @@ public sealed class SemanticDiffSummaryTests
         Assert.AreEqual("Name the surface Renamed.", entries[0]);
     }
 
-    // W-041's acceptance: no reviewer-facing sentence contains a node ID. Two roots of a
-    // kind may legitimately share a title, and the summary used to tell them apart by
-    // printing the stable identifier at whoever was reading.
+    // No reviewer-facing sentence contains a node ID. Two roots of a
+    // kind may legitimately share a title, and the summary tells them apart without
+    // printing the stable identifier at whoever is reading.
     [TestMethod]
     public void SurfacesSharingATitleAreCountedRatherThanIdentified()
     {

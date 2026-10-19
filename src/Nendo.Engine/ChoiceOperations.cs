@@ -65,8 +65,8 @@ public sealed record SetChoiceMetadataOperation : NendoOperation
 
 /// <summary>
 /// Appends a new stable option to the end of an active single-choice field's options, with its
-/// label and an optional tone, so a field's choices can grow after it exists (ADR-0003,
-/// 2026-10-17 note). No record changes: records can take the option from the next write.
+/// label and an optional tone, so a field's choices can grow after it exists (ADR-0003).
+/// No record changes: records can take the option from the next write.
 /// </summary>
 public sealed record AddChoiceOperation : NendoOperation
 {

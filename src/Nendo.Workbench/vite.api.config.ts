@@ -1,7 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import { viewApiReference } from './src/extension-api/reference';
 
-// The view API as an agent reads it before it writes a view's code (W-094), written beside
+// The view API as an agent reads it before it writes a view's code, written beside
 // api.js from the same tables. The local MCP embeds this file and serves it at
 // nendo://application/view-api.
 const viewApiReferenceFile: Plugin = {

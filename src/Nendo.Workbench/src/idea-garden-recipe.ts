@@ -143,7 +143,7 @@ export function ideaGardenRecipe(session: DesktopSessionView): ApplicationRecipe
   }];
   // Existing ideas without a Status go into the Idea group. They are read from the file when the
   // recipe is pressed: the desktop session holds no records (bounded reads), so a backfill built
-  // from session.records was never made there and every existing idea sat in Ungrouped (WSP-11).
+  // from session.records was never made there and every existing idea sat in Ungrouped.
   const proposalPayload = { proposalId, title: 'Idea form, list and board', mutations };
   const prepare = async (query: (payload: Record<string, unknown>) => Promise<ReadPage<RecordSnapshot>>): Promise<Record<string, unknown>> => {
     const missing: RecordSnapshot[] = [];

@@ -12,7 +12,7 @@ import { content, rerender, setBusy, showError } from './shell';
 import { pageRoot } from './surface-model';
 
 /**
- * Adding and opening a record from a related list (ADR-0004, 2026-09-18 amendment).
+ * Adding and opening a record from a related list (ADR-0004).
  *
  * A related list has shown the inverse of a reference since contract version 3 and done
  * nothing else, so recording a linked record meant leaving the page that already knew
@@ -117,7 +117,7 @@ export function beginRelatedCreate(plan: ApplicationPlan, record: RecordPlan, no
 }
 
 /**
- * Remove a link from a link list (ADR-0004, 2026-09-29): delete the link record at its
+ * Remove a link from a link list (ADR-0004): delete the link record at its
  * version, after asking. The records it joined are untouched, and the delete is an ordinary
  * one, kept in History and restorable there.
  */
@@ -191,7 +191,7 @@ export async function openRelatedRecord(entityId: string, recordId: string): Pro
   //
   // And held in a branch rather than behind a return: a `return` inside the try runs the
   // finally and then leaves, and the sentence below the finally was never reached — which
-  // was the same click doing nothing and explaining nothing, one fix later (W-051).
+  // was the same click doing nothing and explaining nothing, one fix later.
   let failure: string | null = null;
   try {
     await loadFocusedRecord(entityId, recordId);
@@ -248,7 +248,7 @@ export async function returnFromRelatedRecord(): Promise<void> {
 /**
  * The relations and totals of the record just arrived at, under the plan it belongs to.
  *
- * Exported because going back through the trail (W-046) arrives at a record page the same
+ * Exported because going back through the trail arrives at a record page the same
  * way this does, and two copies of the arrival would be two chances to load one of them.
  */
 export async function loadOpenedRecordPanels(recordId: string): Promise<void> {

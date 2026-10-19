@@ -42,7 +42,7 @@ test('a binary file is said by its size, and a long change says it continues', (
   assert.match(markup, /The change continues past what the review shows\./);
 });
 
-// W-098: a proposal can change many files, and every file's lines shown open buried the
+// A proposal can change many files, and every file's lines shown open would bury the
 // rest of the review. Each file is a disclosure that starts folded, and its summary row is
 // an overview on its own: name, change, sizes and how many lines it adds and removes.
 test('each file starts folded, and its summary says enough to choose which to open', async () => {
@@ -64,12 +64,12 @@ test('a proposal that touches no package says nothing about code', () => {
   assert.equal(packageChangesMarkup([]), '');
 });
 
-// Review R-017: a change longer than the review showed ended with a sentence and nothing to
-// read it by, while Accept stayed live. Every file a proposal adds or replaces now offers its
+// A change longer than the review shows must not end with a sentence and nothing to read it by
+// while Accept is live. Every file a proposal adds or replaces offers its
 // whole proposed bytes, read from the proposal through the host and checked by digest.
 const reader = await bundleOf('src/package-file-reader.ts');
 
-test('R-017: every added or replaced file can be read whole, and a cut-short one says so folded', () => {
+test('every added or replaced file can be read whole, and a cut-short one says so folded', () => {
   const long = { ...replaced, truncated: true };
   const removed = { ...replaced, path: 'old.js', change: 'removed', hunks: [] };
   const markup = packageChangesMarkup([long, removed]);
@@ -80,7 +80,7 @@ test('R-017: every added or replaced file can be read whole, and a cut-short one
   assert.match(summary, /longer than the review shows/, `The folded summary hides that the change is cut short: ${summary}`);
 });
 
-test('R-017: the windows are put together, checked by digest, and decoded as the proposal holds them', async () => {
+test('the windows are put together, checked by digest, and decoded as the proposal holds them', async () => {
   const text = 'const city = "Århus";\n'.repeat(30000);
   const bytes = new TextEncoder().encode(text);
   const hex = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -103,8 +103,8 @@ test('R-017: the windows are put together, checked by digest, and decoded as the
   assert.match(shown, /data-copy/);
 });
 
-// WMX-01: a direction control reordered the line under review, so `"user\u202E \u2066// Check if
-// admin\u2069 \u2066"` read as a closed string and a comment while it runs as one literal.
+// A direction control reorders the line under review, so `"user\u202E \u2066// Check if
+// admin\u2069 \u2066"` reads as a closed string and a comment while it runs as one literal.
 // One character from each family the review must draw as its code point.
 const hidden = ['\u061C', '\u200B', '\u200E', '\u202A', '\u202E', '\u2060', '\u2066', '\u2069', '\u206A', '\u180E',
   '\uFEFF', '\u{E0041}', '\u115F', '\u3164', '\uFFA0'];
@@ -137,8 +137,8 @@ test('a soft hyphen, a leading byte-order mark and a removed hidden line raise n
   assert.match(removed, /\[U\+202E\]/, 'the removed line still shows what it held');
 });
 
-// EXT-02: the same bytes put as text/html instead of text/plain become a page at the view's
-// origin, and the review said nothing about the file.
+// The same bytes put as text/html instead of text/plain become a page at the view's
+// origin, so the review says what the file is served as.
 test('a file whose media type alone changes says what it is served as now and was before', () => {
   const retyped = { ...replaced, path: 'index.html', mediaTypeBefore: 'text/plain', mediaTypeAfter: 'text/html', bytesAfter: 2048, hunks: [] };
   const markup = packageChangesMarkup([retyped]);

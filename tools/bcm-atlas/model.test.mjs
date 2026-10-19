@@ -9,7 +9,7 @@ import {labOptions} from '../../extensions/bcm-atlas/layout-profile.js';
 import {starterSeed,northstarModel} from './northstar.mjs';
 const r=(id,parent=null)=>({recordId:id,values:{'cap.name':id,'cap.parent':parent}});
 
-// R02-017/023 execute the shipped editor with the actual binding. Only the DOM and
+// The tests below execute the shipped editor with the actual binding. Only the DOM and
 // typed record service are stand-ins; selects follow the browser's missing-value rule.
 function atlasEditor(binding, records) {
   class Select {
@@ -37,7 +37,7 @@ function atlasEditor(binding, records) {
   return { form, writes, edit: record => context.api.edit(record), save: () => context.api.save({ preventDefault() {}, target: form }) };
 }
 
-for (const stored of [true, false]) test(`R02-017 an unrelated capability edit omits assessed maturity (${stored ? 'with' : 'without'} a stored field)`, async () => {
+for (const stored of [true, false]) test(`an unrelated capability edit omits assessed maturity (${stored ? 'with' : 'without'} a stored field)`, async () => {
   const { context, schema, records } = structuredClone(bcmFixture());
   if (!stored) delete context.configuration.fields.maturity;
   const binding = bindAtlas(context, schema), record = { ...records['bcm.capability'][0], values: { ...records['bcm.capability'][0].values, 'cap.maturity': 5 } };
@@ -55,7 +55,7 @@ for (const stored of [true, false]) test(`R02-017 an unrelated capability edit o
   assert.equal(Object.hasOwn(editor.writes[0], 'null'), false, 'An assessed-only maturity emitted a null field ID.');
 });
 
-for (const maturity of [-2, 9]) for (const target of [-3, 10]) test(`R02-023 unrelated edits preserve out-of-scale maturity ${maturity} and target ${target}`, async () => {
+for (const maturity of [-2, 9]) for (const target of [-3, 10]) test(`unrelated edits preserve out-of-scale maturity ${maturity} and target ${target}`, async () => {
   const { context, schema, records } = structuredClone(bcmFixture());
   delete context.configuration.assessments;
   const binding = bindAtlas(context, schema), record = { ...records['bcm.capability'][0], values: {
@@ -111,7 +111,7 @@ test('original reference self-tests',()=>{const result=api.runBcmLayoutSelfTests
 test('starter model: every capability visible, fixed leaves, no overlaps in both modes and portrait/landscape',()=>{const seed=starterSeed().filter(r=>r.entityId==='bcm.capability');const h=hierarchy(engineTree(seed));for(const mode of ['compact','ordered'])for(const aspectRatio of [.65,1.4,2.4]){const result=api.layoutBcm(h.roots.map(h.tree),{...labOptions,mode,aspectRatio});assert.equal(result.nodes.filter(n=>!n.synthetic).length,60);assert.equal(api.validateBcmLayout(result).length,0);for(const n of result.nodes.filter(n=>n.isLeaf)){assert.equal(n.width,160);assert.equal(n.height,56);}}});
 test('shipped Northstar model: 635 capabilities in five levels, no cycles or orphans',()=>{const model=northstarModel();const caps=model['bcm.capability'];assert.equal(caps.length,635);assert.equal(new Set(caps.map(r=>r.recordId)).size,635);const h=hierarchy(engineTree(caps));assert.equal(projectHierarchy(h,null).maxDepth,5);assert.deepEqual([1,2,3,4,5,Infinity].map(n=>projectHierarchy(h,null,n).rows.length),[6,48,267,599,635,635]);assert.deepEqual(['bcm.application','bcm.support','bcm.initiative'].map(e=>model[e].length),[8,8,6]);});
 
-// W-077: the Atlas binds to the view that shows it, so nothing in the package names a record type
+// The Atlas binds to the view that shows it, so nothing in the package names a record type
 // or a field. Both files of the lane (fixtures.mjs) are bound here the way view.js binds them.
 test('BCM binds every part through its view, and keeps its own words for the related sections',()=>{
   const {context,schema,records}=bcmFixture();
@@ -188,7 +188,7 @@ test('related sections read in the configuration’s order, then links before li
     }
   }
 });
-// W-079: where a drop or a key puts a capability, as records.move takes it. The tree: a (b, c), d.
+// Where a drop or a key puts a capability, as records.move takes it. The tree: a (b, c), d.
 test('a drop goes in, before or after, refuses its own subtree, and skips where it already stands',()=>{
   const h=hierarchy(engineTree([r('a'),r('b','a'),r('c','a'),r('d')]));
   assert.deepEqual(dropTarget(h,'d',{kind:'into',targetId:'a'}),{parentId:'a',beforeId:null});

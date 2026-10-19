@@ -30,7 +30,7 @@ test('a section is a disclosure that starts as the author said, with its fields 
   node('sec.later','section',{title:'Later',opens:'closed'},[binding('stage')]),
  ]);
  const body=pageFormBody(planWith(page),record,true);
- // The heading is the control (ADR-0004, 2026-09-20 amendment).
+ // The heading is the control (ADR-0004).
  assert.match(body,/<details class="form-section" data-section="sec\.more" open ><summary>More<\/summary>/);
  assert.match(body,/<details class="form-section" data-section="sec\.later"  ><summary>Later<\/summary>/);
  // Closed is not removed: a save still carries what the section holds.
@@ -109,10 +109,10 @@ test('the inspector carries the close control and the record version',()=>{
  assert.match(markup,/class="record-inspector"/);
  assert.match(markup,/id="close-inspector"[^>]*data-dismiss/);
  assert.match(markup,/<form id="record-form"/);
- assert.doesNotMatch(markup,/Record version|>v2</,'the concurrency counter is on a person-facing page (UX-13)');
+ assert.doesNotMatch(markup,/Record version|>v2</,'the concurrency counter is on a person-facing page');
 });
 
-test('a page that shows its picture and note first is still headed by the record’s name (W-274)',()=>{
+test('a page that shows its picture and note first is still headed by the record’s name',()=>{
  const fields=[field('cover','media'),field('note','markdown'),field('name'),stage];
  const withPicture={...record,values:{...record.values,cover:'media:'+'a'.repeat(64),note:'A long note about the deal.'}};
  const heading=surfaces=>/<span id="inspector-heading"[^>]*>(.*?)<small>/.exec(inspectorMarkup({entity:{semanticId:'deal',displayName:'Deal',fields,derivedFields:[]},records:[],surfaces},withPicture))?.[1];

@@ -25,7 +25,7 @@ public sealed class DesktopRuntimeConfigurationTests
     }
 
     /// <summary>
-    /// BL-01: a process on an isolated device state under the product identity is a lane, and
+    /// A process on an isolated device state under the product identity is a lane, and
     /// writes neither the installed Nendo's Jump List nor its notification registration.
     /// </summary>
     [TestMethod]

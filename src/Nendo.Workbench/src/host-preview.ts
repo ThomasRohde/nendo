@@ -26,7 +26,7 @@ const previewOperators: ReadonlySet<string> = new Set(['contains', 'eq', 'ne', '
 
 /**
  * One stored value against one clause, as plain values compare; a missing value matches only
- * isNull. A UUID is one value in either case, as the native host compares it (ESQ-17).
+ * isNull. A UUID is one value in either case, as the native host compares it.
  */
 export function previewMatches(stored: unknown, operator: string, value: unknown, kind?: string | number): boolean {
   const empty = stored === null || stored === undefined || stored === '';
@@ -47,8 +47,8 @@ type PreviewSortField = Pick<EntitySnapshot['fields'][number], 'storageKind' | '
 /**
  * How the preview orders two stored values of one field, both present, as the native host does
  * (RecordQuerySemantics.SortComparison): a single choice in its options' configured order with a
- * value no option holds after them (ESQ-16), a reference by its target's label, a UUID without
- * regard to case (ESQ-17), and anything else as plain values compare.
+ * value no option holds after them, a reference by its target's label, a UUID without
+ * regard to case, and anything else as plain values compare.
  */
 export function previewOrder(field: PreviewSortField | undefined, labelOf: (recordId: string) => string | null): (a: unknown, b: unknown) => number {
   const ordinal = (x: string, y: string): number => x < y ? -1 : x > y ? 1 : 0;
@@ -182,8 +182,8 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         const windowRequest = method === 'data.queryRecordWindow' ? payload : null;
         if (windowRequest !== null) payload = requiredObject(payload, 'query');
         // The preview answers the outline's find box -- `contains` on text, and one record by ID --
-        // the exact comparisons a screen's Filter pick and a drill send (eq, ne, isNull, isNotNull;
-        // W-172), and a stored field's plain sort, so Studio's column headers can be tried; every
+        // the exact comparisons a screen's Filter pick and a drill send (eq, ne, isNull,
+        // isNotNull), and a stored field's plain sort, so Studio's column headers can be tried; every
         // other filter needs the native host's typed comparison.
         const filters = Array.isArray(payload.filters) ? payload.filters as Array<{ fieldId: string; operator: string; value: unknown }> : [];
         if (filters.some(filter => !previewOperators.has(filter.operator)))
@@ -369,7 +369,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
     );
   }
 
-  /** A record deleted, so the delete outcome and its way to History can be measured here (W-210). */
+  /** A record deleted, so the delete outcome and its way to History can be measured here. */
   private deleteRecord(payload: Record<string, unknown>): DesktopMutationView {
     const idempotencyKey = requiredString(payload, 'idempotencyKey');
     const entityId = requiredString(payload, 'entityId');
@@ -524,7 +524,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
         }
         for (const [fieldId, value] of values) record.values[fieldId] = value;
         record.recordVersion += values.length;
-        // History names the type, and the field when it is the only one, as the native host does (ESQ-15).
+        // History names the type, and the field when it is the only one, as the native host does.
         const only = values.length === 1 ? entity.fields.find(candidate => candidate.fieldId === values[0][0]) : undefined;
         return this.advance('data', only ? `Edit ${entity.displayName} ${only.displayName}` : `Edit ${entity.displayName}`, 'data.setField');
       });
@@ -990,7 +990,7 @@ export class PreviewWorkbenchClient implements WorkbenchClient {
           entityId: fixture.entity.entityId,
         })),
         // ?consent=approve-after (or approve-first, or split) shows what the review
-        // and the queue say about automatic actions (W-008); absent, the proposal asks nothing.
+        // and the queue say about automatic actions; absent, the proposal asks nothing.
         behaviour: previewConsent(),
         // A custom view's code is reviewed as lines (ADR-0013); the preview shows one file changed and one asset replaced.
         packageChanges: [{
@@ -1381,7 +1381,7 @@ function previewFile(fileName: string): DesktopSessionView {
   };
 }
 
-// The preview's stand-in for the host's look (W-089): violet by default, and the first letter
+// The preview's stand-in for the host's look: violet by default, and the first letter
 // or digit of the file's name. The host works the tone out from the application ID.
 function previewLook(fileName: string | null, chosen: { tone: string | null; letter: string | null } | null): DesktopSessionView['look'] {
   const defaultTone = 'violet';

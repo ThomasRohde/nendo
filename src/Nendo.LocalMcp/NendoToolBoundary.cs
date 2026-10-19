@@ -13,11 +13,10 @@ namespace Nendo.LocalMcp;
 /// <para>
 /// The argument contract is read from the tool methods themselves: each parameter's name,
 /// whether it has a default, and its type, down through the closed records a list of
-/// them carries. A hand-kept table of argument names stood here until 2026-09-27, and the
-/// binder behind it answered every call it could not bind with "An error occurred
-/// invoking" and nothing else: a missing <c>idempotencyKey</c> had no sentence, an unknown
-/// key inside a record was dropped without a word, and a tool served one level up was
-/// "Unknown tool", so the level codes Help documents could not occur (F-171 to F-174).
+/// them carries. The SDK's binder alone answers every call it cannot bind with "An error
+/// occurred invoking" and nothing else: a missing <c>idempotencyKey</c> has no sentence, an
+/// unknown key inside a record is dropped without a word, and a tool served one level up is
+/// "Unknown tool", so the level codes Help documents could not occur.
 /// Every refusal here names the argument or the nested key and what is accepted, or the
 /// level to ask the person for.
 /// </para>
@@ -27,9 +26,9 @@ internal static class NendoToolBoundary
     /// <summary>
     /// Each tool class and the lowest level that serves it. The listener registers from this
     /// table and the boundary refuses from it, so the two cannot disagree. The one tool that
-    /// exists only at Unattended is a class and a row of its own (ADR-0009, 2026-09-22). The two
+    /// exists only at Unattended is a class and a row of its own (ADR-0009). The two
     /// read tools are served from Inspect, since they read what the resources already serve
-    /// there (ADR-0009, 2026-10-08).
+    /// there (ADR-0009).
     /// </summary>
     internal static readonly IReadOnlyList<(Type Tools, AgentAccessMode Minimum)> ToolClasses =
     [
@@ -194,7 +193,7 @@ internal static class NendoToolBoundary
     /// <summary>
     /// The keys a custom view's <c>records.batch</c> uses for what a record write here calls
     /// otherwise. An agent that learned the write shape from a view's code sent <c>op</c> and
-    /// was told only what is taken; the refusal now names the key it meant (2026-10-08).
+    /// was told only what is taken; the refusal now names the key it meant.
     /// </summary>
     private static readonly IReadOnlyDictionary<(string Owner, string Key), string> ViewApiNames =
         new Dictionary<(string, string), string>

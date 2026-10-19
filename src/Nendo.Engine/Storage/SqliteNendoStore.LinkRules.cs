@@ -342,7 +342,7 @@ internal sealed partial class SqliteNendoStore
             if (ResolveLinkRule(linkId, rule, entities).Rule is not { } resolved) continue;
             // A declaration whose table type or endpoint kind field this mutation creates found no
             // columns when it ran and checked nothing; its columns exist now, so every link is
-            // checked here and refused as a declaration is (ESM-01).
+            // checked here and refused as a declaration is.
             var declaring = evidence.Any(item => item.Operation is DeclareLinkRuleOperation declared && declared.EntityId == linkId);
             var scope = new LinkScope { Everything = declaring };
             foreach (var operation in evidence.Select(item => item.Operation))
@@ -396,7 +396,7 @@ internal sealed partial class SqliteNendoStore
         string Column(string alias, FieldMapping field) => $"{alias}.{Quote(field.PhysicalColumnName)}";
         var kindEmpty = rule.Kind.StorageKind == NendoStorageKind.Text ? $" AND {Column("l", rule.Kind)} <> ''" : string.Empty;
         // Empty text counts as no kind at both ends, as it already did for the link's own kind:
-        // a table row holding empty text allowed every link from an end with empty text (ESM-21).
+        // a table row holding empty text allowed every link from an end with empty text.
         var sourceSet = rule.SourceKind.StorageKind == NendoStorageKind.Text ? $" AND {Column("s", rule.SourceKind)} <> ''" : string.Empty;
         var targetSet = rule.TargetKind.StorageKind == NendoStorageKind.Text ? $" AND {Column("t", rule.TargetKind)} <> ''" : string.Empty;
         var select = $"""

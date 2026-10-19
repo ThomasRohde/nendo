@@ -33,7 +33,7 @@ public sealed class DesktopShellContractTests
 
         Assert.AreEqual(7, shell.BridgeProtocolVersion);
         Assert.IsTrue(DesktopShellContract.IsSupportedBridgeProtocol(7));
-        // W-135: versions 2 to 6 were retired; the host serves the bundled Workbench's version only.
+        // Versions 2 to 6 were retired; the host serves the bundled Workbench's version only.
         foreach (var retired in new[] { 0, 1, 2, 3, 4, 5, 6, 8 })
             Assert.IsFalse(DesktopShellContract.IsSupportedBridgeProtocol(retired), $"Version {retired} is still served.");
         Assert.AreEqual(

@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// P6 limit closure, 2026-09-10: `sum`, `min` and `max` are exact over an
+/// `sum`, `min` and `max` are exact over an
 /// integer or decimal field. The host folds the stored lexemes itself, because
 /// a Decimal column holds exact text behind a `nendo.decimal:` marker that
 /// SQLite would coerce to zero.
@@ -110,7 +110,7 @@ public sealed class ExactAggregateTests
         Assert.AreEqual(500, sum.ContributingRecords);
     }
 
-    // R-016. Mixed scales align on the larger one, so decimal.MaxValue + 0.0 carries
+    // Mixed scales align on the larger one, so decimal.MaxValue + 0.0 carries
     // a coefficient ten times the largest a decimal holds -- with a trailing zero the
     // answer does not need. The answer is exactly decimal.MaxValue and must not be
     // refused as out of range; a sum that really is out of range still is.
@@ -255,7 +255,7 @@ public sealed class ExactAggregateTests
             () => service.AggregateRecordsAsync(new("item", "sum", "absent")));
     }
 
-    // A pre-P5 file can hold a genuine REAL in a decimal column. That value
+    // An older file can hold a genuine REAL in a decimal column. That value
     // cannot be summed exactly, so the host refuses rather than returning a
     // number that looks exact and is not.
     [TestMethod]
@@ -268,7 +268,7 @@ public sealed class ExactAggregateTests
         await coordinator.DisposeAsync();
         workspace.Forget(coordinator);
 
-        // A closed fixture reproduces the pre-P5 NUMERIC representation.
+        // A closed fixture reproduces the older NUMERIC representation.
         await using (var connection = new SqliteConnection(
             new SqliteConnectionStringBuilder { DataSource = workspace.FilePath, Pooling = false }.ToString()))
         {
@@ -286,8 +286,8 @@ public sealed class ExactAggregateTests
     }
 
     /// <summary>
-    /// A Date joins the numbers for min and max (ADR-0004 2026-09-14 amendment,
-    /// S4), which is what a range tile states. The extremes are chosen by ordinal
+    /// A Date joins the numbers for min and max (ADR-0004),
+    /// which is what a range tile states. The extremes are chosen by ordinal
     /// comparison over the ISO form, so the answer needs no calendar arithmetic
     /// and no rounding rule — and the dates deliberately span a month boundary
     /// where a shorter form would sort wrongly.

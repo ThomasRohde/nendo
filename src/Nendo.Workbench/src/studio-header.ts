@@ -124,7 +124,7 @@ export class StudioHeader implements IHeaderComp {
       if (name === '' || name === displayName) { cancel(true); return; }
       if (sending) return;
       // Settled only once the review opens. A rename the host refused, or one pressed while
-      // another action ran, left a box that Escape and leaving no longer put back (WSP-18).
+      // another action ran, left a box that Escape and leaving no longer put back.
       sending = true;
       void onRename(name).then(opened => opened, () => false).then(opened => {
         sending = false;

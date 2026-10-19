@@ -254,14 +254,14 @@ test('a receipt for different proposal content cannot acknowledge the retained a
 // A message the host sends on its own account, so a Windows notification can put
 // somebody back on the view that needed them.
 
-// WCS-02. A save the journal refused before sending it -- too large for it, or local storage
-// that would not take it -- was a plain error, so the record form was redrawn from stored values
-// and the typing was gone, under a sentence that blamed local storage for a size limit. The cap
-// was half what the host accepts. Measured through the real host adapter and the real
+// A save the journal refuses before sending it -- too large for it, or local storage that would
+// not take it -- keeps the typing and says why, rather than redraw the record form from stored
+// values under a sentence that blames local storage for a size limit; and the cap is what the
+// host accepts. Measured through the real host adapter and the real
 // write-failure rule the record form uses.
 const { decideWriteFailure } = await bundleOf('src/write-failure.ts');
 
-test('WCS-02: a save the host would take is sent, and one refused before sending keeps the typing and says why', { timeout: 2000 }, async () => {
+test('a save the host would take is sent, and one refused before sending keeps the typing and says why', { timeout: 2000 }, async () => {
   const f = fixture();
   const client = f.client();
   await client.request('session.getSnapshot');
@@ -284,10 +284,10 @@ test('WCS-02: a save the host would take is sent, and one refused before sending
   assert.match(unkept.message, /nothing was sent/i);
 });
 
-// WCS-22. Stop on a slow save left it pending, and the only control that unlocked editing sent
-// the save the person had stopped. Now a save the host answers as cancelled, whose receipt is then
-// not found, can be discarded unsent; the receipt is looked up again first.
-test('WCS-22: a stopped save that did not land can be discarded without sending it', { timeout: 2000 }, async () => {
+// Stop on a slow save leaves it pending, and unlocking editing must not send the save the person
+// stopped: a save the host answers as cancelled, whose receipt is then not found, can be discarded
+// unsent; the receipt is looked up again first.
+test('a stopped save that did not land can be discarded without sending it', { timeout: 2000 }, async () => {
   const f = fixture();
   const client = f.client();
   await client.request('session.getSnapshot');
@@ -309,7 +309,7 @@ test('WCS-22: a stopped save that did not land can be discarded without sending 
   await next;
 });
 
-test('WCS-22: a stopped save that landed after all is acknowledged, and a timed-out one cannot be discarded', { timeout: 2000 }, async () => {
+test('a stopped save that landed after all is acknowledged, and a timed-out one cannot be discarded', { timeout: 2000 }, async () => {
   const f = fixture();
   const client = f.client();
   await client.request('session.getSnapshot');
@@ -331,10 +331,10 @@ test('WCS-22: a stopped save that landed after all is acknowledged, and a timed-
   assert.equal(f.values.size, 1);
 });
 
-// WCS-03. A raw copy or a backup keeps the file's application and instance IDs, so it found the
-// original's unconfirmed save under the same key, and Check or retry wrote it into the copy. The
-// request now carries the file it was made in, and is sent only there.
-test('WCS-03: an unconfirmed save is not replayed into a copy of its file, and is in the file it was made in', { timeout: 2000 }, async () => {
+// A raw copy or a backup keeps the file's application and instance IDs, so it finds the
+// original's unconfirmed save under the same key, and Check or retry could write it into the copy.
+// The request carries the file it was made in, and is sent only there.
+test('an unconfirmed save is not replayed into a copy of its file, and is in the file it was made in', { timeout: 2000 }, async () => {
   const f = fixture();
   const original = f.client();
   await original.request('session.getSnapshot');
@@ -367,9 +367,8 @@ test('WCS-03: an unconfirmed save is not replayed into a copy of its file, and i
   assert.equal(f.values.size, 0);
 });
 
-// WCS-03, after review: an exact name match stranded a save after a rename or a change of letter
-// case. Windows names a file without regard to case, and a renamed file is the person's to name.
-test('WCS-03: a name that differs only in case is the same file, and a renamed one is the person’s choice, never a dead end', { timeout: 2000 }, async () => {
+// An exact name match would strand a save after a rename or a change of letter case. Windows names a file without regard to case, and a renamed file is the person's to name.
+test('a name that differs only in case is the same file, and a renamed one is the person’s choice, never a dead end', { timeout: 2000 }, async () => {
   const f = fixture();
   const original = f.client();
   await original.request('session.getSnapshot');
@@ -459,7 +458,7 @@ test('a host event cannot name a route the router does not have', { timeout: 200
 test('a custom-view frame failure is heard only for the open file and for frames the Workbench named', async () => {
   const f = fixture(); const client = f.client(); await client.request('session.getSnapshot');
   const seen = []; client.onExtensionFramesFailed(failed => seen.push(failed));
-  // A crash takes every frame of the package with it, so the host names them all (spike S4).
+  // A crash takes every frame of the package with it, so the host names them all.
   const failed = { fileSessionId: 'file-session-one', frames: ['nendo-view-0a1b2c3d4e5f', 'nendo-view-ffffffffffff'] };
   for (const payload of [null, {}, { ...failed, fileSessionId: 'old' }, { ...failed, frames: [] }, { ...failed, frames: 'nendo-view-0a1b2c3d4e5f' },
     { ...failed, frames: ['nendo-view-1'] }, { ...failed, frames: ['workbench'] }, { ...failed, frames: ['nendo-view-0A1B2C3D4E5F'] },
@@ -483,8 +482,8 @@ test('a host event from another protocol version is ignored', { timeout: 2000 },
 });
 
 test('a host event never resolves a pending request', { timeout: 2000 }, async () => {
-  // WST-04. The fixture once answered the snapshot as it was sent, so the event arrived after the
-  // request had settled and this could not fail. The bridge here answers nothing on its own: the
+  // A fixture that answers the snapshot as it is sent delivers the event after the request has
+  // settled, and this could not fail. The bridge here answers nothing on its own: the
   // event is delivered while the read and a journaled save are really waiting.
   const f = fixture({ hold: true }); const client = f.client();
   const first = client.request('session.getSnapshot');

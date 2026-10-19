@@ -4,7 +4,7 @@ import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/format.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
 const {foldDate,blockedConditionsNotice,undoAllowedWhileUnapproved,releasedByNextInteraction,originLabel,proposalAuthorLine,activityLabel,agentModeLabel,canCompensate,capitalise,choiceDisplay,cssToken,escapeAttribute,escapeHtml,fieldName,isAgentAccessMode,isProposalPreviewable,laneLabel,messageFor,mutationKey,operationLabel,presentationLabel,proposalStateLabel,reversibilityLabel,sameValue,shortId,stringValue,storageLabel,valueDisplay} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
-test('W-217 R2LAT-08: a fold date on screen is the person\'s own day, in the dialog and in History alike',async()=>{
+test('a fold date on screen is the person\'s own day, in the dialog and in History alike',async()=>{
  const previous=process.env.TZ;
  try{
   // Phoenix is UTC-7 all year: 03:00 UTC on the 12th is 20:00 on the 11th there.
@@ -41,7 +41,7 @@ test('a value is shown exactly as stored, and an exact number never goes through
  assert.equal(valueDisplay(null),'');
 });
 
-test('History keeps Undo while only approval of automatic actions withholds edits (EBH-11)',()=>{
+test('History keeps Undo while only approval of automatic actions withholds edits',()=>{
  const session=(health,mutate,requiresApproval,isApproved)=>({health,capabilities:{mutate},behaviourTrust:{requiresApproval,isApproved}});
  assert.equal(undoAllowedWhileUnapproved(session('normal',false,true,false)),true,
   "Withdrawing approval of an automatic action also took away History's Undo, the way back from what that action did.");
@@ -51,7 +51,7 @@ test('History keeps Undo while only approval of automatic actions withholds edit
  assert.equal(undoAllowedWhileUnapproved({health:'normal',capabilities:{mutate:false}}),false);
 });
 
-test('a save that did not run an automatic action says which one and why (EBH-01)',()=>{
+test('a save that did not run an automatic action says which one and why',()=>{
  const blocked=(displayName,message)=>({triggerId:'t',displayName,entityId:'tasks',recordId:'t1',code:'calculation-missing-input',message});
  assert.equal(blockedConditionsNotice(undefined),null);
  assert.equal(blockedConditionsNotice([]),null);
@@ -61,7 +61,7 @@ test('a save that did not run an automatic action says which one and why (EBH-01
  assert.match(blockedConditionsNotice([blocked('A','x.'),blocked('B','y.')]),/^2 automatic actions did not run: 'A' \(x\.\); 'B' \(y\.\)\./);
 });
 
-test('a kept alert about a skipped action outlasts the next key or press; a refusal does not (EBH-01)',()=>{
+test('a kept alert about a skipped action outlasts the next key or press; a refusal does not',()=>{
  assert.equal(releasedByNextInteraction(null),false);
  assert.equal(releasedByNextInteraction({tone:'alert'}),true,'A refusal stayed after the person tried the next thing.');
  assert.equal(releasedByNextInteraction({tone:'alert',refresh:async()=>{}}),false);
@@ -70,7 +70,7 @@ test('a kept alert about a skipped action outlasts the next key or press; a refu
   'The sentence saying an automatic action did not run was dismissed by the next key or press.');
 });
 
-test('a save that skipped an action keeps its alert without taking the focus, and keeps the next step (EBH-01)',async()=>{
+test('a save that skipped an action keeps its alert without taking the focus, and keeps the next step',async()=>{
  // runMutation cannot run outside the shell, so its branch is read: the kept alert is the one
  // that neither takes the focus nor is released by the next key, and it carries next.
  const {readFile}=await import('node:fs/promises');
@@ -132,7 +132,7 @@ test('a lane and a reversibility class read the same whether sent as a number or
  assert.equal(laneLabel(2),'Data');
  assert.equal(laneLabel('definition'),'Definition');
  assert.equal(reversibilityLabel(0),'Can be undone');
- // No label of a class says compensat: History's word for it is Undo (UX-06).
+ // No label of a class says compensat: History's word for it is Undo.
  for (const value of [0,1,2]) assert.doesNotMatch(reversibilityLabel(value),/ompensat/);
  assert.equal(reversibilityLabel('reversibleWithRetainedState'),'Can be undone if nothing has changed it since');
  assert.equal(reversibilityLabel('irreversibleDeclared'),'Cannot be undone');
@@ -218,7 +218,7 @@ test('a proposal a custom view prepared says which package is asking; any other 
 });
 
 test('a History entry says who made the revision: you, an agent by its pseudonym, a custom view by its package, or Nendo', () => {
-  // The guides and Help said History shows who made each change; the entry drew no one (2026-10-10).
+  // The guides and Help say History shows who made each change, so the entry names them.
   const packages = [{ packageId: 'org.example.glance', title: 'Glance' }];
   assert.equal(originLabel('workbench', packages), 'you');
   assert.equal(originLabel('surface', packages), 'you');
@@ -226,7 +226,7 @@ test('a History entry says who made the revision: you, an agent by its pseudonym
   assert.equal(originLabel('extension:org.example.glance', packages), 'the custom view Glance');
   assert.equal(originLabel('extension:org.example.gone', packages), 'the custom view org.example.gone');
   assert.equal(originLabel('kernel', packages), 'Nendo');
-  // R2AP-10: the person's own CSV import is theirs, not "csv".
+  // The person's own CSV import is theirs, not "csv".
   assert.equal(originLabel('csv', packages), 'you (CSV import)');
   assert.equal(originLabel('something-new', packages), 'something-new');
 });

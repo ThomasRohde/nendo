@@ -1,8 +1,8 @@
 import { escapeAttribute, escapeHtml } from './format';
 import { exactNumberText } from './scalars';
 
-// A rating is an Integer field drawn on a closed scale (ADR-0004, 2026-09-14 amendment,
-// S2). The scale bounds the drawing, not the column: a stored number outside it is shown
+// A rating is an Integer field drawn on a closed scale (ADR-0004).
+// The scale bounds the drawing, not the column: a stored number outside it is shown
 // as itself with the issue stated, never rounded into range and never drawn as a count
 // nobody chose. The dots are decoration; the accessible name always carries the number.
 
@@ -49,7 +49,7 @@ export function ratingSteps(scale: RatingScale): number[] {
   return Array.from({ length: scale.max - scale.min + 1 }, (_, index) => scale.min + index);
 }
 
-/** The whole number as stored, digit for digit, for saying it (WDV-13). */
+/** The whole number as stored, digit for digit, for saying it. */
 export function ratingText(value: unknown): string {
   const lexeme = exactNumberText(value);
   if (lexeme !== null) return lexeme;

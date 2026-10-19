@@ -123,7 +123,7 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
                 $"A search takes at most {NendoSearchLimits.MaximumTerms} words or phrases.");
         // Only the last thing typed is still being typed, and only while nothing follows it: a
         // required word followed by a left-out one, or by any white space, is finished. The last
-        // required word was a prefix even in 'garden -weed', contrary to ADR-0028 (ESS-07).
+        // required word was a prefix even in 'garden -weed', contrary to ADR-0028.
         var lastOpen = tokens.Count > 0 && !tokens[^1].Excluded && !tokens[^1].Phrase &&
             HasLetterOrDigit(tokens[^1].Text) && !char.IsWhiteSpace(text[^1]);
         var required = new List<string>();
@@ -133,8 +133,8 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
             var token = searchable[position];
             // A phrase was closed on purpose and a left-out word means exactly that word. A last word
             // of one letter stays a whole word rather than a prefix: one letter starts most of the
-            // index, about twenty times the work of two, and the index keeps no one-letter prefixes
-            // (PERF-09). A single letter of a script written without spaces is still found as a word.
+            // index, about twenty times the work of two, and the index keeps no one-letter prefixes.
+            // A single letter of a script written without spaces is still found as a word.
             var prefix = lastOpen && position == searchable.Length - 1 &&
                 token.Text.EnumerateRunes().Count(Rune.IsLetterOrDigit) >= 2;
             (token.Excluded ? leftOut : required).Add(Quote(token.Text) + (prefix ? "*" : ""));
@@ -145,7 +145,7 @@ internal sealed record SearchTerms(IReadOnlyList<string> Required, IReadOnlyList
     /// <summary>
     /// Whether a term holds anything to search for, counted by code point: a letter outside the
     /// Basic Multilingual Plane is two UTF-16 halves, neither of them a letter on its own, so a
-    /// term made only of such letters was dropped (R2LAT-02).
+    /// term made only of such letters was dropped.
     /// </summary>
     private static bool HasLetterOrDigit(string text) => text.EnumerateRunes().Any(Rune.IsLetterOrDigit);
 

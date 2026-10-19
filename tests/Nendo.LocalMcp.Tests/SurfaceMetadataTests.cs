@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-084. What the wire said on 2026-09-27: no title on any of the twenty tools or
+/// What the wire said on 2026-09-27: no title on any of the twenty tools or
 /// seventeen resources, no description on any output property, three tools that overwrite
 /// stored values advertising <c>destructiveHint</c> false, a <c>serverInfo</c> with neither
 /// title nor website, <c>Server: Kestrel</c> on every response, the two build-static reads
@@ -65,7 +65,7 @@ public sealed class SurfaceMetadataTests
         var acquire = tools.Single(tool => tool.Name == "nendo.lease.acquire").Description ?? string.Empty;
         StringAssert.Contains(acquire, "The lease lasts until you release it", "A tool that hands out a handle states how long it lives.");
 
-        // Named for the file since W-089, so two registered files are two names in a client.
+        // Named for the file, so two registered files are two names in a client.
         Assert.AreEqual("Nendo · fixture", client.ServerInfo.Title);
         Assert.AreEqual("https://thomasrohde.github.io/nendo/", client.ServerInfo.WebsiteUrl);
 

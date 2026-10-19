@@ -6,7 +6,7 @@ using static Nendo.LocalMcp.Tests.AppBuilderReviewTests;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-168: an outside author replaced a root screen at a guessed index and it landed a slot late.
+/// An outside author replaced a root screen at a guessed index and it landed a slot late.
 /// The surfaces read now says where every node is kept, and ui.addNode and ui.moveNode place a
 /// node beside another instead of at a number.
 /// </summary>
@@ -60,7 +60,7 @@ public sealed class NodePlacementTests
     }
 
     /// <summary>
-    /// W-245: the vocabulary lists position as optional, and the Billable author left it out. The
+    /// The vocabulary lists position as optional, and the Billable author left it out. The
     /// node was refused by the Engine as "Canonical operation property position requires an
     /// integer." A new node given no placement now goes after its siblings, root or child, a node
     /// added earlier in the change set counting as one, and a null position is a position not sent.

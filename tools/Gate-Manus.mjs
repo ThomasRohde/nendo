@@ -2,7 +2,7 @@ async page => {
   // Every failure names the checks that passed before it, so a bare timeout says where it was.
   const checks = [];
   try { return await (async () => {
-  // The Manuscript view (W-276) against the fixture broker: the real view API, Nendo's toolbar
+  // The Manuscript view against the fixture broker: the real view API, Nendo's toolbar
   // rules, and writes checked as the Engine checks them. Run by Review-Manus.ps1.
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -276,7 +276,7 @@ async page => {
   assert(link.values['mn.link.from'] === 'b-0413' && link.values['mn.link.to'] === 'b-0501', `Link: ${JSON.stringify(link)}`);
   checks.push('note and link from the bar');
 
-  // W-279: the bar is icons in groups, with More last; no tool shows a word until it is pointed at.
+  // The bar is icons in groups, with More last; no tool shows a word until it is pointed at.
   await select('b-0416', 'Agnes', 'three');
   await frame.getByRole('toolbar', { name: 'This paragraph' }).waitFor({ timeout: 3000 });
   const toolIds = () => frame.evaluate(() => [...document.querySelectorAll('.bar .tool')].map(t => t.dataset.tool ?? t.id));
@@ -455,7 +455,7 @@ async page => {
   assert((await record(BLOCK, 'b-0414')).values['mn.block.list'] === null, 'Format did not take the list off again.');
   checks.push('grip, block menu, plus and Format menu without a selection');
 
-  // W-281: lists. "- " starts a bulleted item and Enter carries the list on; Tab takes an item a
+  // Lists. "- " starts a bulleted item and Enter carries the list on; Tab takes an item a
   // level in; Enter on an empty item brings it out a level, then ends the list; "1. " starts a
   // numbered one. Each item is its own block, its List and Level saved.
   const underTide = async () => (await records(BLOCK)).filter(r => r.values[P] === 'b-ch-4').sort((a, b) => a.values[O] - b.values[O]);
@@ -505,7 +505,7 @@ async page => {
   assert(JSON.stringify(sheetMarkers) === JSON.stringify(['\u2022 First post', '\u25E6 Second post', '\u2022 Count', '1. Again', '\u2022 Alpha', '\u25E6 Beta', '1. One']), `Sheet markers: ${JSON.stringify(sheetMarkers)}`);
   checks.push('lists as blocks, typed, pasted and from the bar');
 
-  // W-281: tables. Insert table puts a 3 by 3 table, its first row the header, after the block; it
+  // Tables. Insert table puts a 3 by 3 table, its first row the header, after the block; it
   // is a Table block owning three Row blocks, each owning three Cell blocks, the text in the cells.
   await select((await underTide())[4].recordId, 'Again', 'end');
   await frame.locator('#more-tools').click();
@@ -861,7 +861,7 @@ async page => {
   await page.evaluate(() => window.broker.offerMediaPut(true));
   await restart();
   await select('b-find-2', 'end');
-  // The dialog itself is Nendo's and is measured in the host (W-104); playwright-cli stops at one,
+  // The dialog itself is Nendo's and is measured in the host; playwright-cli stops at one,
   // so the view's file input is handed the file rather than opening it.
   await frame.evaluate(() => { const click = HTMLInputElement.prototype.click; HTMLInputElement.prototype.click = function () { if (this.type !== 'file') click.call(this); }; });
   await page.evaluate(() => window.broker.command('fmt-picture'));
@@ -1190,7 +1190,7 @@ async page => {
     return { chapter: at('back matter'), appendix: at('post numbers'), first: sheet?.querySelector('.pv-column')?.firstElementChild?.textContent ?? null };
   });
   assert(appendix.chapter >= 1 && appendix.chapter === appendix.appendix && /back matter$/i.test(appendix.first ?? ''), `Paper preview: a heading left behind by a page break: ${JSON.stringify(appendix)}`);
-  // The page as AASTeX sets it (W-293), measured in points on a later sheet: columns 241.35 wide
+  // The page as AASTeX sets it, measured in points on a later sheet: columns 241.35 wide
   // from 50.74 in and 28.5 apart, the first baseline of a column that starts with text at 74.6,
   // lines 12.45 apart.
   const geometry = await frame.evaluate(() => {

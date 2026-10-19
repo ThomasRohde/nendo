@@ -65,7 +65,7 @@ public sealed class FileInspectionTests
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.CreateIdeaSchemaAsync("denied-schema"));
             Assert.IsFalse(File.Exists(workspace.FilePath + ".write-owner"));
             // A read-only session no longer holds the name against a move, so it cannot stop the
-            // file's writer from restoring it (ECO-01). It reads nothing it has not inspected: a
+            // file's writer from restoring it. It reads nothing it has not inspected: a
             // backup of a file moved away under it is refused, not taken from whatever is there.
             File.Move(workspace.FilePath, workspace.FilePath + ".moved");
             await Assert.ThrowsAsync<NendoException>(() => read.PrepareBackupAsync(workspace.FilePath + ".backup.nendo", "after-move"));
@@ -185,8 +185,8 @@ public sealed class FileInspectionTests
         var before = await File.ReadAllBytesAsync(workspace.FilePath);
         var derivative = workspace.FilePath + suffix;
         // A journal whose first byte is zero is one SQLite does not take as hot, so nothing is
-        // played back (ADR-0012, 2026-10-13); a hot one a crash left is rolled back instead
-        // (StorageEvolutionReviewTests, ESC-01).
+        // played back (ADR-0012); a hot one a crash left is rolled back instead
+        // (StorageEvolutionReviewTests).
         byte[] content = suffix == "-journal" ? [0, 2, 3, 4] : [1, 2, 3, 4];
         await File.WriteAllBytesAsync(derivative, content);
         var inspection = await NendoWriteCoordinator.InspectAsync(workspace.FilePath);
@@ -199,14 +199,14 @@ public sealed class FileInspectionTests
     }
 
     /// <summary>
-    /// W-038 / F-040 / F-043. The size bound is measured at its exact edge rather than
+    /// The size bound is measured at its exact edge rather than
     /// trusted, and the sentence a person is refused with is checked against the number
     /// the decision records.
     /// <para>
     /// The bound this replaces reached people as the words "64 MiB" and existed nowhere
     /// else — no ADR, no contract, no test — so changing it could not fail anything. The
-    /// literal here is deliberate: it is pinned to the 2026-09-16 amendment to ADR-0012,
-    /// and moving the constant without amending that entry is what this fails on.
+    /// literal here is deliberate: it is pinned to the bound ADR-0012 records, and moving
+    /// the constant without changing ADR-0012 is what this fails on.
     /// </para>
     /// </summary>
     [TestMethod]
@@ -215,7 +215,7 @@ public sealed class FileInspectionTests
         await using var workspace = new EngineTestWorkspace();
         var limit = Nendo.Engine.Storage.SqliteNendoStore.MaximumInspectionFileBytes;
         Assert.AreEqual(256L * 1024 * 1024, limit,
-            "The open bound is the one the 2026-09-16 amendment to ADR-0012 records. Move it there in the same change, or a person is told a number nothing wrote down.");
+            "The open bound is the one ADR-0012 records. Move it there in the same change, or a person is told a number nothing wrote down.");
 
         // One byte over is refused by length alone, before SQLite is asked to open it.
         await using (var over = File.Create(workspace.FilePath)) over.SetLength(limit + 1);
@@ -278,7 +278,7 @@ public sealed class FileInspectionTests
     }
 
     /// <summary>
-    /// R2SMA-01. Inspection checked a column's values only for binary, so text a tool outside
+    /// Inspection checked a column's values only for binary, so text a tool outside
     /// Nendo left in a whole-number column opened the file for editing. The first calculation
     /// over that column then threw a raw FormatException on every read, and the next open
     /// refused the whole file as unreadable: no data, export or backup.
@@ -365,7 +365,7 @@ public sealed class FileInspectionTests
 
     /// <summary>
     /// The write path is bounded by the same number the open path uses, so Nendo cannot
-    /// write a file it will not open (F-040, W-039).
+    /// write a file it will not open.
     /// </summary>
     /// <remarks>
     /// The file is grown to the ceiling rather than filled to it: the bytes past SQLite's
@@ -404,7 +404,7 @@ public sealed class FileInspectionTests
         var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(
             () => full.CreateIdeaRecordAsync("idea-2", "Written over the ceiling", "over"));
         StringAssert.Contains(refused.Message, "256 MiB",
-            "The refusal names the bound from the constant, which is the discipline F-043 cost us.");
+            "The refusal names the bound from the constant, so the number a person reads is the one enforced.");
         StringAssert.Contains(refused.Message, "still opens",
             "A person told their write was refused needs to know the file is not the casualty.");
 
@@ -425,7 +425,7 @@ public sealed class FileInspectionTests
         Assert.IsFalse(refusedPromotion.Applied,
             "A promotion meets the same ceiling, or the bound is one an agent walks around by sending a change set instead.");
         StringAssert.Contains(refusedPromotion.Message, "256 MiB",
-            "The promotion path reports the reason the active file gave. Refusing without it leaves a person a bound that does not say where it came from, which is F-043 by another route.");
+            "The promotion path reports the reason the active file gave. Refusing without it leaves a person a bound that does not say where it came from.");
         StringAssert.Contains(refusedPromotion.Message, "still opens",
             "Both paths say the same thing about the file they refused to grow.");
 
@@ -443,7 +443,7 @@ public sealed class FileInspectionTests
     /// <remarks>
     /// This sample is not the largest accepted write: record batches expand to 12,800
     /// operations. ReviewStorageRegressionTests measures that boundary and its rollback.
-    /// This case retains the 1,306-byte record measurement from the 2026-09-16 amendment.
+    /// This case retains the 1,306-byte record measurement ADR-0012 records.
     /// </remarks>
     [TestMethod]
     public async Task ARepresentative128OperationCommitFitsTheEarlyAdmissionReserve()

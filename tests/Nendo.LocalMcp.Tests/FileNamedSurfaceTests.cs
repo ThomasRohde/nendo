@@ -3,7 +3,7 @@ using ModelContextProtocol.Client;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-089. With two Nendo windows open, an agent registered with both read "Nendo" as the
+/// With two Nendo windows open, an agent registered with both read "Nendo" as the
 /// title of each server, "This is a Nendo file" as the first sentence of each, and a lease
 /// grant that named no file. The discovery document was the one place that said which file
 /// a server was, and no client shows it before its first call.

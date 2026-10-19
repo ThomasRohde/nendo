@@ -9,7 +9,7 @@ import type { AgentCommand, AgentOption, AgentTranscriptEntry, LaunchedAgentStat
  * carry only what changed. No DOM and no reads here, so the merge and the markup are measured in
  * the node lane.
  *
- * The tab is the owner's direction A (2026-10-08): a reading column where the agent's steps fold
+ * The tab is a reading column where the agent's steps fold
  * into one line, a permission request stands where the agent stopped, and the agent's own
  * options sit in the composer. Every word in an entry is the agent's or a tool's and is drawn as
  * text; the agent's messages go through the Markdown subset, which escapes every character
@@ -18,7 +18,7 @@ import type { AgentCommand, AgentOption, AgentTranscriptEntry, LaunchedAgentStat
 export interface AgentChat {
   /** Changes when another agent is launched, so the page is rebuilt rather than patched. */
   key: string;
-  /** The host's name for the launch this chat holds, once a read has said it (ACP-07). */
+  /** The host's name for the launch this chat holds, once a read has said it. */
   conversationId: string | null;
   exists: boolean;
   agentId: string | null;
@@ -33,7 +33,7 @@ export interface AgentChat {
   revision: number;
   entries: Map<string, AgentTranscriptEntry>;
   signInMethods: LaunchedAgentView['signInMethods'];
-  /** A sign-in the person started still runs, so its buttons are held (DAE-10). */
+  /** A sign-in the person started still runs, so its buttons are held. */
   signingIn: boolean;
   options: AgentOption[];
   /** The agent's slash commands, offered when a message starts with /. */
@@ -50,10 +50,10 @@ export function emptyChat(): AgentChat {
 /**
  * Take in one read. A read under another launch key (another launch, another file) starts the chat
  * again. A read of another conversation than the one held is a late answer from a replaced
- * launch and changes nothing (ACP-07): entry IDs and revisions start again with every launch, so
+ * launch and changes nothing: entry IDs and revisions start again with every launch, so
  * merging it would show the old conversation and leave the new one's revisions unread. So does a
- * read whose revision is older than what the chat holds. Entries the host no longer keeps go
- * (ACP-03). Returns the IDs of the entries that changed.
+ * read whose revision is older than what the chat holds. Entries the host no longer keeps go.
+ * Returns the IDs of the entries that changed.
  */
 export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: string): string[] {
   if (chat.key !== launchKey) {
@@ -112,7 +112,7 @@ export function stateLabel(chat: AgentChat): string {
 }
 
 /**
- * What the agent is doing, in one word, for the conversation's tab in the title bar (W-200): a
+ * What the agent is doing, in one word, for the conversation's tab in the title bar: a
  * person on another tab sees it working, thinking, or waiting for them without opening it.
  * Thinking is a turn whose newest entry is the agent's own reasoning.
  */
@@ -142,7 +142,7 @@ export function chatTabStatus(activity: ChatActivity): { kind: ChatActivity; lab
 
 /**
  * The ways the agent offers to sign in, under its sentence. While a sign-in the person started
- * runs, every way is held: a second press started a second sign-in and a second session (DAE-10).
+ * runs, every way is held: a second press started a second sign-in and a second session.
  */
 export function signInMarkup(chat: AgentChat): string {
   if (chat.state !== 'signIn') return '';
@@ -156,7 +156,7 @@ export function signInMarkup(chat: AgentChat): string {
  * What becomes of the agent's changes, under the box: what waits for the person's review when
  * something does, and otherwise what its access level does with a change. It once always said
  * proposals wait on the Agent page, which at Unattended or Edit data sent the person looking for
- * nothing (W-200).
+ * nothing.
  */
 export function reviewHint(level: string, waiting: number): { text: string; waiting: boolean } {
   if (waiting > 0) return { text: `${waiting} ${waiting === 1 ? 'proposal waits' : 'proposals wait'} for your review`, waiting: true };
@@ -274,7 +274,7 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
   const entry = item.entry;
   switch (item.type) {
     case 'you':
-      // The host names what the person pointed at with @ in the entry's title (W-200).
+      // The host names what the person pointed at with @ in the entry's title.
       return `<div class="chat-you" data-item="${key}">${escapeHtml(entry.text)}${entry.title === null || entry.title === ''
         ? '' : `<span class="chat-you-context">Pointed at ${escapeHtml(entry.title)}</span>`}</div>`;
     case 'agent':
@@ -299,7 +299,7 @@ export function itemSignature(item: ThreadItem, agentName: string, expanded: Rea
 /**
  * Markup for the thread's items, built again only for an item that changed. Every read built every
  * item again, an agent's Markdown with it, so one long line made each later read cost close to a
- * second (WAU-05). `built` counts the items actually built, for the node lane.
+ * second. `built` counts the items actually built, for the node lane.
  */
 export function createMarkupCache(): { markup(item: ThreadItem, agentName: string, expanded: ReadonlySet<string>, live: boolean, launch?: string): string; forget(keep: ReadonlySet<string>): void; clear(): void; readonly built: number } {
   const held = new Map<string, { signature: string; html: string }>();
@@ -347,7 +347,7 @@ export const cancelledAnswer = 'Cancelled';
 
 /**
  * What kind of thing a permission request would do, as the steps list names it: Delete before
- * Allow once, rather than only the agent's own words for it (WAU-12).
+ * Allow once, rather than only the agent's own words for it.
  */
 function kindTag(kind: string | null): string {
   const name = kind === null ? undefined : toolKinds[kind];
@@ -357,14 +357,14 @@ function kindTag(kind: string | null): string {
 function permissionMarkup(entry: AgentTranscriptEntry, agentName: string, showInput: boolean, key: string): string {
   if (entry.answer !== null) {
     // Stop, End, the program ending or the file closing answer an open request as cancelled; the
-    // person chose nothing, and "you chose Cancelled" said they had (WAU-12).
+    // person chose nothing, and "you chose Cancelled" said they had.
     const outcome = entry.answer === cancelledAnswer ? 'cancelled when the turn stopped' : `you chose ${escapeHtml(entry.answer)}`;
     return `<p class="chat-answered" data-item="${key}">${icon('check')}<span>${escapeHtml(entry.title ?? 'A tool call')} · ${outcome}</span></p>`;
   }
   const options = [...(entry.options ?? [])].sort((left, right) => (optionOrder[left.kind] ?? 4) - (optionOrder[right.kind] ?? 4));
   const firstAllow = options.find((option) => option.kind === 'allow_once')?.optionId ?? null;
   // What the operation would do, as the agent supplied it (a diff, the places it touches), and
-  // what it sends. Either may be all the request carries (ACP-11). Both are text, never markup.
+  // what it sends. Either may be all the request carries. Both are text, never markup.
   const details = entry.text === '' ? '' : `<pre class="chat-plain">${escapeHtml(entry.text)}</pre>`;
   const input = entry.input === null ? '' : `<pre class="chat-plain">${escapeHtml(entry.input)}</pre>`;
   const inspectable = details !== '' || input !== '';

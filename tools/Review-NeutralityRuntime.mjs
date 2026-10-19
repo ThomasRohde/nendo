@@ -98,7 +98,7 @@ async function envelope(method, payload = {}, generation = fileSessionId) {
     b.addEventListener('message',receive);b.postMessage(request);
   })`));
 }
-// Protocol 7, the only one the host serves since W-135, carries each number in a record's values
+// Protocol 7, the only one the host serves, carries each number in a record's values
 // as {"$nendoNumber":"<lexeme>"}. This lane was written against protocol 5's plain JSON numbers
 // and compares values with ===, so it reads them back as numbers, as protocol 5 delivered them.
 function plainNumbers(value) {

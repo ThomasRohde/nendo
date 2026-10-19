@@ -137,7 +137,7 @@ internal sealed partial class SqliteNendoStore
         await RequireUniqueDisplayNameAsync(operation.DisplayName, operation.EntityId, operation.FieldId, transaction, cancellationToken);
         // A calculated field's ID is a field ID of its record type too. Reusing one left a stored
         // and a calculated field under one ID, which bindings and the write path then resolved
-        // differently, and the type's field list keyed by ID failed to build (EBH-06).
+        // differently, and the type's field list keyed by ID failed to build.
         if ((await ReadBehaviourDefinitionsAsync(transaction, cancellationToken)).Values.OfType<NendoCalculationDefinition>()
             .FirstOrDefault(calculation => string.Equals(calculation.EntityId, operation.EntityId, StringComparison.Ordinal) &&
                 string.Equals(calculation.FieldId, operation.FieldId, StringComparison.Ordinal)) is { } calculated)
@@ -439,7 +439,7 @@ internal sealed partial class SqliteNendoStore
                 }
                 catch (NendoPreconditionException refused) when (restoring && refused.Code is "target-version-conflict" or "target-not-found")
                 {
-                    // A restore has nothing to select again: it says which record moved (ESS-02).
+                    // A restore has nothing to select again: it says which record moved.
                     throw new NendoPreconditionException(refused.Code,
                         $"{operation.RecordId} pointed at {pair.Value.GetString()} through {referenceField.DisplayName}, and " +
                         $"{pair.Value.GetString()} {(refused.Code == "target-not-found" ? "no longer exists" : "changed after the record was deleted")}, " +
@@ -536,7 +536,7 @@ internal sealed partial class SqliteNendoStore
                     $"Field {operation.FieldId} does not exist on entity {operation.EntityId}.");
         // A retired field carries no NOT NULL (RebuildRequiredConstraintsAsync), and a reviewed
         // backfill may clear it: the undo of the fill that made it active again puts its empty
-        // values back, and a delete blocked by its references names that route (R2RM-04, ESS-13).
+        // values back, and a delete blocked by its references names that route.
         if (field.Required && operation.Value.ValueKind == JsonValueKind.Null && !(allowRetiredField && field.Retired))
         {
             throw new NendoValidationException($"Required field {field.FieldId} cannot be null.");
@@ -649,7 +649,7 @@ internal sealed partial class SqliteNendoStore
             if (ResolveLinkRule(declare.EntityId, declare.Rule, await ReadEntityMappingsAsync(transaction, cancellationToken)).Rule is { } rule)
                 await EnsureLinkIndexAsync(rule, transaction, cancellationToken);
 
-        // ADR-0019, 2026-10-16: a declared hierarchy gets its tree index here, where the columns
+        // ADR-0019: a declared hierarchy gets its tree index here, where the columns
         // of a table or order field added in this same mutation exist.
         foreach (var declare in operations.OfType<DeclareHierarchyOperation>())
         {
@@ -657,7 +657,7 @@ internal sealed partial class SqliteNendoStore
             if (entity.Hierarchy is { } hierarchy) await EnsureTreeIndexAsync(entity, hierarchy, transaction, cancellationToken);
         }
 
-        // ADR-0003 note, 2026-09-09: a covering index for the inverse read a
+        // ADR-0003: a covering index for the inverse read a
         // related list performs. Created here because the reference column may
         // be added by this same change set, and only for a reference that was
         // just configured. Never on open, never as a repair.
@@ -753,7 +753,7 @@ internal sealed partial class SqliteNendoStore
                     reader.GetString(3),
                     kind,
                     reader.GetInt64(5) == 1,
-                    // As the snapshot reads it, so a write never refuses what a read offered (ESM-10).
+                    // As the snapshot reads it, so a write never refuses what a read offered.
                     reader.IsDBNull(6) ? null : StoredPresentation(reader.GetString(6), kind),
                     ParseOptions(reader.GetString(7))));
             }
@@ -776,7 +776,7 @@ internal sealed partial class SqliteNendoStore
 
     /// <summary>
     /// Whether text is a timestamp a DateTime field stores: ISO 8601 with seconds and an explicit
-    /// zone. The compiler checks a declared literal by the same rule (ESM-05).
+    /// zone. The compiler checks a declared literal by the same rule.
     /// </summary>
     internal static bool IsStoredTimestamp(string timestamp) =>
         System.Text.RegularExpressions.Regex.IsMatch(timestamp, @"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$", System.Text.RegularExpressions.RegexOptions.CultureInvariant) &&
@@ -870,7 +870,7 @@ internal sealed partial class SqliteNendoStore
                 $"Physical {kind} names must be 1-63 lowercase ASCII letters, digits or underscores, begin with a letter and not use the protected prefix.");
         }
         // SQLite reserves every table name that starts with sqlite_, in any case, and refused it at
-        // CREATE TABLE as a raw error the author could not act on (ESC-05). Columns are not reserved.
+        // CREATE TABLE as a raw error the author could not act on. Columns are not reserved.
         if (kind == "table" && value.StartsWith("sqlite_", StringComparison.OrdinalIgnoreCase))
             throw new NendoValidationException(
                 $"Physical table name {value} starts with sqlite_, which SQLite keeps for its own tables. Choose another record type ID.");

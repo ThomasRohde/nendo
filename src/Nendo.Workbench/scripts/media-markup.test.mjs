@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-266 to W-268 (ADR-0031): a picture field on the record page, a thumbnail wherever a value is
-// shown, a gallery cover and Studio's cell, drawn as the image canvas's direction A.
+// ADR-0031: a picture field on the record page, a thumbnail wherever a value is
+// shown, a gallery cover and Studio's cell.
 const { mediaFieldMarkup, mediaThumbMarkup, mediaCoverMarkup, mediaMenuMarkup } = await bundleOf('src/media-markup.ts');
 const { parseMediaAddress } = await bundleOf('src/media-model.ts');
 

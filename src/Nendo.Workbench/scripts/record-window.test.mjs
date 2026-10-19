@@ -112,8 +112,8 @@ test('a clause resolves today and now, and today is the reader’s own date',()=
  for(const clause of [today,now,literal]) assert.notEqual(clause.value,undefined);
 });
 
-// R-003: the host refuses a DateTime comparison without an explicit zone, and `today` was
-// sent to a DateTime field as a bare date, so every such tile, list and view read failed.
+// The host refuses a DateTime comparison without an explicit zone, so `today` on a DateTime
+// field is never sent as a bare date, which would fail every such tile, list and view read.
 // The exact pattern the host's DateTime validation requires.
 const hostTimestamp=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|[+-]\d{2}:\d{2})$/;
 function inZone(zone,run){
@@ -163,7 +163,7 @@ test('today is a date for a Date field and the instant the person’s day begins
  assert.match(clauseFilters(due,new Date('2026-09-26T12:00:00Z'))[1].value,/^\d{4}-\d{2}-\d{2}$/);
 });
 
-// W-248: thisWeek and thisMonth are spans of days, each clause compared by one edge, so a
+// thisWeek and thisMonth are spans of days, each clause compared by one edge, so a
 // clause stays one filter. A week starts on Monday; a DateTime field compares with instants.
 test('a period clause compares by its first or last day, a week from Monday',()=>{
  inZone('Europe/Copenhagen',()=>{

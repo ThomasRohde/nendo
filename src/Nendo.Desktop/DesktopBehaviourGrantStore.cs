@@ -157,7 +157,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
                 change();
                 // A read refused under the lock (a scanner holding the file, say) left only this
                 // window's approvals in hand, and saving them overwrote every other window's:
-                // twelve concurrent approvals kept eleven (TST-18). The change stays this
+                // twelve concurrent approvals kept eleven. The change stays this
                 // session's, to be merged into the document on the next save that can read it.
                 if (_readRefused)
                 {

@@ -54,7 +54,7 @@ public sealed class ChoiceEvolutionTests
         var rename = await coordinator.ApplyAsync(Mutation("rename", new("rename", "entry", "status", "new", "Fresh", false, before.Manifest.DefinitionRevision)));
         var renamed = await service.GetSnapshotAsync();
         await coordinator.ApplyAsync(Mutation("later", new("later", "entry", "status", "done", "Completed", false, renamed.Manifest.DefinitionRevision)));
-        // Only the latest structure change is undone, and the refusal says so in words (R2RM-02).
+        // Only the latest structure change is undone, and the refusal says so in words.
         StringAssert.StartsWith((await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() => service.CompensateRevisionAsync(rename.RevisionId, "stale"))).Message,
             "Only the latest change to the file's structure can be undone");
     }

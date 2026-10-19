@@ -54,7 +54,7 @@ internal static partial class WorkbenchMethods
         // A batch write with its calculations and automatic actions, its undo, a search, a
         // rebuild of the search index and a fold of history (a backup and a VACUUM) are the
         // heaviest work the Workbench asks for. On the UI thread each froze the window for as
-        // long as it ran (DSH-04).
+        // long as it ran.
         DataWriteRecords,
         DataUndoRecordWrites,
         DataSearchRecords,
@@ -107,9 +107,9 @@ internal static partial class WorkbenchMethods
         MediaCommit,
         MediaUsage,
         MediaRemoveUnused,
-        // The file's own icon (W-001): the page sends the drawn PNG, so no picker is involved.
+        // The file's own icon: the page sends the drawn PNG, so no picker is involved.
         LookEmbedIcon,
-        // A view's runtime event (W-251): kept in memory, and no window is involved.
+        // A view's runtime event: kept in memory, and no window is involved.
         ExtensionEventsReport,
     };
 
@@ -123,7 +123,7 @@ internal static partial class WorkbenchMethods
     /// </summary>
     internal static readonly IReadOnlySet<string> OnUiThread = new HashSet<string>(StringComparer.Ordinal)
     {
-        // A tab window (W-277): opening a window, reading the page's own window, closing one.
+        // A tab window: opening a window, reading the page's own window, closing one.
         WindowDetachTab,
         WindowTakeTab,
         DiagnosticsCloseWindow,

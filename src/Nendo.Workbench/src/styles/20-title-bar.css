@@ -1,4 +1,4 @@
-/* Nendo's top bar as the window's title bar (W-093), and the file's icon in the status bar.
+/* Nendo's top bar as the window's title bar, and the file's icon in the status bar.
    Slice 20 of styles.css; see that file for why the order matters.
 
    In the Desktop host there is no Windows title bar above the page. The page starts at the
@@ -22,14 +22,14 @@
    the window, above the address row, so the rail is the title bar and keeps the width free. It
    stops short of Windows' buttons rather than padding up to them: the bar scrolls sideways once
    it is wider than the window, and what overflows a scrolling box is drawn over its padding, so
-   Agent and Help sat under the buttons (CSS-19). */
+   Agent and Help sat under the buttons. */
 @media (max-width: 840px) {
   :root[data-title-bar="window"] .rail {
     margin-right: calc(6px + var(--title-bar-right, 0px));
   }
 }
 
-/* The file's icon beside its name in the status bar: the look the taskbar shows (W-089). At this
+/* The file's icon beside its name in the status bar: the look the taskbar shows. At this
    size the badge is a dot in the file's tone, as the icon draws it below 24 pixels. */
 .status-file .look-icon {
   display: block;

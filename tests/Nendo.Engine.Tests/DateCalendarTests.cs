@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The Date calendar, ADR-0004's 2026-09-12 vocabulary-widening amendment. This
+/// The Date calendar (ADR-0004). This
 /// first slice takes a Date field, a month view and a separate undated view.
 /// DateTime, time zones, week and day scheduling, duration, recurrence and
 /// drag-to-date are deferred: a due-date calendar is useful without inventing

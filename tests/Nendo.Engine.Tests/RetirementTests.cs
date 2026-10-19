@@ -91,7 +91,7 @@ public sealed class RetirementTests
         CollectionAssert.AreEqual(bytes, await File.ReadAllBytesAsync(workspace.FilePath));
     }
 
-    // R-012. A trigger whose action writes a field must not survive that field's
+    // A trigger whose action writes a field must not survive that field's
     // retirement: the next routine edit would raise it and roll back on the retired target.
     [TestMethod]
     public async Task RetiringAnActionTargetIsRefusedWhileAnActiveActionWritesIt()

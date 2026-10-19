@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// Places a node beside another instead of at a number (W-168). A position is a sort key among a
+/// Places a node beside another instead of at a number. A position is a sort key among a
 /// node's siblings, ordered by position and then by ID, and an author upgrading an existing file
 /// could not see the keys: one replaced a root screen at a guessed index and it landed a slot late.
 /// <c>beforeNodeId</c> or <c>afterNodeId</c> on <c>ui.addNode</c> and <c>ui.moveNode</c> is resolved
@@ -17,7 +17,7 @@ internal sealed partial class NendoAgentAuthoringService
 {
     private readonly record struct PlacedNode(string SurfaceId, string? ParentNodeId, int Position);
 
-    // An anchor sent as an explicit null is an anchor not given (MAA-04): tool-call generators write
+    // An anchor sent as an explicit null is an anchor not given: tool-call generators write
     // every optional key, and a null beforeNodeId used to be refused as a second placement.
     private static bool HasAnchor(NendoAgentOperationInput operation) =>
         operation.OperationType is "ui.addNode" or "ui.moveNode" &&
@@ -27,7 +27,7 @@ internal sealed partial class NendoAgentAuthoringService
         payload.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null;
 
     /// <summary>
-    /// A move that leaves parentNodeId out keeps the node's parent (MAA-05). The Engine reads an
+    /// A move that leaves parentNodeId out keeps the node's parent. The Engine reads an
     /// absent parent as a root, so a reorder by position alone pulled a child out of its page;
     /// the parent is filled in here, from the same placement the anchors read. An explicit null
     /// still makes the node a root.
@@ -38,9 +38,9 @@ internal sealed partial class NendoAgentAuthoringService
         !HasAnchor(operation);
 
     /// <summary>
-    /// A new node that names none of position, beforeNodeId and afterNodeId goes after its siblings
-    /// (W-245). The vocabulary listed position as optional, and a node sent without one reached the
-    /// Engine and was refused there as "requires an integer", which says nothing about placement.
+    /// A new node that names none of position, beforeNodeId and afterNodeId goes after its siblings.
+    /// The vocabulary lists position as optional; without this, a node sent without one would reach the
+    /// Engine and be refused there as "requires an integer", which says nothing about placement.
     /// </summary>
     private static bool Unplaced(NendoAgentOperationInput operation) =>
         operation.OperationType == "ui.addNode" && !HasAnchor(operation) && !Given(operation.Payload.Element, "position");

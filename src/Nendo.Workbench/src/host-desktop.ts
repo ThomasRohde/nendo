@@ -86,11 +86,11 @@ declare global {
  * custom-view package, which open a picker. A fold of history (a backup and a VACUUM) and a
  * rebuild of the search index take as long as the file is large: on a large file the host
  * answered after the fifteen seconds, the answer was dropped, and the person was invited to try
- * again while the first was still running (DSH-04).
+ * again while the first was still running.
  */
 export function hostTimeoutMs(method: string): number | null {
   if (method === 'session.createFile' || method === 'session.openFile' || method.startsWith('file.') || method.startsWith('extension.')) return null;
-  // The integrity check reads every page of the file, so it is as long as the file too (WCS-21).
+  // The integrity check reads every page of the file, so it is as long as the file too.
   // Each of these offers Stop on the busy bar while it runs, which is the person's way out.
   if (method === 'history.fold' || method === 'media.removeUnused' || method === 'data.buildSearchIndex' || method === 'health.verify') return null;
   return 15_000;
@@ -103,7 +103,7 @@ export class DesktopWorkbenchClient implements WorkbenchClient {
 
   currentFileSession(): string | null { return this.fileSessionId; }
   private fileIdentity: string | null = null;
-  /** The open file's name, which a kept save is sent back into only (WCS-03). */
+  /** The open file's name, which a kept save is sent back into only. */
   private fileName: string | null = null;
   private readonly navigateListeners = new Set<(route: HostRoute) => void>();
   private readonly framesFailedListeners = new Set<(failed: HostFramesFailed) => void>();

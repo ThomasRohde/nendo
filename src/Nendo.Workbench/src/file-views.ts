@@ -10,7 +10,7 @@ import { viewPlaceholderMarkup, viewSpecFor } from './view-frame-markup';
 import { viewAddCommand, wireViewFrames } from './view-frames';
 import { fileViewValue, showFileView, showingLabel, showingOptionsMarkup } from './file-view-model';
 
-/** The screen of one of the file's own views (W-106); what they are and how Use chooses one is in file-view-model.ts. */
+/** The screen of one of the file's own views; what they are and how Use chooses one is in file-view-model.ts. */
 
 /** Leave the file's view for the front page or a record type, as the picker says. */
 function leaveFor(value: string): void {
@@ -25,7 +25,7 @@ function leaveFor(value: string): void {
 
 /**
  * One of the file's views, filling Use. Nendo draws the view's declared controls in the row under
- * the top bar (W-090), and its Add when the view names one; a view of the file has no record type
+ * the top bar, and its Add when the view names one; a view of the file has no record type
  * of its own to add to, so without one there is no Add.
  */
 export function renderFileView(view: SurfaceNodePlan): void {

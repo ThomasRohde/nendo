@@ -6,7 +6,7 @@ namespace Nendo.Engine.Storage;
 internal sealed partial class SqliteNendoStore
 {
     /// <summary>
-    /// What the file is for, ADR-0004 2026-09-15 amendment. Its own table rather than a
+    /// What the file is for, ADR-0004. Its own table rather than a
     /// column on <c>__nendo_manifest</c>, for the reason the tone and scale tables give: the
     /// protected layout is a fingerprint of verbatim DDL, so a fresh file and an older one
     /// that gains a purpose must end with byte-identical schema text, which an ALTER TABLE
@@ -94,7 +94,7 @@ internal sealed partial class SqliteNendoStore
         purpose is null || (purpose.Length >= 1 && purpose.Length <= SetApplicationPurposeOperation.MaximumCharacters);
 
     /// <summary>
-    /// The file's own look (W-089), the last rung of the ladder. A singleton like the purpose:
+    /// The file's own look, the last rung of the ladder. A singleton like the purpose:
     /// a row exists only for a file that chose something, and a part it did not choose is null
     /// rather than a copy of the default, so the default can follow the file's name.
     /// </summary>
@@ -137,7 +137,7 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// The file's own picture as its icon (W-001), the rung above media. A singleton like the look:
+    /// The file's own picture as its icon, the rung above media. A singleton like the look:
     /// a row only while the file has a picture, naming content the media table holds.
     /// </summary>
     private const string ApplicationIconSchemaSql = """

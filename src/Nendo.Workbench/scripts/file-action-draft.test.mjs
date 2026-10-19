@@ -4,9 +4,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// R-010: typing in a record form, choosing File -> Open file and cancelling the picker lost
-// the typing. The host answers a cancelled dialog with the same session and no notice, and
-// the outcome redrew the page anyway, which discards the form it replaces. The real
+// Typing in a record form, choosing File -> Open file and cancelling the picker keeps the
+// typing. The host answers a cancelled dialog with the same session and no notice, and a redraw
+// of the page would discard the form it replaces. The real
 // file-actions.ts runs here with the host, the page and the redraw replaced by stand-ins, and
 // the real draft rules (app-state, draft-guard, draft-state) deciding.
 const root = fileURLToPath(new URL('..', import.meta.url));

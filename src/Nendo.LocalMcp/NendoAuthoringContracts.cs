@@ -34,7 +34,7 @@ public sealed record NendoRecordInput(
 
 /// <summary>
 /// One reference target, named either way: the target's record ID, or a unique field of
-/// the target type and the value to find (W-147). The host reads the target's current
+/// the target type and the value to find. The host reads the target's current
 /// version, which is what a reference write must carry.
 /// </summary>
 public sealed record NendoReferenceInput
@@ -56,7 +56,7 @@ public sealed record NendoRecordKeyInput(
     [property: Description("Stable record ID.")]
     string RecordId);
 
-/// <summary>One record write of a batch (W-147): a create, an update or a delete.</summary>
+/// <summary>One record write of a batch: a create, an update or a delete.</summary>
 public sealed record NendoRecordWriteInput(
     [property: Description("create, update or delete.")]
     string Kind,
@@ -96,7 +96,7 @@ public sealed record NendoDataWrittenRecord(
     [property: Description("The version the record holds now: 1 after a create, the expected version plus one per field after an update; null after a delete and on an idempotent replay.")]
     long? RecordVersion);
 
-/// <summary>A committed batch of record writes, atomic across record types (W-147).</summary>
+/// <summary>A committed batch of record writes, atomic across record types.</summary>
 public sealed record NendoDataWritesResult(
     [property: Description("The History revision the batch committed; on an idempotent replay, the original one.")]
     string RevisionId,
@@ -176,7 +176,7 @@ public sealed record NendoDataApplyResult(
 
     /// <summary>
     /// The automatic actions this write did not run because a trigger condition could not be
-    /// worked out (ADR-0008 §6 and §12, EBH-01). Not stored with the revision, so a receipt
+    /// worked out (ADR-0008 §6 and §12). Not stored with the revision, so a receipt
     /// and a replay carry none.
     /// </summary>
     [Description("Each automatic action this write did not run because its trigger's condition could not be worked out for a record: the trigger, the record, and the calculation code and sentence. The write committed without them, so what they keep may be out of date. Empty when every condition was decided, on an idempotent replay and in a receipt.")]

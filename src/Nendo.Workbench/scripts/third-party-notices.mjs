@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// The licence notices the Workbench bundle owes its readers (WST-02). The bundle carries AG Grid
+// The licence notices the Workbench bundle owes its readers. The bundle carries AG Grid
 // Community and the packages it brings (MIT) and Lucide's icon paths (ISC), and both licences
 // require their notice in every copy. The minified bundle keeps none, so the build writes this
 // text beside it as dist/THIRD-PARTY-NOTICES.txt, which the Desktop project copies into the

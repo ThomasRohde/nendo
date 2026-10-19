@@ -82,8 +82,8 @@ public sealed record ConfigureReferenceOperation : NendoOperation
 }
 
 /// <summary>
-/// Points a bound reference at another label field of its target record type (ADR-0003,
-/// 2026-10-14 note, W-232). Only the label a read, a picker or a board shows changes: the stored
+/// Points a bound reference at another label field of its target record type (ADR-0003).
+/// Only the label a read, a picker or a board shows changes: the stored
 /// value is the target record ID, so no record moves. The inverse sets the previous label back,
 /// which the evidence keeps.
 /// </summary>

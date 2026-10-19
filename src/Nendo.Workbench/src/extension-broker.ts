@@ -26,7 +26,7 @@ import { declaredKeys, readMenu, readToolbar, type CommandValue, type ViewMenuRe
 export interface BrokerMount {
   readonly key: string;
   readonly origin: string;
-  /** The file session the frame was mounted under. A frame of another reaches nothing (WXS-01). */
+  /** The file session the frame was mounted under. A frame of another reaches nothing. */
   readonly fileSessionId: string | null;
   /** The mounted iframe's contentWindow, or null while there is no frame. */
   frameWindow(): unknown;
@@ -44,7 +44,7 @@ export interface BrokerUi {
   personIn?(mount: BrokerMount): boolean;
   toast(mount: BrokerMount, text: string): void;
   /**
-   * A batch asked for Undo in Nendo's own notice (W-250): said in the chrome, it stays while the
+   * A batch asked for Undo in Nendo's own notice: said in the chrome, it stays while the
    * person moves on, to another screen or the record the view opened, until the next notice.
    * `undo` compensates the batch in the package's name. Optional so a host without it still
    * brokers the batch, which then answers `undoOffered: false`.
@@ -53,21 +53,21 @@ export interface BrokerUi {
   /** Sets the mount's height and answers the height it now has. */
   setHeight(mount: BrokerMount, pixels: number): number;
   /**
-   * Opens a proposal the view's package prepared in the Workbench's own review (ADR-0013
-   * Phase 3). Answers whether it opened: it does not while a record page holds unsaved typing
+   * Opens a proposal the view's package prepared in the Workbench's own review
+   * (ADR-0013). Answers whether it opened: it does not while a record page holds unsaved typing
    * or another action runs, and the proposal then waits for the view to ask again.
    */
   openProposal(mount: BrokerMount, preview: unknown): { opened: boolean };
   /**
-   * Draw the view's controls in Nendo's own chrome, or take them away with null (ADR-0013,
-   * 2026-09-28; W-090). The declaration has been checked and rebuilt; nothing in it is markup.
+   * Draw the view's controls in Nendo's own chrome, or take them away with null
+   * (ADR-0013). The declaration has been checked and rebuilt; nothing in it is markup.
    */
   setToolbar(mount: BrokerMount, toolbar: ViewToolbar | null): void;
   /** Draw one of Nendo's menus at a point in the view's frame; answers the item picked, or null. */
   showMenu(mount: BrokerMount, menu: ViewMenuRequest): Promise<{ id: string; value: CommandValue } | null>;
   /**
    * A view's write committed without an automatic action whose trigger condition could not be
-   * worked out (EBH-01): said in Nendo's own chrome, as after a person's save. Optional so a
+   * worked out: said in Nendo's own chrome, as after a person's save. Optional so a
    * host without it still brokers writes.
    */
   actionsSkipped?(mount: BrokerMount, text: string): void;
@@ -77,14 +77,14 @@ export interface BrokerUi {
    */
   key(mount: BrokerMount, keys: string): void;
   /**
-   * The view says where it is, for Back and Forward (W-127): a new step, or with `replace` a
+   * The view says where it is, for Back and Forward: a new step, or with `replace` a
    * correction of the step the person is on. Answers whether anything changed, or null when
    * the view is not on the page and nothing was kept.
    */
   setPlace(mount: BrokerMount, place: { value: Json; label: string | null; replace: boolean }): boolean | null;
 }
 
-/** One runtime event of a view, as the broker saw it (W-251). */
+/** One runtime event of a view, as the broker saw it. */
 export interface ViewEventReport {
   kind: 'loaded' | 'stopped' | 'error' | 'refused';
   method?: string;
@@ -96,7 +96,7 @@ export interface BrokerDeps {
   /** The Workbench's own host bridge. */
   request(method: string, payload: Record<string, unknown>): Promise<unknown>;
   /**
-   * Tell the host what a view did (W-251): it connected, stopped answering, threw an error it did
+   * Tell the host what a view did: it connected, stopped answering, threw an error it did
    * not catch, or had a call refused. The host keeps the open file's last few for an agent to
    * read. At most `reportsPerSecond` from one view; optional, so a host without it still brokers.
    */
@@ -129,7 +129,7 @@ interface MethodCall {
   params: Params;
   mount: BrokerMount;
   deps: BrokerDeps;
-  /** When each mount last started a move of the person's page without the person in it (WXS-04). */
+  /** When each mount last started a move of the person's page without the person in it. */
   moves: Map<string, number>;
   connection: {
     toastAt: number; stateWrites: number[]; toolbars: number[]; menus: number[]; keys: Set<string>;
@@ -149,7 +149,7 @@ function withinRate(times: number[], now: number, limit: number, refusal: string
 interface MethodEntry {
   /** The typed read or write this method becomes, or null for one the Workbench answers itself. */
   readonly host: string | null;
-  /** Whether it changes the file, and so goes to the host as the view's package (ADR-0013 Phase 3). */
+  /** Whether it changes the file, and so goes to the host as the view's package (ADR-0013). */
   readonly writes?: boolean;
   readonly run: (call: MethodCall) => unknown;
 }
@@ -241,7 +241,7 @@ function local(run: (call: MethodCall) => unknown): MethodEntry {
 /**
  * A move of the person's page a view asks for. One the view makes without the person in it,
  * its frame not focused, is refused as `busy` within a second of the last such move from the
- * same mount, before the Workbench is asked, so a view's loop costs nothing (WXS-04). The
+ * same mount, before the Workbench is asked, so a view's loop costs nothing. The
  * person clicking rows in a view is in it, and is never refused for clicking quickly.
  *
  * The time is kept by mount, not by connection, so a view that says hello again between moves
@@ -378,8 +378,8 @@ function write(host: string, payload: (params: Params) => Params & { entityId: s
  * commands.run: a record command, on a record of the command's own record type. The host finds
  * the command by its ID and writes a record of the type the command belongs to; it never read
  * the entityId the view sent, and the record was read back from the view's type, so a command
- * named with another type's record answered with a different record, or null as if deleted
- * (R2AP-08). A command the schema gives a record type is refused here, before anything is
+ * named with another type's record answered with a different record, or null as if deleted.
+ * A command the schema gives a record type is refused here, before anything is
  * written, when the view names another, naming both.
  */
 function commandRun(): MethodEntry {
@@ -403,7 +403,7 @@ function commandRun(): MethodEntry {
 /**
  * An automatic action a view's write did not run, because its trigger condition could not be
  * worked out, is the person's to know about, as after their own save: what it keeps may now be
- * out of date (EBH-01). The view's answer is unchanged.
+ * out of date. The view's answer is unchanged.
  */
 function reportSkipped(deps: BrokerDeps, mount: BrokerMount, answer: unknown): void {
   const skipped = blockedConditionsNotice((answer as { mutation?: { blockedConditions?: BlockedCondition[] } } | null)?.mutation?.blockedConditions);
@@ -417,7 +417,7 @@ function reportSkipped(deps: BrokerDeps, mount: BrokerMount, answer: unknown): v
  * package's key never answers for another's. The two are joined by a colon, which neither a
  * package ID nor a writeKey may hold: joined by a hyphen, org.a with b-c and org.a-b with c
  * were one key, and the second package's batch was refused as an idempotency conflict for
- * good (WXS-11). Without a writeKey each call is a new batch.
+ * good. Without a writeKey each call is a new batch.
  */
 function batchKey(params: Params, packageId: string): string {
   const writeKey = params.writeKey;
@@ -458,7 +458,7 @@ function writtenRecords(mount: BrokerMount, result: unknown): Params {
  * A revision is undone once, so the key is the package, the step and the revision: an undo whose
  * answer was lost (a timeout, a reconnect) is sent again as the same request and answered with
  * the compensation already made, whose revision the view then learns and can redo. A fresh key
- * each time was refused as already compensated, and the redo could never be reached (R2RM-03).
+ * each time was refused as already compensated, and the redo could never be reached.
  */
 function undoWrites(redo: boolean): MethodEntry {
   return {
@@ -501,7 +501,7 @@ function plainProposal(result: unknown): Params {
  * payload exactly as it validates the Workbench's own proposals. A `{ $nendoNumber: '…' }`
  * envelope in a payload reaches the host as it was sent, as in a record write: rebuilt as plain
  * JSON it became a JavaScript number, and a default or a literal of 17 digits was proposed
- * rounded (WXS-10).
+ * rounded.
  */
 function operationsParam(params: Params): Params[] {
   const value = params.operations;
@@ -529,7 +529,7 @@ function openedProposal(call: MethodCall, preview: unknown): Params {
 }
 
 /**
- * Where a view's state lives (ADR-0013 Phase 3): its own view ID, or the empty ID the package's
+ * Where a view's state lives (ADR-0013): its own view ID, or the empty ID the package's
  * views share when `scope` is `package`. Both come from the mount, never from the view.
  */
 function stateView(params: Params, context: { viewId: string }): string {
@@ -634,7 +634,7 @@ function newRecordId(params: Params, keyed?: string): string {
  * position: record- and 32 hex digits of SHA-256 over the package, the writeKey and the position.
  * The same batch sent again is then the same payload, which the host keeps once and answers as
  * before. A fresh random ID on every send made the resend a different payload under a used key,
- * refused as idempotency-conflict, in exactly the lost-answer case the writeKey is for (R2AP-04).
+ * refused as idempotency-conflict, in exactly the lost-answer case the writeKey is for.
  */
 async function keyedRecordIds(packageId: string, params: Params): Promise<string[]> {
   const writes = params.writes;
@@ -650,10 +650,10 @@ async function keyedRecordIds(packageId: string, params: Params): Promise<string
  * The closed method table: every name a view may call, and the one typed read or write each
  * becomes.
  *
- * Reads, and since Phase 3 the four record writes a person's own edit uses: create, update,
- * delete and run a record command (W-065), a move in a declared tree (W-079), several record
- * writes as one revision (W-102), preparing and reading the package's own
- * proposals, and keeping the view's state with the file (W-069). Nothing here promotes, rejects or approves a proposal; nothing opens,
+ * Reads, and the four record writes a person's own edit uses: create, update,
+ * delete and run a record command, a move in a declared tree, several record
+ * writes as one revision, preparing and reading the package's own
+ * proposals, and keeping the view's state with the file. Nothing here promotes, rejects or approves a proposal; nothing opens,
  * closes or copies a file, and nothing touches a
  * session, an agent, behaviour approval, compensation or the appearance. Each write takes
  * its actor from the mount, never from the view's parameters. The production gate and
@@ -703,12 +703,12 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   'records.delete': write('data.deleteRecord', (p) => ({
     entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p),
   }), false),
-  // A move in the record type's declared tree (ADR-0019, W-079): the Engine refuses a loop and
+  // A move in the record type's declared tree (ADR-0019): the Engine refuses a loop and
   // a tree too deep, and renumbers the siblings in the same revision when no gap is left.
   'records.move': write('data.moveRecord', (p) => ({
     entityId: textParam(p, 'entityId'), recordId: textParam(p, 'recordId'), expectedRecordVersion: versionParam(p), ...moveTarget(p),
   })),
-  // Several writes as one revision (W-102): they commit together or not at all, and History
+  // Several writes as one revision: they commit together or not at all, and History
   // shows one entry, named by label when the view gives one. The answer is each record's new
   // version, in the order written, and null for a deleted one; read a record again for its values.
   // It names the revision too, which records.undo takes (ADR-0023).
@@ -733,7 +733,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       reportSkipped(deps, mount, answer);
       const written = writtenRecords(mount, answer);
       const revision = written.revision;
-      // Undo offered by Nendo itself (W-250), which a view's own undo cannot be once it opens a
+      // Undo offered by Nendo itself, which a view's own undo cannot be once it opens a
       // record and is gone: the same compensation as records.undo, in the package's name, under
       // the same key, so a lost answer is not a second undo. It belongs to the file it was made in.
       if (offer === true && typeof revision === 'string' && deps.ui.offerUndo !== undefined) {
@@ -754,12 +754,12 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       return offer === true ? { ...written, undoOffered: false } : written;
     },
   },
-  // Undo of a revision this frame wrote, and redo of its undo (ADR-0023, W-103).
+  // Undo of a revision this frame wrote, and redo of its undo (ADR-0023).
   'records.undo': undoWrites(false),
   'records.redo': undoWrites(true),
   'commands.run': commandRun(),
   // A view prepares a definition change in its package's name and the person decides it in
-  // the ordinary review (ADR-0013 Phase 3, W-069). Nothing here promotes or rejects: the host
+  // the ordinary review (ADR-0013). Nothing here promotes or rejects: the host
   // admits the actor on proposal.prepareChangeSet and proposal.get alone, answers another
   // origin's proposal as not found, and lets one proposal per package wait at a time.
   'proposals.prepare': {
@@ -789,7 +789,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
       proposalId: textParam(call.params, 'proposalId', 64), actor: `extension:${call.deps.context(call.mount).packageId}`,
     })),
   },
-  // What a view keeps with the file (ADR-0013 Phase 3, W-069): small JSON values per view, or
+  // What a view keeps with the file (ADR-0013): small JSON values per view, or
   // shared by the package's views, each a Data revision History names the package on.
   'state.get': {
     host: 'extension.state.read',
@@ -811,10 +811,10 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
   },
   'state.set': stateWrite(false),
   'state.delete': stateWrite(true),
-  // A move of the person's page. At most one a second from one view (WXS-04): each holds the
+  // A move of the person's page. At most one a second from one view: each holds the
   // Workbench busy while it redraws, and a view that asked in a loop kept it busy enough to drop
   // the person's own clicks, the switch that turns views off among them.
-  // Pictures (ADR-0031, W-270). describe names a picture's source and its page address, which an
+  // Pictures (ADR-0031). describe names a picture's source and its page address, which an
   // img shows; read returns an embedded picture's bytes; put embeds a picture the view holds in its
   // package's name, sent in chunks the host stages, and may set a media field in the same revision.
   // No view reads a local file or the web through these.
@@ -900,7 +900,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     const bounded = Math.round(Math.min(extensionLimits.maximumHeight, Math.max(extensionLimits.minimumHeight, pixels)));
     return { pixels: deps.ui.setHeight(mount, bounded) };
   }),
-  // The view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090). The declaration is
+  // The view's controls in Nendo's own chrome (ADR-0013). The declaration is
   // rebuilt into closed kinds and plain text before the Workbench draws anything from it, and
   // the keys it declares are the only ones besides Nendo's that this view may hand back.
   'ui.setToolbar': local(({ mount, params, deps, connection }) => {
@@ -915,7 +915,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     withinRate(connection.menus, deps.now(), extensionLimits.menusPerSecond, 'A view asks for at most four menus a second.');
     return deps.ui.showMenu(mount, readMenu(params));
   }),
-  // Where the view is, for Back and Forward (2026-09-29, W-127). The place is plain JSON the
+  // Where the view is, for Back and Forward. The place is plain JSON the
   // Workbench keeps and hands back; it never reads it.
   'ui.setPlace': local(({ mount, params, deps, connection }) => {
     withinRate(connection.places, deps.now(), extensionLimits.placesPerSecond, 'A view declares its place at most twenty times a second.');
@@ -927,7 +927,7 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     const replace = optionalBoolean(params, 'replace') ?? false;
     // A view that is not on the page, held while the person reviews its proposal, has no step
     // to keep its place on. Answered as kept, the place it declared was the one the broker
-    // remembered, and the next draw handed it the older one back (WXS-15).
+    // remembered, and the next draw handed it the older one back.
     if (deps.ui.setPlace(mount, { value, label, replace }) === null)
       throw new WorkbenchHostError('not-allowed', 'This view is not on the page, so Nendo keeps no place for it. Declare the place again once the view is shown.');
     // The view knows its own place: neither the event nor the context goes back to it.
@@ -951,7 +951,7 @@ interface Connection {
   mount: BrokerMount;
   port: MessagePort;
   closed: boolean;
-  /** When this view's recent runtime events were reported, for the per-second bound (W-251). */
+  /** When this view's recent runtime events were reported, for the per-second bound. */
   reportTimes: number[];
   inFlight: number;
   queue: Pending[];
@@ -990,18 +990,18 @@ export interface ExtensionBroker {
   /** Hand a view its context again, when what it describes has changed. */
   refreshContext(mount: BrokerMount): void;
   /**
-   * The person's civil day turned (W-217): hand every connected view its context again, so a
+   * The person's civil day turned: hand every connected view its context again, so a
    * view that groups by today, as Garden's agenda does, reads again rather than keeping
    * yesterday's Today until the file next moves. Every view already reads again on `context`.
    */
   dayTurned(): void;
   /**
    * The person pressed one of the view's controls, in Nendo's toolbar, a menu, Ctrl K or by
-   * its key (W-090). Answers whether a connected view was told.
+   * its key. Answers whether a connected view was told.
    */
   command(mount: BrokerMount, command: ViewCommand): boolean;
   /**
-   * Back or Forward put the view's page somewhere else (W-127): hand the view its place, when
+   * Back or Forward put the view's page somewhere else: hand the view its place, when
    * it is not the one the view already has.
    */
   place(mount: BrokerMount, place: Json): void;
@@ -1039,7 +1039,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
     if (code !== 'stale-file-session') report(connection, { kind: 'refused', ...(method === undefined ? {} : { method }), code, text: message });
   }
 
-  /** One runtime event of a view, told to the host at most so often (W-251); one past the bound is not told. */
+  /** One runtime event of a view, told to the host at most so often; one past the bound is not told. */
   function report(connection: Connection, event: ViewEventReport): void {
     if (deps.report === undefined || !current(connection)) return;
     try { withinRate(connection.reportTimes, deps.now(), extensionLimits.reportsPerSecond, ''); } catch { return; }
@@ -1143,7 +1143,7 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
   }
 
   /**
-   * A key the view hands back (W-090): one of Nendo's own, pressed while the view had focus, or
+   * A key the view hands back: one of Nendo's own, pressed while the view had focus, or
    * one its toolbar declares. Nothing else is taken, and a view that hands back more than
    * eight a second is not heard for the rest of that second; there is no answer to refuse.
    */

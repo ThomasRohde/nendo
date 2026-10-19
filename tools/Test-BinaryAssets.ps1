@@ -3,12 +3,12 @@ param()
 
 # Every tracked binary, opened rather than counted.
 #
-# The repository gate passed while image assets were corrupted (W-019). It checks
+# The repository gate alone does not catch a corrupted image. It checks
 # that binaries are tracked, that they live where they belong, and that the text
 # files around them end their lines with LF -- and being binary is exactly what
 # excused them from every one of those content checks. A file can be the right
-# size, in the right place, with the right attribute, and still not open. That is
-# how a broken icon reached the point where NSIS refused to build an installer,
+# size, in the right place, with the right attribute, and still not open. Without
+# this, a broken icon is first noticed when NSIS refuses to build an installer,
 # which is a late and confusing place to learn it.
 #
 # So this reads the structure each format declares about itself, and nothing else:
@@ -470,7 +470,7 @@ function Format-OpenAsset([string] $path, [string] $full) {
 }
 
 # The gate's sentence: corrupt files first, then files that could not be checked at all, then
-# files deleted from the working tree, which are not corrupt and have their own remedy (BL-04).
+# files deleted from the working tree, which are not corrupt and have their own remedy.
 function Get-AssetReport([string[]] $faults, [string[]] $open, [string[]] $missing = @()) {
     $sections = @()
     if ($faults.Count -gt 0) {
@@ -559,8 +559,8 @@ if ($faults.Count -gt 0 -or $open.Count -gt 0 -or $missing.Count -gt 0) {
 }
 
 # The Workbench's own pictures are drawn at most 92 CSS pixels wide, and every window fetches and
-# decodes each one. A 1391 by 1131 mark and a 1254 by 1254 favicon shipped there, about 6 MB of
-# pixels a window for a 16-pixel icon, and the mark shipped twice (WST-12). The masters stay in
+# decodes each one. A master-sized mark or favicon there costs megabytes of pixels a window for
+# a 16-pixel icon. The masters stay in
 # docs/assets/brand, which does not ship. The width and height are the PNG header's, read above.
 $publicPngLimit = 512
 $oversized = @(

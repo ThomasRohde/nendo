@@ -1,5 +1,5 @@
-// Loads an .archimate model into Archi.nendo over MCP (W-108), before the Archi view can open a
-// file itself (W-104, W-120). The file is parsed by archi-online's own parser, so the records are
+// Loads an .archimate model into Archi.nendo over MCP, before the Archi view can open a
+// file itself. The file is parsed by archi-online's own parser, so the records are
 // what archi-online would hold; this script only maps that model onto the record types that
 // tools/Build-Archi.mjs made, and writes them in the order their references need.
 //
@@ -9,7 +9,7 @@
 //
 // It needs the archi-online checkout beside this one (ARCHI_ONLINE names another) for the parser,
 // esbuild and jsdom. It writes into a file that holds no concepts yet, and refuses one that does.
-// Images are left out: binary fields are out of scope (F-208), and a model that has them is
+// Images are left out: binary fields are out of scope, and a model that has them is
 // named as such rather than silently thinned.
 
 import crypto from 'node:crypto';
@@ -31,7 +31,7 @@ const REFERENCES = {
 async function write(file, model) {
   if ((await file.read.records('ar.concept')).length > 0) fail('Archi.nendo already holds concepts. Import into a file built from empty.');
   await withLease(file.client, async owned => {
-    // ABS-27: the file's own Model record, made first where a new model has none, so the model's
+    // The file's own Model record, made first where a new model has none, so the model's
     // properties point at it and its name and metadata have somewhere to go.
     const modelRecord = await modelRecordOf(file, record => file.client.tool('nendo.data.create_records',
       { ...owned, entityId: 'ar.model', records: [record], idempotencyKey: `archi-import-model-${record.recordId}` }));
@@ -115,7 +115,7 @@ const parseArchimate = await parser();
 const model = parseArchimate(await fs.readFile(source, 'utf8'));
 const planned = plan(model);
 for (const [entityId, records] of planned.writes) console.log(`${String(records.length).padStart(5)}  ${entityId}`);
-if (planned.images > 0) console.log(`Left out: ${planned.images} image objects (binary fields are out of scope, F-208).`);
+if (planned.images > 0) console.log(`Left out: ${planned.images} image objects (binary fields are out of scope).`);
 if (args.includes('--dry-run')) process.exit(0);
 
 const file = await target('nendo-archi-import');

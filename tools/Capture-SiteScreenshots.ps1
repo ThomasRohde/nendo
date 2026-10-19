@@ -6,7 +6,7 @@ param(
     # application and is rebuilt by tools/Build-NendoStation.mjs, so it is the
     # one demo file whose shape is reproducible.
     [string] $SourceFile = '',
-    # The pictures reference file (W-274), taken in a second run with the folder of
+    # The pictures reference file, taken in a second run with the folder of
     # pictures beside it; the names starting "pictures-" in the capture set are its.
     [string] $PicturesFile = '',
     [string] $OutputDirectory = '',

@@ -69,7 +69,7 @@ test('without a usable reference label, a record is named by its first required 
   assert.equal(namingFieldId([checks, work, finding], 'finding'), null);
 });
 
-test('R2AP-07: a reference refusal names the target by its label where the sentence places it, for the person', () => {
+test('a reference refusal names the target by its label where the sentence places it, for the person', () => {
   const id = '3f2a9c01-be4d-4c7a-9d10-5b8e2f6a7c31';
   assert.equal(nameTarget(`Project points at ${id} in Projects, which changed after it was selected. Select it again before saving.`, id, ' Website relaunch '),
     'Project points at “Website relaunch” in Projects, which changed after it was selected. Select it again before saving.');
@@ -86,7 +86,7 @@ test('R2AP-07: a reference refusal names the target by its label where the sente
   assert.equal(referenceTargetOf([tasks], { entityId: 'tasks', values: { title: id } }, id), null);
 });
 
-test('R2AP-09: a short holder ID is replaced only where the sentence names the holder, not inside the field or type name', () => {
+test('a short holder ID is replaced only where the sentence names the holder, not inside the field or type name', () => {
   assert.equal(nameHolder('That Code is already used by C in Contacts; each record needs its own.', 'C', 'Alice'),
     'That Code is already used by “Alice” in Contacts; each record needs its own.');
   assert.equal(nameHolder('That Name is already used by a in Tasks; each record needs its own.', 'a', 'Write report'),

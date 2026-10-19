@@ -7,7 +7,7 @@ using Nendo.Engine.Storage;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// ADR-0022 (W-129): a record is kept in new files or left out, by its record type's default or
+/// ADR-0022: a record is kept in new files or left out, by its record type's default or
 /// its own mark, and New makes a file of the same application with the definition and the kept
 /// records only, its history folded into one checkpoint, and the source unchanged.
 /// </summary>
@@ -198,7 +198,7 @@ public sealed class NewFileTests
         Assert.AreEqual(JsonSerializer.Serialize(sourceDefinition.ExtensionPackages), JsonSerializer.Serialize(definition.ExtensionPackages), "The packages differ.");
         Assert.AreEqual("Test model", snapshot.Manifest.NewFileLabel);
         Assert.AreEqual(source.Manifest.DefinitionRevision + 1, snapshot.Manifest.DefinitionRevision, "Only the identity transition is new.");
-        // The stage's history was folded, which adds the history indexes and their host (ADR-0021, 2026-10-13).
+        // The stage's history was folded, which adds the history indexes and their host (ADR-0021).
         Assert.AreEqual(NendoFormat.RevisionIndexesMinimumHostVersion, snapshot.Manifest.MinimumHostVersion);
 
         var history = await fresh.GetHistoryAsync();

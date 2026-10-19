@@ -5,7 +5,7 @@ import { icon } from './icons';
 import { editorExtensions, keepTextAsTyped, markdownReader, toolbarCommands, writtenMarkdown, type EditorPictures, type ToolbarCommandId } from './markdown-editor-kit';
 
 /**
- * The Markdown field's editor on a record page (Tiptap; ADR-0017's amendment of 2026-10-16). The
+ * The Markdown field's editor on a record page (Tiptap, ADR-0017). The
  * field's control is still its textarea, which holds the Markdown the form saves: the editor reads
  * it, and writes it back, with an input event, only when the person changes the text. The
  * textarea stays reachable under Markdown for anyone who would rather type the source, and an

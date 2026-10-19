@@ -32,7 +32,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
 
         AttachTitleBar();
-        // Without its icon the window still opens; without the guard it never did (DSH-23).
+        // Without its icon the window still opens; without the guard it never did.
         DesktopShellSafety.TrySetIcon(AppWindow.SetIcon, Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
         // Where this file's window was, when the launch names a file: two files no longer
         // open on the same rectangle, one exactly on top of the other.
@@ -52,7 +52,7 @@ public sealed partial class MainWindow : Window
     internal void ApplyAppearance(AppearancePayload appearance)
     {
         _appearance.Save(appearance.Preference);
-        // Every window of the file takes the device's theme, and each page draws it (W-277): the
+        // Every window of the file takes the device's theme, and each page draws it: the
         // page that asked has drawn it already, and drawing it again changes nothing.
         foreach (var window in FileWindows())
         {
@@ -64,7 +64,7 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Names the open file where Windows shows the window without its content, the taskbar
     /// and Alt+Tab, and draws its look there. Inside the window the top bar names the page and
-    /// the status bar the file (W-093).
+    /// the status bar the file.
     /// </summary>
     internal void ApplyFileName(string? fileName, NendoResolvedLook? look = null)
     {
@@ -105,7 +105,7 @@ public sealed partial class MainWindow : Window
     /// <summary>
     /// Puts the file's look on everything that shows this window without its content: the
     /// window icon (the taskbar thumbnail and Alt+Tab), the notification area and the picture
-    /// on a notification (W-089). Inside the window the status bar draws it. Drawn off the UI
+    /// on a notification. Inside the window the status bar draws it. Drawn off the UI
     /// thread, once per look on a device, and put back to the plain mark when no file is open.
     /// </summary>
     private void ApplyLook(NendoResolvedLook? look)
@@ -136,7 +136,7 @@ public sealed partial class MainWindow : Window
                 catch (Exception) when (drawn.Icon is not null) { files = await DesktopFileIcon.EnsureAsync(cache, look with { Icon = null }, mark); }
             }
             catch (Exception) { }
-            // The taskbar menu shows each file's own icon once this device has drawn it (W-001).
+            // The taskbar menu shows each file's own icon once this device has drawn it.
             var remembered = false;
             if (files is not null && remembers && openFile is not null)
             {
@@ -250,7 +250,7 @@ public sealed partial class MainWindow : Window
         _notifier = new DesktopNotifier(route => DispatcherQueue.TryEnqueue(() => RouteFromNotification(route)),
             register: DesktopRuntimeConfiguration.WritesShellState);
         // A person looking at the window does not need a notification telling them to look at
-        // it, however the window came back: the taskbar left them in place (R2SP-10).
+        // it, however the window came back: the taskbar left them in place.
         Activated += (_, args) =>
         {
             if (args.WindowActivationState != WindowActivationState.Deactivated) _notifier?.ClearAll();
@@ -266,7 +266,7 @@ public sealed partial class MainWindow : Window
         page.HostWindow = this;
         TitleBarChanged += page.TitleBarChanged;
         // Every open, close and replacement, including the recovery panel's own actions and
-        // the open a launch asked for, which answer no Workbench request (DSH-11).
+        // the open a launch asked for, which answer no Workbench request.
         page.Session.FileSessionChanged += () => DispatcherQueue.TryEnqueue(() =>
         {
             if (!_closing) ApplyFileName(page.Session.CurrentFileName, page.Session.CurrentLook);
@@ -347,7 +347,7 @@ public sealed partial class MainWindow : Window
     private void RefreshJumpList()
     {
         if (Page is not { } page) return;
-        // A lane on an isolated device state would write the person's Jump List (BL-01).
+        // A lane on an isolated device state would write the person's Jump List.
         if (!DesktopRuntimeConfiguration.WritesShellState) return;
         var identity = DesktopShellIdentity.AppUserModelId;
         // The executable that is actually running, not the name it usually has: a
@@ -384,13 +384,13 @@ public sealed partial class MainWindow : Window
     /// <para>
     /// Written off the window's thread: the log waits for the device-wide lock that every window
     /// takes, and the failure that reaches every window at once is the one this keeps, so the
-    /// recovery panel waited behind the other windows' lines (R2SP-06, after review). Only the
+    /// recovery panel waited behind the other windows' lines. Only the
     /// way out waits for it, since the process ends straight after.
     /// </para>
     /// </summary>
     private void RecordViewFailure(string kind, int viewUpSeconds, bool waitForIt = false)
     {
-        // Another window may have switched it off since this one read it (DSH-09).
+        // Another window may have switched it off since this one read it.
         _shell.Refresh();
         if (!_shell.RecordViewFailures) return;
         var outOfSight = IsOutOfSight;
@@ -411,7 +411,7 @@ public sealed partial class MainWindow : Window
 
     private DesktopTrayMenuState DescribeTray()
     {
-        // The menu ticks what this device chose, which another window may have changed (DSH-09).
+        // The menu ticks what this device chose, which another window may have changed.
         _shell.Refresh();
         var state = ShellState();
         return new DesktopTrayMenuState(
@@ -469,7 +469,7 @@ public sealed partial class MainWindow : Window
         ShowTabWindows();
         Activate();
         // Activate shows the window, but a window that is already showing stays behind whatever
-        // is in front of it (owner-reported, 2026-10-01: a file picked from the taskbar's Recent
+        // is in front of it (a file picked from the taskbar's Recent
         // list while its window sat behind others). The Nendo that received the click has
         // allowed this process the foreground (DesktopWindowHandoff.TryShow), so it may take it.
         DesktopNativeMethods.SetForegroundWindow(Win32Interop.GetWindowFromWindowId(AppWindow.Id));
@@ -496,13 +496,13 @@ public sealed partial class MainWindow : Window
         _exitRequested = true;
         // The way out runs here, not through Close: Window.Close raises no AppWindow.Closing, so
         // the tray's Exit closed this window alone, and a tab window kept the process and its file
-        // open without the notification-area icon (W-277, reported 2026-10-17).
+        // open without the notification-area icon.
         _ = ExitAsync();
     }
 
     /// <summary>
     /// Windows is ending the session, which closes no window, so the close handler below never
-    /// runs (DSH-07). Agent admission stops and the file closes as an exit would close it,
+    /// runs. Agent admission stops and the file closes as an exit would close it,
     /// within <see cref="DesktopSessionEnd.Bound"/>, on the window procedure's own thread.
     /// </summary>
     private void EndSession()
@@ -569,7 +569,7 @@ public sealed partial class MainWindow : Window
             // Before the session ends, so no tab window's view is left asking a closed one.
             await CloseTabWindowsAsync();
             // Returned rather than thrown: this handler is async void and the application is
-            // already on its way out, so a cleanup failure here ended in a crash report (DSH-19).
+            // already on its way out, so a cleanup failure here ended in a crash report.
             // Kept in the device's failure record when the person records failures, by its kind
             // alone: its message can name a path.
             if (RootFrame.Content is MainPage page && await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync) is { } failure)

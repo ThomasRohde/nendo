@@ -24,7 +24,7 @@
 /* Prose, so it wraps and keeps the breaks the author typed. */
 .about-file-purpose { margin: 0 0 20px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .about-file-empty { margin: 0 0 20px; color: var(--muted); line-height: 1.55; }
-/* The file's icon and, where the file can change, its colour and letter (W-089). The badge
+/* The file's icon and, where the file can change, its colour and letter. The badge
    keeps the icon's proportions at 48px: DesktopFileIcon.BadgeFor. */
 .about-file-look { display: grid; gap: 14px; margin: 0 0 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 .look-summary { display: flex; gap: 14px; align-items: center; }
@@ -55,7 +55,7 @@
 .look-letter input[aria-invalid="true"] { border-color: var(--danger); }
 .look-letter small { grid-column: 1 / -1; color: var(--muted); }
 .look-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-/* A file's own picture (W-001): drawn whole in the icon's square, and the summary takes a dropped one. */
+/* A file's own picture: drawn whole in the icon's square, and the summary takes a dropped one. */
 .look-picture img { border-radius: var(--radius-small); }
 .look-picture-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .about-file-look.look-drop-ready .look-summary { border-radius: var(--radius-panel); outline: 2px dashed var(--cobalt); outline-offset: 4px; }

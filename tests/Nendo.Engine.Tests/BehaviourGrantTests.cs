@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S6 of ADR-0008: nothing runs a file's automatic actions without this
+/// ADR-0008: nothing runs a file's automatic actions without this
 /// device's consent.
 /// <para>
 /// The property under test is narrow and absolute. A file may carry any definitions

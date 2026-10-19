@@ -1,7 +1,7 @@
 # Drives the Workbench's shell, Use screens and Agent page against the browser preview host and
-# measures what the broad review of 2026-10-10 found wrong in them (W-206): focus kept across
+# measures focus kept across
 # redraws, menus that Escape closes on their own, the redraw hold over the breadcrumb pickers,
-# the tab strip and the File menu in a narrow window, and more. Each check names its finding.
+# the tab strip and the File menu in a narrow window, and more. Each check is named for what it measures.
 #
 # It runs the Vite dev server rather than the built bundle, so a probe can reach the shell's own
 # module (the redraw hold, a redraw on demand) as the page itself does: one module instance, one

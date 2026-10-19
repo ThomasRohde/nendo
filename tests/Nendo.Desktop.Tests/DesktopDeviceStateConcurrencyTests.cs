@@ -11,7 +11,7 @@ namespace Nendo.Desktop.Tests;
 public sealed class DesktopDeviceStateConcurrencyTests
 {
     /// <summary>
-    /// R2SP-07. A document is replaced by moving a stage over it, and Windows refuses that move
+    /// A document is replaced by moving a stage over it, and Windows refuses that move
     /// while any reader has the document open, shared for delete or not. Readers take no lock and
     /// every window polls some of these documents, so a save failed now and then: the custom-view
     /// switch said it applied for this session only, and a kept port or level was lost silently.
@@ -65,7 +65,7 @@ public sealed class DesktopDeviceStateConcurrencyTests
     }
 
     /// <summary>
-    /// R2SP-07. The recent-file list is written by its own code, which another window's read of
+    /// The recent-file list is written by its own code, which another window's read of
     /// the list -- a start screen, a Jump List refresh -- refused the same way, and the entry was
     /// dropped without a word.
     /// </summary>
@@ -109,7 +109,7 @@ public sealed class DesktopDeviceStateConcurrencyTests
     }
 
     /// <summary>
-    /// R2SP-06. The view-failure and agent-failure logs read, appended and moved a copy over the
+    /// The view-failure and agent-failure logs read, appended and moved a copy over the
     /// log with no lock across processes. One failure reaches every window at once when the
     /// browser process they share exits, so each window's line replaced the others' and the
     /// losers' stages stayed in the device-state folder.

@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// The person's notice of a view's download (F-237). WebView2's own downloads panel is never shown,
+/// The person's notice of a view's download. WebView2's own downloads panel is never shown,
 /// so when a file a view saved is complete, the Workbench is told its name and folder, and can ask
 /// for it to be shown in Explorer. The page names a file by an identifier this window gave it,
 /// never by a path.

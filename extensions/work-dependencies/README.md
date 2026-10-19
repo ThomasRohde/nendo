@@ -72,8 +72,8 @@ the view's title, and on their keys. Enter in Nendo's search box opens the first
 right-click on a work item opens Nendo's menu, with Open work item and the item's record
 commands, a spent one greyed. The summary line is Nendo's row's text, and the explanation
 is behind About, shown over the drawing until Escape; the drawing starts at the top of the
-frame. A problem reading the file stays in the frame, whole. On an older Nendo the view
-shows its own controls and lines, as it always has.
+frame. A problem reading the file stays in the frame, whole. On a Nendo without the toolbar
+the view shows its own controls and lines.
 
 ## What it reads
 
@@ -89,7 +89,7 @@ installs:
   changes, and keeps the selected item selected while it is still there;
 - `nendo.ui.openRecord(entityId, recordId)`: opening the selected item;
 - `nendo.commands.run(commandId, record)`: running a record command on the selected item
-  (ADR-0013 Phase 3), since 2.1.0.
+  (ADR-0013 Phase 3).
 
 It changes records only through the file's own record commands. A read that Nendo refuses
 is shown in the summary line, and a refused command in the line below the drawing.
@@ -114,22 +114,16 @@ to a dependency record type whose two Reference fields both point at Work items.
 
 ## What measures it
 
-`pwsh ./tools/Review-WorkDependencies.ps1` serves this folder on one origin and a
-fixture broker on another, and runs the real `api.js` between them in Playwright
-(msedge). Its fixture carries a chain, an isolated item, a three-item cycle, an item
-behind that cycle, a duplicate link, a markup-shaped label and an initiative to group
-by. It measures that ELK laid the drawing out; that every link runs at right angles from
-the blocker's edge to the blocked item's edge and no two items overlap, ungrouped and
-grouped; that the item linked to nothing is on the shelf; that each group's box holds
-exactly its items; that Filter, Linked only, Longest chain and Find do what they say;
-that the grouping survives a reload; and the layering, exact cycle membership and cycle
-edges, the summary counts, status names and
-tones read from the schema, exactly one `ui.openRecord` per selection, Focus dimming,
-keyboard traversal, the text alternative, non-selectable chrome, a re-read only after a
-`changes` event that keeps the selection, one read for a burst of changes, a measured
-colour change on a dark `theme` event, the empty state, a refused read shown as text
-and a 512×384 window. It also measures the zoom and pan and the keyboard kept across a
-re-read, one tab stop with each arrow reaching the nearest item that way, a link outside
-the view counted in the summary, one item drawn at the centre, a second command pressed the
-moment the first is done sent at the new version, and the keyboard kept on a command button
-and a status chip pressed by keyboard. It runs inside `Test-Production.ps1`.
+`pwsh ./tools/Review-WorkDependencies.ps1`, inside `Test-Production.ps1`, serves this folder
+on one origin and a fixture broker on another, and runs the real `api.js` between them in
+Playwright (msedge). Its fixture carries a chain, an isolated item, a three-item cycle, an
+item behind that cycle, a duplicate link, a markup-shaped label and an initiative to group
+by. It measures that ELK laid the drawing out; that every link runs at right angles from the
+blocker's edge to the blocked item's edge and no two items overlap, ungrouped and grouped;
+the shelf; each group's box; Filter, Linked only, Longest chain and Find; the grouping across
+a reload; the layering, exact cycle membership and cycle edges, the summary counts, status
+names and tones from the schema; one `ui.openRecord` per selection; Focus dimming, the
+keyboard and the text alternative; re-reads after `changes` (one for a burst) that keep the
+selection, the zoom and pan, and the keyboard; the dark theme, the empty state, a refused
+read and a 512×384 window; a link outside the view counted in the summary; and a second
+command pressed the moment the first is done, sent at the new version.

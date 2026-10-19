@@ -6,13 +6,13 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-164: the 2026-10-05 review by a team that built an app through MCP alone, without the
-/// repository. One measuring guard per filed part.
+/// What a team that built an app through MCP alone, without the repository, needed. One
+/// measuring guard per part.
 /// </summary>
 [TestClass]
 public sealed class AppBuilderReviewTests
 {
-    /// <summary>W-167: validate says isValid on the wire, true when previewable and false when invalid.</summary>
+    /// <summary>Validate says isValid on the wire, true when previewable and false when invalid.</summary>
     [TestMethod]
     public async Task ValidateSaysIsValidOnTheWire()
     {
@@ -44,7 +44,7 @@ public sealed class AppBuilderReviewTests
     }
 
     /// <summary>
-    /// W-165: the byte caps on record values are published, counted as stored rather than as
+    /// The byte caps on record values are published, counted as stored rather than as
     /// sent, and refused with a code that names the cap and the size.
     /// </summary>
     [TestMethod]
@@ -57,14 +57,14 @@ public sealed class AppBuilderReviewTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var limits = JsonDocument.Parse((await client.ReadResourceAsync("nendo://application/vocabulary"))
             .Contents.OfType<TextResourceContents>().Single().Text).RootElement.GetProperty("limits");
-        // As large as the request body since 2026-10-13 (R2AP-03), so an agent writes back what the person stores.
+        // As large as the request body, so an agent writes back what the person stores.
         Assert.AreEqual(256 * 1024, limits.GetProperty("recordValueBytes").GetInt32());
         Assert.AreEqual(256 * 1024, limits.GetProperty("recordValuesBytes").GetInt32());
         Assert.AreEqual(256 * 1024, limits.GetProperty("requestBodyBytes").GetInt32());
         var session = await AcquireAsync(client);
 
-        // 16,384 × ø is 32 KiB as stored, whatever escaping the client's serializer used: the old
-        // cap, refused from 16,385 until 2026-10-13. A value the person stores is written back now.
+        // 16,384 × ø is 32 KiB as stored, whatever escaping the client's serializer used: past a
+        // 32 KiB cap. A value the person stores is written back.
         await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
         {
             ["entityId"] = "texts", ["recordId"] = "at-old-cap", ["values"] = new { a = new string('ø', 16 * 1024 + 1) }, ["idempotencyKey"] = "at-old-cap",
@@ -85,7 +85,7 @@ public sealed class AppBuilderReviewTests
         Assert.AreEqual(2L, NendoDataMutationService.StoredBytes("ø"), "A value is counted as stored, not as escaped.");
     }
 
-    /// <summary>W-165: a tool call over the request body cap is a refused tool result under its own id, not a transport failure.</summary>
+    /// <summary>A tool call over the request body cap is a refused tool result under its own id, not a transport failure.</summary>
     [TestMethod]
     public async Task AToolCallOverTheBodyCapIsARefusedToolResult()
     {
@@ -120,7 +120,7 @@ public sealed class AppBuilderReviewTests
     }
 
     /// <summary>
-    /// W-169: an outside author asked for a per-user list of running instances and a stable port,
+    /// An outside author asked for a per-user list of running instances and a stable port,
     /// both of which existed unannounced. The public guide names the folder the host actually
     /// writes; the skill and the instances read point at that guide, since the protocol carries no
     /// path of any kind.

@@ -35,14 +35,14 @@ const result = await esbuild.build({
   jsx: 'automatic', outfile: out, logLevel: 'warning', metafile: true,
   alias: { '@archi': path.join(ARCHI_ONLINE, 'src') },
   // Every id archi-online makes is a record ID, `ar-id-…`, as the importer names what it loads,
-  // so a new object names its record before it is written (W-111).
+  // so a new object names its record before it is written.
   plugins: [{ name: 'record-ids', setup(build) {
     const idModule = path.join(ARCHI_ONLINE, 'src', 'model', 'id.ts');
     build.onLoad({ filter: /[\\/]model[\\/]id\.ts$/ }, args => path.resolve(args.path) === idModule
       ? { contents: `export function newId(): string { return 'ar-id-' + crypto.randomUUID().replace(/-/g, ''); }`, loader: 'ts' }
       : undefined);
   } }, { name: 'visualiser-without-saving', setup(build) {
-    // W-118: the Visualiser's SVG export is archi-online's own (VisualiserPanel.tsx), whose module
+    // The Visualiser's SVG export is archi-online's own (VisualiserPanel.tsx), whose module
     // also saves files through archi-online's persistence, which brings the Exchange schemas. The
     // workbench saves through the view's own downloads, so that one import is stood in for there.
     const panel = path.join(ARCHI_ONLINE, 'src', 'ui', 'VisualiserPanel.tsx');
@@ -52,7 +52,7 @@ const result = await esbuild.build({
       `export function saveBlobToDisk(): Promise<boolean> { throw new Error('The workbench saves through its own downloads.'); }
        export const sanitizeFileName = (name: string) => name;` }));
   } }, { name: 'elk-in-a-worker', setup(build) {
-    // archi-online's layouts load ELK whole on the page; here they run it in a worker (W-115).
+    // archi-online's layouts load ELK whole on the page; here they run it in a worker.
     build.onResolve({ filter: /^elkjs\/lib\/elk\.bundled\.js$/ }, () => ({ path: path.join(import.meta.dirname, 'canvas', 'elk.ts') }));
   } }],
   nodePaths: [path.join(ARCHI_ONLINE, 'node_modules')],
@@ -65,7 +65,7 @@ const result = await esbuild.build({
 const bytes = Object.values(result.metafile.outputs)[0].bytes;
 console.log(`${out}: ${(bytes / 1024).toFixed(0)} KiB from archi-online ${head.slice(0, 7)}`);
 
-// W-115: the ELK worker the layouts run in, from the elkjs release whose API the bundle carries,
+// The ELK worker the layouts run in, from the elkjs release whose API the bundle carries,
 // copied unchanged with its licence. extensions/archi/vendor/elkjs/README.md records the hashes.
 const elkjs = path.dirname(require.resolve('elkjs/package.json'));
 const elkVersion = JSON.parse(readFileSync(path.join(elkjs, 'package.json'), 'utf8')).version;
@@ -76,7 +76,7 @@ for (const [from, to] of [['lib/elk-worker.min.js', 'elk-worker.min.js'], ['LICE
   console.log(`${path.join(elkOut, to)}: elkjs ${elkVersion}, sha256 ${createHash('sha256').update(readFileSync(path.join(elkOut, to))).digest('hex')}`);
 }
 
-// W-121: the Open Exchange schema check, a file of its own that the workbench loads only when it
+// The Open Exchange schema check, a file of its own that the workbench loads only when it
 // checks an export: archi-online's validation, libxml2-wasm (MIT; libxml2 itself MIT) with its
 // WebAssembly inlined, and Archi 5.9's five schemas, which archi-online imports as text (`?raw`).
 const xsdOut = path.join(path.dirname(out), 'xsd.js');

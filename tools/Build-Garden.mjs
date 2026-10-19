@@ -131,7 +131,7 @@ async function compare(file) {
  * (each put names the content it replaces, so a newer package is never overwritten), the Graph
  * screen moved onto the Garden package, the retired Dependency graph package taken out, the
  * native front page replaced by the Overview view, which then opens the file, and the lists of the
- * derived types replaced by the Agenda and Tend screens (W-184).
+ * derived types replaced by the Agenda and Tend screens.
  */
 async function upgrade(file, dryRun, skipIndex = false) {
   const listing = await file.read.json('nendo://application/extensions');
@@ -179,7 +179,7 @@ async function upgrade(file, dryRun, skipIndex = false) {
     operations.push(op('ui.addNode', { surfaceId: 'garden', nodeId: HOME_VIEW, parentNodeId: null, kind: 'extensionView', beforeNodeId: 'gd.garden',
       properties: { definitionVersion: 3, title: HOME_TITLE, packageId: PACKAGE_ID, entityId: 'gd.note', opensFile: true } }));
   }
-  // W-184: the derived types' lists go, so Use offers them no place, and the Agenda and Tend come in.
+  // The derived types' lists go, so Use offers them no place, and the Agenda and Tend come in.
   for (const nodeId of RETIRED_SCREENS) if (await file.read.hasNode(nodeId)) operations.push(op('ui.removeNode', { surfaceId: 'garden', nodeId }));
   const missing = [];
   for (const screen of LIST_SCREENS) if (!await file.read.hasNode(screen.nodeId)) missing.push(screen);

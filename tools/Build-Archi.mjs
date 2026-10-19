@@ -1,4 +1,4 @@
-// Builds workspace/Archi.nendo from an empty file over MCP alone (W-107): the ArchiMate 3.2
+// Builds workspace/Archi.nendo from an empty file over MCP alone: the ArchiMate 3.2
 // metamodel as record types, its screens, and the records every Archi file starts with.
 //
 //   node tools/Build-Archi.mjs                 every stage not yet applied, then the seed
@@ -169,7 +169,7 @@ async function compare(file) {
     if (total !== keeps) problems.push(`a new file keeps ${total} records, not ${keeps}`);
     if (newFile.conflictCount !== 0) problems.push(`${newFile.conflictCount} kept records point at records a new file leaves out`);
   } else problems.push('describe has no newFile section; is the host older than 1.41.0?');
-  // W-105: the relationship table as records, and the rule that reads them.
+  // The relationship table as records, and the rule that reads them.
   const rules = (await file.read.json('nendo://application/entity/ar.rule/aggregate?aggregate=count')).value;
   const expected = allowedRelationships().length;
   if (Number(rules) !== expected) problems.push(`${rules} allowed relationships, not ${expected}`);
@@ -182,7 +182,7 @@ async function compare(file) {
 }
 
 // The workbench package, with the screen that shows it the first time: tools/Put-NendoPackage.mjs
-// proposes only the files that differ, and accepts at Unattended as the stages do. Since W-106 the
+// proposes only the files that differ, and accepts at Unattended as the stages do. The
 // screen is a view of the file that the file opens on; the View type's screen it replaces goes.
 async function workbench(file, dryRun) {
   const present = await file.read.hasNode(WORKBENCH_SCREEN);

@@ -54,7 +54,7 @@ export function parseSearch(text: string): { required: Term[]; excluded: Term[] 
   }
   const searchable = tokens.filter((token) => words(token.text).length > 0);
   // Only the last thing typed is still being typed, and only while nothing follows it, as the
-  // Engine reads it: 'garden -weed' is two finished words (ESS-07).
+  // Engine reads it: 'garden -weed' is two finished words.
   const last = tokens[tokens.length - 1];
   const lastOpen = last !== undefined && !last.excluded && !last.phrase && words(last.text).length > 0 && !/\s$/.test(text);
   const required: Term[] = [];

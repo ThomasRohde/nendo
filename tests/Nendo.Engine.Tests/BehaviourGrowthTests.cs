@@ -39,7 +39,7 @@ public sealed class BehaviourGrowthTests
     }
 
     /// <summary>
-    /// ADR-0008, 2026-09-20 amendment, through the service a screen reads: the same
+    /// ADR-0008, through the service a screen reads: the same
     /// empty input reads as an empty result under a calculation declared to allow one,
     /// and as calculation-missing-input under one declared always to answer. The
     /// planner's unrated work items are the first case.
@@ -96,7 +96,7 @@ public sealed class BehaviourGrowthTests
             complete["kind"] = shape.Kind.ToString();
             if (shape.Aggregate is { } aggregate) complete["aggregate"] = aggregate.ToString();
             // A sum or filtered count names its member one of two ways, a stored field or a
-            // calculated one (2026-10-10): neither is required alone, and one of them is.
+            // calculated one: neither is required alone, and one of them is.
             var member = new[] { "valueFieldId", "predicateFieldId" }.FirstOrDefault(key => shape.OptionalKeys.Contains(key));
             if (member is not null)
             {

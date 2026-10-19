@@ -7,8 +7,7 @@ namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
 /// The change-set lifecycle as an agent meets it, measured against the authoring service
-/// directly (W-227, the broad review's MCP authoring findings). Each case names the finding
-/// whose defect it measures.
+/// directly. Each case measures one defect of the lifecycle.
 /// </summary>
 [TestClass]
 public sealed class AuthoringContractReviewTests
@@ -26,12 +25,12 @@ public sealed class AuthoringContractReviewTests
             Op("ui.moveNode", new { surfaceId = before.SurfaceId, nodeId = "dealOpenStage", position = 9 })));
         var moved = await rig.ValidateAsync(reorder.ChangeSetId);
         Assert.AreEqual(NendoProposalState.Previewable, moved.State,
-            "MAA-05: a move that left parentNodeId out was read as a move to the root. " +
+            "A move that left parentNodeId out was read as a move to the root. " +
             string.Join(" | ", moved.Diagnostics.Select(value => $"{value.Code} {value.Message}")));
         await rig.AcceptAsync(moved);
 
         var after = (await rig.Workspace.Service.GetDefinitionSnapshotAsync()).UiNodes.Single(node => node.NodeId == "dealOpenStage");
-        Assert.AreEqual("dealOpen", after.ParentNodeId, "MAA-05: the node left its list.");
+        Assert.AreEqual("dealOpen", after.ParentNodeId, "The node left its list.");
         Assert.AreEqual(9, after.Position);
     }
 
@@ -47,8 +46,8 @@ public sealed class AuthoringContractReviewTests
         await rig.AddAsync(begun.ChangeSetId, Mutation("Place one beside it, position null",
             Op("ui.addNode", new { surfaceId = "notes2", nodeId = "notesOther", kind = "recordList", afterNodeId = "notesAll", position = (int?)null, beforeNodeId = (string?)null })));
 
-        // Only null anchors is no placement, and a new node given none goes after its siblings (W-245;
-        // MAA-04 refused it for the missing position, in the Engine's words).
+        // Only null anchors is no placement, and a new node given none goes after its siblings
+        // rather than being refused for the missing position.
         await rig.AddAsync(begun.ChangeSetId, Mutation("Only null anchors",
             Op("ui.addNode", new { surfaceId = "notes3", nodeId = "notesThird", kind = "recordList", parentNodeId = (string?)null, beforeNodeId = (string?)null })));
     }
@@ -67,10 +66,10 @@ public sealed class AuthoringContractReviewTests
         Assert.AreNotEqual(first.CapturedDefinitionRevision, revision, "The other proposal moved the file.");
 
         var validated = await rig.ValidateAsync(first.ChangeSetId);
-        Assert.AreEqual(NendoProposalState.Previewable, validated.State, "MAA-02: a draft the file moved under could never be validated.");
+        Assert.AreEqual(NendoProposalState.Previewable, validated.State, "A draft the file moved under could never be validated.");
         Assert.AreEqual(revision, validated.CapturedDefinitionRevision);
         var recaptured = validated.Diagnostics.SingleOrDefault(value => value.Code == "NCS001");
-        Assert.IsNotNull(recaptured, "MAA-02 review: the draft was validated at a newer revision and nothing said so.");
+        Assert.IsNotNull(recaptured, "The draft was validated at a newer revision and nothing said so.");
         Assert.AreEqual(NendoDiagnosticSeverity.Warning, recaptured.Severity);
         StringAssert.Contains(recaptured.Message, $"from revision {first.CapturedDefinitionRevision} to {revision}");
 
@@ -79,12 +78,12 @@ public sealed class AuthoringContractReviewTests
         await rig.AcceptAsync(validated);
         var stale = await Assert.ThrowsAsync<NendoAgentAuthoringException>(() => rig.ValidateAsync(pinned.ChangeSetId));
         Assert.AreEqual("CHANGE_SET_STALE", stale.Code);
-        StringAssert.Contains(stale.Message, "nendo.change_set.reject", "MAA-02: the refusal names no way out.");
+        StringAssert.Contains(stale.Message, "nendo.change_set.reject", "The refusal names no way out.");
         StringAssert.Contains(stale.Message, "mutation 0");
     }
 
     /// <summary>
-    /// MAA-02, review: add_operations resolves placement when the operations arrive, so a draft
+    /// <c>add_operations</c> resolves placement when the operations arrive, so a draft
     /// holding a placement the host worked out is not captured again silently: replayed at the
     /// new revision it would put the node back where the person moved it from.
     /// </summary>
@@ -111,7 +110,7 @@ public sealed class AuthoringContractReviewTests
         Assert.AreNotEqual(revision, (await rig.Workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision);
 
         var stale = await Assert.ThrowsAsync<NendoAgentAuthoringException>(() => rig.ValidateAsync(reorder.ChangeSetId),
-            "MAA-02 review: the draft was captured again and would move the name back into the section the person took it out of.");
+            "The draft was captured again and would move the name back into the section the person took it out of.");
         Assert.AreEqual("CHANGE_SET_STALE", stale.Code);
         StringAssert.Contains(stale.Message, "mutation 0");
         StringAssert.Contains(stale.Message, "send the placement again");
@@ -120,7 +119,7 @@ public sealed class AuthoringContractReviewTests
     }
 
     /// <summary>
-    /// MAA-06, review: a reference board draws no column when the target type holds more records
+    /// A reference board draws no column when the target type holds more records
     /// than the ceiling, counted before any filter, as the renderer counts them.
     /// </summary>
     [TestMethod]
@@ -129,7 +128,7 @@ public sealed class AuthoringContractReviewTests
         await using var rig = await AuthoringRig.StartAsync();
         var shape = await rig.ReferenceBoardShapeAsync(30, "client07");
         StringAssert.Contains(shape, "30 of them, more than the 24 a board draws, so it would draw none",
-            $"MAA-06 review: the shape counted the filtered columns. Shape: {shape}");
+            $"The shape counted the filtered columns. Shape: {shape}");
     }
 
     [TestMethod]
@@ -138,11 +137,11 @@ public sealed class AuthoringContractReviewTests
         await using var rig = await AuthoringRig.StartAsync();
         var shape = await rig.ReferenceBoardShapeAsync(3, "clientMissing");
         StringAssert.Contains(shape, "the board's own filter excludes every column",
-            $"MAA-06 review: an empty board read as a type with no records. Shape: {shape}");
+            $"An empty board read as a type with no records. Shape: {shape}");
     }
 
     /// <summary>
-    /// MAA-09, review: the person's accept reaches the authoring service through the host's own
+    /// The person's accept reaches the authoring service through the host's own
     /// queue-change wiring; the count reads without pruning, so only that wiring can empty it.
     /// </summary>
     [TestMethod]
@@ -169,7 +168,7 @@ public sealed class AuthoringContractReviewTests
 
         // As the Desktop accepts: through the store, never the authoring service.
         Assert.IsTrue((await store.PromoteAsync(workspace.Service, proposal.ProposalId, proposal.OperationDigest)).Applied);
-        Assert.AreEqual(0, host.KeptProposalCount, "MAA-09: the person's accept left the operations held until the next agent call.");
+        Assert.AreEqual(0, host.KeptProposalCount, "The person's accept left the operations held until the next agent call.");
     }
 
     [TestMethod]
@@ -192,7 +191,7 @@ public sealed class AuthoringContractReviewTests
         Assert.AreEqual(NendoProposalState.Invalid, invalid.State);
         var refusal = invalid.Diagnostics.First(value => value.OperationId is not null);
         StringAssert.Contains(refusal.Hint, "mutation 2 as sent",
-            $"MAA-03: {refusal.OperationId} cannot be mapped back to the mutation amend takes. Hint: {refusal.Hint}");
+            $"{refusal.OperationId} cannot be mapped back to the mutation amend takes. Hint: {refusal.Hint}");
     }
 
     [TestMethod]
@@ -220,7 +219,7 @@ public sealed class AuthoringContractReviewTests
 
         var again = await rig.ValidateAsync(begun.ChangeSetId, "validate-after-cancel");
         Assert.AreEqual(NendoProposalState.Previewable, again.State,
-            "MAA-07: a revalidate cancelled after its reject lost the proposal and its operations.");
+            "A revalidate cancelled after its reject lost the proposal and its operations.");
         Assert.HasCount(1, rig.Proposals.Snapshot());
     }
 
@@ -232,16 +231,16 @@ public sealed class AuthoringContractReviewTests
         await rig.AddAsync(accepted.ChangeSetId, Mutation("Create notes", Op("schema.createEntity", new { entityId = "note", displayName = "Note" })));
         var proposal = await rig.ValidateAsync(accepted.ChangeSetId);
         await rig.AcceptAsync(proposal);
-        Assert.AreEqual(0, rig.Authoring.KeptProposalCount, "MAA-09: the person's accept left the operations held.");
+        Assert.AreEqual(0, rig.Authoring.KeptProposalCount, "The person's accept left the operations held.");
         var preview = await rig.Authoring.PreviewAsync(rig.Session, rig.LeaseId, accepted.ChangeSetId, CancellationToken.None);
-        Assert.AreEqual(NendoProposalState.Active, preview.State, "MAA-09: preview did not say the proposal was accepted.");
+        Assert.AreEqual(NendoProposalState.Active, preview.State, "Preview did not say the proposal was accepted.");
         Assert.AreEqual(accepted.ChangeSetId, preview.ChangeSetId);
 
         var rejected = await rig.BeginAsync("Tasks");
         await rig.AddAsync(rejected.ChangeSetId, Mutation("Create tasks", Op("schema.createEntity", new { entityId = "task", displayName = "Task" })));
         var second = await rig.ValidateAsync(rejected.ChangeSetId);
         await rig.Proposals.RejectAsync(rig.Workspace.Service, second.ProposalId);
-        Assert.AreEqual(0, rig.Authoring.KeptProposalCount, "MAA-09: the person's reject left the operations held.");
+        Assert.AreEqual(0, rig.Authoring.KeptProposalCount, "The person's reject left the operations held.");
         var refused = await Assert.ThrowsAsync<NendoAgentAuthoringException>(() =>
             rig.Authoring.RevalidateAsync(rig.Session, rig.LeaseId, rejected.ChangeSetId, "revalidate-rejected", CancellationToken.None));
         StringAssert.Contains(refused.Message, second.ProposalId);
@@ -255,7 +254,7 @@ public sealed class AuthoringContractReviewTests
         var begun = await rig.BeginAsync("Recolour the file");
         var look = await Assert.ThrowsAsync<NendoValidationException>(() => rig.AddAsync(begun.ChangeSetId,
             Mutation("Teal", Op("application.setLook", new { tone = "teal" }))));
-        StringAssert.Contains(look.Message, "letter", "MAA-10: setLook without letter reset the letter.");
+        StringAssert.Contains(look.Message, "letter", "setLook without letter reset the letter.");
         var purpose = await Assert.ThrowsAsync<NendoValidationException>(() => rig.AddAsync(begun.ChangeSetId,
             Mutation("Say nothing", Op("application.setPurpose", new { }))));
         StringAssert.Contains(purpose.Message, "purpose");
@@ -284,7 +283,7 @@ public sealed class AuthoringContractReviewTests
                 Op("extension.putFile", new { packageId = "org.example.parts", path = "view.js", text = second, append = true })));
         var validated = await rig.ValidateAsync(begun.ChangeSetId);
         Assert.AreEqual(NendoProposalState.Previewable, validated.State,
-            "MAA-11: " + string.Join(" | ", validated.Diagnostics.Select(value => value.Message)));
+            string.Join(" | ", validated.Diagnostics.Select(value => value.Message)));
     }
 
     [TestMethod]
@@ -295,11 +294,11 @@ public sealed class AuthoringContractReviewTests
         await rig.AddAsync(begun.ChangeSetId, Mutation("Create notes", Op("schema.createEntity", new { entityId = "note", displayName = "Note" })));
         var owner = NendoTransportIdentity.Pseudonym(rig.Session);
         var validated = await rig.ValidateAsync(begun.ChangeSetId);
-        Assert.AreEqual((begun.ChangeSetId, owner), (validated.ChangeSetId, validated.Owner), "MAA-13: validate");
+        Assert.AreEqual((begun.ChangeSetId, owner), (validated.ChangeSetId, validated.Owner), "validate");
         var preview = await rig.Authoring.PreviewAsync(rig.Session, rig.LeaseId, begun.ChangeSetId, CancellationToken.None);
-        Assert.AreEqual((begun.ChangeSetId, owner), (preview.ChangeSetId, preview.Owner), "MAA-13: preview");
+        Assert.AreEqual((begun.ChangeSetId, owner), (preview.ChangeSetId, preview.Owner), "preview");
         var revalidated = await rig.Authoring.RevalidateAsync(rig.Session, rig.LeaseId, begun.ChangeSetId, "revalidate", CancellationToken.None);
-        Assert.AreEqual((begun.ChangeSetId, owner), (revalidated.ChangeSetId, revalidated.Owner), "MAA-13: revalidate");
+        Assert.AreEqual((begun.ChangeSetId, owner), (revalidated.ChangeSetId, revalidated.Owner), "revalidate");
     }
 
     [TestMethod]
@@ -311,7 +310,7 @@ public sealed class AuthoringContractReviewTests
             drafts.Add(await rig.BeginAsync($"Draft {index}"));
         var refused = await Assert.ThrowsAsync<NendoAgentAuthoringException>(() => rig.BeginAsync("One too many"));
         Assert.AreEqual("DRAFT_LIMIT", refused.Code);
-        StringAssert.Contains(refused.Message, drafts[0].ChangeSetId, "MAA-15: the refusal names no draft to reject.");
+        StringAssert.Contains(refused.Message, drafts[0].ChangeSetId, "The refusal names no draft to reject.");
         StringAssert.Contains(refused.Message, NendoAuthoringLimits.Current.DraftsPerSession.ToString(System.Globalization.CultureInfo.InvariantCulture));
         StringAssert.Contains(refused.Message, "release the lease");
     }
@@ -336,7 +335,7 @@ public sealed class AuthoringContractReviewTests
         Assert.AreEqual(NendoProposalState.Previewable, validated.State,
             string.Join(" | ", validated.Diagnostics.Select(value => $"{value.Code} {value.Message}")));
         var view = validated.Preview.Surfaces.SingleOrDefault(surface => surface.NodeId == "helloView");
-        Assert.IsNotNull(view, "MAA-16: a proposal that adds a custom view as a screen of the file listed no screen.");
+        Assert.IsNotNull(view, "A proposal that adds a custom view as a screen of the file listed no screen.");
         Assert.AreEqual(("extensionView", "Hello", (string?)null), (view.Kind, view.Title, view.EntityId));
     }
 
@@ -350,7 +349,7 @@ public sealed class AuthoringContractReviewTests
             Op("schema.addField", new { entityId = "kind", fieldId = "kindName", displayName = "Name", storageKind = "Text", required = true, presentation = "singleLine", options = Array.Empty<string>() })));
         var refused = await Assert.ThrowsAsync<NendoValidationException>(() => rig.AddAsync(begun.ChangeSetId, Mutation("Seed one kind",
             Op("data.createRecord", new { entityId = "kind", recordId = "kindBug", values = new { kindName = "Bug" }, keptInNewFiles = true }))));
-        StringAssert.Contains(refused.Message, "data.setKeptInNewFiles", "MAA-18: the refusal did not name the operation that keeps a record.");
+        StringAssert.Contains(refused.Message, "data.setKeptInNewFiles", "The refusal did not name the operation that keeps a record.");
 
         // And the operation it names does it, in the same mutation as the create.
         await rig.AddAsync(begun.ChangeSetId, Mutation("Seed one kind and keep it",
@@ -362,7 +361,7 @@ public sealed class AuthoringContractReviewTests
     }
 
     /// <summary>
-    /// MAA-14: an invalid validate discards its clone, and the activity entry named it anyway, a
+    /// An invalid validate discards its clone, and the activity entry named it anyway, a
     /// proposal no read lists. The result still carries the ID, as its description now says.
     /// </summary>
     [TestMethod]
@@ -387,11 +386,11 @@ public sealed class AuthoringContractReviewTests
         Assert.AreEqual(NendoProposalState.Invalid, invalid.State);
         var entry = host.GetActivities()[^1];
         Assert.AreEqual("nendo.change_set.validate", entry.Name);
-        Assert.IsNull(entry.ProposalId, $"MAA-14: the activity entry names {entry.ProposalId}, a clone already discarded.");
+        Assert.IsNull(entry.ProposalId, $"The activity entry names {entry.ProposalId}, a clone already discarded.");
     }
 
     /// <summary>
-    /// MHS-10: NENDO_HOST_CLOSED reached a queued tool call as "Agent authority rejected the
+    /// NENDO_HOST_CLOSED reached a queued tool call as "Agent authority rejected the
     /// request.", every resource read the same, and a call stopped in a host filter as the SDK's
     /// code-less internal error. Each path now gives the code and the perimeter's sentence.
     /// </summary>

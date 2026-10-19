@@ -28,7 +28,7 @@ export function readNow(): Date {
  * The person's civil day now, yyyy-MM-dd: what `today` resolves to. Every answer that can hold a
  * civil-day word is stamped with it beside its change sequence, because the file not moving does
  * not keep yesterday's 'Due today' true: a screen left open past midnight read again only on a
- * write, so the next morning it still listed yesterday's tasks (W-217).
+ * write, so the next morning it still listed yesterday's tasks.
  */
 export function readDay(): string {
   return civilDate(clock());
@@ -109,8 +109,8 @@ export function queryOperatorFor(contractOperator: string): string {
  * agree with the calendar on their wall. A Date field compares against that date,
  * `2026-09-26`. A DateTime field compares against the instant that date begins where the
  * person is, written with its offset, `2026-09-26T00:00:00+02:00`: the host refuses a
- * timestamp without an explicit zone, so the bare date refused every DateTime `today` read
- * (R-003). On a day that skips its midnight the day begins at the first local time it has.
+ * timestamp without an explicit zone, so a bare date would refuse every DateTime `today` read.
+ * On a day that skips its midnight the day begins at the first local time it has.
  * `storageKind` is the field's stored kind by name (`date`, `dateTime`); unknown, a date.
  *
  * Exported for the custom-view client (extension-api/nendo-api.ts), which resolves a view's
@@ -128,14 +128,14 @@ export function resolveClauseValue(valueKind: unknown, value: unknown, at: Date 
   }
 }
 
-/** The value kinds that name a span of days (W-248): a week starts on Monday. */
+/** The value kinds that name a span of days: a week starts on Monday. */
 export function isPeriod(valueKind: unknown): valueKind is 'thisWeek' | 'thisMonth' {
   return valueKind === 'thisWeek' || valueKind === 'thisMonth';
 }
 
 /**
  * A clause comparing a date with this week or this month, as the one filter a period's edge
- * gives (W-248). The compiler accepts only lt (before it), gte (from its start), lte (to its
+ * gives. The compiler accepts only lt (before it), gte (from its start), lte (to its
  * end) and gt (after it), so each clause stays one filter, and within a period is two clauses.
  * A Date field compares with the period's first or last civil date; a DateTime field with the
  * instant its first day begins, or the instant the day after it begins. Either spelling of an

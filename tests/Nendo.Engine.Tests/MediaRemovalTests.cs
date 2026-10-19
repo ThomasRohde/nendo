@@ -3,7 +3,7 @@ using Nendo.Engine.Storage;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Removing unused pictures (ADR-0031 point 8, W-273): a picture a current value, a deleted record
+/// Removing unused pictures (ADR-0031 point 8): a picture a current value, a deleted record
 /// or a retained operation names is never removed; one only folded history named is removed after
 /// the fold, behind a backup made first; and the file's size falls by what was removed.
 /// </summary>

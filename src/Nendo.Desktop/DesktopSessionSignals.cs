@@ -80,7 +80,7 @@ internal sealed partial class DesktopSessionController
     /// <para>
     /// The window's caption, icon, Jump List, saved placement and tray tooltip used to follow
     /// only Workbench responses, so an action from the recovery panel left them naming the
-    /// previous file (DSH-11). Not raised while the controller is being disposed.
+    /// previous file. Not raised while the controller is being disposed.
     /// </para>
     /// </summary>
     internal event Action? FileSessionChanged;
@@ -96,7 +96,7 @@ internal sealed partial class DesktopSessionController
     /// The consent a file's automatic actions need and whether it is held, as the last read
     /// under the gate found it. The shell reads this, never the coordinator's own property:
     /// that asks the approval store, which reads its file and waits on a lock another thread
-    /// may hold across a five-second wait for the device-state lock (DSH-17). Refreshed by
+    /// may hold across a five-second wait for the device-state lock. Refreshed by
     /// every view read, by an approval or withdrawal (each reads the view after it) and by the
     /// consent Unattended grants; cleared when the file closes.
     /// </summary>

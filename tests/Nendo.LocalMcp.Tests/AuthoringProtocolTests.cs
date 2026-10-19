@@ -407,7 +407,7 @@ public sealed class AuthoringProtocolTests
                 "valid-operation")));
         await workspace.Service.CreateIdeaSchemaAsync("definition-changed");
         // A draft has not been reviewed, and none of its operations pins a revision, so it is
-        // validated at the revision the file has now rather than refused as stale (MAA-02).
+        // validated at the revision the file has now rather than refused as stale.
         var moved = Result<NendoAgentProposalPreview>(await client.CallToolAsync(
             "nendo.change_set.validate",
             new Dictionary<string, object?>

@@ -3,9 +3,9 @@ using System.Diagnostics;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// ADR-0022 (W-129, W-130): a new Archi model from a copy of the committed Archi.nendo, marked
-/// as tools/Build-Archi.mjs marks it, keeps the 72 concept types, the nine top-level folders and,
-/// since W-105, the 12,829 allowed relationships its link rule reads (ADR-0026), and nothing else. Measures the file sizes and the time New takes. The file in workspace/ is
+/// ADR-0022: a new Archi model from a copy of the committed Archi.nendo, marked
+/// as tools/Build-Archi.mjs marks it, keeps the 72 concept types, the nine top-level folders and
+/// the 12,829 allowed relationships its link rule reads (ADR-0026), and nothing else. Measures the file sizes and the time New takes. The file in workspace/ is
 /// only read; NENDO_ARCHI_SOURCE names another copy, such as one taken from git while Nendo has
 /// the workspace file open.
 /// </summary>

@@ -13,7 +13,7 @@ internal readonly record struct EnvironmentValue(string Value, bool Expandable =
 /// (ADR-0030). A process's environment is a copy taken when it started, and Nendo stays in the
 /// tray across windows, so a program installed since then (Node.js adds its folders to
 /// <c>PATH</c>) stayed "not installed" and a variable set since (an API key) never reached the
-/// agent (DAE-12).
+/// agent.
 /// <para>
 /// This reads the machine's and the person's variables from the registry each time and lays them
 /// over this process's own, much as Windows builds a new sign-in's environment. Two things are

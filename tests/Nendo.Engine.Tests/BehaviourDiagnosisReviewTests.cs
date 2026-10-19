@@ -4,8 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review's smaller findings about automatic actions and calculations, built on
-/// 2026-10-13 (W-209): refusals that did not say where, definitions that installed and then
+/// Smaller guards on automatic actions and calculations: refusals that did not say where, definitions that installed and then
 /// did nothing, and reads and undos that disagreed with the rest of the file. Each case runs a
 /// real <c>.nendo</c> file through the ordinary coordinator unless it is about one formula.
 /// </summary>
@@ -210,7 +209,7 @@ public sealed class BehaviourDiagnosisReviewTests
         var ordinary = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => Edit(service, "t1", 4L));
         Assert.AreEqual("behaviour-not-approved", ordinary.Code);
 
-        // The accepted rule (2026-10-13): an undo runs no action, so it is allowed.
+        // The rule: an undo runs no action, so it is allowed.
         await Succeeds(() => service.CompensateRevisionAsync(applied.RevisionId, "undo-after-withdrawal"),
             "History's Undo was refused once approval of the actions was withdrawn, the one way back from what the action did.");
 
@@ -404,12 +403,12 @@ public sealed class BehaviourDiagnosisReviewTests
 
         foreach (var (edit, defect) in new (NendoBehaviourDefinition, string)[]
         {
-            (Sponsor("Sponsor name"), "a non-nullable traversal over an optional reference (EBH-07)"),
-            (Narrowed("Stamp when done"), "a relevant field that is not a stored field (EBH-08)"),
-            (Log("'kickoff'"), "a create step that leaves a required field empty (EBH-04)"),
-            (Note("Copy the title"), "a binding that starts from another record type (EBH-03)"),
-            (Fit("'y'"), "an assignment whose result its field cannot store (EBH-04)"),
-            (Second("Second value"), "a second calculation of one field (EBH-06)"),
+            (Sponsor("Sponsor name"), "a non-nullable traversal over an optional reference"),
+            (Narrowed("Stamp when done"), "a relevant field that is not a stored field"),
+            (Log("'kickoff'"), "a create step that leaves a required field empty"),
+            (Note("Copy the title"), "a binding that starts from another record type"),
+            (Fit("'y'"), "an assignment whose result its field cannot store"),
+            (Second("Second value"), "a second calculation of one field"),
         })
         {
             var edited = await InstallAsync(coordinator, service, edit);

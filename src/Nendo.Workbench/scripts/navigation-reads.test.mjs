@@ -4,9 +4,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// Review R-014: every move between screens re-read the History page, the Agent status and
-// compiled the definition again, and could read one record window twice, even when the file
-// had not moved. Measured through the real refreshDerived with the host replaced by a counter.
+// A move between screens on an unchanged file reads neither the History page nor the Agent
+// status, compiles nothing again and reads no record window twice. Measured through the real
+// refreshDerived with the host replaced by a counter.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const host = { calls: [], sequence: 7 };
 globalThis.navigationReadsHost = host;
@@ -49,7 +49,7 @@ function openFile() {
 const count = (method) => host.calls.filter(call => call.method === method).length;
 const reads = () => Object.fromEntries(['semantic.compile', 'history.query', 'agent.getStatus', 'data.queryRecords'].map(m => [m, count(m)]));
 
-test('R-014: a move between screens on an unchanged file reads no History, no Agent status and compiles nothing again', async () => {
+test('a move between screens on an unchanged file reads no History, no Agent status and compiles nothing again', async () => {
   openFile();
   p.state.view = 'use';
   await p.refreshDerived(0, { navigation: true });
@@ -62,7 +62,7 @@ test('R-014: a move between screens on an unchanged file reads no History, no Ag
   assert.equal(moved['semantic.compile'], 0, `The definition was compiled again with the file unchanged: ${JSON.stringify(moved)}`);
 });
 
-test('R-014: no record window is read twice in one refresh', async () => {
+test('no record window is read twice in one refresh', async () => {
   openFile();
   p.state.view = 'use';
   host.calls = [];
@@ -72,7 +72,7 @@ test('R-014: no record window is read twice in one refresh', async () => {
   assert.equal(new Set(requests).size, requests.length, `One refresh read the same window twice: ${requests.join(' | ')}`);
 });
 
-test('R-014: History and Agent are read when they are the screen, and a moved file compiles again', async () => {
+test('History and Agent are read when they are the screen, and a moved file compiles again', async () => {
   openFile();
   p.state.view = 'use';
   await p.refreshDerived(0, { navigation: true });

@@ -66,7 +66,7 @@ public sealed partial class NendoWriteCoordinator
                 // Whatever escapes here, the caller never received the proposal's ID: a clone IO
                 // error, a full volume, a cancelled preview, and also a cancel during the refusal
                 // diagnosis or during the last write of the proposal's files, which a handler
-                // beside the validation's own never saw (ECO-03). Left in place the proposal would
+                // beside the validation's own never saw. Left in place the proposal would
                 // block its own ID with "proposal-exists", refuse promotion as never-previewable,
                 // count against a restore and hold a full copy of the file until it closes. A
                 // workspace that cannot be removed right now — the failure may be the very lock
@@ -328,7 +328,7 @@ public sealed partial class NendoWriteCoordinator
 
     /// <summary>
     /// Every independent refusal in a change set that did not validate, up to
-    /// <see cref="IndependentRefusals.MaximumReported"/>, the first one first (W-010).
+    /// <see cref="IndependentRefusals.MaximumReported"/>, the first one first.
     /// <para>
     /// The clone's transaction is unusable after its first refusal, so each further
     /// refusal costs one more clone of the active file, run without what was refused and
@@ -457,10 +457,10 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// One diagnostic for a clone validation that refused. Every refusal used to
-    /// collapse into NPROP001 with a generic hint, so a field-identity collision, a
-    /// definition-revision mismatch and a UI node collision were indistinguishable
-    /// and a caller could not branch on the code. A typed precondition carries its
+    /// One diagnostic for a clone validation that refused. A refusal does not collapse
+    /// into NPROP001 with a generic hint, so a field-identity collision, a
+    /// definition-revision mismatch and a UI node collision stay distinguishable
+    /// and a caller can branch on the code. A typed precondition carries its
     /// own code and its own remedy; only an unclassified failure stays NPROP001.
     /// </summary>
     private static NendoCompilerDiagnostic ProposalDiagnostic(NendoException exception) => exception switch

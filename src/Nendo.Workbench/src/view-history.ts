@@ -33,7 +33,7 @@ export function renderHistory(): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-history-detail]'))
     button.addEventListener('click', () => void loadHistoryDetails(button.dataset.historyDetail!));
   // What was opened stays open across a redraw: the fold section's first reply redrew History and
-  // closed a list just opened (WSP-16).
+  // closed a list just opened.
   for (const [revisionId, opened] of openedDetails) drawDetails(revisionId, opened.page, opened.cursor);
 }
 
@@ -46,7 +46,7 @@ const openedDetails = fileScopedClearable(new Map<string, { page: ReadPage<Store
 function drawDetails(revisionId: string, page: ReadPage<StoredOperationSnapshot>, cursor: string | null): void {
   const slot = content.querySelector<HTMLElement>(`[data-operation-detail="${CSS.escape(revisionId)}"]`);
   if (!slot) return;
-  // A create or a restore reads as History undoes it only where History offers that Undo (R2RM-05).
+  // A create or a restore reads as History undoes it only where History offers that Undo.
   const revision = state.history.find(item => item.revisionId === revisionId);
   const offered = historyUndoOffer(revision, state.history, client.mode === 'desktop');
   slot.innerHTML = `${operationDetailsMarkup(page.items, state.session.entities, offered)}<div class="page-controls"><span>${counted(page.items.length, 'change')} shown</span><button class="text-button" data-operation-first type="button" ${cursor === null ? 'disabled' : ''}>First</button><button class="text-button" data-operation-next type="button" ${page.nextCursor === null ? 'disabled' : ''}>Next</button></div>`;
@@ -96,7 +96,7 @@ async function loadFoldPreview(): Promise<void> {
 }
 
 let usageLoading = false;
-/** What the file's pictures weigh, read again whenever the file has moved on (W-273). */
+/** What the file's pictures weigh, read again whenever the file has moved on. */
 async function loadMediaUsage(): Promise<void> {
   const key = `${state.session.fileSessionId ?? ''}:${state.session.manifest?.changeSequence ?? -1}`;
   if (usageLoading || !state.session.hasFile || mediaUsageState.key === key) return;
@@ -139,7 +139,7 @@ export async function loadHistoryDetails(revisionId: string, cursor: string | nu
   try {
     const page = await client.request<ReadPage<StoredOperationSnapshot>>('history.operations', { revisionId, limit: 50, cursor });
     // A first page cannot be stale, since a revision's operations never change: refusing it
-    // whenever the file had moved threw the person back to History's first page (WSP-16). A
+    // whenever the file had moved threw the person back to History's first page. A
     // later page continues a cursor, which the host checks against the file.
     if (cursor !== null && page.changeSequence !== state.session.manifest?.changeSequence) throw new WorkbenchHostError('stale-cursor', 'The file changed.');
     openedDetails.set(revisionId, { page, cursor });

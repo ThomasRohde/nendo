@@ -10,14 +10,14 @@ using Nendo.Engine.Tests;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-214: the MCP data tools answer as the Workbench does. Imports commit every batch against
+/// The MCP data tools answer as the Workbench does. Imports commit every batch against
 /// the file as it stands and retry by their receipts, references by a unique field follow the
 /// CSV rule, and refusals, reads and limits say what the person's own paths say.
 /// </summary>
 [TestClass]
 public sealed partial class McpDataParityTests
 {
-    /// <summary>MTD-01: a batch is resolved just before it commits, after the batches before it moved its target.</summary>
+    /// <summary>A batch is resolved just before it commits, after the batches before it moved its target.</summary>
     [TestMethod]
     [DataRow("csv")]
     [DataRow("json")]
@@ -64,7 +64,7 @@ public sealed partial class McpDataParityTests
         Assert.AreEqual(120L, (await workspace.Service.CountRecordsAsync(new NendoRecordCountQuery("tasks"))).Count);
     }
 
-    /// <summary>MTD-02: a JSON import resumed after its target was edited replays the batch that committed.</summary>
+    /// <summary>A JSON import resumed after its target was edited replays the batch that committed.</summary>
     [TestMethod]
     public async Task AJsonImportNamingATargetResumesAfterTheTargetIsEdited()
     {
@@ -100,7 +100,7 @@ public sealed partial class McpDataParityTests
         Assert.HasCount(51, (await workspace.Service.QueryRecordsAsync(new("tasks", 100))).Items, "The resume duplicated or lost a record.");
     }
 
-    /// <summary>MTD-03: a unique whole-number field is matched by its value, and a code without regard to case.</summary>
+    /// <summary>A unique whole-number field is matched by its value, and a code without regard to case.</summary>
     [TestMethod]
     public async Task AReferenceByAUniqueFieldFollowsTheCsvRule()
     {
@@ -155,7 +155,7 @@ public sealed partial class McpDataParityTests
         StringAssert.EndsWith(Text(notANumber), "NENDO_INVALID_REQUEST: Number of Projects holds whole numbers, and forty-two is not one.", StringComparison.Ordinal);
     }
 
-    /// <summary>MTD-03: a JSON import of a tree names its own earlier rows by code, within a batch and across batches.</summary>
+    /// <summary>A JSON import of a tree names its own earlier rows by code, within a batch and across batches.</summary>
     [TestMethod]
     public async Task AJsonImportNamesItsOwnEarlierRowsByCode()
     {
@@ -183,7 +183,7 @@ public sealed partial class McpDataParityTests
             "A child of the import was not put under its parent.");
     }
 
-    /// <summary>MTD-04: the export and import descriptions say a later page has no header row.</summary>
+    /// <summary>The export and import descriptions say a later page has no header row.</summary>
     [TestMethod]
     public async Task TheExportAndImportDescriptionsSayALaterPageHasNoHeader()
     {
@@ -200,7 +200,7 @@ public sealed partial class McpDataParityTests
         StringAssert.Contains(import, "only its first page has the header row", StringComparison.Ordinal);
     }
 
-    /// <summary>MTD-05: a read's refusal carries the Engine's sentence, as the tool path does.</summary>
+    /// <summary>A read's refusal carries the Engine's sentence, as the tool path does.</summary>
     [TestMethod]
     public async Task AReadRefusalCarriesTheSentenceTheToolsShow()
     {
@@ -215,7 +215,7 @@ public sealed partial class McpDataParityTests
             "NENDO_HIERARCHY_NOT_DECLARED: descendantOf reads Tasks's declared hierarchy, and Project is not its parent field.", StringComparison.Ordinal);
     }
 
-    /// <summary>MTD-06: an aggregate over or grouped by a calculated field is refused by name.</summary>
+    /// <summary>An aggregate over or grouped by a calculated field is refused by name.</summary>
     [TestMethod]
     public async Task AnAggregateOverACalculatedFieldIsRefusedByName()
     {
@@ -240,7 +240,7 @@ public sealed partial class McpDataParityTests
         }
     }
 
-    /// <summary>MTD-07: a CSV import into a record type an unaccepted proposal creates names the proposal.</summary>
+    /// <summary>A CSV import into a record type an unaccepted proposal creates names the proposal.</summary>
     [TestMethod]
     public async Task ACsvImportIntoATypeAProposalCreatesNamesTheProposal()
     {
@@ -273,7 +273,7 @@ public sealed partial class McpDataParityTests
         StringAssert.Contains(Text(refused), validated.ProposalId, StringComparison.Ordinal, "The refusal did not name the proposal that creates the record type.");
     }
 
-    /// <summary>MTD-08: a record ID twice in a JSON import is refused before any batch is written.</summary>
+    /// <summary>A record ID twice in a JSON import is refused before any batch is written.</summary>
     [TestMethod]
     public async Task ARecordIdRepeatedAcrossBatchesIsRefusedBeforeAnyWrite()
     {
@@ -295,7 +295,7 @@ public sealed partial class McpDataParityTests
         Assert.HasCount(1, (await workspace.Service.QueryRecordsAsync(new("projects", 100))).Items, "A batch was written before the duplicate was refused.");
     }
 
-    /// <summary>MTD-10 and MTD-11: an import keyed with surrounding spaces is found by get_receipt, and a replay says so.</summary>
+    /// <summary>An import keyed with surrounding spaces is found by get_receipt, and a replay says so.</summary>
     [TestMethod]
     public async Task APaddedImportKeyIsFoundByItsReceiptAndAReplaySaysItIsOne()
     {
@@ -325,7 +325,7 @@ public sealed partial class McpDataParityTests
             "An import that wrote nothing now did not say it was a replay.");
     }
 
-    /// <summary>R2AP-03 and MTD-12: an agent writes back a value the person stores, by every write and both import formats.</summary>
+    /// <summary>An agent writes back a value the person stores, by every write and both import formats.</summary>
     [TestMethod]
     public async Task AnAgentWritesBackAValueThePersonStoresByEveryPath()
     {
@@ -359,7 +359,7 @@ public sealed partial class McpDataParityTests
         Assert.AreEqual(limits.GetProperty("requestBodyBytes").GetInt32(), limits.GetProperty("recordValuesBytes").GetInt32());
     }
 
-    /// <summary>MTD-12: a CSV row past one write's value bound is refused before any batch, naming its row.</summary>
+    /// <summary>A CSV row past one write's value bound is refused before any batch, naming its row.</summary>
     [TestMethod]
     public async Task ACsvRowPastTheValueBoundIsRefusedNamingItsRow()
     {
@@ -376,7 +376,7 @@ public sealed partial class McpDataParityTests
         Assert.HasCount(1, (await workspace.Service.QueryRecordsAsync(new("projects", 10))).Items, "A row was written before the wide one was refused.");
     }
 
-    /// <summary>MTD-13 and MTD-14: an empty recordId or filter, a clause key no clause has and a bucket without its date field are refused.</summary>
+    /// <summary>An empty recordId or filter, a clause key no clause has and a bucket without its date field are refused.</summary>
     [TestMethod]
     public async Task ReadArgumentsThatWouldBeIgnoredAreRefusedByName()
     {
@@ -400,7 +400,7 @@ public sealed partial class McpDataParityTests
         }
     }
 
-    /// <summary>MTD-15: every limits.* a description names is a limit the vocabulary publishes.</summary>
+    /// <summary>Every limits.* a description names is a limit the vocabulary publishes.</summary>
     [TestMethod]
     public async Task EveryLimitADescriptionNamesIsPublished()
     {
@@ -430,7 +430,7 @@ public sealed partial class McpDataParityTests
     [GeneratedRegex(@"limits\.([a-zA-Z]+(?:\.[a-zA-Z]+)*)")]
     private static partial Regex LimitPath();
 
-    /// <summary>MTD-17: text past ASCII reads back as itself, not as escapes.</summary>
+    /// <summary>Text past ASCII reads back as itself, not as escapes.</summary>
     [TestMethod]
     public async Task TextPastAsciiReadsBackAsItself()
     {
@@ -446,7 +446,7 @@ public sealed partial class McpDataParityTests
         Assert.DoesNotContain("\\u", text, StringComparison.Ordinal);
     }
 
-    /// <summary>MTD-18: a stream that stops reading holds a bounded queue, and is ended rather than grown.</summary>
+    /// <summary>A stream that stops reading holds a bounded queue, and is ended rather than grown.</summary>
     [TestMethod]
     public void AStalledListenStreamHoldsABoundedQueueAndIsEnded()
     {
@@ -467,7 +467,7 @@ public sealed partial class McpDataParityTests
     }
 
     /// <summary>
-    /// MTD-03 (review): the unique index folds only A to Z, so "Ærø" and "ærø" can both be held. A
+    /// The unique index folds only A to Z, so "Ærø" and "ærø" can both be held. A
     /// code in its exact case finds its own record, by a tool and by a CSV import; one that matches
     /// both only when case is set aside is refused as ambiguous.
     /// </summary>
@@ -508,7 +508,7 @@ public sealed partial class McpDataParityTests
         Assert.AreEqual("upper", byCsv.Values["project"].GetString(), "The CSV import took the first of two twins rather than the one in its exact case.");
     }
 
-    /// <summary>R2AP-03 (review): a change set's record operation carries a value the person stores.</summary>
+    /// <summary>A change set's record operation carries a value the person stores.</summary>
     [TestMethod]
     public async Task AChangeSetCarriesAValueThePersonStores()
     {
@@ -546,7 +546,7 @@ public sealed partial class McpDataParityTests
         Assert.AreEqual(NendoProposalState.Previewable, validated.State);
     }
 
-    /// <summary>MTD-07 (review): a mapped field the record type calculates is refused by its own sentence.</summary>
+    /// <summary>A mapped field the record type calculates is refused by its own sentence.</summary>
     [TestMethod]
     public async Task ACsvColumnMappedToACalculatedFieldIsRefusedByName()
     {
@@ -565,7 +565,7 @@ public sealed partial class McpDataParityTests
         Assert.AreEqual("CSV column 1 maps nameLength (Name length), which Projects calculates; an import writes stored fields only.", refused.Message);
     }
 
-    /// <summary>MTD-20: a value map that repeats a field names the field.</summary>
+    /// <summary>A value map that repeats a field names the field.</summary>
     [TestMethod]
     public async Task AValueMapThatRepeatsAFieldNamesTheField()
     {
@@ -584,7 +584,7 @@ public sealed partial class McpDataParityTests
         StringAssert.EndsWith(Text(refused), "NENDO_INVALID_REQUEST: values names field name twice; send each field once.", StringComparison.Ordinal);
     }
 
-    /// <summary>MTD-21: skills/get with a uri that is not text is the caller's error, not the host's.</summary>
+    /// <summary><c>skills/get</c> with a uri that is not text is the caller's error, not the host's.</summary>
     [TestMethod]
     public void ASkillUriThatIsNotTextIsAnInvalidRequest()
     {
@@ -597,7 +597,7 @@ public sealed partial class McpDataParityTests
     }
 
     /// <summary>
-    /// R2AP-02: every precondition a data write or read can meet is on the audited list or withheld
+    /// Every precondition a data write or read can meet is on the audited list or withheld
     /// with a reason, and a write refusal reaches the agent in the words the person reads.
     /// </summary>
     [TestMethod]

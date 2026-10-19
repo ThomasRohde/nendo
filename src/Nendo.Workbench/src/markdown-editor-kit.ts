@@ -7,7 +7,7 @@ import { Marked, type marked } from 'marked';
 import { mediaUrl, parseMediaAddress } from './media-model';
 
 /**
- * What the Markdown field's editor is made of (Tiptap, ADR-0017 amendment of 2026-10-16), apart
+ * What the Markdown field's editor is made of (Tiptap, ADR-0017), apart
  * from the page: the extensions, the Markdown reader and writer, and the rule for a picture. Kept
  * free of the DOM so the round trip a stored value takes is tested in Node.
  *

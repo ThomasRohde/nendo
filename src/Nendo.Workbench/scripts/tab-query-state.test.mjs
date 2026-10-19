@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// Review R-003 (ADR-0004, 2026-10-06): a Filter pick and Studio's query belong to the place, so
+// ADR-0004: a Filter pick and Studio's query belong to the place, so
 // two tabs on one board keep their own. Driven through the real place capture (placeNow), the
 // real tab move (switchTab) and the real restore (revisitCurrent), one bundle so they share the
 // app's state, with the host replaced by a recorder.
@@ -51,7 +51,7 @@ const shownIds = () => (p.surfaceWindows.get('tasks.list')?.page.items ?? []).ma
 const lastFilter = () => host.calls.filter(call => call.method === 'data.queryRecords' && call.payload.entityId === 'tasks' && call.payload.recordId === undefined && call.payload.sortFieldId === undefined)
   .at(-1)?.payload.filters ?? [];
 
-test('R-003: two tabs on one list keep their own Filter pick and Studio query', async () => {
+test('two tabs on one list keep their own Filter pick and Studio query', async () => {
   p.state.session = { hasFile: true, fileSessionId: 'file-A', fileName: 'Tasks.nendo', manifest: { changeSequence: 3 },
     capabilities: { customSurfaces: true, readHistory: true, readData: true, mutate: true }, entities: [{ entityId: 'tasks' }], extensions: null };
   globalThis.tabQuerySession = p.state.session;
@@ -81,7 +81,7 @@ test('R-003: two tabs on one list keep their own Filter pick and Studio query', 
   }
 });
 
-test('R-003: a place recorded with no pick clears the one standing', async () => {
+test('a place recorded with no pick clears the one standing', async () => {
   p.quickFilters.delete('tasks.list');
   p.navigationTrail.load({ places: [], cursor: -1 });
   p.navigationTrail.record(p.placeNow(heading));

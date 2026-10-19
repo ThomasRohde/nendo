@@ -8,7 +8,7 @@ public sealed partial class NendoWriteCoordinator
     private readonly Dictionary<string, RecoveryExportContext> _recoveryExports = new(StringComparer.Ordinal);
 
     // Where each prepared part left off: the snapshot it read, and what the parts so far wrote and
-    // left out. A next part is only ever a continuation of one of these (R2SMA-13).
+    // left out. A next part is only ever a continuation of one of these.
     private readonly Dictionary<(string EntityId, string After), RecoveryContinuation> _recoveryContinuations = [];
 
     private sealed record RecoveryContinuation(long ChangeSequence, int Written, int Omitted);
@@ -41,7 +41,7 @@ public sealed partial class NendoWriteCoordinator
             }
             RequireRecoveryExport();
             // A saved part no longer holds its bytes or counts against the session, so a table is
-            // exported in as many parts as it needs (R2SMA-13).
+            // exported in as many parts as it needs.
             if (_recoveryExports.Values.Count(value => value.ActivatedIdentity is null) >= 32 ||
                 _recoveryExports.Values.Sum(value => value.Bytes?.Length ?? 0) >= 16 * 1024 * 1024)
                 throw new NendoPreconditionException("export-session-limit", "Close and reopen the file before preparing more recovery exports.");

@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-089. Opening a file another Nendo window had open for editing started a second process
+/// Opening a file another Nendo window had open for editing started a second process
 /// that could only refuse it and offer a read-only copy. The hand-off reads who holds the file
 /// from the write-owner sidecar and asks that window to come forward. The two-process journey
 /// is measured by Review-ShellRuntime.ps1; these hold the parts one process can reach.
@@ -86,7 +86,7 @@ public sealed class DesktopWindowHandoffTests
         Assert.IsFalse(DesktopWindowHandoff.TryShow(Environment.ProcessId));
 
     /// <summary>
-    /// R2SP-01. A launch hands a file another Nendo holds to that window through the sidecar
+    /// A launch hands a file another Nendo holds to that window through the sidecar
     /// naming it, which an open writes just after taking the instance's guard, once it has
     /// inspected the file. A second launch inside that window -- a double-click repeated while
     /// nothing showed yet -- found no owner, then met the guard, and ended beside the healthy
@@ -130,7 +130,7 @@ public sealed class DesktopWindowHandoffTests
     }
 
     /// <summary>
-    /// R2SP-01, after review. A refusal that names nobody -- a folder Nendo may not write in, a
+    /// A refusal that names nobody -- a folder Nendo may not write in, a
     /// guard it cannot make -- is offered read-only at once: no owner is looked for.
     /// </summary>
     [TestMethod]
@@ -151,7 +151,7 @@ public sealed class DesktopWindowHandoffTests
     }
 
     /// <summary>
-    /// R2SP-01, after review. A copy of a file another window has open is refused on its instance,
+    /// A copy of a file another window has open is refused on its instance,
     /// and no sidecar ever appears beside the copy: the launch looks only as long as an owner takes
     /// to write one, not the ten seconds it first waited. A wait the window ends ends with it.
     /// </summary>
@@ -190,7 +190,7 @@ public sealed class DesktopWindowHandoffTests
     }
 
     /// <summary>
-    /// R2SP-01. An owner that has said who it is and does not answer is not waited for: the
+    /// An owner that has said who it is and does not answer is not waited for: the
     /// refusal goes to the read-only offer, as it did, without the wait an owner still opening gets.
     /// </summary>
     [TestMethod]

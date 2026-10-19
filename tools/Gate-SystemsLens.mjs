@@ -236,7 +236,7 @@ async (page) => {
   assert(rows.some(row => row.includes('it loses every declared feed path')), 'The text alternative never names an exposed component.');
   assert(rows.some(row => row.includes('it keeps a declared feed path')), 'The text alternative never names a component that stays fed.');
   assert(rows.some(row => row.includes('In a circuit.')), 'The text alternative never mentions the circuit.');
-  // GGV-04: every selection rebuilt the text view, so the button a person pressed by keyboard was
+  // Every selection rebuilt the text view, so the button a person pressed by keyboard was
   // destroyed in its own click and focus fell to the page. It keeps the keyboard.
   await view.locator('#records button[data-id="chiller"]').focus();
   exactlyOne(await opens(() => page.keyboard.press('Enter')), 'chiller', 'Enter in the text view did not open the component, once:');
@@ -272,7 +272,7 @@ async (page) => {
   assert(opacity.orphan < .3 && opacity.rad < .3, 'Focus left an unconnected component undimmed: ' + JSON.stringify(opacity));
   await view.getByRole('button', { name: 'Focus', exact: true }).click();
 
-  // GGV-09: every component was a tab stop and Left and Right went to the next component in the
+  // Every component was a tab stop and Left and Right went to the next component in the
   // file's order, wherever the schematic placed it. The components are one tab stop, and each
   // arrow reaches the nearest component that way on the schematic.
   await view.locator('.node[data-id="tank"]').focus();
@@ -290,7 +290,7 @@ async (page) => {
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert(await view.locator('#drawing').getAttribute('transform') !== before, 'Zoom did not change the transform.');
 
-  // GGV-02: every re-read fitted the whole schematic again. Zoomed and panned, a re-read keeps it.
+  // Every re-read fitted the whole schematic again. Zoomed and panned, a re-read keeps it.
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await view.evaluate(() => document.getElementById('canvas').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true })));
   const placed = await transformNow();
@@ -313,7 +313,7 @@ async (page) => {
   const selectedAfter = await screenBox(chosen);
   assert(Math.abs(selectedAfter[0] - selectedBefore[0]) <= 1 && Math.abs(selectedAfter[1] - selectedBefore[1]) <= 1,
     'A re-read that added a component moved the selected component on screen: ' + JSON.stringify({ chosen, before: selectedBefore, after: selectedAfter }));
-  // GGV-03: a re-read replaced every component and left focus on the page. The component that had
+  // A re-read replaced every component and left focus on the page. The component that had
   // the keyboard keeps it, and it is the one tab stop.
   await view.locator('.node[data-id="manifold"]').focus();
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('COM · Link quality sensor C'));
@@ -375,7 +375,7 @@ async (page) => {
   const burst = (await requests(mark)).filter(r => r.m === 'records.query' && r.p.entityId === 'component' && (r.p.cursor ?? null) === null).length;
   assert(burst === 1, `A burst of five changes made ${burst} reads of the components, not one.`);
 
-  // GGV-06: a feed from a component this view does not show is not drawn, so a component fed only
+  // A feed from a component this view does not show is not drawn, so a component fed only
   // that way read as a declared source. The summary counts the feeds outside the view and no longer
   // calls what has no drawn feed a declared source.
   await replace(fixture({ ...projection, edges: [...projection.edges, { id: 'e13', sourceId: 'elsewhere', targetId: 'orphan' }] }),
@@ -430,7 +430,7 @@ async (page) => {
   assert(circuitColumns.a < circuitColumns.b && circuitColumns.b === circuitColumns.c && circuitColumns.c < circuitColumns.d,
     'A circuit was split across supply layers instead of ordered as one component: ' + JSON.stringify(circuitColumns));
 
-  // R02-016: a circuit with no incoming source was never fed. Taking out one of its
+  // A circuit with no incoming source was never fed. Taking out one of its
   // members cannot truthfully label another member as retaining a source path.
   await replace(fixture({ nodes: ['a', 'b'].map(id => ({ id, label: id.toUpperCase(), status: 'Online' })),
     edges: [{ id: 'ab', sourceId: 'a', targetId: 'b' }, { id: 'ba', sourceId: 'b', targetId: 'a' }] }),
@@ -439,7 +439,7 @@ async (page) => {
   await view.locator('#takeout-toggle').click();
   const sourceLess = await verdicts();
   assert(sourceLess.reduced.length === 0 && sourceLess.exposed.length === 0,
-    'R02-016 a source-less circuit was described as retaining or losing a source path: ' + JSON.stringify(sourceLess));
+    'a source-less circuit was described as retaining or losing a source path: ' + JSON.stringify(sourceLess));
   assert(await summary() === 'Without A: 0 lose every declared path, 0 keep one', 'A source-less circuit inflated the take-out counts.');
   const stranded = await view.locator('#records li').allTextContents();
   assert(stranded.every(row => row.includes('No declared source reaches it.')) && !stranded.some(row => row.includes('keeps a declared feed path')),
@@ -482,7 +482,7 @@ async (page) => {
   assert(!compact.overflow, 'The view overflows horizontally at 512x384.');
   assert(compact.controls.every(Boolean), 'A control left the window at 512x384: ' + JSON.stringify(compact.controls));
 
-  // ---- Nendo's own chrome (W-091). Everything above ran on a host that does not draw a view's
+  // ---- Nendo's own chrome. Everything above ran on a host that does not draw a view's
   // controls. On one that does, the view draws none of its own and no page title: it declares
   // them, Nendo sends a press back as a command, and a right-click on a component asks for
   // Nendo's menu. The fixture reads each declaration by the Workbench's own rules and refuses
@@ -544,7 +544,7 @@ async (page) => {
   await command('text', false);
   await until(() => document.getElementById('text-view').hidden, undefined, 'The text command did not return to the schematic.');
 
-  // The view's own lines (W-092): its summary is Nendo's row's text, its explanation waits
+  // The view's own lines: its summary is Nendo's row's text, its explanation waits
   // behind About, and the drawing starts at the top of the frame. A problem stays in the frame.
   const ownLines = () => view.evaluate(() => ({ header: getComputedStyle(document.querySelector('header')).display,
     hint: getComputedStyle(document.querySelector('.hint')).display, drawingTop: Math.round(document.querySelector('#canvas').getBoundingClientRect().top) }));

@@ -71,7 +71,7 @@ internal static class NendoToolErrors
         // Every engine validation message is a constant template that interpolates
         // stable IDs, operation types, property names, declared choice IDs or counts, and
         // may echo what the caller itself sent, such as a CSV cell or header it is refused
-        // over (ESQ-07, ESQ-12) — never a path and never a value the file stores. One blind
+        // over — never a path and never a value the file stores. One blind
         // "arguments are invalid" stood in for all of them and cost an outside reviewer a
         // rebuilt change set per guess at a payload key the message already named.
         NendoValidationException validation => Error(
@@ -80,7 +80,7 @@ internal static class NendoToolErrors
         // An undo the Engine will not make: already undone, not record changes, a mark or a
         // record changed since, too many operations. Each message is a constant naming revision
         // and record IDs and operation types, never a stored value. It reached the agent as an
-        // internal error and filled the device's failure record with refusals (R2RM-01).
+        // internal error and filled the device's failure record with refusals.
         NendoCompensationNotSupportedException compensation => Error(
             "NENDO_COMPENSATION_NOT_SUPPORTED",
             compensation.Message),
@@ -125,19 +125,19 @@ internal static class NendoToolErrors
             // and record types by display name, and a text kind by its field only.
             "link-not-allowed", "links-not-allowed", "link-rule-invalid", "link-rule-already-declared",
             "link-rule-not-declared", "link-rule-field-in-use",
-            // W-153: an undo's refusals name a revision by ID and say whose it is, nothing stored.
+            // An undo's refusals name a revision by ID and say whose it is, nothing stored.
             "revision-not-found", "not-an-undo", "revision-not-yours",
-            // W-212: a restore or a backfill's undo that cannot run says why, by IDs and names only.
+            // A restore or a backfill's undo that cannot run says why, by IDs and names only.
             "deletion-state-conflict", "field-not-retired",
             // ADR-0011: a save another program kept busy is a constant sentence; nothing changed.
             "file-busy",
-            // W-165: a size refusal names the field the caller sent, the cap and the measured size.
+            // A size refusal names the field the caller sent, the cap and the measured size.
             "value-too-large", "values-too-large",
-            // W-209: a requirement change refused names the definition, the binding or step and the field;
+            // A requirement change refused names the definition, the binding or step and the field;
             // an action that could never run names the action, step, binding or field, the record types
             // and the remedy, all from the definition and the schema.
             "field-requirement-in-use", "action-target-mismatch",
-            // W-214 (R2AP-02, MTD-05): the rest of what a data write or read meets, read the same way.
+            // The rest of what a data write or read meets, read the same way.
             // Each names a record by stable ID, a record type or field by ID or display name, or a
             // ceiling by its number, and the person reads the same sentence in Nendo. A write-ceiling
             // refusal says nothing was changed and the file still opens.
@@ -150,16 +150,16 @@ internal static class NendoToolErrors
             "calculated-query-too-wide", "search-too-long", "search-too-many-terms", "search-index-missing",
             "stale-cursor", "invalid-limit", "data-unavailable", "history-unavailable", "reopen-to-verify",
             "read-only", "proposal-not-found", "receipt-file-mismatch",
-            // W-221: a read-only session's file moved on (ECO-07, R2SMA-12), and a file marked
-            // read-only that Nendo will not replace (R2SMA-10). Constant sentences, naming nothing.
+            // A read-only session's file moved on, and a file marked
+            // read-only that Nendo will not replace. Constant sentences, naming nothing.
             "read-only-file-changed", "replacement-target-read-only", "replacement-target-in-use",
             // ADR-0031: a picture's refusals name the field, the record by ID, the media types and
             // the bounds; none echoes the address or the bytes sent.
             "media-address-invalid", "media-missing", "media-type-mismatch", "media-too-large", "media-budget-exceeded",
             "field-not-media",
-            // W-001: a file's icon names why its picture cannot be one, by type, size or bytes.
+            // A file's icon names why its picture cannot be one, by type, size or bytes.
             "icon-invalid",
-            // W-249: a total of a calculated number names the field and the reason its calculation
+            // A total of a calculated number names the field and the reason its calculation
             // gave, as the record's own read shows it; a breakdown by a reference names the bound.
             "calculated-total-incomplete", "aggregate-too-many-groups",
         ], StringComparer.Ordinal);
@@ -167,7 +167,7 @@ internal static class NendoToolErrors
     /// <summary>
     /// The precondition codes a data tool or a read can meet whose sentence stays withheld, each
     /// with the reason. A code a data path throws is on <see cref="DiagnosablePreconditions"/> or
-    /// here; the walk in the Local MCP tests refuses one that is on neither (R2AP-02).
+    /// here; the walk in the Local MCP tests refuses one that is on neither.
     /// </summary>
     internal static readonly IReadOnlyDictionary<string, string> WithheldPreconditions = new Dictionary<string, string>(StringComparer.Ordinal)
     {
@@ -197,7 +197,7 @@ internal static class NendoToolErrors
 
     // Each says what the agent can do next. NENDO_LEASE_HELD used to stop at "another
     // agent has edit access", which left an agent whose own acquire response was lost
-    // unable to tell that the holder was itself (F-175).
+    // unable to tell that the holder was itself.
     internal static string AuthorityMessage(string code) => code switch
     {
         "EDIT_DATA_REQUIRED" => NendoAccessLevels.RequiredMessage(AgentAccessMode.DataMutation),

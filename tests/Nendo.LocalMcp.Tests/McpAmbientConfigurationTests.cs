@@ -4,7 +4,7 @@ using System.Net.Sockets;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// MHS-06. The web host was built with the default configuration sources, so a Kestrel
+/// The web host was built with the default configuration sources, so a Kestrel
 /// endpoint named in an environment variable, or in an appsettings.json in the current
 /// directory (often the opened file's folder), was bound beside the loopback listener. The
 /// host now reads no ambient configuration: it listens on 127.0.0.1 only, whatever the

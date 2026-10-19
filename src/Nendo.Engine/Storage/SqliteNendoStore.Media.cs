@@ -241,7 +241,7 @@ internal sealed partial class SqliteNendoStore
 
     /// <summary>
     /// Removes every embedded item that no current value of any media field names, and that is
-    /// not the file's icon, which a new file keeps with the look (W-001). Only where
+    /// not the file's icon, which a new file keeps with the look. Only where
     /// nothing can undo back to one: a new file, whose history is folded whole. Removing unused media
     /// from an open file also keeps what retained history names, and is its own operation.
     /// </summary>

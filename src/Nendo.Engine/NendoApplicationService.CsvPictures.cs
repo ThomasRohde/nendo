@@ -1,7 +1,7 @@
 namespace Nendo.Engine;
 
 /// <summary>
-/// CSV with pictures (ADR-0031 point 14, W-272). A CSV holds a media field's address like any
+/// CSV with pictures (ADR-0031 point 14). A CSV holds a media field's address like any
 /// text. Export with pictures writes each embedded picture into a folder beside the CSV and names
 /// it there by a relative address, so the CSV and its folder carry the pictures to another file;
 /// embedding a record type's linked pictures brings them into that file.

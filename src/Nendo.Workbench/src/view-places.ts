@@ -2,7 +2,7 @@ import { fileScopedClearable } from './app-state';
 import type { Json } from './extension-api/protocol';
 
 /**
- * Where each custom view is, as the view itself declared it (ADR-0013, 2026-09-29; W-127).
+ * Where each custom view is, as the view itself declared it (ADR-0013).
  *
  * A view keeps its own state in its frame: which diagram is open, what is selected. The trail
  * knew only Nendo's places, so Back from a record a view had opened rebuilt the screen and the

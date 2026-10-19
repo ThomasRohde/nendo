@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { build } from 'vite';
 import { bundleOf } from './bundle-of.mjs';
 
-// The view API reference an agent reads before it writes a custom view's code (W-094), held to
+// The view API reference an agent reads before it writes a custom view's code, held to
 // the modules it describes. The api build writes it beside api.js; the local MCP serves that
 // file as it was built. Every name in it is checked against the real table, parser or object,
 // and the whole view it offers to start from is run against the real api.js.
@@ -160,9 +160,9 @@ test('the whole view in the reference runs against the real api.js', async (t) =
   assert.deepEqual(errors, [], 'The example threw.');
 });
 
-// The guide an author reads restated the refusal codes and events by hand, and fell behind:
-// it told a view to send a write again after `disconnected`, which can write it twice, and it
-// listed three of the five events (W-222, DOC-01 and DOC-05).
+// The guide an author reads restates the refusal codes and events, and a copy kept by hand falls
+// behind: one told a view to send a write again after `disconnected`, which can write it twice,
+// and listed three of the five events.
 test('the authoring guide tabulates every refusal code and every event the reference names', () => {
   const guide = readFileSync(new URL('../../../docs/custom-view-authoring.md', import.meta.url), 'utf8');
   const section = (heading) => {
@@ -190,19 +190,18 @@ test('the authoring guide tabulates every refusal code and every event the refer
   assert.ok(said === words[count] || said === String(count), `The guide says nendo.on takes one of ${said ?? 'no number of'} events; it takes ${count}.`);
 });
 
-// The filter notes said a clause could not name a calculated field while the records.query note,
-// and the Engine since F-222, allow one (W-222, DOC-06): both say what the Engine answers.
+// The filter notes and the records.query note both say what the Engine answers: a clause may
+// name a calculated field.
 test('the filter notes and the query method agree that a calculated field may be filtered on', () => {
   const query = reference.methods.find((line) => line.method === 'records.query');
   for (const [where, text] of [['records.query', query.note], ['filters.notes', reference.filters.notes.join(' ')]])
     assert.match(text, /calculated field.*calculated-query-too-wide/s, `${where} does not say a calculated field is worked out, and refused past its bound as calculated-query-too-wide.`);
 });
 
-// WXS-19: the contract's port and refusal tables named three or four of the five events, its
-// filter sentence left out descendantOf, the reference's context table had no place, and
-// ADR-0013 bounded a toolbar at "128 in all", which the code never did. Each is read here
-// against the table it restates.
-test('WXS-19: the contract, the reference and ADR-0013 restate the events, operators, context and toolbar bound as built', () => {
+// The contract's port and refusal tables name all five events, its filter sentence names
+// descendantOf, the reference's context table has the place, and ADR-0013 bounds a toolbar as
+// the code does. Each is read here against the table it restates.
+test('the contract, the reference and ADR-0013 restate the events, operators, context and toolbar bound as built', () => {
   const contract = readFileSync(new URL('../../../docs/contracts/custom-views.md', import.meta.url), 'utf8');
   const named = (line) => [...line.matchAll(/`([a-zA-Z]+)`/g)].map(([, name]) => name);
   const eventRow = contract.split('\n').find((line) => line.startsWith("| Workbench | `{t: 'evt', n, d}` |")) ?? '';

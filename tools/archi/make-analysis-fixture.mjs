@@ -1,5 +1,5 @@
 // Writes tools/archi/analysis-parity.json: what archi-online's Analysis and Visualiser give for
-// archi-online's own models, the reference the workbench is measured against (W-118,
+// archi-online's own models, the reference the workbench is measured against (
 // tools/archi/analysis.test.mjs). For every concept, its model relations, the views it is used in
 // and the object that stands for it on each; for Archisurance, the Visualiser's graph around every
 // concept and around a few with each control set. The models are the ones in

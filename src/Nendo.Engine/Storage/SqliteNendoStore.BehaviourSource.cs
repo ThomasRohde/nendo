@@ -10,7 +10,7 @@ internal sealed partial class SqliteNendoStore
 
     /// <summary>
     /// True while a compensation's operations run: what they install was recorded by History,
-    /// not authored now, so an authoring rule added since does not refuse it (EBH-16).
+    /// not authored now, so an authoring rule added since does not refuse it.
     /// </summary>
     private bool _replayingRecordedOperations;
 
@@ -27,7 +27,7 @@ internal sealed partial class SqliteNendoStore
     /// <see cref="ForgetBehaviourTableCache"/> puts it back to unknown on a rollback,
     /// because the table goes with the transaction and the flag does not: a file whose
     /// first behaviour install was refused was left claiming a table it no longer had,
-    /// and every later read of the open file threw a raw SQLite error (F-070).
+    /// and every later read of the open file threw a raw SQLite error.
     /// </para>
     /// </summary>
     private async ValueTask<bool> HasBehaviourAsync(
@@ -164,7 +164,7 @@ internal sealed partial class SqliteNendoStore
                 results.Add(record);
                 continue;
             }
-            // The record being read is read for work, not as a related record of itself (W-247).
+            // The record being read is read for work, not as a related record of itself.
             var budget = new BehaviourBudget(_behaviourLimits, cancellationToken, BehaviourBudgetUse.Read);
             budget.Own(record.EntityId, record.RecordId);
             results.Add(record with
@@ -201,7 +201,7 @@ internal sealed partial class SqliteNendoStore
 
         /// <summary>
         /// The field a binding reads, by its display name, so an empty input is named as the
-        /// person sees it rather than by the author's alias (EBH-20). Null for a binding that
+        /// person sees it rather than by the author's alias. Null for a binding that
         /// reads no single field.
         /// </summary>
         public string? Describe(NendoBehaviourBinding binding)
@@ -268,7 +268,7 @@ internal sealed partial class SqliteNendoStore
             // The record's version comes back with the value. A reviewed plan is valid only while
             // a record it read still says what it said, and a field read across a reference never
             // reached the plan's read set, so a project's rate a condition read was not checked
-            // when the proposal was accepted (EBH-23).
+            // when the proposal was accepted.
             await using var command = store.Command(
                 $"SELECT {Quote(field.PhysicalColumnName)}, {Quote("__nendo_record_version")} FROM {Quote(entity.PhysicalTableName)} WHERE {Quote("__nendo_record_id")} = @recordId;",
                 transaction);
@@ -323,7 +323,7 @@ internal sealed partial class SqliteNendoStore
             var (related, pointer) = Locate(binding.RelatedEntityId!, binding.RelatedReferenceFieldId!);
             // A plain count on a read is the store's own count over the reference's index: one
             // unit of work, and no related-row ceiling, since no row is read and nothing is
-            // left out (F-223). A save's chain still reads the rows, because a reviewed plan
+            // left out. A save's chain still reads the rows, because a reviewed plan
             // has to see each record it counted.
             if (binding.Aggregate == NendoAggregateFunction.Count && observe is null)
             {
@@ -339,7 +339,7 @@ internal sealed partial class SqliteNendoStore
             RequireCalculator(binding);
 
             // No aggregate reads more than one record's related rows, also in a batch whose allowance
-            // is several records' (W-247), so a save never answers a total a read refuses.
+            // is several records', so a save never answers a total a read refuses.
             var allowance = Math.Min(budget.RemainingScanAllowance, budget.Limits.RelatedRows);
             if (allowance <= 0) throw budget.Exhausted("related record");
             var selection = member is null ? "1" : Quote(member.PhysicalColumnName);
@@ -401,9 +401,9 @@ internal sealed partial class SqliteNendoStore
                 RequireCalculator(binding);
                 var selection = member is null ? "1" : $"r.{Quote(member.PhysicalColumnName)}";
                 // The descendants are bounded too, as the subtree form bounds them (ADR-0019
-                // point 7): the limit counted only the related rows, so a subtree of 20,000 records
-                // with three links was answered while every other aggregate of it was an error
-                // (R2AAV-06). The count joins the same walk, one
+                // point 8): a limit on the related rows alone would answer a subtree of 20,000
+                // records with three links while every other aggregate of it is an error.
+                // The count joins the same walk, one
                 // statement and one materialised subtree, and comes back on every row; with no
                 // related row, or past the bound, it comes back alone on a row with no record.
                 sql = $"{subtree}, bound(n) AS (SELECT COUNT(*) FROM (SELECT 1 FROM sub LIMIT @descendants)) " +
@@ -508,7 +508,7 @@ internal sealed partial class SqliteNendoStore
             // A decimal total is folded exactly, as a summary tile folds one. Adding decimals
             // rounds once the exact total needs more digits than a decimal holds, so a total of
             // 100000000000000000000 and 0.0000000001 read 100000000000000000000.00000000 where
-            // the contract promises the exact total (EBH-18).
+            // the contract promises the exact total.
             var decimalTotal = new ExactAggregate("sum", integral: false);
             var rowsRead = 0;
             await using (var rows = await command.ExecuteReaderAsync(cancellationToken))
@@ -618,7 +618,7 @@ internal sealed partial class SqliteNendoStore
             try
             {
                 // The member's calculation costs what its own read would: its own calls and related
-                // records, every unit of work still this budget's (W-247).
+                // records, every unit of work still this budget's.
                 using (budget.EnterMember(entityId, recordId))
                     value = await Calculate!(calculationId, recordId, budget, cancellationToken);
             }
@@ -681,7 +681,7 @@ internal sealed partial class SqliteNendoStore
             {
                 // A value written by a tool outside Nendo, such as text in a whole-number column.
                 // It fails this field's value; unanswered, it failed every read of the file and
-                // the next open refused the whole file (R2SMA-01).
+                // the next open refused the whole file.
                 throw new NendoCalculationException(NendoCalculationCodes.StoredValueInvalid,
                     "A value this calculation reads is not stored as its field's type. File health says what changed.");
             }

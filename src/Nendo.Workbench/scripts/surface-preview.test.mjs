@@ -220,7 +220,7 @@ test('every widened root is reachable from the preview switcher',()=>{
  for (const label of ['Open','Flow','Entry','Due dates','Over time','Cards']) assert.ok(markup.includes(label),label);
 });
 
-// Owner-reported from a real proposal review, 2026-09-17: the front page preview said
+// Owner-reported from a real proposal review: the front page preview said
 // "Recently delivered — up to 10 of Work items" over a node carrying limit 5, and the
 // section holding the trend and the activity grid listed no children at all. Both
 // numbers and both lines are read straight off the node here.

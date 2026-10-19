@@ -5,7 +5,7 @@ import { cacheKey, declaredQuery, type WindowQuery } from './record-window';
 import { isChartKind, type ScopedChart } from './charts';
 import { tileFilters, tileKey, type OverviewTileScope, type ScopedTile, type TileRead } from './summary-tiles';
 
-// Pure composition for the file's front page (ADR-0004, 2026-09-14 amendment, S4).
+// Pure composition for the file's front page (ADR-0004).
 //
 // The overview is the one surface with no record type of its own, so everything
 // here answers the same question twice: which record type does this node read,

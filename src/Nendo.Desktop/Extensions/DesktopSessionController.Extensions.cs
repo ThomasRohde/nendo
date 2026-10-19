@@ -25,7 +25,7 @@ internal sealed record DesktopExtensionPackageView(
 {
     /// <summary>
     /// The name of the folder this device runs the package from while it is developed
-    /// (ADR-0013 Phase 4), or null. The name only: the Workbench is never handed a path.
+    /// (ADR-0013), or null. The name only: the Workbench is never handed a path.
     /// </summary>
     public string? DevelopmentFolder { get; init; }
 }
@@ -124,7 +124,7 @@ internal sealed partial class DesktopSessionController
     }
 
     /// <summary>
-    /// Admits a write made by a custom view of <paramref name="packageId"/> (ADR-0013 Phase 3):
+    /// Admits a write made by a custom view of <paramref name="packageId"/> (ADR-0013):
     /// only while views may run, and only for a package the open file carries. Every kill
     /// switch that stops a view's frame therefore also stops its writes, even one already on
     /// its way.
@@ -143,7 +143,7 @@ internal sealed partial class DesktopSessionController
     /// (<c>extension:&lt;package&gt;</c>); any other origin passes untouched. The protocol's
     /// check runs before the request waits for the gate, so a kill switch or a package removal
     /// queued ahead of it would otherwise complete first and still let the write commit after
-    /// it (R-014). This check reads the switches themselves and the file's own package list,
+    /// it. This check reads the switches themselves and the file's own package list,
     /// so it holds even when the view read that should have followed them did not.
     /// </summary>
     private async Task AdmitExtensionWriterAsync(NendoApplicationService service, string? origin, CancellationToken cancellationToken)
@@ -171,7 +171,7 @@ internal sealed partial class DesktopSessionController
     internal Func<Task>? AfterExtensionWriterAdmittedForTest { get; set; }
 
     /// <summary>
-    /// A proposal a custom view prepares (ADR-0013 Phase 3). One per package waits at a time:
+    /// A proposal a custom view prepares (ADR-0013). One per package waits at a time:
     /// each proposal validates against a copy of the file, so a view asking in a loop would
     /// fill the disk, and the person is never asked twice at once by one view.
     /// </summary>
@@ -194,7 +194,7 @@ internal sealed partial class DesktopSessionController
             return preview;
         }, cancellationToken, request.Origin);
 
-    /// <summary>A view's kept values (ADR-0013 Phase 3): one key's, or every key with its version.</summary>
+    /// <summary>A view's kept values (ADR-0013): one key's, or every key with its version.</summary>
     internal Task<IReadOnlyList<NendoExtensionStateEntry>> ReadExtensionStateAsync(
         string packageId, string viewId, string? key, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.ReadExtensionStateAsync(packageId, viewId, key, cancellationToken), cancellationToken);
@@ -268,7 +268,7 @@ internal sealed partial class DesktopSessionController
             .Select(package => package.PackageId).ToHashSet(StringComparer.Ordinal));
         var hosts = new Dictionary<string, NendoExtensionPackageSnapshot>(StringComparer.OrdinalIgnoreCase);
         // The instance this device opened last before the key gained the instance ID keeps its
-        // views' origin, and their storage with it (ADR-0013, 2026-10-13).
+        // views' origin, and their storage with it (ADR-0013).
         var carriedOver = OriginCarry().Holds(applicationId, snapshot.Manifest.InstanceId);
         var packages = new List<DesktopExtensionPackageView>(snapshot.ExtensionPackages.Count);
         foreach (var package in snapshot.ExtensionPackages)
@@ -354,7 +354,7 @@ internal sealed partial class DesktopSessionController
             if (content is null) return DesktopExtensionAsset.NotFound;
             // An open only checks that a stored hash looks like one, so the bytes are hashed here.
             // Content filed under a hash it does not have is neither served nor cached, or one
-            // file could plant code that another file's view loads by that hash (DAE-01).
+            // file could plant code that another file's view loads by that hash.
             var actual = NendoExtensionContent.Sha256(content.Content);
             if (!string.Equals(actual, content.Sha256, StringComparison.Ordinal)) return DesktopExtensionAsset.Damaged;
             _extensionContent.Add(actual, content.Content);
@@ -439,7 +439,7 @@ internal sealed partial class DesktopSessionController
     /// nothing in them runs. A page that is not UTF-8, or past a bound, is left out and counted.
     /// </summary>
     /// <summary>
-    /// Keeps one runtime event of a view of the open file (W-251), for an agent to read over MCP.
+    /// Keeps one runtime event of a view of the open file, for an agent to read over MCP.
     /// It takes no request gate: the log is memory only and guards itself, and an event must not
     /// wait behind the write that a view's refusal may be about.
     /// </summary>

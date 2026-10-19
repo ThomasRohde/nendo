@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Custom-view definitions as ADR-0013 reads them since 2026-09-25: a view names its package in
+/// Custom-view definitions as ADR-0013 reads them: a view names its package in
 /// the file, a record type, and the fields it shows — stored or calculated — and its code reads
 /// the rest through the file's API. Nothing in a definition is a permission, and a view the
 /// earlier rules accepted keeps the host version it had.
@@ -103,7 +103,7 @@ public sealed class ExtensionViewDefinitionTests
     /// <summary>
     /// Refused for the rule under test: an error with its code and a sentence that names what
     /// it refused. Any error at all used to pass, so a fixture that also tripped another rule
-    /// could hide a rule that no longer refused (TST-12).
+    /// could hide a rule that no longer refused.
     /// </summary>
     private static async Task Refused(NendoApplicationService service, string code, string names, string why, NendoProposalRequest request)
     {
@@ -218,7 +218,7 @@ public sealed class ExtensionViewDefinitionTests
     }
 
     /// <summary>
-    /// W-170: validation compiles the clone after every operation of the change set, so a package
+    /// Validation compiles the clone after every operation of the change set, so a package
     /// and the view that names it arrive together without NUI452. An outside author had split
     /// them over two change sets and met the warning in between.
     /// </summary>

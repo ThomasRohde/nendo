@@ -90,7 +90,7 @@ test('a hyphen is used only in the second pass, and a box wider than the line br
   assert.equal(breakLines([box(50), ...end], () => 40), null);
 });
 
-// ---------- Against TeX itself (W-293) ----------
+// ---------- Against TeX itself ----------
 
 const fixture = JSON.parse(fs.readFileSync(new URL('./typeset-fixture.json', import.meta.url), 'utf8'));
 const pt = x => x * 72 / 72.27;

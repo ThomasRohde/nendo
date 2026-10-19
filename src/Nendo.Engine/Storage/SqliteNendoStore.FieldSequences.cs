@@ -62,7 +62,7 @@ internal sealed partial class SqliteNendoStore
                 if (SequenceNumber(sequence, rows.GetString(0)) is { } number && number > highest) highest = number;
         // A deleted record keeps its code in deletion history, and its number stays spent: a
         // sequence stopped and declared again seeded from live rows alone and handed it out once
-        // more (ESS-03, ADR-0020 note of 2026-10-13).
+        // more (ADR-0020).
         if (await TableExistsAsync("__nendo_deleted_record", transaction, ct))
         {
             await using var deleted = Command(

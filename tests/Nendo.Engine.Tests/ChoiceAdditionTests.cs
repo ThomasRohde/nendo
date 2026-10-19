@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A new option on an existing single-choice field, ADR-0003 2026-10-17 note (W-280). The
+/// A new option on an existing single-choice field (ADR-0003). The
 /// options were fixed when the field was added, and the metadata operation only names, colours
 /// and retires options that exist, so a change set that tried to add one was refused.
 /// </summary>

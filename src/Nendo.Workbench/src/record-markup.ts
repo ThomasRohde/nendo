@@ -23,7 +23,7 @@ import { windowIsCurrent } from './record-window';
 
 /**
  * The text of each column of a related row: a calculation's result, a choice's label and a
- * reference's target label, as every other list shows them, never the stored ID (WMX-04).
+ * reference's target label, as every other list shows them, never the stored ID.
  */
 export function relatedRowTexts(fieldIds: readonly string[], related: RecordSnapshot, derived: readonly { fieldId: string }[] | undefined): string[] {
   const asPlan = recordPlanOf(related);
@@ -35,7 +35,7 @@ export function relatedRowTexts(fieldIds: readonly string[], related: RecordSnap
 /**
  * What a date-time control's local value saves as. The control shows the stored instant in this
  * device's time; left so, it is the stored value itself, not the same instant spelt another way,
- * which read as a change and was written back as one (WDV-18). Otherwise the local time with this
+ * which read as a change and was written back as one. Otherwise the local time with this
  * device's offset, so the instant is exact.
  */
 export function dateTimeFormValue(local: string, stored: unknown): string | null {
@@ -135,8 +135,8 @@ export function relatedKey(node: SurfaceNodePlan, recordId: string): string {
  * with nothing in it from one that had not loaded. The inverse is not a mystery — the node
  * carries both halves of it — so the sentence states them.
  *
- * It sits above the relation's own Add rather than instead of it (ADR-0004, 2026-09-18
- * amendment): an empty relation is the one most likely to be looked at by somebody about
+ * It sits above the relation's own Add rather than instead of it (ADR-0004):
+ * an empty relation is the one most likely to be looked at by somebody about
  * to fill it, so the sentence states what is missing and the button beside it adds one.
  *
  * The record types are passed in rather than read from the session here, so the sentence
@@ -155,7 +155,7 @@ export function relatedListEmpty(node: SurfaceNodePlan, entities: readonly Entit
 
 /**
  * Whether a related list can offer its actions, which is whether Use can show the record
- * type they lead to (ADR-0004, 2026-09-18 amendment).
+ * type they lead to (ADR-0004).
  *
  * A record type earns a place in Use by having a compiled surface. Without one there is
  * nowhere for a new record to land after it is saved and no page for a row to open on, so
@@ -186,7 +186,7 @@ export function relatedHeadMarkup(
   links: readonly LinkEnd[] = [],
 ): string {
   const add = `<button class="secondary-button related-add" type="button" data-related-add="${escapeAttribute(node.semanticId)}"><span class="button-glyph" aria-hidden="true">+</span>Add ${escapeHtml(target?.displayName ?? '')}</button>`;
-  // A link list also links an existing record at its other end (ADR-0004, 2026-09-29).
+  // A link list also links an existing record at its other end (ADR-0004).
   const link = links.map((end) => `<button class="secondary-button related-link" type="button" data-related-link="${escapeAttribute(node.semanticId)}" data-related-link-field="${escapeAttribute(end.fieldId)}">Link ${escapeHtml(end.targetName)}</button>`).join('');
   const action = target === undefined
     ? ''
@@ -204,8 +204,8 @@ export interface LinkEnd {
 }
 
 /**
- * The other ends of a related list's record type when that type is a link (ADR-0004,
- * 2026-09-29): the field pointing back is required, and so is at least one other reference.
+ * The other ends of a related list's record type when that type is a link
+ * (ADR-0004): the field pointing back is required, and so is at least one other reference.
  * A record of such a type means nothing without both ends, which is what makes it a link and
  * not merely a record that happens to point somewhere else too. Read from the schema; nothing
  * is stored to say so.
@@ -246,7 +246,7 @@ export function relatedRowMarkup(
   const cells = displays.map((display, index) => index === 0
     ? `<strong>${escapeHtml(display || '—')}</strong>`
     : `<span>${escapeHtml(display || '—')}</span>`).join('');
-  // A row of a link list removes the link it is (ADR-0004, 2026-09-29): the link record,
+  // A row of a link list removes the link it is (ADR-0004): the link record,
   // never either record it joins.
   const unlink = unlinkVersion === null || !opens
     ? ''
@@ -468,12 +468,12 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
   const label = escapeHtml(field.displayName);
   const textControl = (markup: string): string => field.required ? markup : `<div class="scalar-field">${markup}<label class="checkbox-field"><input type="checkbox" name="__unset:${name}" data-null-field="${name}" value="true" aria-label="${escapeAttribute(field.displayName)} not set" ${currentValue === null || currentValue === undefined ? 'checked' : ''} />Not set</label></div>`;
   if (field.presentation === 'longText') {
-    // The parser drops one line break right after <textarea>; one is written for it (WMX-03).
+    // The parser drops one line break right after <textarea>; one is written for it.
     const placeholder = options.placeholder === undefined ? '' : ` placeholder="${escapeAttribute(options.placeholder)}"`;
     return textControl(`<label>${label}<textarea name="${name}" rows="4"${placeholder} ${required}>\n${escapeHtml(value)}</textarea></label>`);
   }
   if (field.presentation === 'markdown') {
-    // Written in place, formatted, and stored as Markdown (W-173; Tiptap since 2026-10-16). The
+    // Written in place, formatted, and stored as Markdown (Tiptap). The
     // drawn text is what the page shows until the editor takes its place (markdown-editor.ts). The
     // source is the form's control, under Markdown for whoever would rather type it; the editor
     // opens it when a required one is left empty, so the browser's refusal has a control to point at.
@@ -484,7 +484,7 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
   }
   if (field.presentation === 'singleChoice') {
     // Where every value has to be chosen by the person, an empty required choice starts on a
-    // placeholder the required check refuses, rather than on the first option (WSP-02).
+    // placeholder the required check refuses, rather than on the first option.
     const choose = field.required && options.explicitChoice === true && (currentValue === null || currentValue === undefined || currentValue === '');
     return `<label>${label}<select name="${name}" ${required}>${field.required ? choose ? '<option value="" selected disabled>Choose…</option>' : '' : '<option value="">Not set</option>'}${field.options.filter(id => id === value || !field.choices?.some(choice => choice.id === id && choice.retired)).map(id => `<option value="${escapeAttribute(id)}" ${id === value ? 'selected' : ''} ${field.choices?.some(choice => choice.id === id && choice.retired) ? 'disabled' : ''}>${escapeHtml(choiceDisplay(field, id))}</option>`).join('')}</select></label>`;
   }
@@ -493,7 +493,7 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
     return ratingControlMarkup(field.semanticId, field.displayName, scale, currentValue, field.required);
   }
   if (isDateTimeKind(field.storageKind)) {
-    // Typed and shown in this device's time; saved with its offset, so the instant is exact (WDV-18).
+    // Typed and shown in this device's time; saved with its offset, so the instant is exact.
     const local = localDateTimeInput(value);
     return `<label>${label}<input name="${name}" type="datetime-local" step="1" value="${escapeAttribute(local)}" title="${escapeAttribute(value)}" ${required} /></label>`;
   }
@@ -505,10 +505,10 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
   }
   const numeric = ['Integer', 'Decimal'].includes(storageLabel(field.storageKind));
   // A single-line input strips line breaks, so a text value holding one is edited where it keeps
-  // them: saving the field otherwise wrote the value back without them (WMX-03).
+  // them: saving the field otherwise wrote the value back without them.
   if (!numeric && storageLabel(field.storageKind) === 'Text' && /[\r\n]/.test(value))
     return textControl(`<label>${label}<textarea name="${name}" rows="3" ${required}>\n${escapeHtml(value)}</textarea></label>`);
-  // A whole number gets the keypad without a separator it would refuse (W-217).
+  // A whole number gets the keypad without a separator it would refuse.
   const keypad = !numeric ? '' : storageLabel(field.storageKind) === 'Integer' ? 'inputmode="numeric"' : 'inputmode="decimal"';
   const markup = `<label>${label}<input name="${name}" type="text" ${keypad} value="${escapeAttribute(value)}" ${required} /></label>`;
   return storageLabel(field.storageKind) === 'Text' ? textControl(markup) : markup;
@@ -517,7 +517,7 @@ export function fieldControlMarkup(field: FieldPlan, currentValue: unknown, opti
 /**
  * The plan a Make required or Reactivate form draws one record's control from: the field as the
  * file defines it, required. A rating keeps its scale, so it is chosen on the scale's numbers
- * rather than typed as free text (WSP-08).
+ * rather than typed as free text.
  */
 export function backfillPlan(field: EntitySnapshot['fields'][number]): FieldPlan {
   return { semanticId: field.fieldId, automationTarget: `field-${cssToken(field.fieldId)}`, displayName: field.displayName,
@@ -525,7 +525,7 @@ export function backfillPlan(field: EntitySnapshot['fields'][number]): FieldPlan
     scale: field.scale ?? null };
 }
 
-/** One record's control on a Make required or Reactivate form: nothing is filled in for the person (WSP-02). */
+/** One record's control on a Make required or Reactivate form: nothing is filled in for the person. */
 export function backfillControlMarkup(field: EntitySnapshot['fields'][number]): string {
   return fieldControlMarkup(backfillPlan(field), null, { explicitChoice: true });
 }
@@ -533,7 +533,7 @@ export function backfillControlMarkup(field: EntitySnapshot['fields'][number]): 
 /**
  * The way to throw away what was typed on a saved record. Every move off the page with
  * unsaved typing says "Save or discard your changes", and only Back to Data's dialog
- * offered to discard (W-243): this is the discard that sentence names, shown while there
+ * offered to discard: this is the discard that sentence names, shown while there
  * is something to discard. `wireRecordForm` shows it and puts the stored values back.
  */
 const discardButton = '<button id="discard-changes" class="secondary-button" type="button" hidden>Discard changes</button>';
@@ -567,8 +567,7 @@ export interface RecordSheetText {
 }
 
 /**
- * A record's own page in Studio, as a sheet and a sidebar (W-071, direction A of the
- * record details canvas, chosen 2026-09-26).
+ * A record's own page in Studio, as a sheet and a sidebar.
  *
  * It replaces a 640px card that stacked every field in one column in the middle of the
  * window. The fields are sorted by the room they need rather than by a layout anybody
@@ -579,8 +578,7 @@ export interface RecordSheetText {
  * fields fill the main column two to a row instead and the side panel keeps only the
  * record's own facts.
  *
- * Where there is long text, the heading field and the long text are one document (W-242,
- * direction A of the text record page canvas, chosen 2026-10-15): a sheet with one field
+ * Where there is long text, the heading field and the long text are one document: a sheet with one field
  * under another, each a section under a hairline. Two text boxes to a row, each a fixed
  * height with its own scrollbar, cut a recipe's method off mid-sentence; a section is as
  * tall as its text, and draws its box only when pointed at or typed in.

@@ -1,9 +1,9 @@
-// The mirror's inverse (W-111): archi-online's ModelState as Archi.nendo's record values, and the
+// The mirror's inverse: archi-online's ModelState as Archi.nendo's record values, and the
 // writes that turn the records as stored into a model an archi-online operation has changed.
 // Every id in the mirror is its record's ID (mirror.ts), so a changed object names its record.
 //
 // A field the editor does not own is never written. Properties are written as archi-online's
-// properties manager and find and replace change them (W-119): a key or value changed, a property
+// properties manager and find and replace change them: a key or value changed, a property
 // gone or new; their order is the workbench's own panel's. What the mirror leaves out (an image
 // object) is never deleted, because a record is deleted only when the model before the change held
 // it and the model after does not.
@@ -91,7 +91,7 @@ export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = 
   };
 
   // The model and the nine top-level folders are the file's frame: never made or removed here, and
-  // only what find and replace changes is theirs to write (W-119).
+  // only what find and replace changes is theirs to write.
   put('ar.model', model.info.id, { 'ar.model.name': model.info.name, 'ar.model.documentation': model.info.documentation });
   for (const folder of Object.values(model.folders)) {
     if (folder.parentId !== null) continue;
@@ -132,7 +132,7 @@ export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = 
       'ar.view.viewpoint': view.viewpoint, 'ar.view.router': router });
   }
 
-  // A font chosen in the Appearance tab arrives as fontStyle with font cleared (W-114); the
+  // A font chosen in the Appearance tab arrives as fontStyle with font cleared; the
   // record keeps Archi's own string, as the stored one was kept.
   const style = (item: Record<string, unknown>) => Object.fromEntries(STYLE.map(name => [`ar.item.${name}`,
     name === 'font' && item.font === undefined && item.fontStyle ? serializeFontStyle(item.fontStyle as FontStyle) : item[name]]));
@@ -163,7 +163,7 @@ export function toRecords(model: ModelState, stored: Map<string, NendoRecord> = 
       'ar.item.bendpoints': connection.bendpoints.length > 0 ? JSON.stringify(connection.bendpoints) : null,
       'ar.item.name': connection.name, 'ar.item.documentation': connection.documentation,
       'ar.item.connectionType': connection.connectionType, 'ar.item.nameVisible': connection.nameVisible,
-      // The order Archi drew it in (W-120), kept as stored: a connection drawn here has none and comes last.
+      // The order Archi drew it in, kept as stored: a connection drawn here has none and comes last.
       'ar.item.order': stored.get(connection.id)?.values['ar.item.order'] ?? null });
   }
 

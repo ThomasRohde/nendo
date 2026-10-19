@@ -2,12 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// Adding and opening a record from a related list (ADR-0004, 2026-09-18 amendment).
+// Adding and opening a record from a related list (ADR-0004).
 //
-// A related list showed the inverse of a reference and did nothing else, so recording a
-// linked record meant leaving the page that already knew which record you meant, finding
-// it again in a picker, and navigating back (F-031, and C-044 where the workaround was
-// accepted so W-001 could close).
+// A related list that only showed the inverse of a reference would make recording a linked
+// record mean leaving the page that already knew which record you meant, finding it again in a
+// picker, and navigating back.
 //
 // What is asserted here is the markup, from the real functions the app draws with: the
 // hooks the wiring and the gate click — data-related-add, data-related-open and
@@ -91,13 +90,13 @@ test('the composed relation goes through the heading, so a fix that stops callin
 });
 
 test('the sentence for an empty relation still states the inverse, and still states only that', () => {
-  // W-042's wording is unchanged: the Add sits beside it rather than inside it, so the
+  // The wording stays: the Add sits beside it rather than inside it, so the
   // sentence says what is missing and the button is the thing that is done about it.
   assert.equal(relatedListEmpty(relation, [check]), 'No Check records point at this one through Work item yet.');
   assert.ok(!/Add/.test(relatedListEmpty(relation, [check])));
 });
 
-// ADR-0004, 2026-09-29 (W-076): a related list whose record type is a link, a support
+// ADR-0004: a related list whose record type is a link, a support
 // joining a capability and an application, links an existing record at its other end and
 // removes a link, from either side. What makes a type a link is read from the schema.
 const support = {

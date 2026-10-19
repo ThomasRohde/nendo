@@ -49,7 +49,7 @@ public sealed partial class NendoApplicationService
 
     /// <summary>
     /// What History calls a batch: the rows of the file it holds, which after parents-first
-    /// ordering need not be the batch's positions (ESQ-14). Runs of rows read as ranges, and a
+    /// ordering need not be the batch's positions. Runs of rows read as ranges, and a
     /// long list ends in an ellipsis.
     /// </summary>
     internal static string CsvBatchDescription(IReadOnlyList<int> sourceRows)
@@ -120,13 +120,13 @@ public sealed partial class NendoApplicationService
     /// <summary>
     /// A required field needs a column, except one with a sequence: the host fills it with
     /// the next code when the row is written, as it does for a create that leaves it out,
-    /// so an import may leave it unmapped or its cells empty (ADR-0020; F-259).
+    /// so an import may leave it unmapped or its cells empty (ADR-0020).
     /// </summary>
     private static bool MustBeMapped(NendoFieldSnapshot field) => field.Required && field.Sequence is null;
 
     /// <summary>
     /// The document with a declared hierarchy's rows put parents first, when its parent
-    /// column is matched by a code the same import carries (W-075). Both importers call it
+    /// column is matched by a code the same import carries. Both importers call it
     /// before they cut batches, so a parent is always written before the rows under it.
     /// </summary>
     public async Task<NendoCsvDocument> OrderCsvParentsFirstAsync(NendoCsvDocument document, string entityId,
@@ -146,8 +146,8 @@ public sealed partial class NendoApplicationService
     /// <para>
     /// This is the original evidence a retry needs: a committed write's receipt replays only
     /// for the payload it was committed with, and that payload carries the target versions
-    /// of the moment it was written, not of the retry. The import's batches have used it
-    /// since R-006; since 2026-10-04 the record writes that resolve a reference do too (F-258).
+    /// of the moment it was written, not of the retry. The import's batches use it, and so do
+    /// the record writes that resolve a reference.
     /// </para>
     /// </summary>
     public async Task<IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>> ReadRecordedTargetVersionsAsync(
@@ -204,8 +204,8 @@ public sealed partial class NendoApplicationService
                 resolvers[mapping.FieldId] = await CsvCodeResolver.CreateAsync(
                     this, definition.Entities, entity, fields[mapping.FieldId], mapping, mappings, document, options, cancellationToken);
         }
-        // One lookup per distinct target rather than per row: a hundred rows pointing at
-        // the same parent record used to be a hundred reads of it.
+        // One lookup per distinct target rather than per row, so a hundred rows pointing at
+        // the same parent record are one read of it.
         var targets = new Dictionary<(string Entity, string Record), long>();
         for (var index = offset; index < Math.Min(document.Rows.Count, offset + count); index++)
         {
@@ -250,7 +250,7 @@ public sealed partial class NendoApplicationService
 
     /// <summary>
     /// A media field's cell names a picture: an address, and for an embedded one a picture this
-    /// file holds (ADR-0031, W-272). Refused here, so the review names the row, rather than when
+    /// file holds (ADR-0031). Refused here, so the review names the row, rather than when
     /// the batch is applied.
     /// </summary>
     private async Task RequireCsvPictureAsync(string text, CancellationToken cancellationToken)
@@ -298,11 +298,11 @@ public sealed partial class NendoApplicationService
     /// <summary>
     /// The native export's file: the whole export written to <paramref name="destination"/> in
     /// <see cref="NendoCsvProfile.FileEncoding"/>, so it starts with UTF-8's byte-order mark and a
-    /// spreadsheet opened on it reads æ, ø and å (R2LAT-11). The stream stays open.
+    /// spreadsheet opened on it reads æ, ø and å. The stream stays open.
     /// </summary>
     /// <para>
     /// With <paramref name="pictureAddresses"/>, from <see cref="ExportCsvPicturesAsync"/>, a media
-    /// field names each embedded picture by where that call wrote it (W-272).
+    /// field names each embedded picture by where that call wrote it.
     /// </para>
     public async Task<int> ExportCsvFileAsync(string entityId, Stream destination, CancellationToken cancellationToken = default,
         IReadOnlyDictionary<string, string>? pictureAddresses = null)

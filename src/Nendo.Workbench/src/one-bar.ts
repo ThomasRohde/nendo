@@ -1,8 +1,8 @@
 /**
- * One bar above a Use screen (owner, 2026-10-16: "We can have one bar for the options
- * instead of two"). The address row holds Back and Forward, the breadcrumb with its pickers and
- * the command box, and used to leave the breadcrumb's box stretched across the empty middle while
- * a Use screen's toolbar (a view's controls, Filter, the pager, Add) took a row of its own below.
+ * One bar above a Use screen, rather than two. The address row holds Back and Forward, the
+ * breadcrumb with its pickers and the command box; on a Use screen the toolbar (a view's
+ * controls, Filter, the pager, Add) joins it, rather than taking a row of its own below while
+ * the breadcrumb's box stretches across the empty middle.
  *
  * Where the window has room, the breadcrumb's box now hugs what it says and the Use toolbar is
  * laid over the free middle of the address row, between that box and the command box: one bar.
@@ -27,7 +27,7 @@ export function oneBarPlace(layer: DOMRect, identity: DOMRect, controls: DOMRect
 
 /**
  * The width a Use toolbar needs: every group whole, a view's controls included, and the gaps.
- * Joining the address row never puts a control into More (W-115) that its own row would show,
+ * Joining the address row never puts a control into More that its own row would show,
  * so a view's strip counts at its full width, as if More held nothing.
  */
 export function toolbarNeed(toolbar: HTMLElement): number {
@@ -44,7 +44,7 @@ function stripWidth(slot: HTMLElement): number {
   const parked = [...strip.querySelectorAll<HTMLElement>(':scope > [data-view-overflow]')];
   const more = strip.querySelector<HTMLElement>(':scope > [data-view-more]');
   const moreHidden = more?.hidden ?? true;
-  // Read synchronously and put back before the frame, so the row's own fit (W-115) sees no change.
+  // Read synchronously and put back before the frame, so the row's own fit sees no change.
   for (const item of parked) item.removeAttribute('data-view-overflow');
   if (more) more.hidden = true;
   const items = [...strip.children].filter((child): child is HTMLElement => child instanceof HTMLElement && child.getClientRects().length > 0);

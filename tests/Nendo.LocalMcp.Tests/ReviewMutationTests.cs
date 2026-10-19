@@ -51,7 +51,7 @@ public sealed class ReviewMutationTests
         Assert.AreEqual(3L, (await workspace.Service.QueryRecordsAsync(new("projects") { RecordId = "shared" })).Items.Single().RecordVersion);
 
         // The revision's operations say which automatic action made each generated one, and
-        // nothing on the agent's own create (2026-10-10; written since actions were, never read).
+        // nothing on the agent's own create.
         using var operations = JsonDocument.Parse(await ProtocolResourceTests.ReadTextAsync(client,
             $"nendo://application/revision/{Uri.EscapeDataString(result.RevisionId)}/operations"));
         var items = operations.RootElement.GetProperty("items").EnumerateArray().ToArray();

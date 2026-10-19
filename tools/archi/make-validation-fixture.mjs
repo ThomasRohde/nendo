@@ -1,6 +1,6 @@
 // Writes tools/archi/validation-parity.json: what archi-online's validator reports for each of its
 // own models and validation scenarios, the reference the workbench's validator is measured
-// against (W-117, tools/archi/validation.test.mjs). Each entry is archi-online's model and the
+// against (tools/archi/validation.test.mjs). Each entry is archi-online's model and the
 // issues archi-online's validateModel gives it; the test turns the model into Archi.nendo's
 // records, reads them back through the mirror and validates that. Regenerate it when the pinned
 // archi-online commit changes:

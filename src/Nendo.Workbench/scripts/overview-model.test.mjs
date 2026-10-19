@@ -52,7 +52,7 @@ test('every kind is found through sections and tab groups, each scoped to the ty
 });
 
 test('a section that starts closed is not walked, so nothing in it is read until it is opened',()=>{
- // ADR-0004, 2026-09-20 amendment: folding saves the person nothing if the file still
+ // ADR-0004: folding saves the person nothing if the file still
  // pays for the reads. The stored default is what this bundle can see; what the person
  // does with the fold afterwards is measured by the agent-authoring gate.
  const plan=overview([

@@ -90,8 +90,8 @@ public sealed class DesktopSessionControllerTests
         Assert.AreEqual("off", disabled.State);
         Assert.IsEmpty(Directory.GetFiles(discoveryRoot, "*.json"));
 
-        // Closing still stops the listener and removes its entry. Since ADR-0009's 2026-09-29
-        // amendment (W-126) the same file opens again at the level last chosen for it, under a
+        // Closing still stops the listener and removes its entry. Under ADR-0009
+        // the same file opens again at the level last chosen for it, under a
         // new listener with fresh authority, and Off forgets it.
         await session.SetAgentModeAsync("unattended");
         var closingDiscovery = Directory.GetFiles(discoveryRoot, "*.json").Single();

@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Storage;
 
 /// <summary>
-/// Removing unused pictures (ADR-0031 point 8, W-273). A picture is unused when nothing the file
+/// Removing unused pictures (ADR-0031 point 8). A picture is unused when nothing the file
 /// keeps names it: no value of a media field, retired fields included, no deleted record that can
 /// be brought back, no kept value of a view, and no retained operation, whose undo or replay may
 /// need it. Only folding history lets go of the last of those, so removal follows a fold.

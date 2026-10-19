@@ -7,7 +7,7 @@ using Windows.Graphics;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// A window of the same file, opened for one tab (W-277, ADR-0002 2026-10-16).
+/// A window of the same file, opened for one tab (ADR-0002).
 /// <para>
 /// The process keeps one file and one session; a tab dragged out of the strip, or moved by the
 /// command, opens in another window on that session. The window the process started with stays
@@ -62,7 +62,7 @@ public sealed partial class MainWindow
     /// </summary>
     internal void OpenTabWindow(DesktopSessionController session, string trail, bool atPointer)
     {
-        // A window that fills the screen hands on the size it had before it did (reported 2026-10-17).
+        // A window that fills the screen hands on the size it had before it did.
         var fills = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized } ||
             AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
         var home = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;

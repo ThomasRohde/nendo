@@ -123,7 +123,7 @@ internal sealed class BehaviourExecutionContext
     /// that cannot be evaluated blocks its action and is shown, while the initiating
     /// edit still commits — an error in a rule about the data must not destroy the
     /// data the owner just typed. The write result carries them, so the person and the
-    /// agent who saved learn that an action did not run (EBH-01).
+    /// agent who saved learn that an action did not run.
     /// </summary>
     internal List<NendoBlockedCondition> BlockedConditions { get; } = [];
 

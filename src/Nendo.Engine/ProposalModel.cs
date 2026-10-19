@@ -17,7 +17,7 @@ public enum NendoProposalRetention
 {
     /// <summary>
     /// Kept until it is accepted or rejected, or until its file closes or Nendo exits, which
-    /// discards it (ADR-0007). The wire name is older than that rule and is kept for clients (ECO-13).
+    /// discards it (ADR-0007). The wire name is older than that rule and is kept for clients.
     /// </summary>
     RetainUntilExplicitCleanup,
 }
@@ -48,8 +48,8 @@ public sealed record NendoProposalEntitySummary(
 
 /// <summary>
 /// What accepting a proposal means for this device's consent to the file's automatic
-/// actions, said before acceptance rather than discovered after it (ADR-0009, the
-/// 2026-09-29 amendment). Facts only: whether consent is held right now is the
+/// actions, said before acceptance rather than discovered after it (ADR-0009).
+/// Facts only: whether consent is held right now is the
 /// host's to read, and a review that cached it would keep saying so after a revoke.
 /// </summary>
 /// <param name="CreatesRecords">The file's automatic actions, once accepted, can create records.</param>
@@ -88,7 +88,7 @@ public sealed record NendoProposalPreview(
 
     /// <summary>
     /// Who prepared the proposal: <c>workbench</c>, an agent, or <c>extension:‹package›</c>
-    /// for a custom view (ADR-0013 Phase 3). The review names a view's package from it.
+    /// for a custom view (ADR-0013). The review names a view's package from it.
     /// </summary>
     public string Origin { get; init; } = "";
 
@@ -102,7 +102,7 @@ public sealed record NendoProposalPreview(
     /// <summary>
     /// The file-scoped custom views the clone compiles. Separate for the front page's reason: a
     /// view belongs to the file, so a proposal adding one would otherwise be reviewed as adding
-    /// no screen (MAA-16).
+    /// no screen.
     /// </summary>
     public IReadOnlyList<NendoSurfaceNodePlan> PreviewViews { get; init; } = [];
 

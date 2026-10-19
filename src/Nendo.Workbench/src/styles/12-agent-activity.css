@@ -338,7 +338,7 @@
  .record-delete-dialog { max-width: 32rem; padding: 2rem; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); }
  .record-delete-dialog::backdrop { background: var(--scrim); }
  .record-delete-dialog p { overflow-wrap: anywhere; }
-/* A proposed file read whole before it is accepted (review R-017). */
+/* A proposed file read whole before it is accepted. */
 .package-file-dialog { max-width: min(64rem, calc(100vw - 32px)); width: 100%; }
 .package-file-text { max-height: 60vh; overflow: auto; margin: 0 0 1rem; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface-soft); font-family: var(--mono); font-size: 0.85rem; white-space: pre; }
 .package-file-facts code { font-family: var(--mono); font-size: 0.8rem; }

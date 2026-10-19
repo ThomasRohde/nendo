@@ -1,6 +1,6 @@
 // The paper as AASTeX 6.3.1 sets it (aastex631, twocolumn): a LaTeX render of the same export
 // plan the Word export and the preview read, the reference the paper layout is measured
-// against (W-293, tools/manus/compare-paper.mjs). Not part of the view: a person exports Word.
+// against (tools/manus/compare-paper.mjs). Not part of the view: a person exports Word.
 import { previewBlocks } from '../../extensions/manuscript/preview.mjs';
 import { markdownToInline } from '../../extensions/manuscript/inline.mjs';
 import { FIGURE, paperHeadings, PARTS, paperTableColumns } from '../../extensions/manuscript/export.mjs';

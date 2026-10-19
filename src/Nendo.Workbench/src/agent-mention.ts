@@ -15,7 +15,7 @@ import {
 } from './agent-context-model';
 
 /**
- * The @ menu in the agent tab's message box (W-200). What the person points at is kept here
+ * The @ menu in the agent tab's message box. What the person points at is kept here
  * until the message goes; the message box asks for it then and clears it.
  *
  * On a large file the menu stays cheap: names come from the schema the Workbench already holds,
@@ -52,7 +52,7 @@ export function clearPointedAt(page: ParentNode): void {
 /**
  * A line in the composer, under what the message points at, that says why something did not
  * happen: a thing that could not be pointed at, or a message that waits for the agent. Said aloud
- * too. It was said only to screen readers, so a sighted person saw nothing (WAU-03, WAU-10). Null
+ * too. It was said only to screen readers, so a sighted person saw nothing. Null
  * takes the line away when it is of `kind`.
  */
 export function composerNote(page: ParentNode, text: string | null, kind: 'waiting' | 'mention' = 'waiting'): void {
@@ -70,7 +70,7 @@ export function composerNote(page: ParentNode, text: string | null, kind: 'waiti
 
 /**
  * Forget everything the composer held: a new file, or a new session, is a new conversation, and
- * what the person pointed at for the old one does not go with the new one's first message (ACP-02).
+ * what the person pointed at for the old one does not go with the new one's first message.
  */
 export function resetMentions(): void {
   attached = [];
@@ -138,7 +138,7 @@ function drawMenu(page: ParentNode): void {
     prompt.removeAttribute('aria-activedescendant');
     return;
   }
-  // A textbox has no expanded state; the list is said aloud when it opens (UIK-10).
+  // A textbox has no expanded state; the list is said aloud when it opens.
   const opening = list.hidden;
   list.hidden = false;
   list.innerHTML = mentionMenuMarkup(menu.choices, menu.active, menu.note);
@@ -152,7 +152,7 @@ function drawMenu(page: ParentNode): void {
 
 /**
  * The menu opens upward from the box, and the pane above clips. A fixed height took its top, the
- * heading with it, off the top of a short pane (CSS-15), so the menu is told the room above the
+ * heading with it, off the top of a short pane, so the menu is told the room above the
  * box: from the pane's top to the box, less the stylesheet's gap under the menu and as much again
  * over it (--mention-gap, styles/22-agent-chat.css). A window that changes size while the menu is
  * open changes the room, so it is measured again then.
@@ -249,7 +249,7 @@ async function choose(page: ParentNode, prompt: HTMLTextAreaElement, index: numb
   if (chosen === undefined || at === null) return;
   close(page);
   // A thing that cannot be pointed at is refused before its @name is written: the name stood in
-  // the sentence with nothing behind it, and the agent got the words but not the thing (WAU-03).
+  // the sentence with nothing behind it, and the agent got the words but not the thing.
   if (!isAttached(attached, chosen) && attached.length >= maximumAttachments) {
     composerNote(page, `A message points at ${maximumAttachments} things at most. Take one back to point at ${chosen.label}.`, 'mention');
     return;
@@ -273,7 +273,7 @@ async function choose(page: ParentNode, prompt: HTMLTextAreaElement, index: numb
   }
   // The composer started again while the record was read: this chip belonged to the old message.
   if (generation !== composerGeneration || isAttached(attached, chosen)) return;
-  // What the host takes together is bounded, so the description is cut to the room left (ACP-10).
+  // What the host takes together is bounded, so the description is cut to the room left.
   const added = withAttachment(attached, { key: chosen.key, kind: chosen.kind, label: chosen.label, uri: chosen.uri, text });
   if (added.refused !== null) {
     // No room left: the @name just written comes out again, and the line says which chip to take back.

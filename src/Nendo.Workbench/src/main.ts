@@ -72,7 +72,7 @@ import './styles.css';
 // grid still draws: `cellClass` needs CellStyle, `ensureIndexVisible` needs ScrollApi, and a
 // double-click on a column's edge fits it to its content only with ColumnAutoSize.
 // Journey-Behaviour.mjs fails on either the error or a missing cell class. Long text and
-// Markdown are edited in the large-text popup, which needs LargeTextEditor (review R-018).
+// Markdown are edited in the large-text popup, which needs LargeTextEditor.
 ModuleRegistry.registerModules([
   CellStyleModule,
   CellApiModule,
@@ -91,7 +91,7 @@ ModuleRegistry.registerModules([
 ]);
 
 // A filter's `today` is a date for a Date field and an instant for a DateTime one, so the
-// resolver asks the open session what kind each field is (R-003). One map per snapshot.
+// resolver asks the open session what kind each field is. One map per snapshot.
 const fieldKindMaps = new WeakMap<DesktopSessionView, Map<string, string>>();
 useFieldKinds((fieldId) => {
   let kinds = fieldKindMaps.get(state.session);
@@ -122,7 +122,7 @@ function render(): void {
   // another is a new screen and starts at the top.
   markPlace([
     state.view,
-    // Another Help topic is another page, which starts at the top (WST-01).
+    // Another Help topic is another page, which starts at the top.
     state.view === 'help' ? state.helpTopicId : '',
     state.session.fileSessionId ?? '',
     state.selectedApplicationEntity ?? '',
@@ -145,7 +145,7 @@ function render(): void {
   // does not need updateChrome to have run: currentHeading only reads state.
   recordPlace(currentHeading());
   updateChrome();
-  // A Use page draws the record-type and view pickers into the breadcrumb (W-092); any other
+  // A Use page draws the record-type and view pickers into the breadcrumb; any other
   // page leaves the breadcrumb plain.
   beginPlacePickers();
   content.setAttribute('aria-busy', String(state.actionInFlight));
@@ -181,7 +181,7 @@ function render(): void {
   if (state.view !== 'help' && (!state.session.capabilities.mutate || awaitingSave)) {
     for (const control of content.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(alwaysAvailable)) {
       if (!awaitingSave && control.closest('#studio-query') && state.session.capabilities.readData) continue;
-      // A custom view's controls are the view's to disable (W-090): it is told the file is
+      // A custom view's controls are the view's to disable: it is told the file is
       // read-only, and the host refuses its writes whatever it draws.
       if (control.closest('[data-view-toolbar]') !== null) continue;
       // A conversation is not an edit to the file; the agent's writes meet the access level.
@@ -203,10 +203,10 @@ function render(): void {
  * switched editing off in the first place. Disabling the approval button exactly
  * when editing is unavailable leaves the only route forward greyed out. Revoking an
  * agent's edit access is no edit either: it is how a person ends the agent write their
- * own save timed out behind, which the busy bar and the agent pill send them to (WCS-20).
+ * own save timed out behind, which the busy bar and the agent pill send them to.
  * A control marked data-reads only reads or moves between pages — Use's filters, the record-type
  * pickers on Structure and Screens, Show retired data — and was dead in every read-only or
- * recovery session (R2SMA-07); read-only-sweep.test.mjs reads this selector.
+ * recovery session; read-only-sweep.test.mjs reads this selector.
  */
 const alwaysAvailable =
   '[data-action]:not([data-file-action]):not(#create-file):not(#open-file):not(#approve-behaviour):not(#revoke-behaviour):not(#revoke-agent), input:not([data-reads]), select:not([data-reads]), textarea:not([data-reads])';
@@ -234,7 +234,7 @@ function renderPendingMutation(): boolean {
   if (!pending && failure === null) return false;
   const accepting = pending?.method === 'proposal.promote';
   // The status pill says it too; updateChrome draws it (pendingSaveWords), so a chrome refresh
-  // without a render keeps it (WCS-14).
+  // without a render keeps it.
   const notice = document.createElement('aside');
   notice.className = 'context-note callout is-tinted';
   notice.innerHTML = `<span class="callout-icon">${icon('alert')}</span>`;
@@ -248,13 +248,13 @@ function renderPendingMutation(): boolean {
     : pending?.madeElsewhere === true ? `A save made in another file has not been confirmed, and ${state.session.fileName ?? 'this file'} is open now. If this is that file renamed, send the save into it; if it is a copy or a backup, discard it here and open the original to check it.`
     : pending?.discardable === true ? 'You stopped a save, and it did not reach the file. Discard it, or check or retry it, before making another change.'
     : 'A previous save has not been confirmed. Check or retry that saved request before making another change.');
-  // Which file and when, since a copy of the file finds the same request (WCS-03).
+  // Which file and when, since a copy of the file finds the same request.
   if (pending?.fileName !== undefined && pending.savedAt !== undefined)
     message.textContent += ` It was made in ${pending.fileName} on ${formatDateTime(pending.savedAt)}.`;
   notice.append(message);
   if (failure === null && pending?.madeElsewhere === true) {
     // A copy, a backup or the same file renamed: only the person can say which, so each way out is
-    // theirs to choose and confirm, and neither leaves the file locked (WCS-03).
+    // theirs to choose and confirm, and neither leaves the file locked.
     for (const [id, label, run] of [
       ['send-pending-here', 'Send it into this file', sendPendingSaveHere],
       ['discard-pending-save', 'Discard it here', discardPendingSaveHere],
@@ -272,7 +272,7 @@ function renderPendingMutation(): boolean {
     return true;
   }
   if (failure === null && pending?.discardable === true) {
-    // Offered only for a save the host stopped and whose receipt was not found (WCS-22).
+    // Offered only for a save the host stopped and whose receipt was not found.
     const discard = document.createElement('button');
     discard.id = 'discard-pending-save';
     discard.type = 'button';
@@ -320,7 +320,7 @@ function currentHeading(): { eyebrow: string; title: string } {
       case 'health': return { eyebrow: 'Studio', title: 'File health' };
       case 'data': return { eyebrow: 'Studio', title: entity === null ? 'Data' : `${entity.displayName} data` };
       case 'structure': return { eyebrow: 'Studio', title: entity === null ? 'Structure' : `${entity.displayName} structure` };
-      // One of the file's own views is named by its title, as the front page is (W-106).
+      // One of the file's own views is named by its title, as the front page is.
       case 'use': return fileViewById(state.fileView) !== null
         ? { eyebrow: 'Use', title: viewTitle(fileViewById(state.fileView)!) }
         : showsOverview() && overview !== null
@@ -369,7 +369,7 @@ function updateChrome(): void {
   workspaceTitle.textContent = named ? heading.title : 'No file open';
   sessionContext.textContent = named ? heading.eyebrow : '';
   // While the page's pickers stand in the breadcrumb, the eyebrow stays away: a chrome refresh
-  // between two draws, as a view declaring its place makes (W-127), drew it beside them.
+  // between two draws, as a view declaring its place makes, drew it beside them.
   sessionContext.hidden = !named || placePickersDrawn();
 
   sessionFile.textContent = state.session.fileName ?? '';
@@ -385,8 +385,8 @@ function updateChrome(): void {
     addressGlyph.innerHTML = typeName === null ? icon(addressIcon) : typeGlyph(typeName);
     addressGlyph.dataset.icon = glyphKey;
   }
-  // The file's icon beside its name (W-089). It was on the window's title bar, which is Nendo's
-  // top bar now (W-093), so the status bar, where the file is named, carries it instead.
+  // The file's icon beside its name. It was on the window's title bar, which is Nendo's
+  // top bar now, so the status bar, where the file is named, carries it instead.
   const look = state.session.look ?? null;
   const lookPicture = look === null ? null : iconPictureUrl(look.icon, state.session.mediaOrigin);
   const lookKey = look === null ? 'file' : lookPicture ?? `${look.tone}:${look.letter}`;
@@ -406,10 +406,10 @@ function updateChrome(): void {
   // is constrained, where it carries the warning the owner actually needs.
   // A healthy file whose automatic actions await approval is not editable either,
   // and nothing else on the frame said why.
-  // The same condition Health draws its chip from (WSP-14).
+  // The same condition Health draws its chip from.
   const awaitingApproval = approvalNeeded(state.session);
   // An unconfirmed save on a healthy file is said here too: written only by the render, it was
-  // hidden again by the next chrome refresh, and before that never shown at all (WCS-14).
+  // hidden again by the next chrome refresh, and before that never shown at all.
   const unconfirmed = state.session.health === 'normal' ? pendingSaveWords() : null;
   sessionHealth.hidden = state.session.fileName === null || (state.session.health === 'normal' && !awaitingApproval && unconfirmed === null);
   sessionHealth.dataset.state = 'warning';
@@ -464,7 +464,7 @@ async function initialise(): Promise<void> {
     await refreshDerived();
     if (state.compilation?.isValid) state.view = 'use';
     render();
-    // A window opened for a tab moved out of another (W-277) shows that tab's place.
+    // A window opened for a tab moved out of another shows that tab's place.
     if (client.mode === 'desktop') {
       const start = await client.request<TabWindowStart>('window.takeTab');
       if (start.role === 'tab') {
@@ -554,7 +554,7 @@ document.addEventListener('keydown', event => {
   const id = matchShortcut(event);
   if (document.querySelector('dialog[open]') !== null) return;
   if (id === null) {
-    // A key a custom view on the page declared (W-090), unless somebody is typing here.
+    // A key a custom view on the page declared, unless somebody is typing here.
     const focused = document.activeElement;
     if (focused instanceof HTMLInputElement || focused instanceof HTMLSelectElement || focused instanceof HTMLTextAreaElement ||
         (focused instanceof HTMLElement && focused.isContentEditable)) return;
@@ -569,7 +569,7 @@ document.addEventListener('keydown', event => {
 /** One of the window's shortcuts, pressed here or inside a custom view. */
 function runShortcut(id: ShortcutId): void {
   // A key moves no focus, so a Data cell being edited stayed open and the move's redraw destroyed
-  // it unsaved (WCS-06). The edit is ended first, which saves it, and the key acts a moment later,
+  // it unsaved. The edit is ended first, which saves it, and the key acts a moment later,
   // once that save has begun: a move pressed during a save is made when the save ends.
   if (id !== 'palette' && id !== 'hints' && id !== 'rail' && stopGridEditing()) { window.setTimeout(() => runShortcut(id), 0); return; }
   if (id === 'palette') { openPalette(); return; }
@@ -581,7 +581,7 @@ function runShortcut(id: ShortcutId): void {
     return;
   }
   if (id === 'file') {
-    // Folded, the rail draws no File menu, and opening it showed nothing (UIS-15).
+    // Folded, the rail draws no File menu, and opening it showed nothing.
     if (fileDetails.offsetParent === null && root.dataset.rail === 'collapsed') applyRail(false, true);
     if (fileDetails.offsetParent === null) return;
     fileDetails.open = true;
@@ -595,7 +595,7 @@ function runShortcut(id: ShortcutId): void {
 }
 
 // A key pressed inside a custom view never reaches this document, so the view's api.js hands
-// Nendo's own keys back and the Workbench runs them here, exactly as if pressed here (W-090).
+// Nendo's own keys back and the Workbench runs them here, exactly as if pressed here.
 onHostKey((keys) => {
   const id = shortcutForKeys(keys);
   if (id === null || document.querySelector('dialog[open]') !== null) return;
@@ -631,8 +631,8 @@ document.addEventListener('keydown', event => {
   if (event.key === 'ArrowLeft') void goBack(); else void goForward();
 });
 // F5 and Ctrl R are a person asking for the view to be read again. A shipped build keeps the
-// browser's reload off them (DSH-15), so they reached the page and did nothing, while the
-// sentences asked for a refresh (WCS-08). Here they are Refresh view, which a page holding
+// browser's reload off them, so they reached the page and did nothing, while the
+// sentences asked for a refresh. Here they are Refresh view, which a page holding
 // unsaved typing refuses. A Debug build keeps the browser's keys, which reload first.
 document.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.altKey || event.metaKey) return;
@@ -641,7 +641,7 @@ document.addEventListener('keydown', event => {
   event.preventDefault();
   if (event.repeat || document.querySelector('dialog[open]') !== null) return;
   // An open Data cell is ended first, which saves it; the refresh then waits for that save, as a
-  // window key's move does (WCS-06). Without it the refresh's redraw destroyed the edit unsaved.
+  // window key's move does. Without it the refresh's redraw destroyed the edit unsaved.
   if (stopGridEditing()) { window.setTimeout(() => { void refreshView(); }, 0); return; }
   void refreshView();
 });
@@ -655,7 +655,7 @@ document.addEventListener('keydown', event => {
     return;
   }
   // A key pressed in an open menu or picker, or in the breadcrumb, belongs to that control, not
-  // to the surface behind it (UIS-04).
+  // to the surface behind it.
   const target = event.target instanceof Element ? event.target : null;
   if (target?.closest('details[open]:not([data-section]), #place-pickers') != null) return;
   // A page may give Escape its own way out (data-escape): the proposal review leaves without
@@ -741,7 +741,7 @@ document.addEventListener('drop', event => {
 });
 
 // Whatever the page did not take goes nowhere: a link dragged in from a browser, text let go
-// outside a text field, a file dropped while a dialog is open (takesDefaultDrop, DSH-02).
+// outside a text field, a file dropped while a dialog is open (takesDefaultDrop).
 // Registered after the file drop, which has had its say by then.
 for (const kind of ['dragover', 'drop'] as const) {
   document.addEventListener(kind, event => {
@@ -752,7 +752,7 @@ for (const kind of ['dragover', 'drop'] as const) {
 // Dismissing rebuilds the view, so the control that opened the surface is a new
 // element. Remember it by what it opens and hand focus back, or a keyboard owner who presses
 // Escape restarts from the top of the document. A record row and the agent's Review changes
-// have no id, so an id alone handed nothing back (UIK-04).
+// have no id, so an id alone handed nothing back.
 let dismissReturn: string | null = null;
 const returnKeys = ['recordId', 'reviewAgentProposal', 'openAgentChat'] as const;
 function returnSelector(button: HTMLElement): string | null {
@@ -799,13 +799,13 @@ requiredElement<HTMLButtonElement>('#stop-request').addEventListener('click', ()
 navigation.agent.addEventListener('click', () => { openAgentView(); });
 
 function openAgentView(): void {
-  // A press while a save or a read runs is made when it ends (WCS-16).
+  // A press while a save or a read runs is made when it ends.
   if (deferWhileBusy(openAgentView)) return;
   if (refuseWhileDirty('opening the Agent page')) return;
   const leaving = state.view;
   state.view = 'agent';
   state.creatingRecord = false;
-  // A failed read leaves the page where it was, and the state with it (WCS-18).
+  // A failed read leaves the page where it was, and the state with it.
   void refreshAgentStatus().then(render).catch((error: unknown) => {
     if (state.view === 'agent') state.view = leaving;
     showError(messageFor(error));
@@ -856,7 +856,7 @@ let followFailure: OutcomeNotice | null = null;
  * redrew and nothing ever re-armed the read, which the authoring gate caught by writing
  * to an open board and watching it not follow.
  */
-// Behind is what the screen was drawn from, and a failed pass asks again (file-follow.ts, WCS-07).
+// Behind is what the screen was drawn from, and a failed pass asks again (file-follow.ts).
 const fileFollow = createFileFollow({
   chase: fileChangedChase,
   drawnAt: derivedAt,
@@ -870,7 +870,7 @@ const fileFollow = createFileFollow({
   recovered: () => { if (followFailure !== null && state.lastOutcome === followFailure) state.lastOutcome = null; followFailure = null; },
   // The person's hold on the page, and their unsaved typing: a write from elsewhere
   // used to redraw a record page out from under a draft the moment its field lost
-  // focus, and the draft went with nothing said (W-049). The chase asks again each
+  // focus, and the draft went with nothing said. The chase asks again each
   // interval, so the view catches up the moment the draft is saved or closed.
   holding: holdingThePage,
 });
@@ -880,7 +880,7 @@ function followTheFile(): void {
 }
 
 /**
- * The civil day turning is the file moving on for every answer that said `today` (W-217).
+ * The civil day turning is the file moving on for every answer that said `today`.
  * Nendo stays open overnight in the tray, and a screen read only when the file moved kept
  * yesterday's 'Due today', 'Overdue' and 'last 30 days' all the next day while the calendar
  * beside them had moved its ring. Each answer carries the day it was read on, so a new day
@@ -903,13 +903,13 @@ dayWatch.wake();
 // The launched agent's conversation moved (ADR-0030). It is read whether or not its tab is on
 // screen, so switching to the tab shows it as it is.
 client.onAgentSessionChanged?.(() => { followAgentChat(); });
-// The theme set in another window of this file (W-277), drawn here without saving it again.
+// The theme set in another window of this file, drawn here without saving it again.
 client.onAppearanceChanged?.((preference) => { if (isThemePreference(preference)) applyTheme(preference); });
 
 // Drawn by the shell itself rather than through a render pass: it must appear while a
 // request is queued behind an agent's write, which is exactly when a render cannot run.
 client.onAgentActivity?.((work) => { setAgentWork(work); });
-// A view's download is saved without WebView2's panel, so Nendo says where it went (F-237).
+// A view's download is saved without WebView2's panel, so Nendo says where it went.
 client.onDownloadSaved?.((saved) => {
   showOutcome(`Saved ${saved.fileName}${saved.folder === '' ? '' : ` to ${saved.folder}`}.`, {
     label: 'Show in folder',
@@ -920,7 +920,7 @@ client.onDownloadSaved?.((saved) => {
   });
 });
 
-// Nendo's top bar is the window's title bar in the Desktop host (W-093).
+// Nendo's top bar is the window's title bar in the Desktop host.
 startTitleBar(client);
 startOneBar();
 
@@ -953,11 +953,9 @@ window.setInterval(() => {
   if (state.view === 'agent' && !state.actionInFlight && !editingConnection && state.session.hasFile) {
     // rerender, not render: this poll rebuilds the page every three seconds on its own
     // account, and the raw renderer hands back a page whose message slot is empty. So the
-    // outcome of accepting a proposal -- which is shown on this very page -- survived at
-    // most one tick and then the screen said nothing at all, with nobody having touched
-    // it: what the owner reported of 0.8.2, reached by another route. It is also why the
-    // authoring gate failed at the outcome of an acceptance about two runs in five and
-    // read as a flake (F-056, F-057).
+    // outcome of accepting a proposal -- which is shown on this very page -- would survive
+    // at most one tick and then the screen would say nothing at all, with nobody having
+    // touched it.
     //
     // The nav button above still uses render, because clicking Agent is somebody doing
     // the next thing. A timer is not.
@@ -966,7 +964,7 @@ window.setInterval(() => {
     // away every three seconds.
     // Only a status that changed is drawn, and never under an open dialog, a hand on the page or
     // text being selected: an unchanged read rebuilt the page every three seconds, wiped a
-    // selected address, said its outcome again and took focus from a dialog's opener (UIK-01).
+    // selected address, said its outcome again and took focus from a dialog's opener.
     const selection = document.getSelection();
     const selecting = selection !== null && !selection.isCollapsed && selection.anchorNode !== null && content.contains(selection.anchorNode);
     selectingSince = selecting ? selectingSince ?? Date.now() : null;

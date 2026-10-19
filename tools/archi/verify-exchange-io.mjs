@@ -1,4 +1,4 @@
-// W-121: the workbench opens and saves Open Exchange XML with archi-online's semantics, and its
+// The workbench opens and saves Open Exchange XML with archi-online's semantics, and its
 // export is what Archi 5.9's schemas and Desktop Archi accept.
 //
 // - archi-online's exchange fixtures (exchange-sample1.xml, exchange-bendpoint.xml) and an

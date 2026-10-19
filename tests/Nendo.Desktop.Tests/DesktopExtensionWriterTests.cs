@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Views that write (ADR-0013 Phase 3, W-065): a custom view's record writes reach the host
+/// Views that write (ADR-0013): a custom view's record writes reach the host
 /// through the Workbench's broker named for the view's package. The host admits that name on
 /// the four record writes alone, History attributes each write to it, and every other method
 /// refuses it. What the broker sends is pinned in scripts/extension-broker.test.mjs; this is
@@ -46,7 +46,7 @@ public sealed class DesktopExtensionWriterTests
         Assert.IsFalse(history.Any(revision => revision.Origin.StartsWith("extension:", StringComparison.Ordinal) && revision.Origin != Actor));
     }
 
-    // W-270 (ADR-0031): a picture a view holds, staged in chunks and embedded in its package's
+    // ADR-0031: a picture a view holds, staged in chunks and embedded in its package's
     // name, then described and read back; and no stage or commit without the view's actor.
     [TestMethod]
     public async Task AViewEmbedsAPictureInItsPackagesNameAndReadsItBack()
@@ -94,7 +94,7 @@ public sealed class DesktopExtensionWriterTests
         Assert.AreEqual("actor-not-allowed", person.Error!.Code);
     }
 
-    // W-102: several writes as one revision, through the same admission as a single write.
+    // Several writes as one revision, through the same admission as a single write.
     [TestMethod]
     public async Task AViewsBatchIsOneRevisionInItsPackagesNameAndAnswersEachVersion()
     {
@@ -138,7 +138,7 @@ public sealed class DesktopExtensionWriterTests
     }
 
     /// <summary>
-    /// ADR-0023 (W-103): a view undoes and redoes its own batch in its package's name. Another
+    /// ADR-0023: a view undoes and redoes its own batch in its package's name. Another
     /// package's view, a request with no view behind it and a redo of something that is not an
     /// undo are refused, and change nothing.
     /// </summary>
@@ -221,7 +221,7 @@ public sealed class DesktopExtensionWriterTests
     }
 
     /// <summary>
-    /// W-079: a view moves a record in a declared tree (ADR-0019, 2026-09-28) as its package, and
+    /// A view moves a record in a declared tree (ADR-0019) as its package, and
     /// the Engine's rule refuses a loop whoever asks. The seed's orders leave gaps, so neither
     /// move renumbers a sibling and every version below is the seed's.
     /// </summary>
@@ -328,7 +328,7 @@ public sealed class DesktopExtensionWriterTests
     }
 
     /// <summary>
-    /// R-014: the protocol admits a view's write before the request waits for the session gate.
+    /// The protocol admits a view's write before the request waits for the session gate.
     /// A kill switch already waiting there completes first; the write that was queued behind it
     /// must then be refused, not commit after views were turned off.
     /// </summary>

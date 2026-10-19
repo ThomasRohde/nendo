@@ -9,7 +9,7 @@ import { viewTitle } from './view-frame-markup';
 import { typeIcon } from './type-icons';
 
 /**
- * The file's own views (ADR-0013 Phase 5, W-106): an `extensionView` root is a screen of the
+ * The file's own views (ADR-0013): an `extensionView` root is a screen of the
  * file rather than of a record type. Use lists it in the breadcrumb's first picker, between the
  * front page and the record types, and draws it as one frame that fills the screen. One of them
  * may say the file opens on it; where custom views do not run, the file opens as if none did.
@@ -43,7 +43,7 @@ export function openingFileView(definition: CompileResult | null, extensions: Ex
 }
 
 /**
- * The options of the breadcrumb's first picker, the place Use is chosen (W-092): the front page,
+ * The options of the breadcrumb's first picker, the place Use is chosen: the front page,
  * then the file's views, then the record types that have a screen, with the one in view selected.
  */
 export function showingOptionsMarkup(current: { overview: boolean; fileView: string | null; entityId: string | null }): string {
@@ -54,7 +54,7 @@ export function showingOptionsMarkup(current: { overview: boolean; fileView: str
 }
 
 /**
- * A view's icon in the navigation, the address and its tab (W-184). The view the file opens on is
+ * A view's icon in the navigation, the address and its tab. The view the file opens on is
  * its home, as a front page is, when the file has no front page. Any other view's title is guessed
  * as a record type's name is, so Garden is a sprout; a title that suggests nothing keeps the panels.
  */

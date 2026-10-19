@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// P6-B: a related list is the inverse of one configured reference, and a detail
+/// A related list is the inverse of one configured reference, and a detail
 /// surface is the record page that composes it. Both are contract version 3.
 /// </summary>
 [TestClass]
@@ -118,7 +118,7 @@ public sealed class RelatedSurfaceTests
         Assert.AreEqual(propertyPath, hit.PropertyPath);
     }
 
-    // P6-E: a tile states one exact count over a filtered set, never a length
+    // A tile states one exact count over a filtered set, never a length
     // taken from whichever page happens to be loaded.
     [TestMethod]
     public async Task CountIsExactOverTheWholeFilteredSetRatherThanAPage()
@@ -255,7 +255,7 @@ public sealed class RelatedSurfaceTests
         return operations.ToArray();
     }
 
-    // P6-D: one button sets several fields as one mutation against one expected
+    // One button sets several fields as one mutation against one expected
     // record version, and today resolves at execution rather than at compilation.
     [TestMethod]
     public async Task MultiStepCommandAppliesEveryFieldAsOneVersionedMutation()
@@ -274,7 +274,7 @@ public sealed class RelatedSurfaceTests
         var command = (await service.CompileSemanticUiAsync()).Applications.Single()
             .Surfaces.Single().Children.Single(node => node.Kind == "recordCommand");
 
-        // A command's today is the person's civil date where the host runs (R-003, R2LAT-06), so it
+        // A command's today is the person's civil date where the host runs, so it
         // runs just after local midnight, when that date and the UTC date differ east of Greenwich,
         // on a day that is not today, so a step that read the real clock is caught too.
         using var clock = NendoCivilClock.StandInFor(() => CivilTime.JustAfterLocalMidnight(new DateOnly(2026, 1, 15)));
@@ -348,8 +348,8 @@ public sealed class RelatedSurfaceTests
         ]));
     }
 
-    // Remit has a name; Axiom references Remit. This is the Axiom Register shape
-    // the P6 gate uses, reduced to what these assertions need.
+    // Remit has a name; Axiom references Remit. This is the Axiom Register shape,
+    // reduced to what these assertions need.
     private static async Task ConfiguredRegisterAsync(NendoWriteCoordinator coordinator)
     {
         await coordinator.ApplyAsync(new("test", "schema", "test", "Schema",

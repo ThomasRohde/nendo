@@ -4,7 +4,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// Changes how a Text field is shown and edited, between the text presentations: a single line,
-/// long text and Markdown (W-173), and media (ADR-0031). No stored value changes, which is what
+/// long text and Markdown, and media (ADR-0031). No stored value changes, which is what
 /// keeps it to these: a choice or a date would make values invalid that were valid a moment before.
 /// A field written as long text before Markdown existed can be shown formatted without being copied
 /// into a new one. Media is a text presentation whose values are addresses, so a field moves to it
@@ -35,12 +35,12 @@ public sealed record SetFieldPresentationOperation : NendoOperation
     public long ExpectedDefinitionRevision { get; }
     public override string OperationType => "schema.setFieldPresentation";
     public override NendoRevisionLane Lane => NendoRevisionLane.Definition;
-    // Its undo puts back the presentation the evidence retained, including none (ESS-06).
+    // Its undo puts back the presentation the evidence retained, including none.
     public override NendoReversibilityClass Reversibility => NendoReversibilityClass.ReversibleWithRetainedState;
 
     /// <summary>
     /// Set only by the undo of a change to a field that had no presentation: the field goes back
-    /// to none, not to <c>singleLine</c>, so it reads as it did before (ESS-06). Its payload says
+    /// to none, not to <c>singleLine</c>, so it reads as it did before. Its payload says
     /// <c>presentation: null</c>, which a change set cannot submit.
     /// </summary>
     internal bool RestoresNone { get; init; }

@@ -64,7 +64,7 @@ public sealed partial class MainPage
         AutomationProperties.SetAutomationId(empty, "csv.emptyNull"); panel.Children.Add(empty);
         panel.Children.Add(new TextBlock { Text = "Nendo CSV: \\N means null; a doubled leading backslash preserves literal text. Formula-like text is preserved in both profiles. Fields use their declared scalar types; choice values are stable IDs, and a reference holds a record ID or, where you choose, a unique field of its target such as a code.", TextWrapping = TextWrapping.Wrap });
         var selectors = new List<(NendoFieldSnapshot Field, ComboBox Selector)>();
-        // A reference can name its target by a unique field of the target (W-075): a
+        // A reference can name its target by a unique field of the target: a
         // spreadsheet names a parent by its code, not by a record ID only the file knows.
         var entities = (await _session.GetViewAsync()).Entities;
         var matchers = new List<(NendoFieldSnapshot Field, ComboBox Selector, IReadOnlyList<NendoFieldSnapshot?> Choices)>();
@@ -153,7 +153,7 @@ public sealed partial class MainPage
         var entity = await PickCsvEntityAsync("Export a record type as faithful CSV"); if (entity is null) return;
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(new TextBlock { Text = "Exports active fields and exact values, including formula-like text. Null is \\N; literal leading backslashes are escaped. Use the Nendo CSV profile to import it. This creates a new file and is not a backup.", TextWrapping = TextWrapping.Wrap });
-        // ADR-0031 point 14 (W-272): the pictures travel as files in a folder beside the CSV.
+        // ADR-0031 point 14: the pictures travel as files in a folder beside the CSV.
         var pictures = new CheckBox { Content = "Export with pictures: write the pictures in this file to a Media folder beside the CSV, named there by their paths", IsChecked = HasPictures(entity) };
         AutomationProperties.SetAutomationId(pictures, "csv.withPictures");
         if (HasPictures(entity)) panel.Children.Add(pictures);
@@ -171,7 +171,7 @@ public sealed partial class MainPage
                     _session.ExportCsvPicturesAsync(entity.EntityId, Path.GetDirectoryName(Path.GetFullPath(destination))!, cancellationToken));
             var count = await CsvWorkAsync("Export faithful CSV", async cancellationToken =>
             {
-                // The Engine writes the file's encoding, byte-order mark first (R2LAT-11).
+                // The Engine writes the file's encoding, byte-order mark first.
                 await using var file = new FileStream(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None);
                 return await _session.ExportCsvFileAsync(entity.EntityId, file, cancellationToken, written);
             });
@@ -185,7 +185,7 @@ public sealed partial class MainPage
     }
 
     /// <summary>
-    /// Copies a record type's linked picture files into this file (ADR-0031 point 14, W-272): each
+    /// Copies a record type's linked picture files into this file (ADR-0031 point 14): each
     /// picture its own change in History; web pictures stay links.
     /// </summary>
     private async Task EmbedLinkedPicturesNativeAsync()

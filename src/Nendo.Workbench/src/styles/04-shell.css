@@ -81,7 +81,7 @@
    Both themes share the shape and differ only in the tokens; the refusal state is
    the one place a colour carries meaning, so it also changes the words.
    It never takes the pointer: a drag over a custom view's frame belongs to the view
-   (ADR-0013, W-104), and the document under the hint still hears the rest. */
+   (ADR-0013), and the document under the hint still hears the rest. */
 .file-drop-target {
   position: fixed;
   inset: 0;

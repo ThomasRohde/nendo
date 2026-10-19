@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 
-// GGV-14: a view stylesheet that says the value after each --nendo-* token is "that token as
+// A view stylesheet that says the value after each --nendo-* token is "that token as
 // 02-tokens.css declares it" must hold exactly that value, in both themes. The fallbacks are
 // what a page paints before api.js connects and when it runs outside Nendo, and three of them
 // still carried the palette Nendo had before Mica while their comments said otherwise.

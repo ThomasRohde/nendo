@@ -6,8 +6,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Storage;
 
 /// <summary>
-/// A write a crash left unfinished, rolled back when the person opens the file (ADR-0012,
-/// 2026-10-13, ESC-01).
+/// A write a crash left unfinished, rolled back when the person opens the file (ADR-0012).
 /// <para>
 /// SQLite pairs a database with its rollback journal by name alone. Plain file reads first show
 /// that a journal could be this file's; that rules out another file's journal, but not one from a

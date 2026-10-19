@@ -120,7 +120,7 @@ test('the Overview opens the file, no native front page, one page per record typ
   }
 });
 
-test('Use offers only Notes and Tasks: the derived types keep their page and have no screen (W-184)', async () => {
+test('Use offers only Notes and Tasks: the derived types keep their page and have no screen', async () => {
   const useKinds = ['recordList', 'boardSurface', 'calendarSurface', 'timelineSurface', 'gallerySurface', 'matrixSurface', 'outlineSurface', 'extensionGraphSurface', 'extensionRecordsSurface'];
   const roots = (await allOps()).filter(o => o.operationType === 'ui.addNode' && o.payload.parentNodeId === null).map(o => o.payload);
   const screened = [...new Set(roots.filter(r => useKinds.includes(r.kind)).map(r => r.properties.entityId))].sort();
@@ -223,7 +223,7 @@ test('the package manifest, the kit copy and the skill are what the file will ca
   assert.ok(text.includes('__APPLICATION_ID__'), 'the builder substitutes the application ID');
 });
 
-test('GDN-18: the README names every module and folder of the package, and npm test runs every test file', async () => {
+test('the README names every module and folder of the package, and npm test runs every test file', async () => {
   const { readdirSync } = await import('node:fs');
   const readme = readFileSync(path.join(PACKAGE_FOLDER, 'README.md'), 'utf8');
   const files = readdirSync(PACKAGE_FOLDER, { withFileTypes: true }).filter(entry => entry.isDirectory() || /\.(m?js|html|css|json)$/.test(entry.name)).map(entry => entry.isDirectory() ? `${entry.name}/` : entry.name);

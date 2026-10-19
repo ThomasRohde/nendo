@@ -78,7 +78,7 @@ export function nodeFieldIds(node: SurfaceNodePlan): string[] {
 }
 
 /**
- * How many columns a board grouped by a reference draws, and the whole of the S7 ceiling.
+ * How many columns a board grouped by a reference draws, and the whole of that ceiling.
  *
  * The host publishes the same number at `boards.maximumReferenceColumns` in
  * `nendo://application/vocabulary`, and holds it in
@@ -159,7 +159,7 @@ export interface BoardView {
   /**
    * Whether a record with no value can be on this board at all. Every operator but isNull
    * leaves out an unset value (queries.md), so a board with `status ne Done` can never hold a
-   * record without a status, and its Ungrouped lane would only ever read 0 (ESQ-05).
+   * record without a status, and its Ungrouped lane would only ever read 0.
    */
   unsetReachable: boolean;
 }
@@ -223,7 +223,7 @@ function reachableGroups(
   for (const child of node.children) {
     if (child.kind !== 'filterClause' || child.properties.fieldId !== groupByFieldId) continue;
     const { operator, value: stated } = child.properties;
-    // A Boolean clause states true or false, and its lanes are their text (WDV-04).
+    // A Boolean clause states true or false, and its lanes are their text.
     const value = typeof stated === 'boolean' ? String(stated) : stated;
     if (typeof value !== 'string') continue;
     if (operator === 'ne') groups = groups.filter((group) => group !== value);
@@ -297,7 +297,7 @@ export function surfaceLabel(node: SurfaceNodePlan, siblings: readonly SurfaceNo
     ? node.properties.title
     : kindLabel(node.kind);
   // Two screens with one name are told apart by their order, never by their stored ID, which a
-  // picker showed as "Board (node.task.board.root)" (UX-13). The picker states each one's kind.
+  // picker showed as "Board (node.task.board.root)". The picker states each one's kind.
   const namesakes = siblings.filter((other) => surfaceOwnLabel(other) === own);
   if (namesakes.length < 2) return own;
   return `${own} (${namesakes.findIndex((other) => other.semanticId === node.semanticId) + 1} of ${namesakes.length})`;

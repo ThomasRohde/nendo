@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The 1.x promise (ADR-0012, 2026-10-14 amendment, W-235): a file Nendo 1.0.0 opens normally,
+/// The 1.x promise (ADR-0012): a file Nendo 1.0.0 opens normally,
 /// every later 1.x opens normally, with its definitions and data intact. Each file under
 /// Fixtures/Format1 is a file as 1.0 read it, frozen; beside it is the record of what 1.0 read
 /// back. A later host that opens one in safe mode, refuses it, or reads back anything else has
@@ -51,7 +51,7 @@ public sealed class FormatPromiseTests
         Assert.IsTrue(coordinator.Capabilities.Mutate, $"{name} opened without the right to write.");
         var service = new NendoApplicationService(coordinator);
         Assert.AreEqual(expected, Describe(await service.GetSnapshotAsync()),
-            $"{name} reads back differently from what Nendo 1.0 read. The 1.x promise (ADR-0012, 2026-10-14) needs 2.0 to break.");
+            $"{name} reads back differently from what Nendo 1.0 read. The 1.x promise (ADR-0012) needs 2.0 to break.");
 
         // Writable, not only readable: a new record type and a record in it commit.
         await coordinator.ApplyAsync(new("format-promise", "probe-" + Guid.NewGuid().ToString("N"), "test", "Probe", [

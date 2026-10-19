@@ -11,7 +11,7 @@ namespace Nendo.LocalMcp;
 /// operations without it, and neither can be expected to know the number: a view has no read
 /// that states it. The host does know it. The revision advances once per preceding
 /// definition-lane mutation, so each operation gets the revision it will meet, and an explicit
-/// value is passed through untouched and still conflicts loudly if it is wrong (W-241).
+/// value is passed through untouched and still conflicts loudly if it is wrong.
 /// </para>
 /// </summary>
 public static class NendoDefinitionRevisions

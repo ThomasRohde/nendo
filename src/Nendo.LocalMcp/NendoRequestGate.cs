@@ -5,16 +5,15 @@ namespace Nendo.LocalMcp;
 /// <summary>
 /// How many requests this host serves at once, and for how long one may run.
 /// <para>
-/// Nothing bounded either until 2026-09-27: the Engine's one write gate was the only brake,
-/// so a client that opened requests without finishing them held buffers and threads for as
-/// long as it liked (F-182). One that outlives the timeout is cancelled and answered by name.
+/// Without a bound on either, the Engine's one write gate would be the only brake, and a client
+/// that opened requests without finishing them would hold buffers and threads for as long as
+/// it liked. One that outlives the timeout is cancelled and answered by name.
 /// </para>
 /// <para>
 /// A request past the bound waits for a place, up to <see cref="QueueWait"/>, before its body
 /// is read; only one that waits longer, or arrives while <see cref="MaximumWaiting"/> already
-/// wait, is refused as busy. Until 2026-10-08 the seventeenth was refused at once, as HTTP 429:
-/// a client that sent thirty calls in parallel read eleven of them as a broken connection
-/// rather than as calls to repeat.
+/// wait, is refused as busy. Refused at once, as HTTP 429, the calls past the bound read as a
+/// broken connection to a client that sent thirty in parallel, rather than as calls to repeat.
 /// </para>
 /// </summary>
 internal sealed class NendoRequestGate(int maximum, TimeSpan timeout, TimeSpan queueWait, int maximumWaiting)

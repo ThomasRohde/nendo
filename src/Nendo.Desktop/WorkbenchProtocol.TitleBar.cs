@@ -6,7 +6,7 @@ namespace Nendo.Desktop;
 internal static partial class WorkbenchMethods
 {
     /// <summary>
-    /// Where the page's controls are in the window's title bar (W-093), so Windows moves the window
+    /// Where the page's controls are in the window's title bar, so Windows moves the window
     /// from the rest of it. Answered with the title bar itself: its height and the width Windows
     /// keeps at each end for its own buttons.
     /// </summary>
@@ -26,7 +26,7 @@ internal static partial class WorkbenchMethods
 internal sealed record TitleBarRect(double X, double Y, double Width, double Height);
 
 /// <summary>
-/// The window's title bar in the page's CSS pixels (W-093): how tall it is, and how much of its
+/// The window's title bar in the page's CSS pixels: how tall it is, and how much of its
 /// width Windows keeps for its own buttons at the left and at the right.
 /// </summary>
 internal sealed record TitleBarView(double Height, double Left, double Right);
@@ -135,7 +135,7 @@ internal static class DesktopTitleBarRegions
     /// when the bar measures the same in the page's pixels, which it does at every standard
     /// scale (48 × 1.5 is 72 physical pixels, and 72 / 1.5 is 48 again): the rectangles Windows
     /// holds are physical pixels at the old scale, so after a move between a 100% and a 150%
-    /// screen the controls were passed through in the wrong places (DSH-05).
+    /// screen the controls were passed through in the wrong places.
     /// </summary>
     internal static bool Changed(TitleBarView? previous, double previousScale, TitleBarView bar, double scale) =>
         previous != bar || previousScale != scale;

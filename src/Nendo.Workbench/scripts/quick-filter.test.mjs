@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-172 (ADR-0004 2026-10-05): a person narrows a list, board or matrix by one value of one
+// ADR-0004: a person narrows a list, board or matrix by one value of one
 // single-choice or reference field. The pick adds one clause to the screen's own and is held
 // for the file session only.
 const model = await bundleOf('src/quick-filter-model.ts');
@@ -61,7 +61,7 @@ test('a pick is one clause, eq on its value or isNull for Not set', () => {
   assert.equal(model.quickFilterFor(status, '', undefined), null, 'Any asks for every record again');
 });
 
-test('R-012: a stored value spelled like Any or Not set is still that value', () => {
+test('a stored value spelled like Any or Not set is still that value', () => {
   // Any legal choice ID or record ID, the old sentinel and the new words among them.
   const tricky = ['__nendo_not_set__', 'none', 'v:x', ''].filter(Boolean);
   const odd = field('status', 'singleChoice', { options: tricky, choices: tricky.map(id => ({ id, displayName: `Label ${id}`, retired: false })) });

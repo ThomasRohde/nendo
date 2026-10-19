@@ -68,7 +68,7 @@ export type BoardColumnsState =
 export type DrillFilter = WindowQuery['filters'][number];
 export interface DrillState { listId: string; label: string; filters: DrillFilter[] }
 export type StudioQuery = { sortFieldId: string | null; descending: boolean; fieldId: string; operator: string; text: string; filters: Array<{ fieldId: string; operator: string; value?: unknown }>;
-  /** What the status line says of the filtered field when the clauses are not the typed value itself, such as a whole day (W-217). */
+  /** What the status line says of the filtered field when the clauses are not the typed value itself, such as a whole day. */
   phrase?: string };
 /**
  * A calendar or a timeline accumulates bounded pages until its cursor is
@@ -100,7 +100,7 @@ export interface OpenDraft { session: DraftSession; edited: Set<string> }
 
 /**
  * The related record being added, and the record it will point back at
- * (ADR-0004, 2026-09-18 amendment).
+ * (ADR-0004).
  *
  * The reference back is filled in before the form is shown, so the parent's version
  * travels with it: a non-null reference write is refused without the target's current
@@ -118,7 +118,7 @@ export interface CreateRelated {
   parentRecordId: string;
   parentVersion: number;
   parentLabel: string;
-  /** For Link on a link list: the other end, whose picker opens with the form (ADR-0004, 2026-09-29). */
+  /** For Link on a link list: the other end, whose picker opens with the form (ADR-0004). */
   linkFieldId?: string;
 }
 
@@ -136,35 +136,35 @@ export interface ReturnTo { entityId: string; recordId: string; label: string }
  * An outcome kept across redraws: on which view, in what words, in which tone, and,
  * when the view could not be read after the outcome, the refresh that would read it.
  * A refusal is one too, in the alert tone and without a refresh, released by the
- * person's next touch (W-054).
+ * person's next touch.
  */
 export interface OutcomeNotice {
   view: string;
   /**
    * The screen it was said on (`outcomeScreen`): the record type, the file's view, the surface and
    * the record. Every Use screen is the view `use`, so a sentence kept by view alone followed the
-   * person from a work item's Complete to another board, and stayed there (2026-10-15).
+   * person from a work item's Complete to another board, and stayed there.
    */
   screen?: string;
   message: string;
   tone: 'done' | 'alert';
   refresh?: (button: HTMLButtonElement) => Promise<void>;
-  /** One step the sentence offers, such as Show in folder for a saved download (F-237). */
+  /** One step the sentence offers, such as Show in folder for a saved download. */
   action?: { label: string; run: () => Promise<void> };
   /**
    * An alert about something that stays true after the next key or press, such as an
-   * automatic action a save did not run (EBH-01): kept like a success until an action
+   * automatic action a save did not run: kept like a success until an action
    * clears it, rather than released by the person's next key or press.
    */
   kept?: boolean;
   /**
    * The file's change sequence the sentence is about, for one that stops being true once the view
-   * is read again: results from an earlier query (WCS-24). Dropped by a redraw at another change.
+   * is read again: results from an earlier query. Dropped by a redraw at another change.
    */
   changeSequence?: number;
   /**
-   * A sentence that follows the person rather than staying with its screen: a view's Undo offer
-   * (W-250), made just before the view opens the record it created, until the next notice.
+   * A sentence that follows the person rather than staying with its screen: a view's Undo offer,
+   * made just before the view opens the record it created, until the next notice.
    */
   everywhere?: boolean;
 }
@@ -204,7 +204,7 @@ export interface AppState {
    */
   showOverview: boolean | null;
   /**
-   * The file's own view Use is showing (ADR-0013 Phase 5, W-106), by its root's semantic ID,
+   * The file's own view Use is showing (ADR-0013), by its root's semantic ID,
    * or null. It comes before the front page and the record types while the file still has it.
    * Settled with showOverview when the definition arrives: a view that says opensFile.
    */
@@ -330,7 +330,7 @@ export const boardColumns = fileScopedMap<string, BoardColumnsState>();
 // Which charts show their table of numbers. Renderer state, per chart.
 export const chartTables = fileScopedSet<string>();
 export const drills = fileScopedMap<string, DrillState>();
-// What a person narrowed a list, board or matrix to (W-172), keyed by the screen's semantic ID,
+// What a person narrowed a list, board or matrix to, keyed by the screen's semantic ID,
 // and the target records each reference offers in the Filter menu, keyed by the target type.
 // Renderer state for the file session; never written to the file.
 export const quickFilters = fileScopedMap<string, QuickFilter>();
@@ -363,7 +363,7 @@ export const surfaceErrors = fileScopedMap<string, string>();
 // last looked at is not part of the application, so it never reaches the file.
 export const selectedTabs = fileScopedMap<string, string>();
 // Which sections the person has folded or opened, per file. How a section starts is
-// the author's and stored; what was done with it since is not (ADR-0004, 2026-09-20).
+// the author's and stored; what was done with it since is not (ADR-0004).
 export const sectionFolds = fileScopedMap<string, 'open' | 'closed'>();
 // Which month and view each calendar surface is showing, and which year and
 // view each timeline surface is showing, for the open file.
@@ -375,7 +375,7 @@ export const timelineModes = fileScopedMap<string, CalendarMode>();
 // window key each surface builds for its range and mode.
 export const accumulatedWindows = fileScopedMap<string, PageAccumulator>();
 
-/** What an outline surface has read and where its focus is (ADR-0019 stage 6), by node ID. */
+/** What an outline surface has read and where its focus is (ADR-0019), by node ID. */
 export interface SurfaceOutline {
   state: OutlineState;
   error: string | null;

@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Developing a view from a folder (ADR-0013 Phase 4, W-063): this device links a package the
+/// Developing a view from a folder (ADR-0013): this device links a package the
 /// open file carries to a folder, the package's origin answers from the folder, a save there is
 /// one notice within a measured bound, and Save to file is the proposal Import would prepare.
 /// The link is device state: nothing about it reaches the file.
@@ -113,7 +113,7 @@ public sealed class DesktopExtensionDevelopmentTests
         };
         // An editor's save is several writes; the settle delay makes it one reload. The three are
         // written beside the folder and moved in back to back, so they land as one save does: three
-        // writes on a loaded machine landed more than a settle apart and read as two saves (TST-17).
+        // writes on a loaded machine landed more than a settle apart and read as two saves.
         var staging = Directory.CreateDirectory(Path.Combine(Path.GetDirectoryName(folder)!, "staging-" + Guid.NewGuid().ToString("N"))).FullName;
         File.WriteAllText(Path.Combine(staging, "index-1.html"), "<!doctype html><p>saved</p>");
         File.WriteAllText(Path.Combine(staging, "app.js"), "console.log('saved');");

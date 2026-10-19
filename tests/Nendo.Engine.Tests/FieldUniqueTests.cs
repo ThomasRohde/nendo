@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A unique field, ADR-0020 stage 1: declared by schema.setFieldUnique, checked against the
+/// A unique field (ADR-0020): declared by schema.setFieldUnique, checked against the
 /// data on declaration, and then refused on every write that would give two records the same
 /// value, naming the record that holds it. Text compares case-insensitively for ASCII; an empty
 /// value never collides.

@@ -197,9 +197,8 @@ internal sealed partial class SqliteNendoStore
     /// </para>
     /// </summary>
     /// <summary>
-    /// What the actions wrote, one entry per record at the version it now holds. A
-    /// write result used to name only the caller's own record, so an agent whose save
-    /// fired a trigger had to read the other record back to learn it had moved.
+    /// What the actions wrote, one entry per record at the version it now holds, so an
+    /// agent whose save fired a trigger need not read the other record back to learn it moved.
     /// </summary>
     private static IReadOnlyList<NendoGeneratedChange> GeneratedChanges(BehaviourExecutionContext? chain) =>
         chain is null || chain.Generated.Count == 0
@@ -273,7 +272,7 @@ internal sealed partial class SqliteNendoStore
         // One budget for the whole chain. A trigger that starts another trigger spends
         // the same allowance, so a chain cannot outrun the ceiling by going deeper. Its calls,
         // related records and changes are those of the records the save names, one by one, and
-        // reading those records is work rather than a related record (W-247).
+        // reading those records is work rather than a related record.
         var budget = new BehaviourBudget(_behaviourLimits, cancellationToken, records: Math.Max(1, before.Count));
         foreach (var key in before.Keys) budget.Own(key.EntityId, key.RecordId);
         var context = new BehaviourExecutionContext(
@@ -295,8 +294,8 @@ internal sealed partial class SqliteNendoStore
         catch (NendoCalculationException exception) when (exception.ExhaustedBudget && before.Count > 1)
         {
             // One budget pays for the whole save (P4), so the batch's size is half the answer. The
-            // Billable author found that 15 entries fit and 20 did not, and nothing said why (W-246).
-            // Each record brings its own calls, related records and changes (W-247); the work units
+            // Billable author found that 15 entries fit and 20 did not, and nothing said why.
+            // Each record brings its own calls, related records and changes; the work units
             // are the save's whatever its size.
             throw new NendoCalculationException(exception.Code,
                 $"{exception.Message} One budget covers the whole save, and this save carried {before.Count} records: each brings its own function calls, related records and automatic changes, while the {_behaviourLimits.WorkUnits.ToString("N0", System.Globalization.CultureInfo.InvariantCulture)} work units are the save's whatever its size.")

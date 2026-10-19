@@ -114,9 +114,10 @@ test('R02-012: native picker versions serialize every semantic ID, including res
   assert.deepEqual(serialized, Object.fromEntries(ids.map((id, i) => [id, i + 7])));
 });
 
-// WSP-13: a refresh read each level again from its first page, so the rows Show more had added
-// were gone, and an edited row past the first 200 left the view at its own save.
-test('WSP-13: a refresh reads each level as far as Show more had read it', async () => {
+// A refresh reads each level as far as Show more had read it: read again from its first page,
+// the rows Show more had added would go, and an edited row past the first 200 would leave the
+// view at its own save.
+test('a refresh reads each level as far as Show more had read it', async () => {
   reset();
   const nodes = (from, count) => Array.from({ length: count }, (_, index) => ({ record: { recordId: `r${from + index}`, recordVersion: 1, values: {} }, depth: 1, childCount: 0, parentRecordId: null }));
   m.outlines.set(entity.entityId, { entityId: entity.entityId, levels: new Map([['', { items: nodes(0, 400), nextCursor: 'c400' }]]), expanded: new Set(), changeSequence: 7 });
@@ -132,10 +133,10 @@ test('WSP-13: a refresh reads each level as far as Show more had read it', async
   assert.equal(f.requests.length, 2, 'the refresh read further than the level had been read');
 });
 
-// The independent review of the WSP-13 fix: the host never answers a continued page from another
+// The host never answers a continued page from another
 // change; it refuses the cursor as stale-cursor. That refusal is the file moving between pages,
 // and the refresh starts over, rather than showing an outline error or closing an open record.
-test('WSP-13 review: a stale cursor while a level is read again starts the refresh over', async () => {
+test('a stale cursor while a level is read again starts the refresh over', async () => {
   const nodes = (from, count, parent = null) => Array.from({ length: count }, (_, index) => ({ record: { recordId: `${parent ?? 'r'}${from + index}`, recordVersion: 1, values: {} }, depth: parent ? 2 : 1, childCount: 0, parentRecordId: parent }));
   const stale = () => new m.WorkbenchHostError('stale-cursor', 'The file changed. Restart paging.');
   // The top level.

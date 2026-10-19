@@ -4,9 +4,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// W-172: the refresh after a write rebuilt the screen's window from its declared clauses alone,
-// so a board narrowed by Filter showed every record again as soon as a card was dragged (found
-// in the preview on 2026-10-05). The real actions.ts runs here against a stand-in host that
+// The refresh after a write does not rebuild the screen's window from its declared clauses
+// alone, or a board narrowed by Filter would show every record again as soon as a card is
+// dragged. The real actions.ts runs here against a stand-in host that
 // records each read; the refresh must read the screen under the pick, as it opened.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const host = { calls: [], redraws: 0, errors: [], reply: null };

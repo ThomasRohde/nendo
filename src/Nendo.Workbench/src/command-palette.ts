@@ -59,7 +59,7 @@ const searchLimit = 8;
 /** The text a control shows, without the detail line or a key hint inside it. */
 function labelOf(element: Element): string {
   const clone = element.cloneNode(true) as Element;
-  // A glyph drawn beside the words, such as Add's +, is decoration (UIS-21).
+  // A glyph drawn beside the words, such as Add's +, is decoration.
   for (const extra of clone.querySelectorAll('small, kbd, svg, .nav-symbol, .button-glyph')) extra.remove();
   const strong = clone.querySelector('strong');
   return (strong?.textContent ?? clone.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -91,7 +91,7 @@ export function currentCommands(): PaletteCommand[] {
   }
 
   // The record types and views of the screen on show. They exist only on a Use page, in the
-  // breadcrumb since W-092, and the palette offers what that page offers.
+  // breadcrumb, and the palette offers what that page offers.
   const entity = document.querySelector<HTMLSelectElement>('#place-pickers #use-entity');
   if (entity !== null && !entity.disabled) {
     for (const option of entity.options) {
@@ -108,7 +108,7 @@ export function currentCommands(): PaletteCommand[] {
   }
   const create = content.querySelector('#new-record');
   if (usable(create)) commands.push({ id: '#new-record', label: labelOf(create), group: 'This page', run: press(create) });
-  // What the custom views on the page offer, under each view's title (W-090). Each runs as a
+  // What the custom views on the page offer, under each view's title. Each runs as a
   // press of its control does, and what a view disabled is left out.
   commands.push(...viewPaletteCommands());
 
@@ -117,7 +117,7 @@ export function currentCommands(): PaletteCommand[] {
     commands.push({ id: `file:${action.dataset.fileAction}`, label: labelOf(action), group: 'File', run: press(action) });
   }
 
-  // The tab on screen into a window of its own, as a drag out of the strip does (W-277).
+  // The tab on screen into a window of its own, as a drag out of the strip does.
   if (tabsCanMove()) commands.push({ id: 'tab:moveToWindow', label: 'Move tab to new window', group: 'Tabs', run: moveActiveTabToWindow });
 
   for (const theme of document.querySelectorAll<HTMLButtonElement>('[data-theme-option]')) {
@@ -219,7 +219,7 @@ function scheduleSearch(): void {
   const text = input.value.trim();
   const sequence = ++searchSequence;
   // Hits for the earlier text went on being listed until the new search answered, and Enter
-  // opened one of them: 'inv' found Invoice 12, and 'invoice 99' typed fast opened it (WCS-15).
+  // opened one of them: 'inv' found Invoice 12, and 'invoice 99' typed fast opened it.
   if (text !== recordsFor) { records = []; recordsFor = ''; }
   if (text.length < searchMinimum || state.session.fileSessionId === null || !state.session.capabilities.readData) {
     if (records.length > 0) { records = []; }

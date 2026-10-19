@@ -65,7 +65,7 @@ internal sealed partial class SqliteNendoStore
                     $"record{(referring.Count == 1 ? " still points" : "s still point")} at this one through {field.DisplayName} " +
                     $"({string.Join(", ", referring.Take(5))}{(referring.Count > 5 ? ", …" : "")}). " +
                     // A retired field or record type keeps its values but takes no edit, so "clear
-                    // them" was a remedy the person could not take; it names the one they can (ESS-13).
+                    // them" was a remedy the person could not take; it names the one they can.
                     (source.Retired
                         ? $"{source.DisplayName} is retired, so those records cannot be edited. Reactivate {source.DisplayName} and clear or reassign them, then delete this record."
                         : field.Retired

@@ -97,8 +97,8 @@ public sealed partial class NendoApplicationService
             {
                 // No gap at the insertion point: number afresh the smallest run of siblings
                 // around it that fits between its ordered neighbours, the moved record in its
-                // place. Until 2026-10-04 the whole level was renumbered, so one move past a
-                // sibling without an order rewrote every record at that level (F-260).
+                // place. Renumbering the whole level would make one move past a sibling
+                // without an order rewrite every record at that level.
                 var ordered = siblings.Select(sibling => (sibling.RecordId, sibling.Version, sibling.Order)).ToList();
                 ordered.Insert(at, (request.RecordId, version, current));
                 foreach (var (index, renumbered) in RenumberedWindow(ordered.Select(entry => entry.Order).ToList(), at))
@@ -220,8 +220,8 @@ public sealed partial class NendoApplicationService
 
     /// <summary>
     /// The records under a parent, or at the top level, in sibling order, without the moved one:
-    /// one read from one change. Until 2026-10-16 they were read 100 at a time, with every
-    /// record's calculations, and a move among more than 10,000 siblings was refused.
+    /// one read from one change, without the records' calculations, and with no bound on how
+    /// many siblings a move is among.
     /// </summary>
     private async Task<List<Sibling>> SiblingsAsync(NendoEntitySnapshot entity, string? parent, string excluded,
         CancellationToken cancellationToken) =>

@@ -6,8 +6,8 @@ internal sealed record NendoReadDiagnostics(long FullAuthorityScans, long FullRe
 public static class NendoQueryLimits
 {
     /// <summary>
-    /// The most records a filter or sort on a calculated field works out before it answers
-    /// (F-222): the calculation has no column, so every record the stored filters leave is
+    /// The most records a filter or sort on a calculated field works out before it answers:
+    /// the calculation has no column, so every record the stored filters leave is
     /// read and calculated. The same ceiling a declared hierarchy's subtree has.
     /// </summary>
     public const int MaximumCalculatedQueryRecords = 10_000;
@@ -72,8 +72,8 @@ public sealed record NendoRecordAggregate(
 /// <summary>
 /// An exact aggregate over the records a filtered query would return, answered as
 /// one number per group of a closed grouping — the options of a single-choice
-/// field, or false and true for a Boolean — plus the unset group (ADR-0004,
-/// 2026-09-14 amendment). The grouping is not a filter and spends none of the
+/// field, or false and true for a Boolean — plus the unset group (ADR-0004).
+/// The grouping is not a filter and spends none of the
 /// query's filter budget. <see cref="FieldId"/> is the numeric field a sum, min or
 /// max reads, and null for a count.
 /// </summary>
@@ -90,7 +90,7 @@ public sealed record NendoRecordGroupedAggregateQuery(string EntityId, string Gr
 public sealed record NendoRecordAggregateGroup(string? Key, System.Text.Json.JsonElement? Value, long ContributingRecords)
 {
     /// <summary>
-    /// For a grouping by a reference (W-249), the label of the record the group's key names, as the
+    /// For a grouping by a reference, the label of the record the group's key names, as the
     /// reference shows it; null for every other grouping and for a target with no label.
     /// </summary>
     public string? Label { get; init; }
@@ -114,8 +114,8 @@ public sealed record NendoRecordGroupedAggregate(
     long ChangeSequence);
 
 /// <summary>
-/// One exact number per civil-date bucket of a resolved range (ADR-0004, 2026-09-16
-/// amendment). <see cref="Range"/> and <see cref="Bucket"/> are closed words, never dates:
+/// One exact number per civil-date bucket of a resolved range (ADR-0004).
+/// <see cref="Range"/> and <see cref="Bucket"/> are closed words, never dates:
 /// the host resolves them against today each time it reads, so the query a stored screen
 /// asks does not go stale. The two bounds it resolves to are predicates the host adds, and
 /// they count against the query's filter budget, which is why the compiler gives a trend
@@ -153,8 +153,8 @@ public sealed record NendoRecordDateBucketAggregate(
     long ChangeSequence);
 
 /// <summary>
-/// One exact number per cell of two crossed closed groupings (ADR-0004, 2026-09-17
-/// amendment, S6). The two axes must be different fields: a field against itself is a
+/// One exact number per cell of two crossed closed groupings (ADR-0004).
+/// The two axes must be different fields: a field against itself is a
 /// diagonal with empty corners, which states nothing a grouped aggregate does not state
 /// better. Neither grouping is a filter, so between them they spend none of the query's
 /// filter budget.

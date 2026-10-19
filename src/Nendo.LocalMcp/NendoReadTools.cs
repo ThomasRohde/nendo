@@ -10,7 +10,7 @@ namespace Nendo.LocalMcp;
 /// Every read this host serves, as two tools, for a client that calls tools and cannot read
 /// resources. An agent in such a client could read nothing through Nendo: not an ID, a version,
 /// a limit or the file's own skill. It opened the file's storage instead, which is the one
-/// route this host exists to close (2026-10-08). The tools add no read of their own: one hands
+/// route this host exists to close. The tools add no read of their own: one hands
 /// an address to the same resource the SDK would, and the other lists the addresses.
 /// </summary>
 [McpServerToolType]
@@ -22,7 +22,7 @@ internal sealed class NendoReadTools(
     /// <remarks>
     /// The result is the resource's text and nothing beside it: no output schema and no
     /// structuredContent. MCP lets a client read structuredContent in place of the text, and one
-    /// that did, launched from the Agent page on 2026-10-09, was handed only the address and the
+    /// that did, launched from the Agent page, was handed only the address and the
     /// media type, read every resource "empty", and stopped.
     /// </remarks>
     [McpServerTool(

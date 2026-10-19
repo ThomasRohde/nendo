@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// TST-15: a regression lane's ID names one test and one catalogue row. BehaviourScalarTests had
+/// A regression lane's ID names one test and one catalogue row. BehaviourScalarTests had
 /// two tests for each of D1_18 to D1_22, ADR-0008 pointed at one set and the catalogue at the
 /// other, and a filter on D1_19 ran two unrelated tests.
 /// </summary>

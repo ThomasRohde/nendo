@@ -17,7 +17,7 @@ internal static partial class WorkbenchMethods
     /// <summary>Prepare a proposal that takes a package and its files out of the file.</summary>
     internal const string ExtensionRemove = "extension.remove";
 
-    /// <summary>Pick a folder and develop a package of the open file from it, on this device (ADR-0013 Phase 4).</summary>
+    /// <summary>Pick a folder and develop a package of the open file from it, on this device (ADR-0013).</summary>
     internal const string ExtensionDevelopLink = "extension.develop.link";
 
     /// <summary>Stop developing a package from its folder: its views run the file's reviewed code again.</summary>
@@ -36,17 +36,17 @@ internal static partial class WorkbenchMethods
     internal const string HelpReadPages = "help.readPages";
 
     /// <summary>
-    /// One runtime event of one of the open file's custom views, from the Workbench's broker (W-251):
+    /// One runtime event of one of the open file's custom views, from the Workbench's broker:
     /// loaded, stopped, an uncaught error or a refused call. Kept in memory for an agent to read; never
     /// carried by a view's actor, since the broker reports what it saw rather than what a view says.
     /// </summary>
     internal const string ExtensionEventsReport = "extension.events.report";
 
     /// <summary>
-    /// The only methods a request may carry a custom view's actor on (ADR-0013 Phase 3): the
-    /// record writes a person's own edit uses, since 2026-09-28 a move in a declared tree
-    /// (ADR-0019, W-079), since 2026-09-29 several record writes as one revision (W-102), and
-    /// since 2026-10-04 the undo and redo of such a batch (ADR-0023, W-103).
+    /// The only methods a request may carry a custom view's actor on (ADR-0013): the
+    /// record writes a person's own edit uses, a move in a declared tree
+    /// (ADR-0019), several record writes as one revision, and
+    /// the undo and redo of such a batch (ADR-0023).
     /// A read carries no actor, and every other method -- proposals,
     /// behaviour, agents, files, sessions, appearance, compensation -- refuses one with
     /// <c>actor-not-allowed</c>. tests/Nendo.Desktop.Tests pins the set.
@@ -81,7 +81,7 @@ internal interface IWorkbenchExtensionHost
 
 internal sealed record ExtensionImportCancelled(bool Cancelled = true);
 
-/// <summary>A view's runtime event was kept (W-251).</summary>
+/// <summary>A view's runtime event was kept.</summary>
 internal sealed record DesktopViewEventKept(bool Kept);
 
 /// <summary>A view's kept values: each key with its JSON value (null when only keys were asked for) and its version.</summary>
@@ -104,7 +104,7 @@ internal sealed partial class WorkbenchProtocolHandler
         "extension-host-unavailable", "Importing and exporting custom views is unavailable in this host.");
 
     /// <summary>
-    /// A view's runtime event as the broker reports it (W-251): its kind by name, and the view,
+    /// A view's runtime event as the broker reports it: its kind by name, and the view,
     /// method, code and sentence when it has them. The time is the host's, when the event arrives.
     /// </summary>
     private static NendoViewEvent ViewEventFrom(JsonElement payload)

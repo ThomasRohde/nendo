@@ -51,15 +51,15 @@ internal static class RecordQuerySemantics
             NendoStorageKind.Decimal => Decimal(left).CompareTo(Decimal(right)),
             NendoStorageKind.DateTime => DateTimeOffset.Parse(left, CultureInfo.InvariantCulture).CompareTo(
                 DateTimeOffset.Parse(right, CultureInfo.InvariantCulture)),
-            // A UUID is accepted in either case and kept as written; both cases name one value
-            // (ESQ-17). Its digits are ASCII, so an ordinal fold is exact.
+            // A UUID is accepted in either case and kept as written; both cases name one value.
+            // Its digits are ASCII, so an ordinal fold is exact.
             NendoStorageKind.Uuid => StringComparer.OrdinalIgnoreCase.Compare(left, right),
             _ => StringComparer.Ordinal.Compare(left, right),
         };
     }
 
     /// <summary>
-    /// The order a sort by a field reads in (ESQ-16). A single choice sorts in its options'
+    /// The order a sort by a field reads in. A single choice sorts in its options'
     /// configured order, as a person set them out, with a value no option holds after them;
     /// every other field by its stored value. A reference sorts by its target's label, which
     /// the caller reads and compares with the label field's own kind.

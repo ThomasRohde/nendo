@@ -91,13 +91,13 @@ function close(h) {
 
 // proposal.get reads a proposal the view's own package prepared, and nothing else.
 const readMethods = ['media.describe', 'media.readWindow', 'data.queryRecords', 'data.searchRecords', 'data.treeRecords', 'data.countRecords', 'data.aggregateRecords', 'data.groupAggregateRecords', 'data.bucketAggregateRecords', 'data.cellAggregateRecords', 'proposal.get', 'extension.state.read'];
-// The record writes a person's own edit uses, and preparing a proposal (ADR-0013 Phase 3,
-// W-065 and W-069). The host admits a view's actor on exactly these and on proposal.get
+// The record writes a person's own edit uses, and preparing a proposal (ADR-0013). The host
+// admits a view's actor on exactly these and on proposal.get
 // (WorkbenchMethods.ExtensionWriterMethods). Never promote or reject.
 const writeMethods = ['data.createRecord', 'data.setFields', 'data.deleteRecord', 'data.moveRecord', 'data.writeRecords', 'data.undoRecordWrites', 'data.executeCommand', 'proposal.prepareChangeSet', 'extension.state.set', 'media.commit'];
 
-// WXS-01: the client takes the next file's session before the old file's frames are released.
-// Until then a view of the old file was answered from the next one: its schema locally, its
+// The client takes the next file's session before the old file's frames are released. Until
+// then a view of the old file is refused, not answered from the next one: its schema locally, its
 // reads and, under a shared package ID, its writes by the host. Each family is the first thing
 // its own connection asks after the switch, so one refusal closing the port cannot hide another.
 for (const [family, method, params] of [
@@ -106,7 +106,7 @@ for (const [family, method, params] of [
   ['a write', 'records.create', { entityId: 'b.salary', values: { amount: 1 } }],
   ['a request to Nendo', 'ui.toast', { text: 'hello' }],
 ]) {
-  test(`WXS-01: ${family} from a view of a file that is no longer open reaches nothing and disconnects it`, async (t) => {
+  test(`${family} from a view of a file that is no longer open reaches nothing and disconnects it`, async (t) => {
     const h = harness(); t.after(() => close(h)); const view = connect(h);
     h.fileSessionId = 'file-B';
     view.send({ t: 'req', id: 1, m: method, p: params });
@@ -120,7 +120,7 @@ for (const [family, method, params] of [
   });
 }
 
-test('WXS-01: a view of a file that is no longer open hears nothing more and cannot connect again', async (t) => {
+test('a view of a file that is no longer open hears nothing more and cannot connect again', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   h.fileSessionId = 'file-B';
   view.send({ t: 'key', keys: 'Ctrl+K' });
@@ -246,9 +246,9 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['records.update', 'data.setFields'],
     ['records.delete', 'data.deleteRecord'],
     ['records.move', 'data.moveRecord'],
-    // Several record writes as one revision (W-102).
+    // Several record writes as one revision.
     ['records.batch', 'data.writeRecords'],
-    // Undo and redo of a batch this frame wrote (ADR-0023, W-103).
+    // Undo and redo of a batch this frame wrote (ADR-0023).
     ['records.undo', 'data.undoRecordWrites'],
     ['records.redo', 'data.undoRecordWrites'],
     ['commands.run', 'data.executeCommand'],
@@ -259,7 +259,7 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['state.keys', 'extension.state.read'],
     ['state.set', 'extension.state.set'],
     ['state.delete', 'extension.state.set'],
-    // Pictures (ADR-0031, W-270): describe and read, and a picture embedded in the package's name.
+    // Pictures (ADR-0031): describe and read, and a picture embedded in the package's name.
     ['media.describe', 'media.describe'],
     ['media.read', 'media.readWindow'],
     ['media.put', 'media.commit'],
@@ -268,10 +268,10 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['ui.openStudio', null],
     ['ui.toast', null],
     ['ui.setHeight', null],
-    // The view's controls in Nendo's own chrome (W-090): the Workbench draws them itself.
+    // The view's controls in Nendo's own chrome: the Workbench draws them itself.
     ['ui.setToolbar', null],
     ['ui.showMenu', null],
-    // The view's place in Back and Forward (W-127): the Workbench keeps it and never reads it.
+    // The view's place in Back and Forward: the Workbench keeps it and never reads it.
     ['ui.setPlace', null],
   ];
   const table = broker.brokerTable();
@@ -340,7 +340,7 @@ test('a write goes to the host as the mount\u2019s package, never as anything th
   assert.equal(h.calls[5].payload.expectedRecordVersion, 1);
 });
 
-// W-102: several writes as one revision, made as the mount's package like every write.
+// Several writes as one revision, made as the mount's package like every write.
 test('a batch goes to the host as one write in the mount\u2019s package, rebuilt entry by entry, and answers each record\u2019s version', async (t) => {
   const h = harness();
   const view = connect(h);
@@ -408,7 +408,7 @@ test('a batch is refused before the host when it is empty, too long, names a rec
   assert.equal(h.calls.length, 0, 'A refused batch reached the host.');
 });
 
-// W-079: a move in a declared tree (ADR-0019), made as the mount's package like every write.
+// A move in a declared tree (ADR-0019), made as the mount's package like every write.
 test('a move goes to the host as the mount\u2019s package with the parent\u2019s version, or to the top level with neither, and answers the record', async (t) => {
   const h = harness();
   const view = connect(h);
@@ -453,7 +453,7 @@ test('a move goes to the host as the mount\u2019s package with the parent\u2019s
   assert.equal(h.calls.length, 4, 'A move the broker refused reached the host.');
 });
 
-// EBH-01: a view's write commits without an automatic action whose condition could not be
+// A view's write commits without an automatic action whose condition could not be
 // worked out. The person is told, as after their own save; the view's answer is unchanged.
 test('a view write that skipped an automatic action says so in Nendo, for a create, an update, a command and a batch', async (t) => {
   const h = harness();
@@ -490,7 +490,7 @@ test('a view write that skipped an automatic action says so in Nendo, for a crea
   assert.equal(h.skipped.length, 4);
 });
 
-// R-002: the host refuses a non-null reference without the target's version
+// The host refuses a non-null reference without the target's version
 // (target-version-required), so a view's create and update must carry the map to it.
 test('a create and an update that set a reference carry each target’s version to the host as expectedTargetVersions', async (t) => {
   const h = harness();
@@ -825,7 +825,7 @@ test('a view hears the file move at most four times a second, and the latest seq
   assert.deepEqual(await view.next((message) => message.n === 'theme'), { t: 'evt', n: 'theme', d: { mode: 'dark', tokens: { ink: '#edf3ff' } } });
 });
 
-test('W-217 R2LAT-01: when the civil day turns every running view hears its context again, though nothing in it changed', async (t) => {
+test('when the civil day turns every running view hears its context again, though nothing in it changed', async (t) => {
   const h = harness();
   const view = connect(h);
   t.after(() => close(h));
@@ -888,7 +888,7 @@ test('a toast is one line of at most 300 characters, one a second, and a height 
 test('the colours a view is handed are exactly the tokens the Workbench declares for both themes', async () => {
   const css = await readFile(new URL('../src/styles/02-tokens.css', import.meta.url), 'utf8');
   const [light, dark] = css.split(':root[data-theme="dark"]');
-  // A file's icon colours (--look-*, W-089) are the same in both themes: they are the raster
+  // A file's icon colours (--look-*) are the same in both themes: they are the raster
   // icon's, not a theme, so a view that follows the person's theme is not handed them.
   const declared = (block) => [...new Set([...block.matchAll(/--([a-z0-9-]+)\s*:/g)].map((match) => match[1]))]
     .filter((name) => !name.startsWith('look-')).sort();
@@ -941,7 +941,7 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
     labelFieldId: 'title', statusFieldId: 'status', edgeEntityId: 'link', sourceFieldId: 'from', targetFieldId: 'to',
     fields: [{ fieldId: 'age', entityId: 'work' }, { fieldId: 'kind', entityId: 'link' }],
     filters: [
-      // Each filter says its field's stored kind, so `today` resolves to a date or an instant (R-003).
+      // Each filter says its field's stored kind, so `today` resolves to a date or an instant.
       { fieldId: 'due', entityId: 'work', operator: 'le', value: null, valueKind: 'today', storageKind: 'date' },
       { fieldId: 'kind', entityId: 'link', operator: 'isNotNull', value: null, valueKind: 'literal', storageKind: 'text' },
       { fieldId: 'status', entityId: 'work', operator: 'ne', value: 'open', valueKind: 'literal', storageKind: 'text' },
@@ -981,7 +981,7 @@ test('a view’s context is built from the stored nodes: its bindings, filters, 
   ] }]);
 });
 
-// --- A view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090) ------------------
+// --- A view's controls in Nendo's own chrome (ADR-0013) -------------------------------------
 
 const atlasToolbar = {
   items: [
@@ -1179,7 +1179,7 @@ test('G32: Back or Forward hands a view its place as the event place, never the 
     'The view heard its own place back, or a context event for a place it was already told.');
 });
 
-// ADR-0023 (W-103): a view undoes and redoes only the revisions this frame was answered, in the
+// ADR-0023: a view undoes and redoes only the revisions this frame was answered, in the
 // mount's package, and the host is not asked about any other.
 test('a view undoes and redoes only what this frame wrote, as the mount’s package', async (t) => {
   const h = harness();
@@ -1214,10 +1214,10 @@ test('a view undoes and redoes only what this frame wrote, as the mount’s pack
   assert.equal(h.calls[2].payload.label, 'Make it again');
 });
 
-// W-250: a batch may ask Nendo to offer Undo in its own notice, which outlives the view: Billable's
-// New invoice wrote an invoice, its lines and links and then opened the invoice, and its own Undo
-// went with it. The offer undoes in the package's name, under the key the view's own undo uses.
-test('W-250: a batch offers Undo in Nendo’s notice, made as the package, once, in its own file', async (t) => {
+// A batch may ask Nendo to offer Undo in its own notice, which outlives the view: a view that
+// writes an invoice, its lines and links and then opens the invoice takes its own Undo with it.
+// The offer undoes in the package's name, under the key the view's own undo uses.
+test('a batch offers Undo in Nendo’s notice, made as the package, once, in its own file', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   view.send({ t: 'req', id: 1, m: 'records.batch', p: { label: 'New invoice', offerUndo: true, writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
   await until(() => h.calls.length === 1, 'the batch');
@@ -1247,7 +1247,7 @@ test('W-250: a batch offers Undo in Nendo’s notice, made as the package, once,
   assert.equal(h.calls.length, 2, 'An offer from another file asked this file to undo.');
 });
 
-test('W-250: a batch without offerUndo offers nothing, and offerUndo must be true or false', async (t) => {
+test('a batch without offerUndo offers nothing, and offerUndo must be true or false', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
   await until(() => h.calls.length === 1, 'the batch');
@@ -1261,9 +1261,9 @@ test('W-250: a batch without offerUndo offers nothing, and offerUndo must be tru
   assert.equal(h.calls.length, 1, 'A batch with a malformed offerUndo reached the host.');
 });
 
-// W-251: the broker tells the host what a view did, so the agent that wrote it can read it over
-// MCP: Billable's agent could not see a thrown error or a refused toolbar from outside the frame.
-test('W-251: a view’s connection, refusals with their codes, a refused toolbar and an uncaught error are reported', async (t) => {
+// The broker tells the host what a view did, so the agent that wrote it can read it over MCP:
+// from outside the frame, an agent cannot see a thrown error or a refused toolbar.
+test('a view’s connection, refusals with their codes, a refused toolbar and an uncaught error are reported', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   await until(() => h.reports.length === 1, 'the loaded report');
   assert.deepEqual(h.reports[0], { kind: 'loaded' });
@@ -1285,7 +1285,7 @@ test('W-251: a view’s connection, refusals with their codes, a refused toolbar
   assert.equal(h.reports[4].text.length, 500, 'An uncaught error was reported past its bound.');
 });
 
-test('W-251: at most ten reports a second from one view, and none from a view of a file no longer open', async (t) => {
+test('at most ten reports a second from one view, and none from a view of a file no longer open', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   await until(() => h.reports.length === 1, 'the loaded report');
   for (let index = 0; index < 15; index += 1) view.send({ t: 'error', text: `Error ${index}` });
@@ -1300,7 +1300,7 @@ test('W-251: at most ten reports a second from one view, and none from a view of
   assert.equal(h.reports.length, 11, 'A view of a file no longer open was reported against the next one.');
 });
 
-test('R2RM-03: an undo whose answer was lost is sent again as the same request, and its redo can then be reached', async (t) => {
+test('an undo whose answer was lost is sent again as the same request, and its redo can then be reached', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes: [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }] } });
   await until(() => h.calls.length === 1, 'the batch');
@@ -1321,7 +1321,7 @@ test('R2RM-03: an undo whose answer was lost is sent again as the same request, 
   assert.equal(h.calls[3].payload.idempotencyKey, 'view-org.example.glance-redo-revision-undone');
 });
 
-test('R-011: a batch sent again under its writeKey carries the same idempotency key, scoped to the package', async (t) => {
+test('a batch sent again under its writeKey carries the same idempotency key, scoped to the package', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   const writes = [{ op: 'create', entityId: 'items', recordId: 'n1', values: { name: 'A' } }];
   view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes, writeKey: 'save-7f3a' } });
@@ -1341,7 +1341,7 @@ test('R-011: a batch sent again under its writeKey carries the same idempotency 
   assert.equal(h.calls.length, 2, 'A malformed writeKey reached the host.');
 });
 
-test('R2AP-04: a batch sent again under its writeKey names the same records when a create leaves recordId out', async (t) => {
+test('a batch sent again under its writeKey names the same records when a create leaves recordId out', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   const writes = [{ op: 'create', entityId: 'tasks', values: { title: 'A' } }, { op: 'create', entityId: 'tasks', values: { title: 'B' } }];
   view.send({ t: 'req', id: 1, m: 'records.batch', p: { writes, writeKey: 'save-1' } });
@@ -1367,7 +1367,7 @@ test('R2AP-04: a batch sent again under its writeKey names the same records when
   assert.notEqual(h.calls[3].payload.writes[0].recordId, h.calls[4].payload.writes[0].recordId);
 });
 
-test('R2AP-08: a command named with a record of another type is refused before the host runs it', async (t) => {
+test('a command named with a record of another type is refused before the host runs it', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   h.schema = { purpose: null, changeSequence: 1, entities: [], screens: [],
     commands: [{ id: 'cmd.task.done', entityId: 'entity.task', label: 'Done', steps: [] }] };
@@ -1385,7 +1385,7 @@ test('R2AP-08: a command named with a record of another type is refused before t
   assert.equal(h.calls[0].method, 'data.executeCommand');
 });
 
-test('R-011: a write kept but not read back is answered as written-not-read, never as a refusal', async (t) => {
+test('a write kept but not read back is answered as written-not-read, never as a refusal', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   view.send({ t: 'req', id: 1, m: 'records.update', p: { entityId: 'tasks', recordId: 't1', version: 3, values: { title: 'Done' } } });
   await until(() => h.calls.length === 1, 'the host write');
@@ -1398,11 +1398,11 @@ test('R-011: a write kept but not read back is answered as written-not-read, nev
 });
 
 
-// WXS-04: a view that asked Nendo to open its own screen in a loop kept the Workbench busy, and a
-// person's click on Studio or on the switch that turns views off landed while it was and did
+// A view that asks Nendo to open its own screen in a loop would keep the Workbench busy, and a
+// person's click on Studio or on the switch that turns views off would land while it was and do
 // nothing. A view moves the person's page at most once a second without the person in it,
 // refused before Nendo is asked, and saying hello again does not start it afresh.
-test('WXS-04: a view moves the person\u2019s page at most once a second, refused busy before the Workbench is asked', async (t) => {
+test('a view moves the person\u2019s page at most once a second, refused busy before the Workbench is asked', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   h.now = 10_000;
   view.send({ t: 'req', id: 1, m: 'ui.openScreen', p: { surfaceId: 'node.glance' } });
@@ -1429,10 +1429,10 @@ test('WXS-04: a view moves the person\u2019s page at most once a second, refused
   assert.equal(h.moves.length, 2, 'The move after a fresh hello reached the Workbench.');
 });
 
-// WXS-04, the person's own clicks: rows clicked in a view a tenth of a second apart are both
+// The person's own clicks: rows clicked in a view a tenth of a second apart are both
 // opened while the person is in the view; without the person the second is refused. A move
 // the Workbench refused at once does not count against the next.
-test('WXS-04: moves the person makes in a view are not held to the bound, and a refused move does not count', async (t) => {
+test('moves the person makes in a view are not held to the bound, and a refused move does not count', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   h.personIn = true;
   h.now = 20_000;
@@ -1460,9 +1460,9 @@ test('WXS-04: moves the person makes in a view are not held to the bound, and a 
   assert.equal(retry.ok, true, 'A move the Workbench refused at once kept the view from asking again: ' + JSON.stringify(retry));
 });
 
-// WXS-10: proposals.prepare rebuilt each payload as plain JSON, which turned an exact-number
-// envelope into a JavaScript number, so the host was proposed 12345678901234568.
-test('WXS-10: an exact-number envelope in a proposed operation reaches the host as the view sent it', async (t) => {
+// proposals.prepare passes each payload on as the view sent it: rebuilt as plain JSON, an
+// exact-number envelope would become a JavaScript number, and the host be proposed 12345678901234568.
+test('an exact-number envelope in a proposed operation reaches the host as the view sent it', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   const payload = { entityId: 'tasks', fieldId: 'amount', default: { $nendoNumber: '12345678901234567.89' }, nested: [{ big: { $nendoNumber: '9007199254740993' } }], plain: 2.5,
     notAnEnvelope: { $nendoNumber: 'twelve' } };
@@ -1472,8 +1472,8 @@ test('WXS-10: an exact-number envelope in a proposed operation reaches the host 
     'The proposal\u2019s payload did not reach the host as the view sent it: ' + JSON.stringify(h.calls[0].payload.mutations[0].operations[0].payload));
 });
 
-// WXS-11: the package and the writeKey were joined by a hyphen, which both may hold.
-test('WXS-11: two packages\u2019 batches never share an idempotency key, however their IDs and writeKeys line up', async (t) => {
+// The package and the writeKey are not joined by a hyphen, which both may hold.
+test('two packages\u2019 batches never share an idempotency key, however their IDs and writeKeys line up', async (t) => {
   const h = harness(); t.after(() => close(h)); const view = connect(h);
   const writes = [{ op: 'delete', entityId: 'tasks', recordId: 't1', version: 1 }];
   const pairs = [['org.nendo.garden', 'tasks-17'], ['org.nendo.garden-tasks', '17'], ['org.a', 'b-c'], ['org.a-b', 'c']];
@@ -1486,9 +1486,9 @@ test('WXS-11: two packages\u2019 batches never share an idempotency key, however
   assert.equal(new Set(keys).size, keys.length, `Two packages\u2019 batches share an idempotency key: ${JSON.stringify(keys)}`);
 });
 
-// WXS-15: ui.setPlace answered success when the Workbench kept nothing (the view held for its
-// review), and the next draw handed the view its older place back.
-test('WXS-15: a place the Workbench could not keep is refused, and the next draw tells the view nothing new', async (t) => {
+// ui.setPlace refuses a place the Workbench keeps nothing of (the view held for its review):
+// answered success, the next draw would hand the view its older place back.
+test('a place the Workbench could not keep is refused, and the next draw tells the view nothing new', async (t) => {
   const h = harness();
   h.context = { ...context, place: { view: 'old' } };
   const view = connect(h);

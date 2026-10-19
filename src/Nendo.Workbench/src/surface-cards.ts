@@ -30,7 +30,7 @@ export function isWarning(diagnostic: Pick<CompilerDiagnostic, 'severity'>): boo
  * A root's health as the person should read it. A definition that compiles can still carry a
  * warning, such as a view naming a package the file lacks (NUI452), and a custom view does not
  * run while views are off. Every card read "Healthy" whatever the compiler or the switches
- * said, while Use showed the missing notice (UIT-03).
+ * said, while Use showed the missing notice.
  */
 export function surfaceHealth(root: SurfaceNodePlan, context: SurfaceCardContext | undefined): SurfaceHealth {
   if (context === undefined) return healthy;
@@ -50,7 +50,7 @@ function allNodes(nodes: readonly SurfaceNodePlan[]): SurfaceNodePlan[] {
   return nodes.flatMap((node) => [node, ...allNodes(node.children)]);
 }
 
-/** A root's name as Use names it: its title, else an action's label, else its record type (UIT-15). */
+/** A root's name as Use names it: its title, else an action's label, else its record type. */
 export function rootTitle(plan: ApplicationPlan, root: SurfaceNodePlan): string {
   for (const key of ['title', 'label'] as const) {
     const value = root.properties[key];
@@ -105,7 +105,7 @@ export function treeSurfaceCard(plan: ApplicationPlan, root: SurfaceNodePlan, co
       break;
     case 'recordCommand': {
       parts.push('Action');
-      // A contract version 3 action keeps what it sets on its steps, one field each (UIT-15).
+      // A contract version 3 action keeps what it sets on its steps, one field each.
       const fields = [...new Set(descendants(root.children, 'commandStep')
         .map((step) => step.properties.fieldId)
         .filter((fieldId): fieldId is string => typeof fieldId === 'string')
@@ -124,7 +124,7 @@ export function treeSurfaceCard(plan: ApplicationPlan, root: SurfaceNodePlan, co
         parts.push(`${fieldName(plan, root.properties.rowByFieldId)} by ${fieldName(plan, root.properties.columnByFieldId)}`);
       break;
     default:
-      // Named as a person reads it, never by the stored kind (WMX-17).
+      // Named as a person reads it, never by the stored kind.
       parts.push(kindLabel(root.kind));
       break;
   }
@@ -133,7 +133,7 @@ export function treeSurfaceCard(plan: ApplicationPlan, root: SurfaceNodePlan, co
 }
 
 /**
- * Renaming a board, on the board's own card and addressed by its node (UIT-16). One form under
+ * Renaming a board, on the board's own card and addressed by its node. One form under
  * the list renamed only the type's first board, and nothing said which board it was.
  */
 export function boardRenameMarkup(root: SurfaceNodePlan): string {

@@ -128,9 +128,8 @@ internal sealed partial class SqliteNendoStore
     /// action's display names as the file holds them now. Every operation of a page, or of
     /// the whole history when <paramref name="revisionId"/> is null.
     /// <para>
-    /// Stored since automatic actions were, and read by nothing but receipts until
-    /// 2026-10-10, so History could not say which action made a change though Help said it
-    /// recorded that. The names come straight from the definitions' bodies rather than
+    /// Stored with every automatic action's write, so History can say which action made a
+    /// change. The names come straight from the definitions' bodies rather than
     /// through the codec, so reading History never depends on this host being able to run
     /// them; a definition no longer in the file leaves its name null and its ID stands.
     /// </para>
@@ -238,7 +237,7 @@ internal sealed partial class SqliteNendoStore
             var field = entity.Fields.Single(f => f.FieldId == query.SortFieldId);
             var column = Quote(field.PhysicalColumnName);
             // A reference sorts by its target's label, the text its cell shows, compared as the
-            // label field's kind; a single choice in its options' order (ESQ-16).
+            // label field's kind; a single choice in its options' order.
             (EntityMapping Target, FieldMapping Field)? label = null;
             if (field.Reference is { } reference &&
                 mappings.SingleOrDefault(mapping => mapping.EntityId == reference.TargetEntityId) is { } target &&
@@ -337,7 +336,7 @@ internal sealed partial class SqliteNendoStore
         var (manifest, mappings, entity, derived) = await OpenRecordQueryAsync(query.EntityId, query.Filters, transaction, cancellationToken);
 
         // A calculated number is totalled over the same bounded read a calculated filter stands on,
-        // each record's result exact, and refused whole if any record's could not be worked out (W-249).
+        // each record's result exact, and refused whole if any record's could not be worked out.
         if (derived.TryGetValue(query.FieldId, out var calculated))
         {
             RequireCalculatedNumber(calculated);
@@ -394,7 +393,7 @@ internal sealed partial class SqliteNendoStore
         var grouping = entity.Fields.SingleOrDefault(f => f.FieldId == query.GroupByFieldId)
             ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
         // A reference groups by the records it points at, an open set read from the data and
-        // labelled by the target's label field (W-249); every other grouping is closed.
+        // labelled by the target's label field; every other grouping is closed.
         var open = grouping.StorageKind == NendoStorageKind.Reference;
         var calculated = query.FieldId is not null && derived.TryGetValue(query.FieldId, out var derivedTarget)
             ? RequireCalculatedNumber(derivedTarget) : null;
@@ -449,7 +448,7 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// The same streamed fold over civil-date buckets (ADR-0004, 2026-09-16 amendment). The
+    /// The same streamed fold over civil-date buckets (ADR-0004). The
     /// two bounds of the resolved range are predicates in the query rather than a filter the
     /// fold applies, so a record with no date, or one outside the range, never reaches the
     /// fold — which is why this result has no unset group and why a day grid over a leap
@@ -497,8 +496,8 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// The same streamed fold over the cross product of two closed groupings (ADR-0004,
-    /// 2026-09-17 amendment). One scan of both grouping columns and, for a numeric
+    /// The same streamed fold over the cross product of two closed groupings (ADR-0004).
+    /// One scan of both grouping columns and, for a numeric
     /// aggregate, the target column: a grid costs one read whether it is four cells or two
     /// hundred, which is why every cell can state an exact number over everything the
     /// surface covers rather than over the page of records in view.
@@ -612,12 +611,12 @@ internal sealed partial class SqliteNendoStore
     }
 
     // The field checks a read makes of what it folds, shared with the read-only snapshot's
-    // folds so a file opened read-only refuses what the file refuses (ESQ-10). A null kind is
+    // folds so a file opened read-only refuses what the file refuses. A null kind is
     // a field the record type does not have.
 
     /// <summary>
     /// The field one aggregate folds, and whether it folds a date's extremes: a Date joins the
-    /// numbers for min and max only (ADR-0004 2026-09-14 amendment, S4), since the range of a
+    /// numbers for min and max only (ADR-0004), since the range of a
     /// set of civil dates is a comparison, while a sum of them is not a question with an answer.
     /// </summary>
     internal static bool RequireAggregatedField(NendoStorageKind? kind, string aggregate)
@@ -712,9 +711,9 @@ internal sealed partial class SqliteNendoStore
                 -- multi-operation revision is reversed only when every operation is a data
                 -- write. A class-based flag offered a Compensate button the engine refused.
                 -- A ui.setProperty that gave a property its first value is reversed by
-                -- ui.removeProperty, so every one is offered (ESM-11).
+                -- ui.removeProperty, so every one is offered.
                 -- A revision is undone once: one that already has its undo, wherever that sits
-                -- in History, is refused by the engine, so it is not offered (ESC-02).
+                -- in History, is refused by the engine, so it is not offered.
                 -- extension.setState is left out on purpose: it is a view's own saved state (a
                 -- zoom, a layout), written as the person works in the view, and the view keeps
                 -- it; History does not offer to undo it, though the engine reverses one if asked.
@@ -744,13 +743,13 @@ internal sealed partial class SqliteNendoStore
                         -- Every definition change but a package's is reversed only while it is the
                         -- file's latest: its inverse expects the definition as it left it, and an
                         -- undo or a search-index build moves the definition on too. A package's
-                        -- inverses check the package itself instead (ESM-04, R2RM-02).
+                        -- inverses check the package itself instead.
                         AND (r.lane <> 'Definition'
                             OR MIN(CASE WHEN substr(o.operation_type, 1, 10) = 'extension.' THEN 1 ELSE 0 END) = 1
                             OR r.definition_revision_after = (SELECT definition_revision FROM __nendo_manifest WHERE singleton_id = 1)))
                     OR
                     -- A package and its files arrive together and are reversed together, up to the
-                    -- engine's bound on one compensation (MaximumCausalInverses, ESC-03).
+                    -- engine's bound on one compensation (MaximumCausalInverses).
                     (COUNT(o.operation_id) BETWEEN 2 AND 12800
                         AND MIN(CASE WHEN o.operation_type IN (
                             'extension.setPackage', 'extension.putFile', 'extension.removeFile', 'extension.removePackage')

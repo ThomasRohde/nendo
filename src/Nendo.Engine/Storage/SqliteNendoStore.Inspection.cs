@@ -21,19 +21,16 @@ internal sealed partial class SqliteNendoStore
     /// being wrong about a file is paid at open; it is not a statement about how much
     /// data the format can hold.
     /// <para>
-    /// Raised from 64 MiB to 256 MiB on 2026-09-16 (W-038, F-040), after two files that
-    /// Nendo itself had written could not be reopened. Measured at this size: a record
-    /// carrying 1,306 bytes of text costs 3,554 bytes on disk, a multiple of 2.72, so
-    /// this bound is reached at about 75,500 such records — where 64 MiB was reached at
-    /// about 18,900. One cold open of a file at this size costs about 6.6 seconds, which
-    /// is the whole of what this bound is bounding; the ADR-0012 amendment carries the
-    /// measurements at every size between.
+    /// 256 MiB, so that a file Nendo itself has written can be reopened. Measured at this
+    /// size: a record carrying 1,306 bytes of text costs 3,554 bytes on disk, a multiple of
+    /// 2.72, so this bound is reached at about 75,500 such records. One cold open of a file
+    /// at this size costs about 6.6 seconds, which is the whole of what this bound is
+    /// bounding.
     /// </para>
     /// <para>
-    /// Whoever changes it next: say why here, and change nothing else. The sentence a
-    /// person is shown is derived from this constant rather than written beside it,
-    /// because the previous number reached people as prose and was never written down
-    /// anywhere else (F-043).
+    /// Whoever changes it: say why here, and change nothing else. The sentence a person is
+    /// shown is derived from this constant rather than written beside it, so the number a
+    /// person reads is never written down anywhere else.
     /// </para>
     /// </summary>
     internal const long MaximumInspectionFileBytes = 256L * 1024 * 1024;
@@ -51,11 +48,11 @@ internal sealed partial class SqliteNendoStore
     /// Counted per table over <c>__nendo_entity</c>, <c>__nendo_field</c>,
     /// <c>__nendo_revision</c> and <c>__nendo_operation</c>.
     /// <para>
-    /// Deliberately not raised with the byte bound in 2026-09-16. It is the wall that
+    /// Deliberately not raised with the byte bound. It is the wall that
     /// binds next: <c>__nendo_operation</c> carries one row per record write and one per
     /// later edit, measured at 10,003 rows for 10,000 records, so a file reaches this
-    /// bound at about 100,000 writes whatever they weigh. Moving it is its own call with
-    /// its own cost, and is named as the open question in the ADR-0012 amendment.
+    /// bound at about 100,000 writes whatever they weigh. Moving it is its own choice with
+    /// its own cost.
     /// </para>
     /// </summary>
     internal const long MaximumInspectionRows = 100_000;
@@ -69,8 +66,7 @@ internal sealed partial class SqliteNendoStore
     /// back any result this host would not open.
     /// </para>
     /// <para>
-    /// Raised from 4 MiB to 32 MiB on 2026-09-25 (ADR-0013), when custom-view packages moved
-    /// into the file: a change set may carry <see cref="NendoExtensionLimits.ContentBytesPerChangeSet"/>
+    /// 32 MiB, because custom-view packages live in the file (ADR-0013): a change set may carry <see cref="NendoExtensionLimits.ContentBytesPerChangeSet"/>
     /// of new file content in one commit.
     /// The reserve keeps several times that, so the write ceiling is 224 MiB.
     /// </para>
@@ -84,7 +80,7 @@ internal sealed partial class SqliteNendoStore
     /// The size a file may reach and still accept a write, derived from the open bound so
     /// the two cannot part company. Past this a mutation is refused before anything is
     /// staged. The final transaction measurement also protects against a write crossing
-    /// the remaining gap (F-040, W-039, R02-025).
+    /// the remaining gap.
     /// </summary>
     internal const long WriteCeilingFileBytes = MaximumInspectionFileBytes - WriteHeadroomFileBytes;
 
@@ -158,7 +154,7 @@ internal sealed partial class SqliteNendoStore
             }
         }
         // Each table is counted once: the record tables are among them, and their sum is the
-        // bound on records. They were counted a second time on every commit (PERF-08).
+        // bound on records. They were counted a second time on every commit.
         var entityTables = (await ReadEntityMappingsAsync(transaction, cancellationToken))
             .Select(entity => entity.PhysicalTableName).ToHashSet(StringComparer.Ordinal);
         long records = 0;
@@ -209,13 +205,13 @@ internal sealed partial class SqliteNendoStore
 
     /// <summary>
     /// A read for a read-only session, from one read-only snapshot of its file, and only while that
-    /// snapshot holds exactly the content the session inspected (ECO-07). A read-only session has no
-    /// store of its own, so its package files and view state were refused as "open for inspection
-    /// only", and Help lost the file's own pages. Anything else, a file moved away or replaced by
-    /// one SQLite cannot read included, is refused as a file that changed.
+    /// snapshot holds exactly the content the session inspected. A read-only session has no
+    /// store of its own, so without this its package files and view state would be refused as
+    /// "open for inspection only", and Help would lose the file's own pages. Anything else, a file
+    /// moved away or replaced by one SQLite cannot read included, is refused as a file that changed.
     /// <para>
-    /// Help reads one call per page, so each read scanning the whole file was a full scan per page
-    /// (W-221 review). The scan is done once and its result kept against the file's identity, size
+    /// Help reads one call per page, so a read that scanned the whole file would be a full scan
+    /// per page. The scan is done once and its result kept against the file's identity, size
     /// and last write, read while this snapshot holds SQLite's shared lock, so no writer can change
     /// the file between those facts and the read.
     /// </para>
@@ -263,7 +259,7 @@ internal sealed partial class SqliteNendoStore
 
     // The versions a file records are file-format versions, which say nothing about the product's own
     // version in the status bar ('Nendo 0.19.0'). Worded as Nendo versions, 'These surfaces need Nendo
-    // 1.11.0' told a person to update a Nendo that already reads the format (R2SMA-11).
+    // 1.11.0' told a person to update a Nendo that already reads the format.
     internal static string UnsupportedFormatText(string recorded) =>
         Version.TryParse(recorded, out _)
             ? $"This file needs file format {recorded}, and this Nendo reads formats up to {NendoFormat.CurrentHostVersion}. A newer Nendo may open it."
@@ -757,7 +753,7 @@ internal sealed partial class SqliteNendoStore
                 // One scan per column: 2 for a binary value, which cannot be projected at all; 1 for
                 // text or a fraction in a whole-number or yes/no column, which only a tool outside
                 // Nendo writes. That is drift, shown read-only, rather than a file that opens for
-                // editing and fails later (R2SMA-01).
+                // editing and fails later.
                 var quoted = Quote(field.PhysicalColumnName);
                 var mistyped = field.StorageKind is NendoStorageKind.Integer or NendoStorageKind.Boolean
                     ? $"WHEN typeof({quoted}) NOT IN ('integer', 'null') THEN 1 "
@@ -931,7 +927,7 @@ internal sealed partial class SqliteNendoStore
             }
             rows.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetString(3)));
         }
-        // The history indexes are an overlay on whichever layout the file has (ADR-0021, 2026-10-13),
+        // The history indexes are an overlay on whichever layout the file has (ADR-0021),
         // left out only when all of them are there exactly as this host writes them.
         var overlay = rows.Count(row => IsRevisionIndex(row.Type, row.Name, row.Sql)) == RevisionIndexes.Count;
         var parts = rows

@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-157: a proposal the file moved under is validated again in one call, with the same
+/// A proposal the file moved under is validated again in one call, with the same
 /// operations, as a new proposal at the current revision; the old one is rejected.
 /// </summary>
 [TestClass]

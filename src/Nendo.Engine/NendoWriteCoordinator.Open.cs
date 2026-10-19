@@ -14,7 +14,7 @@ public sealed partial class NendoWriteCoordinator
         (await InspectToOpenAsync(ValidatePath(path), NendoInterruptedWrite.Refuse, cancellationToken)).Inspection;
 
     /// <summary>
-    /// Inspects a file a host is about to open (ADR-0012, 2026-10-13, ESC-01). A save a crash left
+    /// Inspects a file a host is about to open (ADR-0012). A save a crash left
     /// unfinished is rolled back only when the host says the person opened this file themselves,
     /// outside a synced folder; anything else refuses it untouched, saying why. A copy kept before
     /// an earlier playback is named on every inspection until the person removes it.
@@ -165,7 +165,7 @@ public sealed partial class NendoWriteCoordinator
         return OpenReadOnlyCoreAsync(path, observation, cancellationToken);
     }
 
-    /// <summary>How a read-only or observing pin shares the file: never in the way of its writer (ECO-01).</summary>
+    /// <summary>How a read-only or observing pin shares the file: never in the way of its writer.</summary>
     internal const FileShare ReadOnlyPinShare = FileShare.ReadWrite | FileShare.Delete;
 
     private static async Task<NendoWriteCoordinator> OpenReadOnlyCoreAsync(
@@ -175,7 +175,7 @@ public sealed partial class NendoWriteCoordinator
         // Shared for delete too: a read-only session must not stop the session that writes the file
         // from restoring or upgrading it. Without it the writer's rename of the original failed
         // after its recovery record was written, and the file opened in recovery for a replacement
-        // that never moved a byte (ECO-01). The pin follows the renamed original; every later read
+        // that never moved a byte. The pin follows the renamed original; every later read
         // here inspects the path again and compares the digest, so nothing is adopted silently.
         var pin = new FileStream(fullPath, FileMode.Open, FileAccess.Read, ReadOnlyPinShare);
         try
@@ -313,7 +313,7 @@ public sealed partial class NendoWriteCoordinator
             {
                 // The Engine inspected these bytes moments ago; only it can make an
                 // observation. Classifying them a second time was the largest cost of
-                // an open (W-026). The pinned file's physical facts are checked here,
+                // an open. The pinned file's physical facts are checked here,
                 // and once the write lease is held the content digest must equal the
                 // observed one, and the first authority read runs SQLite's integrity
                 // check, so a file that changed in between is refused rather than trusted.
@@ -321,7 +321,7 @@ public sealed partial class NendoWriteCoordinator
                 // Two refusals of a fresh inspection that the physical facts do not show: a pending
                 // replacement record written since the observation, and the read-only mark set
                 // since. Trusting the observation over them gave a writable session on a file
-                // whose recovery review could then offer no way out (ECO-10).
+                // whose recovery review could then offer no way out.
                 if (File.Exists(FileReplacementReceipt.PendingPath(fullPath)) || (File.GetAttributes(fullPath) & FileAttributes.ReadOnly) != 0)
                     throw new NendoPreconditionException("file-changed-before-open", "The selected file changed after inspection. Review it again before opening.");
                 inspection = observation!.Inspection;
@@ -353,7 +353,7 @@ public sealed partial class NendoWriteCoordinator
             if (authority.InstanceId != expectedInstance || await store.GetContentDigestAsync(cancellationToken) != expectedDigest)
                 throw new NendoPreconditionException("file-changed-before-open", "The selected instance changed before authority was established.");
             // The cold authority read above has just run SQLite's integrity_check on this
-            // connection and refused anything but ok; a second scan here bought nothing (ESC-09).
+            // connection and refused anything but ok; a second scan here bought nothing.
             var opened = new NendoWriteCoordinator(fullPath, ownership, instanceOwnership, pathPin, store, authority)
             {
                 _inspection = inspection with

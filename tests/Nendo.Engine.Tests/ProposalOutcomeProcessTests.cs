@@ -80,7 +80,7 @@ public static class ReviewOutcomeChildDriver
         var service = new NendoApplicationService(coordinator);
         if (mode == "Interrupt")
         {
-            // ESC-01: stopped inside the write transaction, after its pages and before COMMIT.
+            // Stopped inside the write transaction, after its pages and before COMMIT.
             await StorageEvolutionReviewTests.InterruptedWriteAsync(coordinator);
             return;
         }

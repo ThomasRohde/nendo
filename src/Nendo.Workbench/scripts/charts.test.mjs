@@ -84,7 +84,7 @@ test('a drill is one predicate, and the pill names the group',()=>{
  assert.equal(drillLabel(ringNode,undefined,null,fieldName),'Done');
 });
 
-// W-249: a breakdown by a reference has a group per record it points at, named by its label.
+// A breakdown by a reference has a group per record it points at, named by its label.
 test('a reference breakdown names each group by the record it points at',()=>{
  const client={semanticId:'client',displayName:'Client',storageKind:7,presentation:null,options:[],choices:[]};
  const result={groups:[{key:'c2',valueLexeme:'250',contributingRecords:1,label:'Arbor'},{key:'c1',valueLexeme:'100.30',contributingRecords:2,label:'Harbor'},

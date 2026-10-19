@@ -122,11 +122,11 @@ export function queryStatusText(query: StudioQuery | undefined, nameOf: (fieldId
     }
     const words = operatorWords[filter.operator] ?? filter.operator;
     // The value as the person gave it -- a record's label, Yes, a choice's name -- rather than as
-    // stored, which for a reference is an ID nothing on screen shows (UX-08).
-    // Without that text, an exact number reads as its digits, not as [object Object] (WSP-09).
+    // stored, which for a reference is an ID nothing on screen shows.
+    // Without that text, an exact number reads as its digits, not as [object Object].
     const said = filter.fieldId === query.fieldId && query.text ? query.text : 'value' in filter ? valueDisplay(filter.value) : '';
     parts.push(`Only where ${nameOf(filter.fieldId)} ${words}${'value' in filter ? ` ${said}` : ''}`);
-    // Does not equal never matches an empty value, which reads as a surprise unless it is said (ESQ-05).
+    // Does not equal never matches an empty value, which reads as a surprise unless it is said.
     if (filter.operator === 'ne') parts.push(`Records with no ${nameOf(filter.fieldId)} are left out; Not set finds them`);
   }
   return parts.length === 0 ? '' : `${parts.join(' · ')} · across every record of this type`;

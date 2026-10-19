@@ -46,7 +46,7 @@ internal sealed partial class SqliteNendoStore
             {
                 // A record no trigger listens to raises nothing, so it is not read. Reading it
                 // spent the save's related-row allowance on every record the request named, and a
-                // batch of untriggered writes left too few rows for the one trigger's total (EBH-21).
+                // batch of untriggered writes left too few rows for the one trigger's total.
                 if (!Watched(key.EntityId)) continue;
                 var raised = await DeriveAsync(key, before[key], cancellationToken);
                 if (raised is not null) context.Pending.Enqueue(raised);
@@ -111,7 +111,7 @@ internal sealed partial class SqliteNendoStore
                     // whether or not a condition about them could be evaluated. A spent
                     // budget is not undecidable data but a save that asked for too much,
                     // and the contract aborts the whole save on one; swallowing it here let
-                    // the save commit with the action silently skipped (EBH-02). A limit the
+                    // the save commit with the action silently skipped. A limit the
                     // data reaches, a subtree past its descendant bound, stays a blocked
                     // condition, as ADR-0008 §6 says of a value-caused error.
                     context.BlockedConditions.Add(new NendoBlockedCondition(
@@ -203,11 +203,11 @@ internal sealed partial class SqliteNendoStore
 
         /// <summary>
         /// Runs one step, and attributes any refusal inside it, whether evaluating, charging the
-        /// budget or writing, to the action, the step and the field. Only an assignment's formula
-        /// was attributed: a create step that missed a required field refused the save with
-        /// "Required field taskTitle needs a value.", naming a field the person never saw and no
-        /// action, and a delete blocked by references named a record the person did not delete
-        /// (EBH-05). The refusal keeps its type and code, so every surface maps it as before.
+        /// budget or writing, to the action, the step and the field, not only an assignment's
+        /// formula: otherwise a create step that missed a required field would refuse the save
+        /// with "Required field taskTitle needs a value.", naming a field the person never saw and
+        /// no action, and a delete blocked by references would name a record the person did not
+        /// delete. The refusal keeps its type and code, so every surface maps it as before.
         /// </summary>
         private async Task RunStepAsync(
             NendoTriggerDefinition trigger,
@@ -220,7 +220,7 @@ internal sealed partial class SqliteNendoStore
             string? field = null;
             var outer = context.Budget.Step;
             // The work this step spends is counted against it, so a save that runs out names the
-            // step that spent most (W-247).
+            // step that spent most.
             context.Budget.Step = $"step {step.StepId} of action '{action.DisplayName}'";
             try
             {
@@ -346,7 +346,7 @@ internal sealed partial class SqliteNendoStore
                     foreach (var assignment in step.Assignments)
                     {
                         // A create step's bindings start from the record that raised the event,
-                        // so that record is the one read and observed (EBH-23).
+                        // so that record is the one read and observed.
                         writing(assignment.FieldId);
                         values[assignment.FieldId] = Unbox(
                             await EvaluateAssignmentAsync(action, step, assignment, trigger.EntityId, raised.Key.RecordId, cancellationToken));

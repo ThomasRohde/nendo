@@ -63,8 +63,8 @@ internal static class NendoAuthoringExamples
     /// Each screen of every example under a surfaceId of its own, the root's nodeId, and every
     /// node beneath it under the same one, as the authoring rules ask. The examples are written
     /// with one placeholder surfaceId and settled here, in one pass, because a child's screen is
-    /// its root's. Until 2026-10-08 every screen of every example shared "example", and an agent
-    /// that copied them had no way to tell what a surfaceId was for.
+    /// its root's. Were every screen of every example to share one, an agent that copied them
+    /// would have no way to tell what a surfaceId is for.
     /// </summary>
     private static IReadOnlyList<NendoAuthoringExample> OnePerScreen(IReadOnlyList<NendoAuthoringExample> examples) =>
         [.. examples.Select(example =>
@@ -224,7 +224,7 @@ internal static class NendoAuthoringExamples
         ]);
 
     /// <summary>
-    /// Placing a node beside another rather than at a number (W-168). An outside author replaced
+    /// Placing a node beside another rather than at a number. An outside author replaced
     /// a root screen at a guessed index and it landed one slot late; nendo://application/surfaces
     /// now says where every node is kept, and an anchor says where a new one goes.
     /// </summary>
@@ -642,7 +642,7 @@ internal static class NendoAuthoringExamples
         ]);
 
     /// <summary>
-    /// The timeline, ADR-0004 2026-09-14 amendment (S3): records on a spine by a
+    /// The timeline (ADR-0004): records on a spine by a
     /// Date field, with an end date that turns each entry into a span.
     /// </summary>
     private static NendoAuthoringExample ATimelineOfSpans() => new(
@@ -694,7 +694,7 @@ internal static class NendoAuthoringExamples
         ]);
 
     /// <summary>
-    /// The gallery and the rating scale, ADR-0004 2026-09-14 amendment (S2): cards over a
+    /// The gallery and the rating scale (ADR-0004): cards over a
     /// list's window, and a whole number drawn on a closed scale.
     /// </summary>
     private static NendoAuthoringExample AGalleryAndARating() => new(
@@ -876,7 +876,7 @@ internal static class NendoAuthoringExamples
         ]);
 
     /// <summary>
-    /// The 2026-09-12 widening in one application: several list and board roots on
+    /// Several views in one application: several list and board roots on
     /// one record type, per-column and per-surface totals, a tabbed record page,
     /// and a Date calendar with its own undated view.
     /// </summary>

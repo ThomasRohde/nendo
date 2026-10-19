@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-277 (ADR-0002, 2026-10-16): a tab dragged out of the strip moves to a window of its own. The
+// ADR-0002: a tab dragged out of the strip moves to a window of its own. The
 // moves on the tabs are held here; the host's half is held by DesktopTabWindowTests, and the
 // second window by the tab-window journey.
 const { dragState, dragThreshold, leaveMargin, pullDistance, putTabBack, readTabTrail, trailOfTab } = await bundleOf('src/tab-set.ts');
@@ -22,7 +22,7 @@ test('a press is a press until it moves, a drag along the strip stays, and one l
   assert.equal(dragState(100, 20, 100, -leaveMargin, 1600, 900, strip), 'inside');
   for (const [x, y] of [[100, -leaveMargin - 1], [-leaveMargin - 1, 20], [1600 + leaveMargin + 1, 20], [100, 900 + leaveMargin + 1], [-300, -200]])
     assert.equal(dragState(100, 20, x, y, 1600, 900, strip), 'out', `let go at ${x}, ${y} did not leave the window`);
-  // Reported 2026-10-17: a window that fills the screen has no edge to drag past. A tab pulled down
+  // A window that fills the screen has no edge to drag past. A tab pulled down
   // into the page leaves; one dragged along the strip, or a little below it, stays.
   const screen = [2560, 1392];
   assert.equal(dragState(770, 30, 770, strip + pullDistance, ...screen, strip), 'inside', 'a tab just below the strip left the window');

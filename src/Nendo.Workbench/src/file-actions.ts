@@ -20,7 +20,7 @@ import { offersReplacement } from './recovery-actions';
  * open one: afterwards the record form on screen belongs to nothing. Each is declined while
  * the form holds unsaved typing, before the host is asked, as every other move off a record
  * page is. The rest (a backup, a copy, an export, an import) leave the open file where it is,
- * and their outcome, or a dialog cancelled, leaves the form as it is (R-010).
+ * and their outcome, or a dialog cancelled, leaves the form as it is.
  */
 const replacesTheFile = new Set([
   'session.createFile', 'session.openFile', 'file.openRecent', 'file.openDropped', 'file.close',
@@ -35,11 +35,11 @@ function refusedOverDraft(method: string): boolean {
  * Whether the unsaved typing on screen outlives what the host now says, and so the page must
  * not be redrawn. A dialog cancelled, a backup or an export answer with the same file still
  * open, and a redraw then was the typing gone with nothing said: `main.render` discards the
- * form it replaces (R-010). The same file, still editable, keeps the form as it is and only
+ * form it replaces. The same file, still editable, keeps the form as it is and only
  * the chrome follows; a file that cannot take the typing any more keeps it on screen locked,
  * as a failed save does.
  *
- * Locked typing kept for copying (R30-008) outlives an action that leaves the same file open,
+ * Locked typing kept for copying outlives an action that leaves the same file open,
  * such as a backup. A file action that opened, created or closed a file is the person leaving
  * it on purpose: the locked form belongs to the file that went, so it is dropped and the page
  * redrawn for the file now open.
@@ -149,7 +149,7 @@ export function openAboutFile(): void {
 /**
  * The tone, letter and picture on the About page. The icon follows what is chosen before anything
  * is proposed; Review change prepares the proposal and opens its review, where the person accepts
- * it. A dropped or picked picture is drawn into a square PNG here and embedded at once (W-001), so
+ * it. A dropped or picked picture is drawn into a square PNG here and embedded at once, so
  * the proposal can name it; until it is accepted the file's icon is unchanged.
  */
 function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSessionView['look']>): void {
@@ -285,7 +285,7 @@ function wireLookEditor(dialog: HTMLDialogElement, look: NonNullable<DesktopSess
 export function renderFileMenu(): void {
   const menu = requiredElement<HTMLElement>('#file-actions');
   const local = client.mode === 'desktop';
-  // A tab window shows the main window's file, so opening, closing or replacing it is done there (W-277).
+  // A tab window shows the main window's file, so opening, closing or replacing it is done there.
   const tabWindow = windowRole() === 'tab';
   const item = (method: string, label: string, detail: string, glyph: IconName, enabled: boolean): string => {
     const elsewhere = tabWindow && mainWindowOnly.has(method);

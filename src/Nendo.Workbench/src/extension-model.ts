@@ -52,8 +52,8 @@ export function exactEnvelope(value: unknown): { $nendoNumber: string } | null {
 
 /**
  * JSON a view sends on to the host, rebuilt as plainJson rebuilds it, except that a well-formed
- * envelope is kept: the host decodes it exactly, where a JavaScript number would round it
- * (WXS-10). Answers to a view still go through plainJson.
+ * envelope is kept: the host decodes it exactly, where a JavaScript number would round it.
+ * Answers to a view still go through plainJson.
  */
 export function inboundJson(value: unknown): Json {
   const envelope = exactEnvelope(value);

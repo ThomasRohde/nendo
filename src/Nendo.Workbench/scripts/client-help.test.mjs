@@ -6,9 +6,8 @@ const bundle = await build({ configFile: false, logLevel: 'error',
   build: { ssr: 'src/client-help.ts', write: false, rollupOptions: { output: { codeSplitting: false } } } });
 const { serverNameFor, connectionCommand, standardEndpoint } = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
 
-// W-089. Each file keeps a port of its own, so two files registered side by side need two
-// names. The copy buttons used to say "nendo" for every file, and registering a second file
-// with them replaced the first.
+// Each file keeps a port of its own, so two files registered side by side need two names: one
+// name for every file would make registering a second file replace the first.
 test('each file is registered under a name made from the file', () => {
   assert.equal(serverNameFor('Nendo.nendo'), 'nendo', 'the planner keeps the name every guide uses');
   assert.equal(serverNameFor('BCM.nendo'), 'nendo-bcm');

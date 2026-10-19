@@ -278,7 +278,7 @@ export const STAGES = {
     },
   },
 
-  // Links, Note tags and Tags have a record page and no screen of their own (W-184): they are what a
+  // Links, Note tags and Tags have a record page and no screen of their own: they are what a
   // save derives, read on a note's page, the Overview and the graph, so Use offers them no place.
   // Tasks keep their Due calendar; the Agenda, a view of the package, joins it in the garden stage.
   others: {
@@ -389,7 +389,7 @@ export const STAGES = {
   },
 };
 
-// The Agenda leads the tasks' screens and Tend follows the notes' Tree (W-184). Each is placed by
+// The Agenda leads the tasks' screens and Tend follows the notes' Tree. Each is placed by
 // its neighbour rather than by a position, since a position is a sort key the stages share.
 export const LIST_SCREENS = [
   { nodeId: 'gd.task.agenda', anchor: { beforeNodeId: 'gd.task.due' },
@@ -399,7 +399,7 @@ export const LIST_SCREENS = [
     properties: { definitionVersion: 3, entityId: 'gd.note', title: 'Tend', packageId: PACKAGE_ID, labelFieldId: F.note.title, statusFieldId: F.note.stage },
     fields: [F.note.touched, F.note.kind] },
 ];
-// The list screens W-184 took out; upgrade removes each one a file still has.
+// List screens the package no longer has; upgrade removes each one a file still has.
 export const RETIRED_SCREENS = ['gd.tag.list', 'gd.link.list', 'gd.noteTag.list', 'gd.task.open', 'gd.task.board', 'gd.task.all'];
 
 export function listScreenOperations(screens = LIST_SCREENS) {

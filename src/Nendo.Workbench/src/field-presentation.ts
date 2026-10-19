@@ -2,7 +2,7 @@ import { escapeAttribute, storageLabel } from './format';
 import type { EntitySnapshot } from './host-types';
 
 /**
- * Long text shown as Markdown, or Markdown shown as plain long text again (W-173). Only between
+ * Long text shown as Markdown, or Markdown shown as plain long text again. Only between
  * those two here: no value changes either way, and a single line stays what its author chose.
  */
 export function presentationToggleMarkup(entity: Pick<EntitySnapshot, 'retired'>, field: EntitySnapshot['fields'][number]): string {

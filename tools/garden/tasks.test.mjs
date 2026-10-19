@@ -21,7 +21,7 @@ test('the body\'s tasks come in its order, as the draft says them, with what the
   assert.ok(!tasks.some(task => task.recordId === 'gd.task.gone'), 'a record the body no longer says is not shown');
 });
 
-test('a reworded line keeps its record and due date in the strip before it is saved (G-013), and repeated lines are two tasks (G-011)', () => {
+test('a reworded line keeps its record and due date in the strip before it is saved, and repeated lines are two tasks', () => {
   const before = '- [ ] Call Sam';
   const records = [record('gd.task.sam', { 'gd.task.title': 'Call Sam', 'gd.task.done': false, 'gd.task.source': 'Checkbox', 'gd.task.key': parse(before).tasks[0].key, 'gd.task.due': '2026-10-09' })];
   const [sam] = noteTasks(parse('- [ ] Call Sam tomorrow').tasks, records, { before });

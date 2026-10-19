@@ -102,7 +102,7 @@ internal static class WorkbenchEvents
     internal const string FileChanged = "fileChanged";
 
     /// <summary>
-    /// A package this device develops from a folder changed there (ADR-0013 Phase 4). Payload is
+    /// A package this device develops from a folder changed there (ADR-0013). Payload is
     /// the package ID and nothing else; the renderer reloads that package's views.
     /// </summary>
     internal const string ExtensionDevelopmentChanged = "extensionDevelopmentChanged";
@@ -125,14 +125,14 @@ internal static class WorkbenchEvents
     internal const string ExtensionFramesFailed = "extensionFramesFailed";
 
     /// <summary>
-    /// The window's title bar changed shape (W-093): a new display scale, and so a new height or a
+    /// The window's title bar changed shape: a new display scale, and so a new height or a
     /// new width kept for Windows' own buttons. Payload is the title bar in CSS pixels, the same
     /// answer <c>window.setTitleBarControls</c> gives.
     /// </summary>
     internal const string TitleBarChanged = "titleBarChanged";
 
     /// <summary>
-    /// A file a view downloaded is saved (F-237). WebView2's downloads panel is never shown, so this
+    /// A file a view downloaded is saved. WebView2's downloads panel is never shown, so this
     /// is how the person hears of it. Payload is an identifier for <c>downloads.show</c>, the file's
     /// name and its folder's name.
     /// </summary>
@@ -146,7 +146,7 @@ internal static class WorkbenchEvents
     internal const string AgentSessionChanged = "agentSessionChanged";
 
     /// <summary>
-    /// The device's theme preference changed in another window of this file (W-277). Payload is the
+    /// The device's theme preference changed in another window of this file. Payload is the
     /// preference, <c>system</c>, <c>light</c> or <c>dark</c>; the page draws it without saving it again.
     /// </summary>
     internal const string AppearanceChanged = "appearanceChanged";
@@ -342,7 +342,7 @@ internal sealed partial class WorkbenchProtocolHandler
             cancellationToken = cancellation.Token;
 
             // A custom view's write arrives through the Workbench's broker, named for the
-            // view's package (ADR-0013 Phase 3). It is admitted on the record writes alone,
+            // view's package (ADR-0013). It is admitted on the record writes alone,
             // and becomes the origin History attributes the write to.
             var writer = ExtensionWriter(payload, method);
 
@@ -565,7 +565,7 @@ internal sealed partial class WorkbenchProtocolHandler
     /// The package an actor names, <c>extension:&lt;package&gt;</c>, or null when it is not one.
     /// The package ID is held to the Engine's own rule, which the import checked: a stricter
     /// pattern here refused every write of a package the file carries under an ID such as
-    /// <c>org.view-</c> (WXS-12). src/Nendo.Workbench/scripts/package-ids.json is the table the
+    /// <c>org.view-</c>. src/Nendo.Workbench/scripts/package-ids.json is the table the
     /// Engine, this check and the Add view form are held to.
     /// </summary>
     internal static string? ExtensionActorPackage(string? actor)
@@ -642,7 +642,7 @@ internal sealed partial class WorkbenchProtocolHandler
             request.ParentRecordId, request.ExpectedParentVersion, request.BeforeRecordId, request.IdempotencyKey, cancellationToken, writer);
     }
 
-    /// <summary>Several record writes as one revision, from a custom view (W-102).</summary>
+    /// <summary>Several record writes as one revision, from a custom view.</summary>
     private async Task<DesktopRecordWritesView> WriteGenericRecordsAsync(
         JsonElement payload,
         string? writer,
@@ -700,7 +700,7 @@ internal sealed partial class WorkbenchProtocolHandler
     }
 
     /// <summary>
-    /// A proposal the person prepares, or, with a view's actor (ADR-0013 Phase 3), one a
+    /// A proposal the person prepares, or, with a view's actor (ADR-0013), one a
     /// custom view prepares in its package's name: the origin of the proposal and of each
     /// mutation is then the actor, and a package has at most one waiting at a time.
     /// </summary>
@@ -740,7 +740,7 @@ internal sealed partial class WorkbenchProtocolHandler
     }
 
     /// <summary>
-    /// Part of a package file as the proposal under review would leave it (review R-017): the
+    /// Part of a package file as the proposal under review would leave it: the
     /// person reads a change the diff shows only in part, bound to the digest they review.
     /// </summary>
     private async Task<NendoProposalFileWindow> ReadProposalPackageFileAsync(

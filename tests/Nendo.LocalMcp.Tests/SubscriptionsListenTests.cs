@@ -7,7 +7,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-151: a 2026-07-28 client that opens subscriptions/listen hears that the proposal
+/// A 2026-07-28 client that opens subscriptions/listen hears that the proposal
 /// queue, the manifest and health changed, instead of polling for them. The SDK's client
 /// has no listen helper in this version, so the stream is read as the wire carries it.
 /// </summary>
@@ -27,7 +27,7 @@ public sealed class SubscriptionsListenTests
         // The acknowledgement carries the listen request's id, as the id itself: a number, here.
         // It carried none, and the later notifications carried the id as text, so GitHub Copilot
         // CLI, which matches the acknowledgement to its request, timed out and dropped the server
-        // (2026-10-08; specification 2026-07-28, basic/patterns/subscriptions, Acknowledgment).
+        // (specification 2026-07-28, basic/patterns/subscriptions, Acknowledgment).
         AssertSubscriptionId(acknowledged, "The acknowledgement");
         CollectionAssert.AreEqual(
             new[] { "nendo://application/manifest", "nendo://application/proposals", "nendo://application/health" },
@@ -71,7 +71,7 @@ public sealed class SubscriptionsListenTests
     /// A listen that asks for every list change discover advertises is granted each of them.
     /// Discover says tools and resources may change, and GitHub Copilot CLI asks for both and
     /// refuses a server whose acknowledgement leaves an advertised one out: "MCP server did not
-    /// accept its advertised list-change subscriptions" (2026-10-08).
+    /// accept its advertised list-change subscriptions".
     /// </summary>
     [TestMethod]
     public async Task EveryListChangeDiscoverAdvertisesIsGrantedWhenAskedFor()
@@ -123,7 +123,7 @@ public sealed class SubscriptionsListenTests
         var acknowledged = await first.NextAsync("notifications/subscriptions/acknowledged");
         var honoured = acknowledged.GetProperty("params").GetProperty("notifications");
         CollectionAssert.AreEqual(new[] { "nendo://application/proposals" }, honoured.GetProperty("resourceSubscriptions").EnumerateArray().Select(value => value.GetString()).ToArray());
-        // Granted since 2026-10-08, as discover advertises it: a level change restarts the listener,
+        // Granted, as discover advertises it: a level change restarts the listener,
         // so the list never changes under a stream and no notification is ever due on it.
         Assert.IsTrue(honoured.TryGetProperty("toolsListChanged", out var tools) && tools.GetBoolean(), "toolsListChanged is advertised and not granted.");
         Assert.AreEqual(1, host.ListenerCount);
@@ -152,7 +152,7 @@ public sealed class SubscriptionsListenTests
     }
 
     /// <summary>
-    /// W-171: a client waiting on a record type hears when a commit changes one of its records,
+    /// A client waiting on a record type hears when a commit changes one of its records,
     /// and which, and not when a commit changes another type's. An outside author polled every
     /// two seconds for the requests a screen's buttons file.
     /// </summary>

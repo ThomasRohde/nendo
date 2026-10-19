@@ -3,7 +3,7 @@ using System.Reflection;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// TST-11: a cooperative [Timeout] only cancels a token, and waits for the method to notice. The
+/// A cooperative [Timeout] only cancels a token, and waits for the method to notice. The
 /// history-fold test asked for one and had no token to notice, so its ten-minute bound could not
 /// stop it: a run took 14:13 and passed. Every such test here carries TestContext and reads its
 /// CancellationToken.

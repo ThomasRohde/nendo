@@ -303,7 +303,7 @@ code {
   line-height: 1.45;
 }
 
-/* Notices (W-283): a stack over the bottom right of the layer, above the status line, newest
+/* Notices: a stack over the bottom right of the layer, above the status line, newest
    at the bottom. It floats over the page and never takes a row in it, so nothing on the page
    moves when a notice comes or goes; the stack itself lets the pointer through to the page. */
 .notice-stack {
@@ -606,7 +606,7 @@ code {
   padding: 28px;
 }
 
-/* The outline of a declared hierarchy (ADR-0019 stage 5): Studio's Data view for a record
+/* The outline of a declared hierarchy (ADR-0019): Studio's Data view for a record
    type kept as a tree. The layout switch reuses the theme control's segmented look. */
 .data-toolbar-lead { display: grid; gap: 10px; justify-items: start; }
 /* What a new file of the application keeps of this type (ADR-0022), and the proposal that turns it. */

@@ -9,7 +9,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-086. Found in the 2026-09-27 review, none yet seen to fail: a depth cap two levels over
+/// Hardening, none yet seen to fail: a depth cap two levels over
 /// the deepest published example, replay caches kept for the life of a lease that never
 /// expires, a proposal notification able to fail the validate that raised it, and nothing
 /// bounding how many requests run at once or for how long.
@@ -154,7 +154,7 @@ public sealed class HostHardeningTests
     /// <summary>
     /// A request past the bound waits for a place and is answered once one frees, rather than
     /// refused: a client that sent thirty calls in parallel read eleven immediate HTTP 429s as
-    /// a broken connection (2026-10-08).
+    /// a broken connection.
     /// </summary>
     [TestMethod]
     public async Task TheRequestPastTheBoundWaitsForAPlaceAndIsAnswered()
@@ -263,7 +263,7 @@ public sealed class HostHardeningTests
     }
 
     /// <summary>
-    /// MHS-09: the listen exemption from the timeout was decided by the client's Mcp-Method
+    /// The listen exemption from the timeout was decided by the client's Mcp-Method
     /// header, before any body was read, so a request carrying that header was never stopped.
     /// It is decided by the body's own method now, and a body that never arrives is not one.
     /// </summary>
@@ -284,7 +284,7 @@ public sealed class HostHardeningTests
     }
 
     /// <summary>
-    /// MHS-08: a body over the cap was scanned for its id before the request took a place, so
+    /// A body over the cap was scanned for its id before the request took a place, so
     /// neither the bound on requests in flight nor the timeout applied to the scan.
     /// </summary>
     [TestMethod]
@@ -309,7 +309,7 @@ public sealed class HostHardeningTests
         await WaitUntilAsync(() => host.InFlightRequests == 0, "the oversized request to give its place back");
     }
 
-    /// <summary>MHS-08: a long string ahead of the id is skipped, not carried and parsed again on every piece.</summary>
+    /// <summary>A long string ahead of the id is skipped, not carried and parsed again on every piece.</summary>
     [TestMethod]
     public async Task ALongStringAheadOfTheIdScansInLinearTime()
     {

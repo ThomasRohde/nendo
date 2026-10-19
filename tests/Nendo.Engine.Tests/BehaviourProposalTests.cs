@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// ADR-0008 regression lane D4, stage S5: a reviewed proposal promotes exactly what
+/// ADR-0008 regression lane D4: a reviewed proposal promotes exactly what
 /// was reviewed.
 /// <para>
 /// A proposal is judged against a clone and applied to the live file some time
@@ -397,7 +397,7 @@ public sealed class BehaviourProposalTests
     }
 
     /// <summary>The consent the reviewed plan says promoting it will need.</summary>
-    // W-008 (ADR-0009, 2026-09-29 amendment): the review says what accepting means for
+    // ADR-0009: the review says what accepting means for
     // consent before anyone presses Accept. Each case below is one sentence the person
     // is shown, and each is measured from the preview a real validation produced.
 

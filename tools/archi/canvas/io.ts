@@ -1,6 +1,6 @@
-// Open and save .archimate files (W-120): archi-online's own parser and serializer over the
+// Open and save .archimate files: archi-online's own parser and serializer over the
 // records Archi.nendo holds. Reading takes Archi's plain XML or its archive with images, and
-// leaves the images out, counted: binary fields are out of scope (F-208). Planning maps the model
+// leaves the images out, counted: binary fields are out of scope. Planning maps the model
 // onto Archi.nendo's record types, the mapping tools/Import-Archimate.mjs has always used and now
 // shares from here. Saving writes the records back as plain XML, each object under the Archi ID
 // it came with, or the one its record ID gives it.
@@ -28,7 +28,7 @@ export interface LeftOut {
   /** Pictures that diagram objects and specializations show, and the archive's image files. */
   pictures: number;
   archiveImages: number;
-  /** Archi's Sketch and Canvas views, which archi-online's reader skips and Archi.nendo cannot hold (ABS-02). */
+  /** Archi's Sketch and Canvas views, which archi-online's reader skips and Archi.nendo cannot hold. */
   sketchViews?: number;
   canvasViews?: number;
   /** View references to a view the file does not open (a Sketch or Canvas view), and the connections that end on one. */
@@ -70,7 +70,7 @@ const titled = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 const XSI = 'http://www.w3.org/2001/XMLSchema-instance';
 
 /**
- * The XML as the browser reads it, refused when it is not well-formed (ABS-01). archi-online's
+ * The XML as the browser reads it, refused when it is not well-formed. archi-online's
  * readers look for a parser error only when the document element is not <model>, but Chromium
  * keeps the root of a file that is cut short and puts the error inside it, so a file that broke
  * off after its elements read as a smaller model. Where no DOMParser exists (a test in Node),
@@ -91,7 +91,7 @@ function wellFormed(xml: string): Document | null {
   return doc;
 }
 
-/** How many Sketch and Canvas views a model file holds: archi-online skips them without a word (ABS-02). */
+/** How many Sketch and Canvas views a model file holds: archi-online skips them without a word. */
 function otherViews(doc: Document | null): { sketchViews: number; canvasViews: number } {
   let sketchViews = 0, canvasViews = 0;
   if (doc === null) return { sketchViews, canvasViews };
@@ -165,7 +165,7 @@ function leftOutOf(model: ModelState, archiveImages: number): LeftOut {
 }
 
 /**
- * An Open Exchange XML file as archi-online reads it (W-121): The Open Group's format, which
+ * An Open Exchange XML file as archi-online reads it: The Open Group's format, which
  * Archi imports as a new model. archi-online refuses a document it cannot read whole, and never
  * returns part of one; its language is the document's own.
  */
@@ -433,7 +433,7 @@ function connectionRanks(model: ModelState, dropped: Set<string>): Map<string, n
 }
 
 /**
- * What would make Nendo refuse the plan part-way (ABS-03), found before anything is written: a
+ * What would make Nendo refuse the plan part-way, found before anything is written: a
  * reference to a record that nobody makes and the file does not hold, and a relationship that
  * ArchiMate does not allow between its two ends, which Archi.nendo's link rule refuses (its table
  * is generated from the same matrix, tools/archi-relationships.mjs). Archi itself writes neither,
@@ -610,7 +610,7 @@ export function exportArchimate(sets: RecordSets): { xml: string; fileName: stri
 }
 
 /**
- * The records as an Open Exchange XML file (W-121), as archi-online's Export Open Exchange model
+ * The records as an Open Exchange XML file, as archi-online's Export Open Exchange model
  * makes one with its defaults: the folders as the organization, the model's own language and its
  * Dublin Core metadata. Checking it against Archi 5.9's schemas is xsd.js's, loaded when needed.
  */

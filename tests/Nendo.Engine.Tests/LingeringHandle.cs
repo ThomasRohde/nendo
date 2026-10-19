@@ -3,15 +3,13 @@ using System.Diagnostics;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Opens a file through the Engine straight after a child process that had it open was killed
-/// (F-134, the second half; W-198).
+/// Opens a file through the Engine straight after a child process that had it open was killed.
 ///
 /// <see cref="ObservedFile"/> covers the tests' own reads. The Engine's open pins the path with
 /// <c>FileShare.ReadWrite</c> and no <c>Delete</c>, so a handle still on the file that does not
 /// share reading, or that holds delete access, refuses it with a sharing violation: the killed
-/// child's last handle on its way out, or a scanner looking at what the child wrote. On
-/// 2026-10-08 that failed one full gate at <c>OpenPathPin</c>, after the child's writer marker had
-/// already gone. Which process held the file for a moment is not what these tests check; what
+/// child's last handle on its way out, or a scanner looking at what the child wrote, even after
+/// the child's writer marker has gone. Which process held the file for a moment is not what these tests check; what
 /// the Engine does with the file is. So a sharing violation is waited out for a bounded time and
 /// the holder named; any other refusal is the answer and fails at once, and a holder that never
 /// lets go still fails.

@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// The open file's media origin (ADR-0031 point 10, W-265): embedded pictures streamed from the
+/// The open file's media origin (ADR-0031 point 10): embedded pictures streamed from the
 /// file, local pictures only when they are what they claim to be, and headers that let a page show
 /// a picture without letting script on another origin read it.
 /// </summary>
@@ -58,7 +58,7 @@ public sealed class DesktopMediaServingTests
     /// <summary>
     /// WebView2 reads a picture's stream synchronously on the UI thread. A read whose async half
     /// queued back to that thread waited on itself for ever: on the real host no embedded picture
-    /// loaded and every bridge request after one hung (W-274). Measured on a thread whose context,
+    /// loaded and every bridge request after one hung. Measured on a thread whose context,
     /// like a blocked UI thread, never runs what is queued to it.
     /// </summary>
     [TestMethod]
@@ -87,7 +87,7 @@ public sealed class DesktopMediaServingTests
     /// <summary>
     /// The same, for the asynchronous read WebView2's random-access adapter starts on the UI
     /// thread and then waits for: begun there, the Engine's read resumed there and never finished,
-    /// and no embedded picture loaded (W-274).
+    /// and no embedded picture loaded.
     /// </summary>
     [TestMethod]
     public void AnAsynchronousReadBegunOnABlockedUiThreadStillCompletes()
@@ -172,7 +172,7 @@ public sealed class DesktopMediaServingTests
             CollectionAssert.Contains(DesktopMediaResponses.Headers(answer, 200, 0, answer.Length - 1).ToList(), "Cache-Control: no-store");
         }
         // WebView2 takes a body only as a random-access stream, which must seek: a window of a
-        // local file that could not was refused there, and every linked picture answered 500 (W-274).
+        // local file that could not was refused there, and every linked picture answered 500.
         var local = await session.ResolveMediaAsync("f/", "?a=" + Uri.EscapeDataString(@".\cover.png"));
         var window = local.Open!(100, 200);
         Assert.IsTrue(window.CanSeek, "A body that cannot seek is refused by WebView2, and the picture is answered as a server error.");

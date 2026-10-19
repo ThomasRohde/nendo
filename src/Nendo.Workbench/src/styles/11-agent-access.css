@@ -1,9 +1,9 @@
-/* Agent access (2026-09-14): the permission ladder and the connection card.
+/* Agent access: the permission ladder and the connection card.
    Slice 11 of styles.css; see that file for why the order matters. */
 
-/* Agent access as tabs (W-199, the owner's design A of 2026-10-09): the state, the level as one
-   row, and Activity, Launch and Connect behind tabs. It replaced two panes whose left one, the
-   ladder, Launch and the connection stacked, had grown to 1,331 px. Anything that waits for the
+/* Agent access as tabs: the state, the level as one row, and Activity, Launch and Connect
+   behind tabs, rather than two panes whose left one, the ladder, Launch and the connection
+   stacked, grows to well over a screen. Anything that waits for the
    person stays above the tabs. Shared tokens throughout, so both themes follow. */
 .agent-page {
   display: flex;
@@ -31,7 +31,7 @@
 
 /* The tabs: each says in a word what is behind it. A hidden panel stays in the page, so a
    half-typed field in it survives a switch. */
-/* The tabs as three cards (the owner's design C, 2026-10-10): icon, purpose and what is behind each. */
+/* The tabs as three cards: icon, purpose and what is behind each. */
 .agent-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -243,7 +243,7 @@
   letter-spacing: -0.015em;
 }
 
-/* The ladder as one row of five (W-199): the level is the one setting every tab works under, so
+/* The ladder as one row of five: the level is the one setting every tab works under, so
    it stays in view above them. The chosen step carries the accent. */
 .permission-ladder {
   display: grid;
@@ -533,7 +533,7 @@
   height: 22px;
   border-radius: 999px;
   background: var(--line-strong);
-  /* Off, the track is outlined, or it hardly reads as a control on a white card (UIK-09). */
+  /* Off, the track is outlined, or it hardly reads as a control on a white card. */
   box-shadow: inset 0 0 0 1px var(--muted);
   transition: background 120ms ease;
 }
@@ -555,7 +555,7 @@
   background: var(--cobalt);
 }
 
-/* On, the knob moves over and is what sits on the accent: in Dark the accent is light (CSS-09). */
+/* On, the knob moves over and is what sits on the accent: in Dark the accent is light. */
 .connection-toggle[aria-pressed="true"] .switch-glyph::after {
   left: 19px;
   background: var(--on-accent);

@@ -4,7 +4,7 @@ using Nendo.Engine.Storage;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// ADR-0021 (W-101): a person folds a file's older history into a checkpoint revision, after a
+/// ADR-0021: a person folds a file's older history into a checkpoint revision, after a
 /// backup, so a file that is used every day keeps accepting writes past the operation-row bound.
 /// </summary>
 [TestClass]
@@ -14,7 +14,7 @@ public sealed class HistoryFoldTests
 
     /// <summary>
     /// Carries the token a cooperative [Timeout] cancels. Without it the ten-minute bound below
-    /// could not stop the test: a run took 14:13 and passed (TST-11).
+    /// could not stop the test: a run took 14:13 and passed.
     /// </summary>
     public TestContext TestContext { get; set; } = null!;
 
@@ -240,7 +240,7 @@ public sealed class HistoryFoldTests
     }
 
     /// <summary>
-    /// PERF-01 and PERF-04: a file grown by single edits holds an idempotency row per revision, and
+    /// A file grown by single edits holds an idempotency row per revision, and
     /// every revision a fold deletes cascades into that table by its revision. Without an index that
     /// is a scan of the whole table per folded revision, minutes at 20,000 revisions. The fold adds
     /// the history indexes before it deletes, and the receipt and compensation reads search them.
@@ -353,7 +353,7 @@ public sealed class HistoryFoldTests
     }
 
     /// <summary>
-    /// The history indexes a fold adds state host 1.50.0 (ADR-0021, 2026-10-13 note): a folded file
+    /// The history indexes a fold adds state host 1.50.0 (ADR-0021): a folded file
     /// that declares less is a layout mismatch, and a file holding only some of them is not a layout
     /// this host knows, since the signature leaves them out only all together.
     /// </summary>

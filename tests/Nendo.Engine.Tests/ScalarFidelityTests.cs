@@ -31,7 +31,7 @@ public sealed class ScalarFidelityTests
         await coordinator.ApplyAsync(Mutation("create", [new CreateRecordOperation("c", "e", "one", new Dictionary<string, object?> { ["d"] = 0.5m })]));
         await coordinator.DisposeAsync();
         workspace.Forget(coordinator);
-        // A closed fixture reproduces the pre-P5 NUMERIC representation, not a product mutation path.
+        // A closed fixture reproduces the older NUMERIC representation, not a product mutation path.
         await using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = workspace.FilePath, Pooling = false }.ToString()))
         {
             await connection.OpenAsync();

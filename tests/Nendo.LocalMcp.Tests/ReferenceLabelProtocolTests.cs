@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// schema.setReferenceLabel over MCP (ADR-0003, 2026-10-14 note, W-232): the authoring table
+/// schema.setReferenceLabel over MCP (ADR-0003): the authoring table
 /// carries it, the compiler takes what the table describes, and its refusals reach an agent whole.
 /// </summary>
 [TestClass]

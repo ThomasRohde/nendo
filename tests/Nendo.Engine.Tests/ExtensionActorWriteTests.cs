@@ -6,7 +6,7 @@ namespace Nendo.Engine.Tests;
 /// A write made in a custom view's package's name (origin <c>extension:&lt;package&gt;</c>) is
 /// admitted by the host before it reaches the Engine, and the package can be removed in
 /// between by a writer that host does not serialize with. The Engine refuses it inside the
-/// write transaction that would commit it (R-014).
+/// write transaction that would commit it.
 /// </summary>
 [TestClass]
 public sealed class ExtensionActorWriteTests
@@ -63,7 +63,7 @@ public sealed class ExtensionActorWriteTests
         var kept = await Create(service, "n0", "kept", Actor);
         var undone = (await Undo(service, written.RevisionId, "undo", redo: false)).Applied;
 
-        // The host admitted both before the package went; the Engine checks again as it commits (EXT-11).
+        // The host admitted both before the package went; the Engine checks again as it commits.
         await coordinator.ApplyAsync(new NendoMutation("actor-tests", "remove", "test", "Remove the package", [
             new RemoveExtensionFileOperation("remove-index", PackageId, "index.html", null),
             new RemoveExtensionPackageOperation("remove-package", PackageId)]));

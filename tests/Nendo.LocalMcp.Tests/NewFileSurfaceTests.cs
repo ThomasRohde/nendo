@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// ADR-0022 (W-129). An agent that builds an application says what a new file of it keeps: a
+/// ADR-0022. An agent that builds an application says what a new file of it keeps: a
 /// record type's default in a change set, a record's own mark with a tool or on create, and the
 /// name the File menu gives a new file. It reads all three back, and what a new file would keep,
 /// from the reads it already uses.

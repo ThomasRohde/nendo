@@ -103,7 +103,7 @@ public sealed class TypedRecordQueryTests
     }
 
     /// <summary>
-    /// PERF-02: a related list reads its child records by one equality on the reference, the read
+    /// A related list reads its child records by one equality on the reference, the read
     /// ADR-0003's reference index exists for. Every filter was a host function over the column, which
     /// no index can serve, so the read asked the function about every row of the child type. An
     /// equality SQLite answers the same way now sits beside it, and the read seeks the index.
@@ -147,7 +147,7 @@ public sealed class TypedRecordQueryTests
     }
 
     /// <summary>
-    /// PERF-08: the check before every commit counts each table once. The record tables are among
+    /// The check before every commit counts each table once. The record tables are among
     /// the tables it counts, and they were counted a second time for the bound on records, on every
     /// one-field edit.
     /// </summary>

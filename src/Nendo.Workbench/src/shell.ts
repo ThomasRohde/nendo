@@ -72,9 +72,9 @@ function scrollPositions(): HTMLElement[] {
   // its column, so a person reads down it — and every redraw put them back at the top,
   // which is how a screen refreshing behind a failed tile was reported as scrolling on
   // its own.
-  // A Filter menu stays open across the redraw that lists a reference's records (W-172).
+  // A Filter menu stays open across the redraw that lists a reference's records.
   // Help scrolls its index and its article rather than the pane, and a file-change redraw sent
-  // an article being read back to its top once a second while an agent wrote (WST-01).
+  // an article being read back to its top once a second while an agent wrote.
   return [content, ...content.querySelectorAll<HTMLElement>('.use-surface, .card-stack, .outline-surface-frame, .record-inspector, .quick-filter-panel, .help-index, .help-topics, .help-article, .preview-content, .grid-column-options')];
 }
 
@@ -86,7 +86,7 @@ export function rerender(): void {
   restoreOutcome();
   if (content.dataset.place !== wasShowing) return;
   // A redraw replaces the pane, and a control that had the keyboard went with it: a record just
-  // opened lost its inspector's focus when its related rows arrived a second later (UIK-04).
+  // opened lost its inspector's focus when its related rows arrived a second later.
   if (focusAt !== null && (document.activeElement === null || document.activeElement === document.body))
     focusWithoutInteraction(content.querySelector<HTMLElement>(focusAt));
   const now = scrollPositions();
@@ -110,7 +110,7 @@ function focusKey(): string | null {
 }
 
 /**
- * Keeps the notices true to the screen after a redraw (W-283).
+ * Keeps the notices true to the screen after a redraw.
  *
  * A notice used to be written into a slot in the view's own markup, so every redraw took it
  * away and this put it back; without that an outcome lasted exactly as long as the next
@@ -133,7 +133,7 @@ export function restoreOutcome(): void {
  * The page's own action shelves, which a notice must never cover: a form's Save and Cancel, the
  * agent conversation's message box, a list's Previous and Next. They are right-aligned, which is
  * where the stack sits, and a refusal that covered Save until it was closed stood between the
- * person and the one button they needed (the shell lane's WDV-08, 2026-10-17).
+ * person and the one button they needed.
  */
 const actionShelves = '.form-actions, .chat-composer, .page-controls';
 
@@ -158,7 +158,7 @@ function placeStack(): void {
 }
 
 function saidHere(outcome: OutcomeNotice, here: string): boolean {
-  // An offer that is about the person's last step, a view's Undo, goes where they go (W-250).
+  // An offer that is about the person's last step, a view's Undo, goes where they go.
   if (outcome.everywhere === true) return true;
   // It belongs to the page it happened on. A message that followed somebody to the next
   // screen would be reporting an action they had already left behind.
@@ -229,8 +229,8 @@ function drawNotice(notice: HTMLElement, outcome: OutcomeNotice, ids: boolean, c
     }
     notice.append(' ', actions);
   }
-  // Every sentence can be put away (owner, 2026-10-16: "add a x to remove the message"). A
-  // saved download's stayed until the person left the screen, since a success is kept.
+  // Every sentence can be put away. Without it a saved download's would stay until the person
+  // left the screen, since a success is kept.
   const closer = document.createElement('button');
   closer.type = 'button';
   closer.className = 'icon-button outcome-close';
@@ -240,7 +240,7 @@ function drawNotice(notice: HTMLElement, outcome: OutcomeNotice, ids: boolean, c
   closer.innerHTML = icon('close');
   closer.addEventListener('click', close);
   notice.append(closer);
-  // A success says its piece and goes (W-283). It was kept until the next action, which was
+  // A success says its piece and goes. It was kept until the next action, which was
   // harmless while it sat in the page and is not once it floats over the work. The time runs
   // as the bar along its foot, and the bar stops while the pointer or the keyboard is on the
   // notice (07-studio.css), so a sentence being read, or a button about to be pressed, stays.
@@ -269,8 +269,8 @@ let shownOutcome: OutcomeNotice | null = null;
 const noticesShown = 3;
 
 /**
- * A success the next action would have wiped stays above the slot for the rest of its time
- * (W-283), so two things done in a row are both said. An alert is about the thing just tried,
+ * A success the next action would have wiped stays above the slot for the rest of its time,
+ * so two things done in a row are both said. An alert is about the thing just tried,
  * and the next thing replaces it, as it always has.
  */
 function keepAsEarlier(): void {
@@ -320,11 +320,9 @@ export const root = document.documentElement;
 export const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 export const content = requiredElement<HTMLElement>('#studio-content');
 /**
- * Where every sentence is said (W-283): a stack over the bottom right of the layer, above the
- * status line, that floats over the page instead of taking a row in it. The slot used to sit in
- * each view's markup between its toolbar and its content, and every notice moved the content
- * down by its own height, and back up when it went (owner, 2026-10-17: "it pushes the main
- * content down"). The newest notice is the slot; a success said before it waits above it.
+ * Where every sentence is said: a stack over the bottom right of the layer, above the
+ * status line, that floats over the page instead of taking a row in it, so a notice never
+ * moves the content down by its own height, and back up when it goes. The newest notice is the slot; a success said before it waits above it.
  */
 const noticeStack = requiredElement<HTMLElement>('#notice-stack');
 const outcomeSlot = requiredElement<HTMLElement>('#outcome-slot');
@@ -502,14 +500,14 @@ function drawAgentPill(): void {
  */
 export function interactionInProgress(): boolean {
   if (document.querySelector('dialog[open]') !== null) return true;
-  // A custom view's menu is open on the page (W-090): it lives on the body, so the test below does not see it.
+  // A custom view's menu is open on the page: it lives on the body, so the test below does not see it.
   if (document.querySelector('[data-view-menu-open]') !== null) return true;
   // An open details is a menu or a picker somebody is inside -- except a section
   // folded open, which is part of the page and stays open for as long as they like.
-  // Counting it held every read on a page with one open section (W-040).
+  // Counting it held every read on a page with one open section.
   if (content.querySelector('details[open]:not([data-section])') !== null) return true;
   // The View picker and the record-type list stand in the breadcrumb, outside the content pane,
-  // and a redraw replaces them too (UIS-03).
+  // and a redraw replaces them too.
   if (placePickers?.querySelector('details[open]') != null) return true;
   if (Date.now() - lastInteractionAt < quietMs) return true;
   const focused = document.activeElement;
@@ -563,7 +561,7 @@ for (const kind of ['pointerdown', 'keydown', 'focusin'] as const)
 // Reading is using the page. A wheel never reaches the three above, so somebody moving
 // down a long screen looked idle to the hold and could be redrawn out from under. Captured,
 // because a scroll does not bubble: reading down a Help article, the record inspector or a
-// column of cards scrolls that element, never the pane, and was not seen (WST-01).
+// column of cards scrolls that element, never the pane, and was not seen.
 content.addEventListener('scroll', () => {
   if (restoringFocus) return;
   lastInteractionAt = Date.now();
@@ -573,13 +571,13 @@ export function setBusy(busy: boolean): void {
   content.setAttribute('aria-busy', String(busy));
   setBusyBar(busy);
   // The breadcrumb's record-type picker is held with the page's controls, as it was when it
-  // stood in the Use toolbar (W-092).
+  // stood in the Use toolbar.
   for (const control of document.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('[data-action], [data-file-action], [data-busy-hold], .studio-content input, .studio-content select, .studio-content textarea, #place-pickers select')) {
-    // A custom view's own controls are not the Workbench's work to hold (W-090); a person
+    // A custom view's own controls are not the Workbench's work to hold; a person
     // typing in its search box keeps the box while a save runs.
     if (control.closest('[data-view-toolbar]') !== null) continue;
     // Revoking an agent's edit access is how a person ends the write their own request is queued
-    // behind, which the busy bar and the agent pill both send them to (WCS-20).
+    // behind, which the busy bar and the agent pill both send them to.
     if (control.id === 'revoke-agent') continue;
     if (busy) {
       control.dataset.busyWasDisabled ??= String(control.disabled);
@@ -589,7 +587,7 @@ export function setBusy(busy: boolean): void {
       delete control.dataset.busyWasDisabled;
     }
   }
-  // A move pressed while the action ran is made now it has ended (busy-queue.ts, WCS-16).
+  // A move pressed while the action ran is made now it has ended (busy-queue.ts).
   if (!busy && hasDeferredMove()) window.setTimeout(runDeferredMove, 0);
 }
 
@@ -655,7 +653,7 @@ function messageSlot(): HTMLElement {
  * the reads a surface chases redraw it when they land, under a second apart, and a
  * sentence written into the pane alone lasted exactly that long. The sentence about a
  * place that had gone was once wiped before the authoring gate could read it, and a
- * person pressing Back at that moment saw nothing at all (F-086). It is put back after
+ * person pressing Back at that moment saw nothing at all. It is put back after
  * every redraw of the view it was said on, and released by the next thing the person
  * does -- the listener below -- or by leaving the view.
  */
@@ -706,17 +704,17 @@ export function showOutcome(message: string, action?: OutcomeNotice['action']): 
  * person leaves the page. It is retained the way an outcome is because it is one:
  * written through `showError` it lasted exactly as long as the next chased read, and
  * on a Use screen that is under a second, so the sentence that said "accepted, refresh
- * to see it" and the only button that would was gone before anybody saw either (F-085).
+ * to see it" and the only button that would was gone before anybody saw either.
  */
 /**
  * Something finished, and something about it is wrong in a way that stays true: an automatic
- * action the save did not run (EBH-01). Said in the tone of an alert, but kept the way a
+ * action the save did not run. Said in the tone of an alert, but kept the way a
  * success is, until the next action clears it, and without taking the focus: a grid edit that
  * moved the focus to this sentence on every save would stop the person typing. It keeps the
  * step a success offers.
  */
 /**
- * A view's batch offers Undo (W-250). It is a success that offers a step, as a saved download's
+ * A view's batch offers Undo. It is a success that offers a step, as a saved download's
  * Show in folder is, kept wherever the person goes until it times out, is closed or another
  * notice takes its place; the step it offers runs once.
  */
@@ -756,7 +754,7 @@ export function showRetainedNotice(message: string, refresh: (button: HTMLButton
   const slot = messageSlot();
   drawOutcome(slot, state.lastOutcome);
   slot.tabIndex = -1;
-  // A background read that failed says so where it can be seen, without moving anybody (WCS-07).
+  // A background read that failed says so where it can be seen, without moving anybody.
   if (takeFocus) focusWithoutInteraction(slot);
   announce(message);
 }

@@ -1,4 +1,4 @@
-// W-078: the Capability Atlas export (extensions/bcm-atlas/export.js). The browser lane
+// The Capability Atlas export (extensions/bcm-atlas/export.js). The browser lane
 // (tools/Gate-BcmAtlas.mjs) measures the exported files in the view; these measure the
 // document itself: its cards, its size, its escaping and what a slide editor would meet in it.
 import test from 'node:test';

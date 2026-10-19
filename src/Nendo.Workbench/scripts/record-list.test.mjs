@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// F-225: a Use list drew its first field and the next two, and dropped every later binding
-// without a word; Archi's On views count, bound fourth, never appeared. Rendered through the
+// A Use list draws every binding, not only its first field and the next two: a count bound
+// fourth, such as Archi's On views, appears too. Rendered through the
 // function the app draws a list with.
 const { listMarkup } = await bundleOf('src/surface-markup.ts');
 
@@ -40,7 +40,7 @@ test('a list that declares no fields shows its record type’s first three, not 
   assert.deepEqual(cells(head, 'span'), ['Type', 'Folder']);
 });
 
-// Review R-013: a row that opens a record is a native button inside a list item, so a screen
+// A row that opens a record is a native button inside a list item, so a screen
 // reader hears a button with the record's name, not a list item it cannot tell is actionable.
 const { galleryMarkup } = await bundleOf('src/surface-markup.ts');
 const { readFile, readdir } = await import('node:fs/promises');
@@ -52,7 +52,7 @@ function actionableRows(html) {
   return { items, buttons };
 }
 
-test('R-013: every record row in a list or a gallery is a button inside a list item', () => {
+test('every record row in a list or a gallery is a button inside a list item', () => {
   const list = node('l', 'recordList', { entityId: 'concept' });
   for (const [name, html] of [['list', listMarkup(planOf(list), list)], ['gallery', galleryMarkup(planOf(node('g', 'gallerySurface', { entityId: 'concept' })), node('g', 'gallerySurface', { entityId: 'concept' }))]]) {
     const { items, buttons } = actionableRows(html);
@@ -63,7 +63,7 @@ test('R-013: every record row in a list or a gallery is a button inside a list i
   }
 });
 
-test('R-013: no markup in the Workbench gives a button the role of a list item', async () => {
+test('no markup in the Workbench gives a button the role of a list item', async () => {
   const folder = new URL('../src/', import.meta.url);
   const offenders = [];
   for (const name of (await readdir(folder)).filter(file => file.endsWith('.ts'))) {

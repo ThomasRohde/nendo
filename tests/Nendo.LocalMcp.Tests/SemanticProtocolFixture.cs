@@ -44,7 +44,7 @@ internal sealed record ProtocolFixtureRecord(
     string RecordId,
     IReadOnlyDictionary<string, JsonElement> Values);
 
-/// <summary>A gallery root: the S2 proof on a fixture, optional so older fixtures need none.</summary>
+/// <summary>A gallery root on a fixture, optional so older fixtures need none.</summary>
 internal sealed record ProtocolFixtureGallery(
     string SurfaceId,
     string RootNodeId,
@@ -53,7 +53,7 @@ internal sealed record ProtocolFixtureGallery(
     string? AccentFieldId,
     IReadOnlyList<string> FieldIds);
 
-/// <summary>A timeline root: the S3 proof on a fixture, optional so older fixtures need none.</summary>
+/// <summary>A timeline root on a fixture, optional so older fixtures need none.</summary>
 internal sealed record ProtocolFixtureTimeline(
     string SurfaceId,
     string RootNodeId,

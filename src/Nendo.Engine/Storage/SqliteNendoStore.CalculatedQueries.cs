@@ -5,7 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Storage;
 
 /// <summary>
-/// Filtering and sorting on a calculated field (F-222). A calculated field has no column, so
+/// Filtering and sorting on a calculated field. A calculated field has no column, so
 /// the records a query could return are read once, bounded, with their calculations; the
 /// ones that pass the calculated filters, and their order under a calculated sort, then enter
 /// the ordinary SQL as two functions of the record ID. The page, its continuation, the count
@@ -82,7 +82,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// Every record a query keeps, with its calculations: the ones its stored filters leave, read
     /// once and bounded, that then pass its calculated filters. A filter, sort or total on a
-    /// calculated field (W-249) all stand on this one read, so they cannot disagree about the set.
+    /// calculated field all stand on this one read, so they cannot disagree about the set.
     /// Refused past <see cref="NendoQueryLimits.MaximumCalculatedQueryRecords"/> rather than read slowly.
     /// </summary>
     private async Task<IReadOnlyList<NendoRecordSnapshot>> CalculatedMembersAsync(
@@ -130,7 +130,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// The number one record's calculated field contributes to a total, or null when it is empty,
     /// as an unset stored field contributes nothing. One that could not be worked out refuses the
-    /// whole total: a total that leaves a record out is an incomplete one (W-249).
+    /// whole total: a total that leaves a record out is an incomplete one.
     /// </summary>
     private static decimal? CalculatedContribution(NendoRecordSnapshot record, NendoDerivedFieldSnapshot field)
     {

@@ -1,7 +1,7 @@
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// The view API reference (W-094): <c>window.nendo</c> as an agent reads it before it writes a
+/// The view API reference: <c>window.nendo</c> as an agent reads it before it writes a
 /// custom view's code. The Workbench's api build writes it beside api.js, from the tables api.js
 /// and the view broker are built from, and this assembly carries it as it was built.
 /// <para>

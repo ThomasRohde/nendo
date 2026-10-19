@@ -2,7 +2,7 @@ import { viewMenuMarkup } from './view-toolbar-markup';
 import type { MenuItem } from './view-toolbar-model';
 
 /**
- * Nendo's own menu for a custom view (ADR-0013, 2026-09-28; W-090): a toolbar menu under its
+ * Nendo's own menu for a custom view (ADR-0013): a toolbar menu under its
  * button, or the menu a view asked for at a point in its frame. It is the Workbench's markup,
  * in the Workbench's document, drawn from a checked declaration, so a view's right-click
  * reads and behaves like every other menu in Nendo and can reach nothing here.

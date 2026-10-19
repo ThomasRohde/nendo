@@ -1,4 +1,4 @@
-// Archi's Specializations Manager, Properties Manager and Find and Replace (W-119): archi-online's own
+// Archi's Specializations Manager, Properties Manager and Find and Replace: archi-online's own
 // operations, each run on a store of its own around the mirror, as Generate View For is. What one
 // changes is the difference between the mirror before and after, which the workbench writes with
 // writesFor as one batch, so one revision and one step of its Undo.

@@ -133,7 +133,7 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
             }
             catch (NendoCalculationException exception)
             {
-                // The declaration decides (ADR-0008, 2026-09-20 amendment): an empty
+                // The declaration decides (ADR-0008): an empty
                 // input that stopped a calculation declared to allow an empty result --
                 // in its formula, or in a related total it reads -- is that empty
                 // result, and a dependant reads a typed empty.
@@ -158,11 +158,11 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
     /// One calculation for one record, used where a trigger condition or an action
     /// input needs a single derived value rather than the whole set.
     /// <para>
-    /// It answers exactly as the record read does (EBH-17). A dependency that failed, with any
+    /// It answers exactly as the record read does. A dependency that failed, with any
     /// code, makes its dependant report <c>calculation-dependency-failed</c>, whatever the
     /// dependant declares: before, a required dependency stopped by an empty input reached a
     /// dependant that allows an empty result as that empty result, so a condition saw an empty
-    /// value where the record page showed an error. Each calculation is worked out once per record and budget (W-247), so a
+    /// value where the record page showed an error. Each calculation is worked out once per record and budget, so a
     /// dependency two others read, and a project two of its client's sums total, is read once.
     /// </para>
     /// </summary>
@@ -233,14 +233,14 @@ internal sealed class NendoCalculationService(NendoExpressionAdapter adapter)
 
     /// <summary>
     /// The sentence for a dependency that could not be worked out, naming it as the person sees
-    /// it. It named the calculation's definition ID, such as <c>calc.projectHours</c> (EBH-20).
+    /// it. It named the calculation's definition ID, such as <c>calc.projectHours</c>.
     /// </summary>
     private static string DependsOn(CompiledBehaviour behaviour, string dependencyId) =>
         $"This depends on '{(behaviour.Calculations.TryGetValue(dependencyId, out var dependency) ? dependency.Definition.DisplayName : dependencyId)}', which could not be calculated.";
 
     /// <summary>
     /// An empty input named by the field it reads rather than by the author's alias, which
-    /// means something to the author and nothing to the person reading the screen (EBH-20).
+    /// means something to the author and nothing to the person reading the screen.
     /// Anything else, and an input this source cannot name, comes back unchanged.
     /// </summary>
     internal static NendoCalculationException Named(

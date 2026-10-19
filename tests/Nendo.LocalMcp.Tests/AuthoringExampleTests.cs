@@ -21,7 +21,7 @@ internal interface IApprovesWhatTheFileAsks
 public sealed class AuthoringExampleTests
 {
     /// <summary>
-    /// MAA-17: the note sizes a batch, so its numbers are the example's own. It said fifteen and
+    /// The note sizes a batch, so its numbers are the example's own. It said fifteen and
     /// forty while the page was fourteen operations carrying thirty-nine inline properties.
     /// </summary>
     [TestMethod]

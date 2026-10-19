@@ -23,7 +23,7 @@ internal static class NendoMcpErrors
 
     /// <summary>
     /// The admission check a list, a read or a skills call makes, refused by code and sentence.
-    /// The bare exception reached the client as a code-less internal error (MHS-10).
+    /// The bare exception reached the client as a code-less internal error.
     /// </summary>
     internal static void RequireActive(NendoHostAuthority authority)
     {
@@ -53,7 +53,7 @@ internal static class NendoMcpErrors
     internal static McpProtocolException Translate(Exception exception) => exception switch
     {
         McpProtocolException protocol => protocol,
-        // The tool path's sentences, which say what to do next (MHS-10): every authority code
+        // The tool path's sentences, which say what to do next: every authority code
         // used to read "Agent authority rejected the request." here.
         NendoAgentAuthorityException authority => Invalid(
             $"NENDO_{authority.Code}",
@@ -61,7 +61,7 @@ internal static class NendoMcpErrors
         NendoRecoveryRequiredException => Invalid(
             "NENDO_RECOVERY_REQUIRED",
             "The file requires recovery before it can be inspected."),
-        // The one audited list the tool path keeps (MTD-05): a read's refusal said only that a
+        // The one audited list the tool path keeps: a read's refusal said only that a
         // precondition failed, though its sentence names the remedy and the tools showed it.
         NendoPreconditionException precondition => Invalid(
             $"NENDO_{NendoText.ErrorCode(precondition.Code)}",

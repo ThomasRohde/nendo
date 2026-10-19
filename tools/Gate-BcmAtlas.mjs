@@ -3,7 +3,7 @@ async (page) => {
   // it, over two files (tools/bcm-atlas/fixtures.mjs, which Review-BcmAtlas.ps1 puts in place of
   // the placeholder below): BCM.nendo's Northstar model with its real schema, bindings and
   // configuration, and a second file with other record types, other field IDs and only some of
-  // the Atlas's parts (W-077).
+  // the Atlas's parts.
   const root = '__NENDO_REPOSITORY__';
   const fixtures = '__ATLAS_FIXTURES__';
   const errors = [];
@@ -44,7 +44,7 @@ async (page) => {
   const select = id => view.evaluate(value => document.querySelector(`.cap[data-id="${value}"]`).click(), id);
   const results = {};
 
-  // W-078: an export hands its file to an anchor with a download name. The view's anchors are
+  // An export hands its file to an anchor with a download name. The view's anchors are
   // caught before the browser saves anything, and each file is read back from its blob in the view.
   const catchDownloads = () => view.evaluate(() => {
     window.__exports = [];
@@ -97,7 +97,7 @@ async (page) => {
   await until(() => /635 total$/.test(document.getElementById('status').textContent), null, 'The map never loaded the 635-capability model.');
   assert(await status() === '48 shown · 635 in scope · 635 total', 'The map did not open at two levels: ' + await status());
 
-  // BCM binds every part, so it keeps every colour mode, its banner and its own words (W-077).
+  // BCM binds every part, so it keeps every colour mode, its banner and its own words.
   assert(JSON.stringify(await colours()) === JSON.stringify(['maturity', 'gap', 'change', 'coverage', 'importance', 'investment', 'none']),
     'BCM lost a colour mode: ' + JSON.stringify(await colours()));
   const banner = await view.evaluate(() => ({ hidden: document.getElementById('banner').hidden, text: document.getElementById('banner').textContent }));
@@ -111,7 +111,7 @@ async (page) => {
   for (const expected of ['Strong fit · Primary', 'Delivery · 2026-08-28']) {
     assert(results.bcmInspector.relations.some(text => text.endsWith(expected)), `No related row reads "${expected}": ${JSON.stringify(results.bcmInspector.relations)}`);
   }
-  // W-080: dated assessments. The inspector shows the latest score on each dimension, read from
+  // Dated assessments. The inspector shows the latest score on each dimension, read from
   // the fixture's own assessments rather than from a number written here.
   const assessments = bcm.records['bcm.assessment'];
   const dimensionOf = { maturity: 'Maturity', value: 'Business value', health: 'IT health' };
@@ -138,7 +138,7 @@ async (page) => {
     assert(await cards() === count, `Levels ${level} shows ${await cards()} cards, not ${count}.`);
   }
 
-  // W-080: change since a chosen date. Every leaf's figure is its latest maturity less the one in
+  // Change since a chosen date. Every leaf's figure is its latest maturity less the one in
   // force on that date, from the fixture; since the latest date nothing has changed.
   const leafFigures = () => view.evaluate(() => [...document.querySelectorAll('.cap.leaf')]
     .filter(card => !card.querySelector('.cap-count')).map(card => [card.dataset.id, card.querySelector('.score').textContent]));
@@ -173,7 +173,7 @@ async (page) => {
   });
   assert(maturityWrong.length === 0, 'Cards do not show the latest Maturity assessment: ' + JSON.stringify(maturityWrong.slice(0, 5)));
 
-  // W-080: importance against IT health places every capability, each in its own cell.
+  // Importance against IT health places every capability, each in its own cell.
   await view.click('[data-mode="portfolio"]');
   await until(() => !document.getElementById('portfolio').hidden, null, 'Importance × health never showed.');
   results.portfolio = await view.evaluate(() => Number(document.getElementById('portfolio').dataset.placed));
@@ -189,7 +189,7 @@ async (page) => {
   await view.click('[data-mode="map"]');
   await until(() => !document.getElementById('map').hidden, null, 'The map did not come back from Importance × health.');
 
-  // W-081: application coverage. Every leaf reads the distinct applications supporting it or
+  // Application coverage. Every leaf reads the distinct applications supporting it or
   // anything below it, counted from the fixture's own support links.
   const supports = bcm.records['bcm.support'];
   const parentOf = new Map(bcm.records['bcm.capability'].map(record => [record.recordId, record.values['cap.parent']]));
@@ -212,7 +212,7 @@ async (page) => {
   results.coverage = { cards: cardTones.length, covered: cardTones.filter(([id]) => appsFor(id) > 0).length, overlapping: cardTones.filter(([id]) => appsFor(id) > 1).length };
   await view.selectOption('#colour', 'maturity');
 
-  // W-081: capability against application, with role and fit in each cell.
+  // Capability against application, with role and fit in each cell.
   await view.click('[data-mode="matrix"]');
   await until(() => !document.getElementById('matrix').hidden, null, 'Capability × application never showed.');
   results.matrix = await view.evaluate(() => ({ rows: Number(document.getElementById('matrix').dataset.rows), columns: Number(document.getElementById('matrix').dataset.columns) }));
@@ -228,7 +228,7 @@ async (page) => {
   await view.click('[data-mode="map"]');
   await until(() => !document.getElementById('map').hidden, null, 'The map did not come back from the matrix.');
 
-  // W-081: an initiative covers several capabilities, and a capability lists them.
+  // An initiative covers several capabilities, and a capability lists them.
   const scopes = bcm.records['bcm.scope'];
   const wide = bcm.records['bcm.initiative'].find(initiative => scopes.filter(s => s.values['scope.initiative'] === initiative.recordId).length > 1);
   const inScope = scopes.find(s => s.values['scope.initiative'] === wide.recordId && s.values['scope.capability'] !== wide.values['initiative.capability']);
@@ -258,7 +258,7 @@ async (page) => {
   await view.click('[data-level="2"]');
   assert(await view.evaluate(() => window.__bcmLayouts) === 1, 'Changing the level did not pack the map once.');
 
-  // W-078: Export writes what the map packs, with its legend and title, as SVG and PNG.
+  // Export writes what the map packs, with its legend and title, as SVG and PNG.
   await catchDownloads();
   const map = await packed();
   const svg = await exported('svg', false);
@@ -327,7 +327,7 @@ async (page) => {
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); }, bcm);
   await until(() => !document.querySelector('#colour option[value="importance"]').hidden, null, 'Importance did not come back with its binding.');
 
-  // The map is the tree the file declares (ADR-0019 stage 7): a file that declares none says so
+  // The map is the tree the file declares (ADR-0019): a file that declares none says so
   // and draws nothing, rather than building a tree the Engine does not keep.
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, undeclared(bcm));
   await until(() => !document.getElementById('notice').hidden && /does not keep capabilities as a tree/.test(document.getElementById('notice').textContent),
@@ -353,7 +353,7 @@ async (page) => {
   assert(methods.includes('records.tree'), 'The map was not read as the declared tree: ' + JSON.stringify(methods));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas.png' });
 
-  // ---- W-079: moving and renaming on the map, with the real pointer and keyboard. The fixture
+  // ---- Moving and renaming on the map, with the real pointer and keyboard. The fixture
   // broker moves as the Engine does: the versions read, no loop, the place among the siblings.
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForTimeout(400);
@@ -497,7 +497,7 @@ async (page) => {
   results.moves.stale = await status();
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas-moved.png' });
 
-  // ---- A second file (W-077). Nothing in it is BCM's: the record type, every field ID and the
+  // ---- A second file. Nothing in it is BCM's: the record type, every field ID and the
   // choice IDs differ, the view binds no target, investment, owner, review date or evidence, and
   // its configuration names a Notes field the view does not bind. Opened in a fresh frame, as
   // another file's view would be.
@@ -585,7 +585,7 @@ async (page) => {
   assert(everything.every(entityId => entityId.startsWith('org.')), 'The second file was asked about BCM’s record types: ' + JSON.stringify(everything));
   assert(errors.length === 0, 'The view raised: ' + errors.join(' | '));
 
-  // R02-017/023: the actual dialog sends only writable maturity, and a stored rating
+  // The actual dialog sends only writable maturity, and a stored rating
   // outside the displayed scale survives an unrelated owner change in both themes.
   for (const theme of ['light', 'dark']) for (const assessed of [true, false]) {
     const preservation = clone(bcm);
@@ -603,8 +603,8 @@ async (page) => {
     await until(() => document.getElementById('editor').open, null, 'The rating preservation editor did not open.');
     const maturityShown = await view.locator('[name="maturity"]').isVisible();
     assert(maturityShown === !assessed, 'The maturity editor disagrees with assessment authority.');
-    assert(await view.locator('[name="target"]').inputValue() === '-2', 'R02-023 the actual select erased an out-of-scale target.');
-    if (!assessed) assert(await view.locator('[name="maturity"]').inputValue() === '9', 'R02-023 the actual select erased an out-of-scale maturity.');
+    assert(await view.locator('[name="target"]').inputValue() === '-2', 'the actual select erased an out-of-scale target.');
+    if (!assessed) assert(await view.locator('[name="maturity"]').inputValue() === '9', 'the actual select erased an out-of-scale maturity.');
     await view.fill('[name="owner"]', 'Changed owner');
     const before = await page.evaluate(() => window.broker.requests.length);
     await view.click('#save');
@@ -612,27 +612,27 @@ async (page) => {
     const sent = await page.evaluate(start => window.broker.requests.slice(start).find(request => request.m === 'records.update'), before);
     assert(sent && sent.p.values['cap.owner'] === 'Changed owner', 'The actual editor sent no unrelated owner edit.');
     assert(assessed ? !Object.hasOwn(sent.p.values, 'cap.maturity') : sent.p.values['cap.maturity'] === 9,
-      'R02-017/023 the actual editor changed maturity: ' + JSON.stringify(sent.p.values));
-    assert(sent.p.values['cap.target'] === -2, 'R02-023 the actual editor changed an out-of-scale target.');
+      'the actual editor changed maturity: ' + JSON.stringify(sent.p.values));
+    assert(sent.p.values['cap.target'] === -2, 'the actual editor changed an out-of-scale target.');
     const stored = await page.evaluate(id => window.broker.record('bcm.capability', id), record.recordId);
     assert(stored.values['cap.maturity'] === (assessed ? 5 : 9) && stored.values['cap.target'] === -2,
       'The fixture persisted a changed rating after the unrelated edit: ' + JSON.stringify(stored.values));
     await view.evaluate(() => document.getElementById('editor').close());
   }
 
-  // ---- W-213: the broad review's Atlas findings, each on BCM in a fresh frame.
+  // ---- Atlas rules, each measured on BCM in a fresh frame.
   const fresh = async (file, what) => {
     await page.evaluate(value => { window.broker.pushTheme('light'); window.broker.setFixture(value); window.broker.remount(); }, file);
     await attach();
     await until(() => /635 total$/.test(document.getElementById('status').textContent), null, `${what} did not load.`);
   };
-  // ABS-13: a screen whose configuration names a mode opens on it, Importance × health included.
+  // A screen whose configuration names a mode opens on it, Importance × health included.
   const portfolioFirst = clone(bcm);
   portfolioFirst.context.configuration.mode = 'portfolio';
   await fresh(portfolioFirst, 'BCM with configuration.mode portfolio');
   const firstDraw = await view.evaluate(() => ({ portfolio: !document.getElementById('portfolio').hidden, map: !document.getElementById('map').hidden }));
   assert(firstDraw.portfolio && !firstDraw.map, `A screen whose configuration names the mode "portfolio" opened on the map: ${JSON.stringify(firstDraw)}`);
-  // ABS-17: a capability whose importance is a retired choice keeps its place in Importance × health.
+  // A capability whose importance is a retired choice keeps its place in Importance × health.
   const retired = clone(portfolioFirst);
   retired.schema.entities.find(entity => entity.entityId === 'bcm.capability').fields.find(field => field.fieldId === 'cap.importance').choices.find(choice => choice.id === 'Supporting').retired = true;
   await fresh(retired, 'BCM with the Supporting importance retired');
@@ -640,7 +640,7 @@ async (page) => {
     other: document.querySelectorAll('#portfolio td[data-importance="other"] .portfolio-chip').length }));
   assert(retiredPlaced.placed === 635 && retiredPlaced.other > 0,
     `Capabilities whose importance is a retired choice were left out of Importance × health without a word: ${JSON.stringify(retiredPlaced)}`);
-  // ABS-10: a read past the Atlas's 5,000 records of a type is said, not silently cut.
+  // A read past the Atlas's 5,000 records of a type is said, not silently cut.
   await fresh(bcm, 'BCM');
   await page.evaluate(() => {
     const base = window.broker.records('bcm.assessment')[0];
@@ -649,7 +649,7 @@ async (page) => {
   });
   await until(() => !document.getElementById('notice').hidden && /Read in part: the Atlas reads at most 5,000 /.test(document.getElementById('notice').textContent), null,
     'A read of 5,024 assessments, past the Atlas\u2019s 5,000, was cut without a word.');
-  // ABS-18: the cards are one tab stop, and the arrows move between them.
+  // The cards are one tab stop, and the arrows move between them.
   await fresh(bcm, 'BCM');
   const stops = await view.evaluate(() => ({ cards: document.querySelectorAll('.cap').length, stops: [...document.querySelectorAll('.cap')].filter(card => card.tabIndex >= 0).length }));
   assert(stops.cards > 10 && stops.stops === 1, `${stops.stops} of ${stops.cards} capability cards are tab stops, so the keyboard must cross them all to reach the inspector.`);
@@ -659,7 +659,7 @@ async (page) => {
   const toCard = await view.evaluate(() => ({ id: document.activeElement.dataset.id ?? null, card: document.activeElement.classList.contains('cap'),
     stops: [...document.querySelectorAll('.cap')].filter(card => card.tabIndex >= 0).map(card => card.dataset.id) }));
   assert(toCard.card && toCard.id !== fromCard && JSON.stringify(toCard.stops) === JSON.stringify([toCard.id]), `ArrowRight on a card did not move to the next card: ${JSON.stringify({ fromCard, toCard })}`);
-  // ABS-09 and ABS-14: in the editor, on a capability with no lifecycle and a sibling above it.
+  // In the editor, on a capability with no lifecycle and a sibling above it.
   const byParent = new Map();
   for (const capability of bcm.records['bcm.capability']) byParent.set(capability.values['cap.parent'] ?? null, [...(byParent.get(capability.values['cap.parent'] ?? null) ?? []), capability]);
   const topLevel = byParent.get(null).find(capability => (byParent.get(capability.recordId) ?? []).length >= 2);
@@ -690,7 +690,7 @@ async (page) => {
     `Saving a name change gave a capability without a lifecycle the first choice: shown ${JSON.stringify(lifecycleShown)}, written ${JSON.stringify(lifecycleSave?.p.values['cap.lifecycle'])}`);
   results.w213 = { firstDraw, retiredPlaced, stops, typed, lifecycle: lifecycleSave.p.values['cap.lifecycle'] ?? null };
 
-  // ---- Nendo's own chrome (W-090). Everything above ran on a host that does not draw a view's
+  // ---- Nendo's own chrome. Everything above ran on a host that does not draw a view's
   // controls, where the Atlas draws its own. On one that does, the Atlas draws none: it declares
   // them, and Nendo draws them, lists them in Ctrl K and sends a press back as a command. It takes
   // Nendo's Add, and a right-click on a card asks for Nendo's menu. BCM again, in a fresh frame.
@@ -729,7 +729,7 @@ async (page) => {
     'Levels were declared as ' + JSON.stringify(levelItem));
   assert(JSON.stringify(toolbar.items.find(item => item.id === 'colour').options.map(option => option.value)) === JSON.stringify(['maturity', 'gap', 'change', 'coverage', 'importance', 'investment', 'none']),
     'BCM\u2019s colour modes were not all declared.');
-  // W-080: Importance × health is a mode Nendo lists, and Change since declares its dates.
+  // Importance × health is a mode Nendo lists, and Change since declares its dates.
   assert(JSON.stringify(toolbar.items.find(item => item.id === 'mode').options.map(option => option.value)) === JSON.stringify(['map', 'assessment', 'outline', 'portfolio', 'matrix']),
     'The modes Nendo lists are ' + JSON.stringify(toolbar.items.find(item => item.id === 'mode').options));
   assert(!toolbar.items.some(item => item.id === 'since'), 'Since is declared while the colour is not Change since.');
@@ -796,7 +796,7 @@ async (page) => {
     'The card menu holds ' + JSON.stringify(results.chrome.menu));
   assert(menu.x > 0 && menu.y > 0, 'The menu was not asked for at the pointer: ' + JSON.stringify([menu.x, menu.y]));
   await until(() => document.getElementById('breadcrumbs').textContent.includes('Customer & market'), null, 'Picking Focus this group did not focus it.');
-  // ABS-16: Change since over more than 64 assessment dates. Nendo's select holds 64, one more
+  // Change since over more than 64 assessment dates. Nendo's select holds 64, one more
   // refused the whole row, and the Atlas left Nendo's toolbar for the rest of the visit.
   const manyDates = clone(bcm);
   const datedCapability = manyDates.records['bcm.capability'][0].recordId;
@@ -817,14 +817,14 @@ async (page) => {
   assert(manySince !== null && manySince.options.length === 64 && manySince.options.some(option => option.value === manySince.value) && stillNative,
     `Change since over 73 dates did not declare the 64 most recent within Nendo's row: ${JSON.stringify({ options: manySince?.options.length, value: manySince?.value, stillNative })}`);
   results.chrome.since = { dates: 73, declared: manySince.options.length };
-  // The fixture read every toolbar and menu above by the Workbench's own rules (W-091).
+  // The fixture read every toolbar and menu above by the Workbench's own rules.
   const refused = await page.evaluate(() => window.broker.chromeRefusals);
   assert(refused.length === 0, 'Nendo would refuse what the Atlas declared or asked for: ' + JSON.stringify(refused));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/bcm-atlas-native-chrome.png' });
   await page.evaluate(() => window.broker.offerChrome(false));
   assert(errors.length === 0, 'The view raised with Nendo\u2019s chrome: ' + errors.join(' | '));
 
-  // W-078: the exported SVG opens in a browser as it stands, at its own size, and is kept for a look.
+  // The exported SVG opens in a browser as it stands, at its own size, and is kept for a look.
   await page.setViewportSize({ width: Math.min(svg.width, 1600), height: Math.min(svg.height, 1200) });
   await page.setContent(`<body style="margin:0">${svg.text.replace(/^<\?xml[^>]*>\s*/, '')}</body>`);
   const opened = await page.evaluate(() => { const box = document.querySelector('svg').getBoundingClientRect(); return [box.width, box.height, document.querySelectorAll('svg g.card').length]; });

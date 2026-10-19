@@ -1,6 +1,6 @@
 // Reads a manuscript file Nendo has open, over its MCP endpoint, into a folder: every record of
 // the Manuscript types (snapshot.json) and the pictures its blocks show (media/). Reading only:
-// no lease is taken and nothing is written to the file (W-293, Compare-ManusPaper.ps1).
+// no lease is taken and nothing is written to the file (Compare-ManusPaper.ps1).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createNendoMcpClient } from '../../Nendo-McpClient.mjs';

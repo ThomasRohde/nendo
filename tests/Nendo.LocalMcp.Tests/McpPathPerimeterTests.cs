@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// MHS-01. Routing matches /mcp without regard to case, but the perimeter tested the path
+/// Routing matches /mcp without regard to case, but the perimeter tested the path
 /// ordinally, so /MCP and /Mcp reached the MCP endpoint past the Host, Origin and size checks:
 /// a page that rebound its own name to 127.0.0.1 could read and write the open file. These
 /// cases go through a real host, so routing and the perimeter are measured together.

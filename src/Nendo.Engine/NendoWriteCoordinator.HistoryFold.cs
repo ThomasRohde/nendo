@@ -67,7 +67,7 @@ public sealed partial class NendoWriteCoordinator
                 _authority = trusted;
                 // The history is gone from here on, so the commit is told first. Raised after the
                 // compaction and the inspection, a full disk during either reported a fold that had
-                // removed the history as failed, and nothing on screen heard of it (ECO-02).
+                // removed the history as failed, and nothing on screen heard of it.
                 AfterCommit?.Invoke();
                 NotifyCommitted(trusted.ChangeSequence);
                 // Compaction gives the folded pages back and needs room for a copy of the file. It is
@@ -83,7 +83,7 @@ public sealed partial class NendoWriteCoordinator
                 // Inspected as if opened: a fold that left anything this host would not open is recovery, not a success.
                 var inspected = await SqliteNendoStore.InspectAsync(_path, CancellationToken.None);
                 // A file another program kept busy or unreadable for a moment is not one the fold
-                // broke: the fold stands and the next open inspects it again (W-221 review).
+                // broke: the fold stands and the next open inspects it again.
                 if (inspected.Inspection.Findings.Any(finding => finding.Code is "file-busy" or "file-unavailable"))
                     return result with { SpaceReclaimed = reclaimed };
                 if (inspected.Inspection.Classification is not (NendoOpenClassification.NormalWritable or NendoOpenClassification.NormalReadOnly))

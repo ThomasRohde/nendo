@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-249 (ADR-0004 and ADR-0008 amendments of 2026-10-18): a summary tile, a breakdown and a ranking
+/// ADR-0004 and ADR-0008: a summary tile, a breakdown and a ranking
 /// total a calculated number, and a breakdown groups by a reference. Billable built a custom
-/// Financial overview for its unbilled, outstanding, by-client and top-client widgets because each
+/// Financial overview for its unbilled, outstanding, by-client and top-client widgets when each
 /// of these was refused. The shapes here are Billable's: clients, and invoices with a calculated
 /// outstanding amount.
 /// </summary>

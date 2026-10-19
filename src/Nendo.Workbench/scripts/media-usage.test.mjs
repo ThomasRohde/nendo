@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-273 (ADR-0031 point 8): History says what a file's pictures weigh against its budget and how
+// ADR-0031 point 8: History says what a file's pictures weigh against its budget and how
 // much nothing names, and offers to remove only that, behind a backup.
 const { byteSize, mediaUsageMarkup, removeUnusedQuestion } = await bundleOf('src/media-usage.ts');
 

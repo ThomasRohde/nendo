@@ -37,7 +37,7 @@ internal static class ExtensionPackageDiff
             var before = await active.ReadExtensionFileAsync(packageId, path, null, ct);
             var after = await clone.ReadExtensionFileAsync(packageId, path, null, ct);
             // A put of the same bytes under another media type changes how the file is served,
-            // so it is shown too (EXT-02); only a file left exactly as it was is not.
+            // so it is shown too; only a file left exactly as it was is not.
             if (before is null && after is null ||
                 before?.Sha256 == after?.Sha256 && before?.MediaType == after?.MediaType) continue;
             var change = before is null ? "added" : after is null ? "removed" : "replaced";
@@ -63,7 +63,7 @@ internal static class ExtensionPackageDiff
 
     /// <summary>
     /// The text's lines, each with the line feed that ends it, so a last line with and without one
-    /// compare as different lines (EXT-08): a change of only the final newline listed the file as
+    /// compare as different lines: a change of only the final newline listed the file as
     /// replaced with no line changed. The feed is compared and never shown.
     /// </summary>
     internal static bool TryLines(byte[]? content, out string[] lines)
@@ -94,7 +94,7 @@ internal static class ExtensionPackageDiff
     {
         var script = Script(oldLines, newLines);
         var changes = Enumerable.Range(0, script.Count).Where(index => script[index].Kind != '=').ToArray();
-        // Nothing left to show: no hunk of unchanged lines alone, only the note that the change goes on (EXT-08).
+        // Nothing left to show: no hunk of unchanged lines alone, only the note that the change goes on.
         if (allowance <= 0 && changes.Length > 0) return ([], 0, true);
         var hunks = new List<NendoExtensionDiffHunk>();
         var shown = 0;

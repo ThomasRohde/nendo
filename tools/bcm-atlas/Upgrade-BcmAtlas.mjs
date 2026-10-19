@@ -1,4 +1,4 @@
-// Brings a running BCM.nendo up to the Capability Atlas of W-080 and W-081: assessments over time,
+// Brings a running BCM.nendo up to the Capability Atlas: assessments over time,
 // and initiatives that cover several capabilities.
 //
 //   node tools/bcm-atlas/Upgrade-BcmAtlas.mjs schema [--endpoint <url>] [--dry-run] [--accept]
@@ -14,7 +14,7 @@
 //         changed, so maturity, target and primary capability stay where they were. Needs Agent
 //         access at Edit data.
 //
-// The file is found by its application ID in this device's agent-ports.json (W-089), or named
+// The file is found by its application ID in this device's agent-ports.json, or named
 // with --endpoint. Update the package itself with Put-NendoPackage.mjs extensions/bcm-atlas.
 import fs from 'node:fs/promises';
 import path from 'node:path';

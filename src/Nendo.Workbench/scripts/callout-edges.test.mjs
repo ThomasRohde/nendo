@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 
-// W-096. A panel marked by a thick coloured stripe down its left edge read as generated
-// filler, and it was on eight different things. Callouts now carry their tone in an icon
+// A panel marked by a thick coloured stripe down its left edge reads as generated
+// filler. Callouts carry their tone in an icon
 // and, when they ask for attention, a tint (.callout, .callout.is-tinted). This reads every
 // stylesheet and refuses a thick left edge in any colour but a neutral line, so the stripe
 // cannot come back one component at a time. A keyboard focus marker is not a callout.

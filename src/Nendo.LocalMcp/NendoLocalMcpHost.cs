@@ -44,7 +44,7 @@ public sealed record NendoLocalMcpHostOptions(string DiscoveryRoot)
     /// Where the host records a request that failed inside it: an unexpected exception
     /// behind <c>NENDO_INTERNAL_ERROR</c>, and the SDK's and the web server's own warnings
     /// and errors. Null records nothing. The host that owns the device decides whether and
-    /// where a record is kept (ADR-0002, 2026-09-27 amendment).
+    /// where a record is kept (ADR-0002).
     /// </summary>
     public Action<NendoAgentFailure>? RecordFailure { get; init; }
 
@@ -177,7 +177,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
     public int ListenerCount => _feed.Count;
 
     /// <summary>
-    /// One <c>subscriptions/listen</c> stream (W-151): acknowledges the resource URIs this host
+    /// One <c>subscriptions/listen</c> stream: acknowledges the resource URIs this host
     /// pushes, among those the client asked for, then sends <c>resources/updated</c> for each
     /// as the Engine commits, the proposal queue changes or the file closes, until the client
     /// goes away. toolsListChanged and resourcesListChanged are granted when asked and never
@@ -202,7 +202,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         // The listen request's own JSON-RPC id, as the client sent it: a number stays a number. It
         // was text, and the acknowledgement carried none, so a client that matches the
         // acknowledgement to its request by this id (GitHub Copilot CLI from 1.0.81) never saw
-        // one, waited ten seconds and dropped the server (2026-10-08).
+        // one, waited ten seconds and dropped the server.
         var subscriptionId = System.Text.Json.JsonSerializer.SerializeToNode(
             request.JsonRpcRequest?.Id ?? default, McpJsonUtilities.DefaultOptions);
         System.Text.Json.Nodes.JsonObject Tagged() => new() { [MetaKeys.SubscriptionId] = subscriptionId?.DeepClone() };
@@ -233,7 +233,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
             await foreach (var change in listener.Reader.ReadAllAsync(cancellationToken))
             {
                 // An overflow is the stream's last entry: it names every subscribed resource as
-                // changed, so the client reads them again, and the stream then ends (MTD-18).
+                // changed, so the client reads them again, and the stream then ends.
                 foreach (var (uri, changes) in NendoChangeFeed.Notifications(change, honoured))
                 {
                     var meta = Tagged();
@@ -285,7 +285,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         options ??= NendoLocalMcpHostOptions.CreateDefault();
         ArgumentException.ThrowIfNullOrWhiteSpace(options.DiscoveryRoot);
 
-        // Health, identity and the file's name; never the records (PERF-07).
+        // Health, identity and the file's name; never the records.
         var snapshot = await applicationService.GetDefinitionSnapshotAsync(cancellationToken);
         if (snapshot.Health != NendoSessionHealth.Normal)
         {
@@ -326,12 +326,12 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         var requests = new NendoRequestGate(
             NendoRequestGate.DefaultMaximum, options.RequestTimeout, options.RequestQueueWait, NendoRequestGate.DefaultMaximumWaiting);
         var failures = new NendoFailureRecord(options.RecordFailure);
-        // What a listen stream is told (W-151): a commit moves the manifest and may stale
+        // What a listen stream is told: a commit moves the manifest and may stale
         // every proposal; the queue changes when one joins, is promoted or is rejected.
         var feed = new NendoChangeFeed();
         Action<long> committed = _ => feed.Signal(NendoChangeFeed.Manifest, NendoChangeFeed.Proposals);
         // A proposal the person accepted or rejected in Nendo also lets go of the operations the
-        // authoring service kept for it (MAA-09).
+        // authoring service kept for it.
         Action proposalsChanged = () =>
         {
             feed.Signal(NendoChangeFeed.Proposals);
@@ -362,7 +362,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                 // Nothing in the environment configures this host. The defaults read environment
                 // variables and an appsettings.json in the current directory, which is often the
                 // opened file's folder, and Kestrel binds any endpoints they name beside the
-                // loopback one below (MHS-06).
+                // loopback one below.
                 builder.Configuration.Sources.Clear();
                 builder.Logging.ClearProviders();
                 if (options.RecordFailure is not null)
@@ -440,7 +440,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             return result;
                         });
                         server.ServerInstructions = NendoServerInstructions.For(mode, options.LeaseTtl, snapshot.FileName);
-                        // The Skills extension (W-154, SEP-2640): the host's skill and the open file's own
+                        // The Skills extension (SEP-2640): the host's skill and the open file's own
                         // (ADR-0024), listed and fetched by two methods the SDK does not know, their files
                         // served as resources.
                         server.Capabilities ??= new ServerCapabilities();
@@ -482,7 +482,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             var slot = new NendoActivityLog.Slot();
                             context.Items[NendoActivityLog.SlotKey] = slot;
                             // The refusal a tool translates is recorded into this scope, and put
-                            // beside the text here, where the result is in hand (W-149).
+                            // beside the text here, where the result is in hand.
                             using var refusal = NendoToolRefusal.Begin();
                             try
                             {
@@ -494,7 +494,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                             }
                             // A tool's refusal leaves it as an exception and the SDK writes the error
                             // result above this filter, so the result is built here instead, in the
-                            // SDK's own words, with the structured form beside them (W-149).
+                            // SDK's own words, with the structured form beside them.
                             catch (McpException exception) when (exception is not McpProtocolException && refusal.Refusal is { } structured)
                             {
                                 activity.Record(slot, context.Params.Name, context.Server, rejected: true);
@@ -559,9 +559,9 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
                     })
                     .WithHttpTransport(transport => transport.SessionMode = HttpServerSessionMode.Stateless)
                     .WithResources<NendoMcpResources>()
-                    // No Tasks extension (SEP-2663) since 2026-10-08: every tool is answered within
-                    // its request. W-152 ran validate, import and the integrity scan as tasks for a
-                    // client that declared the extension, and GitHub Copilot CLI declares it and
+                    // No Tasks extension (SEP-2663): every tool is answered within its request.
+                    // Run as tasks for a client that declares the extension, validate, import and
+                    // the integrity scan would reach GitHub Copilot CLI, which declares it and
                     // then refuses the CreateTaskResult it is sent, losing the validate's
                     // diagnostics. Each finishes well inside the five-minute request timeout.
                     .WithSubscriptionsListenHandler((request, token) => ListenAsync(request, feed, token));
@@ -695,7 +695,7 @@ public sealed class NendoLocalMcpHost : IAsyncDisposable
         _applicationService.CommittedChanges -= _feed.SignalChanges;
         _proposals.ProposalsChanged -= _proposalsChanged;
         // Every listen stream hears that health changed and then ends, before the
-        // listener stops taking requests (W-151).
+        // listener stops taking requests.
         _feed.Close();
         var cleanupFailures = new List<Exception>();
         try

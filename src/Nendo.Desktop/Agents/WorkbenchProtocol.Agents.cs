@@ -36,7 +36,7 @@ internal sealed partial class WorkbenchProtocolHandler
     private async Task<object> HandleAgentSessionAsync(string method, string fileSessionId, JsonElement payload, CancellationToken cancellationToken)
     {
         var after = OptionalInt64(payload, "after");
-        // The launch the tab meant (ACP-07); absent from a tab that has not read one yet.
+        // The launch the tab meant; absent from a tab that has not read one yet.
         var conversation = OptionalString(payload, "conversationId", 64);
         return method switch
         {
@@ -63,7 +63,7 @@ internal sealed partial class WorkbenchProtocolHandler
     }
 
     /// <summary>
-    /// What the person pointed at with @ (W-200): an array of {uri, title, text}, or none. The
+    /// What the person pointed at with @: an array of {uri, title, text}, or none. The
     /// conversation checks the bounds and the addresses; here only the shape is read.
     /// </summary>
     private static IReadOnlyList<AgentPromptContext> PointedAt(JsonElement payload)

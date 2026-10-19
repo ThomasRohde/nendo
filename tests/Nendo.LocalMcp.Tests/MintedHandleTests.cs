@@ -4,7 +4,7 @@ using ModelContextProtocol.Client;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// DAE-05: a launched agent that repeats its application handle in its own words ("Your
+/// A launched agent that repeats its application handle in its own words ("Your
 /// applicationHandle is …", a table row, the bare value) showed it in the conversation tab,
 /// because the tab hid a handle only after a key it recognised. Every handle a grant carries is
 /// now known to the process, so the tab hides it by its value.

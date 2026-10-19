@@ -120,7 +120,7 @@ public sealed class ReferenceTests
     }
 
     /// <summary>
-    /// R2AP-07: each reference refusal names the field and the record it points at, so an agent's
+    /// Each reference refusal names the field and the record it points at, so an agent's
     /// or a view's batch can tell which write it means; the form's words named neither.
     /// </summary>
     [TestMethod]
@@ -135,7 +135,7 @@ public sealed class ReferenceTests
         {
             var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(action);
             Assert.AreEqual(code, refused.Code);
-            // The Workbench names the target by its label from this, for the person (R2AP-07).
+            // The Workbench names the target by its label from this, for the person.
             Assert.IsNotNull(refused.RecordId, $"{code} does not say which record the reference points at.");
             StringAssert.Contains(refused.Message, $" points at {refused.RecordId}", StringComparison.Ordinal);
             return refused.Message;

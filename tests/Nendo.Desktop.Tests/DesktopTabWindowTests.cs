@@ -5,7 +5,7 @@ using Windows.Graphics;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-277 (ADR-0002, 2026-10-16). A tab dragged out of the strip opens in a window of its own, on
+/// A tab dragged out of the strip opens in a window of its own (ADR-0002), on
 /// the same file session. This class holds the bridge's half and the arithmetic of where the new
 /// window lands; the journey measures the second window in a real host.
 /// </summary>
@@ -121,7 +121,7 @@ public sealed class DesktopTabWindowTests
     [TestMethod]
     public void AWindowThatFillsTheScreenHandsOnTheSizeItHadBefore()
     {
-        // Reported 2026-10-17: from a maximised window the new one covered the whole screen in turn.
+        // From a maximised window the new one does not cover the whole screen in turn.
         var area = new RectInt32(0, 0, 2560, 1392);
         var screen = new SizeInt32(2582, 1414);
         Assert.AreEqual(new SizeInt32(1600, 960), DesktopTabWindowRules.SizeToCarry(new SizeInt32(1600, 960), false, null, area));

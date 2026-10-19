@@ -167,7 +167,7 @@ async (page) => {
     tones.d.status === null && tones.d.tone === null, 'A status is not shown by its choice name and tone: ' + JSON.stringify(tones));
 
   // Nodes must open inside the visible canvas: a fit against a not-yet-sized canvas puts every
-  // item off-screen and the view looks empty (owner-reported on the graph package, F-114).
+  // item off-screen and the view looks empty (owner-reported on the graph package).
   const inView = await view.evaluate(() => {
     const bounds = document.getElementById('canvas').getBoundingClientRect();
     return [...document.querySelectorAll('.node')].map(node => {
@@ -255,7 +255,7 @@ async (page) => {
   await view.locator('#status-chips input[data-status="status-done"]').check();
   await until(() => document.getElementById('summary').textContent === '8 work items · 7 links · 2 unblocked · 3 in a dependency cycle', undefined,
     'Showing Done again did not bring the done item back.');
-  // GGV-08: the layout that follows a chip made every chip again, so the one toggled with Space
+  // The layout that follows a chip made every chip again, so the one toggled with Space
   // was destroyed and focus fell to the page. The chip keeps the keyboard.
   await view.locator('#status-chips input[data-status="status-done"]').focus();
   await page.keyboard.press('Space');
@@ -307,7 +307,7 @@ async (page) => {
   assert(Number(await view.evaluate(() => getComputedStyle(document.querySelector('.node[data-id="d"]')).opacity)) === 1,
     'Leaving focus did not restore the view.');
 
-  // GGV-09: every item was a tab stop and Left and Right went to the next item in the file's order,
+  // Every item was a tab stop and Left and Right went to the next item in the file's order,
   // wherever ELK placed it. The items are one tab stop, and each arrow reaches the nearest item
   // that way on the drawing.
   await view.locator('.node[data-id="x"]').focus();
@@ -329,7 +329,7 @@ async (page) => {
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert(await view.locator('#drawing').getAttribute('transform') !== before, 'Zoom did not change the transform.');
 
-  // GGV-02: every re-read fitted the whole plan again. Zoomed and panned, a re-read keeps it, with
+  // Every re-read fitted the whole plan again. Zoomed and panned, a re-read keeps it, with
   // the selected item where it was on screen.
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await view.evaluate(() => document.getElementById('canvas').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })));
@@ -339,7 +339,7 @@ async (page) => {
   await until(() => document.querySelector('.node[data-id="d"] title')?.textContent === 'Write the user guide', undefined, 'The view did not read again after the file changed.');
   const replaced = await transformNow();
   assert(replaced === placed, 'A re-read threw away the zoom and pan the person had: ' + JSON.stringify({ before: placed, after: replaced }));
-  // GGV-03: a re-read replaced every item and left focus on the page. The item that had the
+  // A re-read replaced every item and left focus on the page. The item that had the
   // keyboard keeps it, and it is the one tab stop.
   await view.locator('.node[data-id="c"]').focus();
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('Write the guide'));
@@ -399,7 +399,7 @@ async (page) => {
   const burst = (await requests(mark)).filter(r => r.m === 'records.query' && r.p.entityId === 'workItem' && (r.p.cursor ?? null) === null).length;
   assert(burst === 1, `A burst of five changes made ${burst} reads of the work items, not one.`);
 
-  // GGV-06: a link to an item this view does not show is not drawn, so an item blocked only that way
+  // A link to an item this view does not show is not drawn, so an item blocked only that way
   // counted as unblocked and read as 'nothing is blocking it'. The summary counts the links outside
   // the view, and says what is known: no blocker drawn.
   await replace(fixture({ ...projection, edges: [...projection.edges, { id: 'e9', sourceId: 'elsewhere', targetId: 'a' }] }),
@@ -414,7 +414,7 @@ async (page) => {
   await replace(fixture({ nodes: [{ id: 'p', label: 'First', status: 'Doing' }, { id: 'q', label: 'Second', status: null }],
     edges: [{ id: 'e1', sourceId: 'p', targetId: 'q' }] }), '2 work items · 1 link · 1 unblocked');
   assert(await view.locator('#selection').innerText() === 'No work item selected', 'Replacement kept a stale selection.');
-  // GGV-17: one item sat up and to the left, in an extent padded from the drawing's top-left corner.
+  // One item sat up and to the left, in an extent padded from the drawing's top-left corner.
   await replace(fixture({ nodes: [{ id: 'solo', label: 'Only item', status: 'Doing' }], edges: [] }), '1 work item · 0 links · 1 unblocked');
   const lone = await view.evaluate(() => {
     const canvas = document.getElementById('canvas').getBoundingClientRect(), node = document.querySelector('.node').getBoundingClientRect();
@@ -442,8 +442,8 @@ async (page) => {
   });
   await until(() => document.getElementById('summary').textContent.includes('Custom views are off'), undefined, 'A refused read was not shown as text in the view.');
 
-  // W-068: a selected item offers its record type's own commands, and runs one where it is
-  // (nendo.commands.run, ADR-0013 Phase 3) at the version the view read. The graph follows the
+  // A selected item offers its record type's own commands, and runs one where it is
+  // (nendo.commands.run, ADR-0013) at the version the view read. The graph follows the
   // change; an item somebody changed meanwhile is refused, said, and read again; and a
   // read-only file offers nothing to press.
   const withCommands = { ...fixture(projection), commandEffects: { 'cmd.plan': { workStatus: 'status-ready' }, 'cmd.complete': { workStatus: 'status-done' } } };
@@ -475,7 +475,7 @@ async (page) => {
     'The view did not say what it did: ' + await view.locator('#outcome').innerText());
   assert((await page.evaluate(() => window.broker.record('workItem', 'b'))).values.workStatus === 'status-done', 'The command did not change the item.');
 
-  // GGV-07: the buttons came back on the version read before the command, so a second command
+  // The buttons came back on the version read before the command, so a second command
   // pressed as soon as the first said done was sent at that version and refused as a change
   // nobody made. Pressed the moment Plan now is done, Complete is sent at the new version and lands.
   await view.locator('.node[data-id="x"]').click();
@@ -497,7 +497,7 @@ async (page) => {
   assert(pair.length === 2 && pair[1].commandId === 'cmd.complete' && pair[1].version === 2 && pairOutcome.startsWith('Complete: done'),
     'A second command pressed as soon as the first was done was sent at the version read before the first: ' + JSON.stringify({ pair, pairOutcome }));
 
-  // GGV-08: pressing a command made every button again, so the one pressed by keyboard was destroyed
+  // Pressing a command made every button again, so the one pressed by keyboard was destroyed
   // and focus fell to the page. The button keeps the keyboard through the command and the re-read.
   await view.locator('.node[data-id="y"]').click();
   await view.locator('#actions button[data-command="cmd.plan"]').focus();
@@ -561,7 +561,7 @@ async (page) => {
   assert(JSON.stringify(methods) === JSON.stringify(['commands.run', 'records.query', 'schema.describe', 'ui.openRecord']),
     'The view asked for something other than reads, opening a record and running its commands: ' + JSON.stringify(methods));
 
-  // ---- Nendo's own chrome (W-090). Everything above ran on a host that does not draw a view's
+  // ---- Nendo's own chrome. Everything above ran on a host that does not draw a view's
   // controls. On one that does, the view draws none of its own and no page title: it declares
   // its controls, Nendo sends a press back as a command, and a right-click on an item asks for
   // Nendo's menu with the item's record commands.
@@ -601,7 +601,7 @@ async (page) => {
   const summaryText = await view.evaluate(() => document.getElementById('summary').textContent);
   await declaredWhere(last => last.items.find(item => item.kind === 'text')?.text === summaryText, 'The view did not put its summary in Nendo\u2019s row.');
 
-  // The view's own lines (W-092): its summary is Nendo's row's text, its explanation waits
+  // The view's own lines: its summary is Nendo's row's text, its explanation waits
   // behind About, and the drawing starts at the top of the frame. A problem stays in the frame.
   const ownLines = () => view.evaluate(() => ({ header: getComputedStyle(document.querySelector('header')).display,
     hint: getComputedStyle(document.querySelector('.hint')).display, drawingTop: Math.round(document.querySelector('#canvas').getBoundingClientRect().top) }));
@@ -669,7 +669,7 @@ async (page) => {
   const ranFromMenu = (await page.evaluate(() => window.broker.commandsRun())).slice(ranBeforeMenu);
   assert(ranFromMenu.length === 1 && ranFromMenu[0].commandId === 'cmd.plan' && ranFromMenu[0].recordId === 'a',
     'Plan now picked from the menu did not run on the item: ' + JSON.stringify(ranFromMenu));
-  // The fixture read every toolbar and menu above by the Workbench's own rules (W-091).
+  // The fixture read every toolbar and menu above by the Workbench's own rules.
   const refused = await page.evaluate(() => window.broker.chromeRefusals);
   assert(refused.length === 0, 'Nendo would refuse what the view declared or asked for: ' + JSON.stringify(refused));
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/work-dependencies-native-chrome.png' });

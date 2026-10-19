@@ -16,7 +16,7 @@ public sealed record NendoExtensionViewDefinition(string ViewId, string Title, s
     /// <summary>A view on a record page, scoped to that page's one record; its record type is the page's.</summary>
     public const string PanelKind = "extensionRecordPanel";
     /// <summary>
-    /// A view that is a screen of the file rather than of a record type (ADR-0013 Phase 5, W-106):
+    /// A view that is a screen of the file rather than of a record type (ADR-0013):
     /// listed beside the front page, and the screen the file opens on when it says so. Its code
     /// reads the file through the API, so it names no fields and no filters.
     /// </summary>

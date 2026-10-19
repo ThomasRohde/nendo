@@ -130,7 +130,7 @@ internal static class NendoBehaviourAnalyzer
                     if (IsNumeric(whenTrue.Value) && IsNumeric(whenFalse.Value))
                     {
                         // Typed decimal, so evaluation must answer a decimal whichever outcome
-                        // is taken: the whole-number one is widened there (R2AAV-02).
+                        // is taken: the whole-number one is widened there.
                         widenedChoices?.Add(ternary);
                         return NendoBehaviourScalar.Decimal;
                     }

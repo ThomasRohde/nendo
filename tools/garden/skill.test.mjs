@@ -39,7 +39,7 @@ test('the skill says a link\'s context is its line, and names the view\'s code a
   assert.ok(/apply_writes`[^.]*`label`/.test(skill), 'the skill tells an agent to label its batch for History');
 });
 
-test('GDN-03: the skill says slugs and link targets as the view makes and reads them', () => {
+test('the skill says slugs and link targets as the view makes and reads them', () => {
   const section = skill.slice(skill.indexOf('- **slugify:**'), skill.indexOf('- **Tags:**'));
   const examples = [...section.replace(/\s+/g, ' ').matchAll(/`([^`]+)` is `([^`]+)`/g)].map(m => [m[1], m[2]]);
   assert.ok(examples.length >= 2, 'the slugify paragraph gives worked examples');

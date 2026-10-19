@@ -5,8 +5,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review's findings that needed a new operation, a formula function or a format
-/// change, built as accepted on 2026-10-12 (W-205).
+/// Gaps that needed a new operation, a formula function or a format change.
 /// </summary>
 [TestClass]
 public sealed class OperationGapReviewTests
@@ -187,7 +186,7 @@ public sealed class OperationGapReviewTests
         StringAssert.Contains(joined.Message, "ToText", StringComparison.Ordinal);
     }
 
-    /// <summary>W-248: Billable's due date, issue date plus terms, as a formula rather than view code.</summary>
+    /// <summary>Billable's due date, issue date plus terms, as a formula rather than view code.</summary>
     [TestMethod]
     public async Task W248_ADueDateIsTheIssueDatePlusItsTerms()
     {

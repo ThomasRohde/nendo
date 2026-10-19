@@ -19,7 +19,7 @@ internal static class DesktopRuntimeConfiguration
     /// <para>
     /// For a test or lane process only. Its hosts started on fresh device folders, so each took
     /// 41763 or the next free port, which the person's Nendo keeps for its files: an agent
-    /// configured for one of them could reach a test's throwaway file meanwhile (TST-04). A
+    /// configured for one of them could reach a test's throwaway file meanwhile. A
     /// saved setting still wins, so a test of the kept ports names its own. Any value but
     /// <c>system</c> is refused, and a refused value keeps the standard ports.
     /// </para>
@@ -40,7 +40,7 @@ internal static class DesktopRuntimeConfiguration
     /// process on an isolated device-state folder under the product identity is a lane or a
     /// test, not the person's Nendo, and wrote both into the installed app's entries: every
     /// Desktop journey republished the person's Jump List with rows that start a Debug build
-    /// under artifacts/, and left the notification activator pointing at it (BL-01). Such a
+    /// under artifacts/, and left the notification activator pointing at it. Such a
     /// process now writes neither. A pinned identity is the lane's own, so it still does; a
     /// refused pin falls back to the product identity and therefore does not.
     /// </para>

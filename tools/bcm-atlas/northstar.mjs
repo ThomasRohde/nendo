@@ -66,7 +66,7 @@ function check(ok, message) { if (!ok) throw new Error(message); }
 
 /**
  * The whole shipped model: 635 capabilities, 8 applications, 8 support links, 6 initiatives, and
- * their assessments (W-080): each current maturity as an assessment, and fictional history.
+ * their assessments: each current maturity as an assessment, and fictional history.
  */
 export function northstarModel() {
   const seed = starterSeed();

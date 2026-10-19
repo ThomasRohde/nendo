@@ -54,8 +54,8 @@ test('every cache that belongs to the open file is emptied when another one is o
     assert.equal(cache.size, 0, `${name} kept the previous file's state`);
 });
 
-// WST-08. Studio's search text was a plain module-level map keyed by entity ID, so opening
-// another file of the same lineage pre-filled and ran the previous file's search. The six caches
+// A module-level map keyed by entity ID, such as Studio's search text, outlives the file: opening
+// another file of the same lineage would pre-fill and run the previous file's search. The six caches
 // above are named by hand; this finds every module-level Map or Set that starts empty and
 // requires it to be emptied with the file, or to be named here with the reason it is not.
 const notFileScoped = new Map([
@@ -69,7 +69,7 @@ const notFileScoped = new Map([
   ['view-use.ts:waitingRetries', 'a read waiting for a save to end, which checks the screen and the file revision before it runs'],
 ]);
 
-test('WST-08: every module-level cache that starts empty is emptied with the file, or says why not', () => {
+test('every module-level cache that starts empty is emptied with the file, or says why not', () => {
   // The view API's folder too: what it keeps at module level lives in the same page.
   const sources = ['../src/', '../src/extension-api/'].flatMap((folder) => {
     const directory = new URL(folder, import.meta.url);

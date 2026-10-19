@@ -81,7 +81,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
 
     /// <summary>
     /// The same commit, with what it changed: every record a write or an automatic action
-    /// touched, and whether the definition moved (W-171). Raised right after
+    /// touched, and whether the definition moved. Raised right after
     /// <see cref="Committed"/>, under the same threading rules.
     /// </summary>
     public event Action<NendoCommitSummary>? CommittedChanges;
@@ -106,7 +106,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
         foreach (var handler in CommittedChanges?.GetInvocationList() ?? [])
         {
             // Told after the commit: a faulty observer can neither report the write as failed nor
-            // keep the others from hearing of it (ECO-06), as with WriteAuthorityLost.
+            // keep the others from hearing of it, as with WriteAuthorityLost.
             try { ((Action<NendoCommitSummary>)handler)(summary); }
             catch (Exception exception) { ReportObserverFailure(exception); }
         }
@@ -318,7 +318,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
                 // applying, so what the file requires is read again rather than carried
                 // over from before the change. The write has committed, so the caller's
                 // token no longer decides anything: a cancel here reported a committed
-                // write as failed and skipped the commit events (ECO-06).
+                // write as failed and skipped the commit events.
                 if (mutation.Operations[0].Lane == NendoRevisionLane.Definition)
                     await RefreshBehaviourRequirementAsync(CancellationToken.None);
                 if (!result.IsIdempotentReplay) RaiseCommitted(result.ChangeSequence, [result], [mutation]);
@@ -580,7 +580,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
             .Where(reference => !created.Contains(reference))
             // A record the proposal deletes, and one a reference it writes points at, carry the
             // version the review saw too. Edited after the review, they made the replay refuse
-            // and the proposal read Failed, with a form's words, where Stale was the truth (ECO-08).
+            // and the proposal read Failed, with a form's words, where Stale was the truth.
             // Only records the file holds: one that is missing is the clone's refusal to name.
             .Concat(GuardedTargets(changeSet, snapshot).Where(target => !created.Contains(target) && activeRecords.Contains(target)))
             .Distinct()
@@ -648,7 +648,7 @@ public sealed partial class NendoWriteCoordinator : IAsyncDisposable
 
     /// <summary>
     /// Each record's version by its type and ID, read once. Each touched record searched the whole
-    /// snapshot, so a proposal of thousands of edits made millions of comparisons (PERF-07).
+    /// snapshot, so a proposal of thousands of edits made millions of comparisons.
     /// </summary>
     private static Dictionary<(string EntityId, string RecordId), long> RecordVersions(NendoSessionSnapshot snapshot)
     {

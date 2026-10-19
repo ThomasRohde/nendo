@@ -53,7 +53,7 @@ export function archiFixture(extra = []) {
 }
 
 /**
- * Archisurance and two views for measuring the drawing (W-110): "Every figure", each of the 61
+ * Archisurance and two views for measuring the drawing: "Every figure", each of the 61
  * element types in both figures and each of the 11 relationship types once, and "500 objects",
  * a grid of 500 boxes and 250 lines for pan and zoom.
  */

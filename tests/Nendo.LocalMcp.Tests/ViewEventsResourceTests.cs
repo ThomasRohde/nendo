@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-251: an agent reads what the open file's custom views did when they ran in this Nendo, and
+/// An agent reads what the open file's custom views did when they ran in this Nendo, and
 /// nothing wider. Billable's agent could not see a thrown error or a refused call from MCP at all.
 /// </summary>
 [TestClass]

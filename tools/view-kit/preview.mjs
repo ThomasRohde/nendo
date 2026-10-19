@@ -1,4 +1,4 @@
-// Preview a custom-view package from its folder against Nendo's real view API (W-251).
+// Preview a custom-view package from its folder against Nendo's real view API.
 //
 //   node tools/view-kit/preview.mjs <package folder>
 //

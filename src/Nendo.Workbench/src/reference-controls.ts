@@ -48,7 +48,7 @@ export function wireReferenceControls(form: HTMLFormElement, fields: Field[], qu
     };
     const load = async (): Promise<void> => {
       const generation = ++request;
-      // Disabling the focused pager button took the keyboard to the page's body (WDV-17).
+      // Disabling the focused pager button took the keyboard to the page's body.
       const pressed = document.activeElement === next ? next : document.activeElement === previous ? previous : null;
       status.textContent = 'Loading records…'; results.replaceChildren(); previous.disabled = true; next.disabled = true;
       try {

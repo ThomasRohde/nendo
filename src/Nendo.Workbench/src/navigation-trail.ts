@@ -6,9 +6,9 @@ import type { ViewPlace } from './view-places';
 /**
  * Where somebody has been in this file, so there is a way back from anywhere.
  *
- * W-033 gave a related row one step back to the record it was opened from. Everything
- * else a person navigates -- a record type, a surface, a drill into a chart, a tab, a
- * month on a calendar, a view -- had no way back at all, and no way forward after going
+ * A related row has one step back to the record it was opened from (`returnTo`). The
+ * trail gives everything else a person navigates -- a record type, a surface, a drill into a
+ * chart, a tab, a month on a calendar, a view -- a way back, and a way forward after going
  * back.
  *
  * This module is the trail itself and nothing else: no reads, no DOM, no view. Capturing
@@ -39,11 +39,11 @@ export interface Place {
   applicationEntityId: string | null;
   studioEntityId: string | null;
   showOverview: boolean | null;
-  /** One of the file's own views, when that is the screen (W-106). */
+  /** One of the file's own views, when that is the screen. */
   fileView: string | null;
   surfaceId: string | null;
   recordId: string | null;
-  /** W-033's one step back, so it comes back with the page it belongs to. */
+  /** A related row's one step back, so it comes back with the page it belongs to. */
   returnTo: ReturnTo | null;
   drill: DrillState | null;
   /** The open tab of each tab group on the record page, as `[key, sectionId]`. */
@@ -63,14 +63,14 @@ export interface Place {
    */
   proposalReturnView: ViewName | null;
   /**
-   * Where each custom view on this place said it was (ADR-0013, 2026-09-29; W-127): the
+   * Where each custom view on this place said it was (ADR-0013): the
    * diagram it had open, the record it had selected. Without it Back rebuilt the screen and the
    * view started over, and a view's own pages were never steps.
    */
   viewPlaces: ViewPlace[];
   /**
    * The Filter pick on the screen shown and Studio's sort and filter for the record type in
-   * Data, copied when the place was recorded (ADR-0004, 2026-10-06; review R-003), so two tabs on
+   * Data, copied when the place was recorded (ADR-0004), so two tabs on
    * one screen keep their own. Not part of the key: changing either amends the place on screen.
    * Undefined on a place recorded before it was carried, which leaves the screen's own alone.
    */
@@ -104,7 +104,7 @@ export function placeKey(place: Place): string {
     place.agentProposalId,
     place.proposalReturnView,
     // One of the file's own views over the same record type is another place than its screen,
-    // and two views are two places (UIS-09).
+    // and two views are two places.
     place.fileView,
     // The values, not the labels: a label is the place's name, like the heading.
     place.viewPlaces.map((entry) => [entry.view, entry.value]),

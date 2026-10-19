@@ -1,7 +1,7 @@
 import { escapeHtml as escape } from './format';
 
 /**
- * The chart kit, ADR-0004 2026-09-14 amendment (S1). Pure markup from exact numbers
+ * The chart kit (ADR-0004). Pure markup from exact numbers
  * handed in: a proportion bar of toned segments and a progress ring. Nothing here
  * reads data, computes a statistic or animates; every number is shown beside the
  * shape and repeated in a table one toggle away, every segment is a named button,
@@ -89,7 +89,7 @@ export function proportionBar(input: BarInput): string {
   const track = pending !== null
     ? pending
     : total === 0
-      // Totals of zero or less cannot be drawn as shares, and that is not the same as no records (WDV-15).
+      // Totals of zero or less cannot be drawn as shares, and that is not the same as no records.
       ? input.segments.some((segment) => (segment.records ?? 0) > 0)
         ? '<div class="chart-track is-empty" role="img" aria-label="These totals are zero or less, so they are listed rather than drawn"><span class="chart-empty">Totals of zero or less are listed, not drawn</span></div>'
         : '<div class="chart-track is-empty" role="img" aria-label="No records"><span class="chart-empty">No records</span></div>'
@@ -147,7 +147,7 @@ export interface ColumnsInput {
 }
 
 /**
- * A trend, ADR-0004 2026-09-16 amendment (S5): one column per bucket of the range, in
+ * A trend (ADR-0004): one column per bucket of the range, in
  * order, every bucket drawn.
  *
  * A bucket with nothing in it is the point. It keeps its slot and its label and draws a
@@ -214,7 +214,7 @@ export function activityGrid(input: GridInput): string {
   const blanks = '<span class="chart-day is-blank" aria-hidden="true"></span>'.repeat(offset);
   const plot = pending !== null
     ? pending
-    // One Tab stop for the whole grid; the arrow keys move by day and week (WDV-16, chart-grid-keys.ts).
+    // One Tab stop for the whole grid; the arrow keys move by day and week (chart-grid-keys.ts).
     : `<div class="chart-grid" role="group" aria-label="${attribute(input.title)}">${blanks}${input.days.map((day, index) => {
       const count = day.lexeme ?? '0';
       const name = `${day.label}: ${count}`;
@@ -244,8 +244,7 @@ export interface StripInput {
 }
 
 /**
- * A range strip: both ends of one field, labelled (ADR-0004 2026-09-14 amendment,
- * S4). It is not a chart — there is no grouping, nothing is proportional and there
+ * A range strip: both ends of one field, labelled (ADR-0004). It is not a chart — there is no grouping, nothing is proportional and there
  * is nothing to drill into — so it draws a rule between two stated numbers rather
  * than a shape that implies a distribution it has not read.
  *

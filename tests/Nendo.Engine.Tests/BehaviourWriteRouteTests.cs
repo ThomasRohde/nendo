@@ -1,10 +1,10 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S8 of ADR-0008, obligation P4: every production write route goes through
+/// ADR-0008, obligation P4: every production write route goes through
 /// the same staging, the same triggers and the same budget.
 /// <para>
-/// The risk this lane exists for is not that the planner is wrong — that is S4's —
+/// The risk this lane exists for is not that the planner is wrong — other lanes hold that —
 /// but that one route quietly misses it. A paste that skipped triggers, or an import
 /// that reset the budget per row, would leave a file whose stored fields are right
 /// only where the edit happened to come from the form.
@@ -97,7 +97,7 @@ public sealed class BehaviourWriteRouteTests
             new Dictionary<string, object?> { ["name"] = "Second", ["total"] = 0L }, Context("p2")));
 
         // One row per project, so the paste generates two changes rather than one. Each
-        // record brings its own calls, related records and changes (W-247), but the work
+        // record brings its own calls, related records and changes, but the work
         // units are the save's: a budget reset per row would let an import of any size
         // through, and one budget for the whole causal transaction refuses it, and refuses
         // all of it. The work one row's paste needs is measured on a copy of this file.
@@ -184,8 +184,8 @@ public sealed class BehaviourWriteRouteTests
     }
 
     /// <summary>
-    /// ESQ-04: a record command is found in the definition, so pressing it reads no records
-    /// beyond the one it writes. ESQ-15: a form save tells History the record type it edited,
+    /// A record command is found in the definition, so pressing it reads no records
+    /// beyond the one it writes. A form save tells History the record type it edited,
     /// and the field when it is the only one.
     /// </summary>
     [TestMethod]

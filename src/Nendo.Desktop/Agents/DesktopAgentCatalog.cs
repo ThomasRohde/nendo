@@ -67,7 +67,7 @@ internal sealed record DesktopAgentCommand(
 /// npm package that provides each, so the page can say what to install, and it reads the npm
 /// shim it found to tell when that came from a package that was renamed and left behind: the
 /// old name keeps its last version for good, and an agent that falls behind its own settings
-/// refuses to start (2026-10-08: the old Claude adapter did not know <c>defaultMode: auto</c>).
+/// refuses to start (an old adapter did not know <c>defaultMode: auto</c>).
 /// </para>
 /// </summary>
 internal static class DesktopAgentCatalog
@@ -204,7 +204,7 @@ internal static class DesktopAgentCatalog
 /// <summary>
 /// What a person chose about Launch on the Agent page, kept for this device only, never in a
 /// file (ADR-0030): the one command line they added, and the agents they hid. A computer at
-/// work may have only one agent its owner uses; the others' rows are noise there (W-199).
+/// work may have only one agent its owner uses; the others' rows are noise there.
 /// </summary>
 internal sealed class DesktopAgentLaunchStore(string root)
 {

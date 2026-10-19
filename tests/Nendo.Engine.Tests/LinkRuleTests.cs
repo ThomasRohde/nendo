@@ -3,7 +3,7 @@ using System.Text;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A link rule, ADR-0026: a link record type names its source, target and kind, each end's
+/// A link rule (ADR-0026): a link record type names its source, target and kind, each end's
 /// kind, and a record type of allowed combinations. Declaring checks the data; from then on the
 /// end of every mutation, from every path, refuses a link no table record allows, naming it.
 /// </summary>
@@ -370,7 +370,7 @@ public sealed class LinkRuleTests
     }
 
     /// <summary>
-    /// ESM-01: a declaration in the mutation that creates its table type, or an endpoint's kind
+    /// A declaration in the mutation that creates its table type, or an endpoint's kind
     /// field, found no columns and checked nothing, so it was accepted over a link that breaks it.
     /// </summary>
     [TestMethod]
@@ -398,7 +398,7 @@ public sealed class LinkRuleTests
         Assert.IsNull(Entity(await service.GetSnapshotAsync(), Links).LinkRule);
     }
 
-    /// <summary>ESM-21: empty text at an end is no kind, so a table row of empty text allows nothing.</summary>
+    /// <summary>Empty text at an end is no kind, so a table row of empty text allows nothing.</summary>
     [TestMethod]
     public async Task AnEndWhoseKindIsEmptyTextMatchesNoRow()
     {

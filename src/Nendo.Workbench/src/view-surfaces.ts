@@ -36,7 +36,7 @@ export function renderSurfaces(): void {
   content.querySelector<HTMLButtonElement>('#prepare-application')?.addEventListener('click', () => {
     if (recipe !== null) void prepareApplication(recipe, 'surfaces');
   });
-  // Each board renames itself from its own card, addressed by its node (UIT-16).
+  // Each board renames itself from its own card, addressed by its node.
   for (const form of content.querySelectorAll<HTMLFormElement>('[data-board-rename]'))
     form.addEventListener('submit', (event) => {
       event.preventDefault();
@@ -53,12 +53,12 @@ export function renderSurfaces(): void {
     });
 }
 
-/** The compiler's warnings and the custom-view switches, so a card says what stands in its way (UIT-03). */
+/** The compiler's warnings and the custom-view switches, so a card says what stands in its way. */
 function cardContext(): SurfaceCardContext {
   return { warnings: (state.compilation?.diagnostics ?? []).filter(isWarning), extensions: state.session.extensions ?? null };
 }
 
-/** The file's own views (W-106): screens of the file rather than of a record type, listed apart. */
+/** The file's own views: screens of the file rather than of a record type, listed apart. */
 function fileViewsMarkup(): string {
   const views = fileViews();
   if (views.length === 0) return '';

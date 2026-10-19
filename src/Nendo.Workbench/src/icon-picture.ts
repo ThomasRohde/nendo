@@ -1,7 +1,7 @@
 import { containRect, iconPictureMaxBase64, iconPictureSides } from './file-look';
 
 /**
- * A file's own picture as the page draws it for an icon (W-001): whatever the person dropped or
+ * A file's own picture as the page draws it for an icon: whatever the person dropped or
  * picked, PNG, JPEG, GIF, WebP, AVIF, SVG or ICO, drawn whole and centred on a transparent square
  * and encoded as PNG, the one kind an icon is. The largest side that fits in one message to the
  * host wins; the Engine checks the result again before it becomes the icon.

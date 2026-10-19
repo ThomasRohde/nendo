@@ -66,8 +66,8 @@ try {
             $_ -match '\.(json|js|jsx|ts|tsx|mjs|cjs|cs|csproj|props|targets|xml|yaml|yml)$'
         }
     )
-    # A tracked source file deleted and not yet staged stopped this loop with a bare "Could not
-    # find file"; it is named with its remedy instead, as the binary check names one (BL-04).
+    # A tracked source file deleted and not yet staged would stop this loop with a bare "Could
+    # not find file", so it is named with its remedy, as the binary check names one.
     $deleted = @($sourceLikeFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $repoRoot $_) -PathType Leaf) })
     if ($deleted.Count -gt 0) {
         throw "Tracked file(s) deleted from the working tree. Stage the deletion (git rm <path>) or restore the file (git restore <path>):`n$($deleted -join "`n")"
@@ -83,8 +83,8 @@ try {
     Write-Host "Verified $($tracked.Count) tracked path(s)."
 
     # Everything above counts binaries and places them; nothing above opens one.
-    # `attr/-text` excuses a file from every content check this gate runs, which is
-    # how corrupted image assets passed it (W-019).
+    # `attr/-text` excuses a file from every content check this gate runs, so a
+    # corrupted image would pass it.
     Write-Host '== Binary assets =='
     & (Join-Path $PSScriptRoot 'Test-BinaryAssets.ps1')
 
@@ -107,8 +107,8 @@ try {
     }
     Write-Host "OK       $($eolRows.Count) tracked path(s) end their lines with LF."
 
-    # AGENTS.md says UTF-8 without a BOM, and eight template-generated files kept the
-    # EF BB BF prefix because nothing here looked for it (BL-07).
+    # AGENTS.md says UTF-8 without a BOM, and template-generated files tend to carry the
+    # EF BB BF prefix, so it is looked for here.
     $textPaths = @(
         $eolRows |
             Where-Object { $_ -match '\sattr/text' } |
@@ -165,7 +165,7 @@ try {
 
     Write-Host '== MCP surface count =='
     # The contract opens by counting the resources and tools an agent sees, and the
-    # sentence drifted when a tool arrived without it moving (W-144). The count is read
+    # sentence drifts when a tool arrives without it moving. The count is read
     # from the same declarations Test-Production.ps1 pins by name.
     # Get-ChildItem returns backslash paths, and '[\/]' in a .NET pattern is a class of
     # one slash, so the exclusion matched nothing on Windows. The pattern is tried on a
@@ -202,10 +202,10 @@ try {
     Write-Host "OK       the site guides count $mcpResourceCount resources where they count them"
 
     Write-Host '== Documents that state the code =='
-    # The broad review found contracts restating a number or a list the code had moved past
-    # (W-222). Each check below reads the declaration and the sentence that restates it.
+    # A contract that restates a number or a list drifts when the code moves past it.
+    # Each check below reads the declaration and the sentence that restates it.
 
-    # DOC-02: the host-version ladder. architecture.md names the highest rung, and
+    # The host-version ladder. architecture.md names the highest rung, and
     # semantic-surfaces.md places every rung above 1.11 either in its node-shape table or in
     # the sentence that lists the rest; a rung added to NendoFormat.cs without either drifted.
     $formatText = Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.Engine/NendoFormat.cs') -Raw
@@ -239,7 +239,7 @@ try {
     }
     Write-Host "OK       the ladder reaches $currentHost in architecture.md, and semantic-surfaces.md places all $($declaredRungs.Count) rungs above 1.11"
 
-    # DOC-11: every precondition code the MCP adapter lets through whole is named in the
+    # Every precondition code the MCP adapter lets through whole is named in the
     # contract's list, by itself or by a family written as `prefix-*`.
     $errorsText = Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.LocalMcp/NendoToolErrors.cs') -Raw
     $auditedBlock = [regex]::Match($errorsText, '(?s)HashSet<string>\s+DiagnosablePreconditions\s*=\s*new\(\[(.+?)\],\s*StringComparer')
@@ -257,8 +257,8 @@ try {
     }
     Write-Host "OK       the contract names all $($auditedCodes.Count) precondition codes the MCP adapter lets through"
 
-    # DOC-04: the layout ladder only grows, so a contract that calls a table "the last rung"
-    # is wrong the day the next rung lands. Name the rung and its neighbour instead; a dated
+    # The layout ladder only grows, so a contract that calls a table "the last rung"
+    # is wrong the day the next rung lands. Name the rung and its neighbour instead; an
     # ADR may still say "a new last rung".
     $lastRung = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'docs/contracts') -Filter '*.md' -File |
         Where-Object { [IO.File]::ReadAllText($_.FullName) -match '(?<![-\w])last\s+rung' } | ForEach-Object Name)
@@ -267,9 +267,9 @@ try {
     }
     Write-Host 'OK       no contract calls a table the last rung of the layout ladder'
 
-    # BL-06: the README said a fresh clone's dotnet build succeeds without the Workbench while
-    # Nendo.LocalMcp refuses to build without its view-api.json, and six documents said the
-    # gate takes about a minute when the .NET suites alone take several.
+    # No document may say a fresh clone's dotnet build succeeds without the Workbench, since
+    # Nendo.LocalMcp refuses to build without its view-api.json, or that the gate takes about
+    # a minute when the .NET suites alone take several.
     $localMcpProject = Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.LocalMcp/Nendo.LocalMcp.csproj') -Raw
     $readmeText = Get-Content -LiteralPath (Join-Path $repoRoot 'README.md') -Raw
     if ($localMcpProject -match 'RequireViewApiReference' -and $readmeText -match '(?s)fresh\s+clone\s+succeeds') {
@@ -305,9 +305,9 @@ try {
     Write-Host '== Publish trimming =='
     # The shipped payload is published untrimmed, and the host depends on it: its bridge and
     # device stores serialise JSON by reflection and its taskbar and Jump List use COM interop,
-    # both of which trimming switches off. The project file used to trim every Release publish
-    # that the pipeline did not override, so a plain 'dotnet publish -c Release' made a host
-    # that ended on its first bridge response (DSH-18). Every setting in the project file has
+    # both of which trimming switches off. A project file that trimmed every Release publish
+    # the pipeline did not override would make a plain 'dotnet publish -c Release' a host
+    # that ends on its first bridge response. Every setting in the project file has
     # to say what the pipeline passes.
     $projectTrimming = @([regex]::Matches(
         (Get-Content -LiteralPath (Join-Path $repoRoot 'src/Nendo.Desktop/Nendo.Desktop.csproj') -Raw),
@@ -326,8 +326,8 @@ try {
 
     Write-Host '== No archive of build records =='
     # artifacts/ is scratch, and AGENTS.md says not to archive run outputs there. The
-    # payload publish copied every earlier build's records into a folder that only grew
-    # (TBI-16). The folder's name is assembled here so this check does not find itself.
+    # payload publish must not copy every earlier build's records into a folder that only
+    # grows. The folder's name is assembled here so this check does not find itself.
     $archiveName = 'evidence' + '[\\/]' + 'installers'
     $archivers = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'tools') -File |
         Where-Object { $_.Extension -in @('.ps1', '.mjs') -and [IO.File]::ReadAllText($_.FullName) -match $archiveName })
@@ -337,8 +337,8 @@ try {
     Write-Host 'OK       no tool archives build records under artifacts/'
 
     Write-Host '== Native lane teardown =='
-    # A lane whose window would not close threw from its finally block, which replaced the
-    # failure on its way out and left the process running (TGA-05). The shared teardown is
+    # A lane that throws from its finally block when its window will not close replaces the
+    # failure on its way out and leaves the process running. The shared teardown is
     # run here against a stand-in for a stuck window, and no lane may close a host its own way.
     . (Join-Path $PSScriptRoot 'Lane-NativeHost.ps1')
     function New-StuckWindow {

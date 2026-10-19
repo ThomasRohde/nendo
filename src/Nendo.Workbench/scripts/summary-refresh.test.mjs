@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
 // The front page's range strips, ranking maxima and progress rings, read through the real
-// panels.ts with the host and the page replaced by stand-ins. Two defects are measured here:
-// the range and ranking loaders kept an answer from an old revision for ever, so the front
-// page chased a refresh once a second and nothing was read (R-008); and two reads drawn as
-// one answer could come from different revisions, which drew a ring of 1000% (R-009).
+// panels.ts with the host and the page replaced by stand-ins. Two rules are measured here:
+// the range and ranking loaders read an answer from an old revision again, or the front page
+// would chase a refresh once a second and nothing be read; and two reads drawn as one answer
+// come from one revision, or a ring could read 1000%.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const host = { calls: [], reply: () => { throw new Error('No reply is set.'); } };
 globalThis.summaryRefreshHost = host;
@@ -53,7 +53,7 @@ const minKey = () => p.rangeEndKey(range, scope, 'min');
 const maxKey = () => p.rangeEndKey(range, scope, 'max');
 const aggregates = () => host.calls.filter((call) => call.method === 'data.aggregateRecords').length;
 
-test('a range and a ranking maximum are read again when the file moves, and stop being read once they have caught up (R-008)', async () => {
+test('a range and a ranking maximum are read again when the file moves, and stop being read once they have caught up', async () => {
   openFile(1);
   host.reply = (_method, payload) => ({ valueLexeme: payload.aggregate === 'min' ? '1' : '10', changeSequence: 1 });
   await p.loadRanges([{ tile: range, scope }]);
@@ -78,7 +78,7 @@ test('a range and a ranking maximum are read again when the file moves, and stop
   assert.equal(aggregates(), 6, 'An answer for the current revision was read again.');
 });
 
-test('a ring whose two counts straddle a write is never drawn from both; the older count is read again (R-009)', async () => {
+test('a ring whose two counts straddle a write is never drawn from both; the older count is read again', async () => {
   openFile(3);
   // 10 counted at revision 2, then a write, then a total of 1 at revision 3.
   const replies = [{ count: 10, changeSequence: 2 }, { count: 1, changeSequence: 3 }, { count: 1, changeSequence: 3 }];
@@ -91,7 +91,7 @@ test('a ring whose two counts straddle a write is never drawn from both; the old
   assert.deepEqual(host.calls[2].payload, host.calls[0].payload, 'The count read again was not the older one.');
 });
 
-test('while the file keeps moving a ring stays unread rather than wrong, within a bounded number of reads, and is drawn once the writing stops (R-009)', async () => {
+test('while the file keeps moving a ring stays unread rather than wrong, within a bounded number of reads, and is drawn once the writing stops', async () => {
   openFile(1);
   let sequence = 1;
   host.reply = () => ({ count: sequence * 10, changeSequence: sequence++ });
@@ -109,7 +109,7 @@ test('while the file keeps moving a ring stays unread rather than wrong, within 
   assert.equal(ready.changeSequence, 9);
 });
 
-test('a range whose ends straddle a write is not drawn inverted; it is read again, and stays unread while the file keeps moving (R-009)', async () => {
+test('a range whose ends straddle a write is not drawn inverted; it is read again, and stays unread while the file keeps moving', async () => {
   openFile(3);
   // The low end read before a write raised every value, the high end after it: 5 > 3.
   const replies = [{ valueLexeme: '5', changeSequence: 2 }, { valueLexeme: '3', changeSequence: 3 }, { valueLexeme: '1', changeSequence: 3 }];

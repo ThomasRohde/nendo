@@ -11,7 +11,7 @@ namespace Nendo.Desktop;
 /// app.nendo.local. The key ties the origin to the file instance, so two files carrying the same
 /// package keep separate storage, a Duplicate (which keeps its original's application ID) starts
 /// with storage of its own rather than the original's drafts, and a view left over from a closed
-/// file reaches nothing (ADR-0013, 2026-10-13).
+/// file reaches nothing (ADR-0013).
 /// </para>
 /// <para>
 /// <c>.example</c> is reserved and never resolves, so a request that the host does not

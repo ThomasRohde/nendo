@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-153: an agent at Edit data undoes a record revision its own session committed, as one
+/// An agent at Edit data undoes a record revision its own session committed, as one
 /// compensation revision; a foreign revision, a definition revision and an unknown one are
 /// refused by name, and the undo of a create deletes the record it made.
 /// </summary>
@@ -56,7 +56,7 @@ public sealed class UndoRevisionToolTests
         Assert.IsTrue(replayed.IsIdempotentReplay);
         Assert.AreEqual(undone.RevisionId, replayed.RevisionId);
 
-        // Another key for the same revision is a refusal the agent can read, not a host fault (R2RM-01).
+        // Another key for the same revision is a refusal the agent can read, not a host fault.
         var twice = await client.CallToolAsync("nendo.data.undo_revision", new Dictionary<string, object?>(session)
         {
             ["revisionId"] = written.RevisionId, ["idempotencyKey"] = "undo-own-write-again",
@@ -111,7 +111,7 @@ public sealed class UndoRevisionToolTests
     }
 
     /// <summary>
-    /// R2RM-01: every refusal an undo can meet reaches the agent by its own code and message,
+    /// Every refusal an undo can meet reaches the agent by its own code and message,
     /// and none is reported as a fault of the host.
     /// </summary>
     [TestMethod]

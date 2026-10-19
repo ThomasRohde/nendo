@@ -19,8 +19,8 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// Removes the pictures nothing names any more, then gives their pages back (ADR-0031 point 8,
-    /// W-273). Like a fold, only after the backup this session made of the file exactly as it now
+    /// Removes the pictures nothing names any more, then gives their pages back (ADR-0031 point 8).
+    /// Like a fold, only after the backup this session made of the file exactly as it now
     /// stands, named by its plan; afterwards the file is inspected again as if it were being opened.
     /// </summary>
     public async Task<NendoMediaRemovalResult> RemoveUnusedMediaAsync(string backupPlanId, CancellationToken cancellationToken = default)

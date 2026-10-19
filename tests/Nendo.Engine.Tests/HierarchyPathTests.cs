@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The HierarchyPath calculation binding, ADR-0020 stage 3 (an ADR-0008 amendment): a record's
+/// The HierarchyPath calculation binding (ADR-0020, ADR-0008): a record's
 /// dotted place in its declared hierarchy, siblings counted in the tree read's order — the order
 /// field, a missing order last, then record ID — with an optional literal prefix. It is
 /// calculated, never stored, so it follows a move at once.

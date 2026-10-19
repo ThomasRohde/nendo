@@ -61,27 +61,27 @@ public sealed class NendoCalculationException(string code, string message) : Nen
     /// condition's included. A limit the data itself reaches, such as a subtree past the
     /// hierarchy's descendant bound or a record deeper than its hierarchy allows, keeps the
     /// same code but is not a budget: in a condition it blocks the action and is reported
-    /// (ADR-0008 §6, EBH-02).
+    /// (ADR-0008 §6).
     /// </summary>
     internal bool ExhaustedBudget { get; init; }
 
     /// <summary>
     /// The formula and the declared value whose empty input stopped it, so a reader that knows
-    /// which field the value comes from can name that field instead of the author's alias
-    /// (EBH-20). Null for every other failure.
+    /// which field the value comes from can name that field instead of the author's alias.
+    /// Null for every other failure.
     /// </summary>
     internal (string FormulaId, string Parameter)? EmptyInput { get; init; }
 
     /// <summary>
     /// What the budget had spent when one of its allowances ran out, or null for every other
-    /// failure (W-246). An author who met a ceiling used to learn only its name, and the Billable
-    /// author simplified formulas for a function-call limit when the related-record one had run out.
+    /// failure. A ceiling's name alone is not enough: an author can simplify formulas for a
+    /// function-call limit when the related-record one is what ran out.
     /// </summary>
     public NendoBudgetSpend? Spend { get; init; }
 
     /// <summary>
     /// The calculations of related records the ceiling was met inside, outermost first, each as
-    /// "calculationId of record recordId" (W-246). Empty when it was met in the formula itself.
+    /// "calculationId of record recordId". Empty when it was met in the formula itself.
     /// </summary>
     public IReadOnlyList<string> Path { get; init; } = [];
 
@@ -90,10 +90,10 @@ public sealed class NendoCalculationException(string code, string message) : Nen
 }
 
 /// <summary>
-/// One budget's spend when an allowance ran out (W-246): which one, and every counter against
+/// One budget's spend when an allowance ran out: which one, and every counter against
 /// its limit. The refused charge is not counted, so the allowance that ran out reads at or near
-/// its limit. On a save that ran actions it also names the step that spent the most work units
-/// (W-247), which the Billable author had to guess.
+/// its limit. On a save that ran actions it also names the step that spent the most work units,
+/// so the author need not guess it.
 /// </summary>
 public sealed record NendoBudgetSpend(
     string Allowance,

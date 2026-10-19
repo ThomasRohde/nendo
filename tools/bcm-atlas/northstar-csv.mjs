@@ -1,4 +1,4 @@
-// The Northstar capability model as the spreadsheet a person would have (W-075): one row per
+// The Northstar capability model as the spreadsheet a person would have: one row per
 // capability, its parent named by code rather than by a record ID only the file knows.
 // northstar-capabilities.csv is this function's output, committed so the Engine's import lane
 // reads the same file a person would; northstar-csv.test.mjs fails when the two drift apart.

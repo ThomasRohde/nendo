@@ -37,8 +37,8 @@ internal sealed class ExactAggregate
     }
 
     /// <summary>
-    /// Folds one stored civil date, for the range of a Date field (ADR-0004
-    /// 2026-09-14 amendment, S4). It shares this class because it is the same
+    /// Folds one stored civil date, for the range of a Date field (ADR-0004).
+    /// It shares this class because it is the same
     /// question — the smallest and the largest of a set — but it is deliberately a
     /// separate accumulator: a date has no sum, and an ISO civil date orders
     /// exactly by ordinal comparison, so the extreme is chosen without parsing a
@@ -115,7 +115,7 @@ internal sealed class ExactAggregate
     /// <summary>
     /// The exact sum as a decimal: zero over a set that contributed nothing, and refused as
     /// <c>aggregate-not-representable</c> when a decimal cannot hold every digit, never rounded.
-    /// A calculated total folds through this, so it agrees with a summary tile (EBH-18).
+    /// A calculated total folds through this, so it agrees with a summary tile.
     /// </summary>
     internal decimal ExactSum() => _contributing == 0 ? 0m : Compose(_sum, _scale);
 

@@ -40,7 +40,7 @@ export function applicationPlans(): ApplicationPlan[] {
 /**
  * The record types Use offers as places: those with a screen to show. A type whose only roots
  * are its record page and its commands, such as the rows that join two other types, is reached
- * from a related row or a view and is never a place of its own (W-184). `current` keeps the type
+ * from a related row or a view and is never a place of its own. `current` keeps the type
  * on screen offered, so a picker can say where Use is while one of its records is open.
  */
 export function placePlans(current: string | null = null): ApplicationPlan[] {
@@ -346,7 +346,7 @@ export function listFieldIds(plan: ApplicationPlan, node: SurfaceNodePlan | null
  * The field that names a record among these: the first that is neither a picture nor long text.
  * A picture's value is an address and a note is a paragraph, and neither is a name: a record page
  * whose first fields were its picture and its note was headed by `media:` and sixty-four hex
- * digits, then by the whole note (W-274). Falls back to the record type's first such field.
+ * digits, then by the whole note. Falls back to the record type's first such field.
  */
 export function titleFieldOf(plan: ApplicationPlan, fieldIds: readonly string[]): string {
   const presentation = (fieldId: string) => plan.entity.fields.find((field) => field.semanticId === fieldId)?.presentation;
@@ -364,7 +364,7 @@ export function activeDrill(plan: ApplicationPlan, surface: SurfaceNodePlan | nu
   return drill !== undefined && surface !== null && drill.listId === surface.semanticId ? drill : null;
 }
 
-/** The clause a person's Filter pick adds to a screen's own (W-172), or none. */
+/** The clause a person's Filter pick adds to a screen's own, or none. */
 export function quickClauses(surface: SurfaceNodePlan | null): QueryFilter[] {
   const pick = surface === null ? undefined : quickFilters.get(surface.semanticId);
   return pick === undefined ? [] : [quickFilterClause(pick)];
@@ -435,7 +435,7 @@ export function tilePending(scoped: ScopedTile): boolean {
  *
  * Nothing known means read it. An answer from an earlier revision means read it again, and
  * so does one from an earlier civil day: a clause that says `today` meant yesterday, and the
- * file not moving overnight does not make it mean today (W-217). A read in flight is not
+ * file not moving overnight does not make it mean today. A read in flight is not
  * pending, so the renderer does not reissue it. And a refusal is an answer: it waits for the
  * person to press Retry, because asking again immediately is a redraw loop rather than a
  * recovery.
@@ -452,7 +452,7 @@ export function readIsPending(
  * refusal again on the next bounded pass rather than waiting for Retry. The front page's
  * pending test and the loaders that answer it share this one predicate: when the loaders
  * skipped every ready answer without looking at its revision, the front page saw them stale
- * and chased once a second for ever, and nothing was read (R-008).
+ * and chased once a second for ever, and nothing was read.
  */
 export function overviewReadIsPending(
   known: { state: string; changeSequence?: number } | undefined,
@@ -467,7 +467,7 @@ export function visibleTiles(plan: ApplicationPlan): ScopedTile[] {
   // The columns come from the board in view. Reading the plan's first board
   // would total the second board's tiles by the first one's grouping field.
   const board = boardOf(plan, surface);
-  // A drill hides the screen's tiles as a Filter pick does, so neither reads them (WDV-20).
+  // A drill hides the screen's tiles as a Filter pick does, so neither reads them.
   const quick = narrowed(plan, surface);
   const groupTiles = quick ? [] : groupScopedTiles(surface);
   const columns = surface === null || board === null || groupTiles.length === 0

@@ -65,8 +65,7 @@ public sealed class BehaviourActionTests
     /// <summary>
     /// The revision-operations read carries the attribution a save stores, so History's
     /// opened entry and the MCP resource name the automatic action behind each generated
-    /// operation. Until 2026-10-10 the attribution was written and only receipts read it,
-    /// while Help said History records which trigger made each change.
+    /// operation, as Help says History records which trigger made each change.
     /// </summary>
     [TestMethod]
     public async Task TheRevisionOperationsReadNamesTheAutomaticActionBehindEachGeneratedOperation()
@@ -217,7 +216,7 @@ public sealed class BehaviourActionTests
 
         // The write says which action did not run and why. BlockedConditions was collected and
         // never read, so the save reported plain success and the stale total was noticed by
-        // nobody (EBH-01).
+        // nobody.
         var blocked = applied.BlockedConditions.SingleOrDefault();
         Assert.IsNotNull(blocked, "The write committed with an action skipped by its condition and said nothing about it.");
         Assert.AreEqual("10-total", blocked.TriggerId);
@@ -525,7 +524,7 @@ public sealed class BehaviourActionTests
             new Dictionary<string, long> { ["project"] = 1 }));
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         // An action that assigns a Text result to an Integer field. It installed, and every
-        // save that raised the trigger was then refused on the storage kind (EBH-04).
+        // save that raised the trigger was then refused on the storage kind.
         var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(new("test", "behaviour", "test", "Mismatched action", [
             new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(
                 "project.setTotal", "Set the project total",
@@ -571,7 +570,7 @@ public sealed class BehaviourActionTests
         var revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         // An action that assigns an Integer result to a Text field. A number never fills a
         // text field, so whether it is refused cannot wait for a save, nor depend on what the
-        // record happens to hold: it is refused when it is installed (EBH-04).
+        // record happens to hold: it is refused when it is installed.
         var refused = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => coordinator.ApplyAsync(new("test", "behaviour", "test", "Mismatched action", [
             new SetBehaviourDefinitionOperation("a", new NendoActionDefinition(
                 "project.setName", "Number the project",
@@ -597,7 +596,7 @@ public sealed class BehaviourActionTests
     }
 
     /// <summary>
-    /// Stands in for an action a host installed before the install-time type check (EBH-04):
+    /// Stands in for an action a host installed before the install-time type check:
     /// installs the action and its trigger with an assignment that fits, closes the file,
     /// writes the given formula into the stored body, opens the file again and approves what
     /// it now asks for. The planner's own guards are then what a save meets.

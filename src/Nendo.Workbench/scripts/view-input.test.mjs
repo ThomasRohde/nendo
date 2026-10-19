@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// WXS-08: a view handed back Ctrl+W, Alt+ArrowLeft or a menu while the person typed in a Nendo
-// field, and the Workbench ran it as if the key had been pressed in the view. The frame element
+// A view may hand back Ctrl+W, Alt+ArrowLeft or a menu while the person types in a Nendo field;
+// the Workbench runs it only if the key was really pressed in the view. The frame element
 // is the Workbench's focused element whenever a key is really pressed inside the view.
 const { viewKeyMayRun, viewMenuMayShow, menuAfterCommandMs } = await bundleOf('src/view-input.ts');
 

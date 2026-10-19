@@ -154,7 +154,7 @@ async (page) => {
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   assert(await view.locator('#drawing').getAttribute('transform') !== before, 'Zoom control did not change the transform.');
 
-  // GGV-02: every re-read fitted the whole graph again, so a person zoomed into one corner was
+  // Every re-read fitted the whole graph again, so a person zoomed into one corner was
   // thrown back to the whole after any commit to the file. Zoomed and panned, a re-read keeps it.
   await view.getByRole('button', { name: 'Zoom in', exact: true }).click();
   await view.evaluate(() => document.getElementById('canvas').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })));
@@ -176,7 +176,7 @@ async (page) => {
   assert(Math.abs(selectedAfter[0] - selectedBefore[0]) <= 1 && Math.abs(selectedAfter[1] - selectedBefore[1]) <= 1,
     'A re-read that added a record moved the selected record on screen: ' + JSON.stringify({ before: selectedBefore, after: selectedAfter }));
 
-  // GGV-03: a re-read replaced every record and left focus on the page. The record that had the
+  // A re-read replaced every record and left focus on the page. The record that had the
   // keyboard keeps it, and it is the one tab stop.
   await view.locator('.node[data-id="b"]').focus();
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, relabelled('Third record again'));
@@ -202,7 +202,7 @@ async (page) => {
   assert(await view.locator('html').getAttribute('data-theme') === 'dark', 'Theme update was ignored.');
   const darkColour = await view.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await page.screenshot({ path: root + '/artifacts/extension-runtime-results/graph-dark-text.png' });
-  // The colours are the Workbench's own (W-091): a token the Workbench sends is the colour the
+  // The colours are the Workbench's own: a token the Workbench sends is the colour the
   // graph draws with, as it is for the Gantt and the Systems Lens.
   await page.evaluate(() => window.broker.pushTheme({ mode: 'dark', tokens: { ...window.broker.themes.dark, canvas: '#010203', 'surface-raised': '#040506' } }));
   await until(() => getComputedStyle(document.body).backgroundColor === 'rgb(1, 2, 3)', undefined, 'The graph does not draw with the Workbench\'s canvas token.');
@@ -236,7 +236,7 @@ async (page) => {
   const burst = (await requests(mark)).filter(r => r.m === 'records.query' && r.p.entityId === 'task' && (r.p.cursor ?? null) === null).length;
   assert(burst === 1, `A burst of five changes made ${burst} reads of the records, not one.`);
 
-  // GGV-06: a link to a record this view does not show is left out of the drawing; the summary
+  // A link to a record this view does not show is left out of the drawing; the summary
   // says how many, rather than drawing a graph that looks complete.
   await replace(fixture({ ...projection, edges: [...projection.edges, { id: 'e5', sourceId: 'a', targetId: 'elsewhere' }] }),
     '3 records · 4 connections · 1 connection outside this view');
@@ -262,7 +262,7 @@ async (page) => {
 
   // A re-read that no longer has the selected record drops the selection; the counts are exact.
   await replace(fixture({ nodes: [{ id: 'new', label: 'Fresh generation' }], edges: [] }), '1 record · 0 connections');
-  // GGV-17: a graph of one record drew it left of centre, inside a drawing two columns wide.
+  // A graph of one record drew it left of centre, inside a drawing two columns wide.
   const lone = await view.evaluate(() => {
     const canvas = document.getElementById('canvas').getBoundingClientRect(), node = document.querySelector('.node').getBoundingClientRect();
     return { canvasX: Math.round(canvas.left + canvas.width / 2), canvasY: Math.round(canvas.top + canvas.height / 2),
@@ -274,7 +274,7 @@ async (page) => {
     'A selection whose record is gone survived the re-read.');
   exactlyOne(await opens(() => view.locator('.node').click()), 'new', 'Selecting the new record opened the wrong one, or not once:');
 
-  // GGV-05 and GGV-09 on a grid of five: three records on the first row and two below.
+  // Link ends and keyboard order on a grid of five: three records on the first row and two below.
   const grid = { nodes: ['n0', 'n1', 'n2', 'n3', 'n4'].map((id, at) => ({ id, label: 'Node ' + at })), edges: [
     { id: 'down', sourceId: 'n0', targetId: 'n3' }, { id: 'downLeft', sourceId: 'n2', targetId: 'n4' }, { id: 'downRight', sourceId: 'n0', targetId: 'n4' },
     { id: 'upRight', sourceId: 'n3', targetId: 'n1' }, { id: 'upLeft', sourceId: 'n4', targetId: 'n0' }, { id: 'left', sourceId: 'n1', targetId: 'n0' },
@@ -305,7 +305,7 @@ async (page) => {
   }
   const crossing = (await courses()).filter(course => course.through.length > 0);
   assert(crossing.length === 0, 'A link runs through a record it does not join: ' + JSON.stringify(crossing));
-  // GGV-05: a link into a record below or to the left ended on that record's left edge, from inside
+  // A link into a record below or to the left ended on that record's left edge, from inside
   // its box, so the record painted over the arrowhead. Every link's last stretch, where the
   // arrowhead sits, lies outside the record it points at.
   const arrows = await view.evaluate(() => [...document.querySelectorAll('.edge')].map(edge => {
@@ -317,7 +317,7 @@ async (page) => {
   }));
   assert(arrows.length === 8 && arrows.every(arrow => !arrow.inside),
     'An arrowhead is drawn inside the record it points at, where the record hides it: ' + JSON.stringify(arrows.filter(arrow => arrow.inside)));
-  // GGV-09: every record was a tab stop, Left and Right went to the next record in the file's order,
+  // Every record was a tab stop, Left and Right went to the next record in the file's order,
   // and Up and Down panned. The records are one tab stop, and each arrow reaches the nearest record
   // that way on the drawing.
   await view.locator('.node[data-id="n0"]').focus();
@@ -353,7 +353,7 @@ async (page) => {
   assert(JSON.stringify(methods) === JSON.stringify(['records.query', 'schema.describe', 'ui.openRecord']),
     'The graph asked for something other than reads and opening a record: ' + JSON.stringify(methods));
 
-  // ---- Nendo's own chrome (W-091). Everything above ran on a host that does not draw a view's
+  // ---- Nendo's own chrome. Everything above ran on a host that does not draw a view's
   // controls. On one that does, the graph draws none of its own and no page title: it declares
   // them, Nendo sends a press back as a command, and a right-click on a record asks for Nendo's
   // menu. The fixture reads each declaration by the Workbench's own rules and refuses what
@@ -390,7 +390,7 @@ async (page) => {
   // A command is a press of the control it stands for, and the toolbar follows.
   const command = (id, value = null, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
 
-  // The view's own lines (W-092): its summary is Nendo's row's text, its explanation waits
+  // The view's own lines: its summary is Nendo's row's text, its explanation waits
   // behind About, and the drawing starts at the top of the frame. A problem stays in the frame.
   const ownLines = () => view.evaluate(() => ({ header: getComputedStyle(document.querySelector('header')).display,
     hint: getComputedStyle(document.querySelector('.hint')).display, drawingTop: Math.round(document.querySelector('#canvas').getBoundingClientRect().top) }));

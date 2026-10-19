@@ -470,7 +470,7 @@ async function approveInWorkbench() {
 
 /**
  * Grouping is decided by the database over every matching record, and a calculated
- * field has no column. A list may sort and filter by one since F-222, because the host
+ * field has no column. A list may sort and filter by one, because the host
  * works out the records first; a board's lanes are still the field's stored values.
  */
 async function assertASurfaceCannotSortByACalculation(tool, owned) {

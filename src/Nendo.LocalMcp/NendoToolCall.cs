@@ -4,7 +4,7 @@ using ModelContextProtocol.Server;
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// What every tool method does around its service call (W-159): run it, fill the activity
+/// What every tool method does around its service call: run it, fill the activity
 /// slot with the kind of call and what it touched, and turn a refusal into the text and
 /// structured form a client reads. The three tool classes carried a copy each.
 /// </summary>

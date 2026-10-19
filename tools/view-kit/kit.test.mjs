@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { version, fitBox, toneFor } from './nendo-view-kit.js';
 
-// W-064: the view kit is one versioned file that packages copy. A copy that drifts from the
+// The view kit is one versioned file that packages copy. A copy that drifts from the
 // source is a package carrying an older kit than its name says, so every copy is checked: every
-// extensions/<package>/kit/nendo-view-kit.js there is, found rather than listed (GGV-16), so a
+// extensions/<package>/kit/nendo-view-kit.js there is, found rather than listed, so a
 // package that copies the kit is checked from the day it does.
 const source = readFileSync(new URL('./nendo-view-kit.js', import.meta.url));
 const extensions = new URL('../../extensions/', import.meta.url);
@@ -38,7 +38,7 @@ test('fitBox draws a single point in the middle of the frame, and from the paddi
   assert.deepEqual(fitBox({ x: 10, y: 20, width: 0, height: 0 }, { width: 0, height: 0 }, 16), { scale: 1, x: 6, y: -4 });
 });
 
-test('fitBox fits a drawing flat in one direction by the other, centred on where it is (GGV-15)', () => {
+test('fitBox fits a drawing flat in one direction by the other, centred on where it is', () => {
   // A row of points from x 100 to 900 at y 50, in a 400x300 frame: it spans the frame between
   // its paddings, rather than being drawn from x 116 to 916, mostly off-screen.
   const fit = fitBox({ x: 100, y: 50, width: 800, height: 0 }, { width: 400, height: 300 }, 16);
@@ -48,7 +48,7 @@ test('fitBox fits a drawing flat in one direction by the other, centred on where
   assert.ok(Math.abs(row - 150) < 1e-9, `a drawing with no height is not centred vertically: its row is at ${row}, not 150`);
 });
 
-test('fitBox never returns a scale that mirrors the drawing, in a small or a hidden frame (GGV-15)', () => {
+test('fitBox never returns a scale that mirrors the drawing, in a small or a hidden frame', () => {
   const small = fitBox({ x: 0, y: 0, width: 100, height: 100 }, { width: 20, height: 20 }, 16);
   assert.ok(small.scale > 0, `a frame smaller than its padding gave the scale ${small.scale}, which mirrors the drawing`);
   const hidden = fitBox({ x: 0, y: 0, width: 100, height: 100 }, { width: 0, height: 0 }, 16);

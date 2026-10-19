@@ -56,7 +56,7 @@ internal sealed class DesktopShellStore
     /// <para>
     /// Every open file is a window of its own, in a process of its own, and each used to keep
     /// what it read at startup: the window that had not been told about another one's choice
-    /// went on recording, and the next thing it saved put the old choice back (DSH-09). A
+    /// went on recording, and the next thing it saved put the old choice back. A
     /// document that cannot be read leaves what this window has.
     /// </para>
     /// </summary>

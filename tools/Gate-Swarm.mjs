@@ -64,12 +64,12 @@ async page => {
   assert((await record('sw.species', 'sw_species_fireflies')).values['sw.species.speed'] !== 2.7, 'Refused save changed another species.');
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
   await frame.getByLabel('Speed', { exact: true }).fill('2.4'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
-  // Somebody else's change moves the file's change sequence on, as every change in Nendo does (W-213: the view ignores a sequence its own save already read).
+  // Somebody else's change moves the file's change sequence on, as every change in Nendo does (the view ignores a sequence its own save already read).
   await page.evaluate(() => { window.broker.touch('sw.species', 'sw_species_fireflies'); window.broker.pushChanges(); }); await frame.waitForFunction(() => document.querySelector('#status').textContent.includes('changed elsewhere'));
   const blockedBefore = await batches(); await command('save-behaviour');
   assert(await batches() === blockedBefore, 'An external change was overwritten by the old draft.');
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
-  // A save kept but not read back says so, never that nothing was saved (review R-011).
+  // A save kept but not read back says so, never that nothing was saved.
   const speciesId = await frame.evaluate(() => window.swarm.model.species.id);
   await frame.getByLabel('Speed', { exact: true }).fill('2.6'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
   await page.evaluate(() => window.broker.fail('records.query', { code: 'host-timeout', message: 'The Desktop host did not respond.' }, 1));
@@ -99,12 +99,12 @@ async page => {
   await frame.locator('.djs-context-pad.open [data-action="remove"]').click();
   await frame.waitForFunction(id => !window.swarm.model.nodes.some(n => n.id === id) && !window.swarm.model.links.some(l => l.target === id), addedId, { timeout: 3000 }).catch(async () => { throw Error('Remove left the temporary node or its transition behind: ' + JSON.stringify(await frame.evaluate(id => ({ addedId: id, nodes: window.swarm.model.nodes.map(n => n.id), links: window.swarm.model.links.map(l => [l.source, l.target]), inspector: document.querySelector('#inspector').textContent }), addedId))); });
   await frame.getByRole('button', { name: 'Reload saved' }).click(); await frame.waitForFunction(() => !window.swarm.dirty);
-  // An unsaved behaviour outlasts the view (review R-001): started again, it comes back, unsaved.
+  // An unsaved behaviour outlasts the view: started again, it comes back, unsaved.
   await frame.getByLabel('Speed', { exact: true }).fill('2.9'); await frame.getByLabel('Speed', { exact: true }).dispatchEvent('change');
   await page.waitForTimeout(400);
   const keptBefore = await batches();
   // A remounted view is a new frame that reports about:blank until its navigation commits,
-  // so each remount polls for it rather than looking once after a fixed wait (TGA-11).
+  // so each remount polls for it rather than looking once after a fixed wait.
   const remounted = async (...previous) => {
     for (let i = 0; i < 200; i++) {
       const next = page.frames().find(f => f.url().startsWith(origin + '/') && !previous.includes(f));
@@ -133,7 +133,7 @@ async page => {
   await reopened.waitForFunction(() => document.querySelector('#run-state').textContent === 'Captured run');
   assert(JSON.stringify(await reopened.evaluate(() => window.swarm.digest)) === JSON.stringify(digest), 'Reopen did not preserve the captured experiment.');
   await reopened.getByRole('button', { name: 'Reload saved' }).click(); await reopened.waitForFunction(() => window.swarm.tick === 0);
-  // ---- W-213. ABS-21: saved experiments are listed newest first. Two more runs after "First flock".
+  // ---- Saved experiments are listed newest first. Two more runs after "First flock".
   const saveRun = async name => {
     await command('save-experiment');
     await reopened.getByLabel('Name', { exact: true }).fill(name);
@@ -151,7 +151,7 @@ async page => {
     .catch(async () => { throw Error('The experiments were not read again in record-ID order: ' + JSON.stringify(await reopened.evaluate(() => ({ rows: document.querySelectorAll('.experiment-row').length, status: document.getElementById('status').textContent })))); });
   const listed = await reopened.evaluate(() => [...document.querySelectorAll('.experiment-copy')].map(row => row.firstChild.textContent));
   assert(JSON.stringify(listed) === JSON.stringify(['Fourth flock', 'Third flock', 'Second flock', 'First flock']), `Saved experiments are not listed newest first: ${JSON.stringify(listed)}`);
-  // ABS-20: a second Replay pressed while one runs is ignored; two ran at once and the last to finish won.
+  // A second Replay pressed while one runs is ignored; two ran at once and the last to finish won.
   await reopened.evaluate(() => {
     window.__replayed = [];
     new MutationObserver(() => { const text = document.getElementById('status').textContent; if (/^Replayed /.test(text)) window.__replayed.push(text); })
@@ -164,7 +164,7 @@ async page => {
   const replays = await reopened.evaluate(() => ({ said: window.__replayed, now: document.getElementById('status').textContent }));
   assert(replays.said.length === 1 && /^Replayed “Fourth flock”/.test(replays.now), `Two Replays pressed one after the other both ran, and the last to finish won: ${JSON.stringify(replays)}`);
   await reopened.getByRole('button', { name: 'Reload saved' }).click(); await reopened.waitForFunction(() => document.querySelector('#run-state').textContent === 'Paused' && !window.swarm.dirty);
-  // ABS-11: a change made while a save is on its way stays a draft; it was called saved and lost.
+  // A change made while a save is on its way stays a draft; it was called saved and lost.
   const heldSpecies = await reopened.evaluate(() => window.swarm.model.species.id);
   await reopened.getByLabel('Speed', { exact: true }).fill('2.2'); await reopened.getByLabel('Speed', { exact: true }).dispatchEvent('change');
   const heldBefore = await batches();
@@ -202,7 +202,7 @@ async page => {
       expected: ['cobalt', 'healthy', 'warning', 'danger', 'tone-violet'].map(token => { const e = document.createElement('i'); e.style.color = `var(--nendo-${token})`; document.body.append(e); const colour = getComputedStyle(e).color; e.remove(); return colour; }) }));
     assert(new Set(colours[mode].states).size === 5, `${mode}: creature states do not have five distinct theme colours: ${JSON.stringify(colours[mode])}`);
     assert(JSON.stringify(colours[mode].states) === JSON.stringify(colours[mode].expected), `${mode}: the state legend kept colours from the previous theme.`);
-    // ABS-08: a decision's label is edited in a box bpmn-js makes white; its text must show in both themes.
+    // A decision's label is edited in a box bpmn-js makes white; its text must show in both themes.
     await reopened.locator('[data-element-id="sw_murmuration_danger"] > .djs-hit').dblclick();
     await reopened.waitForFunction(() => document.activeElement?.classList.contains('djs-direct-editing-content'), null, { timeout: 5000 });
     const label = await reopened.evaluate(() => { const box = getComputedStyle(document.querySelector('.djs-direct-editing-parent')); return { color: box.color, background: box.backgroundColor }; });
@@ -224,7 +224,7 @@ async page => {
   const narrow = await reopened.evaluate(() => { const a = document.querySelector('#habitat').getBoundingClientRect(), b = document.querySelector('#diagram').getBoundingClientRect(); return { habitatBottom: a.bottom, diagramTop: b.top, width: innerWidth, overflow: document.documentElement.scrollWidth - innerWidth }; });
   assert(narrow.diagramTop > narrow.habitatBottom && narrow.overflow <= 1, `Narrow panes must stack without overflow: ${JSON.stringify(narrow)}`);
   await page.screenshot({ path: '__OUTPUT__/narrow.png', fullPage: true });
-  // ABS-12: a transition to a node of another species, and one whose Route points do not read, leave
+  // A transition to a node of another species, and one whose Route points do not read, leave
   // the species loadable; each is named, and a save leaves the first as it is.
   const held = await page.evaluate(() => ({ links: window.broker.records('sw.link'), nodes: window.broker.records('sw.node') }));
   const ownLinks = held.links.filter(link => link.values['sw.link.species'] === 'sw_species_murmuration');
@@ -240,7 +240,7 @@ async page => {
   await reopened.getByLabel('Speed', { exact: true }).fill('2.3'); await reopened.getByLabel('Speed', { exact: true }).dispatchEvent('change');
   await command('save-behaviour'); await reopened.waitForFunction(() => !window.swarm.dirty && !window.swarm.saving);
   assert(await record('sw.link', 'sw_w213_crossing') !== undefined, 'Saving the behaviour deleted a transition the diagram left out.');
-  // ABS-19: a species name over 80 characters, and more than 64 species, still leave Nendo's toolbar.
+  // A species name over 80 characters, and more than 64 species, still leave Nendo's toolbar.
   const refusalsBefore = (await page.evaluate(() => window.broker.chromeRefusals)).length;
   const own = (await page.evaluate(() => window.broker.records('sw.species'))).find(species => species.recordId === 'sw_species_murmuration');
   // A bird where the 80-character cut falls: two UTF-16 units that must not be split.

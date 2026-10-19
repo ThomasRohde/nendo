@@ -7,7 +7,7 @@ import { mapView } from './definition.mjs';
 import { bindAtlas } from '../../extensions/bcm-atlas/model.js';
 import { bcmFixture, otherFixture } from './fixtures.mjs';
 
-// W-080: the upgrade of an existing BCM.nendo, and the move of today's values into assessments.
+// The upgrade of an existing BCM.nendo, and the move of today's values into assessments.
 
 test('the upgrade is one proposal the host takes: at most 16 operations a mutation, required fields with their record type', () => {
   const mutations = upgradeMutations();
@@ -18,9 +18,9 @@ test('the upgrade is one proposal the host takes: at most 16 operations a mutati
     'a required field outside the mutation that creates its record type is refused by the host');
   const all = mutations.flatMap(mutation => mutation.operations);
   const find = (type, test) => all.find(o => o.operationType === type && test(o.payload));
-  assert.ok(find('schema.setFieldUnique', p => p.fieldId === 'cap.code' && p.unique === true), 'the capability code is not made unique (W-075)');
+  assert.ok(find('schema.setFieldUnique', p => p.fieldId === 'cap.code' && p.unique === true), 'the capability code is not made unique');
   for (const end of ['support.capability', 'support.application'])
-    assert.ok(find('schema.setFieldRequired', p => p.fieldId === end && p.required === true), `${end} is not made required (W-076)`);
+    assert.ok(find('schema.setFieldRequired', p => p.fieldId === end && p.required === true), `${end} is not made required`);
   assert.ok(find('schema.configureReference', p => p.fieldId === 'assess.capability' && p.targetEntityId === 'bcm.capability'));
   assert.ok(find('ui.addNode', p => p.kind === 'relatedList' && p.parentNodeId === 'bcm.capability.detail' && p.properties.viaFieldId === 'assess.capability'),
     'a capability page does not list its assessment history');
@@ -76,7 +76,7 @@ test('the committed upgrade-operations.json is the upgrade, so the LocalMcp lane
   assert.deepEqual(committed, upgradeMutations(), 'upgrade-operations.json is stale: run node tools/bcm-atlas/upgrade.mjs');
 });
 
-// W-081: coverage by applications, rolled up to groups; initiatives that cover several
+// Coverage by applications, rolled up to groups; initiatives that cover several
 // capabilities; and the capability-against-application matrix.
 test('coverage counts distinct applications at or below each capability, and a group counts its children once', async () => {
   const { coverageCounts, coverageMatrix, hierarchy } = await import('../../extensions/bcm-atlas/model.js');

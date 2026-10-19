@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Media in user data, ADR-0031, pictures first (W-264). A media field is a Text field whose value
+/// Media in user data, ADR-0031, pictures first. A media field is a Text field whose value
 /// is an address; an embedded picture is stored once by its SHA-256, outside history, and every
 /// path that writes a <c>media:</c> address is refused when the file does not hold the picture.
 /// </summary>

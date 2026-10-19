@@ -59,9 +59,8 @@ public sealed record NendoBehaviourActionTargetDescription(
 /// four bodies a <c>behaviour.setDefinition</c> sends, a body the codec accepts as it stands.
 /// <para>
 /// The codec refuses every key not listed here, so the table is the contract rather than a
-/// description of it. An agent building a studio manager on 2026-10-10 learnt the action,
-/// assignment and trigger shapes by sending made-up keys and reading the refusals, six refusals
-/// in two minutes; ADR-0008 says no author discovers the contract by failing.
+/// description of it: ADR-0008 says no author discovers the contract by failing, so the action,
+/// assignment and trigger shapes are published rather than learnt from refusals.
 /// </para>
 /// </summary>
 public sealed record NendoBehaviourBodyShape(

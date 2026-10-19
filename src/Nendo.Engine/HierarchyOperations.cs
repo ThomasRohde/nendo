@@ -8,7 +8,7 @@ namespace Nendo.Engine;
 /// </summary>
 public sealed record NendoHierarchy(string ParentFieldId, string? OrderFieldId);
 
-/// <summary>The bounds ADR-0019 states, measured in its stage 1 note.</summary>
+/// <summary>The bounds ADR-0019 states.</summary>
 public static class NendoHierarchyLimits
 {
     /// <summary>The deepest a record may sit: a top-level record is at depth 1.</summary>
@@ -17,8 +17,7 @@ public static class NendoHierarchyLimits
     /// <summary>
     /// The most descendants a subtree aggregate folds before it is an error rather than a partial
     /// total. A calculation runs for every record a read returns, so this bounds a page's work.
-    /// Until the 2026-10-16 amendment the tree read, <c>descendantOf</c> and a move's sibling
-    /// list were refused past the same number; they have no bound of their own now.
+    /// The tree read, <c>descendantOf</c> and a move's sibling list have no bound of their own.
     /// </summary>
     public const int MaximumAggregatedDescendants = 10_000;
 

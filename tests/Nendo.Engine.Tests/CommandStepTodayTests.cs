@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// R-003, 2026-09-26: a command step's today is the person's civil day, the same day a
-/// screen's filter resolves in the Workbench. It used to be the UTC day, so a person in
-/// Copenhagen at 00:30 stamped yesterday, and a DateTime step began the day at UTC
+/// A command step's today is the person's civil day, the same day a
+/// screen's filter resolves in the Workbench. The UTC day would have a person in
+/// Copenhagen at 00:30 stamp yesterday, and a DateTime step began the day at UTC
 /// midnight rather than where the person is.
 /// </summary>
 [TestClass]

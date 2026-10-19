@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// PERF-07: the authoring calls check the open file's identity, and that reads the manifest. They
+/// The authoring calls check the open file's identity, and that reads the manifest. They
 /// read the whole snapshot for it, every record with its calculations, on each begin, validate,
 /// revalidate, promote and reject. Counted with the Engine's own count of full record reads.
 /// </summary>

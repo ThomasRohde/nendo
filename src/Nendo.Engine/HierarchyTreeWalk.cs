@@ -8,11 +8,11 @@ internal readonly record struct NendoTreeStep(string RecordId, string? ParentRec
 
 /// <summary>
 /// The depth-first walk of a declared hierarchy, resumed after the last record a page showed
-/// (ADR-0019, 2026-10-16 amendment). A page asks only for the siblings it shows: at each level, the
+/// (ADR-0019). A page asks only for the siblings it shows: at each level, the
 /// children of one parent after a given sibling, in sibling order, a few at a time. So a page costs
 /// its own records and the depth above it, never the records before it, and a whole read costs
-/// what it returns. Until 2026-10-16 every page walked and sorted the whole subtree and cut itself
-/// by position, so reading N records cost about N squared, and the walk refused past 10,000.
+/// what it returns, where walking and sorting the whole subtree for every page and cutting it by
+/// position would cost about N squared to read N records.
 /// </summary>
 internal static class NendoTreeWalk
 {

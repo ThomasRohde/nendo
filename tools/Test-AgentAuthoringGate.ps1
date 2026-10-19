@@ -35,4 +35,4 @@ foreach ($phase in @('build', 'reopen')) {
 }
 foreach ($file in $frozen) { if ((Get-FileHash -LiteralPath $file.path).Hash -ne $file.sha256) { throw "Payload changed: $($file.path)" } }
 @{ executable = $exe; files = $frozen; result = 'passed'; limitation = 'Current Windows user with existing WebView2; not a clean-machine or human test.' } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidenceRoot 'runtime.json')
-Write-Output "P6-F axiom register gate evidence: $evidenceRoot"
+Write-Output "Axiom register gate evidence: $evidenceRoot"

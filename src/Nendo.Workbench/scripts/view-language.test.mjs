@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-// R2LAT-10: a first-party view's own words are English, and its index.html says so. Setting
-// <html lang> to the person's locale made a screen reader speak them in a Danish, Thai or
+// A first-party view's own words are English, and its index.html says so. Setting
+// <html lang> to the person's locale would make a screen reader speak them in a Danish, Thai or
 // Arabic voice. The locale formats dates, nothing else. The views run in a frame the browser
 // lanes drive; here the rule is held where it is written, in each view's source.
 

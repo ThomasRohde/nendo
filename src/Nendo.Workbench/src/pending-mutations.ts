@@ -9,7 +9,7 @@ export interface PendingMutation {
   payload: Record<string, unknown>;
   state: 'pending' | 'committed' | 'notApplied';
   /**
-   * The file it was made in, by name, and when (WCS-03). A raw copy or a backup keeps the file's
+   * The file it was made in, by name, and when. A raw copy or a backup keeps the file's
    * application and instance IDs, so it finds this request under the same key; the name is what
    * stops Check or retry sending it into the copy. Absent from a request kept by an older build.
    */
@@ -23,7 +23,7 @@ export interface PendingMutation {
   madeElsewhere?: boolean;
   /**
    * The host stopped this request when the person pressed Stop, and the receipt check that
-   * followed found nothing, so it may be discarded unsent (WCS-22). Known to this renderer only:
+   * followed found nothing, so it may be discarded unsent. Known to this renderer only:
    * never stored, so after a restart the save is resolved by Check or retry.
    */
   discardable?: boolean;
@@ -51,16 +51,16 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   // ADR-0031: a picture's address, content or bounds, refused before the mutation committed.
   'media-missing', 'media-address-invalid', 'media-type-mismatch', 'media-too-large', 'media-budget-exceeded', 'field-not-media',
   'media-unavailable', 'media-clipboard-empty', 'media-download-failed', 'media-already-embedded',
-  // W-001: a picture that cannot be the file's icon, refused before it was embedded.
+  // A picture that cannot be the file's icon, refused before it was embedded.
   'icon-invalid',
   // Refused inside the write's own transaction before it committed (ADR-0019, ADR-0020 and
   // the open ceilings). Left out, a duplicate in a unique field kept the save pending for
-  // good and locked editing of the file on this device (WCS-01). refusal-codes.test.mjs
+  // good and locked editing of the file on this device. refusal-codes.test.mjs
   // fails when the Engine gains a code that is neither listed here nor named as unsettled.
   'value-not-unique', 'field-values-not-unique', 'kept-in-new-files-unchanged',
   'hierarchy-parent-invalid', 'hierarchy-parent-required', 'hierarchy-order-invalid', 'hierarchy-cycle-present',
   'write-ceiling-bytes', 'write-ceiling-rows', 'write-ceiling-schema', 'action-target-mismatch', 'read-only',
-  // Another program kept the file busy past the timeout: the write rolled back whole (ESC-06).
+  // Another program kept the file busy past the timeout: the write rolled back whole.
   'file-busy',
   'revision-not-found', 'revision-not-yours', 'not-an-undo',
   'record-exists-or-invalid', 'behaviour-not-approved', 'definition-not-found', 'field-calculated',
@@ -70,18 +70,18 @@ const rejected = new Set(['validation', 'invalid-request', 'idempotency-conflict
   'calculation-text-too-long', 'calculation-limit-reached', 'calculation-dependency-failed', 'calculation-related-unavailable',
   'calculation-refused', 'calculation-stored-value-invalid',
   // Refused here, before anything was sent: the request could not be kept on this device, or a
-  // previous one is still unconfirmed. The file is untouched, so the person's typing stays (WCS-02).
+  // previous one is still unconfirmed. The file is untouched, so the person's typing stays.
   notSentCode]);
 /**
  * The most a kept request may hold: the host's own message limit (262,144 characters,
  * WorkbenchProtocol.MaximumMessageCharacters) less room for the envelope around the payload. Half
- * of that refused saves the host would have taken, and said the cause was local storage (WCS-02).
+ * of that refused saves the host would have taken, and said the cause was local storage.
  */
 export const maximumCharacters = 262_144 - 4_096;
 
 export function isJournaledMutation(method: string): boolean { return methods.has(method); }
 
-/** Whether two file names name one file as Windows reads them: letter case does not count (WCS-03). */
+/** Whether two file names name one file as Windows reads them: letter case does not count. */
 export function sameFileName(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
@@ -110,7 +110,7 @@ function validIdentity(method: string, payload: Record<string, unknown>): boolea
 export class PendingMutationJournal {
   private readonly storage: RetryStorage;
   private readonly confirmed = new Map<string, 'committed' | 'notApplied'>();
-  /** Requests the host stopped and whose receipt was then not found (WCS-22). */
+  /** Requests the host stopped and whose receipt was then not found. */
   private readonly stopped = new Set<string>();
 
   constructor(storage: RetryStorage) { this.storage = storage; }
@@ -148,7 +148,7 @@ export class PendingMutationJournal {
       ...(fileName === null ? {} : { fileName, savedAt: new Date().toISOString() }) };
     const serialized = JSON.stringify(entry);
     // Each refusal says its own cause and is coded as unsent, so the typing it refused stays on
-    // screen: both were a plain error once, which redrew the form from stored values (WCS-02).
+    // screen: both were a plain error once, which redrew the form from stored values.
     if (serialized.length > maximumCharacters)
       throw new WorkbenchHostError(notSentCode, `This change is too large to save from here: ${serialized.length.toLocaleString()} characters, and at most ${maximumCharacters.toLocaleString()} can be sent. Nothing was sent.`);
     if (!validIdentity(method, payload))
@@ -170,7 +170,7 @@ export class PendingMutationJournal {
     if (receipt !== null) return this.acknowledge(entry, receipt);
     if (!allowReplay) return null;
     // Sent only into the file it was made in. A copy or a backup of that file carries the same
-    // identity, and Check or retry wrote the original's change into the copy (WCS-03). A file
+    // identity, and Check or retry wrote the original's change into the copy. A file
     // renamed since is that file, which only the person can say: `intoThisFile` is their word.
     if (!intoThisFile && madeElsewhere(entry, fileName))
       throw new WorkbenchHostError('pending-in-another-file', `This unconfirmed save was made in ${entry.fileName}, not in ${fileName}, so it is not sent here on its own. Send it into this file if this is ${entry.fileName} renamed; discard it here if this is a copy.`);
@@ -179,7 +179,7 @@ export class PendingMutationJournal {
   }
 
   /**
-   * Drops a request the host stopped, without sending it (WCS-22). Offered only after the host
+   * Drops a request the host stopped, without sending it. Offered only after the host
    * answered the stop and a receipt check found nothing; the receipt is checked once more here,
    * and a request that landed after all is acknowledged as committed instead. Null when it was
    * discarded.
@@ -188,7 +188,7 @@ export class PendingMutationJournal {
     const entry = this.read(fileIdentity);
     if (entry === null) return null;
     // A save made under another file name may be dropped here too, once the person has said so:
-    // otherwise a copy opened before the original was checked stayed locked (WCS-03).
+    // otherwise a copy opened before the original was checked stayed locked.
     if (entry.state !== 'pending' || (!this.stopped.has(this.identity(entry)) && !madeElsewhere(entry, fileName)))
       throw new Error('Only a save that was stopped, and found not to have landed, can be discarded. Check or retry it instead.');
     const receipt = await this.lookup(send, entry);
@@ -226,7 +226,7 @@ export class PendingMutationJournal {
           const receipt = await this.lookup(send, entry);
           if (receipt !== null) return this.acknowledge(entry, receipt);
           // The host answers a stop only once the work has stopped, and nothing landed: the
-          // person may now drop it rather than send what they stopped (WCS-22).
+          // person may now drop it rather than send what they stopped.
           if (code === 'cancelled') this.stopped.add(this.identity(entry));
         } catch { /* Keep the exact request when either response is unknown. */ }
       }

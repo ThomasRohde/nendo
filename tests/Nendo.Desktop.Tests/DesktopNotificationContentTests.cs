@@ -142,7 +142,7 @@ public sealed class DesktopNotificationContentTests
     }
 
     /// <summary>
-    /// W-089. Every Nendo process posted under one "nendo" group with the same tags, so a
+    /// Every Nendo process posted under one "nendo" group with the same tags, so a
     /// second file's "A change is waiting" replaced the first file's, and bringing back any
     /// window cleared every file's notifications.
     /// </summary>
@@ -157,7 +157,7 @@ public sealed class DesktopNotificationContentTests
     }
 
     /// <summary>
-    /// W-089. Windows hands a click to whichever Nendo holds the activation, so the click says
+    /// Windows hands a click to whichever Nendo holds the activation, so the click says
     /// which process raised it, and nothing more: no path, no file session, no proposal.
     /// </summary>
     [TestMethod]
@@ -177,7 +177,7 @@ public sealed class DesktopNotificationContentTests
     }
 
     /// <summary>
-    /// R2SP-10. A notification raised for one file, still in the centre after the window came
+    /// A notification raised for one file, still in the centre after the window came
     /// back from the taskbar and opened another, sent its click to the Health or Agent page of
     /// whatever file the window held then. The click says which of the window's file sessions
     /// raised it -- a count, not the session -- and a window past it comes forward and goes
@@ -223,7 +223,7 @@ public sealed class DesktopNotificationContentTests
     }
 
     /// <summary>
-    /// W-089. Every notification carried the same picture whichever file it was about. It now
+    /// Every notification carried the same picture whichever file it was about. It now
     /// shows the file's icon from this device's icon cache, a picture of the look and nothing
     /// about the file itself.
     /// </summary>

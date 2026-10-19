@@ -2,7 +2,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// Every page of one query, read as one answer by an Engine step that needs the whole set: the
-/// code resolver of a CSV import and the siblings of a move (ESQ-11).
+/// code resolver of a CSV import and the siblings of a move.
 /// <para>
 /// A page cursor binds the file's change sequence, so a commit between two pages — an automatic
 /// action, a view saving its state, another client — makes the next page stale. A person never

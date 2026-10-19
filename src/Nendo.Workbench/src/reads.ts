@@ -194,7 +194,7 @@ export async function loadRelatedWindows(plan: ApplicationPlan, recordId: string
 
 /**
  * One record read by its own ID, for a record opened from a related row
- * (ADR-0004, 2026-09-18 amendment).
+ * (ADR-0004).
  *
  * A relation is ordered as its author arranged it, over a record type whose own surface
  * is ordered some other way, so the row that was clicked need not be on the page that
@@ -231,8 +231,8 @@ export function relatedWindowsPending(plan: ApplicationPlan, recordId: string): 
  *
  * It reads and does not draw. A relation is read-only content on a page whose form may
  * hold unsaved typing, and this used to redraw the whole page when the next page landed,
- * rebuilding the parent's form from stored values and losing the typing without a word
- * (W-049). The caller patches the relation in place instead, the way a tab change does.
+ * rebuilding the parent's form from stored values and losing the typing without a word.
+ * The caller patches the relation in place instead, the way a tab change does.
  * True when the page moved and there is something to patch.
  */
 export async function loadRelatedWindow(key: string, direction: number): Promise<boolean> {
@@ -286,7 +286,7 @@ export async function loadAccumulatedPage(entityId: string, key: string, opening
   const fileSessionId = state.session.fileSessionId;
   const existing = accumulatedWindows.get(key);
   // Pages opened on an earlier civil day are another answer too: the opening query said
-  // `today` about that day, so the next page starts the range again (W-217).
+  // `today` about that day, so the next page starts the range again.
   const fresh = !append || existing === undefined || existing.changeSequence !== sequence || !sameReadDay(existing.day);
   const query = fresh ? opening : existing!.query;
   const cursor = fresh ? null : existing!.cursor;

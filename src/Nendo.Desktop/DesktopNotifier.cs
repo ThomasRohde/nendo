@@ -98,7 +98,7 @@ internal sealed class DesktopNotifier : IDisposable
     }
 
     /// <summary>
-    /// The window holds another file now: what it posted for the one before goes (R2SP-10). A
+    /// The window holds another file now: what it posted for the one before goes. A
     /// notification that stayed in the centre, because the window came back from the taskbar
     /// rather than the tray, landed on the new file's page when it was clicked.
     /// </summary>

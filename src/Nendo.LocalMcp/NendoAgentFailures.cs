@@ -28,9 +28,8 @@ public sealed record NendoAgentFailure(
     string Trace);
 
 /// <summary>
-/// Where an internal failure goes. Until 2026-09-27 the host cleared every log provider and
-/// <c>NENDO_INTERNAL_ERROR</c> named only the exception type, so a failure inside the host
-/// left no trace anywhere (F-181). A request now runs inside a scope that knows its name and
+/// Where an internal failure goes, so that one inside the host leaves a trace even though
+/// <c>NENDO_INTERNAL_ERROR</c> names only the exception type to the agent. A request runs inside a scope that knows its name and
 /// the host's sink, and the translation that turns an unexpected exception into
 /// <c>NENDO_INTERNAL_ERROR</c> records it there, under the reference the agent is told.
 /// </summary>

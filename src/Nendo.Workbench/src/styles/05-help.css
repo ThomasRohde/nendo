@@ -38,7 +38,7 @@
 .empty-help-entry .text-button { color: var(--cobalt); text-decoration: underline; text-underline-offset: 3px; }
 .help-article h2 { font-size: 1.9rem; margin: 6px 0 12px; }
 /* Where the topic sits, on its own line: not the workspace breadcrumb's .location, whose
-   separator hung after it with nothing following (UIT-11). */
+   separator hung after it with nothing following. */
 .help-location { margin: 0; color: var(--muted); font-size: 0.93rem; }
 .help-summary { color: var(--muted); font-size: 1.05rem; }
 .help-article section { max-width: 72ch; margin-top: 30px; }

@@ -27,7 +27,7 @@ test('a view frame is sandboxed without top navigation, named by its mount, and 
   assert.deepEqual(sandbox, ['allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-popups', 'allow-popups-to-escape-sandbox',
     'allow-downloads', 'allow-modals', 'allow-pointer-lock', 'allow-presentation']);
   assert.ok(sandbox.every(token => !token.startsWith('allow-top-navigation')), `A view may navigate the Workbench away: ${attributes.sandbox}`);
-  // DAE-02: no location. The host refuses it, and a prompt's answer would have covered every view.
+  // No location. The host refuses it, and a prompt's answer would have covered every view.
   assert.equal(attributes.allow, 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture');
   assert.equal(attributes.loading, 'lazy');
 
@@ -178,7 +178,7 @@ test('Studio’s Custom views panel shows the two switches and each package, and
   assert.match(markup.customViewsPanelMarkup(null, null), /not available in this session/);
 });
 
-// ADR-0024, W-160: a skill package is listed among the file's packages as text an agent reads,
+// ADR-0024: a skill package is listed among the file's packages as text an agent reads,
 // with nothing to add a view to, nothing to develop and nothing that runs.
 const skill = { packageId: 'org.example.team-way', title: 'How this team works', version: null, entryPoint: null, description: null,
   origin: null, kind: 'skill', fileCount: 2, totalBytes: 2140 };

@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// WXS-12. The host admitted a view's write only for a package ID matching a stricter pattern
+/// The host admitted a view's write only for a package ID matching a stricter pattern
 /// than the Engine's, so a package the file carries under an ID such as <c>org.view-</c> ran its
 /// views, and every write, state change and proposal they made was refused as
 /// actor-not-allowed. One table holds the Engine's rule, the host's actor check and Studio's

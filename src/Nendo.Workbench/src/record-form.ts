@@ -44,7 +44,7 @@ export function wireRecordForm(
   // the Data view rather than from the app's state, so a plain redraw would leave it.
   redraw: () => void = rerender,
 ): void {
-  // Escape presses the same button, so both ask before unsaved typing goes (UX-12).
+  // Escape presses the same button, so both ask before unsaved typing goes.
   const closeAsking = (): void => {
     if (!recordFormIsDirty()) { close(); return; }
     void confirmDialog({
@@ -80,7 +80,7 @@ export function wireRecordForm(
       // opened from a related row left its "Back to" standing on the surface behind it,
       // offering a way back to the page nobody was on.
       () => leaveRecordContext(), undefined,
-      // The sentence said to open History and offered no way there (UX-04).
+      // The sentence said to open History and offered no way there.
       { label: 'Open History', run: () => openWorkspaceView('history') });
     });
   });
@@ -93,7 +93,7 @@ export function wireRecordForm(
    * Only a declared field's own control, or its Not set toggle, counts. A reference
    * picker's search box sits inside the form too, and has no name: typing in it changes
    * nothing a save would carry, and it used to add an empty name to this set, after which
-   * the page refused to be left until a save that had nothing to save (W-050). And a field
+   * the page refused to be left until a save that had nothing to save. And a field
    * typed into and put back is compared, not remembered: edited means different from
    * stored, on the same terms the save decides what to send, so the page is dirty exactly
    * when saving it would write. A create form has nothing stored to compare with, so
@@ -112,7 +112,7 @@ export function wireRecordForm(
     if (record !== null && sameAsStored(record, field, recordForm)) editedFields.delete(fieldId);
     else editedFields.add(fieldId);
   };
-  // Ticking Not set left the text in the box and threw it away on save (UX-18): the box now
+  // Ticking Not set left the text in the box and threw it away on save: the box now
   // empties while it is ticked, and gets the text back if it is unticked.
   recordForm.addEventListener('change', (event) => {
     const unset = event.target instanceof HTMLInputElement && event.target.dataset.nullField ? event.target : null;
@@ -121,7 +121,7 @@ export function wireRecordForm(
     if (control === null) return;
     if (unset.checked) { control.dataset.unsetText = control.value; control.value = ''; }
     else if (control.dataset.unsetText !== undefined) { control.value = control.dataset.unsetText; delete control.dataset.unsetText; }
-    // Set from code, so the Markdown editor is told directly (UIS-14): an input event would
+    // Set from code, so the Markdown editor is told directly: an input event would
     // untick Not set again.
     if (control instanceof HTMLTextAreaElement && control.closest('[data-markdown-field]') !== null)
       void import('./markdown-editor').then(editor => editor.showSourceInEditor(control));
@@ -129,7 +129,7 @@ export function wireRecordForm(
   recordForm.addEventListener('input', trackEdit);
   recordForm.addEventListener('change', trackEdit);
   // Discard changes is shown while there is something to discard, and puts the stored record
-  // back by drawing the page again: the draft lives only in the controls it replaces (W-243).
+  // back by drawing the page again: the draft lives only in the controls it replaces.
   const discard = recordForm.querySelector<HTMLButtonElement>('#discard-changes');
   if (discard !== null) {
     const showDiscard = (): void => { discard.hidden = editedFields.size === 0; };
@@ -143,7 +143,7 @@ export function wireRecordForm(
     });
   }
   // A Markdown field is written in its editor, loaded only on a page that has one. The editor and
-  // the source under it show one text, so the page never shows two versions of a field (UIS-14).
+  // the source under it show one text, so the page never shows two versions of a field.
   if (recordForm.querySelector('[data-markdown-field]') !== null)
     void import('./markdown-editor').then(editor => { if (recordForm.isConnected) editor.mountMarkdownEditors(recordForm, mediaContext); });
   state.openDraft = { session: { fileSessionId: state.session.fileSessionId, canMutate: state.session.capabilities.mutate }, edited: editedFields };
@@ -156,7 +156,7 @@ export function wireRecordForm(
       try {
         values[field.semanticId] = formValue(field, form, record?.values[field.semanticId]);
       } catch (error) {
-        // Which field, and where it is: a closed tab is opened on it (WDV-10).
+        // Which field, and where it is: a closed tab is opened on it.
         if (page !== null) revealField(page, field.semanticId, record);
         recordForm.querySelector<HTMLElement>(`[name="${CSS.escape(field.semanticId)}"]`)?.focus();
         showError(`${field.displayName}: ${messageFor(error)}`);
@@ -252,7 +252,7 @@ export async function saveRecordChanges(
 /**
  * Another writer saved the record while the person typed (an agent, an automatic action). Every
  * Save sent the old version and was refused the same way, and the only way out threw the typing
- * away (WDV-08). The form is left exactly as it is, the person's typing included, wherever it is
+ * away. The form is left exactly as it is, the person's typing included, wherever it is
  * drawn (the Use inspector, Studio's record sheet, beside a calendar), and the record under it
  * moves to its new version: the next Save carries that version and writes only what the person
  * changed. They are told which of their fields the other writer also changed.
@@ -410,7 +410,7 @@ export function patchReadOnlyPanels(plan: ApplicationPlan, record: RecordPlan): 
  * The next page is read and then patched in, through the same path a tab change takes,
  * because the form around the relation may hold unsaved typing and a redraw would lose
  * it. That is what this used to do: page the relation, redraw the page, and rebuild the
- * parent's form from stored values (W-049).
+ * parent's form from stored values.
  */
 export function wireRelatedPager(plan: ApplicationPlan, record: RecordPlan): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-related-page]'))
@@ -430,7 +430,7 @@ export function revealField(plan: ApplicationPlan, fieldId: string, record: Reco
   if (control === null) return;
   for (let panel = control.closest<HTMLElement>('[data-tab-panel]'); panel !== null;
     panel = panel.parentElement?.closest<HTMLElement>('[data-tab-panel]') ?? null)
-    // With the record, so the tab reads its relations and totals as a click on it does (WDV-22).
+    // With the record, so the tab reads its relations and totals as a click on it does.
     activateTab(plan, record, panel.dataset.tabGroup!, panel.dataset.tabPanel!);
   // A required field inside a folded section is revealed the way one inside a closed
   // tab is: the section opens, and the person sees what is being asked for.

@@ -1,7 +1,7 @@
 async page => {
   // The paper preview of a snapshot, in the real view against the fixture broker: each sheet's
   // lines (left and right edges, exact baseline, size, words) in points, and a picture of each
-  // sheet at its own size. Written into a probe by preview-fixture.mjs (W-293).
+  // sheet at its own size. Written into a probe by preview-fixture.mjs.
   const out = { complete: false };
   await page.setViewportSize({ width: 1400, height: 1200 });
   await page.goto('__BROKER_URL__');

@@ -1,5 +1,5 @@
 /**
- * Studio's outline of a declared hierarchy (ADR-0019 stage 5), as data: the levels read so
+ * Studio's outline of a declared hierarchy (ADR-0019), as data: the levels read so
  * far, which records are open, the rows that makes, and where a keyboard move sends a record.
  * Nothing here reads the host or touches the page, so the node tests drive it directly.
  */

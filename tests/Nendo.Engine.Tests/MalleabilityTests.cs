@@ -80,13 +80,13 @@ public sealed class MalleabilityTests
             new[] { "Proposed", "Accepted", "Superseded" },
             compiled.App().Entity.Fields
                 .Single(field => field.SemanticId == "field.decision.state").Options.ToArray());
-        // The timeline is the S3 proof on this application: a root of the newest
+        // The timeline on this application: a root of the newest
         // kind compiled through the same generic path, its span's end date carried.
         var timeline = compiled.Root("timelineSurface");
         Assert.AreEqual("field.decision.decidedDate", timeline.Properties["dateFieldId"].GetString());
         Assert.AreEqual("field.decision.reviewDate", timeline.Properties["endDateFieldId"].GetString());
         Assert.AreEqual("field.decision.state", timeline.Properties["accentFieldId"].GetString());
-        // The gallery is the S2 proof on this application: cards over the list's window,
+        // The gallery on this application: cards over the list's window,
         // titled and toned through the same generic path.
         var gallery = compiled.Root("gallerySurface");
         Assert.AreEqual("field.decision.title", gallery.Properties["titleFieldId"].GetString());

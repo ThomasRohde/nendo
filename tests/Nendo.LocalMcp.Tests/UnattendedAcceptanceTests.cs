@@ -8,7 +8,7 @@ namespace Nendo.LocalMcp.Tests;
 /// <summary>
 /// The fifth access level: the agent accepts its own validated proposal, and the host
 /// records the open file's automatic-action consent on the person's behalf
-/// (ADR-0009, 2026-09-22 amendment).
+/// (ADR-0009).
 /// <para>
 /// Every test here has a pair. The level below must refuse what this level allows, or
 /// what is being measured is that the code runs rather than that the boundary holds.
@@ -34,7 +34,7 @@ public sealed class UnattendedAcceptanceTests
         // Not listed is not the same as not reachable, so a client that knows the name
         // sends it anyway. It is refused before it reaches Nendo at all: the tool is not
         // registered at this level, and the boundary names the level that serves it, as a
-        // protocol error, where the SDK used to answer only "Unknown tool" (F-173).
+        // protocol error, where the SDK used to answer only "Unknown tool".
         var session = await AcquireAsync(client);
         var validated = await ValidateNotesAsync(client, session);
         var refused = await Assert.ThrowsExactlyAsync<McpProtocolException>(() =>
@@ -363,7 +363,7 @@ public sealed class UnattendedAcceptanceTests
 
     /// <summary>A record type with a label and a stamp, and one record in it.</summary>
     /// <summary>
-    /// W-085 (F-181): an internal failure left no trace but a type name. The consent the host
+    /// An internal failure leaves more than a type name. The consent the host
     /// records can fail as any storage can, and when it does the agent is told a reference and
     /// the device keeps one line under it: the request, the exception types and the frames,
     /// and nothing the request carried, nothing the exception said and no path.
@@ -389,7 +389,7 @@ public sealed class UnattendedAcceptanceTests
         var validated = await ValidateStampTriggerAsync(client, session, workspace);
         var before = host.GetActivities().Count;
 
-        // W-140: the promotion committed before the grant ran, so the accept is applied
+        // The promotion committed before the grant ran, so the accept is applied
         // and says the consent failed, rather than failing a call whose change is in the
         // file. An exact retry replays that outcome; it used to be refused as
         // NENDO_CHANGE_SET_NOT_FOUND because nothing was cached before the grant.
@@ -430,7 +430,7 @@ public sealed class UnattendedAcceptanceTests
     }
 
     /// <summary>
-    /// W-140: a promotion whose response was lost after the commit leaves the proposal in
+    /// A promotion whose response was lost after the commit leaves the proposal in
     /// this adapter's queue and its receipt in the file. The Engine promotes a committed
     /// proposal idempotently from that receipt, so the retry is applied and the queue
     /// entry goes. Held here so the receipt path stays on the accept route.
@@ -466,7 +466,7 @@ public sealed class UnattendedAcceptanceTests
     }
 
     /// <summary>
-    /// W-141: the ADR-0009 (2026-09-29) row "propose the actions first and the records
+    /// ADR-0009's case "propose the actions first and the records
     /// after". The second proposal replays an action the file holds and this device has
     /// not approved. The Engine answers previewable, not an exception, so the grant-and-
     /// retry the data lane does on that refusal has to happen here too. The pair below is
@@ -677,7 +677,7 @@ public sealed class UnattendedAcceptanceTests
             NendoProposalState.Previewable,
             validated.State,
             JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
-        // W-008: the agent reads what accepting means for consent in the preview it is
+        // The agent reads what accepting means for consent in the preview it is
         // handed, not only in the outcome afterwards. This proposal installs an action, so
         // consent given today would not cover it, and nothing is set off by accepting.
         var behaviour = validated.Preview.Behaviour

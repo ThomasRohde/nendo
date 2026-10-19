@@ -2,7 +2,7 @@ import { escapeAttribute, escapeHtml } from './format';
 import { mediaUrl, parseMediaAddress } from './media-model';
 
 /**
- * A text field presented as Markdown, as a page shows it (W-173). AI-written notes and answers
+ * A text field presented as Markdown, as a page shows it. AI-written notes and answers
  * arrive as Markdown, and an outside author wrote a custom view and a parser only to read them.
  *
  * The subset is the one such text uses: headings, paragraphs, bulleted and numbered lists (nested
@@ -11,7 +11,7 @@ import { mediaUrl, parseMediaAddress } from './media-model';
  * escaped before any tag is added, and the only tags in the result are the ones written here, so
  * stored text can never become markup. A link is not followed: its text shows, with the address as
  * its tooltip. An image shows its alt text, unless the caller gives the file's pictures and the
- * image's address is a picture's (ADR-0031, W-271): then the picture is shown from the file's media
+ * image's address is a picture's (ADR-0031): then the picture is shown from the file's media
  * origin, or from the web while this device loads web pictures. No other address becomes a source.
  */
 export function markdownMarkup(source: string, { headingShift = 2, pictures = null }: { headingShift?: number; pictures?: MarkdownPictures | null } = {}): string {
@@ -44,7 +44,7 @@ function pictureMarkup(alt: string, escapedAddress: string): string | null {
 
 /**
  * How deep quotes nest before the rest is shown as it was typed. Each level was a recursive call,
- * so a few thousand '>' overflowed the stack and left the page undrawn (WMX-02).
+ * so a few thousand '>' overflowed the stack and left the page undrawn.
  */
 const maximumQuoteDepth = 8;
 
@@ -66,7 +66,7 @@ function blocksOf(lines: string[], headingShift: number, depth: number): string 
       continue;
     }
     if (line.trim() === '') { flush(); continue; }
-    // A closing run of '#' counts only after a space: '# Learn C#' keeps its '#' (WMX-08).
+    // A closing run of '#' counts only after a space: '# Learn C#' keeps its '#'.
     const heading = /^\s{0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(line);
     if (heading) {
       flush();
@@ -114,7 +114,7 @@ function blocksOf(lines: string[], headingShift: number, depth: number): string 
         + `<tbody>${rows.map(row => `<tr>${head.map((_, column) => cellMarkup('td', row[column] ?? '', column)).join('')}</tr>`).join('')}</tbody></table></div>`);
       continue;
     }
-    // Only the start is trimmed: two spaces at a line's end are a line break (WMX-08).
+    // Only the start is trimmed: two spaces at a line's end are a line break.
     paragraph.push(line.trimStart());
   }
   flush();
@@ -133,7 +133,7 @@ function listItem(line: string): ListLine | null {
 
 /**
  * A list, with a line indented two or more spaces past an item nesting under it, as AI-written
- * text routinely does: a bullet under a numbered step stays inside that step (WMX-06).
+ * text routinely does: a bullet under a numbered step stays inside that step.
  */
 function listMarkup(entries: ListLine[]): string {
   const root: ListNode = { ordered: entries[0].ordered, start: entries[0].start, indent: entries[0].indent, items: [] };
@@ -191,13 +191,13 @@ function inline(text: string): string {
     const holdEscape = (markup: string): string => { escapes.add(aside.length); return hold(markup); };
     // Only an escape may sit in an address: an image held there would be restored inside a tooltip.
     const addressable = (address: string): boolean => [...address.matchAll(heldPattern)].every(([, held]) => escapes.has(Number(held)));
-    // A backslash before punctuation shows the punctuation itself (WMX-08). The private-use
+    // A backslash before punctuation shows the punctuation itself. The private-use
     // characters held text is marked with are themselves held, as entities, never dropped.
     const escaped = part
       .replace(/[\uE000\uE001]/g, (character: string) => holdEscape(`&#x${character.charCodeAt(0).toString(16).toUpperCase()};`))
       .replace(/\\([!-/:-@[-`{-~])/g, (_, character: string) => holdEscape(escapeHtml(character)));
     // Links and images come out before any emphasis is matched, so a delimiter in an address
-    // never pairs with one in the text and a tag never lands in a tooltip (WMX-07).
+    // never pairs with one in the text and a tag never lands in a tooltip.
     const linked = escapeHtml(escaped)
       .replace(/!\[([^\]]*)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;[^&]*&quot;)?\)/g,
         (whole: string, alt: string, address: string) => !addressable(address) ? whole
@@ -218,8 +218,8 @@ function inline(text: string): string {
 /**
  * Strong, emphasis and strikethrough. A run's content never crosses its own delimiter, so an
  * unmatched opener stops at the next one instead of scanning to the end of the line: thousands of
- * unclosed '**' took seconds, quadratically (WMX-09). An opener is never the second half of a
- * pair, so '**a **b' stays as typed rather than becoming emphasis with stray stars (WMX-08).
+ * unclosed '**' took seconds, quadratically. An opener is never the second half of a
+ * pair, so '**a **b' stays as typed rather than becoming emphasis with stray stars.
  */
 function emphasis(text: string): string {
   return text

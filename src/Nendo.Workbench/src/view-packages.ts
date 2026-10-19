@@ -35,7 +35,7 @@ export function customViewsPanel(): string {
   }));
 }
 
-/* --- Developing a package from a folder (ADR-0013 Phase 4, W-063) ------------ */
+/* --- Developing a package from a folder (ADR-0013) ------------ */
 
 /** The card's development controls: start, or say where it runs from and how to save or stop. */
 function developmentActions(pkg: ExtensionPackageView): string {
@@ -105,7 +105,7 @@ export async function saveDevelopment(packageId: string): Promise<void> {
   }
 }
 
-/* --- Where a package is shown, and the Add view form (W-062) ------------------ */
+/* --- Where a package is shown, and the Add view form ------------------ */
 
 /** The form as the person has it so far; one package's at a time. Not the file's, and gone with the page. */
 let draft: AddViewInput | null = null;
@@ -214,7 +214,7 @@ function wireAddView(root: ParentNode): void {
       rerender();
       // Opening the form brings it into view before its first field takes the focus: below a
       // package's list of uses it opened past the bottom of a short window, with focus on a
-      // field nobody could see (UIT-14). Redraws inside the form keep the place instead.
+      // field nobody could see. Redraws inside the form keep the place instead.
       content.querySelector<HTMLElement>('#add-view-form')?.scrollIntoView({ block: 'nearest' });
       focusWithoutInteraction(content.querySelector<HTMLElement>('#add-view-title'));
     });
@@ -280,7 +280,7 @@ function wireAddView(root: ParentNode): void {
       entityId: draft.entityId, pageTitle: draft.kind === 'panel' ? page?.title ?? null : null };
     // The form is the person's until the proposal is ready to review. Cleared before the answer,
     // a refused preview left a form whose every control did nothing, so the person could not
-    // correct it and preview again (W-230 review).
+    // correct it and preview again.
     const submitted = draft;
     const proposalId = adding.proposalId;
     void prepareApplication({ actionLabel: 'Add view', applicationName: adding.title, proposalPayload: payload }, 'surfaces').then((prepared) => {
@@ -298,7 +298,7 @@ async function openView(entityId: string, nodeId: string): Promise<void> {
   await openWorkspaceView('use');
 }
 
-/** Use, on one of the file's own screens (W-106), as the view picker opens it. */
+/** Use, on one of the file's own screens, as the view picker opens it. */
 async function openFileView(nodeId: string): Promise<void> {
   state.fileView = nodeId;
   state.showOverview = false;
@@ -353,7 +353,7 @@ export async function setViewSwitch(scope: 'device' | 'file', enabled: boolean):
   // Turning views off is how a person gets out of a view that misbehaves, so a press while an
   // action runs is made when it ends, however the action ended, and is never replaced by a later
   // press: a view that asked Nendo to open its own screen over and over kept an action running,
-  // and the switch did nothing; held as an ordinary move, a view's failing move dropped it (WXS-04).
+  // and the switch did nothing; held as an ordinary move, a view's failing move dropped it.
   if (keepWhileBusy(() => { void setViewSwitch(scope, enabled); })) return;
   state.actionInFlight = true;
   setBusy(true);

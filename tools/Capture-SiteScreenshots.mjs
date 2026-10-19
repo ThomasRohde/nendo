@@ -7,7 +7,7 @@ import path from 'node:path';
 
 const [port, processId, output, widthArgument, heightArgument, scaleArgument, setArgument] = process.argv.slice(2);
 // Two runs make the site's set: the site's screens of Nendo Station, and the pictures of the
-// pictures reference file (W-274), each of its own file. A name starting "pictures-" is the second's.
+// pictures reference file, each of its own file. A name starting "pictures-" is the second's.
 const set = setArgument ?? 'site';
 if (!['site', 'pictures'].includes(set)) throw new Error(`Unknown capture set ${set}.`);
 if (!/^\d+$/.test(port) || !/^\d+$/.test(processId) || !output) throw new Error('Owned port, PID and output directory are required.');
@@ -148,8 +148,8 @@ async function showSurface(id) {
 }
 
 /**
- * The pictures reference file (W-274): the shelf of covers and a record page, in both themes, and
- * what the real host does with the pictures (W-265, W-266), measured on the page rather than seen
+ * The pictures reference file: the shelf of covers and a record page, in both themes, and
+ * what the real host does with the pictures, measured on the page rather than seen
  * in a shot: every source shows, a picture fits its column, the page cannot read a picture's
  * bytes, and the media origin's answers carry no CORS header and sandbox an SVG.
  */

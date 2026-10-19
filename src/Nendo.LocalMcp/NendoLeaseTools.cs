@@ -96,11 +96,11 @@ internal sealed class NendoLeaseTools(NendoAgentAuthority authority)
 
     /// <summary>
     /// The limits and first reads beside the lease. The call every agent makes first is the one
-    /// place an agent whose client cannot read resources is sure to look (2026-10-08).
+    /// place an agent whose client cannot read resources is sure to look.
     /// </summary>
     private static NendoLeaseGrant Essentials(NendoLeaseGrant grant)
     {
-        // Every handle a grant carries, so a transcript can hide it by value (DAE-05).
+        // Every handle a grant carries, so a transcript can hide it by value.
         NendoMintedHandles.Remember(grant.ApplicationHandle);
         return grant with
         {

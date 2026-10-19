@@ -57,7 +57,7 @@ export function drawRailPlaces(): void {
 }
 
 async function openPlace(value: string): Promise<void> {
-  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  // A press while a save or a read runs is made when it ends, rather than dropped.
   if (deferWhileBusy(() => { void openPlace(value); })) return;
   if (refuseWhileDirty('showing another screen')) return;
   state.view = 'use';

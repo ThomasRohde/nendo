@@ -28,7 +28,7 @@ import { windowIsCurrent } from './record-window';
 import { calculationState, isDerived } from './calculated-fields';
 
 /**
- * The file's front page (ADR-0004, 2026-09-14 amendment, S4).
+ * The file's front page (ADR-0004).
  *
  * It is the one Use surface that is not about a record type, so nothing here
  * reads `plan.entity`: every tile, chart and recent list names the type it reads
@@ -46,7 +46,7 @@ const hasPlan = (entityId: string): boolean =>
 /**
  * The plan a front-page chart of this record type drills into: one with a record list. A type
  * whose only screen is a board drew its bars as buttons that did nothing, and a later redraw
- * jumped to that type with no drill applied (WSP-17).
+ * jumped to that type with no drill applied.
  */
 export function drillPlan(entityId: string): ApplicationPlan | null {
   return applicationPlans().find((plan) => plan.entity.semanticId === entityId && drillTarget(plan) !== null) ?? null;
@@ -54,7 +54,7 @@ export function drillPlan(entityId: string): ApplicationPlan | null {
 
 /**
  * A front-page row: a button that opens the record where its type has a screen, and a plain row
- * where it has none, which looked clickable and did nothing (WSP-17).
+ * where it has none, which looked clickable and did nothing.
  */
 function overviewRow(className: string, entityId: string, recordId: string, label: string, inner: string): string {
   return hasPlan(entityId)
@@ -173,7 +173,7 @@ export function rankedRowsMarkup(
   if (records.length === 0) return `<p class="empty-note">No ${escapeHtml(entity.displayName)} has a number to rank.</p>`;
   // The bar's width is a proportion, which a JavaScript number draws well enough; the numeral
   // decides a tie, which only the exact digits can.
-  // A calculated number ranks by its result as a stored one ranks by its value (W-249).
+  // A calculated number ranks by its result as a stored one ranks by its value.
   const ranked = (record: RecordPlan): unknown => isDerived(entity.derivedFields, rankByFieldId)
     ? (calculationState(record.calculations?.[rankByFieldId]?.state ?? 'pending') === 'value' ? record.calculations?.[rankByFieldId]?.value : null)
     : record.values[rankByFieldId];
@@ -264,7 +264,7 @@ export function overviewMarkup(overview: OverviewPlan): string {
  * The record is read by its own ID first, as a related row's is. A front-page list is
  * ordered and narrowed its own way, so the row clicked need not be in the first page its
  * type's surface loads, and a selection the surface does not hold was dropped: the type
- * opened and the record did not (R-013). A record that has gone is said so, and the front
+ * opened and the record did not. A record that has gone is said so, and the front
  * page stays.
  */
 export async function openOverviewRecord(entityId: string, recordId: string): Promise<void> {
@@ -297,7 +297,7 @@ export async function openOverviewRecord(entityId: string, recordId: string): Pr
 
 /** The front page, and the reads that fill it. */
 export function renderOverview(overview: OverviewPlan): void {
-  // The front page is chosen in the breadcrumb like any other place (W-092), and it has no view
+  // The front page is chosen in the breadcrumb like any other place, and it has no view
   // to pick or record to add, so it needs no row of its own below the top bar.
   const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">Showing</span><select id="use-entity">${showingOptionsMarkup({ overview: true, fileView: null, entityId: null })}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label>`);
   content.innerHTML = `<div class="use-page" data-testid="semantic-application">

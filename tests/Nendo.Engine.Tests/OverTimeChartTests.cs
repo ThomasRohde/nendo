@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The two kinds that group by a civil date, ADR-0004 2026-09-16 amendment, slice S5.
+/// The two kinds that group by a civil date (ADR-0004).
 /// <para>
 /// What is particular about them is that their groups are generated rather than declared,
 /// and everything asserted here follows from that: a bucket with nothing in it still exists,
@@ -193,7 +193,7 @@ public sealed class OverTimeChartTests
     }
 
     /// <summary>
-    /// A related list takes no chart, and did not take one in S1 either. A kind accepted
+    /// A related list takes no chart. A kind accepted
     /// where nothing draws it compiles and then silently disappears, which is the failure
     /// this asserts against rather than a preference about layout.
     /// </summary>
@@ -210,7 +210,7 @@ public sealed class OverTimeChartTests
     /// <para>
     /// This exists because the failure it guards against has already happened twice, and it
     /// looks like success both times. A property with no sentence of its own falls through
-    /// to a generic one — F-038 was a cleared front-page description reviewed as
+    /// to a generic one — a cleared front-page description was reviewed as
     /// "Say what this file is for: a description", a sentence that reads as a value the
     /// author typed. Authoring these kinds against a host built before them produced
     /// "Add a trendChart node", "Set Bucket", "Set Range" and, worst of the four,

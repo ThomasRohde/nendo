@@ -4,7 +4,7 @@ import type { EntitySnapshot, OperationAttribution, RevisionSummary, StoredOpera
 /**
  * The operations inside one History entry, as "View changes" draws them. An operation an
  * automatic action made says which one; Help and the guides said History records that
- * before the entry drew it (2026-10-10).
+ * before the entry drew it.
  */
 export function operationDetailsMarkup(operations: readonly StoredOperationSnapshot[], entities: readonly EntitySnapshot[] = [], offered: boolean | null = false): string {
   return `<ul class="operation-details">${operations.map(operation => `<li>${escapeHtml(operationSentence(operation, entities))} · ${escapeHtml(historyReversibilityLabel(operation, offered))}${operation.attribution ? ` · <span class="operation-attribution">${escapeHtml(attributionLabel(operation.attribution))}</span>` : ''}</li>`).join('')}</ul>`;
@@ -14,9 +14,9 @@ export function operationDetailsMarkup(operations: readonly StoredOperationSnaps
  * What History can do about one operation. A created record and a record an undo brought back
  * declare themselves irreversible, because the record ID stays reserved, yet History undoes both
  * by deleting the record (ADR-0023); "Cannot be undone" beside a working Undo button contradicted
- * it (R2RM-05). Only where History offers the Undo. Elsewhere a class that can be undone says that
+ * it. Only where History offers the Undo. Elsewhere a class that can be undone says that
  * History will not do it: a view added with its settings is one entry History never offers, and
- * "Can be undone" beside "Cannot be undone here" read as a promise it did not keep (UIT-04).
+ * "Can be undone" beside "Cannot be undone here" read as a promise it did not keep.
  * Null says nothing either way: an entry History has already undone, or a host that cannot say.
  */
 export function historyReversibilityLabel(operation: Pick<StoredOperationSnapshot, 'operationType' | 'reversibility'>, offered: boolean | null): string {
@@ -45,7 +45,7 @@ export function historyUndoOffer(
 /**
  * One operation and what it acts on: the field, the record type, and the record by its label.
  * Three deletes of the same type read as three identical lines, with nothing saying which
- * record each one took (UX-07). The names come from the stored payload and the file's
+ * record each one took. The names come from the stored payload and the file's
  * current names; the record's label from the host, which reads it even for a deleted record.
  */
 export function operationSentence(operation: StoredOperationSnapshot, entities: readonly EntitySnapshot[]): string {
@@ -89,8 +89,8 @@ export function undoMayAsk(revision: Pick<RevisionSummary, 'lane' | 'operationCo
 }
 
 /**
- * What History's Undo asks before it acts, or null where it acts at once (WSP-05, accepted
- * 2026-10-13). An undo of one record's edit stays one press. An undo that reaches several records,
+ * What History's Undo asks before it acts, or null where it acts at once.
+ * An undo of one record's edit stays one press. An undo that reaches several records,
  * or a definition or a package, names the change and says what undoing it does first: one press
  * on the row beside a batch import deleted every record it made. The operations are the
  * revision's first page; `more` says the page did not hold them all.

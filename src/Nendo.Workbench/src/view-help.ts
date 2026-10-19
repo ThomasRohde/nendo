@@ -58,7 +58,7 @@ export function renderHelp(): void {
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-help-topic]')) button.addEventListener('click', ()=>{
     const fromIndex = button.closest('.help-index') !== null;
     // Through the window's redraw, which names the topic as the page, so a redraw after the person
-    // has scrolled this article puts them back where they were rather than at its top (WST-01).
+    // has scrolled this article puts them back where they were rather than at its top.
     state.helpTopicId = button.dataset.helpTopic!; rerender();
     const article = content.querySelector<HTMLElement>('.help-article');
     if (article) article.scrollTop = 0;

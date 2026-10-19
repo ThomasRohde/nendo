@@ -66,7 +66,7 @@ internal sealed class AgentProcess : IAsyncDisposable
     /// <see cref="Win32Exception"/> when Windows cannot start it.
     /// </summary>
     /// <param name="environment">
-    /// The environment the program gets, as the person's account has it now (DAE-12); null keeps
+    /// The environment the program gets, as the person's account has it now; null keeps
     /// this process's own.
     /// </param>
     internal static AgentProcess Start(DesktopAgentCommand command, string workingDirectory, IReadOnlyDictionary<string, string>? environment = null)

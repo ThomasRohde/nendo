@@ -68,7 +68,7 @@ public sealed class DesktopRecoveryPresentationTests
     }
 
     /// <summary>
-    /// R2SMA-06: Inspect file again was offered and accepted whenever editing was off, so a healthy
+    /// Inspect file again was offered and accepted whenever editing was off, so a healthy
     /// file that only waited for its automatic actions to be approved was closed, lost its agent
     /// access and came back read-only, where the approval could no longer be given.
     /// </summary>
@@ -93,7 +93,7 @@ public sealed class DesktopRecoveryPresentationTests
     }
 
     /// <summary>
-    /// R2SMA-10: the native panel offered Restore and Upgrade on a file marked read-only in File
+    /// The native panel offered Restore and Upgrade on a file marked read-only in File
     /// Explorer. Such a file is inspected, exported and backed up, never replaced.
     /// </summary>
     [TestMethod]

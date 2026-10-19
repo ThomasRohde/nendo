@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Several record writes as one revision (W-102): creates, updates and deletes across record
+/// Several record writes as one revision: creates, updates and deletes across record
 /// types commit together or not at all, History shows one entry, and a reference to a record
 /// written earlier in the batch is checked against the version that write leaves.
 /// </summary>

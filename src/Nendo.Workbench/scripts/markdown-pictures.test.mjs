@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-271 (ADR-0031): an image in a Markdown field shows its picture when its address is a media
+// ADR-0031: an image in a Markdown field shows its picture when its address is a media
 // address and the caller gives the file's pictures. Every other address stays its alt text.
 const { markdownMarkup } = await bundleOf('src/markdown.ts');
 

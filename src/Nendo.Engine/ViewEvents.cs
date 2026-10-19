@@ -1,6 +1,6 @@
 namespace Nendo.Engine;
 
-/// <summary>What happened to a custom view, as its package's recent events say it (W-251).</summary>
+/// <summary>What happened to a custom view, as its package's recent events say it.</summary>
 public enum NendoViewEventKind
 {
     /// <summary>The view's frame connected to the Workbench.</summary>
@@ -32,7 +32,7 @@ public sealed record NendoViewEvent(
 public sealed record NendoViewEventLog(string PackageId, IReadOnlyList<NendoViewEvent> Events, long Dropped);
 
 /// <summary>
-/// The recent runtime events of the open file's custom views (W-251): loaded, stopped, an
+/// The recent runtime events of the open file's custom views: loaded, stopped, an
 /// uncaught error's text, and each refused call with its code, so the agent that wrote a view
 /// can read what happened when it ran in the embedded host.
 /// <para>

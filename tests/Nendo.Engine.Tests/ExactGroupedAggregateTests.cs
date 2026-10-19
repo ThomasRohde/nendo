@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The exact grouped aggregate, ADR-0004 2026-09-14 amendment, slice S1: one number
+/// The exact grouped aggregate (ADR-0004): one number
 /// per group of a closed grouping in one read, the groups in configured order with
 /// the unset group last, a value outside the options counted apart, and every
 /// number exact or absent. The grouping is not a filter.

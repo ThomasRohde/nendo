@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A board grouped by a reference, ADR-0004 2026-09-17 amendment, slice S7.
+/// A board grouped by a reference (ADR-0004).
 /// <para>
 /// Two halves, and the split is the point of the slice. What a definition can be held to
 /// is refused when it is authored: that the grouping field exists, is not calculated, and

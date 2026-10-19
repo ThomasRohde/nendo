@@ -12,7 +12,7 @@ public sealed class InstalledCodexNegotiationTests
     {
         if (Environment.GetEnvironmentVariable("NENDO_RUN_INSTALLED_CODEX_TEST") != "1")
         {
-            // W-158: a lane that did not run says so, rather than reporting a pass it did not earn.
+            // A lane that did not run says so, rather than reporting a pass it did not earn.
             Assert.Inconclusive("The installed-client lane runs with NENDO_RUN_INSTALLED_CODEX_TEST=1; this run did not exercise it.");
         }
 
@@ -87,7 +87,7 @@ public sealed class InstalledCodexNegotiationTests
             item.Outcome == "completed"),
             $"The host did not observe the manifest read. stdout: {Bounded(standardOutput)}");
         // Codex speaks the initialize handshake, and the host is stateless: clientInfo travels only in that
-        // first request. Since W-150 the host names a later request from its User-Agent, so the entry
+        // first request. The host names a later request from its User-Agent, so the entry
         // carries whatever Codex sends there; the manifest-read assertion above is the evidence it was Codex.
     }
 

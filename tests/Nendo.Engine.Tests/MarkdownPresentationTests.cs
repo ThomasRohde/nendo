@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-173: a Text field may be presented as Markdown, the presentation ADR-0003 names. It is a
+/// A Text field may be presented as Markdown, the presentation ADR-0003 names. It is a
 /// value of the presentation column no older host knows, so the field states the host that
 /// draws it, as a rating does, and the file opens cleanly in this one.
 /// </summary>

@@ -1,4 +1,4 @@
-/* One row above a view (ADR-0013, 2026-09-28; W-092). The breadcrumb's record type and view
+/* One row above a view (ADR-0013). The breadcrumb's record type and view
    are the pickers, drawn by place-pickers.ts, and the Use toolbar keeps what acts on the
    screen: a custom view's controls, then Add.
    Slice 19 of styles.css; see that file for why the order matters. */
@@ -93,7 +93,7 @@
 /* --- The Use toolbar's one row ------------------------------------------------------ */
 
 /* Add keeps the right-hand end whatever else the row holds, at its own width: a full view's row
-   squeezed it to 25 pixels and pushed its button off the window's edge (W-115). */
+   squeezed it to 25 pixels and pushed its button off the window's edge. */
 .use-toolbar > .use-actions { flex: 0 0 auto; margin-left: auto; }
 
 .use-toolbar > .view-toolbar-slot { display: flex; flex: 1 1 auto; min-width: 0; }
@@ -108,7 +108,7 @@
   background: transparent;
 }
 
-/* One line beside Add: what does not fit goes into More, at the end of the row (W-115). */
+/* One line beside Add: what does not fit goes into More, at the end of the row. */
 .view-toolbar.is-inline { flex-wrap: nowrap; }
 .view-toolbar.is-inline > [data-view-overflow] { display: none; }
 .view-toolbar.is-inline > [data-view-more] { flex: 0 0 auto; }

@@ -1,10 +1,9 @@
 async page => {
   // The conversation tab of a launched agent (ADR-0030), driven in the built Workbench against the
-  // browser preview host, which plays the agent from a script. Each check measures one defect of
-  // the ACP review of 2026-10-10 (ACP.md): the level shown, keyboard focus, where More opens, what
-  // New session keeps, and which tab owns the conversation; and of the broad review of 2026-10-13
-  // (W-220): a double press on Launch and on Enter, a message that waits, the conversation's tab
-  // after Back, Open conversation, open disclosures, and a thing that cannot be pointed at. A
+  // browser preview host, which plays the agent from a script. Each check measures one rule: the
+  // level shown, keyboard focus, where More opens, what New session keeps, which tab owns the
+  // conversation, a double press on Launch and on Enter, a message that waits, the conversation's
+  // tab after Back, Open conversation, open disclosures, and a thing that cannot be pointed at. A
   // failure names the last check passed.
   const checks = [];
   try { return await (async () => {
@@ -52,7 +51,7 @@ async page => {
   assert(await text('#chat-level') === 'Shape app', 'The conversation does not show the level it was launched at.');
   checks.push('launch');
 
-  // ACP-12: a level changed on the Agent page shows in the conversation when the person comes back,
+  // A level changed on the Agent page shows in the conversation when the person comes back,
   // down and up, with what that level does with a change.
   for (const [mode, label, hint] of [['inspect', 'Inspect', 'It can read this file, not change it'], ['editData', 'Edit data', 'Records it changes are saved at once']]) {
     await page.click('#chat-access');
@@ -62,16 +61,16 @@ async page => {
     try {
       await until(label => document.querySelector('#chat-level')?.textContent === label, label, `the level ${label}`, 3000);
     } catch {
-      throw Error(`ACP-12: the Agent page is at ${label}; the conversation still shows ${await text('#chat-level')}.`);
+      throw Error(`the Agent page is at ${label}; the conversation still shows ${await text('#chat-level')}.`);
     }
     // What the level does with a change, as the empty conversation says it (the hint under the box
     // names a waiting proposal first, and the preview has one).
     const empty = await text('.chat-empty');
-    assert(empty !== null && empty.includes(`works at ${label}`) && empty.includes(hint), `ACP-12: at ${label} the conversation says "${empty}".`);
+    assert(empty !== null && empty.includes(`works at ${label}`) && empty.includes(hint), `at ${label} the conversation says "${empty}".`);
   }
-  checks.push('ACP-12 the level shown follows the Agent page');
+  checks.push('the level shown follows the Agent page');
 
-  // ACP-05: the keyboard stays on a fold the person opens or closes, and Tab goes into what it showed.
+  // The keyboard stays on a fold the person opens or closes, and Tab goes into what it showed.
   await page.locator('#agent-prompt').fill('Add a record type for requests');
   await page.locator('#agent-prompt').press('Enter');
   await until(() => document.querySelector('[data-toggle-input]') !== null, null, 'the permission request');
@@ -85,24 +84,24 @@ async page => {
   await steps.focus();
   await page.keyboard.press('Enter');
   let at = await focusOn();
-  assert(at.steps === stepsKey && at.expanded === 'true', `ACP-05: opening the steps with Enter left the keyboard on ${at.tag} ${JSON.stringify(at)}.`);
+  assert(at.steps === stepsKey && at.expanded === 'true', `opening the steps with Enter left the keyboard on ${at.tag} ${JSON.stringify(at)}.`);
   await page.keyboard.press('Tab');
   at = await focusOn();
-  assert(at.item === stepsKey, `ACP-05: Tab after opening the steps went to ${JSON.stringify(at)}, not into them.`);
+  assert(at.item === stepsKey, `Tab after opening the steps went to ${JSON.stringify(at)}, not into them.`);
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Enter');
   at = await focusOn();
-  assert(at.steps === stepsKey && at.expanded === 'false', `ACP-05: closing the steps with Enter left the keyboard on ${at.tag} ${JSON.stringify(at)}.`);
+  assert(at.steps === stepsKey && at.expanded === 'false', `closing the steps with Enter left the keyboard on ${at.tag} ${JSON.stringify(at)}.`);
   await page.locator('[data-toggle-input]').focus();
   await page.keyboard.press('Enter');
   at = await focusOn();
-  assert(at.input !== null && at.expanded === 'true', `ACP-05: showing what a permission does left the keyboard on ${at.tag} ${JSON.stringify(at)}.`);
-  assert(await page.locator('.chat-permission pre').count() > 0, 'ACP-05: the permission request shows nothing after Show what it does.');
+  assert(at.input !== null && at.expanded === 'true', `showing what a permission does left the keyboard on ${at.tag} ${JSON.stringify(at)}.`);
+  assert(await page.locator('.chat-permission pre').count() > 0, 'the permission request shows nothing after Show what it does.');
   await page.click('[data-answer-entry][data-option-id="allow"]');
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-agent') !== null, null, 'the reply');
-  checks.push('ACP-05 keyboard focus stays on a fold');
+  checks.push('keyboard focus stays on a fold');
 
-  // ACP-04: More opens inside the content pane and the window at the widths the composer wraps at,
+  // More opens inside the content pane and the window at the widths the composer wraps at,
   // in both themes, with its rightmost control in sight.
   const more = [];
   for (const width of [1024, 900, 800, 760]) {
@@ -124,17 +123,17 @@ async page => {
       });
       more.push({ width, theme, right: Math.round(box.panel.right), paneRight: Math.round(box.pane.right) });
       const inside = box.panel.left >= box.pane.left - 0.5 && box.panel.right <= Math.min(box.pane.right, box.window) + 0.5 && box.panel.top >= box.pane.top - 0.5;
-      assert(inside, `ACP-04: at ${width}px in ${theme}, More opens at ${JSON.stringify(box.panel)}, outside the content pane ${JSON.stringify(box.pane)} or the window (${box.window}).`);
-      assert(box.last.right <= box.panel.right + 0.5 && box.lastInSight, `ACP-04: at ${width}px in ${theme}, More's rightmost control is cut off or covered: ${JSON.stringify(box.last)}.`);
+      assert(inside, `at ${width}px in ${theme}, More opens at ${JSON.stringify(box.panel)}, outside the content pane ${JSON.stringify(box.pane)} or the window (${box.window}).`);
+      assert(box.last.right <= box.panel.right + 0.5 && box.lastInSight, `at ${width}px in ${theme}, More's rightmost control is cut off or covered: ${JSON.stringify(box.last)}.`);
       await page.keyboard.press('Escape');
       await until(() => document.querySelector('details.chat-more')?.open === false, null, 'More to close');
     }
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => document.querySelector('[data-theme-option="light"]')?.click());
-  checks.push('ACP-04 More opens in sight');
+  checks.push('More opens in sight');
 
-  // ACP-02: New session starts the composer again: what the old message pointed at goes, and the
+  // New session starts the composer again: what the old message pointed at goes, and the
   // next message points at nothing.
   await page.locator('#agent-prompt').fill('@');
   await until(() => document.querySelector('#chat-mention:not([hidden]) [data-choice]') !== null, null, 'the @ menu');
@@ -143,32 +142,32 @@ async page => {
   await page.click('#new-agent-session');
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-empty') !== null, null, 'the new session');
   const chips = await page.locator('#chat-attachments .chat-attachment').count();
-  assert(chips === 0, `ACP-02: the new session still shows ${chips} thing(s) the old message pointed at.`);
+  assert(chips === 0, `the new session still shows ${chips} thing(s) the old message pointed at.`);
   await page.locator('#agent-prompt').fill('hello');
   await page.locator('#agent-prompt').press('Enter');
   await until(() => document.querySelector('.chat-you') !== null, null, 'the message');
   const pointed = await text('.chat-you .chat-you-context');
-  assert(pointed === null, `ACP-02: the new session's first message went with what the old one pointed at: "${pointed}".`);
+  assert(pointed === null, `the new session's first message went with what the old one pointed at: "${pointed}".`);
   await until(() => document.querySelector('[data-toggle-input]') !== null, null, 'the permission request');
   await page.click('[data-answer-entry][data-option-id="reject"]');
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-agent') !== null, null, 'the reply');
-  checks.push('ACP-02 New session starts the composer again');
+  checks.push('New session starts the composer again');
 
-  // ACP-06: a new tab beside the conversation is not a second conversation tab, and closing it
+  // A new tab beside the conversation is not a second conversation tab, and closing it
   // leaves the agent running; the conversation's own tab, gone on to Data, still ends the agent.
   await goToTab(agent);
   await page.click('#tab-new');
   await page.waitForTimeout(300);
   let now = await tabs();
   const conversationTabs = now.filter(tab => tab.label === agent).length;
-  assert(conversationTabs === 1, `ACP-06: + made ${conversationTabs} tabs of one conversation: ${JSON.stringify(now)}.`);
+  assert(conversationTabs === 1, `+ made ${conversationTabs} tabs of one conversation: ${JSON.stringify(now)}.`);
   const added = now.find(tab => tab.active);
-  assert(added.label !== agent, 'ACP-06: the new tab is not the one on screen.');
+  assert(added.label !== agent, 'the new tab is not the one on screen.');
   await page.click(`#tab-strip [data-close-tab="${added.index}"]`);
   await page.waitForTimeout(500);
   await goToTab(agent);
-  assert(await text('#chat-state-label') !== 'Ended', 'ACP-06: closing a new tab beside the conversation ended the agent.');
-  assert(!(await said()).some(line => line.includes('ended with its tab')), 'ACP-06: closing a new tab beside the conversation ended the agent.');
+  assert(await text('#chat-state-label') !== 'Ended', 'closing a new tab beside the conversation ended the agent.');
+  assert(!(await said()).some(line => line.includes('ended with its tab')), 'closing a new tab beside the conversation ended the agent.');
   await page.click('#nav-data');
   await until(() => document.querySelector('[data-agent-chat]') === null, null, 'Data');
   now = await tabs();
@@ -176,9 +175,9 @@ async page => {
   try {
     await until(() => window.__said.some(line => line.includes('ended with its tab')), null, 'the agent to end', 3000);
   } catch {
-    throw Error('ACP-06: the conversation\'s own tab went on to Data and was closed, and the agent ran on with no tab.');
+    throw Error('the conversation\'s own tab went on to Data and was closed, and the agent ran on with no tab.');
   }
-  checks.push('ACP-06 the conversation\'s tab owns it');
+  checks.push('the conversation\'s tab owns it');
 
   const saidCount = async (words) => (await said()).filter(line => line.includes(words)).length;
   const launchFromAgentPage = async (twice) => {
@@ -191,14 +190,14 @@ async page => {
     await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready', null, 'the launched agent to be ready');
   };
 
-  // WAU-10: a double press on Launch launches once, and says nothing of an agent already running.
+  // A double press on Launch launches once, and says nothing of an agent already running.
   await launchFromAgentPage(true);
   await page.waitForTimeout(300);
-  assert(await saidCount('already running') === 0, `WAU-10: a double press on Launch launched twice: ${JSON.stringify((await said()).slice(-3))}.`);
-  assert((await tabs()).filter(tab => tab.label === agent).length === 1, `WAU-10: a double press on Launch made two conversation tabs: ${JSON.stringify(await tabs())}.`);
-  checks.push('WAU-10 a double press on Launch launches once');
+  assert(await saidCount('already running') === 0, `a double press on Launch launched twice: ${JSON.stringify((await said()).slice(-3))}.`);
+  assert((await tabs()).filter(tab => tab.label === agent).length === 1, `a double press on Launch made two conversation tabs: ${JSON.stringify(await tabs())}.`);
+  checks.push('a double press on Launch launches once');
 
-  // WAU-01: the conversation's tab, gone Back to the Agent page and then on to Data, no longer
+  // The conversation's tab, gone Back to the Agent page and then on to Data, no longer
   // holds the conversation in its trail; it still owns it, and closing it ends the agent.
   const endedBefore = await saidCount('ended with its tab');
   await page.evaluate(() => document.activeElement?.blur());
@@ -211,11 +210,11 @@ async page => {
   try {
     await until(before => window.__said.filter(line => line.includes('ended with its tab')).length > before, endedBefore, 'the agent to end', 3000);
   } catch {
-    throw Error('WAU-01: the conversation\'s own tab went Back to the Agent page and on to Data and was closed, and the agent ran on with no tab.');
+    throw Error('the conversation\'s own tab went Back to the Agent page and on to Data and was closed, and the agent ran on with no tab.');
   }
-  checks.push('WAU-01 the conversation\'s tab owns it after Back');
+  checks.push('the conversation\'s tab owns it after Back');
 
-  // WAU-15: Open conversation goes to the conversation's own tab, wherever it has gone, rather
+  // Open conversation goes to the conversation's own tab, wherever it has gone, rather
   // than opening a second tab on the conversation.
   await launchFromAgentPage(false);
   const before = await tabs();
@@ -228,33 +227,33 @@ async page => {
   await until(() => document.querySelector('[data-agent-chat]') !== null, null, 'the conversation');
   const after = await tabs();
   assert(after.length === before.length && after.find(tab => tab.active)?.index === owner,
-    `WAU-15: Open conversation from the conversation's own tab opened another: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}.`);
-  checks.push('WAU-15 Open conversation reuses its tab');
+    `Open conversation from the conversation's own tab opened another: before ${JSON.stringify(before)}, after ${JSON.stringify(after)}.`);
+  checks.push('Open conversation reuses its tab');
 
-  // WAU-10: two Enters before the first message's answer send it once, and say no refusal.
+  // Two Enters before the first message's answer send it once, and say no refusal.
   await page.locator('#agent-prompt').fill('Add a record type for requests');
   await page.evaluate(() => {
     const box = document.querySelector('#agent-prompt');
     for (let press = 0; press < 2; press += 1) box.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
   });
   await until(() => document.querySelector('[data-toggle-input]') !== null, null, 'the permission request');
-  assert(await page.locator('.chat-you').count() === 1, `WAU-10: two Enters sent ${await page.locator('.chat-you').count()} messages.`);
-  assert(await saidCount('not ready for a message') === 0, `WAU-10: the second Enter was refused aloud as an error: ${JSON.stringify((await said()).slice(-3))}.`);
+  assert(await page.locator('.chat-you').count() === 1, `two Enters sent ${await page.locator('.chat-you').count()} messages.`);
+  assert(await saidCount('not ready for a message') === 0, `the second Enter was refused aloud as an error: ${JSON.stringify((await said()).slice(-3))}.`);
   // Enter while the agent works keeps the message and says so on screen, not only aloud.
   await page.locator('#agent-prompt').fill('And a due date');
   await page.locator('#agent-prompt').press('Enter');
   try {
     await until(() => { const note = document.querySelector('#chat-composer-note'); return note !== null && !note.hidden && note.textContent.includes('is working'); }, null, 'the note', 2000);
   } catch {
-    throw Error('WAU-10: Enter while the agent works showed nothing on screen.');
+    throw Error('Enter while the agent works showed nothing on screen.');
   }
-  assert(await page.locator('#agent-prompt').inputValue() === 'And a due date', 'WAU-10: the message typed while the agent worked was lost.');
+  assert(await page.locator('#agent-prompt').inputValue() === 'And a due date', 'the message typed while the agent worked was lost.');
   await page.locator('#agent-prompt').fill('');
   await page.click('[data-answer-entry][data-option-id="allow"]');
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-agent') !== null, null, 'the reply');
-  checks.push('WAU-10 Enter sends once, and a message that waits says so');
+  checks.push('Enter sends once, and a message that waits says so');
 
-  // WAU-09: two steps at once; the person opens the second's "What it sent", then the first
+  // Two steps at once; the person opens the second's "What it sent", then the first
   // gains "What came back". The one the person opened stays open, and the new one stays closed.
   await page.locator('#agent-prompt').fill('parallel');
   await page.locator('#agent-prompt').press('Enter');
@@ -269,11 +268,11 @@ async page => {
   await until(run => document.querySelectorAll(`[data-item="${run}"] details[data-part$=":back"]`).length === 2, run, 'the first step\'s output');
   const disclosures = await page.evaluate(run => [...document.querySelectorAll(`[data-item="${run}"] details`)].map(details => ({ part: details.dataset.part ?? null, open: details.open })), run);
   const opened = disclosures.filter(item => item.open).map(item => item.part);
-  assert(opened.length === 1 && opened[0] === sent, `WAU-09: the person opened ${sent}; after an earlier step gained output, open are ${JSON.stringify(disclosures)}.`);
+  assert(opened.length === 1 && opened[0] === sent, `the person opened ${sent}; after an earlier step gained output, open are ${JSON.stringify(disclosures)}.`);
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready', null, 'the reply');
-  checks.push('WAU-09 an open disclosure stays with its step');
+  checks.push('an open disclosure stays with its step');
 
-  // WAU-03: past eight things, the next is refused on screen, and its @name is not written into
+  // Past eight things, the next is refused on screen, and its @name is not written into
   // the message with nothing behind it.
   const box = page.locator('#agent-prompt');
   await box.fill('');
@@ -309,18 +308,18 @@ async page => {
     await page.click(`#chat-mention [data-choice="${fresh.index}"]`);
     await page.waitForTimeout(250);
   }
-  assert(refusedAt !== null, `WAU-03: the preview offers too few things to point at to reach eight; chips ${JSON.stringify(await chipLabels())}.`);
+  assert(refusedAt !== null, `the preview offers too few things to point at to reach eight; chips ${JSON.stringify(await chipLabels())}.`);
   const typed = await box.inputValue();
   await page.click(`#chat-mention [data-choice="${refusedAt.index}"]`);
   try {
     await until(() => { const note = document.querySelector('#chat-composer-note'); return note !== null && !note.hidden && note.textContent.includes('8 things at most'); }, null, 'the refusal on screen', 2000);
   } catch {
-    throw Error(`WAU-03: a ninth thing was refused only aloud: ${JSON.stringify((await said()).slice(-2))}.`);
+    throw Error(`a ninth thing was refused only aloud: ${JSON.stringify((await said()).slice(-2))}.`);
   }
   const written = await box.inputValue();
-  assert(written === typed, `WAU-03: the refused thing's @name was written into the message: "${written.slice(typed.length)}".`);
-  assert((await chipLabels()).length === 8, 'WAU-03: the refused thing was pointed at after all.');
-  checks.push('WAU-03 a thing that cannot be pointed at is refused on screen');
+  assert(written === typed, `the refused thing's @name was written into the message: "${written.slice(typed.length)}".`);
+  assert((await chipLabels()).length === 8, 'the refused thing was pointed at after all.');
+  checks.push('a thing that cannot be pointed at is refused on screen');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };

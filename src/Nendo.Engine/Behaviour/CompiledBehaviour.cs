@@ -7,8 +7,8 @@ internal sealed record CompiledCalculation(
 
 /// <summary>
 /// An action assignment's validated formula, kept so the install check can compare what it
-/// produces with the field it writes (EBH-04) and so a save evaluates it without validating it
-/// again (EBH-22). <paramref name="Whole"/> is true when the formula is a rounding to 0 digits,
+/// produces with the field it writes and so a save evaluates it without validating it
+/// again. <paramref name="Whole"/> is true when the formula is a rounding to 0 digits,
 /// the one decimal result that always fits a whole-number field.
 /// </summary>
 internal sealed record CompiledAssignment(NendoBehaviourScalar ResultType, bool Whole)
@@ -56,7 +56,7 @@ internal sealed class CompiledBehaviour
 
     /// <summary>
     /// Each function whose formula produces another kind than it declares, with the kind it
-    /// produces: a file a host wrote before installation checked it (R2AAV-01). It compiles, typed
+    /// produces: a file a host wrote before installation checked it. It compiles, typed
     /// by its formula as before; installation refuses it, and any definition that calls it.
     /// </summary>
     internal IReadOnlyDictionary<string, NendoBehaviourScalar> MismatchedFunctions { get; private init; } =
@@ -79,7 +79,7 @@ internal sealed class CompiledBehaviour
     /// Each trigger condition, validated, keyed by the trigger's ID. A save evaluates these and
     /// assignments as compiled rather than validating them again on its own budget: a revalidation
     /// was charged only when the expression cache had lost the formula, so whether a save near
-    /// the work ceiling was refused depended on how warm the cache happened to be (EBH-22).
+    /// the work ceiling was refused depended on how warm the cache happened to be.
     /// </summary>
     internal IReadOnlyDictionary<string, ValidatedExpression> Conditions { get; }
 
@@ -109,7 +109,7 @@ internal sealed class CompiledBehaviour
         // CatalogueSize counts functions only, so it never bounded the whole compile.
         BehaviourBudget FormulaBudget() => new(budget.Limits, budget.CancellationToken, BehaviourBudgetUse.Check);
 
-        // Each reusable function in two typings (R2AAV-01). As its formula produces it, with its
+        // Each reusable function in two typings. As its formula produces it, with its
         // own calls read the same way, is how every caller read a function before declarations
         // were checked, and how a caller that is not itself declared decimal still reads one: an
         // integer calculation, an action's assignment, a trigger's condition. As declared is a
@@ -236,7 +236,7 @@ internal sealed class CompiledBehaviour
     /// <summary>
     /// A formula read with the decimal typing of the functions it calls, or null when it does not
     /// validate that way or produces something other than a number, so the caller falls back to
-    /// the typing every file was compiled with before (R2AAV-01).
+    /// the typing every file was compiled with before.
     /// </summary>
     private static ValidatedExpression? ReadAsDecimal(Func<ValidatedExpression> validate)
     {

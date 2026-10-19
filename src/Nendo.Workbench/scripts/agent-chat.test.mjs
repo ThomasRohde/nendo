@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// ADR-0030: the conversation with a launched agent, drawn as the owner's direction A (2026-10-08).
+// ADR-0030: the conversation with a launched agent.
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
@@ -134,7 +134,7 @@ test('the composer sends only to a ready agent and stops only a working one', ()
 });
 
 test('the tab says whether the agent works, thinks or waits for you, and nothing when it waits for a message', () => {
-  // W-200, the owner: "indicate in the tab whether an agent is working, thinking, or wanting input".
+  // The owner: "indicate in the tab whether an agent is working, thinking, or wanting input".
   const at = (fields, entries = []) => {
     const chat = emptyChat();
     mergeChat(chat, view({ revision: 5, entries, ...fields }), 'k');
@@ -167,10 +167,10 @@ test('under the box: what waits for review when something does, and otherwise wh
   assert.equal(reviewHint('Off', 0).text, '');
 });
 
-// ACP-07 (review of 2026-10-10): a read still out when New session started came back afterwards
-// and was merged into the new conversation: its old prompt, tools and answers on screen, and its
-// revision taken, so the new conversation's entries were never read.
-test('ACP-07: a late read from a replaced conversation changes nothing', () => {
+// A read still out when New session starts can come back afterwards. Merged into the new
+// conversation, it would show the old prompt, tools and answers and take its revision, so the new
+// conversation's entries would never be read.
+test('a late read from a replaced conversation changes nothing', () => {
   const chat = emptyChat();
   mergeChat(chat, view({ conversationId: 'old', revision: 10, entries: [entry({ id: 'e1', kind: 'you', text: 'Old prompt', revision: 10 })] }), 'f|1');
   mergeChat(chat, view({ conversationId: 'new', revision: 1, state: 'starting', entries: [] }), 'f|2');
@@ -183,9 +183,9 @@ test('ACP-07: a late read from a replaced conversation changes nothing', () => {
   assert.equal(chat.entries.get('e1').text, 'New prompt');
 });
 
-// ACP-03 (review of 2026-10-10): the host keeps 1,000 entries; a tab open from the start kept
-// every one it had ever read, and scanned them all on every update.
-test('ACP-03: entries the host no longer keeps leave the tab too', () => {
+// The host keeps 1,000 entries, and the tab keeps no more: one open from the start would otherwise
+// hold every entry it had ever read and scan them all on every update.
+test('entries the host no longer keeps leave the tab too', () => {
   const chat = emptyChat();
   const entries = Array.from({ length: 1010 }, (_, index) => entry({ id: `e${index + 1}`, order: index + 1, revision: 1, kind: index === 0 ? 'permission' : 'tool', options: index === 0 ? [{ optionId: 'a', name: 'Allow', kind: 'allow_once' }] : null }));
   mergeChat(chat, view({ revision: 1, entries, firstOrder: 1 }), 'k');
@@ -197,9 +197,9 @@ test('ACP-03: entries the host no longer keeps leave the tab too', () => {
   assert.equal(waitingForYou(chat), false, 'A question the host no longer keeps still waits for the person.');
 });
 
-// ACP-11 (review of 2026-10-10): a permission request that supplied its operation only as a diff
-// offered Allow and Reject with nothing to inspect; the card drew a disclosure only for input.
-test('ACP-11: a permission card shows the change the agent supplied, as text', () => {
+// A permission request may supply its operation only as a diff. The card shows that too, so
+// Allow and Reject never come with nothing to inspect.
+test('a permission card shows the change the agent supplied, as text', () => {
   const asking = entry({ id: 'e4', kind: 'permission', title: 'Edit configuration', input: null,
     text: `Changes C:/work/config.json
 Before:
@@ -215,10 +215,10 @@ retries = 5`, options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }
   assert.doesNotMatch(open, /<img src=x/, 'What the agent sent was drawn as markup.');
 });
 
-// WAU-12 (broad review, 2026-10-13): a request that Stop, End, the program or the file closing
-// cancelled read "you chose Cancelled", which the person never did; and the card gave no cue of
-// the tool's kind before Allow once, though the steps list names it.
-test('WAU-12: a cancelled request is not the person\'s choice, and the card names the tool\'s kind', () => {
+// A request that Stop, End, the program or the file closing cancelled is not the person's
+// choice, so it never reads "you chose Cancelled"; and the card names the tool's kind before
+// Allow once, as the steps list does.
+test('a cancelled request is not the person\'s choice, and the card names the tool\'s kind', () => {
   const options = [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }];
   const cancelled = itemMarkup({ key: 'e5', type: 'permission', entry: entry({ id: 'e5', kind: 'permission', title: 'Update records', answer: 'Cancelled', options }) }, 'Copilot', new Set());
   assert.doesNotMatch(cancelled, /you chose/, 'A request nobody answered reads as the person\'s choice.');
@@ -229,9 +229,9 @@ test('WAU-12: a cancelled request is not the person\'s choice, and the card name
   assert.match(asking, /chat-permission-head[\s\S]*>Delete</, 'The card does not say the tool deletes.');
 });
 
-// WAU-05: every read built every item's markup again, an agent's Markdown with it, so one long
-// line made each later read cost close to a second. Only an item that changed is built again.
-test('WAU-05: one streamed chunk into a long conversation builds one item again', () => {
+// Only an item that changed is built again: building every item's markup, an agent's Markdown
+// with it, on every read made each read of a long conversation cost close to a second.
+test('one streamed chunk into a long conversation builds one item again', () => {
   const chat = emptyChat();
   const entries = [];
   for (let order = 1; order <= 1000; order += 1)
@@ -250,9 +250,9 @@ test('WAU-05: one streamed chunk into a long conversation builds one item again'
   assert.equal(cache.built, 1001, 'A read with nothing new built an item again.');
 });
 
-// WAU-09: open disclosures were kept by their place in the item, so they moved to another step
-// when a step earlier in the run gained one. Each names the entry and the part it shows.
-test('WAU-09: every disclosure in a run of steps is named by its entry and its part', () => {
+// An open disclosure is named by its entry and the part it shows, not by its place in the item:
+// a place moves to another step when a step earlier in the run gains one.
+test('every disclosure in a run of steps is named by its entry and its part', () => {
   const run = [
     entry({ id: 'e2', order: 2, kind: 'tool', title: 'Count', status: 'completed', text: '42', input: '{}' }),
     entry({ id: 'e3', order: 3, kind: 'thought', text: 'Hmm' }),
@@ -264,8 +264,8 @@ test('WAU-09: every disclosure in a run of steps is named by its entry and its p
   assert.equal((html.match(/<details/g) ?? []).length, parts.length, 'A disclosure is drawn without its identity.');
 });
 
-// DAE-10: the sign-in buttons stayed live while a sign-in ran, and a second press started another.
-test('DAE-10: the ways to sign in are held while a sign-in runs', () => {
+// The sign-in buttons are held while a sign-in runs, so a second press cannot start another.
+test('the ways to sign in are held while a sign-in runs', () => {
   const chat = emptyChat();
   mergeChat(chat, view({ state: 'signIn', signInMethods: [{ id: 'browser', name: 'Sign in with a browser', description: null }], notice: 'Waiting…', signingIn: true }), 'k');
   assert.equal(chat.signingIn, true);
@@ -275,9 +275,9 @@ test('DAE-10: the ways to sign in are held while a sign-in runs', () => {
   assert.equal(signInMarkup(emptyChat()), '');
 });
 
-// Review of the W-220 fix: entry IDs and revisions start again with every launch, so a cache keyed
+// Entry IDs and revisions start again with every launch, so a cache keyed
 // by them alone could draw the old launch's e1 for the new launch's e1.
-test('WAU-05: a new launch never draws the old launch\'s markup for an entry of the same ID and revision', () => {
+test('a new launch never draws the old launch\'s markup for an entry of the same ID and revision', () => {
   const cache = createMarkupCache();
   const item = (text) => ({ key: 'e1', type: 'you', entry: entry({ id: 'e1', revision: 1, kind: 'you', text }) });
   assert.match(cache.markup(item('old conversation'), 'Copilot', new Set(), false, 'file|1'), /old conversation/);

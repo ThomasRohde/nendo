@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-172: the clauses a person's Filter pick adds, sent through the real host as the Workbench
+/// The clauses a person's Filter pick adds, sent through the real host as the Workbench
 /// sends them (quick-filter-model.ts, plan-selection.ts): eq on a reference or a choice, isNull
 /// for Not set, composed after the screen's own clause, for a list or board window and for a
 /// matrix's cells. The preview host has no typed filtering, so this is where the narrowing itself

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 
-// The two kinds that group by a civil date, ADR-0004 2026-09-16 amendment (S5). What is
+// The two kinds that group by a civil date (ADR-0004). What is
 // asserted here is the composition and the drawing: that a bucket with nothing in it keeps
 // its place, that a drill spends two clauses because a period has two ends, and that a
 // closed range word becomes words a person reads rather than the word itself.
@@ -168,7 +168,7 @@ test('a grid pads its first column to Monday, so a row is a weekday',()=>{
   .match(/class="chart-day is-blank"/g)??[]).length,6,'2026-01-04 is a Sunday, the last row of its week');
 });
 
-test('W-217 R2LAT-07: the preview resolves a range against the local civil date, with the Engine\'s leap-day arithmetic',()=>{
+test('the preview resolves a range against the local civil date, with the Engine\'s leap-day arithmetic',()=>{
  const previous=process.env.TZ;
  const node=(range,bucket='month')=>({...trend,properties:{...trend.properties,range,bucket}});
  const bounds=(range,today,bucket)=>{ const sample=sampleBucketed(node(range,bucket),[],today); return `${sample.start}..${sample.end}`; };
@@ -196,7 +196,7 @@ test('W-217 R2LAT-07: the preview resolves a range against the local civil date,
  }
 });
 
-test('W-217 ESQ-08: an edge bucket is clipped to the range, labelled with the days it holds, and drills into those days',async()=>{
+test('an edge bucket is clipped to the range, labelled with the days it holds, and drills into those days',async()=>{
  // last30Days by month on 2026-10-10 resolves to 2026-09-11..2026-10-10: September counts from the 11th.
  const month=sampleBucketed({...trend,properties:{...trend.properties,range:'last30Days',bucket:'month'}},[],new Date(2026,9,10,12));
  assert.equal(`${month.start}..${month.end}`,'2026-09-11..2026-10-10');

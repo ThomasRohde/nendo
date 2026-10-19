@@ -110,7 +110,7 @@ async function click(selector) {
  * Driven rather than set through the bridge on purpose. The first version of this level
  * asked with the browser's own confirmation, which the host disables and does not handle,
  * so the rung did nothing at all when it was clicked -- no dialog, no level change, no
- * error (F-120). Nothing in this lane noticed, because it set the mode through the bridge
+ * error. Nothing in this lane noticed, because it set the mode through the bridge
  * and never touched the control the person has to use.
  */
 async function chooseUnattended() {

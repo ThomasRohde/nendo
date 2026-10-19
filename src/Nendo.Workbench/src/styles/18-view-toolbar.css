@@ -1,4 +1,4 @@
-/* A custom view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090): the strip
+/* A custom view's controls in Nendo's own chrome (ADR-0013): the strip
    above a view's frame, the same controls in a panel's header on a record page, and Nendo's
    menu for a view. The controls are the Workbench's own -- the view switcher's segments, the
    labelled select, bordered buttons, the File menu's panel -- restated here only where a

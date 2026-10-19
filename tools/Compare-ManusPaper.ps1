@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Sets a manuscript's paper four ways and measures them against each other (W-293): the LaTeX
+Sets a manuscript's paper four ways and measures them against each other: the LaTeX
 reference (AASTeX 6.3.1 twocolumn, tools/manus/latex.mjs, compiled with Tectonic), the Word
 export as Word sets it and the Word export set as TeX sets it (both converted to PDF by Word),
 and the view's Paper preview (in Edge, against the fixture broker). Writes

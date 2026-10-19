@@ -39,7 +39,7 @@ internal sealed record SemanticFixtureCommand(
     string FieldId,
     JsonElement Value);
 
-/// <summary>A gallery root: the S2 proof on a fixture, optional so older fixtures need none.</summary>
+/// <summary>A gallery root on a fixture, optional so older fixtures need none.</summary>
 internal sealed record SemanticFixtureGallery(
     string SurfaceId,
     string RootNodeId,
@@ -48,7 +48,7 @@ internal sealed record SemanticFixtureGallery(
     string? AccentFieldId,
     IReadOnlyList<string> FieldIds);
 
-/// <summary>A timeline root: the S3 proof on a fixture, optional so older fixtures need none.</summary>
+/// <summary>A timeline root on a fixture, optional so older fixtures need none.</summary>
 internal sealed record SemanticFixtureTimeline(
     string SurfaceId,
     string RootNodeId,
@@ -60,7 +60,7 @@ internal sealed record SemanticFixtureTimeline(
     IReadOnlyList<string> FieldIds);
 
 /// <summary>
-/// A front page: the S4 proof on a fixture, optional so older fixtures need none.
+/// A front page on a fixture, optional so older fixtures need none.
 /// It is the one root with no record type of its own, so each tile below it names
 /// the one it reads — on this fixture that is the single entity, and the two-type
 /// reading is proved on the register instead.

@@ -73,7 +73,7 @@ internal sealed class ProposalContext(
     /// <summary>
     /// The package file a review last read from the clone, under the digest it was read for. A
     /// review reads one file window by window, and each window opened and checked the whole clone
-    /// again (EXT-12); one file is kept, so a proposal never holds a whole package in memory.
+    /// again; one file is kept, so a proposal never holds a whole package in memory.
     /// </summary>
     internal (string Digest, string PackageId, string Path, NendoExtensionFileContent File)? LastPackageFileRead { get; set; }
 
@@ -231,7 +231,7 @@ internal static class ProposalWorkspace
     /// Promotion replays the plan as it was written when the proposal was reviewed, parsed
     /// and checked again, never an in-memory copy that could drift from what the reviewer
     /// saw. A proposal lives only as long as its file session: every workspace is removed
-    /// when the file opens and when it closes (ADR-0007; ECO-13).
+    /// when the file opens and when it closes (ADR-0007).
     /// </para>
     /// </summary>
     internal static async Task<PreparedBehaviourPlan> ReadPlanAsync(

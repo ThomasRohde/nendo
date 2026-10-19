@@ -18,7 +18,7 @@ public sealed record NendoCompilerDiagnostic(
     string Hint)
 {
     /// <summary>
-    /// The operation a clone validation refused, when the refusal came from one (W-010).
+    /// The operation a clone validation refused, when the refusal came from one.
     /// A change set that does not validate reports each independent refusal, and this is
     /// what tells an author which operation each one is about.
     /// </summary>
@@ -42,7 +42,7 @@ public sealed record NendoCompileResult(
     public NendoOverviewPlan? Overview { get; init; }
 
     /// <summary>
-    /// The file's own custom views (ADR-0013 Phase 5, W-106), in authored order: screens beside
+    /// The file's own custom views (ADR-0013), in authored order: screens beside
     /// the front page, each childless, at most one of them saying the file opens on it.
     /// </summary>
     public IReadOnlyList<NendoSurfaceNodePlan> Views { get; init; } = [];
@@ -132,8 +132,8 @@ public sealed record NendoFieldPlan(
     /// Where a Reference field points, and which of the target's fields labels it. Null
     /// for every other kind, and for a reference nobody has bound yet.
     /// <para>
-    /// A renderer needs this to draw a board grouped by the field (ADR-0004, 2026-09-17
-    /// amendment, S7): the columns are records of the target type, and their headings are
+    /// A renderer needs this to draw a board grouped by the field (ADR-0004):
+    /// the columns are records of the target type, and their headings are
     /// that label. It is on the plan rather than fetched separately because a surface that
     /// had to ask a second question to know what its own columns are would draw once
     /// without them.

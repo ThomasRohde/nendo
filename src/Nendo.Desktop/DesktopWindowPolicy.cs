@@ -12,7 +12,7 @@ namespace Nendo.Desktop;
 /// PreferredMinMaxWidthHeight work with screen coordinates", microsoft/microsoft-ui-xaml#10452),
 /// so each is multiplied by the display's scale first: handed
 /// over as they were, the first window on a screen at 200% opened at half the size and could be
-/// shrunk below the layout's own minimum (DSH-14).
+/// shrunk below the layout's own minimum.
 /// </para>
 /// </summary>
 internal static class DesktopWindowPolicy

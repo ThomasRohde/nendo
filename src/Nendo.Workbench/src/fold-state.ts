@@ -5,8 +5,7 @@ import type { SurfaceNodePlan } from './host';
 type Fold = 'open' | 'closed';
 
 /**
- * Whether a section is open on the page in front of the person (ADR-0004, 2026-09-20
- * amendment, and its 2026-09-24 addition).
+ * Whether a section is open on the page in front of the person (ADR-0004).
  *
  * Two things answer it, one stored in the file and one not. An author says how a
  * section starts with `opens`, and that is in the file. What the person has done since

@@ -7,9 +7,8 @@ namespace Nendo.LocalMcp.Tests;
 [DoNotParallelize]
 public sealed class LeaseProtocolTests
 {
-    // P6-H closes the outstanding lifecycle assertion: an application handle
-    // minted before a close must not authorize anything against a later host run.
-    // Closure was previously shown only by the old endpoint refusing connections.
+    // An application handle minted before a close must not authorize anything
+    // against a later host run, beyond the old endpoint refusing connections.
     [TestMethod]
     public async Task AnApplicationHandleFromAPreviousHostRunIsRefused()
     {
@@ -242,7 +241,7 @@ public sealed class LeaseProtocolTests
         var contention = await second.CallToolAsync("nendo.lease.acquire");
         Assert.IsTrue(contention.IsError);
         StringAssert.Contains(JsonSerializer.Serialize(contention), "NENDO_LEASE_HELD");
-        // F-175: the refusal says how to find out whether the holder is you, and what else to do.
+        // The refusal says how to find out whether the holder is you, and what else to do.
         var held = string.Join(' ', contention.Content.OfType<ModelContextProtocol.Protocol.TextContentBlock>().Select(block => block.Text));
         StringAssert.Contains(held, "nendo.lease.status names its client");
         StringAssert.Contains(held, "with the same idempotencyKey");

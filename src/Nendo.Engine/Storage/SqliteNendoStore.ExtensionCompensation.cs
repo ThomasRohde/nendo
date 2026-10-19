@@ -7,7 +7,7 @@ internal sealed partial class SqliteNendoStore
 {
     /// <summary>
     /// A compensation that would leave a skill package it touched without a SKILL.md that names it
-    /// is refused (EXT-14). A proposal is checked for this as a whole, but each of its mutations is
+    /// is refused. A proposal is checked for this as a whole, but each of its mutations is
     /// a revision of its own, and undoing the one that put SKILL.md left every later proposal
     /// invalid until someone repaired the package.
     /// </summary>

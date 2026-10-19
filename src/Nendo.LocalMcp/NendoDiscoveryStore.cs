@@ -44,8 +44,8 @@ internal sealed record NendoDiscoveryDocument(
     /// <summary>
     /// When the writing process started. A process ID alone is reused by Windows once its
     /// process ends, so a crashed Nendo's entry read as live under whatever took the number;
-    /// the entry is trusted only while the process holding that ID started at this moment
-    /// (MHS-07). Null in an entry from a host that predates it.
+    /// the entry is trusted only while the process holding that ID started at this moment.
+    /// Null in an entry from a host that predates it.
     /// </summary>
     public DateTimeOffset? ProcessStartedAt { get; init; }
 }
@@ -196,8 +196,8 @@ internal sealed class NendoDiscoveryStore(string root)
     /// <remarks>
     /// The host has written this directory since discovery existed and nothing read it, so
     /// an agent could not tell which file the person had in front of them and a second
-    /// Nendo was unreachable in practice — its endpoint was published and no client looked
-    /// (F-064). This is the read side.
+    /// Nendo was unreachable in practice — its endpoint was published and no client looked.
+    /// This is the read side.
     /// <para>
     /// An entry is admitted on exactly the terms the sweep uses to keep one, because an
     /// entry worth deleting is not an entry worth reporting. It carries no path: the
@@ -236,7 +236,7 @@ internal sealed class NendoDiscoveryStore(string root)
     private static NendoDiscoveryDocument? ReadValidEntry(string path)
     {
         // Read without denying delete: the host that owns the entry removes it when its agent
-        // access stops, and a reader in another process must not make that stop fail (R2SP-05).
+        // access stops, and a reader in another process must not make that stop fail.
         string text;
         using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
         using (var reader = new StreamReader(stream))
@@ -258,14 +258,14 @@ internal sealed class NendoDiscoveryStore(string root)
     /// <summary>
     /// Whether the process that wrote the entry is still the one running under its ID: it must
     /// have started when the entry says, or, for an entry that does not say, before the entry was
-    /// written. A process that started later took a dead host's number (MHS-07).
+    /// written. A process that started later took a dead host's number.
     /// </summary>
     private static bool IsWriterAlive(NendoDiscoveryDocument document)
     {
         var process = ProcessStart(document.ProcessId);
         if (!process.Running) return false;
         // A process this user may not inspect is not known to be another one: the entry is kept
-        // rather than swept, as before the start time was read (W-227 review).
+        // rather than swept, as before the start time was read.
         if (process.Started is not { } started) return true;
         return document.ProcessStartedAt is { } recorded
             ? (started - recorded).Duration() < StartTolerance
@@ -305,7 +305,7 @@ internal sealed class NendoDiscoveryStore(string root)
     private void CleanupStaleEntries()
     {
         // A host that crashed between creating its temporary file and moving it into place left
-        // the temporary file behind, and the sweep read only *.json (MHS-07).
+        // the temporary file behind, and the sweep read only *.json.
         foreach (var path in Directory.EnumerateFiles(_root, ".*.tmp", SearchOption.TopDirectoryOnly))
         {
             try

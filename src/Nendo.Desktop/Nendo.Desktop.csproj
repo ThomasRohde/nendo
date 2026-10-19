@@ -72,7 +72,7 @@
     <!-- Never trimmed, in any configuration, as tools/Publish-NendoPayload.ps1 publishes it: the
          bridge and the device stores serialise JSON by reflection, and the taskbar and Jump List
          use COM interop, both of which trimming switches off. A plain Release publish used to
-         produce a host that ended on its first bridge response (DSH-18). Test-Repository.ps1
+         produce a host that ended on its first bridge response. Test-Repository.ps1
          holds the two in step. -->
     <PublishTrimmed>False</PublishTrimmed>
   </PropertyGroup>

@@ -38,7 +38,7 @@ internal sealed class AcpConnection : IAsyncDisposable
 {
     internal const int MaximumLineBytes = 8 * 1024 * 1024;
 
-    /// <summary>Why the connection ended when Nendo ended it over a message's size: Nendo did, not the agent (DAE-14).</summary>
+    /// <summary>Why the connection ended when Nendo ended it over a message's size: Nendo did, not the agent.</summary>
     internal const string OversizeReason = "Nendo ended the connection because the agent sent one message larger than the 8 MiB Nendo accepts.";
 
     internal static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
@@ -140,7 +140,7 @@ internal sealed class AcpConnection : IAsyncDisposable
                     if (line.Length == 0) continue;
                     // One message that cannot be read is dropped, never the connection: an
                     // exception here faulted the loop, and the faulted loop made disposal throw,
-                    // which skipped the rest of closing the file (DAE-04).
+                    // which skipped the rest of closing the file.
                     try { Dispatch(line); }
                     catch (Exception exception) when (exception is not OperationCanceledException) { }
                 }
@@ -223,7 +223,7 @@ internal sealed class AcpConnection : IAsyncDisposable
                 {
                     if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
                     {
-                        // A code that is not a number (text, null) is an internal error, not a fault (DAE-04).
+                        // A code that is not a number (text, null) is an internal error, not a fault.
                         var code = error.TryGetProperty("code", out var c) && c.ValueKind == JsonValueKind.Number && c.TryGetInt32(out var parsed) ? parsed : -32603;
                         // The reason reaches the page, so a handle the agent echoes back is hidden there too.
                         pending.TrySetException(new AcpRemoteException(code, Bounded(AgentConversation.Redact(Describe(error)))));
@@ -296,7 +296,7 @@ internal sealed class AcpConnection : IAsyncDisposable
         if (_reader is not null)
         {
             // However the read loop ended, closing goes on: a fault here once left the file's MCP
-            // listener running after the file closed (DAE-04).
+            // listener running after the file closed.
             try { await _reader.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (Exception) { }
         }

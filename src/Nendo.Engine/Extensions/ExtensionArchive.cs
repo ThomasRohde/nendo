@@ -34,7 +34,7 @@ public static class NendoExtensionArchives
     /// The most entries a zip may list, counting the ones an import leaves out: a bound on the work
     /// of reading its directory, not on the package. The package's own bound is on the files it
     /// keeps, so a zip of a folder that still holds node_modules or a Finder shadow tree is read for
-    /// the files it carries (EXT-03).
+    /// the files it carries.
     /// </summary>
     internal const int ZipEntries = 16 * NendoExtensionLimits.PackageFiles;
 
@@ -92,7 +92,7 @@ public static class NendoExtensionArchives
                 throw new NendoValidationException(
                     $"The zip lists {archive.Entries.Count} entries, and Nendo reads at most {ZipEntries} from one package zip, counting folders and the files an import leaves out. Zip the package's folder without node_modules or other folders it does not need.");
             // Separators first: a directory entry written with backslashes ends in one, and read
-            // as a file it was refused as a path rule the person never broke (EXT-04).
+            // as a file it was refused as a path rule the person never broke.
             var entries = archive.Entries.Where(entry => !entry.FullName.Replace('\\', '/').EndsWith('/')).ToArray();
             var names = entries.Select(entry => entry.FullName.Replace('\\', '/')).ToArray();
             var prefix = ManifestPrefix(names, ManifestName);
@@ -242,7 +242,7 @@ public static class NendoExtensionArchives
             throw new NendoValidationException($"The package path {path} is not allowed. Paths use letters, digits and - _ . ~ /, and never start with _nendo/.");
         if (files.Any(file => string.Equals(file.Path, path, StringComparison.OrdinalIgnoreCase)))
             throw new NendoValidationException($"The package has two files named {path} apart from case.");
-        // A folder cannot hold a file and a folder of one name, so export could not write it (EXT-06).
+        // A folder cannot hold a file and a folder of one name, so export could not write it.
         if (files.FirstOrDefault(file => NendoExtensionContent.FileAndFolderClash(file.Path, path)) is { } clash)
             throw new NendoValidationException($"The package has a file and a folder both named {FolderName(clash.Path, path)}, apart from case. A folder cannot hold both; rename one.");
         if (files.Count >= NendoExtensionLimits.PackageFiles)
@@ -267,7 +267,7 @@ public static class NendoExtensionArchives
     /// <summary>
     /// One entry's bytes, refused by its name when the zip cannot give them: a compression method
     /// .NET does not read, encryption, or a damaged stream. They reached the Workbench as a host
-    /// fault with nothing named (EXT-05).
+    /// fault with nothing named.
     /// </summary>
     private static byte[] ReadEntry(ZipArchiveEntry entry, int limit, string name)
     {

@@ -3,7 +3,7 @@ import { messageFor } from './format';
 import { proposedFileMarkup, readProposedFile } from './package-file-reader';
 
 /**
- * The review's Read the whole file buttons (review R-017): each reads its file through the
+ * The review's Read the whole file buttons: each reads its file through the
  * host, bound to the digest on screen, and shows it in Nendo's own dialog with Copy.
  */
 /** Wire the read buttons in a review that was just drawn. */

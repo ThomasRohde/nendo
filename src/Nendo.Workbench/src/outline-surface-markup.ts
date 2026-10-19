@@ -7,7 +7,7 @@ import { accentDot, fieldValueMarkup, recordFieldDisplay } from './record-markup
 import { nodeFieldIds } from './surface-model';
 
 /**
- * What an outline surface draws (ADR-0019 stage 6), as markup and nothing else, so the node
+ * What an outline surface draws (ADR-0019), as markup and nothing else, so the node
  * tests can render it through the real function. The reads and the gestures are in
  * outline-surface.ts, which this module never imports.
  */

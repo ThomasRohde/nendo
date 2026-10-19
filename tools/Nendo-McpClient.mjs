@@ -1,7 +1,7 @@
 // Task-owned protocol harness on the 2026-07-28 discover path. Application handles stay in memory.
 
 // Whether the Nendo that wrote a discovery entry is still running. A process that ends without
-// closing its host leaves its entry behind (F-212); Nendo's own readers skip it, and so must ours,
+// closing its host leaves its entry behind; Nendo's own readers skip it, and so must ours,
 // or a tool picks a closed file's port and is refused.
 /** The _meta key a tool refusal's structured form travels under. */
 export const REFUSAL_META_KEY = 'io.github.thomasrohde.nendo/refusal';
@@ -54,11 +54,11 @@ export function createNendoMcpClient(discovery, name) {
     if (result.isError) {
       const said = (result.content ?? []).filter(part => part.type === 'text').map(part => part.text).join(' ').slice(0, 2000);
       const error = Error(`MCP tool ${name} rejected${said ? ': ' + said : ''}`);
-      // The refusal travels as an object beside the text (W-149). Only a tool refusal
+      // The refusal travels as an object beside the text. Only a tool refusal
       // carries a Nendo code: HTTP and transport errors must never be reclassified as an
       // access-level refusal by a caller.
       const refusal = result._meta?.[REFUSAL_META_KEY];
-      // A host from before W-149 carries only the text; its code is the word before the first colon.
+      // A host that sends no refusal object carries only the text; its code is the word before the first colon.
       const spoken = said.indexOf('NENDO_');
       error.code = refusal?.code ?? (spoken >= 0 ? said.slice(spoken, said.indexOf(':', spoken)) : undefined);
       error.refusal = refusal;

@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-251: an open file keeps its custom views' recent runtime events, bounded, for an agent to read.
+/// An open file keeps its custom views' recent runtime events, bounded, for an agent to read.
 /// Billable's agent built a browser adapter of its own because nothing said what its view did in
 /// the embedded host.
 /// </summary>

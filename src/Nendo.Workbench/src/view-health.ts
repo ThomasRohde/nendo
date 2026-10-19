@@ -128,7 +128,7 @@ export function healthCard(title: string, ok: boolean, state: string, detail: st
 /**
  * Health as the person opens it: the rail, Ctrl 6, the palette, a notification or a view's
  * notice. Every other move off a record page declines while it holds unsaved typing, and
- * this one redrew over it (UX-01). The re-read the Agent page makes for itself stays
+ * this one redrew over it. The re-read the Agent page makes for itself stays
  * unguarded, since no record form is open there.
  */
 export function openHealth(): void {

@@ -2,11 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// ADR-0030 and W-199: Launch on the Agent page as tiles, behind the owner's design A tabs. A
-// missing agent says what installs it, one found from a renamed package says so (2026-10-08: the
-// owner's adapter had stopped at its last version under the old name and refused to start), a
-// Copy shows that it ran, and any agent can be hidden on this computer ("at work we only have
-// Copilot") and brought back.
+// ADR-0030: Launch on the Agent page as tiles, behind the page's tabs. A missing agent says what
+// installs it, one found from a renamed package says so (an adapter left at its last version
+// under the old name refuses to start), a Copy shows that it ran, and any agent can be hidden on
+// this computer ("at work we only have Copilot") and brought back.
 const { agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } = await bundleOf('src/agent-launch-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)">';
@@ -60,7 +59,7 @@ test('the running agent comes first and opens its conversation; the others wait'
 });
 
 test('a hidden agent leaves Launch, is named in the line that brings it back, and returns faded when asked', () => {
-  // W-199: "at work we only have Copilot".
+  // The owner: "at work we only have Copilot".
   const agents = [agent({ id: 'copilot', name: 'GitHub Copilot CLI' }), agent({ id: 'claude', name: 'Claude Code' }), agent({ id: 'gemini', name: 'Gemini CLI', found: false })];
   const hidden = offer(agents, { hidden: ['claude', 'gemini', 'custom'] });
   const markup = launchTilesMarkup(hidden, view());
@@ -82,7 +81,7 @@ test('a hidden agent leaves Launch, is named in the line that brings it back, an
 });
 
 test('the tabs are cards that say what they are for and what is behind them, and only the chosen one is selected', () => {
-  // The owner's design C (2026-10-10): "The 3 tabs are difficult to discover".
+  // The owner: "The 3 tabs are difficult to discover".
   const facts = { pending: 2, running: 'Claude Code', installed: 3, endpoint: 'http://127.0.0.1:41763/mcp' };
   const markup = agentTabsMarkup('launch', facts);
   assert.deepEqual([...markup.matchAll(/data-agent-tab="(\w+)" aria-selected="(\w+)"/g)].map((match) => `${match[1]}:${match[2]}`),

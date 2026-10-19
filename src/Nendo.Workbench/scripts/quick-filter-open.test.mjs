@@ -4,9 +4,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// WDV-01: opening Filter on a screen with a reference field read its targets and redrew the
-// menu open; Chromium fires toggle on a details inserted open, so each redraw read and redrew
-// again, without end. The real quick-filter.ts runs here against a stand-in page that does
+// Opening Filter on a screen with a reference field reads its targets and redraws the menu
+// open; Chromium fires toggle on a details inserted open, so a redraw must not read again, or
+// it would read and redraw without end. The real quick-filter.ts runs here against a stand-in page that does
 // what Chromium does: every redraw puts a fresh menu in, and one drawn open reports a toggle.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const host = { calls: [], redraws: 0, menu: null, redrawMenu: null };

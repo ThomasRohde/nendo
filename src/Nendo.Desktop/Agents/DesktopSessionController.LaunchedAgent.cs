@@ -38,7 +38,7 @@ internal sealed record DesktopLaunchableAgents(
 /// <summary>
 /// The conversation tab's read: which launch it is, who the agent is, the level it works at, the
 /// MCP address it was given, its state, the entries that changed after the revision the tab asked
-/// from, the order of the oldest entry still kept, whether a sign-in runs (DAE-10), and the agent's
+/// from, the order of the oldest entry still kept, whether a sign-in runs, and the agent's
 /// slash commands.
 /// </summary>
 internal sealed record DesktopLaunchedAgentView(
@@ -83,7 +83,7 @@ internal sealed partial class DesktopSessionController
     private sealed record AgentCatalog(IReadOnlyList<DesktopAgentCommand> Agents, IReadOnlyDictionary<string, string> Environment);
 
     /// <summary>
-    /// The person's environment as Windows holds it now (DAE-12). The tests put another in its
+    /// The person's environment as Windows holds it now. The tests put another in its
     /// place; it is read off the request gate, with the catalogue.
     /// </summary>
     internal Func<IReadOnlyDictionary<string, string>> AgentEnvironmentReader
@@ -119,7 +119,7 @@ internal sealed partial class DesktopSessionController
     {
         // Finding the agents walks every PATH folder, and an unreachable share there took about
         // 20 seconds; under the request gate the Agent page's poll held every save and every
-        // switch behind it. It reads no file state, so it runs before the gate (DAE-07).
+        // switch behind it. It reads no file state, so it runs before the gate.
         var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
         await EnterRequestGateAsync(cancellationToken);
         try
@@ -157,7 +157,7 @@ internal sealed partial class DesktopSessionController
         }
     }
 
-    /// <summary>Hide an agent from Launch on this device, or show it again (W-199).</summary>
+    /// <summary>Hide an agent from Launch on this device, or show it again.</summary>
     internal async Task<DesktopLaunchableAgents> SetAgentHiddenAsync(string fileSessionId, string agentId, bool hidden, CancellationToken cancellationToken = default)
     {
         var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
@@ -202,7 +202,7 @@ internal sealed partial class DesktopSessionController
             var endpoint = _agentHost!.Endpoint;
             var previous = _launched;
             _launched = null;
-            // An old conversation that fails to close does not stop the new launch (DAE-04).
+            // An old conversation that fails to close does not stop the new launch.
             if (previous is not null)
             {
                 try { await previous.DisposeAsync(); }
@@ -265,7 +265,7 @@ internal sealed partial class DesktopSessionController
         return ReadLaunchedCore(agent, after);
     }
 
-    /// <summary>Set one of the agent's own options to a value it offered (ADR-0030, 2026-10-08).</summary>
+    /// <summary>Set one of the agent's own options to a value it offered (ADR-0030).</summary>
     internal async Task<DesktopLaunchedAgentView> SetLaunchedAgentOptionAsync(string fileSessionId, string optionId, string value, long after, CancellationToken cancellationToken = default, string? conversationId = null)
     {
         var agent = RequireLaunched(fileSessionId, conversationId);
@@ -293,7 +293,7 @@ internal sealed partial class DesktopSessionController
         catch (Exception) { /* The program is in a job that ends with the host. */ }
         if (!forget) return;
         // Closing the file goes on to stop agent access and close its proposals however the
-        // conversation's own close went: a throw here once left the file's listener running (DAE-04).
+        // conversation's own close went: a throw here once left the file's listener running.
         try { await agent.DisposeAsync(); }
         catch (Exception) { /* The program is in a job that ends with the host. */ }
     }
@@ -389,7 +389,7 @@ internal sealed partial class DesktopSessionController
     /// <param name="conversationId">
     /// The launch the request was meant for, when the tab names one. Entry IDs start again with
     /// every launch, so an answer to a replaced conversation's question would otherwise land on
-    /// this one's (ACP-07).
+    /// this one's.
     /// </param>
     private DesktopLaunchedAgent RequireLaunched(string fileSessionId, string? conversationId = null)
     {
@@ -405,7 +405,7 @@ internal sealed partial class DesktopSessionController
 
     /// <summary>
     /// The access level changed while the agent kept running: tell the tab, which shows the level
-    /// and what becomes of the agent's changes, though nothing in the transcript moved (ACP-12).
+    /// and what becomes of the agent's changes, though nothing in the transcript moved.
     /// </summary>
     private void SayLevelChanged()
     {

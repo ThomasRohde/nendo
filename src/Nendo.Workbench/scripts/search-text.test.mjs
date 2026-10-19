@@ -38,7 +38,7 @@ test('words match across fields, a left-out word removes a record, and the last 
   assert.deepEqual(ids(search.previewSearch(session, { text: '* ( -' })), [], 'no words, no records');
 });
 
-test('a word followed by a left-out word is whole, as the Engine reads it (ESS-07)', () => {
+test('a word followed by a left-out word is whole, as the Engine reads it', () => {
   assert.deepEqual(ids(search.previewSearch(session, { text: 'gard -weed' })), [],
     'the last required word was a prefix although a left-out word followed it');
   assert.deepEqual(ids(search.previewSearch(session, { text: 'gard\t' })), [], 'a word followed by a tab is whole');

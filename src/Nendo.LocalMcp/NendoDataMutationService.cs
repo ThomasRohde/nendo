@@ -23,7 +23,7 @@ internal sealed class NendoDataMutationService(
         if (proposalId is not null)
         {
             // An acceptance is keyed by the proposal, not by the accept call's key: the
-            // Engine records the committed revisions under the proposal ID (W-144).
+            // Engine records the committed revisions under the proposal ID.
             NendoReceiptContext.ReadScope(receiptContext, host);
             NendoText.RequireText(proposalId, "proposal ID", 200);
             var accepted = await application.GetProposalReceiptAsync(proposalId, cancellationToken);
@@ -40,7 +40,7 @@ internal sealed class NendoDataMutationService(
         if (receipt is not null)
             return new("committed", receipt, "This exact operation committed. Do not submit it with a new key.") { Revisions = [NendoReceiptRevision.From(receipt)] };
         // An import commits one batch per revision, each under a key derived from the
-        // caller's, in the scope every lease shares (W-144). The batches answer in order.
+        // caller's, in the scope every lease shares. The batches answer in order.
         var batches = new List<NendoApplyResult>();
         for (var ordinal = 0; ordinal < NendoImportService.MaximumBatchesPerCall; ordinal++)
         {
@@ -119,7 +119,7 @@ internal sealed class NendoDataMutationService(
             cancellationToken);
 
     /// <summary>
-    /// The one place a record input becomes an Engine entry (W-147, W-159): the same ID
+    /// The one place a record input becomes an Engine entry: the same ID
     /// bound, the same value reading and the same reference resolution for a single
     /// create, a batch create and a JSON import. The import mapped it a second time with a
     /// different ID check and a null-versus-empty difference for target versions.
@@ -138,7 +138,7 @@ internal sealed class NendoDataMutationService(
     /// <summary>
     /// The records of one batch create, each as <see cref="ToEntryAsync"/> maps it, where a
     /// reference may name an earlier record of the same batch, as a CSV import's row may name an
-    /// earlier row (MTD-03). Such a target is created in the same revision, at version 1. For a
+    /// earlier row. Such a target is created in the same revision, at version 1. For a
     /// write this key already committed, the target versions are the ones its revision recorded.
     /// </summary>
     private async Task<IReadOnlyList<NendoCreateRecordEntry>> ToBatchEntriesAsync(
@@ -159,13 +159,13 @@ internal sealed class NendoDataMutationService(
     }
 
     /// <summary>
-    /// Puts each named reference target into the values with its current version (W-147).
+    /// Puts each named reference target into the values with its current version.
     /// A target named by record ID is read for its version; one named by a unique field's
     /// value is found through the same filtered query the screens use. The rule CSV import
     /// follows for matchFieldId, so both formats carry one rule.
     /// <para>
     /// In a batch, a target an earlier write of the same batch creates or updates is found
-    /// among those writes first (W-166): the committed store does not hold it yet, and the
+    /// among those writes first: the committed store does not hold it yet, and the
     /// Engine supplies the version that earlier write leaves, as it does for a plain value.
     /// </para>
     /// </summary>
@@ -238,7 +238,7 @@ internal sealed class NendoDataMutationService(
 
     /// <summary>
     /// The version a target an earlier write of the same batch creates or updates is expected at.
-    /// In a batch of record writes the Engine supplies it (W-166). A batch create checks each
+    /// In a batch of record writes the Engine supplies it. A batch create checks each
     /// reference as it is written, so a record created earlier in it is expected at version 1.
     /// </summary>
     private static void InBatchTarget(Dictionary<string, long> targets, string fieldId, bool createdInBatch)
@@ -282,7 +282,7 @@ internal sealed class NendoDataMutationService(
 
     /// <summary>
     /// Whether a written value is the code a matchFieldId reference names, by the rule a CSV
-    /// import's matchFieldId follows (MTD-03): text without regard to case, as the unique index
+    /// import's matchFieldId follows: text without regard to case, as the unique index
     /// compares it, and a whole number by its value.
     /// </summary>
     private static bool Holds(object? held, string wanted) => held is JsonElement element && element.ValueKind switch
@@ -298,7 +298,7 @@ internal sealed class NendoDataMutationService(
 
     /// <summary>
     /// The one record of <paramref name="target"/> whose unique <paramref name="match"/> field holds
-    /// <paramref name="code"/>, or null, by the rule a CSV import's matchFieldId follows (MTD-03).
+    /// <paramref name="code"/>, or null, by the rule a CSV import's matchFieldId follows.
     /// A whole-number field is compared by value, so the text "42" finds 42; it was sent to the
     /// query as text and refused as not matching the storage kind. A text field is compared
     /// without regard to case, as its unique index and the CSV import compare it; the eq filter
@@ -360,7 +360,7 @@ internal sealed class NendoDataMutationService(
 
     /// <summary>
     /// The reference target versions the revision this key already committed recorded, by
-    /// record ID, or null when no write names a reference or the key has no receipt (F-258).
+    /// record ID, or null when no write names a reference or the key has no receipt.
     /// <para>
     /// A reference named by record ID or by a unique field's value is resolved to its
     /// target's current version before the Engine sees the write, and the Engine replays a
@@ -399,7 +399,7 @@ internal sealed class NendoDataMutationService(
         return versions;
     }
 
-    /// <summary>Several fields of one record as one revision (W-147): N set_field calls used to be N revisions and N hand-carried versions.</summary>
+    /// <summary>Several fields of one record as one revision: N set_field calls used to be N revisions and N hand-carried versions.</summary>
     internal Task<NendoDataApplyResult> UpdateRecordAsync(
         string applicationHandle,
         string leaseId,
@@ -429,7 +429,7 @@ internal sealed class NendoDataMutationService(
             },
             cancellationToken);
 
-    /// <summary>Creates, updates and deletes across record types as one revision, all or nothing (W-147).</summary>
+    /// <summary>Creates, updates and deletes across record types as one revision, all or nothing.</summary>
     internal Task<NendoDataWritesResult> ApplyWritesAsync(
         string applicationHandle,
         string leaseId,
@@ -502,8 +502,8 @@ internal sealed class NendoDataMutationService(
             cancellationToken);
 
     /// <summary>
-    /// Compensates a record revision this session committed (W-153, ADR-0006 and ADR-0009
-    /// amendments): the same linked revision History and a view make. The context's origin is
+    /// Compensates a record revision this session committed (ADR-0006 and
+    /// ADR-0009): the same linked revision History and a view make. The context's origin is
     /// the lease's pseudonym, which is what the Engine compares with the revision's, so a
     /// revision another origin committed is refused by the Engine as revision-not-yours.
     /// </summary>
@@ -706,7 +706,7 @@ internal sealed class NendoDataMutationService(
     /// <summary>
     /// Bulk import, at the same access level and through the same admission as every other
     /// data write: it creates records and nothing else, which Edit data already permits one
-    /// call at a time (ADR-0009, 2026-09-22 amendment).
+    /// call at a time (ADR-0009).
     /// </summary>
     internal Task<NendoImportResult> ImportAsync(
         string applicationHandle,
@@ -726,7 +726,7 @@ internal sealed class NendoDataMutationService(
             {
                 NendoText.RequireText(idempotencyKey, "idempotency key", NendoAuthoringLimits.Current.IdempotencyKeyCharacters);
                 // One normal form with every other write and get_receipt, which trim the key: an
-                // import keyed " k " stored its batches as " k #0", and its receipt was never found (MTD-10).
+                // import keyed " k " stored its batches as " k #0", and its receipt was never found.
                 idempotencyKey = idempotencyKey.Trim();
                 // Named rather than guessed from which argument arrived. A caller that
                 // sends csv text and a records array has made a mistake, and picking one
@@ -785,7 +785,7 @@ internal sealed class NendoDataMutationService(
     /// <summary>
     /// At Unattended, a write refused because nobody has approved the file's automatic
     /// actions records that consent and tries once more
-    /// (ADR-0009, 2026-09-22 amendment).
+    /// (ADR-0009).
     /// <para>
     /// Exactly once, and only on that one code. The refusal happens before anything
     /// commits, so no receipt exists and the retry carries the same idempotency key as a
@@ -867,7 +867,7 @@ internal sealed class NendoDataMutationService(
 
         // Counted as stored, not as received: a tool's arguments arrive with every non-ASCII
         // character escaped (six bytes for one ø), so counting the raw text refused non-ASCII
-        // text at a third of the size (W-165).
+        // text at a third of the size.
         var result = new Dictionary<string, object?>(StringComparer.Ordinal);
         var total = 0L;
         foreach (var property in values.EnumerateObject())
@@ -878,8 +878,8 @@ internal sealed class NendoDataMutationService(
                     $"A record may contain at most {MaximumValueMapEntries} submitted values.");
             }
             NendoText.RequireText(property.Name, "field ID", 200);
-            // A JSON object may repeat a key, and the second used to fail Dictionary.Add as an
-            // argument with no name: "The request arguments are invalid." (MTD-20).
+            // A JSON object may repeat a key, refused here by name: Dictionary.Add would fail the
+            // second as an argument with no name, "The request arguments are invalid."
             if (result.ContainsKey(property.Name))
                 throw new NendoValidationException(
                     $"values names field {NendoText.Bounded(property.Name, 200)} twice; send each field once.");

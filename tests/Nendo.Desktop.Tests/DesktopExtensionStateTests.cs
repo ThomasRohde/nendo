@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// What a custom view keeps with the file (ADR-0013 Phase 3, W-069), at the host: state is read
+/// What a custom view keeps with the file (ADR-0013), at the host: state is read
 /// and written only with a view's actor, in that actor's package and nowhere else, as a Data
 /// revision History names the package on, and not while views are off.
 /// </summary>
@@ -28,7 +28,7 @@ public sealed class DesktopExtensionStateTests
         Assert.IsTrue(read.Ok, read.Error?.Message);
         var entry = ((DesktopExtensionStateView)read.Result!).Entries.Single();
         Assert.AreEqual(("layout", """{"zoom":1.5}"""), (entry.Key, entry.Value!.Value.GetRawText()));
-        // A state version is at least the change sequence of the write that set it (EXT-09), so a
+        // A state version is at least the change sequence of the write that set it, so a
         // first write reads a positive number rather than 1.
         Assert.IsGreaterThan(0L, entry.Version, "A kept value has no version.");
 

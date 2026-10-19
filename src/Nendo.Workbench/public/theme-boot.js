@@ -1,5 +1,5 @@
-// The theme, before the first paint (WST-10). The module that themes the page runs only once the
-// whole bundle has loaded, and until then a window in dark mode painted its light canvas and rail.
+// The theme, before the first paint. The module that themes the page runs only once the whole
+// bundle has loaded, and until then a window in dark mode would paint its light canvas and rail.
 // Loaded as a classic script from the page's own origin, so the policy's script-src 'self' allows it.
 // The stored choice is this window's last one; the Desktop host's device preference, read once
 // the module runs, still has the last word.

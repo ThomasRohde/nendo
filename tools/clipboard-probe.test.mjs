@@ -30,7 +30,7 @@ test('the clipboard probe returns successful format and pixel measurements uncha
   assert.equal(JSON.stringify(await read(null, JSON.stringify(measurement))), JSON.stringify(measurement));
 });
 
-// TST-01: a locked workstation is an interlock, not a failure, and an unlocked one never is.
+// A locked workstation is an interlock, not a failure, and an unlocked one never is.
 function lockContext(error, stdout, stderr = '') {
   const calls = [];
   const context = vm.createContext({ execFile: (file, args, _options, done) => {

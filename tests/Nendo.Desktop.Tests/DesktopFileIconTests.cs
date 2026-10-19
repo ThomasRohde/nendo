@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-089. Every Nendo window carried the same icon, so several open files were identical
+/// Every Nendo window carried the same icon, so several open files were identical
 /// buttons in Alt+Tab, identical icons in the notification area and identical notifications.
 /// Each file's icon is now the mark with a badge in its tone carrying its letter.
 /// </summary>
@@ -116,7 +116,7 @@ public sealed class DesktopFileIconTests
     }
 
     /// <summary>
-    /// W-001. A file with its own picture is drawn as that picture at every frame, with no mark
+    /// A file with its own picture is drawn as that picture at every frame, with no mark
     /// and no badge over it: the badge's corner shows the picture, not the tone.
     /// </summary>
     [TestMethod]

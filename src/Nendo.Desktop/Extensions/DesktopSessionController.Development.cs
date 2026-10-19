@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// Developing a view from a folder (ADR-0013 Phase 4): while this device links a package of the
+/// Developing a view from a folder (ADR-0013): while this device links a package of the
 /// open file to a folder, the package's origin answers from the folder, a save there becomes one
 /// event that reloads its views, and Save to file proposes the folder the way Import would.
 /// Nothing here reaches the file; the link is this device's.

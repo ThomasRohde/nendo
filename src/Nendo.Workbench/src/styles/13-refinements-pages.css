@@ -24,7 +24,7 @@
   --shadow-raised: 0 2px 4px color-mix(in srgb, var(--ink) 7%, transparent), 0 14px 34px color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
-/* Mixed from --ink, a Dark card cast a white glow (CSS-10). A shadow is dark in both themes, as
+/* Mixed from --ink, a Dark card cast a white glow. A shadow is dark in both themes, as
    --shadow is; Dark's is deeper, because the layer under it is. */
 :root[data-theme="dark"] {
   --shadow-card: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 22%);
@@ -355,14 +355,14 @@
 .field-kind { color: var(--ink); font-size: 0.83rem; }
 
 /* Each column's action reads as one: Convert reference, and Show as Markdown beside a long
-   text field, which kept the muted colour and centred wrap of a label (UIT-12). */
+   text field, which kept the muted colour and centred wrap of a label. */
 .field-kind,
 .field-presentation { display: grid; gap: 2px; justify-items: start; }
 .field-kind .text-button,
 .field-presentation .text-button { margin-left: -9px; font-size: 0.76rem; text-align: left; }
 .field-kind .text-button:not(:disabled),
 .field-presentation .text-button:not(:disabled) { color: var(--cobalt); }
-/* A bound reference names its target and the field it shows them by, above Label by… (W-232). */
+/* A bound reference names its target and the field it shows them by, above Label by…. */
 .field-kind .reference-target { color: var(--muted); font-size: 0.76rem; }
 
 .field-requirement {
@@ -382,12 +382,12 @@
 .field-rules .text-button:disabled { color: var(--muted); }
 .record-form .field-note { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; font-weight: 400; }
 
-/* A stored field a calculation reads, said under its name where Retire is withheld (UIT-19). */
+/* A stored field a calculation reads, said under its name where Retire is withheld. */
 .field-read-by { margin: 0; color: var(--muted); font-size: 0.76rem; line-height: 1.4; }
 /* The same sentence for a record type its calculations hold, under the type's title. */
 .definition-card > .field-read-by { padding: 0 20px var(--space-3); }
 
-/* Structure's calculated fields (UIT-19): read-only, under the stored ones, the formula as code. */
+/* Structure's calculated fields: read-only, under the stored ones, the formula as code. */
 .calculated-heading {
   display: flex;
   flex-wrap: wrap;
@@ -445,10 +445,10 @@
 
 .health-chip .outline-icon { width: 14px; height: 14px; margin-right: 5px; }
 
-/* What stands in a root's way, said under its detail beside the chip that names it (UIT-03). */
+/* What stands in a root's way, said under its detail beside the chip that names it. */
 .surface-detail .surface-warning { color: var(--ink); }
 
-/* A board renames itself from its own card (UIT-16): the form spans the card under its detail. */
+/* A board renames itself from its own card: the form spans the card under its detail. */
 .surface-card > .board-rename { grid-column: 1 / -1; padding-top: var(--space-3); border-top: 1px solid var(--line); }
 .board-rename input { min-height: 34px; }
 
@@ -499,7 +499,7 @@
 .package-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .package-footer small { flex: 1 1 260px; min-width: 0; color: var(--muted); font-size: 0.78rem; line-height: 1.45; }
 
-/* Where a package is shown, and the Add view form under its card (W-062). Both span the
+/* Where a package is shown, and the Add view form under its card. Both span the
    card, below its title and buttons. */
 .package-uses {
   grid-column: 1 / -1;

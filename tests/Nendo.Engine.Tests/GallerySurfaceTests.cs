@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The gallery, ADR-0004's 2026-09-14 amendment (S2): a card per record over exactly a
+/// The gallery (ADR-0004): a card per record over exactly a
 /// list's bounded window. Both field roles are the record page's rules with card wording
 /// and both are optional, because a card without a declared title leads with its first
 /// bound field. It takes the tiles and charts a list takes, and spends the same budget: a
@@ -225,8 +225,7 @@ public sealed class GallerySurfaceTests
         Assert.IsTrue(gallery.CanBeRoot);
         Assert.AreEqual(NendoSemanticVocabulary.MaximumRootsPerKindPerEntity, gallery.MaxRootsPerEntity);
         // A gallery takes exactly what a list takes: its own columns and conditions, and
-        // the tile kinds that sit above them. S4's range joined them on both, and S5's two
-        // over-time charts did the same.
+        // the tile kinds that sit above them, the range tile and the two over-time charts among them.
         CollectionAssert.AreEquivalent(
             new[] { "fieldBinding", "filterClause", "summaryTile", "breakdownChart", "progressTile", "rangeTile", "trendChart", "activityGrid" },
             gallery.Children.ToArray());
@@ -248,7 +247,7 @@ public sealed class GallerySurfaceTests
     }
 
     /// <summary>
-    /// A gallery's cover (ADR-0004 2026-10-16 amendment, ADR-0031): a media field whose picture tops
+    /// A gallery's cover (ADR-0004, ADR-0031): a media field whose picture tops
     /// each card, which only a host that serves pictures draws, so it states that host.
     /// </summary>
     [TestMethod]

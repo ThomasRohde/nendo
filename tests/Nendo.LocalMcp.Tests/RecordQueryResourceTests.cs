@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-145 and W-146: the records read takes recordId, sort, desc and filter; the aggregate
+/// The records read takes recordId, sort, desc and filter; the aggregate
 /// read answers a count, a sum and a grouped count in one call; describe counts records.
 /// </summary>
 [TestClass]

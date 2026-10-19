@@ -33,7 +33,7 @@ public sealed class CsvSessionTests
     }
 
     /// <summary>
-    /// W-075: the native importer asks the session to put a tree's rows parents first before it
+    /// The native importer asks the session to put a tree's rows parents first before it
     /// cuts batches. The dialog itself is not driven by any lane; this measures what it calls.
     /// </summary>
     [TestMethod]

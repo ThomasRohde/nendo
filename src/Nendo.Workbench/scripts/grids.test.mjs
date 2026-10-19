@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// The two grid kinds (ADR-0004, 2026-09-17 amendment, S6): the shape of a matrix, the
+// The two grid kinds (ADR-0004): the shape of a matrix, the
 // two-clause drill out of one of its cells, and the arithmetic behind a ranking.
 const { cellDrillFilters, cellRead, cellValue, rankKey, rankNumerals, rankProportion, rankValue } = await bundleOf('src/charts.ts');
 const { addedSurfaceSentence, matrixViewOf } = await bundleOf('src/surface-model.ts');
@@ -99,7 +99,7 @@ test('equal numbers share a rank numeral and the next numeral skips it', () => {
 });
 
 test('two different exact numbers never share a rank numeral, and one number spelt two ways does', () => {
-  // R2AAV-07: a JavaScript number reads these two as one value, and both were ranked 1.
+  // A JavaScript number reads these two as one value, which would rank both 1.
   const keys = (...digits) => digits.map((text) => rankKey({ $nendoNumber: text }));
   assert.deepEqual(rankNumerals(keys('9007199254740993', '9007199254740992')), [1, 2],
     'Two different whole numbers past 2^53 shared a rank numeral.');

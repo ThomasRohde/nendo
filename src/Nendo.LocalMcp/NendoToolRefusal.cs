@@ -3,7 +3,7 @@ using System.ComponentModel;
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// A tool refusal as a client reads it, beside the text the model reads (W-149). Every
+/// A tool refusal as a client reads it, beside the text the model reads. Every
 /// in-house client used to scrape the <c>NENDO_</c> code out of the text with a regular
 /// expression; the object travels in the result's <c>_meta</c> under
 /// <see cref="MetaKey"/>, a reverse-DNS key from the project's own domain, as the
@@ -19,7 +19,7 @@ public sealed record NendoToolRefusal(
     [Description("The validated proposal whose acceptance the refused write depends on, when the refusal is explained by one.")]
     public string? PendingProposalId { get; init; }
 
-    /// <summary>What a calculation's budget had spent when an allowance ran out (W-246).</summary>
+    /// <summary>What a calculation's budget had spent when an allowance ran out.</summary>
     [Description("When a calculation limit was reached: the allowance that ran out, what was spent of each allowance, and the related records' calculations it ran out inside.")]
     public NendoToolLimit? Limit { get; init; }
 
@@ -67,7 +67,7 @@ public sealed record NendoToolRefusal(
     }
 }
 
-/// <summary>A calculation limit as a client reads it: the allowance, each counter against its limit, and where (W-246).</summary>
+/// <summary>A calculation limit as a client reads it: the allowance, each counter against its limit, and where.</summary>
 public sealed record NendoToolLimit(
     [property: Description("The allowance that ran out: function call, related record, automatic change or work.")]
     string Allowance,

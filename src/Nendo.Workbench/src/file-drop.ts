@@ -75,7 +75,7 @@ export const textDropTargets = [
  *
  * Only a text field does. Anywhere else the browser's answer to a link, to text let go
  * outside a field, or to a file dropped while a dialog is open is to navigate the window to
- * it, which the host refuses, and that refusal used to cost the whole view (DSH-02).
+ * it, which the host refuses, and that refusal used to cost the whole view.
  */
 export function takesDefaultDrop(target: unknown): boolean {
   const element = target as { closest?: (selector: string) => unknown } | null;

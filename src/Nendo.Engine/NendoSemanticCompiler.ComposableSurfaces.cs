@@ -4,8 +4,7 @@ using System.Text.Json;
 
 namespace Nendo.Engine;
 
-// Contract version 3, accepted by the ADR-0004 2026-09-09 amendment and widened
-// by the 2026-09-12 one. It is the only shape this host compiles: one compile
+// Contract version 3 and its widenings (ADR-0004). It is the only shape this host compiles: one compile
 // path, one plan shape, one digest projection. The plan is an ordered node tree,
 // and the permitted children of each kind come from NendoSemanticVocabulary
 // rather than from a hard-coded depth rule. What a rule cannot say in that flat
@@ -50,7 +49,7 @@ public sealed partial class NendoSemanticCompiler
                      .OrderBy(group => group.Key, StringComparer.Ordinal))
         {
             // Each record type is judged on its own errors, so one broken type does not hide the
-            // next one's until the author has fixed it and validated again (ESM-17).
+            // next one's until the author has fixed it and validated again.
             var errorsBefore = ErrorCount(diagnostics);
             var entity = source.Entities.SingleOrDefault(value => value.EntityId == group.Key && !value.Retired);
             if (entity is null)
@@ -292,7 +291,7 @@ public sealed partial class NendoSemanticCompiler
     /// Identity, kind, property and parenting rules for contract version 3. Every
     /// structural rule is read from the vocabulary table, and depth by
     /// <see cref="NendoSemanticVocabulary.MaximumNodeDepth"/>: a section may hold a section,
-    /// so without it a deep enough tree threw out of the digest or exhausted the stack (ESM-08).
+    /// so without it a deep enough tree threw out of the digest or exhausted the stack.
     /// </summary>
     private static void ValidateComposableTree(
         IReadOnlyList<NendoUiNodeSnapshot> nodes,
@@ -671,7 +670,7 @@ public sealed partial class NendoSemanticCompiler
                     (value.ValueKind != JsonValueKind.String || !field.Options.Contains(value.GetString() ?? string.Empty, StringComparer.Ordinal)))
                     AddError(diagnostics, "NUI286", "The value is outside the field's declared choices.", node.NodeId, "value", "Use one of the ordered field choices.");
                 // Every write refuses a retired choice, so a step that sets one is refused on every
-                // press while its button still shows (ESM-05). A filter may still match one.
+                // press while its button still shows. A filter may still match one.
                 else if (value.ValueKind == JsonValueKind.String &&
                          field.Choices.SingleOrDefault(choice => choice.Id == value.GetString()) is { Retired: true } retired)
                     diagnostics.Add(new("NUI286", NendoDiagnosticSeverity.Warning,
@@ -711,7 +710,7 @@ public sealed partial class NendoSemanticCompiler
     {
         var fieldId = ReadRequiredString(node, "fieldId", "NUI270", diagnostics);
         var comparison = ReadRequiredString(node, "operator", "NUI271", diagnostics);
-        // A calculated field filters as a stored field of its result type does (F-222): the host
+        // A calculated field filters as a stored field of its result type does: the host
         // works out the records it could match first, within a published bound.
         var calculated = fieldId is not null && derived.TryGetValue(fieldId, out var derivedField) ? derivedField : null;
         if (calculated is null && fieldId is not null && !fields.TryGetValue(fieldId, out _))
@@ -739,7 +738,7 @@ public sealed partial class NendoSemanticCompiler
             return;
         }
         // "null" is a command step's word for clearing a field. With a comparing operator it compiled
-        // and then sent a comparison with no value, which the record query refuses for good (WDV-21).
+        // and then sent a comparison with no value, which the record query refuses for good.
         if (valueKind == "null")
         {
             AddError(diagnostics, "NUI455", $"'{comparison}' does not compare with the null value kind.", node.NodeId, "valueKind",
@@ -749,7 +748,7 @@ public sealed partial class NendoSemanticCompiler
         if (NendoSemanticVocabulary.PeriodValueKinds.Contains(valueKind) && comparison is not null &&
             !NendoSemanticVocabulary.PeriodOperators.Contains(comparison))
         {
-            // A period is compared by its edges, so each clause stays one filter (W-248).
+            // A period is compared by its edges, so each clause stays one filter.
             AddError(diagnostics, "NUI460", $"'{comparison}' does not compare with {valueKind}, a span of days.", node.NodeId, "operator",
                 $"Use gte {valueKind} and lte {valueKind} together for within it, lt for before it or gt for after it.");
             return;
@@ -757,7 +756,7 @@ public sealed partial class NendoSemanticCompiler
         if (valueKind is "today" or "now" or "thisWeek" or "thisMonth")
         {
             // A command step already refused these (NUI287, NUI289); a filter compiled them and
-            // every read of the screen was then refused (ESM-03).
+            // every read of the screen was then refused.
             if (hasValue && value.ValueKind != JsonValueKind.Null)
                 diagnostics.Add(new("NUI458", NendoDiagnosticSeverity.Warning,
                     $"'{valueKind}' takes no value, so the value beside it is ignored.", node.NodeId, "value",
@@ -799,7 +798,7 @@ public sealed partial class NendoSemanticCompiler
     /// <summary>
     /// A literal must match the storage kind it is compared against, in the form storage
     /// accepts it: a Date as yyyy-MM-dd, a DateTime as an ISO timestamp with its zone and a
-    /// Uuid hyphenated. Otherwise the definition compiled and every read refused it (ESM-05).
+    /// Uuid hyphenated. Otherwise the definition compiled and every read refused it.
     /// </summary>
     private static void ValidateLiteral(
         NendoUiNodeSnapshot node,
@@ -839,7 +838,7 @@ public sealed partial class NendoSemanticCompiler
         if (node.Properties.TryGetValue("orderByFieldId", out var orderBy))
         {
             var fieldId = orderBy.ValueKind == JsonValueKind.String ? orderBy.GetString() : null;
-            // A calculated field sorts too (F-222), in the order the host works out before the page.
+            // A calculated field sorts too, in the order the host works out before the page.
             if ((fieldId is null || !derived.ContainsKey(fieldId)) && (fieldId is null || !fields.ContainsKey(fieldId)))
                 AddError(diagnostics, "NUI278", "The ordering field does not exist or is retired.", node.NodeId, "orderByFieldId", "Order by an active field of the listed record type.");
         }
@@ -886,7 +885,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// Checks <c>opens</c> (ADR-0004, 2026-09-20 amendment): one of the closed words,
+    /// Checks <c>opens</c> (ADR-0004): one of the closed words,
     /// and never on a tab's body, where the tab strip already answers what a fold
     /// would ask. Every section folds; this is only how it starts.
     /// </summary>
@@ -926,7 +925,7 @@ public sealed partial class NendoSemanticCompiler
     /// <para>
     /// Grouping, ranking, totalling and placing a record on a calendar are decided by the
     /// database over every matching record, not by the page in view, and a calculated field
-    /// has no column to read. Filtering and sorting are the exception (F-222): the host works
+    /// has no column to read. Filtering and sorting are the exception: the host works
     /// out the records a query could match first, bounded, and hands SQL the result. A
     /// command step is refused for the opposite reason: there is nowhere to write the value to.
     /// </para>

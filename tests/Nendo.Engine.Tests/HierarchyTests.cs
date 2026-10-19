@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A declared hierarchy, ADR-0019 stage 2: the declaration and its rung, the rule every parent
+/// A declared hierarchy (ADR-0019): the declaration and its rung, the rule every parent
 /// write obeys, the refusal to declare over data that is not a tree, and the move request that
 /// expands into ordinary set-field operations.
 /// </summary>
@@ -253,7 +253,7 @@ public sealed class HierarchyTests
     }
 
     /// <summary>
-    /// F-260: the planner's first move wrote 140 records, because a sibling without an order
+    /// The planner's first move wrote 140 records, because a sibling without an order
     /// sorts last and the level was renumbered whole whenever a neighbour had no order. Now
     /// a move past unordered siblings numbers those and the moved record, and nothing else.
     /// </summary>
@@ -512,7 +512,7 @@ public sealed class HierarchyTests
             new Dictionary<string, long> { ["parent"] = 1 })).ToArray();
         await coordinator.ApplyAsync(new("test", "wide", "test", "One more child than a subtree read folds", children));
         // One record linked at the root, so the related rows stay far inside their own bound and
-        // only the descendants can be too many (R2AAV-06).
+        // only the descendants can be too many.
         var schemaRevision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await coordinator.ApplyAsync(new("test", "links", "test", "A link at the root", [
             new CreateEntityOperation("e-link", "links", "Links", "links"),
@@ -539,8 +539,8 @@ public sealed class HierarchyTests
             $"A related count across a subtree of {NendoHierarchyLimits.MaximumAggregatedDescendants + 1} records answered {linked.Value} while the subtree count of it was an error.");
         StringAssert.Contains(linked.ErrorMessage, $"More than {NendoHierarchyLimits.MaximumAggregatedDescendants} records sit under this record");
 
-        // Since the 2026-10-16 amendment the bound is the aggregates' alone: the tree read and the
-        // descendantOf filter read the whole subtree. Both were refused as hierarchy-too-wide.
+        // The bound is the aggregates' alone: the tree read and the descendantOf filter read the
+        // whole subtree rather than refusing it as hierarchy-too-wide.
         var tree = await service.TreeRecordsAsync(new(Entity, "root", 1, 200));
         Assert.HasCount(200, tree.Items);
         Assert.IsNotNull(tree.NextCursor);
@@ -549,7 +549,7 @@ public sealed class HierarchyTests
     }
 
     /// <summary>
-    /// EBH-02, as the independent review narrowed it: a subtree past the descendant bound is a
+    /// A subtree past the descendant bound is a
     /// limit the data reaches, not a save that spent its budget. In a trigger condition it blocks
     /// the action and is reported, and the person's edit commits (ADR-0008 §6).
     /// </summary>

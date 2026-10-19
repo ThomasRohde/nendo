@@ -3,9 +3,9 @@ using Nendo.LocalMcp;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-085: an agent request that failed inside Nendo is kept like a view failure — capped,
+/// An agent request that failed inside Nendo is kept like a view failure — capped,
 /// device-local, under the one tray switch — so the reference an agent was told can be
-/// found (ADR-0002, 2026-09-27 amendment).
+/// found (ADR-0002).
 /// </summary>
 [TestClass]
 public sealed class DesktopAgentFailureLogTests
@@ -56,7 +56,7 @@ public sealed class DesktopAgentFailureLogTests
         Assert.IsFalse(discovery.StartsWith(persons, StringComparison.OrdinalIgnoreCase),
             $"The suite's agent hosts announce themselves in the person's folder: {discovery}");
 
-        // Nor their recent files (TST-16): a controller that names no history, with or without a
+        // Nor their recent files: a controller that names no history, with or without a
         // device folder of its own, keeps it under the temporary folder.
         var temp = Path.GetFullPath(Path.GetTempPath());
         await using var named = new DesktopSessionController(deviceStateRoot: suites);
@@ -67,7 +67,7 @@ public sealed class DesktopAgentFailureLogTests
             StringAssert.StartsWith(Path.GetFullPath(history), temp, $"A controller built with {who} keeps its recent files outside the temporary folder.");
         }
 
-        // Nor the ports the person's Nendo keeps for its files (TST-04): asked for, and bound.
+        // Nor the ports the person's Nendo keeps for its files: asked for, and bound.
         Assert.AreEqual(0, session.CurrentHostOptions().PreferredPort, "A suite host asks for the person's kept agent port.");
         await using var workspace = new DesktopTestWorkspace();
         await using var withFile = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);

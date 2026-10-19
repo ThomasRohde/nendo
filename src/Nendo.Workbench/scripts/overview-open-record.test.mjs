@@ -5,8 +5,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// R-013: a front-page row whose record is not in the first page its record type's surface
-// loads opened the type and not the record. The real view-overview.ts, actions.ts
+// A front-page row whose record is not in the first page its record type's surface
+// loads opens the record, not the type. The real view-overview.ts, actions.ts
 // (refreshDerived) and reads.ts run here against a stand-in host holding 100 records, of
 // which the surface's first window returns 50; only the page and the charts are stand-ins.
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -105,9 +105,9 @@ test('a row inside the first window still opens, read by ID all the same', async
   assert.equal(p.state.selectedRecordId, 'record-3');
 });
 
-// R2AAV-07: the numerals a ranking draws decide ties on the exact digits. The host ordered
-// 9007199254740993 above 9007199254740992, and both rows read "ranked 1", because the
-// numerals compared the JavaScript numbers the two lexemes round to.
+// The numerals a ranking draws decide ties on the exact digits. The host orders
+// 9007199254740993 above 9007199254740992, and comparing the JavaScript numbers the two
+// lexemes round to would read both rows "ranked 1".
 test('a ranking numbers two different exact values apart, and one value spelt two ways alike', () => {
   const entity = { semanticId: 'tasks', displayName: 'Tasks', fields: [field], derivedFields: [] };
   const row = (id, digits) => ({ semanticId: id, automationTarget: `record-${id}`, version: 1, values: { title: id, value: { $nendoNumber: digits } } });
@@ -120,7 +120,7 @@ test('a ranking numbers two different exact values apart, and one value spelt tw
   assert.deepEqual(numerals(alike), [1, 1, 3]);
 });
 
-// W-249: a ranking by a calculated number reads each record's result, not a stored value.
+// A ranking by a calculated number reads each record's result, not a stored value.
 test('a ranking by a calculated number reads its results', () => {
   const entity = { semanticId: 'tasks', displayName: 'Tasks', fields: [field], derivedFields: [{ semanticId: 'score', automationTarget: 'score', displayName: 'Score', resultType: 'decimal', resultNullable: true, calculationId: 'c', expression: 'x' }] };
   const row = (id, digits) => ({ semanticId: id, automationTarget: `record-${id}`, version: 1, values: { title: id },
@@ -130,10 +130,10 @@ test('a ranking by a calculated number reads its results', () => {
   assert.deepEqual(widths, [100, 50], 'A calculated ranking drew its bars from a stored value it does not have.');
 });
 
-// WSP-17: a front-page chart of a type whose only screen is a board was drawn as bars to press
-// that did nothing, and the press had already left the front page for a later redraw to show;
-// a row of a type with no screen at all was a button that opened nothing.
-test('WSP-17: a chart drills only into a type with a list, and a row of a type with no screen is no button', () => {
+// A front-page chart of a type whose only screen is a board is not drawn as bars to press, which
+// would do nothing once the press had left the front page for a later redraw to show; and a row of
+// a type with no screen at all is no button.
+test('a chart drills only into a type with a list, and a row of a type with no screen is no button', () => {
   openFile();
   const board = { semanticId: 'board', automationTarget: 'board', kind: 'boardSurface', properties: { entityId: 'tasks' }, children: [] };
   p.state.compilation = { ...definition, applications: [{ ...plan, surfaces: [board] }] };

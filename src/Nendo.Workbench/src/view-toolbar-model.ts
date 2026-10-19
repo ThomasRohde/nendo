@@ -2,7 +2,7 @@ import { WorkbenchHostError } from './host-types';
 import { extensionLimits, hostKeys, normalizeKeys, parseKeys, utf8Length } from './extension-api/protocol';
 
 /**
- * A custom view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090), as data.
+ * A custom view's controls in Nendo's own chrome (ADR-0013), as data.
  *
  * A view declares what it can do and Nendo draws it with its own parts: a toolbar strip above
  * the view's frame, Nendo's menus, Ctrl K and the keys. The declaration crosses from the view's
@@ -18,9 +18,9 @@ export const toolbarIcons = [
   'plus', 'minus', 'search', 'fit', 'pan', 'export', 'filter', 'list', 'link', 'focus', 'more', 'check',
   'edit', 'external', 'trash', 'arrowUp', 'arrowDown', 'chevronLeft', 'chevronRight', 'indent', 'outdent',
   'layers', 'chain', 'refresh', 'settings', 'eye', 'command', 'info',
-  // W-115, for the Archi workbench's row: Copy and paste, Lay out, Undo and Redo.
+  // For the Archi workbench's row: Copy and paste, Lay out, Undo and Redo.
   'clipboard', 'layout', 'undo', 'redo',
-  // W-174, for the Garden view's page width: narrow, medium and full.
+  // For the Garden view's page width: narrow, medium and full.
   'widthNarrow', 'widthMedium', 'widthFull',
 ] as const;
 export type ToolbarIcon = typeof toolbarIcons[number];

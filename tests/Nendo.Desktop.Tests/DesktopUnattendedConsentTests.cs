@@ -7,11 +7,11 @@ namespace Nendo.Desktop.Tests;
 /// <summary>
 /// The Desktop half of the fifth access level: which listeners are handed the consent
 /// delegate, and what it writes when one uses it
-/// (ADR-0009, 2026-09-22 amendment).
+/// (ADR-0009).
 /// <para>
 /// The adapter's own tests substitute a delegate of their own, so this is the only lane
 /// that exercises the real one. It is also the only place that can check the two things
-/// the amendment promises about it: that the grant is the same one a person's click
+/// ADR-0009 promises about it: that the grant is the same one a person's click
 /// writes, and that no level below Unattended is given it at all.
 /// </para>
 /// </summary>

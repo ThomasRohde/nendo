@@ -15,12 +15,12 @@ import { showError } from './shell';
  */
 
 // What was searched for, by record type, in the open file. Entity IDs repeat across files of one
-// application lineage, so another file's Tasks opened with this file's search typed and run (WST-08).
+// application lineage, so another file's Tasks opened with this file's search typed and run.
 const searchTexts = fileScopedClearable(new Map<string, string>());
 const pauseMs = 200;
 const limit = 20;
 // As the command palette and the @ menu: one letter is a prefix of most of the index, about twenty
-// times the work of two, and the host runs every search it is sent (PERF-09).
+// times the work of two, and the host runs every search it is sent.
 const searchMinimum = 2;
 
 export function studioSearchFieldMarkup(entity: EntitySnapshot): string {

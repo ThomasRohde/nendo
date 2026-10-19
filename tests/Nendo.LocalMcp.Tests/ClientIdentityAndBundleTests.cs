@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-150: a handshake-era client is named from its User-Agent on the stateless path; one
+/// A handshake-era client is named from its User-Agent on the stateless path; one
 /// record type is one small read; describe takes the facets a client needs.
 /// </summary>
 [TestClass]

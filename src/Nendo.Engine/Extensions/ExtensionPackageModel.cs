@@ -203,8 +203,8 @@ public sealed record NendoExtensionFileChange(
 
 /// <summary>
 /// A window of one package file exactly as a proposal would leave it, read from the proposal's
-/// own validated copy, so a review whose diff stops early can still be read to its last byte
-/// (review R-017). <paramref name="Sha256"/> and <paramref name="TotalBytes"/> are the whole
+/// own validated copy, so a review whose diff stops early can still be read to its last byte.
+/// <paramref name="Sha256"/> and <paramref name="TotalBytes"/> are the whole
 /// file's, so a reader that assembles every window can check what it has.
 /// </summary>
 public sealed record NendoProposalFileWindow(
@@ -351,13 +351,13 @@ public static class NendoExtensionContent
     /// <summary>
     /// A path a folder or zip import leaves out: the manifest at the root, in any case, and anything
     /// with a segment that starts with a dot or is <c>node_modules</c>. A put refuses to add one, so
-    /// a package exported and imported again is the same package (EXT-07).
+    /// a package exported and imported again is the same package.
     /// </summary>
     public static bool LeftOutOnImport(string path) =>
         string.Equals(path, NendoExtensionArchives.ManifestName, StringComparison.OrdinalIgnoreCase) ||
         path.Split('/').Any(segment => segment.StartsWith('.') || segment == "node_modules");
 
-    /// <summary>Whether one path is a folder the other sits in, ignoring case: a file system holds only one of them (EXT-06).</summary>
+    /// <summary>Whether one path is a folder the other sits in, ignoring case: a file system holds only one of them.</summary>
     public static bool FileAndFolderClash(string one, string other) =>
         one.Length != other.Length &&
         (one.Length < other.Length ? other.StartsWith(one + "/", StringComparison.OrdinalIgnoreCase) : one.StartsWith(other + "/", StringComparison.OrdinalIgnoreCase));

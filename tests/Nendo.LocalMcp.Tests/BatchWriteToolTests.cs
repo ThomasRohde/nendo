@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-147: a multi-field edit is one call and one revision; a cross-type batch commits
+/// A multi-field edit is one call and one revision; a cross-type batch commits
 /// atomically with every record's version in the result; a reference may be named by a
 /// unique field's value and the host resolves it, for a create, a batch and a JSON import.
 /// </summary>
@@ -195,7 +195,7 @@ public sealed class BatchWriteToolTests
     }
 
     /// <summary>
-    /// W-166: a target an earlier write of the same batch creates is found there under
+    /// A target an earlier write of the same batch creates is found there under
     /// references, by record ID and by a unique field's value, as a plain value always was.
     /// </summary>
     [TestMethod]
@@ -229,7 +229,7 @@ public sealed class BatchWriteToolTests
     }
 
     /// <summary>
-    /// F-258: a write that names a reference resolves the target's current version before
+    /// A write that names a reference resolves the target's current version before
     /// the Engine compares replay digests, so an exact retry after the target moved was
     /// NENDO_IDEMPOTENCY_CONFLICT, the one case the receipt exists for. The retry now
     /// carries the versions its committed revision recorded, as the import's does.
@@ -315,7 +315,7 @@ public sealed class BatchWriteToolTests
     /// <summary>
     /// A batch marks its records for new files in its own revision. An agent that built a
     /// skeleton with one batch spent 134 calls and 134 History entries marking its records
-    /// afterwards, one each (2026-10-08). History undoes the batch, marks and all.
+    /// afterwards, one each. History undoes the batch, marks and all.
     /// </summary>
     [TestMethod]
     public async Task ABatchMarksItsRecordsForNewFilesInItsOwnRevisionAndHistoryUndoesIt()
@@ -430,7 +430,7 @@ public sealed class BatchWriteToolTests
     /// <summary>
     /// The refusals an agent met while learning the write shapes name what to send: the view
     /// API's key it meant, the write, field and target missing a version, and the handle that
-    /// a call needing none no longer refuses (2026-10-08).
+    /// a call needing none does not refuse.
     /// </summary>
     [TestMethod]
     public async Task TheRefusalsAnAgentMetNameWhatToSendInstead()

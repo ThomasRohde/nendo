@@ -8,7 +8,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-160, ADR-0024: a file carries its own agent skill as a package of kind skill. It enters
+/// ADR-0024: a file carries its own agent skill as a package of kind skill. It enters
 /// only by an accepted proposal, skills/list then offers it beside the host's skill with a
 /// manifest whose digests are the bytes served, and a package that names an entry point or
 /// whose SKILL.md lacks its frontmatter does not validate, naming the file.
@@ -85,7 +85,7 @@ public sealed class FileSkillTests
         Assert.IsInstanceOfType<BlobResourceContents>((await client.ReadResourceAsync($"skill://{PackageId}/tasks/images/flow.png")).Contents.Single());
         Assert.AreEqual(SkillMarkdown, await ProtocolResourceTests.ReadTextAsync(client, $"skill://{PackageId}/tasks/SKILL.md"));
 
-        // A client with tools only finds the same skill and reads the same bytes (2026-10-08).
+        // A client with tools only finds the same skill and reads the same bytes.
         var readList = (await client.CallToolAsync("nendo.read.list")).StructuredContent!.Value.Deserialize<NendoReadList>(NendoMcpJson.Options)!;
         CollectionAssert.AreEqual(
             new[] { "skill://nendo-authoring/SKILL.md", $"skill://{PackageId}/tasks/SKILL.md" },

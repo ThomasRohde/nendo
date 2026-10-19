@@ -5,7 +5,7 @@ import type {
 } from './view-toolbar-model';
 
 /**
- * A custom view's toolbar and menus as Nendo draws them (ADR-0013, 2026-09-28; W-090), as
+ * A custom view's toolbar and menus as Nendo draws them (ADR-0013), as
  * markup and nothing else. Every control is the Workbench's own: the segmented control of the
  * view switcher, the labelled select, a search box, bordered buttons, and the File menu's
  * panel. The view's words are escaped where they land, and its icons are Nendo's, by name.
@@ -81,7 +81,7 @@ function itemMarkup(item: ToolbarItem, prefix: string): string {
     case 'group':
       return `<div class="view-toolbar-joined" role="group" aria-label="${escapeAttribute(item.label)}">${item.items.map((child) => pressableMarkup(child, true)).join('')}</div>`;
     case 'text':
-      // The title carries the whole text where the row has cut it short (W-092).
+      // The title carries the whole text where the row has cut it short.
       return `<span class="view-toolbar-text${item.mono ? ' is-mono' : ''}" title="${escapeAttribute(item.text)}">${escapeHtml(item.text)}</span>`;
     case 'separator':
       return '<span class="view-toolbar-separator" role="separator" aria-orientation="vertical"></span>';
@@ -98,7 +98,7 @@ function itemMarkup(item: ToolbarItem, prefix: string): string {
  */
 export function viewToolbarMarkup(toolbar: ViewToolbar, options: { title: string; compact: boolean; prefix: string; inline?: boolean }): string {
   if (toolbar.items.length === 0) return '';
-  // In the Use toolbar's row the strip keeps to one line and ends with More (W-115).
+  // In the Use toolbar's row the strip keeps to one line and ends with More.
   const items = toolbar.items.map((item) => itemMarkup(item, options.prefix)).join('');
   const more = options.inline === true
     ? `<button type="button" class="view-toolbar-button is-icon" data-view-more aria-haspopup="menu" aria-expanded="false" aria-label="More" title="More" hidden>${icon('more')}</button>`
@@ -107,7 +107,7 @@ export function viewToolbarMarkup(toolbar: ViewToolbar, options: { title: string
 }
 
 /**
- * What More holds for the controls the row has no room for (W-115), in their order: a button as
+ * What More holds for the controls the row has no room for, in their order: a button as
  * a command, a toggle as a check, a menu's items and a group's buttons under its label, and a
  * select's or a choice's options as radio items under its label. A search box is never put in
  * More, and a text, a separator or a spacer says nothing there.

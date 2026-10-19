@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// The broad review of 2026-10-10 on Studio as the person sees it (W-225). Each test renders
+// Studio as the person sees it. Each test renders
 // through the function the page draws with; where the page's wiring is the defect, the view's
 // own source is read for the call. tools/Gate-WorkbenchShell.mjs measures the rest on screen.
 const proposal = await bundleOf('src/proposal-markup.ts');
@@ -33,7 +33,7 @@ const notePlan = {
 };
 const entities = [{ entityId: 'task', displayName: 'Task', fields: [] }, { entityId: 'note', displayName: 'Note', fields: [] }];
 
-test('UIT-09: a line that takes something away is not marked as an addition', () => {
+test('a line that takes something away is not marked as an addition', () => {
   const removal = entry('removeExtensionPackage', 'Remove the package Board glance from this file.', ['org.example.board-glance']);
   const retire = entry('setRetired', 'Retire Energy on Task; retain stored data.', ['task', 'task.energy']);
   assert.equal(proposal.changeMark(removal), 'remove');
@@ -48,7 +48,7 @@ test('UIT-09: a line that takes something away is not marked as an addition', ()
   assert.match(source('view-proposal.ts'), /\$\{proposalChangesMarkup\(preview\)\}/, 'the review does not draw its lines through proposalChangesMarkup');
 });
 
-test('UIT-01: the Preview panel names the record type and screen the proposal touches', () => {
+test('the Preview panel names the record type and screen the proposal touches', () => {
   // Renaming the board: its line carries the surface and the board node.
   const rename = proposal.proposalPlace([entry('setUiProperty', 'Rename board to Lanes.', ['surface.task.board', 'task.board'])], [taskPlan, notePlan], entities);
   assert.deepEqual(rename.types, ['Task']);
@@ -66,7 +66,7 @@ test('UIT-01: the Preview panel names the record type and screen the proposal to
   assert.match(view, /proposalPlaceMarkup\(place, preview\.operationCount\)/, 'the panel is not drawn from what the proposal touches');
 });
 
-test('UIT-20: removing a package names each screen and panel that loses its code', () => {
+test('removing a package names each screen and panel that loses its code', () => {
   const nodes = [
     { surfaceId: 's.view', nodeId: 'n.glance', parentNodeId: null, kind: 'extensionRecordsSurface', position: 0, properties: { packageId: 'org.example.board-glance', title: 'Glance', entityId: 'task' } },
     { surfaceId: 's.page', nodeId: 'n.page', parentNodeId: null, kind: 'detailSurface', position: 0, properties: { title: 'Task page', entityId: 'task' } },
@@ -84,7 +84,7 @@ test('UIT-20: removing a package names each screen and panel that loses its code
   assert.match(source('view-proposal.ts'), /packageRemovalMarkup\(preview\.semanticDiff, state\.session\.uiNodes/, 'the review does not list the uses');
 });
 
-test('UIT-04: a change History will not undo says so beside its class, in the review and in History', () => {
+test('a change History will not undo says so beside its class, in the review and in History', () => {
   // Add view: one node and its settings, which History never offers to undo.
   const addView = { operationCount: 6, semanticDiff: [entry('addUiNode', 'Add the custom view Glance.', ['s', 'n'], 'reversible'), entry('setUiProperty', 'Set its configuration.', ['s', 'n'])] };
   assert.equal(proposal.historyOffersUndo(addView), false);
@@ -100,7 +100,7 @@ test('UIT-04: a change History will not undo says so beside its class, in the re
   assert.equal(historyReversibilityLabel({ operationType: 'ui.setProperty', reversibility: 'reversibleWithRetainedState' }, true), 'Can be undone if nothing has changed it since');
 });
 
-test('UIT-02: accepting a Studio proposal goes back to the page it came from, and says so on screen', () => {
+test('accepting a Studio proposal goes back to the page it came from, and says so on screen', () => {
   const after = (overrides) => proposal.viewAfterAccepting({ returnView: 'structure', buildsScreens: true, hadScreens: true, fromView: false, codeOnly: false, ...overrides });
   assert.equal(after({}), 'structure', 'a field added on Structure in a file with screens lands elsewhere');
   assert.equal(after({ returnView: 'surfaces' }), 'surfaces');
@@ -112,7 +112,7 @@ test('UIT-02: accepting a Studio proposal goes back to the page it came from, an
   assert.match(view, /else showOutcome\(outcome\)/, 'the outcome is only announced, not shown');
 });
 
-test('UIT-10: the review’s Back rejects a Studio proposal rather than leaving it in the host', () => {
+test('the review’s Back rejects a Studio proposal rather than leaving it in the host', () => {
   const view = source('view-proposal.ts');
   assert.match(view, /#close-proposal'\)\.addEventListener\('click', \(\) => void discardProposal\(\)\)/, 'Back does not discard the proposal');
   const discard = view.slice(view.indexOf('export async function discardProposal'), view.indexOf('export async function rejectProposal'));
@@ -120,7 +120,7 @@ test('UIT-10: the review’s Back rejects a Studio proposal rather than leaving 
   assert.match(discard, /discarded\. Nothing in the file changed\./);
 });
 
-test('UIT-06: the person’s own delete, keep mark, index build and undo read "by you"', () => {
+test('the person’s own delete, keep mark, index build and undo read "by you"', () => {
   // The host records these as "studio" when the page names no writer (DesktopSessionController,
   // SqliteNendoStore.Compensation); read from the sources, so the guard follows them.
   const recorded = ['../../Nendo.Desktop/DesktopSessionController.cs', '../../Nendo.Engine/Storage/SqliteNendoStore.Compensation.cs']
@@ -130,7 +130,7 @@ test('UIT-06: the person’s own delete, keep mark, index build and undo read "b
   assert.equal(originLabel('studio', []), originLabel('workbench', []), 'History names the person’s own change "by studio"');
 });
 
-test('UIT-03: a card says what stands in its way instead of Healthy', () => {
+test('a card says what stands in its way instead of Healthy', () => {
   const plan = { ...taskPlan };
   const view = node('task.links', 'extensionGraphSurface', { title: 'Links', packageId: 'org.example.link-graph' });
   const warning = { code: 'NUI452', severity: 'warning', message: 'The package org.example.link-graph is not in this file, so the view has no code to run yet.', semanticId: 'task.links', propertyPath: 'packageId', hint: '' };
@@ -146,7 +146,7 @@ test('UIT-03: a card says what stands in its way instead of Healthy', () => {
   assert.match(source('view-surfaces.ts'), /treeSurfaceCard\(plan, root, cardContext\(\)\)/, 'Surfaces draws its cards without the warnings');
 });
 
-test('UIT-15: an action is named by its label and says every field its steps set', () => {
+test('an action is named by its label and says every field its steps set', () => {
   const command = node('command.task.start', 'recordCommand', { definitionVersion: 3, entityId: 'task', label: 'Start work' }, [
     node('command.task.start.status', 'commandStep', { fieldId: 'task.status', valueKind: 'literal', value: 'Doing' }),
     node('command.task.start.started', 'commandStep', { fieldId: 'task.started', valueKind: 'today' }),
@@ -156,7 +156,7 @@ test('UIT-15: an action is named by its label and says every field its steps set
   assert.match(card, /Action · sets Status, Started/, `the card does not say what the action sets: ${card}`);
 });
 
-test('UIT-16: each board renames itself, addressed by its own node', () => {
+test('each board renames itself, addressed by its own node', () => {
   const plan = { ...taskPlan, surfaces: [node('task.byStatus', 'boardSurface', { title: 'By status' }), node('task.byEnergy', 'boardSurface', { title: 'By energy' })] };
   const markup = plan.surfaces.map((root) => treeSurfaceCard(plan, root)).join('');
   const bound = [...markup.matchAll(/data-board-rename="([^"]+)"/g)].map((match) => match[1]);
@@ -166,7 +166,7 @@ test('UIT-16: each board renames itself, addressed by its own node', () => {
   assert.doesNotMatch(source('view-surfaces.ts'), /surfaceRoot\(plan, 'boardSurface'\)/, 'Surfaces still renames only the first board');
 });
 
-test('UIT-19: Structure lists calculated fields apart, with formula and result type, and says what they keep from retiring', () => {
+test('Structure lists calculated fields apart, with formula and result type, and says what they keep from retiring', () => {
   const plants = {
     entityId: 'plant', displayName: 'Plant',
     fields: [{ fieldId: 'seeds', displayName: 'Seeds' }, { fieldId: 'grams', displayName: 'Grams' }, { fieldId: 'name', displayName: 'Name' }],
@@ -187,9 +187,7 @@ test('UIT-19: Structure lists calculated fields apart, with formula and result t
   assert.match(view, /readByMarkup\(field\.fieldId, state\.session\.entities\)/, 'Structure does not say which calculation reads a field');
 });
 
-// The independent review of the W-225 fixes (2026-10-13).
-
-test('W-062 with UIT-02: a view the Add view form made opens in Use, whatever page the form was on', () => {
+test('a view the Add view form made opens in Use, whatever page the form was on', () => {
   const screen = addedViewLanding({ kind: 'records', title: 'Glance', entityId: 'task', pageTitle: null }, entities);
   assert.deepEqual(screen, { view: 'use', sentence: 'Glance is under View in Task, and open now.' });
   const panel = addedViewLanding({ kind: 'panel', title: 'At a glance', entityId: 'task', pageTitle: 'Task page' }, entities);
@@ -201,7 +199,7 @@ test('W-062 with UIT-02: a view the Add view form made opens in Use, whatever pa
   assert.match(source('view-packages.ts'), /const landing = addedViewLanding\(added, state\.session\.entities\);/, 'landAddedView does not say where it lands');
 });
 
-test('UIT-10 review: Escape leaves the review without rejecting, and Discard says what it does', () => {
+test('Escape leaves the review without rejecting, and Discard says what it does', () => {
   const view = source('view-proposal.ts');
   assert.match(view, /id="leave-proposal" type="button" data-escape/, 'Escape has no way out of the review but Discard');
   assert.match(view, /#leave-proposal'\)\.addEventListener\('click', \(\) => leaveProposal\(\)\)/);
@@ -213,7 +211,7 @@ test('UIT-10 review: Escape leaves the review without rejecting, and Discard say
     'the Escape handler presses the first data-dismiss, which rejects the proposal');
 });
 
-test('UIT-10 review: only a proposal Studio prepared is rejected by Discard', () => {
+test('only a proposal Studio prepared is rejected by Discard', () => {
   assert.equal(proposal.isStudioPrepared({ origin: 'workbench' }), true);
   for (const origin of ['agent-342b6a7d16b4', 'extension:org.example.glance', undefined, ''])
     assert.equal(proposal.isStudioPrepared({ origin }), false, `a proposal from ${origin} is treated as Studio's own`);
@@ -222,7 +220,7 @@ test('UIT-10 review: only a proposal Studio prepared is rejected by Discard', ()
   assert.match(discard, /if \(!isStudioPrepared\(state\.proposal\)\) \{ state\.proposal = null;/, 'Discard rejects a proposal Studio did not prepare');
 });
 
-test('UIT-19 review: a calculation that reads other calculations names them, and a type its calculations hold is not offered for retirement', () => {
+test('a calculation that reads other calculations names them, and a type its calculations hold is not offered for retirement', () => {
   const plants = {
     entityId: 'plant', displayName: 'Plant', fields: [{ fieldId: 'seeds', displayName: 'Seeds' }],
     derivedFields: [
@@ -243,7 +241,7 @@ test('UIT-19 review: a calculation that reads other calculations names them, and
   assert.match(source('view-structure.ts'), /\$\{typeHeld \? ' disabled aria-describedby="type-held-by"' : ''\}/, 'Retire record type is offered under a calculation the host would refuse it for');
 });
 
-test('UIT-20 review: a panel on a page the same proposal removes is not listed', () => {
+test('a panel on a page the same proposal removes is not listed', () => {
   const nodes = [
     { surfaceId: 's.page', nodeId: 'n.page', parentNodeId: null, kind: 'detailSurface', position: 0, properties: { title: 'Task page', entityId: 'task' } },
     { surfaceId: 's.page', nodeId: 'n.section', parentNodeId: 'n.page', kind: 'section', position: 0, properties: {} },
@@ -254,7 +252,7 @@ test('UIT-20 review: a panel on a page the same proposal removes is not listed',
   assert.doesNotMatch(markup, /At a glance/, `a panel whose page goes with the package is listed as one that will show the notice: ${markup}`);
 });
 
-test('UIT-04 review: History says nothing of its Undo beside an entry it already undid, or where the host cannot say', () => {
+test('History says nothing of its Undo beside an entry it already undid, or where the host cannot say', () => {
   const revision = { revisionId: 'r1', canRequestCompensation: false };
   assert.equal(historyUndoOffer(revision, [{ compensationOfRevisionId: 'r1' }], true), null, 'an undone entry is still said to be beyond History');
   assert.equal(historyUndoOffer(revision, [], false), null, 'the preview host, which offers nothing, says every entry is beyond History');
@@ -266,7 +264,7 @@ test('UIT-04 review: History says nothing of its Undo beside an entry it already
   assert.match(source('view-history.ts'), /historyUndoOffer\(revision, state\.history, client\.mode === 'desktop'\)/, 'History does not ask whether the host computed the offer');
 });
 
-test('UIT-09 review: the Agent page’s review uses the same marks as Studio’s', () => {
+test('the Agent page’s review uses the same marks as Studio’s', () => {
   const agent = source('view-agent.ts');
   assert.doesNotMatch(agent, /＋/, 'the Agent page still draws a fixed plus beside every change');
   assert.match(agent, /\$\{proposalChangesMarkup\(preview\)\}/, 'the Agent page does not draw its lines through proposalChangesMarkup');

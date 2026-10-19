@@ -29,7 +29,7 @@ internal sealed class ChangeSetFailureLocation
 }
 
 /// <summary>
-/// Which refusals in one change set are independent of each other (W-010).
+/// Which refusals in one change set are independent of each other.
 /// <para>
 /// A clone validation stops at the first refusal, because the transaction it ran in is
 /// no longer usable. So the only way to learn about a second problem is to run again
@@ -133,7 +133,7 @@ internal static class IndependentRefusals
     /// The identifiers an operation names: every string under a property whose name ends
     /// in Id or Ids, anywhere in its canonical payload. Record IDs are among them, which
     /// is what ties two writes to the same record together. A record write also names the
-    /// fields it sets, the keys of its values and target versions (ESQ-09).
+    /// fields it sets, the keys of its values and target versions.
     /// </summary>
     internal static IReadOnlySet<string> IdentifiersOf(NendoOperation operation)
     {
@@ -145,7 +145,7 @@ internal static class IndependentRefusals
     }
 
     /// <summary>
-    /// The records a write's references point at (ESQ-09): a create pointing at a record a
+    /// The records a write's references point at: a create pointing at a record a
     /// refused create would have made depends on it. A target is only ever matched against what
     /// a left-out write introduced, never added to it: two rows under one existing parent are
     /// independent, however many of them are refused.

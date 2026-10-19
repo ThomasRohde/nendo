@@ -4,9 +4,9 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S1 of ADR-0008: the protected definition store and its canonical shape.
-/// These cover what a definition means and how it survives storage. How it evaluates,
-/// which arrived with the adapter in S2, is covered by the calculation, scalar and action
+/// ADR-0008: the protected definition store and its canonical shape.
+/// These cover what a definition means and how it survives storage. How it evaluates
+/// is covered by the calculation, scalar and action
 /// tests beside this file.
 /// </summary>
 /// <remarks>
@@ -272,7 +272,7 @@ public sealed class BehaviourDefinitionTests
         Assert.AreEqual("project.completedTasks", calculated.CalculationId);
         Assert.AreEqual(NendoBehaviourScalar.Integer, calculated.ResultType);
         Assert.IsFalse(calculated.ResultNullable);
-        // What it reads, so Structure can say which fields it keeps from being retired (UIT-19).
+        // What it reads, so Structure can say which fields it keeps from being retired.
         CollectionAssert.AreEqual(new[] { "done", "project" }, calculated.ReadsFieldIds.ToArray());
 
         // It is not a stored field, has no column, and no record carries a value for it.
@@ -286,7 +286,7 @@ public sealed class BehaviourDefinitionTests
     }
 
     /// <summary>
-    /// What each kind of binding reads, as Structure and the schema read report it (UIT-19): a
+    /// What each kind of binding reads, as Structure and the schema read report it: a
     /// field on the same record, a field reached through a reference, an aggregate's back
     /// reference and the calculation it totals, and a calculation read from the same record.
     /// The retirement check refuses under exactly these, so a missed kind would leave Structure

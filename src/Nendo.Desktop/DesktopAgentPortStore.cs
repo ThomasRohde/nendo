@@ -16,7 +16,7 @@ namespace Nendo.Desktop;
 /// <para>
 /// Keyed by the application ID and the file's instance ID together, so a file keeps its port
 /// when it is moved or renamed, and a Fork, a Duplicate or a new file of the application, each
-/// a new instance, gets one of its own (R2SP-03). Keyed by the application alone, a new file
+/// a new instance, gets one of its own. Keyed by the application alone, a new file
 /// made from Reading 2025.nendo was handed 2025's port, could not bind it, and a port chosen
 /// for either moved the other's too. Device state only: the file never carries a port, and a
 /// list of files and their ports never leaves this computer. The name is kept only to say whose

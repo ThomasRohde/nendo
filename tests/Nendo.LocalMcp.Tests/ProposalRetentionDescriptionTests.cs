@@ -3,9 +3,9 @@ using System.Reflection;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// ECO-13 (W-221): the proposal's retention told an agent it stays until accepted or rejected,
-/// while every workspace is discarded when the file closes (ADR-0007). An agent that handed over
-/// by title and trusted it lost the proposal to a close or an upgrade without a word.
+/// The proposal's retention must not tell an agent it stays until accepted or rejected,
+/// while every workspace is discarded when the file closes (ADR-0007). An agent that hands over
+/// by title and trusts it loses the proposal to a close or an upgrade without a word.
 /// </summary>
 [TestClass]
 public sealed class ProposalRetentionDescriptionTests

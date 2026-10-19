@@ -6,7 +6,7 @@ import type { Place, Trail } from './navigation-trail';
  * clicks; what the moves do to the tabs and the trail lives here, without the page, so it is
  * measured as it runs.
  *
- * A move is a transaction (review R-002). Going to a tab swaps its trail in and shows its place;
+ * A move is a transaction. Going to a tab swaps its trail in and shows its place;
  * a place that cannot be shown (its record type retired, its record unreadable) puts the tabs,
  * both trails and the window's trail back as they were, so the selected tab, the heading and
  * Back and Forward all keep describing the page still on screen.
@@ -58,7 +58,7 @@ export async function closeTabAt(set: TabSet, index: number, trail: Trail, show:
  * What a new tab starts from when the person asks for one beside `saved` (the + button, Ctrl T):
  * the place on screen, or, when that place is one of a kind in the window (a launched agent's
  * conversation, ADR-0030), the nearest place before it that is not. Two tabs never show one
- * conversation, so closing one of them cannot end the agent the other still shows (ACP-06).
+ * conversation, so closing one of them cannot end the agent the other still shows.
  * An empty trail when there is no such place.
  */
 export function trailForNewTab(saved: SavedTrail, oneOfAKind: (place: Place) => boolean): SavedTrail {
@@ -72,14 +72,14 @@ export function trailForNewTab(saved: SavedTrail, oneOfAKind: (place: Place) => 
 /**
  * Where the tab with ID `owner` stands now, or -1 when it has closed. A conversation's tab owns
  * the conversation by its ID, not by what its trail still holds: a trail drops a place when the
- * person goes somewhere new from part-way back, and after 50 more moves (WAU-01).
+ * person goes somewhere new from part-way back, and after 50 more moves.
  */
 export function ownerIndex(set: TabSet, owner: number | null): number {
   return owner === null ? -1 : set.tabs.findIndex((tab) => tab.id === owner);
 }
 
 /**
- * The trail of tab `index`, for moving it to a window of its own (W-277): the window's trail for
+ * The trail of tab `index`, for moving it to a window of its own: the window's trail for
  * the tab on screen, the saved one for any other. Null when the tab has no place to show, or is
  * the window's only tab, which stays: a window always shows one.
  */
@@ -125,8 +125,7 @@ export const pullDistance = 40;
  * the strip, or out, where letting go opens the tab in a window of its own. A tab is out past the
  * window's edge, the page's viewport `width` by `height`, or pulled down more than `pullDistance`
  * below the strip's bottom edge at `stripBottom`: a window that fills the screen has no edge to
- * drag past, so pulling the tab down into the page is the way out there, as in a browser
- * (reported 2026-10-17).
+ * drag past, so pulling the tab down into the page is the way out there, as in a browser.
  */
 export function dragState(startX: number, startY: number, x: number, y: number, width: number, height: number, stripBottom: number): 'press' | 'inside' | 'out' {
   if (Math.hypot(x - startX, y - startY) < dragThreshold) return 'press';

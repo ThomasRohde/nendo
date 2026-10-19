@@ -10,17 +10,15 @@ namespace Nendo.Engine;
 /// </summary>
 /// <param name="MaxRootsPerEntity">
 /// How many roots of this kind one entity may own. Null for a kind that cannot be
-/// a root. This is published rather than discovered: a record page wanting both a
-/// Mark won and a Mark lost button used to meet the rule only by failing
-/// validation, because nothing said the ceiling was one. Under the 2026-09-12
-/// amendment the widened kinds declare eight; the record page kinds keep one, and
+/// a root. This is published rather than discovered, so a record page wanting both a
+/// Mark won and a Mark lost button does not meet the rule only by failing
+/// validation. The widened kinds declare eight; the record page kinds keep one, and
 /// which of them a record page uses is existing precedence, not a new rule.
 /// </param>
 /// <param name="MaxRootsPerFile">
 /// How many roots of this kind the file may own, for a root that belongs to the
-/// file rather than to a record type. Null for every other kind. Under the
-/// 2026-09-14 amendment's S4 entry <c>overviewSurface</c> declares one and is the
-/// only kind that does: it carries no <c>entityId</c>, so there is no entity for
+/// file rather than to a record type. Null for every other kind.
+/// <c>overviewSurface</c> declares one and is the only kind that does: it carries no <c>entityId</c>, so there is no entity for
 /// <see cref="MaxRootsPerEntity"/> to count it against, and a ceiling counted per
 /// entity would have counted every file-scoped root into one nameless bucket.
 /// </param>
@@ -34,8 +32,8 @@ internal sealed record NendoNodeKindRule(
     int? MaxRootsPerFile = null)
 {
     /// <summary>
-    /// Whether this kind names the record type it reads. Every root did until the
-    /// S4 overview, and every child still takes its entity from the surface it
+    /// Whether this kind names the record type it reads. Every root but the
+    /// overview does, and every child takes its entity from the surface it
     /// sits on unless an overview put it somewhere there is no surface entity to
     /// take.
     /// </summary>
@@ -43,9 +41,8 @@ internal sealed record NendoNodeKindRule(
 }
 
 /// <summary>
-/// The contract version 3 vocabulary accepted by ADR-0004's 2026-09-09
-/// amendment. Kinds appear here only once this host compiles them; the
-/// remaining amendment kinds arrive with their own slices.
+/// The contract version 3 vocabulary (ADR-0004). Kinds appear here only once this
+/// host compiles them.
 /// </summary>
 public static class NendoSemanticVocabulary
 {
@@ -84,7 +81,7 @@ public static class NendoSemanticVocabulary
                         "configurationVersion", "configuration", "labelFieldId", "statusFieldId"),
                     Set("title", "packageId", "labelFieldId"),
                     Set("fieldBinding"), CanBeRoot: false),
-                // A view with a screen of its own (ADR-0013 Phase 5, W-106). It belongs to the file,
+                // A view with a screen of its own (ADR-0013). It belongs to the file,
                 // as the front page does; its code reads the file through the API, so it names no
                 // fields and no filters, and entityId only says what it is about.
                 [NendoExtensionViewDefinition.ScreenKind] = new(
@@ -113,7 +110,7 @@ public static class NendoSemanticVocabulary
                     Set("fieldBinding", "filterClause", "summaryTile", "breakdownChart", "progressTile", "rangeTile", "trendChart", "activityGrid"),
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // Two crossed choice dimensions, ADR-0004 2026-09-17 amendment (S6). A board
+                // Two crossed choice dimensions, ADR-0004. A board
                 // with a second axis: one bounded window placed into cells, and one grouped
                 // read answering every cell of the cross product exactly. It counts and takes
                 // no aggregate, because a cell states its number beside the cards it holds and
@@ -138,7 +135,7 @@ public static class NendoSemanticVocabulary
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
                 // Records on a spine by one Date field, one civil year at a time,
                 // with an optional end date that turns an entry into a span
-                // (ADR-0004 2026-09-14 amendment, S3). Placement is by the start
+                // (ADR-0004). Placement is by the start
                 // date only: an overlap query needs an OR the closed clause set
                 // has not got, so a span that began earlier is on that year's spine.
                 ["timelineSurface"] = new(
@@ -148,10 +145,10 @@ public static class NendoSemanticVocabulary
                     Set("fieldBinding", "filterClause"),
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // A card per record, over exactly a list's bounded window (ADR-0004
-                // 2026-09-14 amendment, S2). The title leads, the accent option tones the
+                // A card per record, over exactly a list's bounded window (ADR-0004).
+                // The title leads, the accent option tones the
                 // card's edge, and the bound fields are the body. A media field may cover each
-                // card with its picture (ADR-0004 2026-10-16 amendment, ADR-0031). It takes the
+                // card with its picture (ADR-0004, ADR-0031). It takes the
                 // tiles and charts a list takes, in the same row above the grid.
                 ["gallerySurface"] = new(
                     "gallerySurface",
@@ -160,8 +157,8 @@ public static class NendoSemanticVocabulary
                     Set("fieldBinding", "filterClause", "summaryTile", "breakdownChart", "progressTile", "rangeTile", "trendChart", "activityGrid"),
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // A declared hierarchy as an expandable outline (ADR-0019 stage 6, ADR-0004's
-                // B6). It reads the tree a level at a time in sibling order, so it takes no
+                // A declared hierarchy as an expandable outline (ADR-0019, ADR-0004).
+                // It reads the tree a level at a time in sibling order, so it takes no
                 // ordering, and no filterClause: a filtered tree hides the ancestors that give a
                 // match its meaning, and the outline's find box opens a match's path instead.
                 // Its bound fields are columns beside the title; a subtree aggregate bound there
@@ -173,7 +170,7 @@ public static class NendoSemanticVocabulary
                     Set("fieldBinding"),
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // The file's front page (ADR-0004 2026-09-14 amendment, S4). The first
+                // The file's front page (ADR-0004). The first
                 // root that belongs to the file rather than to a record type: it carries
                 // no entityId, so every tile, chart and recent list under it names the
                 // record type it reads. It composes nothing across those types — an
@@ -194,8 +191,8 @@ public static class NendoSemanticVocabulary
                     Set("entityId"),
                     Set("fieldBinding", "filterClause"),
                     CanBeRoot: false),
-                // The few records at the top of one stored number, ADR-0004 2026-09-17
-                // amendment (S6). It is a recentList ordered by size rather than by recency:
+                // The few records at the top of one stored number, ADR-0004.
+                // It is a recentList ordered by size rather than by recency:
                 // rank numerals and a bar against the exact largest. A record with no number
                 // is not ranked, so the host adds one predicate of its own and the author
                 // carries seven clauses rather than eight.
@@ -222,10 +219,10 @@ public static class NendoSemanticVocabulary
                     Set("commandStep"),
                     CanBeRoot: true,
                     MaxRootsPerEntity: MaximumRootsPerKindPerEntity),
-                // The first charts, ADR-0004 2026-09-14 amendment (S1). Both are tiles
+                // The first charts, ADR-0004. Both are tiles
                 // in the sense a summaryTile is: accepted where it is accepted, and read over the
                 // records where they sit; only a breakdownChart takes the scope property.
-                // entityId on a tile or a chart is the S4 addition: required under an
+                // entityId on a tile or a chart is required under an
                 // overview, which has no record type of its own to lend one, and refused
                 // anywhere else, where it could only disagree with the surface it sits on.
                 ["breakdownChart"] = new(
@@ -240,7 +237,7 @@ public static class NendoSemanticVocabulary
                     Set(),
                     Set("filterClause"),
                     CanBeRoot: false),
-                // Over time, ADR-0004 2026-09-16 amendment (S5). The first groupings whose
+                // Over time, ADR-0004. The first groupings whose
                 // groups are not knowable from the definition: a choice field's options are
                 // written down and a month is not, so the host generates the buckets from
                 // the range it resolves and fills them from the read. A bucket with nothing
@@ -290,7 +287,7 @@ public static class NendoSemanticVocabulary
                     "relatedList",
                     Set("targetEntityId", "viaFieldId", "title", "orderByFieldId", "orderDirection"),
                     Set("targetEntityId", "viaFieldId"),
-                    // A chart inside a related list is not drawn in S1, so it is not
+                    // A chart inside a related list is not drawn, so it is not
                     // accepted there rather than compiled and silently missing.
                     Set("fieldBinding", "filterClause", "summaryTile"),
                     CanBeRoot: false),
@@ -338,8 +335,8 @@ public static class NendoSemanticVocabulary
     internal static IReadOnlySet<string> ValueKinds { get; } = Set("literal", "today", "now", "null", "thisWeek", "thisMonth");
 
     /// <summary>
-    /// The value kinds that name a span of days rather than one value (ADR-0004, 2026-10-18 note,
-    /// W-248). A filter compares a date with its first or last day; a command step cannot assign one.
+    /// The value kinds that name a span of days rather than one value (ADR-0004).
+    /// A filter compares a date with its first or last day; a command step cannot assign one.
     /// A week starts on Monday.
     /// </summary>
     internal static IReadOnlySet<string> PeriodValueKinds { get; } = Set("thisWeek", "thisMonth");
@@ -348,7 +345,7 @@ public static class NendoSemanticVocabulary
     internal static IReadOnlySet<string> PeriodOperators { get; } = Set("lt", "gte", "lte", "gt");
 
     /// <summary>
-    /// How a <c>trendChart</c> divides its range. Closed to the two the amendment names:
+    /// How a <c>trendChart</c> divides its range. Closed to the two ADR-0004 names:
     /// a month and a week are the two a person reads without being taught the axis.
     /// </summary>
     internal static IReadOnlySet<string> TrendBuckets { get; } = Set("month", "week");
@@ -382,7 +379,7 @@ public static class NendoSemanticVocabulary
     internal const string DefaultSummaryScope = "surface";
 
     /// <summary>
-    /// How a section starts, ADR-0004 2026-09-20 amendment. Every section can be folded
+    /// How a section starts, ADR-0004. Every section can be folded
     /// away by the person reading it; this is the one thing an author says about it,
     /// and what the person has done since never reaches the file. A tab's body neither
     /// folds nor takes it.
@@ -392,7 +389,7 @@ public static class NendoSemanticVocabulary
     internal const string DefaultSectionOpens = "open";
 
     /// <summary>
-    /// The colours a choice option may carry, ADR-0004 2026-09-14 amendment. Eight
+    /// The colours a choice option may carry, ADR-0004. Eight
     /// named hues: enough to tell five board columns apart, few enough to stay one
     /// palette across every surface an agent builds. A tone is a semantic token in
     /// the sense a field presentation is — the renderer owns the Light and Dark
@@ -512,23 +509,22 @@ public static class NendoSemanticVocabulary
     internal const int MaximumEffectiveFilters = 8;
 
     /// <summary>
-    /// How many roots of one widened kind an entity may own. A bounded initial
-    /// product choice under the 2026-09-12 amendment, not a measured optimum: an
+    /// How many roots of one widened kind an entity may own. A bounded
+    /// product choice, not a measured optimum: an
     /// application with a Mark won and a Mark lost button, or an Open and a Closed
     /// list, is ordinary, and one of each was a ceiling nothing stated.
     /// </summary>
     internal const int MaximumRootsPerKindPerEntity = 8;
 
     /// <summary>
-    /// How many overview roots one file may own. One to begin with, under the
-    /// 2026-09-14 amendment's S4 entry: several would need a file-level selector
+    /// How many overview roots one file may own. One: several would need a file-level selector
     /// that nothing else needs yet, and a front page a person has to choose
     /// between is not a front page.
     /// </summary>
     internal const int MaximumOverviewRootsPerFile = 1;
 
     /// <summary>
-    /// How many extensionView roots one file may own (W-106). The ceiling a record type has for
+    /// How many extensionView roots one file may own. The ceiling a record type has for
     /// each kind of screen, not a measured optimum: a file that is one application needs one.
     /// </summary>
     internal const int MaximumViewRootsPerFile = 8;
@@ -562,15 +558,14 @@ public static class NendoSemanticVocabulary
 
     /// <summary>
     /// How many groups one grouped aggregate answers, the unset group included. A
-    /// choice field's options and a Boolean's two values sit far inside it; the
-    /// ceiling is published now so the day buckets of a later slice have a stated
-    /// bound rather than a new rule.
+    /// choice field's options and a Boolean's two values sit far inside it, and
+    /// the day buckets of a year fit it too.
     /// </summary>
     internal const int MaximumAggregateGroups = 366;
 
     /// <summary>
-    /// How many columns a board grouped by a reference draws (ADR-0004, 2026-09-17 amendment,
-    /// S7). Above it the board draws nothing at all and states the target type, its record
+    /// How many columns a board grouped by a reference draws (ADR-0004).
+    /// Above it the board draws nothing at all and states the target type, its record
     /// count and this number, rather than drawing the first few — a board missing its last
     /// lanes looks exactly like a board.
     /// <para>
@@ -625,7 +620,7 @@ public static class NendoSemanticVocabulary
     /// would coerce a `nendo.decimal:` string to zero. See
     /// <see cref="ExactAggregate"/>.
     /// <para>
-    /// `avg` is refused by name under the 2026-09-10 ADR-0004 amendment. The mean
+    /// `avg` is refused by name (ADR-0004). The mean
     /// of exact decimals is not generally an exact decimal — three values summing
     /// to 1 have no exact mean — so accepting it would put the one rounded number
     /// on a record page full of exact ones. It needs its own contract change
@@ -1034,7 +1029,7 @@ public sealed record NendoAuthoringLimits(
             PutFilePayloadBytes: 96 * 1024),
         Hierarchy = new(NendoHierarchyLimits.MaximumDepth, NendoHierarchyLimits.MaximumAggregatedDescendants, NendoHierarchyLimits.OrderGap),
         Import = new(RowsPerCall: 500, RowsPerBatch: NendoApplicationService.MaximumBatchRecords),
-        // As large as the request body (R2AP-03): the person's forms, Studio, a view and the
+        // As large as the request body: the person's forms, Studio, a view and the
         // native import store values of any size, and an agent that read one back must be able
         // to send it back; the body is the bound a tool call meets first.
         RecordValueBytes = RequestBodyByteCount,
@@ -1050,9 +1045,8 @@ public sealed record NendoAuthoringLimits(
     /// <summary>
     /// The most one submitted field value may hold, in UTF-8 bytes of the value itself: the
     /// text of a string as stored, without its quotes or JSON escapes, and the JSON text of
-    /// anything else (W-165). An outside author found it by bisection while it was unpublished.
-    /// It was 32 KiB until 2026-10-13, below what the person stores; it is now the request
-    /// body's bound, so an agent can write back any value a request can carry (R2AP-03).
+    /// anything else. It is published, so no author has to find it by bisection, and it is
+    /// the request body's bound, so an agent can write back any value a request can carry.
     /// </summary>
     public int RecordValueBytes { get; init; }
 
@@ -1084,7 +1078,7 @@ public sealed record NendoAuthoringLimits(
     public int RequestQueueSeconds { get; init; }
 
     /// <summary>
-    /// The bounds an agent import keeps (W-149): the rows one call carries, bounded by the
+    /// The bounds an agent import keeps: the rows one call carries, bounded by the
     /// local transport's request body rather than the CSV profile, and the rows each
     /// committed batch holds, which is the batch create's bound.
     /// </summary>

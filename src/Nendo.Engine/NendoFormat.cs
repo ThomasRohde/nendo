@@ -39,15 +39,15 @@ public static class NendoFormat
     public const string RetirementMinimumHostVersion = "1.8.0";
 
     // 1.9.0 marked contract version 2's optional roots. Contract versions 1 and 2 were
-    // removed (ADR-0004, 2026-09-12 amendment), so no constant names that rung any more;
+    // removed (ADR-0004), so no constant names that rung any more;
     // the rungs after it keep their numbers.
 
     public const string ReferenceConversionMinimumHostVersion = "1.10.0";
 
-    /// <summary>Contract version 3 composable surfaces, ADR-0004 2026-09-09 amendment.</summary>
+    /// <summary>Contract version 3 composable surfaces, ADR-0004.</summary>
     public const string ComposableSurfacesMinimumHostVersion = "1.11.0";
 
-    // The vocabulary-widening ladder, ADR-0004 2026-09-12 amendment. Contract
+    // The vocabulary-widening ladder, ADR-0004. Contract
     // version 3's tree is preserved, so the version on a root no longer says what
     // a host must understand: each widened shape declares its own minimum, and
     // <see cref="NendoSemanticCapability"/> computes which of them a stored
@@ -85,7 +85,7 @@ public static class NendoFormat
     public const string ConditionalVisibilityMinimumHostVersion = "1.18.0";
 
     /// <summary>
-    /// Colour and the record-page header, ADR-0004 2026-09-14 amendment, slice S0: a
+    /// Colour and the record-page header, ADR-0004: a
     /// <c>tone</c> on a choice option, and a <c>detailSurface</c> that names a title,
     /// subtitle or accent field. A host without either would draw a toned board grey
     /// and refuse the page's properties as unknown, so a file using them states the
@@ -94,7 +94,7 @@ public static class NendoFormat
     public const string ColourAndHeaderMinimumHostVersion = "1.19.0";
 
     /// <summary>
-    /// The first charts, ADR-0004 2026-09-14 amendment, slice S1: a
+    /// The first charts, ADR-0004: a
     /// <c>breakdownChart</c> or a <c>progressTile</c> on a surface. A host without
     /// them refuses the kinds as unknown, so a file using either states the host it
     /// needs.
@@ -102,7 +102,7 @@ public static class NendoFormat
     public const string FirstChartsMinimumHostVersion = "1.20.0";
 
     /// <summary>
-    /// The timeline, ADR-0004 2026-09-14 amendment, slice S3: a <c>timelineSurface</c>
+    /// The timeline, ADR-0004: a <c>timelineSurface</c>
     /// placing records on a spine by a Date field, with an optional end date that
     /// draws a span. A host without it refuses the kind as unknown, so a file using
     /// one states the host it needs.
@@ -110,7 +110,7 @@ public static class NendoFormat
     public const string TimelineMinimumHostVersion = "1.21.0";
 
     /// <summary>
-    /// The gallery and the rating scale, ADR-0004 2026-09-14 amendment, slice S2: a
+    /// The gallery and the rating scale, ADR-0004: a
     /// <c>gallerySurface</c> of cards, and an Integer field drawn on a closed scale. One
     /// rung reached two ways, as colour and the record-page header are: the gallery is a
     /// shape of the node tree, and a scale is evidence the field operation carries. A host
@@ -120,7 +120,7 @@ public static class NendoFormat
     public const string GalleryAndRatingMinimumHostVersion = "1.22.0";
 
     /// <summary>
-    /// The overview page, ADR-0004 2026-09-14 amendment, slice S4: an
+    /// The overview page, ADR-0004: an
     /// <c>overviewSurface</c> that belongs to the file rather than to a record type,
     /// with a <c>recentList</c> and a <c>rangeTile</c> under it. One rung for the
     /// three, because none of them is reachable without the root that holds them —
@@ -131,7 +131,7 @@ public static class NendoFormat
     public const string OverviewMinimumHostVersion = "1.23.0";
 
     /// <summary>
-    /// What the file is for, ADR-0004 2026-09-15 amendment: prose the file carries itself,
+    /// What the file is for, ADR-0004: prose the file carries itself,
     /// whether or not it has a front page, led with by the describe resource. Not a rung of
     /// the node tree at all — it is a row in its own protected table, so the ladder cannot
     /// see it and the operation declares this version on its own evidence. A host without it
@@ -141,22 +141,20 @@ public static class NendoFormat
     public const string ApplicationPurposeMinimumHostVersion = "1.24.0";
 
     /// <summary>
-    /// Over time, ADR-0004 2026-09-16 amendment, slice S5: <c>trendChart</c> and
+    /// Over time, ADR-0004: <c>trendChart</c> and
     /// <c>activityGrid</c>, the first groupings whose groups are generated from a resolved
     /// civil-date range rather than read from a field's options. One rung for the two,
     /// because both stand on the same bucket machinery and neither is reachable without it.
     /// <para>
-    /// 1.25.0 rather than the 1.24.0 the plan proposed: 1.24.0 went to the file purpose on
-    /// 2026-09-15 while this slice was unwritten. The ladder is monotone and a host never
-    /// advertises a later feature than it has, so rungs follow delivery order — the same
-    /// correction S2 and S3 already carry.
+    /// 1.25.0, after the file purpose's 1.24.0. The ladder is monotone and a host never
+    /// advertises a later feature than it has, so rungs follow delivery order.
     /// </para>
     /// </summary>
     public const string OverTimeMinimumHostVersion = "1.25.0";
 
     /// <summary>
     /// Two crossed choice dimensions with an exact number in every cell, and a ranking of
-    /// the few records at the top of one stored number (ADR-0004, 2026-09-17 amendment, S6).
+    /// the few records at the top of one stored number (ADR-0004).
     /// One rung for both: they arrive in the same host, and a host that draws a grid draws
     /// a ranking.
     /// </summary>
@@ -164,7 +162,7 @@ public static class NendoFormat
 
     /// <summary>
     /// A <c>boardSurface</c> whose columns are records of another record type rather than a
-    /// field's options (ADR-0004, 2026-09-17 amendment, S7). The first grouping whose members
+    /// field's options (ADR-0004). The first grouping whose members
     /// are neither written in the definition nor computed from a range, so a host that does
     /// not read the target type cannot draw the board at all.
     /// <para>
@@ -178,7 +176,7 @@ public static class NendoFormat
     public const string ReferenceBoardMinimumHostVersion = "1.27.0";
 
     /// <summary>
-    /// A section carrying <c>opens</c> (ADR-0004, 2026-09-20 amendment). The property is
+    /// A section carrying <c>opens</c> (ADR-0004). The property is
     /// what an older host refuses; every section folding is renderer behaviour and puts
     /// nothing in the file, so a file without the property stays where it was.
     /// </summary>
@@ -188,27 +186,27 @@ public static class NendoFormat
     public const string ExtensionViewsMinimumHostVersion = "1.29.0";
 
     /// <summary>
-    /// A custom view at protocol 2 (ADR-0013, 2026-09-24 amendment): disclosed fields and
+    /// A custom view at protocol 2 (ADR-0013): disclosed fields and
     /// authored filters as child nodes. A 1.29 host would refuse the children; a file whose
     /// views are all protocol 1 stays at 1.29.0.
     /// </summary>
     public const string ExtensionProtocol2MinimumHostVersion = "1.30.0";
 
     /// <summary>
-    /// A custom view of one record type as typed columns, extensionRecordsSurface (ADR-0013,
-    /// 2026-09-24 record-set amendment). A 1.30 host does not know the kind.
+    /// A custom view of one record type as typed columns, extensionRecordsSurface (ADR-0013).
+    /// A 1.30 host does not know the kind.
     /// </summary>
     public const string ExtensionRecordsMinimumHostVersion = "1.31.0";
 
     /// <summary>
-    /// A custom view on a record page, extensionRecordPanel (ADR-0013, 2026-09-24 record-set
-    /// amendment). The record-set shape shipped first, as 1.31.0, and that host does not know
+    /// A custom view on a record page, extensionRecordPanel (ADR-0013).
+    /// The record-set shape shipped first, as 1.31.0, and that host does not know
     /// the panel, so the panel is its own rung.
     /// </summary>
     public const string ExtensionRecordPanelMinimumHostVersion = "1.32.0";
 
     /// <summary>
-    /// Custom-view packages carried in the file (ADR-0013, 2026-09-25): the package, file,
+    /// Custom-view packages carried in the file (ADR-0013): the package, file,
     /// content and view-state tables. Like the purpose, a row set in protected tables the node
     /// ladder cannot see, so each package operation declares this version on its evidence and
     /// the layout rung states it at open. A 1.32 host does not know the tables and refuses the
@@ -217,7 +215,7 @@ public static class NendoFormat
     public const string ExtensionPackagesMinimumHostVersion = "1.33.0";
 
     /// <summary>
-    /// A custom view the 1.32 rules refuse (ADR-0013, 2026-09-25): no package pin, a
+    /// A custom view the 1.32 rules refuse (ADR-0013): no package pin, a
     /// configuration that is not empty, a calculated field shown, a relative filter, more
     /// fields or panels than those rules allowed. A view those rules accept keeps the rung it
     /// had, so a file with an older view is not raised until its definition says something new.
@@ -225,7 +223,7 @@ public static class NendoFormat
     public const string OpenCustomViewsMinimumHostVersion = "1.34.0";
 
     /// <summary>
-    /// A declared hierarchy (ADR-0019, 2026-09-27): a record type whose self-reference the
+    /// A declared hierarchy (ADR-0019): a record type whose self-reference the
     /// Engine keeps a tree. A protected table the node ladder cannot see, so the declare and
     /// remove operations state this version on their evidence and the layout rung states it
     /// at open. 1.35.0 had been reserved in the documents for ADR-0013's views anywhere; rungs
@@ -234,7 +232,7 @@ public static class NendoFormat
     public const string HierarchyMinimumHostVersion = "1.35.0";
 
     /// <summary>
-    /// An <c>outlineSurface</c> (ADR-0019 stage 6, ADR-0004's B6): a declared hierarchy drawn as
+    /// An <c>outlineSurface</c> (ADR-0019, ADR-0004): a declared hierarchy drawn as
     /// an expandable outline in Use. Its own rung rather than the hierarchy's: installers of
     /// 1.35.0 were built before the kind existed, and a host never advertises a later feature
     /// than it has.
@@ -250,7 +248,7 @@ public static class NendoFormat
     public const string FieldRuleMinimumHostVersion = "1.37.0";
 
     /// <summary>
-    /// A file's own look (W-089): a protected table the node ladder cannot see, so the
+    /// A file's own look: a protected table the node ladder cannot see, so the
     /// operation states this version on its evidence and the layout rung states it at open.
     /// 1.38.0 had been reserved in the documents for ADR-0013's views anywhere; rungs follow
     /// delivery order, so this takes it and that phase moves to the next one.
@@ -266,7 +264,7 @@ public static class NendoFormat
     public const string HistoryFoldMinimumHostVersion = "1.39.0";
 
     /// <summary>
-    /// A list, board, calendar or tile filtered or sorted by a calculated field (F-222): the
+    /// A list, board, calendar or tile filtered or sorted by a calculated field: the
     /// host computes which records pass and in which order before it reads a page, bounded by
     /// <see cref="NendoQueryLimits.MaximumCalculatedQueryRecords"/>. A shape of the node tree
     /// read beside the stored fields, since a calculated field is the one a record type names
@@ -285,27 +283,27 @@ public static class NendoFormat
     public const string NewFileMinimumHostVersion = "1.41.0";
 
     /// <summary>
-    /// A custom view with a screen of its own, and the file opening on it (ADR-0013 Phase 5,
-    /// W-106): a node kind no older host compiles. The tile of the same phase waits for the next rung.
+    /// A custom view with a screen of its own, and the file opening on it (ADR-0013):
+    /// a node kind no older host compiles.
     /// </summary>
     public const string FileViewMinimumHostVersion = "1.42.0";
 
     /// <summary>
-    /// A package of kind skill (ADR-0024, W-160): a protected table the node ladder cannot see,
+    /// A package of kind skill (ADR-0024): a protected table the node ladder cannot see,
     /// stated by the package operation's evidence and by the layout rung at open. A file whose
     /// packages are all views keeps the rung it had.
     /// </summary>
     public const string SkillPackageMinimumHostVersion = "1.43.0";
 
     /// <summary>
-    /// A text field presented as Markdown (W-173, ADR-0003's named presentation): a value no
+    /// A text field presented as Markdown (ADR-0003's named presentation): a value no
     /// older host knows, which it would show as an unsupported field. Stated by the field
     /// operation's evidence, as a rating's is; the presentation column already exists.
     /// </summary>
     public const string MarkdownPresentationMinimumHostVersion = "1.44.0";
 
     /// <summary>
-    /// A link record type's rule (ADR-0026, W-105): a protected table the node ladder cannot
+    /// A link record type's rule (ADR-0026): a protected table the node ladder cannot
     /// see, stated by the operation's evidence and by the layout rung at open. A file that
     /// declares none keeps the rung it had.
     /// </summary>
@@ -319,7 +317,7 @@ public static class NendoFormat
     public const string SearchMinimumHostVersion = "1.46.0";
 
     /// <summary>
-    /// A behaviour definition that an older host would refuse (ADR-0008, 2026-10-10 amendment):
+    /// A behaviour definition that an older host would refuse (ADR-0008):
     /// a create step's links, a sum or filtered count over a calculated field of each member, or
     /// a formula that calls IsEmpty. Stated by the definition operation's evidence; a file whose
     /// definitions use none of them keeps the rung it had.
@@ -327,21 +325,21 @@ public static class NendoFormat
     public const string BehaviourLinksMinimumHostVersion = "1.47.0";
 
     /// <summary>
-    /// ui.removeProperty (ADR-0004, 2026-10-13 amendment, ESM-11): an operation no older host
+    /// ui.removeProperty (ADR-0004): an operation no older host
     /// knows, stated by its evidence, as a new field operation's is. A file that never cleared a
     /// property keeps the rung it had.
     /// </summary>
     public const string UiPropertyRemovalMinimumHostVersion = "1.48.0";
 
     /// <summary>
-    /// A behaviour definition whose formula calls ToText (ADR-0008, 2026-10-13 amendment,
-    /// R2AAV-05), which an older host's closed catalogue refuses. Stated by the definition
+    /// A behaviour definition whose formula calls ToText (ADR-0008),
+    /// which an older host's closed catalogue refuses. Stated by the definition
     /// operation's evidence; a file whose formulas never call it keeps the rung it had.
     /// </summary>
     public const string ToTextMinimumHostVersion = "1.49.0";
 
     /// <summary>
-    /// Three indexes on the history tables (ADR-0021, 2026-10-13 note; PERF-01, PERF-04), added by
+    /// Three indexes on the history tables (ADR-0021), added by
     /// a fold: one on the idempotency rows by revision, which a fold's delete cascades into, and two
     /// partial ones on revisions by proposal and by the revision a compensation reverses. Not a
     /// table and not a rung of the linear layout ladder, but a host that does not know them refuses
@@ -350,21 +348,21 @@ public static class NendoFormat
     public const string RevisionIndexesMinimumHostVersion = "1.50.0";
 
     /// <summary>
-    /// schema.setReferenceLabel (ADR-0003, 2026-10-14 note, W-232): an operation no older host
+    /// schema.setReferenceLabel (ADR-0003): an operation no older host
     /// knows, stated by its evidence. A file that never changed a reference's label keeps the rung
     /// it had.
     /// </summary>
     public const string ReferenceLabelMinimumHostVersion = "1.51.0";
 
     /// <summary>
-    /// Media in user data (ADR-0031, W-264): a Text field presented as media, stated by the field
+    /// Media in user data (ADR-0031): a Text field presented as media, stated by the field
     /// operation's evidence as Markdown's is, and the embedded media tables, stated by media.put's
     /// evidence and by the layout rung at open. A file that never uses either keeps the rung it had.
     /// </summary>
     public const string MediaMinimumHostVersion = "1.52.0";
 
     /// <summary>
-    /// Dates that move (ADR-0008 and ADR-0004, 2026-10-18 amendments, W-248): a formula that calls
+    /// Dates that move (ADR-0008 and ADR-0004): a formula that calls
     /// AddDays, stated by the definition operation's evidence, and a filter that compares with
     /// thisWeek or thisMonth, read from the node tree. An older host's catalogue and value
     /// kinds refuse both. A file that uses neither keeps the rung it had.
@@ -373,14 +371,14 @@ public static class NendoFormat
 
     /// <summary>
     /// A summary tile, breakdown or ranking over a calculated number, and a breakdown grouped by a
-    /// reference (ADR-0004 and ADR-0008, 2026-10-18 amendments, W-249), read from the node tree.
+    /// reference (ADR-0004 and ADR-0008), read from the node tree.
     /// An older host's compiler refuses each as NUI214 or NUI350. A file that uses none keeps the
     /// rung it had.
     /// </summary>
     public const string CalculatedTotalsMinimumHostVersion = "1.54.0";
 
     /// <summary>
-    /// A file's own picture as its icon (ADR-0004, 2026-10-19 amendment, W-001): a protected table
+    /// A file's own picture as its icon (ADR-0004): a protected table
     /// on the rung above media, stated by application.setIcon's evidence and by the layout rung at
     /// open. A file that never chose a picture keeps the rung it had.
     /// </summary>

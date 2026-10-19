@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The outline surface, ADR-0019 stage 6 (ADR-0004's B6): a declared hierarchy drawn as an
+/// The outline surface (ADR-0019, ADR-0004): a declared hierarchy drawn as an
 /// expandable outline in Use. It reads the hierarchy's own order a level at a time, so it
 /// takes no ordering and no filter; the record type must declare the tree it draws, and the
 /// tree cannot be removed from under it.

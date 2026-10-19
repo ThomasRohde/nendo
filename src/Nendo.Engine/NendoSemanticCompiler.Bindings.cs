@@ -25,7 +25,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// A calendar places each record on one civil date. This first slice takes a
+    /// A calendar places each record on one civil date. It takes a
     /// Date field only: a DateTime carries a time and an offset, and putting one
     /// on a month grid means choosing a time zone to group by. That needs its own
     /// contract change, so the refusal names it rather than guessing UTC.
@@ -83,7 +83,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// A timeline, ADR-0004 2026-09-14 amendment (S3): each record on a spine by one
+    /// A timeline, ADR-0004: each record on a spine by one
     /// civil date, with an optional end date that turns the entry into a span, a
     /// stored Text field that titles it and a single-choice field that tones its
     /// dot. The date rule is the calendar's and the title and accent rules are the
@@ -121,7 +121,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// A gallery, ADR-0004 2026-09-14 amendment (S2): a card per record over exactly a
+    /// A gallery, ADR-0004: a card per record over exactly a
     /// list's window. Both field roles are the record page's rules with card wording, and
     /// both are optional — a card without a declared title leads with its first bound
     /// field, as a timeline entry does, so a gallery card and a board card are titled by
@@ -139,7 +139,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// A gallery's cover (ADR-0004 2026-10-16 amendment): an active media field of the record type,
+    /// A gallery's cover (ADR-0004): an active media field of the record type,
     /// whose picture tops each card. A picture is a stored address, so a calculation cannot be one.
     /// </summary>
     private static void ValidateCoverField(
@@ -161,7 +161,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// An outline (ADR-0019 stage 6): a tree the Engine keeps, so the record type must declare
+    /// An outline (ADR-0019): a tree the Engine keeps, so the record type must declare
     /// one. What the outline reads is the hierarchy's own order, which is why it names no
     /// ordering; how far it opens and whether it moves records are the only choices it makes.
     /// </summary>
@@ -194,7 +194,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// The record-page header, ADR-0004 2026-09-14 amendment (S0). Three optional
+    /// The record-page header, ADR-0004. Three optional
     /// properties on a <c>detailSurface</c>: the stored Text field that heads the
     /// page, a field shown under it, and the single-choice field whose option's tone
     /// colours it. Each is refused by name rather than drawn as an empty band: a page

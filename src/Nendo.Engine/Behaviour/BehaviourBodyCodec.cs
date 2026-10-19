@@ -151,7 +151,7 @@ internal static class NendoBehaviourCodec
             }
             // Text, or absent or null for a trigger with no condition. Anything else was read as
             // absent, so "conditionExpression": false, sent to keep a deleting action dormant,
-            // stored a trigger that ran it on every matching event (EBH-14).
+            // stored a trigger that ran it on every matching event.
             string? condition = null;
             if (body.TryGetProperty("conditionExpression", out var expression))
             {
@@ -450,7 +450,7 @@ internal static class NendoBehaviourCodec
         /// <summary>
         /// Whether text is one name the enum defines. <see cref="System.Enum.TryParse{TEnum}(string?, bool, out TEnum)"/>
         /// also takes digits and comma lists, so "9" parsed as a binding kind no table holds and
-        /// escaped as an internal error, and "0" quietly meant the first member (EBH-13).
+        /// escaped as an internal error, and "0" quietly meant the first member.
         /// </summary>
         private static bool IsName<TValue>(string text) where TValue : struct, Enum =>
             System.Enum.GetNames<TValue>().Contains(text, StringComparer.Ordinal);

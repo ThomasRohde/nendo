@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-246: a ceiling says what it had spent and where. The Billable author met the function-call
+/// A ceiling says what it had spent and where. The Billable author met the function-call
 /// limit in a client's rollup and could not tell which member's formula spent it, and read a
 /// batch refused on related records as a function-call problem, because a refusal named only
 /// the allowance. The shapes here are Billable's: client, projects, time entries.
@@ -33,7 +33,7 @@ public sealed partial class BehaviourLimitDiagnosisTests
 
     /// <summary>
     /// A client's total of its projects' totals of their entries: the path names the project and the
-    /// entry. Since W-247 each entry has its own calls, so the entry's formula is the one past them.
+    /// entry. Each entry has its own calls, so the entry's formula is the one past them.
     /// </summary>
     [TestMethod]
     public async Task ARollupThatRunsOutNamesTheRelatedCalculationsItRanOutInside()
@@ -57,8 +57,8 @@ public sealed partial class BehaviourLimitDiagnosisTests
     }
 
     /// <summary>
-    /// Billable's batch: three defaulting steps on each created entry, refused at 20 on related
-    /// records before W-247. Each record now brings its own allowance, so one record's related
+    /// Billable's batch: three defaulting steps on each created entry. Each record brings its own
+    /// allowance, so one record's related
     /// records are made to run out here.
     /// </summary>
     [TestMethod]

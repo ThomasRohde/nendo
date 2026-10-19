@@ -12,17 +12,17 @@ Map, Assessment, Outline, Importance × health and Capability × application vie
 seven colour modes (maturity, maturity gap, change since, application coverage, importance,
 investment, neutral) and the compact and ordered reference layouts.
 
-- **Assessments over time** (W-080). Where the view's configuration names an assessment
-  record type, each capability's maturity is its latest Maturity assessment, and the
-  inspector shows the latest score on each dimension (Maturity, Business value, IT health)
-  with its date and how many there have been. Every assessment is a record, so the history
-  keeps each one; the capability's page lists them under Assessment history.
+- **Assessments over time.** Where the view's configuration names an assessment record type,
+  each capability's maturity is its latest Maturity assessment, and the inspector shows the
+  latest score on each dimension (Maturity, Business value, IT health) with its date and how
+  many there have been. Every assessment is a record; the capability's page lists them under
+  Assessment history.
 - **Change since** colours each card by its latest maturity less the one in force on a
   chosen date (Since lists every date anything was assessed): lower, no change, up one, up
   two or more, or not comparable where either judgement is missing.
-- **Application coverage** (W-081) colours each card by how many distinct applications
-  support it or anything below it: none, one, or two or more, where the overlap may be worth
-  a look. A group counts its children's applications once each.
+- **Application coverage** colours each card by how many distinct applications support it or
+  anything below it: none, one, or two or more. A group counts its children's applications
+  once each.
 - **Capability × application** lists each capability in scope that an application supports,
   against those applications, with the role and fit of each link in its cell, toned by fit.
   A cell opens the link.
@@ -30,8 +30,9 @@ investment, neutral) and the compact and ordered reference layouts.
   each, and the inspector lists the initiatives that cover the selected capability.
 - **Importance × health** places every capability in scope by its strategic importance
   against its latest IT health score, with a column for those not yet assessed. A cell
-  lists its capabilities; pressing one selects it.
-
+  lists its capabilities; pressing one selects it. A capability whose importance is a
+  retired choice, or one the schema does not know, is in the *Retired or unknown importance*
+  row.
 - **Levels** shows 1 to 5 levels, or All, and adapts if the model's depth changes. The
   map opens at two levels. A collapsed group shows how many capabilities it holds.
 - **Double-click** a group, or choose Focus group, to focus it. The chosen levels then
@@ -56,10 +57,10 @@ investment, neutral) and the compact and ordered reference layouts.
   Tab goes on to the inspector; the arrows move to the nearest card that way, and Enter or
   Space selects it (the view kit's `roving()`, carried at `kit/nendo-view-kit.js`).
 - **Edit** and **+ Child** change the model; **Open record** opens Nendo's own record page
-  with the related application support and initiatives.
-  A capability edit leaves assessment-derived maturity alone. An existing rating outside
-  the displayed scale stays selected as its current value until explicitly changed or cleared,
-  and an existing capability without a lifecycle is shown as *Not set* and keeps none.
+  with the related application support and initiatives. A capability edit leaves
+  assessment-derived maturity alone. An existing rating outside the displayed scale stays
+  selected as its current value until explicitly changed or cleared, and an existing
+  capability without a lifecycle is shown as *Not set* and keeps none.
 - **Export** writes the map as **SVG**, to edit, or **PNG**, twice the size, for a slide: the
   scope at the chosen levels in the chosen colour, with a title, the file's banner and the
   legend, whatever part of it the camera shows. The SVG is plain shapes and text with hex
@@ -85,9 +86,9 @@ title, and runs their keys:
 Nendo's own **Add Capability** adds a capability under the selected card, or else under the
 focused group. A right-click on a card opens Nendo's menu, with Open record, Edit, Add a
 capability under it, Rename, Focus this group and the four moves, each greyed where it cannot
-happen. The breadcrumbs join the summary line. On an older Nendo the Atlas shows its own
-toolbar, as it always has; it does so too if Nendo refuses the row, after declaring it once
-again without the Since control.
+happen. The breadcrumbs join the summary line. On a Nendo without the toolbar the Atlas shows
+its own. If Nendo refuses the row, the Atlas declares it once more without the Since control,
+and shows its own toolbar if that is refused too.
 
 ## Showing it in a file
 
@@ -211,7 +212,7 @@ direction is Tolerate, Invest, Migrate or Eliminate.
 
 ## Layout and integration
 
-`layout.js` is the owner's dependency-free BCM layout reference v1.0.0, wrapped as
+`layout.js` is the dependency-free BCM layout reference v1.0.0, wrapped as
 `window.BcmLayout`: fixed leaf geometry, parents packed bottom-up. `layout-profile.js`
 holds the lab preset exactly — 160 × 56 leaves, padding 8, title band 24, gap 8, grid 8,
 frame objective and a 16:9 target — and the camera's Fit. Resizing changes only the
@@ -242,11 +243,12 @@ The tooling lives in [`tools/bcm-atlas/`](../../tools/bcm-atlas/), outside the p
   maturity into one Maturity assessment dated when it was last reviewed, with its evidence and
   owner, and changes nothing on the capability; `demonstration` is the Northstar demo's
   fictional history (an earlier baseline, Business value and IT health), each one saying so.
-- `upgrade.mjs` is what a BCM.nendo built before 2026-09-29 needs: the Assessment record
-  type and its screens, the Initiative scope link type (W-081) with a list on each side, a unique capability code (W-075), both ends of a support link required
-  (W-076) and the map's configuration. `node tools/bcm-atlas/upgrade.mjs` writes
-  `upgrade-operations.json`, which `BcmAtlasUpgradeTests` validates and applies to a copy of
-  `workspace/BCM.nendo`. To upgrade the live file, open it with Agent access on and run
+- `upgrade.mjs` brings a BCM.nendo without assessments up to the current model: the
+  Assessment record type and its screens, the Initiative scope link type with a list on each
+  side, a unique capability code, both ends of a support link required, and the map's
+  configuration. `node tools/bcm-atlas/upgrade.mjs` writes `upgrade-operations.json`, which
+  `BcmAtlasUpgradeTests` validates and applies to a copy of `workspace/BCM.nendo`. To upgrade
+  a live file, open it with Agent access on and run
   `node tools/bcm-atlas/Upgrade-BcmAtlas.mjs schema`, accept the proposal, run
   `node tools/Put-NendoPackage.mjs extensions/bcm-atlas`, accept it, then
   `node tools/bcm-atlas/Upgrade-BcmAtlas.mjs data` to import the assessments.
@@ -264,34 +266,16 @@ The tooling lives in [`tools/bcm-atlas/`](../../tools/bcm-atlas/), outside the p
   the real pointer. Each starts by switching Nendo to Use.
 
 `tools/Review-BcmAtlas.ps1` runs inside `Test-Production.ps1`: the node tests, then the
-package in Edge through the fixture broker. Over BCM it measures level counts, every
-colour mode, the banner and the related rows in BCM's own words, no repacking while
-searching or recolouring, the latest assessment on each dimension, every leaf's change
-since each assessment date against the fixture's own history, every card's maturity as its
-latest assessment, all 635 capabilities placed by importance against health and one in its
-exact cell, every card's coverage tone against the fixture's support links rolled up to
-groups, the capability-against-application matrix's size and one cell's role and fit, a
-capability listing an initiative that covers it besides its primary one, the camera kept across a data change, Ctrl-drag from a card, a
-definition change binding again, the notice without a declared tree, both themes and a
-600px pane; moving by the real pointer into a group and before a sibling, a drop into its
-own group refused unsent, the keyboard's moves, F2's rename and a stale move shown as the
-file holds it; and the exports: an SVG holding exactly the map's cards, span and legend, the
-same file after zooming and panning, no packing, a PNG at twice the SVG's size, the dark
-canvas and the white print palette, and the SVG opened on a page of its own. Over the second
-file it measures that only that file's record types are read,
-that Importance × health is not offered without IT health assessments,
-that the parts it does not bind are not offered, that the unbound one is named, that
-scores and tones follow its own fields, that its related sections are found, and that the
-editor writes only its own bound fields with the parent's version.
-
-For the broad review (W-213) the lane opens BCM with `configuration.mode` `portfolio` and finds
-Importance × health on the first draw; reads 5,024 assessments and finds the notice saying the
-read was cut; places a capability whose importance is a retired choice in a row of its own,
-still all 635; saves a capability without a lifecycle after a change to its name and finds no
-lifecycle written; types Alt+Shift+Up and F2 in the editor's definition and finds no move sent
-and no rename box; counts one card in the tab order and moves between cards with the arrows;
-and, with Nendo's toolbar, colours by Change since over 70 assessment dates and finds the row
-accepted with 64 dates and the Atlas still in Nendo's toolbar.
+package in Edge through the fixture broker. Over BCM it measures level counts, every colour
+mode, the banner and the related rows, the latest assessment on each dimension, change since
+each assessment date, coverage tones rolled up to groups, Importance × health and the matrix,
+`configuration.mode`, the notice when a read is cut, the camera across a data change and
+panning, real-pointer and keyboard moves, F2, refused and stale moves, keys ignored while
+typing, the tab order, the toolbar's 64 dates, both themes, a 600px pane, and the SVG and
+PNG exports. Over the second file it measures that only that file's record types are read,
+that unbound parts are not offered and the unbound one is named, that scores and tones follow
+its own fields, and that the editor writes only its own bound fields with the parent's
+version.
 
 Install a changed package with
 `node tools/Put-NendoPackage.mjs extensions/bcm-atlas`, which proposes only the files

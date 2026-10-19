@@ -3,7 +3,7 @@ import type { ProposalFileWindow } from './host-types';
 import { byteSize, hasHiddenCharacters, hiddenCharactersFileNote, showHiddenCharacters } from './package-diff-markup';
 
 /**
- * The whole of a file a proposal adds or replaces, read before accepting it (review R-017).
+ * The whole of a file a proposal adds or replaces, read before accepting it.
  *
  * The review's diff stops at a bound and a binary file is said by its size, so without this a
  * person could accept bytes they had no way to read. The host answers from the proposal's own

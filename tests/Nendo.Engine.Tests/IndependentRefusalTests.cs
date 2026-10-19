@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-010: a change set that does not validate reports every independent refusal together,
+/// A change set that does not validate reports every independent refusal together,
 /// and never one that only follows from another.
 /// <para>
 /// Clone validation stops at its first refusal, so each case here is measured from a
@@ -146,7 +146,7 @@ public sealed class IndependentRefusalTests
     }
 
     /// <summary>
-    /// ESQ-09: a create pointing at a record a refused create would have made, as a CSV batch
+    /// A create pointing at a record a refused create would have made, as a CSV batch
     /// writes a child under a parent row, fails only because the parent was left out. It is a
     /// consequence, so only the parent's refusal is reported.
     /// </summary>
@@ -173,7 +173,7 @@ public sealed class IndependentRefusalTests
     }
 
     /// <summary>
-    /// ESQ-09 (review): rows under one parent the file already holds are independent. A refused
+    /// Rows under one parent the file already holds are independent. A refused
     /// row does not make its parent something it introduced, so a later row under that parent with
     /// its own mistake is still reported.
     /// </summary>

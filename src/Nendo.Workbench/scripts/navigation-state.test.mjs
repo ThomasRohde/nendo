@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// The broad review's state findings (W-224), driven through the real moves -- openWorkspaceView,
+// The Workbench's state rules, driven through the real moves -- openWorkspaceView,
 // openHelp, the tab switch (switchTab with revisitCurrent), the busy queue and following the file
 // -- in one bundle so they share the app's state, with the host replaced by a recorder that can
 // be told to fail a method or hold one back, and the shell by one that records what was said.
@@ -86,7 +86,7 @@ async function onUse() {
   p.navigationTrail.load({ places: [], cursor: -1 });
 }
 
-test('WCS-18: a move whose read fails leaves the state on the screen still drawn', async () => {
+test('a move whose read fails leaves the state on the screen still drawn', async () => {
   await onUse();
   host.fail.add('history.query');
   await p.openWorkspaceView('history');
@@ -94,7 +94,7 @@ test('WCS-18: a move whose read fails leaves the state on the screen still drawn
   assert.equal(p.state.view, 'use', 'the state names the screen the move failed to reach, under the old page');
 });
 
-test('WCS-08: a refusal that asks for a refresh carries the Refresh view button, and a background one keeps the focus where it is', async () => {
+test('a refusal that asks for a refresh carries the Refresh view button, and a background one keeps the focus where it is', async () => {
   await onUse();
   p.showFailure(new p.WorkbenchHostError('stale-file-session', 'The file changed while this action was running. Refresh the view.'));
   assert.equal(host.notices.length, 1, 'a sentence that says Refresh the view offers nothing to press');
@@ -105,7 +105,7 @@ test('WCS-08: a refusal that asks for a refresh carries the Refresh view button,
   assert.deepEqual(host.said, ['That record is gone.'], 'a refusal with nothing to refresh grew a Refresh view button');
 });
 
-test('WCS-08: Refresh view leaves the window idle once it has read the file again', async () => {
+test('Refresh view leaves the window idle once it has read the file again', async () => {
   // Its handlers set the one-action flag without the busy state, and the redraw inside them then
   // set the busy state the handler never cleared: every control stayed disabled under "Still working".
   for (const show of [() => p.showFailure(new p.WorkbenchHostError('stale-file-session', 'Refresh the view.')), () => p.showOutcomeRefreshNotice('Saved.', 'Refresh the view.')]) {
@@ -117,7 +117,7 @@ test('WCS-08: Refresh view leaves the window idle once it has read the file agai
   }
 });
 
-test('WCS-16: Help pressed while an action runs opens when it ends', async () => {
+test('Help pressed while an action runs opens when it ends', async () => {
   await onUse();
   p.state.actionInFlight = true;
   await p.openHelp('');
@@ -128,7 +128,7 @@ test('WCS-16: Help pressed while an action runs opens when it ends', async () =>
   assert.equal(p.state.view, 'help', 'Help pressed during an action was dropped');
 });
 
-test('WCS-16: a move pressed while an action runs is made when it ends, and a refusal since keeps the person where it is said', async () => {
+test('a move pressed while an action runs is made when it ends, and a refusal since keeps the person where it is said', async () => {
   await onUse();
   p.state.actionInFlight = true;
   await p.openWorkspaceView('data');
@@ -148,7 +148,7 @@ test('WCS-16: a move pressed while an action runs is made when it ends, and a re
   assert.equal(p.state.view, 'use', 'the held move took the person away from the refusal of the save it waited on');
 });
 
-test('WCS-10: a tab whose place cannot be read puts the screen back with the tab and its trail', async () => {
+test('a tab whose place cannot be read puts the screen back with the tab and its trail', async () => {
   await onUse();
   const heading = { eyebrow: 'Use · Task', title: 'All tasks' };
   p.navigationTrail.record(p.placeNow(heading));
@@ -163,7 +163,7 @@ test('WCS-10: a tab whose place cannot be read puts the screen back with the tab
   assert.equal(host.said.length, 1, 'the failure was not said on the screen it was put back to');
 });
 
-test('WCS-11: a topic picked while Help loads stays picked, and a late answer does not redraw another page', async () => {
+test('a topic picked while Help loads stays picked, and a late answer does not redraw another page', async () => {
   await onUse();
   host.held.set('help.readPages', deferred());
   const opening = p.openHelp('');
@@ -217,7 +217,7 @@ function follower() {
   return { time, seen, follow };
 }
 
-test('WCS-07: a follow that failed after adopting the newer snapshot still catches up on the next nudge', async () => {
+test('a follow that failed after adopting the newer snapshot still catches up on the next nudge', async () => {
   await onUse();
   const { time, seen, follow } = follower();
   host.session = session(5);
@@ -235,7 +235,7 @@ test('WCS-07: a follow that failed after adopting the newer snapshot still catch
   assert.equal(seen.recovered, 1);
 });
 
-test('WCS-07: a failed follow asks again by itself, waiting longer each time it fails', async () => {
+test('a failed follow asks again by itself, waiting longer each time it fails', async () => {
   await onUse();
   const { time, seen, follow } = follower();
   host.session = session(6);
@@ -260,7 +260,7 @@ test('WCS-07: a failed follow asks again by itself, waiting longer each time it 
   assert.equal(seen.passes, 5, 'the follow kept reading after it had caught up');
 });
 
-test('WCS-07: a wake-up with nothing new read starts the pass it waited for and redraws once', async () => {
+test('a wake-up with nothing new read starts the pass it waited for and redraws once', async () => {
   await onUse();
   const { time, seen, follow } = follower();
   host.session = session(7);

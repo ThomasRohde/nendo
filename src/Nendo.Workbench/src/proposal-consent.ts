@@ -3,9 +3,9 @@ import type { ProposalBehaviour } from './host-types';
 import { icon } from './icons';
 
 // What accepting a proposal means for this device's consent to the file's automatic
-// actions, said in the review and in the queue before anyone presses Accept (ADR-0009,
-// 2026-09-29 amendment; W-008). The approval panel used to be the first place this
-// appeared, and it appeared after acceptance, with editing already paused.
+// actions, said in the review and in the queue before anyone presses Accept (ADR-0009).
+// Said only in the approval panel, it would appear after acceptance, with editing already
+// paused.
 //
 // The preview carries facts; whether consent is held right now is read from the
 // session, because a preview kept in the queue cannot know about a later approval or

@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The read behind a <c>matrixSurface</c>, ADR-0004 2026-09-17 amendment, slice S6.
+/// The read behind a <c>matrixSurface</c> (ADR-0004).
 /// <para>
 /// One rule is worth more than the rest and is asserted first: a cell with nothing in it
 /// is still a cell. The cells are the cross product of two option sets, produced before a

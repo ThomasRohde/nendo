@@ -2,10 +2,10 @@ import { escapeAttribute, escapeHtml } from './format';
 import type { ResolvedLook } from './host';
 
 /**
- * A file's look (W-089): the tone and letter of the badge its icon carries on the window, the
+ * A file's look: the tone and letter of the badge its icon carries on the window, the
  * taskbar, the notification area and notifications. Every file has one by default; the About
  * page is where a person gives it one of its own, through a proposal they review like any
- * other change to the file. A file may also carry its own picture (W-001), drawn instead of the
+ * other change to the file. A file may also carry its own picture, drawn instead of the
  * badge: the person drops one on the icon, and the page draws it into a square PNG first.
  */
 
@@ -128,7 +128,7 @@ export function lookProposal(current: ResolvedLook, next: { tone: string | null;
 /**
  * Whether Review change can be pressed: something differs, and the letter box holds a letter. A
  * refused letter followed by a colour enabled it again with the last good letter, while the box
- * still showed the refused text (WSP-25).
+ * still showed the refused text.
  */
 export function lookReviewable(current: ResolvedLook, next: { tone: string | null; letter: string | null; icon?: string | null }, typedLetter: string): boolean {
   return normaliseLetter(typedLetter) !== null && lookProposal(current, next, 0) !== null;

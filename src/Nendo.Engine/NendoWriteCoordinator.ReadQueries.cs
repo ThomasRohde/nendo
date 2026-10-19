@@ -7,13 +7,13 @@ public sealed partial class NendoWriteCoordinator
     internal NendoReadDiagnostics ReadDiagnostics => new(_store?.FullAuthorityScanCount ?? 0,
         _store?.FullRecordReadCount ?? 0, _store?.FullHistoryReadCount ?? 0, _store?.IntegrityCheckCount ?? 0);
 
-    /// <summary>How many rows filtered reads asked a filter function about (PERF-02); a test reads it.</summary>
+    /// <summary>How many rows filtered reads asked a filter function about; a test reads it.</summary>
     internal long FilterCallbacks => _store?.FilterCallbacks ?? 0;
 
-    /// <summary>How many sibling rows tree reads' seeks returned (ADR-0019, 2026-10-16); a test reads it.</summary>
+    /// <summary>How many sibling rows tree reads' seeks returned (ADR-0019); a test reads it.</summary>
     internal long TreeRowsSought => _store?.TreeRowsSought ?? 0;
 
-    /// <summary>How many tables the commit checks counted (PERF-08); a test reads it.</summary>
+    /// <summary>How many tables the commit checks counted; a test reads it.</summary>
     internal long CommitTableCounts => _store?.CommitTableCounts ?? 0;
 
     public async Task<NendoSessionSnapshot> GetDefinitionSnapshotAsync(CancellationToken cancellationToken = default)
@@ -142,8 +142,8 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// One exact number per group of a closed grouping, in one read (ADR-0004,
-    /// 2026-09-14 amendment). A chart costs one read rather than one per option,
+    /// One exact number per group of a closed grouping, in one read (ADR-0004).
+    /// A chart costs one read rather than one per option,
     /// and the grouping is not a filter, so it spends none of the budget of eight.
     /// </summary>
     public async Task<NendoRecordGroupedAggregate> GroupAggregateRecordsAsync(
@@ -167,7 +167,7 @@ public sealed partial class NendoWriteCoordinator
                     ?? throw new NendoPreconditionException("field-not-found", "The grouping field does not exist on this record type.");
                 var target = SnapshotFieldKind(query.EntityId, query.FieldId);
                 Storage.SqliteNendoStore.RequireGroupedTarget(query.FieldId, target);
-                // A reference's groups are the records it points at, as the file's read answers (W-249).
+                // A reference's groups are the records it points at, as the file's read answers.
                 var open = grouping.StorageKind == NendoStorageKind.Reference;
                 var fold = open
                     ? GroupedAggregateFold.Open(query.Aggregate, integral: target == NendoStorageKind.Integer)
@@ -192,8 +192,8 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// One exact number per civil-date bucket of a resolved range (ADR-0004, 2026-09-16
-    /// amendment). The range word is resolved here, against this machine's civil today, so
+    /// One exact number per civil-date bucket of a resolved range (ADR-0004).
+    /// The range word is resolved here, against this machine's civil today, so
     /// the stored screen that asked never carries a date and never goes stale.
     /// <para>
     /// Safe mode folds the same buckets over the snapshot rather than declining. A chart
@@ -247,8 +247,8 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// One exact number per cell of two crossed closed groupings (ADR-0004, 2026-09-17
-    /// amendment). The cells are the cross product of the two option sets, each axis
+    /// One exact number per cell of two crossed closed groupings (ADR-0004).
+    /// The cells are the cross product of the two option sets, each axis
     /// carrying its own unset lane, and every one of them is produced before a row is
     /// read — so an empty cell is a cell, for the same reason an empty month is a month.
     /// <para>
@@ -377,7 +377,7 @@ public sealed partial class NendoWriteCoordinator
                 Storage.SqliteNendoStore.ValidateRecordQuery(query, entity.Fields, derived);
                 var scope = RecordScope(query);
                 // A calculated field is read from the record's calculations, as the store's query
-                // reads it (F-222): a value it could not work out matches nothing and sorts last.
+                // reads it: a value it could not work out matches nothing and sorts last.
                 NendoStorageKind KindOf(string fieldId) => derived.TryGetValue(fieldId, out var calculated)
                     ? Storage.SqliteNendoStore.KindOf(calculated.ResultType) : entity.Fields.Single(f => f.FieldId == fieldId).StorageKind;
                 (bool Known, string? Text) ValueOf(NendoRecordSnapshot record, string fieldId)
@@ -391,7 +391,7 @@ public sealed partial class NendoWriteCoordinator
                 var rows = FilteredSnapshotRecords(query.EntityId, query.Filters)
                     .Where(record => query.RecordId is null || record.RecordId == query.RecordId);
                 // The store's sort, read from the snapshot: a reference by its target's label, a
-                // single choice in its options' order (ESQ-16).
+                // single choice in its options' order.
                 var sorted = query.SortFieldId is null || derived.ContainsKey(query.SortFieldId) ? null
                     : entity.Fields.Single(f => f.FieldId == query.SortFieldId);
                 var labelKind = sorted?.Reference is { } reference

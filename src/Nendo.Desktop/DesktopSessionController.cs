@@ -58,7 +58,7 @@ internal sealed record DesktopSessionView(
 
     /// <summary>
     /// How this file is told apart from the others open beside it: the tone and letter of its
-    /// icon's badge, chosen or by default (W-089). Null when no file is open or it is in recovery.
+    /// icon's badge, chosen or by default. Null when no file is open or it is in recovery.
     /// </summary>
     public NendoResolvedLook? Look { get; init; }
 
@@ -235,7 +235,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     /// The view without records, for the recovery panel and the native file actions: a file
     /// name, capabilities, findings and the tables, which the definition snapshot carries. Run
     /// from the UI thread, the full read materialised every record there to set a few button
-    /// states (DSH-12).
+    /// states.
     /// </summary>
     internal async Task<DesktopSessionView> GetDefinitionViewAsync(CancellationToken cancellationToken = default)
     {
@@ -251,7 +251,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
 
     /// <summary>
     /// The proposal with every omitted <c>expectedDefinitionRevision</c> filled in from the file's
-    /// current definition revision, as MCP fills an agent's (W-241). A custom view has no read that
+    /// current definition revision, as MCP fills an agent's. A custom view has no read that
     /// states the revision, so without this every operation that takes one was refused.
     /// </summary>
     internal static async Task<NendoCanonicalProposalRequest> WithDefinitionRevisionAsync(
@@ -380,7 +380,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     /// <param name="entityId">
     /// The record type the caller names the record as, when it does: a view's commands.run sends
     /// it, and a command of another type is refused rather than run on a record of the command's
-    /// own type that shares the ID (R2AP-08).
+    /// own type that shares the ID.
     /// </param>
     internal async Task<DesktopMutationView> ExecuteCommandAsync(
         string commandId,
@@ -664,7 +664,7 @@ internal sealed partial class DesktopSessionController : IAsyncDisposable
     internal NendoResolvedLook? CurrentLook => _currentLook;
 
     /// <summary>
-    /// The bytes of the open file's own picture, for drawing its icon (W-001), or null when the
+    /// The bytes of the open file's own picture, for drawing its icon, or null when the
     /// file is closed, cannot be read or no longer holds it.
     /// </summary>
     internal async Task<byte[]?> ReadIconPictureAsync(string address, CancellationToken cancellationToken = default)

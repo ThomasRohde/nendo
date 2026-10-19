@@ -48,7 +48,7 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// Refuses a requirement change that breaks behaviour already installed (EBH-09). Install
+    /// Refuses a requirement change that breaks behaviour already installed. Install
     /// checks a definition against the schema once; without this a field could become optional
     /// under a total or a formula that counts on it having a value, or required under a create
     /// step that never fills it, and every later save that ran the behaviour was refused.
@@ -92,7 +92,7 @@ internal sealed partial class SqliteNendoStore
                 var promised = binding.Kind switch
                 {
                     NendoBindingKind.SameRecordField when !binding.Nullable => [Field(binding.EntityId, binding.FieldId)],
-                    // The reference it follows too: an unset reference is an empty value (EBH-07).
+                    // The reference it follows too: an unset reference is an empty value.
                     NendoBindingKind.ReferenceTraversal when !binding.Nullable =>
                         [Field(binding.RelatedEntityId, binding.FieldId), Field(binding.EntityId, binding.ReferenceFieldId)],
                     NendoBindingKind.RelatedAggregate => [Field(binding.RelatedEntityId, binding.PredicateFieldId), Field(binding.RelatedEntityId, binding.ValueFieldId)],

@@ -1,7 +1,7 @@
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-126 (ADR-0009, 2026-09-29): a file opens again at the access level last chosen for it on
+/// ADR-0009: a file opens again at the access level last chosen for it on
 /// this device; Off forgets it; another instance of the file and a read-only open begin at Off.
 /// </summary>
 [TestClass]
@@ -41,7 +41,7 @@ public sealed class DesktopAgentModeMemoryTests
     }
 
     /// <summary>
-    /// R2SP-05: Off was remembered only after the listener's cleanup succeeded, so a cleanup that
+    /// Off was remembered only after the listener's cleanup succeeded, so a cleanup that
     /// threw (here, a reader holding the discovery entry open without sharing delete, as every
     /// reader did) brought the old level back on the next open.
     /// </summary>
@@ -103,7 +103,7 @@ public sealed class DesktopAgentModeMemoryTests
     }
 
     /// <summary>
-    /// DSH-10: the level was kept in one slot per application ID, so choosing a level, or Off, for a
+    /// The level was kept in one slot per application ID, so choosing a level, or Off, for a
     /// Duplicate or a new file of the same application replaced or erased the original's.
     /// </summary>
     [TestMethod]
@@ -139,7 +139,7 @@ public sealed class DesktopAgentModeMemoryTests
     }
 
     /// <summary>
-    /// W-136: the tray menu, tooltip and notifications name the level as the Agent page
+    /// The tray menu, tooltip and notifications name the level as the Agent page
     /// does, from the one table in LocalMcp.
     /// </summary>
     [TestMethod]

@@ -2,7 +2,7 @@ import type { AgentWork } from './host-types';
 
 /**
  * When the status bar's "is working" pill comes up and goes down, without the page, so the timing
- * is measured as it runs (WST-05). shell.ts draws it.
+ * is measured as it runs. shell.ts draws it.
  *
  * A read takes a few milliseconds and there are a lot of them, so reporting every one would leave
  * the corner of the window flickering for the whole of a build. The pill waits as long as the busy

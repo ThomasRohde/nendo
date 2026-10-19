@@ -34,9 +34,9 @@ test('it appears only after the same wait the busy bar uses, and comes down afte
   assert.match(script, /export function setAgentWork\(work: AgentWork\): void \{\s*agentPill\.signal\(work\);/);
 });
 
-// WST-05. The timing, run on a clock the test turns. The pill once came up 700 ms after one
-// 5 ms read had already ended and stayed until 1.9 s, because the check meant to stop it could
-// never be true, and the test that held it only matched the line's text.
+// The timing, run on a clock the test turns: a check meant to stop the pill that can never be
+// true brings it up 700 ms after a 5 ms read has ended and keeps it until 1.9 s, and a test that
+// only matched the line's text would not see it.
 const { createAgentPill } = await bundleOf('src/agent-pill.ts');
 function clock() {
   let now = 0; let next = 0; const timers = new Map();
@@ -61,7 +61,7 @@ function pill() {
   return { time, agent, shown };
 }
 
-test('WST-05: nothing appears for one call that finished inside the wait', () => {
+test('nothing appears for one call that finished inside the wait', () => {
   const { time, agent, shown } = pill();
   agent.signal(busy); time.to(5); agent.signal(idle);
   time.to(5000);
@@ -69,7 +69,7 @@ test('WST-05: nothing appears for one call that finished inside the wait', () =>
   assert.equal(agent.shown, false);
 });
 
-test('WST-05: a burst of short calls shows, though each ends inside the wait', () => {
+test('a burst of short calls shows, though each ends inside the wait', () => {
   // 27 signals, each shorter than the wait, as a real unattended build sends them.
   const { time, agent } = pill();
   let at = 0;
@@ -83,7 +83,7 @@ test('WST-05: a burst of short calls shows, though each ends inside the wait', (
   assert.equal(agent.shown, false, 'the pill stayed up after the agent stopped');
 });
 
-test('WST-05: one call still running at the end of the wait shows, and goes once it ends', () => {
+test('one call still running at the end of the wait shows, and goes once it ends', () => {
   const { time, agent } = pill();
   agent.signal(busy);
   time.to(700);

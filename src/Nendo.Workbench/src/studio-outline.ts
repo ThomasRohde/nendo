@@ -32,7 +32,7 @@ export async function readOutlineLevel(entityId: string, parentKey: string, curs
 
 /**
  * One level read again as far as it had been read: the pages Show more added are read too, so a
- * refresh does not drop back to the first 200 rows and take an edited row out of view (WSP-13).
+ * refresh does not drop back to the first 200 rows and take an edited row out of view.
  * Null when the file moved between its pages, which the host says by refusing the cursor as
  * stale, or when the reply is no longer this file's.
  */

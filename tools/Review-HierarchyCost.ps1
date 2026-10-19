@@ -2,13 +2,12 @@
 param(
     # A new, task-owned directory under artifacts/; the run writes its .nendo fixture and report there.
     [Parameter(Mandatory)][string] $OutputRoot,
-    # 10,000 is stage 1's tree; 98,000 is the 2026-10-16 amendment's, as near the file's own bound
+    # 10,000 is the first tree; 98,000 is as near the file's own bound
     # of 100,000 operation rows as leaves room to write, with a node of 20,000 children.
     [ValidateSet(10000, 98000)][int] $Nodes = 10000
 )
-# ADR-0019 delivery stage 1: what a declared hierarchy costs at 10,000 records and depth 32,
-# measured before any product code; since the 2026-10-16 amendment also at 98,000 (about 20
-# minutes, most of it the old walk's whole read). Loads the debug test assembly (build it
+# ADR-0019: what a declared hierarchy costs at 10,000 records and depth 32, and at 98,000
+# (about 20 minutes, most of it the old walk's whole read). Loads the debug test assembly (build it
 # first: dotnet build tests/Nendo.Engine.Tests) and runs ReviewHierarchyCostFixture, as
 # Review-Performance.ps1 runs its fixture.
 Set-StrictMode -Version Latest

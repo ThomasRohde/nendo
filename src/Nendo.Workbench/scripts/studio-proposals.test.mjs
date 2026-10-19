@@ -6,7 +6,7 @@ import { build } from 'vite';
 // typed operations that the host validates on a clone. This bundles the real builders
 // and reads the payloads they produce, because the host takes the operation exactly as
 // built and a wrong field name is refused at validate time, after a rebuild and a
-// reinstall, which is where the board rename hid for sixteen days (F-084).
+// reinstall, which is late to find it.
 const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: 'src/studio.ts', write: false, rollupOptions: { output: { codeSplitting: false } } } });
 const { renameBoardProposal } = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find((item) => item.type === 'chunk').code).toString('base64'));
 

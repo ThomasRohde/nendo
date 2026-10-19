@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A numbered field, ADR-0020 stage 2: schema.setFieldSequence on a unique Text field. A create
+/// A numbered field (ADR-0020): schema.setFieldSequence on a unique Text field. A create
 /// that leaves it empty gets the prefix and the next number inside the same write; the next
 /// number is one past the highest ever seen, raised by codes clients write themselves, and never
 /// reused. History records the code, so a restore brings the same one back.

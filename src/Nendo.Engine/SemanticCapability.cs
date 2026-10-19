@@ -121,7 +121,7 @@ internal static class NendoSemanticCapability
         /// The record type a node reads: the nearest node at or above it that names one, a related
         /// list naming its target. Null inside a custom view, whose filters are on stored fields of
         /// its node or edge type only, which the compiler checks; reading them against the node
-        /// type alone counted an edge field as calculated and raised the file's minimum host (ESM-16).
+        /// type alone counted an edge field as calculated and raised the file's minimum host.
         /// </summary>
         private string? EntityAbove(NendoUiNodeSnapshot node)
         {

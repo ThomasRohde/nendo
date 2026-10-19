@@ -6,7 +6,7 @@ import { choiceStyle } from './tones';
 import { proportionOf, signedAmountOf, type ChartSegment } from './chart-kit';
 import { exactNumberText } from './scalars';
 
-// Pure composition for the first charts (ADR-0004, 2026-09-14 amendment, S1). A
+// Pure composition for the first charts (ADR-0004). A
 // breakdown chart and a progress ring are tiles in the sense a summary tile is:
 // they sit where it sits, they are scoped as it is scoped, and their reads compose
 // from the same filters. What is theirs is the grouping, which is not a filter,
@@ -14,7 +14,7 @@ import { exactNumberText } from './scalars';
 
 export const chartKinds = ['breakdownChart', 'progressTile', 'trendChart', 'activityGrid'] as const;
 
-/** The two kinds whose groups are civil-date buckets (ADR-0004, 2026-09-16 amendment, S5). */
+/** The two kinds whose groups are civil-date buckets (ADR-0004). */
 export function isOverTimeKind(kind: string): boolean {
   return kind === 'trendChart' || kind === 'activityGrid';
 }
@@ -142,7 +142,7 @@ function wholeSpan(bucket: string, key: string): { start: string; end: string } 
 }
 
 /**
- * A bucket's own dates: its period, clipped to the range the read resolved (ESQ-08). The host
+ * A bucket's own dates: its period, clipped to the range the read resolved. The host
  * counts only the days inside the range, so 'last 30 days' by month on 10 October counts
  * September from the 11th, and the bucket is those days, in its drill as on its axis.
  */
@@ -155,7 +155,7 @@ export function bucketSpan(bucket: string, key: string, range?: BucketRange | nu
 /**
  * What a bucket is called on the axis: short enough to repeat twelve times without wrapping. A
  * bucket the range cuts names the days it holds, 'Sep 11–30' or '1–2 Nov', so a partial first
- * bar is not read as the whole month (ESQ-08). When the range covers two calendar years such a
+ * bar is not read as the whole month. When the range covers two calendar years such a
  * bar names its year too, 'Oct 13–31 2025', or October of which year is left to a guess.
  */
 export function bucketLabel(bucket: string, key: string | null, range?: BucketRange | null): string {
@@ -224,7 +224,7 @@ export function bucketDrillFilters(node: SurfaceNodePlan, bucket: string, key: s
   if (dateFieldId === null || key === null) return [];
   const span = bucketSpan(bucket, key, range);
   return [
-    // The record query spells these ge and le, and refused gte and lte (WDV-03).
+    // The record query spells these ge and le, and refused gte and lte.
     { fieldId: dateFieldId, operator: 'ge', value: span.start },
     { fieldId: dateFieldId, operator: 'le', value: span.end },
   ];
@@ -290,7 +290,7 @@ export function cellDrillFilters(
   const rowByFieldId = property(node, 'rowByFieldId');
   const columnByFieldId = property(node, 'columnByFieldId');
   if (rowByFieldId === null || columnByFieldId === null) return [];
-  // A lane of a Boolean axis is its key as text; the query takes the Boolean itself (WDV-04).
+  // A lane of a Boolean axis is its key as text; the query takes the Boolean itself.
   const value = (fieldId: string, key: string): string | boolean =>
     isBooleanField(fields.find((field) => field.semanticId === fieldId)) ? key === 'true' : key;
   return [
@@ -350,7 +350,7 @@ export function rankValue(stored: unknown): number | null {
  * A stored number's exact digits in one spelling, or null when the field holds nothing readable:
  * no sign on zero, no leading zeros, no trailing zeros after the point. Two rows tie only when
  * their keys are equal. A JavaScript number reads 9007199254740993 and 9007199254740992 as one
- * value, so the ranking gave two different exact numbers one numeral (R2AAV-07).
+ * value, so the ranking gave two different exact numbers one numeral.
  */
 export function rankKey(stored: unknown): string | null {
   const lexeme = rankLexeme(stored);
@@ -388,7 +388,7 @@ export function progressRead(node: SurfaceNodePlan, scope: TileScope, surfaceEnt
 
 /** The host's answer to a grouped read. */
 export interface GroupedResult {
-  /** A grouping by a reference also says each group's record by its label (W-249). */
+  /** A grouping by a reference also says each group's record by its label. */
   groups: Array<{ key: string | null; valueLexeme: string | null; contributingRecords: number; label?: string | null }>;
   unrecognised: number;
   changeSequence: number;
@@ -408,7 +408,7 @@ export function isReferenceField(field: FieldPlan | undefined): boolean {
 
 /**
  * What a group is called: the option's label, Yes and No for a Boolean, the label of the record a
- * reference points at (W-249), and Not set for the unset group.
+ * reference points at, and Not set for the unset group.
  */
 export function groupLabel(field: FieldPlan | undefined, key: string | null, label?: string | null): string {
   if (key === null) return 'Not set';
@@ -489,7 +489,7 @@ export function chartContext(node: SurfaceNodePlan, scope: TileScope, fieldName:
  */
 export function sampleGrouped(node: SurfaceNodePlan, field: FieldPlan | undefined, records: readonly RecordPlan[]): GroupedResult {
   const groupByFieldId = property(node, 'groupByFieldId') ?? '';
-  // A reference's groups are the records the sample points at, as the host's read is (W-249).
+  // A reference's groups are the records the sample points at, as the host's read is.
   const open = isReferenceField(field);
   const keys = isBooleanField(field) ? ['false', 'true'] : open ? [] : [...(field?.options ?? [])];
   const counts = new Map<string, number>(keys.map((key) => [key, 0]));
@@ -554,7 +554,7 @@ function mondayOf(day: string): string {
 /**
  * The preview's own resolution of the same closed words the host resolves when it reads
  * (DateBuckets.Resolve). Today is the person's civil date, read with the local getters as the
- * filters read it, not the UTC date, which is another day near midnight (W-217); the dates
+ * filters read it, not the UTC date, which is another day near midnight; the dates
  * after that are civil arithmetic, done in UTC so no zone shifts them.
  */
 function sampleBuckets(range: string, bucket: string, today: Date): { start: string; end: string; keys: string[] } {

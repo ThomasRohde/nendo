@@ -4,10 +4,9 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-038 / C-051, the measurement half. F-040 reasoned that the audit lane multiplies
-/// stored text by roughly three -- the row holds it, the canonical operation that wrote
-/// it holds it again, and inverse evidence sits beside that -- and said plainly that the
-/// arithmetic had never been measured. This measures it: records of a known payload size
+/// The audit lane multiplies stored text by roughly three, by reasoning alone -- the row holds
+/// it, the canonical operation that wrote it holds it again, and inverse evidence sits beside
+/// that. This measures it: records of a known payload size
 /// through the ordinary write path, the size on disk after each batch, the audit rows the
 /// open path counts, and what one open costs at each size the limit could be set to.
 /// <para>
@@ -27,7 +26,7 @@ public sealed class FileGrowthMeasurementTests
         [16L * 1024 * 1024, 32L * 1024 * 1024, 64L * 1024 * 1024, 128L * 1024 * 1024, 250L * 1024 * 1024];
 
     [TestMethod]
-    [Ignore("Measurement harness for W-038, not an assertion. It writes 250 MiB and takes about a minute. Remove this line to run it when the bound is being chosen again.")]
+    [Ignore("Measurement harness, not an assertion. It writes 250 MiB and takes about a minute. Remove this line to run it when the bound is being chosen again.")]
     public async Task WhatOneRecordCostsOnDiskAndWhatOneOpenCosts()
     {
         await using var workspace = new EngineTestWorkspace();

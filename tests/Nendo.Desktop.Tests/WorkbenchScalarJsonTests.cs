@@ -16,7 +16,7 @@ public sealed class WorkbenchScalarJsonTests
         StringAssert.Contains(encoded, "\"$nendoNumber\":\"9223372036854775807\"");
         var decoded = JsonSerializer.Deserialize<JsonElement>(encoded, Options);
         Assert.AreEqual(source, decoded.GetRawText());
-        // Since W-135 every response is at the one bridge version, and every number in it is enveloped.
+        // Every response is at the one bridge version, and every number in it is enveloped.
         var response = WorkbenchProtocolHandler.Serialize(new(DesktopShellContract.BridgeProtocolVersion, "current", true, document.RootElement, null));
         StringAssert.Contains(response, "\"$nendoNumber\":\"-9223372036854775808\"");
     }

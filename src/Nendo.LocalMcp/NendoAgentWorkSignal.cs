@@ -100,7 +100,7 @@ public sealed class NendoAgentWorkSignal
     /// worse outcome than a window that missed one update.
     /// <para>
     /// One delivery at a time, in the order the states were taken, and a state older than one
-    /// already delivered is dropped (R2SP-12). Calls from several clients overlap on different
+    /// already delivered is dropped. Calls from several clients overlap on different
     /// request threads, and nothing ordered their deliveries: one call's idle, taken just
     /// before another call began, could arrive after that call's busy and leave the window
     /// saying nothing was running for the whole of a long write. The handler marshals and

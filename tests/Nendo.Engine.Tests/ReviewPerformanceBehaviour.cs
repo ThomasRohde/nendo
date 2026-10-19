@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S9 of ADR-0008: what calculations and automatic actions actually cost on a
+/// ADR-0008: what calculations and automatic actions actually cost on a
 /// fixture larger than the three records the retired experiment used.
 /// <para>
 /// It works on a copy of the generated benchmark file, because unlike the baseline

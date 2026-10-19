@@ -11,12 +11,12 @@ namespace Nendo.Desktop;
 
 /// <summary>
 /// The files drawn for one look: the icon itself, and the picture a notification carries. The
-/// window has no title bar of its own to draw one on (W-093); the status bar draws the look.
+/// window has no title bar of its own to draw one on; the status bar draws the look.
 /// </summary>
 internal sealed record DesktopFileIconFiles(string Icon, string NotificationImage);
 
 /// <summary>
-/// Which icon this device last drew for each file (W-001), so the taskbar menu can show a file's
+/// Which icon this device last drew for each file, so the taskbar menu can show a file's
 /// own icon while the file is closed. Kept beside the drawn icons, newest first and bounded; an
 /// entry whose icon has since been deleted reads as none.
 /// </summary>
@@ -73,8 +73,7 @@ internal static class DesktopFileIconIndex
 }
 
 /// <summary>
-/// Draws a file's icon: the Nendo mark with a badge in the file's tone carrying its letter
-/// (W-089, style D on the Per-file icons canvas).
+/// Draws a file's icon: the Nendo mark with a badge in the file's tone carrying its letter.
 /// <para>
 /// Every Nendo window used to carry the same icon, so four files open at once were four
 /// identical buttons in Alt+Tab, four identical icons in the notification area and four
@@ -91,7 +90,7 @@ internal static class DesktopFileIconIndex
 /// the device state, and drawn once.
 /// </para>
 /// <para>
-/// A file that carries its own picture (W-001) is drawn as that picture alone, scaled to each
+/// A file that carries its own picture is drawn as that picture alone, scaled to each
 /// frame: no mark and no badge, because at 16 pixels the picture is what tells it apart. It is
 /// kept by the picture's SHA-256, so two files with the same picture share it.
 /// </para>

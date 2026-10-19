@@ -36,7 +36,7 @@ export const present = value => value !== undefined && value !== null && value !
  * The model as rows per record type, in the order they can be written. The mapping is the
  * workbench's own (tools/archi/canvas/io.ts, in canvas.js), so a file the workbench opens and one
  * this importer loads hold the same records. The model's own properties point at `modelRecordId`,
- * the file's Model record, which is the seeded one only in a file Build-Archi made (ABS-27).
+ * the file's Model record, which is the seeded one only in a file Build-Archi made.
  */
 export function plan(model, modelRecordId = MODEL.recordId) {
   const rootFolders = Object.fromEntries(ROOT_FOLDERS.map(folder => [folder.values['ar.folder.kind'], folder.recordId]));
@@ -52,7 +52,7 @@ export function plan(model, modelRecordId = MODEL.recordId) {
 }
 
 /**
- * The file's own Model record, as { recordId, version } (ABS-27). A file from File › New Archi model
+ * The file's own Model record, as { recordId, version }. A file from File › New Archi model
  * keeps none (ADR-0022), and the workbench makes one under an ID of its own, so the importer
  * reads it rather than assuming Build-Archi's seeded ID. Where there is none, `create` makes one
  * under the seeded ID before anything points at it.

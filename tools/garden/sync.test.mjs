@@ -77,7 +77,7 @@ test('ticking a checkbox updates the same task record, matched by key, rather th
   assert.deepEqual(ofType(save('Nothing.', manual).writes, 'gd.task'), [], 'a Manual task is the person\'s');
 });
 
-test('two tags whose names make one slug are two tags, each with an ID of its own, never one a deleted tag had (G-004)', () => {
+test('two tags whose names make one slug are two tags, each with an ID of its own, never one a deleted tag had', () => {
   const body = 'Coffee #café #cafe and #日本 #中文';
   const { writes, problems } = save(body);
   assert.deepEqual(problems, []);
@@ -90,7 +90,7 @@ test('two tags whose names make one slug are two tags, each with an ID of its ow
   assert.ok(again.every(w => !made.some(m => m.recordId === w.recordId)), 'a second plan never reuses an ID');
 });
 
-test('two lines that say the same task are two tasks, each ticked on its own (G-011)', () => {
+test('two lines that say the same task are two tasks, each ticked on its own', () => {
   const [first, second] = parse('- [ ] Repeat\n- [ ] Repeat').tasks;
   const created = ofType(save('- [ ] Repeat\n- [ ] Repeat').writes, 'gd.task', 'create');
   assert.deepEqual(created.map(w => w.values[F.task.key]), [first.key, second.key]);
@@ -101,7 +101,7 @@ test('two lines that say the same task are two tasks, each ticked on its own (G-
   assert.deepEqual(ofType(save('- [ ] Repeat\n- [x] Repeat', existing).writes, 'gd.task'), [{ op: 'update', entityId: 'gd.task', recordId: 'gd.task.r2', version: 5, values: { [F.task.done]: true } }]);
 });
 
-test('a reworded task keeps its record and its due date; a deleted one goes, and is named (G-013)', () => {
+test('a reworded task keeps its record and its due date; a deleted one goes, and is named', () => {
   const before = '# Today\n- [ ] Call Sam\n- [ ] Call Sal\n- [ ] Buy milk';
   const keyOf = text => parse(before).tasks.find(t => t.text === text).key;
   const task = (id, text, extra = {}, version = 2) => row('gd.task', id, { [F.task.title]: text, [F.task.note]: 'gd.note.start-here', [F.task.done]: false, [F.task.source]: 'Checkbox', [F.task.key]: keyOf(text), ...extra }, version);
@@ -175,7 +175,7 @@ test('a body past the MCP value bound, or a save past 200 writes, is refused who
   assert.match(save('x', {}, { title: '  ' }).problems[0], /needs a title/);
 });
 
-test('GDN-03: [[Note]] is the note titled Note, even where a note in another script took the slug note', () => {
+test('[[Note]] is the note titled Note, even where a note in another script took the slug note', () => {
   const garden = [...index,
     { recordId: 'gd.note.cyrillic', version: 1, slug: 'note', title: 'Заметки о саде' },
     { recordId: 'gd.note.plain', version: 4, slug: 'note-3', title: 'Note' }];
@@ -187,7 +187,7 @@ test('GDN-03: [[Note]] is the note titled Note, even where a note in another scr
   assert.equal(fresh.writes[0].values[F.note.slug], 'заметки-о-саде', 'a new note in another script gets a readable slug');
 });
 
-test('GDN-04: two spellings of one missing note plant one Seed, and the next save deletes nothing', () => {
+test('two spellings of one missing note plant one Seed, and the next save deletes nothing', () => {
   const body = 'Coffee at [[Café]], or the [[Cafe]] round the corner, and [[Garden Ideas]] or [[garden-ideas]].';
   const first = save(body);
   assert.deepEqual(first.problems, []);
@@ -205,7 +205,7 @@ test('GDN-04: two spellings of one missing note plant one Seed, and the next sav
   assert.deepEqual(ofType(second.writes, 'gd.note', 'create'), [], 'and plant nothing more');
 });
 
-test('GDN-03 (review): a link a save made keeps its target, and a pick from [[ comes back to the note picked', () => {
+test('a link a save made keeps its target, and a pick from [[ comes back to the note picked', () => {
   // [[compost]] was saved when slugs came first: it links to the note whose slug is compost.
   const garden = [...index,
     { recordId: 'gd.note.soil', version: 1, slug: 'compost', title: 'Soil' },

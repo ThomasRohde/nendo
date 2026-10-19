@@ -1,4 +1,4 @@
-// The Manuscript app (W-276): its schema, screens and starting records, as canonical operations
+// The Manuscript app: its schema, screens and starting records, as canonical operations
 // for Build-Manus.mjs, and the fixture the browser lane runs the view against.
 import { BLOCK, NOTE, LINK, PROFILE, F, KINDS, NOTE_KINDS, LINK_KINDS, REVIEW, GAP, ROLES, ALIGNMENTS, LISTS, TABLE_KINDS, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS } from '../../extensions/manuscript/model.mjs';
 

@@ -1,7 +1,7 @@
 namespace Nendo.Desktop;
 
 /// <summary>
-/// The page's half of moving a tab into a window of its own (W-277, ADR-0002 2026-10-16): the
+/// The page's half of moving a tab into a window of its own (ADR-0002): the
 /// Workbench hands over the tab's trail, and the window this page is in opens another window of
 /// the same file on it.
 /// </summary>

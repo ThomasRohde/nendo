@@ -37,7 +37,7 @@ internal static class NendoBehaviourValidation
     /// the formula grammar's identifier, letters, digits and underscore and not starting with a
     /// digit, when a definition is installed or changed. A stable ID may hold a hyphen or a dot,
     /// and a formula read 'unit-price' as unit minus price and 'line.total' as a syntax error;
-    /// with aliases a, b and a-b, 'a-b' silently computed a minus b (EBH-16). A stored
+    /// with aliases a, b and a-b, 'a-b' silently computed a minus b. A stored
     /// definition is not checked, so a file written before this rule still opens.
     /// </summary>
     internal static void RequireFormulaName(string value, string what)

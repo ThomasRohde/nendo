@@ -142,7 +142,7 @@ public sealed class BehaviourScalarTests
     }
 
     /// <summary>
-    /// ADR-0008, 2026-09-20 amendment: the declaration decides. Under a result declared
+    /// ADR-0008: the declaration decides. Under a result declared
     /// to allow an empty, an empty operand is an empty result of the declared kind --
     /// never zero, never false. Under a result declared always to answer, D1_15 and
     /// D1_16 stand.
@@ -356,7 +356,7 @@ public sealed class BehaviourScalarTests
         Assert.AreEqual(1L, value.Boxed);
 
         // Under a result declared to allow it; under one declared always to answer, an
-        // empty ending is the missing input D1_27 asserts (ADR-0008, 2026-09-20 amendment).
+        // empty ending is the missing input D1_27 asserts (ADR-0008).
         var empty = EvaluateOptional("x", ("x", NullInteger()));
         Assert.IsTrue(empty.IsNull);
         Assert.AreEqual(NendoBehaviourScalar.Integer, empty.Type);
@@ -389,7 +389,7 @@ public sealed class BehaviourScalarTests
         id, id, [], NendoBehaviourScalar.Integer, false, "next(1)",
         [new NendoFunctionCallAlias("next", callee)]);
 
-    // R2AAV-02. A choice between a whole number and a decimal is typed decimal, so the operator
+    // A choice between a whole number and a decimal is typed decimal, so the operator
     // around it computes in decimal whichever outcome is taken. The whole-number outcome reached
     // it as a long, and the product overflowed Int64 where the decimal answer is in range.
     [TestMethod]
@@ -406,7 +406,7 @@ public sealed class BehaviourScalarTests
         AssertCalculationError(NendoCalculationCodes.Overflow, "(c ? x : 1) * 2", ("c", Boolean(true)), ("x", Integer(long.MaxValue)));
     }
 
-    // R2AAV-04. The parser reads a choice inside a choice only in parentheses, and the refusal
+    // The parser reads a choice inside a choice only in parentheses, and the refusal
     // said only that the formula could not be read, so each rewrite was a guess.
     [TestMethod]
     public void AChoiceInsideAChoiceWithoutParenthesesIsRefusedWithTheRemedy()

@@ -21,7 +21,7 @@ public sealed partial class NendoSemanticCompiler
     {
         if (definition.Applications.Count > 0) return ProjectComposableRecords(definition, source);
         // A file whose screens all belong to the file — its views, its front page — has no
-        // records to project, and keeps them as compiled (W-106).
+        // records to project, and keeps them as compiled.
         return new(definition.IsValid, definition.Diagnostics.ToList().AsReadOnly()) { Overview = definition.Overview, Views = definition.Views };
     }
     private static int? ReadContractVersion(

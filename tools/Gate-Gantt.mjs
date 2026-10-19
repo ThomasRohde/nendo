@@ -107,7 +107,7 @@ async (page) => {
   // The owner is a reference: it is shown by the name it points at, not by the ID it stores.
   assert((await view.locator('.row[data-id="short"] .label small').innerText()) === 'Ada', 'The first non-date field is not shown under the label by its name.');
   assert(await view.locator('#axis span').count() >= 1, 'The time axis has no ticks.');
-  // GGV-13: aria-label replaces a row's content as its name, so the owner line it shows under the
+  // An aria-label replaces a row's content as its name, so the owner line it shows under the
   // label was never heard. The computed name holds the label, the owner and the span.
   assert(await view.getByRole('button', { name: 'Short task, Ada, 2026-10-01 to 2026-10-05', exact: true }).count() === 1,
     'A row\'s accessible name leaves out the owner line it shows under its label: ' + JSON.stringify(await view.locator('.row[data-id="short"]').getAttribute('aria-label')));
@@ -118,7 +118,7 @@ async (page) => {
   exactlyOne(await opens(() => page.keyboard.press('Enter')), 'moment', 'Enter on a focused row did not open it, once:');
   assert(await view.locator('.row[aria-pressed=true]').count() === 1, 'More than one row reads as selected.');
 
-  // GGV-01: a Windows contrast theme forces every background to Canvas, and the marks were drawn
+  // A Windows contrast theme forces every background to Canvas, and the marks were drawn
   // by their background alone: the bars, the milestone and the selected record took the track's
   // colour and the chart showed nothing. Measured in the frame with forced colours on.
   await page.emulateMedia({ forcedColors: 'active' });
@@ -148,7 +148,7 @@ async (page) => {
   assert(other !== 'moment' && focusedOther !== selectedOnly, 'In a Windows contrast theme a focused row and the selected row look the same: ' + JSON.stringify({ focused: focusedOther, selected: selectedOnly }));
   await page.emulateMedia({ forcedColors: 'none' });
 
-  // W-064: the view kit. The rows are one tab stop; the arrow keys, Home and End move between
+  // The view kit. The rows are one tab stop; the arrow keys, Home and End move between
   // them; the focused row wears a visible ring. Then the same keys on a bare list the page adds,
   // first without the kit, where they move nothing, and then with it.
   await view.waitForFunction(() => document.querySelectorAll('.row[tabindex="0"]').length === 1, null, { timeout: 8000 })
@@ -186,7 +186,7 @@ async (page) => {
   const chrome = await view.evaluate(() => ['header', '#axis', 'footer'].map(s => getComputedStyle(document.querySelector(s)).userSelect));
   assert(chrome.every(value => value === 'none'), 'Chart chrome is text-selectable: ' + JSON.stringify(chrome));
 
-  // GGV-03: a re-read replaces every row. The row that had the keyboard keeps it, and stays the
+  // A re-read replaces every row. The row that had the keyboard keeps it, and stays the
   // one tab stop; before, focus fell to the page and the stop went back to the first row.
   await view.locator('.row[data-id="short"]').focus();
   await page.keyboard.press('ArrowDown');
@@ -244,7 +244,7 @@ async (page) => {
   await until(() => !document.getElementById('empty').hidden && document.getElementById('empty').textContent.includes('no date field'), undefined,
     'A view without dates did not say why it is empty.');
 
-  // GGV-12: a view bound to date-and-time fields was told it has no date field and asked to add
+  // A view bound to date-and-time fields was told it has no date field and asked to add
   // one. It is told the chart draws date fields, by the names of the fields it does bind.
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); },
     fixture({ records: [{ ...job('t', 'Timed', null, null), startsAt: '2026-10-01T09:00:00Z', endsAt: '2026-10-02T17:00:00Z' }], bound: ['startsAt', 'endsAt'] }));
@@ -260,7 +260,7 @@ async (page) => {
   assert(await view.locator('.row[data-id="b"] .label small').count() === 0,
     'A date-and-time field is shown under the label as raw text: ' + JSON.stringify(await view.locator('.row[data-id="b"] .label').innerText()));
 
-  // GGV-11: ticks were the first of each month only, so a chart inside one month had none, and the
+  // Ticks were the first of each month only, so a chart inside one month had none, and the
   // axis scrolled away with the rows. A one-week chart has dates, and a long one keeps its axis.
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushContext(); },
     fixture({ records: [job('s1', 'Sprint planning', '2026-03-02', '2026-03-04'), job('s2', 'Sprint review', '2026-03-06', '2026-03-08')] }));
@@ -360,7 +360,7 @@ async (page) => {
   assert(JSON.stringify(methods) === JSON.stringify(['records.get', 'records.query', 'schema.describe', 'ui.openRecord']),
     'The chart asked for something other than reads and opening a record: ' + JSON.stringify(methods));
 
-  // ---- Nendo's own chrome (W-091). Everything above ran on a host that does not draw a view's
+  // ---- Nendo's own chrome. Everything above ran on a host that does not draw a view's
   // controls. On one that does, the chart's title gives way to Nendo's breadcrumb, Nendo's
   // toolbar carries a Find box, and a right-click on a row asks for Nendo's menu. The fixture
   // reads each declaration by the Workbench's own rules and refuses what Nendo would refuse.
@@ -389,7 +389,7 @@ async (page) => {
 
   const command = (id, value, source = 'toolbar') => page.evaluate(([id, value, source]) => window.broker.command(id, value, source), [id, value, source]);
 
-  // The view's own lines (W-092): its summary is Nendo's row's text, its explanation waits
+  // The view's own lines: its summary is Nendo's row's text, its explanation waits
   // behind About, and the drawing starts at the top of the frame. A problem stays in the frame.
   const ownLines = () => view.evaluate(() => ({ header: getComputedStyle(document.querySelector('header')).display,
     hint: getComputedStyle(document.querySelector('.hint')).display, drawingTop: Math.round(document.querySelector('main').getBoundingClientRect().top) }));

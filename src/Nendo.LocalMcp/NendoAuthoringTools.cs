@@ -211,7 +211,7 @@ internal sealed class NendoAuthoringTools(
 
     /// <summary>
     /// The proposal a validate leaves, for the activity entry. An invalid result's clone is already
-    /// discarded, and an entry naming it pointed at a proposal no read lists (MAA-14).
+    /// discarded, and an entry naming it pointed at a proposal no read lists.
     /// </summary>
     private static string? Kept(NendoAgentProposalPreview result) =>
         result.State == Nendo.Engine.NendoProposalState.Invalid ? null : result.ProposalId;

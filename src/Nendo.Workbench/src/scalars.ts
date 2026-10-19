@@ -37,7 +37,7 @@ export function parseScalar(kind: string, raw: string): unknown {
     return { $nendoNumber: value.toString() } satisfies ExactNumber;
   }
   if (kind === 'Decimal') {
-    // A decimal comma is what the numpad types on Danish, German and French layouts (W-217), so
+    // A decimal comma is what the numpad types on Danish, German and French layouts, so
     // one comma stands for the dot. Where the person's locale writes its decimals with a dot,
     // '1,234' could be one thousand two hundred and thirty-four, so that one shape -- one to three
     // digits without a leading zero, a comma, then three -- is refused rather than guessed at.

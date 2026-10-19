@@ -18,15 +18,15 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
     /// </summary>
     internal const long EnvelopeScanBytes = 16L * 1024 * 1024;
     // 32 leaves eighteen levels over the deepest published example; 16 left two, so an
-    // automatic action one level richer than the examples was refused (F-182).
+    // automatic action one level richer than the examples was refused.
     internal const int MaximumJsonDepth = 32;
 
     public async Task InvokeAsync(HttpContext context, NendoHostAuthority authority, NendoRequestGate gate)
     {
         // Every request passes the perimeter, whatever its path. Routing matches /mcp without
-        // regard to case, so a path test here once let /MCP past every check below (MHS-01).
+        // regard to case, so a path test here once let /MCP past every check below.
 
-        // The request's User-Agent names a handshake-era client on every request (W-150).
+        // The request's User-Agent names a handshake-era client on every request.
         using var client = NendoTransportIdentity.FromUserAgent(context.Request.Headers.UserAgent.ToString());
         if (!IPAddress.Loopback.Equals(context.Connection.RemoteIpAddress))
         {
@@ -34,7 +34,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
             return;
         }
         // Each refusal says what to send instead: "The request host is invalid" left a
-        // client configured with localhost with nothing to change (F-175).
+        // client configured with localhost with nothing to change.
         if (!IsExactHost(context.Request.Host, authority.Port))
         {
             await RejectAsync(
@@ -82,16 +82,16 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
         var aborted = context.RequestAborted;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(aborted);
         // Every request, its body included, runs under the timeout. A subscriptions/listen stream
-        // is held open on purpose, for as long as its client listens (W-151), so the timeout is
+        // is held open on purpose, for as long as its client listens, so the timeout is
         // lifted once the body has been read and its own method is subscriptions/listen. The
         // client's Mcp-Method header used to decide it before any body was read, so a tools/call
-        // carrying that header ran without the bound (MHS-09).
+        // carrying that header ran without the bound.
         timeout.CancelAfter(gate.Timeout);
         context.RequestAborted = timeout.Token;
         try
         {
             // An oversized body is scanned for its id here, holding a place and under the timeout:
-            // the scan used to run before the gate, so neither bounded it (MHS-08).
+            // the scan used to run before the gate, so neither bounded it.
             if (context.Request.ContentLength > MaximumRequestBodyBytes)
             {
                 var envelope = context.Request.ContentLength <= EnvelopeScanBytes
@@ -195,7 +195,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
     /// Why a body was refused. A body nested past the cap is valid JSON that the host will not
     /// read, and says so with both numbers; it used to share one sentence with a body that was
     /// not JSON at all, so an agent whose change set was one level too rich had nothing to
-    /// correct (F-182).
+    /// correct.
     /// </summary>
     internal static string InvalidJsonMessage(MemoryStream body, JsonException error)
     {
@@ -267,7 +267,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
     /// <summary>
     /// Refuses a body over the cap. A plain HTTP 413 reaches an MCP client as a transport failure,
     /// so a request whose JSON-RPC id can be read from the head of the body is answered under that
-    /// id instead (W-165): a tool call as a refused tool result with the code in <c>_meta</c>, as
+    /// id instead: a tool call as a refused tool result with the code in <c>_meta</c>, as
     /// every other refusal, and anything else as a JSON-RPC error carrying the code.
     /// </summary>
     private static Task RejectTooLargeAsync(HttpContext context, Envelope envelope, long? length)
@@ -329,7 +329,7 @@ internal sealed class NendoMcpSecurityMiddleware(RequestDelegate next)
     /// A string longer than <see cref="CarryBytes"/> is not carried: its bytes are skipped up to
     /// the closing quote, and the reader is handed an empty string in its place. A 15 MiB value
     /// ahead of the id was copied and parsed again from its start on every 16 KiB piece, which
-    /// cost time quadratic in its length (MHS-08). A token of any other kind that long is no
+    /// cost time quadratic in its length. A token of any other kind that long is no
     /// envelope this scan can read, and the scan gives up.
     /// </para>
     /// </summary>

@@ -6,7 +6,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Custom-view packages carried in the file (ADR-0013, 2026-09-25). A package is definition:
+/// Custom-view packages carried in the file (ADR-0013). A package is definition:
 /// its files arrive through canonical operations, are named by the SHA-256 of their bytes,
 /// and stay in the file's content store once replaced, so history is small and a reversal
 /// restores exactly what it replaced.
@@ -136,7 +136,7 @@ public sealed class ExtensionPackageTests
         Assert.AreEqual("two();\n", Encoding.UTF8.GetString((await service.ReadExtensionFileAsync(PackageId, "map.js"))!.Content));
     }
 
-    // R-018. Reversing an old metadata change must not overwrite a newer one: the title and
+    // Reversing an old metadata change must not overwrite a newer one: the title and
     // entry point decide which code a custom view runs.
     [TestMethod]
     public async Task ReversingOldPackageMetadataRefusesANewerChange()
@@ -300,7 +300,7 @@ public sealed class ExtensionPackageTests
         await coordinator.ApplyAsync(Mutation("add", Package(),
             PutExtensionFileOperation.FromContent("i", PackageId, "index.html", "text/plain", Encoding.UTF8.GetBytes(Html))));
 
-        // The same bytes, now served as a page: the review must not say the file is kept as it is (EXT-02).
+        // The same bytes, now served as a page: the review must not say the file is kept as it is.
         var request = Canonical(Operation("r", "extension.putFile",
             new { packageId = PackageId, path = "index.html", mediaType = "text/html", text = Html }));
         var proposal = await service.PrepareProposalAsync(new NendoCanonicalProposalRequest(ProposalId(4), "Serve the page", "test", request));
@@ -346,7 +346,7 @@ public sealed class ExtensionPackageTests
             read.AddRange(window.Content);
         } while (window.Content.Length > 0 && read.Count < window.TotalBytes);
         CollectionAssert.AreEqual(expected, read.ToArray(), "The windows put together are not the proposed file.");
-        // EXT-12: each window opened and checked the whole clone again, holding the write gate.
+        // Each window opened and checked the whole clone again, holding the write gate.
         Assert.IsGreaterThan(2, windows, "The fixture must take several windows to read.");
         Assert.AreEqual(1, coordinator.ProposalCloneOpens - opensBefore, $"Reading one file in {windows} windows opened the proposal's copy more than once.");
         Assert.AreEqual(Convert.ToHexString(SHA256.HashData(expected)).ToLowerInvariant(), window.Sha256.ToLowerInvariant());
@@ -366,7 +366,7 @@ public sealed class ExtensionPackageTests
     }
 
     /// <summary>
-    /// EXT-08: a file past the review's line budget shows no hunk of unchanged lines alone, and a
+    /// A file past the review's line budget shows no hunk of unchanged lines alone, and a
     /// change of only the final newline is a changed last line, not a replaced file with no lines.
     /// </summary>
     [TestMethod]

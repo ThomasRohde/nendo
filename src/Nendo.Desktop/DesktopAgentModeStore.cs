@@ -3,12 +3,11 @@ using System.Text.Json;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// The agent access level each file was last given on this device (ADR-0009, 2026-09-29
-/// amendment, W-126).
+/// The agent access level each file was last given on this device (ADR-0009).
 /// <para>
 /// Every file session began at Off, so a person who works with an agent set the level again on
 /// each open. Now the level a person chooses for a file is kept here, and the same file opens at
-/// it again. Keyed by the application ID and the file's instance ID together (W-216, DSH-10): a
+/// it again. Keyed by the application ID and the file's instance ID together: a
 /// Duplicate, a Fork or a new file of the application is a new instance and begins at Off, and a
 /// level chosen for one of them, Off included, leaves the original's alone, so the level stays
 /// with the file the person chose it for and never travels. A copy made outside Nendo keeps the instance ID, and is the same

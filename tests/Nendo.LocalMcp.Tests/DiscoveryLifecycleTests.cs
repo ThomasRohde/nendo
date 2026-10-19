@@ -226,7 +226,7 @@ public sealed class DiscoveryLifecycleTests
     }
 
     /// <summary>
-    /// MHS-07: Windows reuses a process ID once its process ends, so an entry trusted on the ID
+    /// Windows reuses a process ID once its process ends, so an entry trusted on the ID
     /// alone read as live under whatever took the number. Here the number is this test's own
     /// process, which started after the entries say they were written.
     /// </summary>
@@ -270,7 +270,7 @@ public sealed class DiscoveryLifecycleTests
     }
 
     /// <summary>
-    /// W-227 review: a process this user may not inspect is not known to be another one, so its
+    /// A process this user may not inspect is not known to be another one, so its
     /// entry is kept and listed rather than swept. The System process stands in for it.
     /// </summary>
     [TestMethod]
@@ -330,8 +330,8 @@ public sealed class DiscoveryLifecycleTests
     /// which one it is talking to.
     /// </summary>
     /// <remarks>
-    /// The host has written this directory since discovery existed and nothing read it
-    /// (F-064), so an agent could not tell the person which file it was about to write to.
+    /// The host has written this directory since discovery existed and nothing read it,
+    /// so an agent could not tell the person which file it was about to write to.
     /// Two hosts are started here because one proves nothing: the entry that matters is
     /// the one that is <em>not</em> this session's, and a list of length one cannot show
     /// that isThisOne picks the right row.

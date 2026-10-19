@@ -6,7 +6,7 @@ namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
 /// Bulk data in and out over MCP: a paged faithful-CSV export resource, and one import
-/// tool that takes CSV text or typed JSON (ADR-0009, 2026-09-22 amendment).
+/// tool that takes CSV text or typed JSON (ADR-0009).
 /// <para>
 /// The round trip is the point. An export a person could not hand back is a report, not
 /// an export, so what the resource emits is fed to the tool and every stored value is
@@ -176,7 +176,7 @@ public sealed class ImportExportProtocolTests
     }
 
     /// <summary>
-    /// R-006: CSV decoding reads each reference target's current version into the payload.
+    /// CSV decoding reads each reference target's current version into the payload.
     /// Once the target is edited, an exact retry used to be refused as a different payload,
     /// because the committed batch had been written with the old version.
     /// </summary>
@@ -270,7 +270,7 @@ public sealed class ImportExportProtocolTests
     }
 
     /// <summary>
-    /// R-007: the public key may be two hundred characters, and each batch's internal key
+    /// The public key may be two hundred characters, and each batch's internal key
     /// must still fit the Engine's bound. Two batches, an exact replay and a changed payload
     /// at each of the lengths around the edge.
     /// </summary>
@@ -337,7 +337,7 @@ public sealed class ImportExportProtocolTests
     }
 
     /// <summary>
-    /// F-259: a required field with a sequence is the host's to fill (ADR-0020), as it is on a
+    /// A required field with a sequence is the host's to fill (ADR-0020), as it is on a
     /// create that leaves it out. The CSV import refused the column unmapped, and refused
     /// null under emptyIsNull, so an import into a type with a generated code had to carry
     /// a Reference column and whether it passed depended on an unrelated switch.
@@ -411,7 +411,7 @@ public sealed class ImportExportProtocolTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var session = await AcquireAsync(client);
         // A field the record type does not have is the precondition every other write meets, so
-        // a pending proposal that adds it is named (MTD-07); the mapping's own faults are invalid requests.
+        // a pending proposal that adds it is named; the mapping's own faults are invalid requests.
         var cases = new (string Name, NendoCsvColumnMapping[] Mappings, string Code)[]
         {
             ("unknown", [new(0, "missing.field")], "NENDO_FIELD_NOT_FOUND"),
@@ -539,7 +539,7 @@ public sealed class ImportExportProtocolTests
 
     /// <summary>Projects and tasks, each task referencing a project; one project, no tasks.</summary>
     /// <summary>
-    /// W-075: an agent imports a five-level tree whose parent column holds codes, written
+    /// An agent imports a five-level tree whose parent column holds codes, written
     /// deepest first and larger than one batch, in one call; an exact retry replays it.
     /// </summary>
     [TestMethod]

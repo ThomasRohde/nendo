@@ -6,7 +6,7 @@ import { EXCHANGE_SCHEMAS, validateExchangeXml } from '../../extensions/archi/xs
 import { archiSchema } from './fixtures.mjs';
 import { modelRecordOf, plan } from './archimate-records.mjs';
 
-// W-120: the workbench saves Archi.nendo's records as an .archimate file and opens one into an
+// The workbench saves Archi.nendo's records as an .archimate file and opens one into an
 // empty model. Reading XML needs a browser's DOMParser, so the XML itself is measured in the
 // review lane (Gate-ArchiWorkbench.mjs) and against archi-online's fixtures and Desktop Archi
 // (tools/archi/verify-archimate-io.mjs). Here: the mapping both ways, and the batches it is saved in.
@@ -119,7 +119,7 @@ test('a file without a Model record gets one first, which the model’s properti
   assert.ok(writes.some(write => write.values['ar.property.model'] === 'ar.model.r.made'));
 });
 
-// W-121: Archisurance saved as Open Exchange XML is valid against Archi 5.9's own schemas, checked
+// Archisurance saved as Open Exchange XML is valid against Archi 5.9's own schemas, checked
 // by libxml2 as the workbench checks it before saving (xsd.js). Reading it back needs a DOMParser,
 // so that is measured in the review lane and by tools/archi/verify-exchange-io.mjs.
 test('Archisurance saved as Exchange XML validates against Archi 5.9’s five schemas, and a type they do not know does not', async () => {
@@ -144,7 +144,7 @@ test('the Open dialog tells Exchange XML from an .archimate by what the file hol
   assert.equal(modelFileFormat(new Uint8Array([0x50, 0x4b, 3, 4, 0, 0])), 'archimate', 'An archive is an .archimate.');
 });
 
-// ABS-03: Open writes a model in batches of 200, each its own revision, so a reference to nothing
+// Open writes a model in batches of 200, each its own revision, so a reference to nothing
 // or a relationship the link rule refuses near the end left a half-imported model. Both are now
 // found before anything is written, and the Open dialog refuses the file naming the first.
 test('a relationship to nothing, or one ArchiMate does not allow, is found before anything is written', () => {
@@ -169,7 +169,7 @@ test('a relationship to nothing, or one ArchiMate does not allow, is found befor
   assert.equal(importProblemSentence([]), null);
 });
 
-// ABS-02: archi-online's reader skips Sketch and Canvas views without a word; the Open dialog's
+// archi-online's reader skips Sketch and Canvas views without a word; the Open dialog's
 // Left out line says how many there were. (Counting them reads the XML, which needs a browser's
 // DOMParser; Gate-ArchiWorkbench.mjs drops such a file on the workbench.)
 test('the Left out line names Sketch and Canvas views, with or without images', () => {
@@ -181,7 +181,7 @@ test('the Left out line names Sketch and Canvas views, with or without images', 
   assert.equal(leftOutSentence({ ...none, archiveImages: 3 }), 'Left out: 3 image files. Archi.nendo holds no images.');
 });
 
-// ABS-27: tools/Import-Archimate.mjs planned every model property against Build-Archi's seeded
+// tools/Import-Archimate.mjs planned every model property against Build-Archi's seeded
 // Model record ID and then read a Model record that a new Archi model does not keep.
 test('the importer points the model’s properties at the file’s own Model record, and makes one where a new model has none', async () => {
   const model = modelForExport(records);
@@ -196,7 +196,7 @@ test('the importer points the model’s properties at the file’s own Model rec
   assert.deepEqual(made, { recordId: 'ar.model.r.model', version: 1 }, 'A file without a Model record got none, so the import would stop after writing everything else.');
 });
 
-// W-213 review: a view reference to a Sketch or Canvas view, which archi-online does not read,
+// A view reference to a Sketch or Canvas view, which archi-online does not read,
 // pointed at no planned view, and the preflight refused a valid file. It is left out and counted.
 test('a view reference to a view the file does not open is left out and counted, not refused', () => {
   const model = modelForExport(records);

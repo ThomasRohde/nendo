@@ -3,9 +3,9 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// schema.setReferenceLabel (ADR-0003, 2026-10-14 note, W-232): a bound reference shows its
-/// records by another active Text field of its target. Since ESS-09 the label field cannot be
-/// retired, and before this operation nothing could move a bound reference off it.
+/// schema.setReferenceLabel (ADR-0003): a bound reference shows its
+/// records by another active Text field of its target. The label field cannot be
+/// retired, and this operation is what moves a bound reference off it.
 /// </summary>
 [TestClass]
 public sealed class ReferenceLabelTests
@@ -169,7 +169,7 @@ public sealed class ReferenceLabelTests
     /// <summary>
     /// A retired reference, or one on a retired record type, draws and groups nothing and cannot be
     /// relabelled (field-retired, entity-retired), so it does not hold its label: the refusal's own
-    /// advice would be refused, and the way out was three proposals (P8, P9).
+    /// advice would be refused, and the way out would be three proposals.
     /// </summary>
     [TestMethod]
     [DataRow(false, DisplayName = "the reference is retired")]
@@ -191,7 +191,7 @@ public sealed class ReferenceLabelTests
             .Single(field => field.FieldId == "name").Retired, "A retired reference kept its label from retirement, though nothing could move it.");
     }
 
-    /// <summary>A definition change after the label change leaves its undo unoffered and refused (P4).</summary>
+    /// <summary>A definition change after the label change leaves its undo unoffered and refused.</summary>
     [TestMethod]
     public async Task ALaterDefinitionChangeEndsTheUndo()
     {
@@ -215,8 +215,8 @@ public sealed class ReferenceLabelTests
 
     /// <summary>
     /// Relabel and retire the old label in one mutation applies, as one revision History does not
-    /// offer to undo (P2); the other order is refused, since the label is still held when the
-    /// retirement runs (P3).
+    /// offer to undo; the other order is refused, since the label is still held when the
+    /// retirement runs.
     /// </summary>
     [TestMethod]
     public async Task RelabelThenRetireInOneMutationAppliesAndTheOtherOrderIsRefused()
@@ -245,7 +245,7 @@ public sealed class ReferenceLabelTests
             "History offers to undo two definition changes in one revision, which no inverse reverses.");
     }
 
-    /// <summary>A file that never changes a label keeps the rung it had (P1).</summary>
+    /// <summary>A file that never changes a label keeps the rung it had.</summary>
     [TestMethod]
     public async Task AFileThatNeverRelabelsStaysBelowTheRung()
     {

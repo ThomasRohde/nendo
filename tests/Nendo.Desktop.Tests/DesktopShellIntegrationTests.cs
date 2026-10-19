@@ -4,8 +4,8 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// The parts of the Windows shell integrations that are decisions rather than calls
-/// (W-048): what the command line means, which recent files the taskbar menu offers,
+/// The parts of the Windows shell integrations that are rules rather than calls:
+/// what the command line means, which recent files the taskbar menu offers,
 /// and what the open file's state is worth badging. The calls themselves — Explorer
 /// drawing an overlay, Windows populating a Jump List — are the owner's to report.
 /// </summary>

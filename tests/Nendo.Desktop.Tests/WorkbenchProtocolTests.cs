@@ -147,7 +147,7 @@ public sealed class WorkbenchProtocolTests
     }
 
     /// <summary>
-    /// W-135 (2026-10-04): the host serves bridge protocol 7 only. A Workbench at 2 to 6 gets one
+    /// The host serves bridge protocol 7 only. A Workbench at 2 to 6 gets one
     /// named refusal, answered at the current version, before any binding, read, write or file
     /// action runs.
     /// </summary>
@@ -454,7 +454,7 @@ public sealed class WorkbenchProtocolTests
     }
 
     /// <summary>
-    /// W-251: the broker reports what a view did, and the open file keeps it for an agent to read.
+    /// The broker reports what a view did, and the open file keeps it for an agent to read.
     /// The event belongs to the file the request was bound to, and a view's actor cannot send one.
     /// </summary>
     [TestMethod]
@@ -481,8 +481,8 @@ public sealed class WorkbenchProtocolTests
     }
 
     /// <summary>
-    /// The eight methods that served the Idea Garden by name at protocol 2 are gone with it
-    /// (W-135). An open file and its current generation, so each request reaches the dispatch
+    /// The eight methods that served the Idea Garden by name at protocol 2 are gone with it.
+    /// An open file and its current generation, so each request reaches the dispatch
     /// itself rather than stopping at the binding.
     /// </summary>
     [TestMethod]
@@ -568,10 +568,10 @@ public sealed class WorkbenchProtocolTests
     public async Task EveryMethodTheWorkbenchSendsIsAdmittedAtTheCurrentProtocol()
     {
         // The host fences its methods by protocol version, and the Workbench names the
-        // methods it sends as string literals. Nothing tied the two together: on
-        // 2026-09-03 the compatibility methods left the current version, and Studio's
-        // board rename went on sending one for sixteen days, answered by a red
-        // sentence in Studio and a timeout in the review lane (F-084). This reads the
+        // methods it sends as string literals. Nothing else ties the two together: when the
+        // compatibility methods left the current version, Studio's board rename went
+        // on sending one for sixteen days, answered by a red
+        // sentence in Studio and a timeout in the review lane. This reads the
         // literals off the Workbench source and asks the real handler about each one
         // at the version the Workbench speaks, carrying the session's current generation
         // so each request reaches the dispatch. It sees a method the host once had and

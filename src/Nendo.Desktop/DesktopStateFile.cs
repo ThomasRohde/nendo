@@ -14,8 +14,8 @@ namespace Nendo.Desktop;
 /// <para>
 /// Readers take no lock, and every window polls some of these documents. <c>File.Move</c> is
 /// refused while any handle is open on the document, even one that shares delete, so a save
-/// failed whenever it met another window's read, and was lost or kept for the session only
-/// (R2SP-07). The stage now replaces the document with the POSIX rename Windows has had since
+/// failed whenever it met another window's read, and was lost or kept for the session only.
+/// The stage replaces the document with the POSIX rename Windows has had since
 /// 10 1709, which a reader that shares delete does not block: that reader goes on reading the
 /// document it opened. Where that rename is not available, or a handle that does not share
 /// delete is open, the move is tried again for a short while.

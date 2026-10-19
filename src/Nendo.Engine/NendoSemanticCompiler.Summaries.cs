@@ -135,7 +135,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// Where a board's columns come from (ADR-0004, 2026-09-17 amendment, S7). A
+    /// Where a board's columns come from (ADR-0004). A
     /// single-choice field, whose options are written down in the definition, or a bound
     /// Reference field, whose columns are records of another record type.
     /// <para>
@@ -203,7 +203,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// Two crossed closed groupings (ADR-0004, 2026-09-17 amendment). Neither axis is a
+    /// Two crossed closed groupings (ADR-0004). Neither axis is a
     /// filter, so a matrix spends none of the budget on its grouping, and the pair must be
     /// two different fields: a field against itself is a diagonal with empty corners, which
     /// states nothing a breakdown chart does not state better.
@@ -279,7 +279,7 @@ public sealed partial class NendoSemanticCompiler
         field.StorageKind == NendoStorageKind.Boolean ? 2 : field.Options.Count;
 
     /// <summary>
-    /// The few records at the top of one stored number (ADR-0004, 2026-09-17 amendment).
+    /// The few records at the top of one stored number (ADR-0004).
     /// It is a recentList ordered by size rather than by recency, and it lives where a
     /// recent list lives, for the same reason: on a surface that already has a record type,
     /// a list shows the same records with a pager.
@@ -336,7 +336,7 @@ public sealed partial class NendoSemanticCompiler
     {
         var fieldId = ReadRequiredString(node, "rankByFieldId", "NUI420", diagnostics);
         if (fieldId is null) return;
-        // A calculated number ranks as a stored one does (W-249): the sort and the largest value
+        // A calculated number ranks as a stored one does: the sort and the largest value
         // are both read over the bounded set a calculated filter stands on.
         if (derived.TryGetValue(fieldId, out var calculated))
         {
@@ -410,7 +410,7 @@ public sealed partial class NendoSemanticCompiler
         }
 
         // A summary tile and a breakdown total a calculated number over the same bounded read a
-        // calculated filter stands on (W-249); a trend still buckets stored values only.
+        // calculated filter stands on; a trend still buckets stored values only.
         if (calculatedAllowed && derived.TryGetValue(declared, out var calculated))
         {
             if (calculated.ResultType is not (NendoBehaviourScalar.Integer or NendoBehaviourScalar.Decimal))
@@ -433,7 +433,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// A breakdown chart (ADR-0004, 2026-09-14 amendment, S1): one exact number per
+    /// A breakdown chart (ADR-0004): one exact number per
     /// group of a closed grouping, over the records its scope covers. The scope, the
     /// filter budget, the aggregate and the field it reads follow a summary tile's
     /// rules exactly; what is its own is the grouping field, which must be an active
@@ -458,7 +458,7 @@ public sealed partial class NendoSemanticCompiler
             AddError(diagnostics, "NUI350", $"Field '{groupId}' does not exist or is retired.", node.NodeId, "groupByFieldId",
                 "Break the numbers down by an active single-choice, Boolean or Reference field of this record type.");
         // A reference groups by the records it points at, labelled as the reference shows them,
-        // at most the published number of groups (W-249); it needs its target and label set.
+        // at most the published number of groups; it needs its target and label set.
         else if (field.StorageKind == NendoStorageKind.Reference && field.Reference is null)
             AddError(diagnostics, "NUI350", $"Field '{groupId}' is a reference whose target and label are not set, so a group has no name.",
                 node.NodeId, "groupByFieldId", "Bind the reference to its target record type and label field first, with schema.configureReference.");
@@ -473,8 +473,8 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// One exact number per month or per week of a resolved range (ADR-0004 2026-09-16
-    /// amendment, S5). Two rules are particular to it and both come from the groups being
+    /// One exact number per month or per week of a resolved range (ADR-0004).
+    /// Two rules are particular to it and both come from the groups being
     /// generated rather than declared: the range is a closed word, never a date, so the
     /// stored definition cannot go stale; and the host adds the two bounds of that range to
     /// the effective filter budget, so an author gets two fewer clauses than elsewhere and

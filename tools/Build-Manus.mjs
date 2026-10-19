@@ -1,4 +1,4 @@
-// Authors the Manuscript app (W-276) into an empty, host-created file: schema, screens, the
+// Authors the Manuscript app into an empty, host-created file: schema, screens, the
 // starting manuscript and the view package, as one proposal. At Unattended the proposal is
 // accepted, as Build-Garden does; at any lower level it waits for the person.
 import fs from 'node:fs/promises';

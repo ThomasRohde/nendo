@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { northstarCsv } from './northstar-csv.mjs';
 
-// The Engine imports northstar-capabilities.csv as a lane (W-075). That lane only means
+// The Engine imports northstar-capabilities.csv as a lane. That lane only means
 // something while the file is the Northstar model, so this fails the moment they part.
 test('the committed Northstar CSV is the model, parents named by code', () => {
   const committed = readFileSync(new URL('./northstar-capabilities.csv', import.meta.url), 'utf8');

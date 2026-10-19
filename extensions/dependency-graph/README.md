@@ -30,8 +30,8 @@ On a Nendo that offers it, this view draws no controls and no title of its own. 
 in Ctrl K under the view's title, and on their keys. A right-click on a record opens
 Nendo's menu, with Open record. The summary line is Nendo's row's text, and the hint is
 behind About, shown over the graph until Escape; the graph starts at the top of the frame.
-A problem reading the file stays in the frame, whole. On an older Nendo the view shows its
-own controls and lines, as it always has.
+A problem reading the file stays in the frame, whole. On a Nendo without the toolbar the view
+shows its own controls and lines.
 
 ## What it reads
 
@@ -68,21 +68,16 @@ fields, the link type and the link's two reference fields. See
 
 ## What measures it
 
-`pwsh ./tools/Review-NendoGraph.ps1` serves this folder on one origin and a fixture
-broker on another, and runs the real `api.js` between them in Playwright (msedge). It
-measures the node, edge and parallel-edge geometry, that nodes open inside the canvas,
-status names read from the schema, markup-shaped labels, exactly one `ui.openRecord`
-per selection from the pointer, the keyboard and the text view, zoom, non-selectable
-chrome, a re-read only after a `changes` event that keeps the selection, one read for a
-burst of changes, a measured colour change on a dark `theme` event, a canvas and a
-surface token changing the measured colours, 480×320 and 512×384 windows, exact summary
-counts, the empty state and a refused read shown as text. It also measures the zoom and pan
-kept across a re-read, the selected record kept in place when a re-read adds a record, the
-keyboard and the one tab stop kept across a re-read, a connection
-outside the view counted in the summary, one record drawn at the centre, every arrowhead
-outside the record it points at on a grid of five, a same-column cycle and parallel pair drawn
-as separate lines, no link through a record it does not join on grids of five and thirteen,
-and each arrow key reaching the nearest record that way. Then it measures the view again
-on a broker that offers Nendo's toolbar: no controls or title of its own, the toolbar it
-declares, which the broker reads by the Workbench's own rules, each command, and Open from
-the record menu. It runs inside `Test-Production.ps1`.
+`pwsh ./tools/Review-NendoGraph.ps1`, inside `Test-Production.ps1`, serves this folder on one
+origin and a fixture broker on another, and runs the real `api.js` between them in Playwright
+(msedge). It measures the node, edge and parallel-edge geometry, nodes opening inside the
+canvas, status names from the schema, markup-shaped labels, one `ui.openRecord` per selection
+from the pointer, the keyboard and the text view, zoom, non-selectable chrome, re-reads after
+`changes` (one for a burst) that keep the selection, the zoom and pan, the selected record's
+place and the one tab stop, the dark theme and the canvas and surface tokens, 480×320 and
+512×384 windows, exact summary counts, the empty state, a refused read, a connection outside
+the view counted in the summary, every arrowhead outside the record it points at, a
+same-column cycle and parallel pair drawn as separate lines, no link through a record it does
+not join on grids of five and thirteen, and each arrow key reaching the nearest record. Then,
+on a broker that offers Nendo's toolbar: no controls or title of its own, each declared
+command, and Open from the record menu.

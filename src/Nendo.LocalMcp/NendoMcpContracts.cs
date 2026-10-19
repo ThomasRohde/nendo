@@ -39,7 +39,7 @@ internal static class NendoMcpJson
             // The output is JSON-RPC text an agent reads, never HTML, so nothing needs escaping
             // beyond what JSON itself requires. The default escaped every character past ASCII,
             // and & < > ' + too: "Smørrebrød" read with each ø as a six-character escape, and an
-            // agent copied the escapes into what it wrote back (MTD-17).
+            // agent copied the escapes into what it wrote back.
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
@@ -93,7 +93,7 @@ public sealed record NendoMcpLook(string Tone, string Letter, bool ToneChosen, b
 public sealed record NendoMcpEntity(string EntityId, string DisplayName) { public bool Retired { get; init; } }
 
 /// <summary>
-/// One record type as a bundle (W-150): its schema with the record count, and the compiled
+/// One record type as a bundle: its schema with the record count, and the compiled
 /// surfaces that belong to it. The first read for a session that needs one type, instead of
 /// the whole application.
 /// </summary>
@@ -115,7 +115,7 @@ public sealed record NendoMcpEntitySchema(
 {
     public bool Retired { get; init; }
 
-    /// <summary>How many records the type holds now; null where the read did not count (W-146).</summary>
+    /// <summary>How many records the type holds now; null where the read did not count.</summary>
     public long? RecordCount { get; init; }
 
     /// <summary>
@@ -241,7 +241,7 @@ public sealed record NendoMcpPage<T>(IReadOnlyList<T> Items, string? NextCursor)
 }
 
 /// <summary>
-/// One exact aggregate (W-146). <c>Shape</c> says which sections are filled: <c>whole</c> fills
+/// One exact aggregate. <c>Shape</c> says which sections are filled: <c>whole</c> fills
 /// <c>value</c> and <c>contributingRecords</c>; <c>grouped</c> fills <c>groups</c>; <c>cells</c>
 /// fills the keys and <c>cells</c>; <c>buckets</c> fills the resolved bounds and <c>buckets</c>.
 /// Every number is an invariant lexeme, and an empty set is null rather than zero.
@@ -275,7 +275,7 @@ public sealed record NendoMcpAggregate(
 /// <summary>One group or bucket: its key (a choice ID, true, false, a bucket start, or null for unset), its exact value and how many records contributed.</summary>
 public sealed record NendoMcpAggregateGroup(string? Key, string? Value, long ContributingRecords)
 {
-    /// <summary>For a grouping by a reference (W-249), the label of the record the key names; absent otherwise.</summary>
+    /// <summary>For a grouping by a reference, the label of the record the key names; absent otherwise.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? Label { get; init; }
 }
@@ -306,7 +306,7 @@ public sealed record NendoMcpDiagnostic(
 /// <para>
 /// <c>surfaceId</c>, <c>parentNodeId</c> and <c>position</c> are read from the stored definition
 /// beside the plan, which carries none of them because its digest is taken over what a node draws,
-/// not where it is kept (W-168). An author changing an existing file needs all three for
+/// not where it is kept. An author changing an existing file needs all three for
 /// <c>ui.moveNode</c> and <c>ui.addNode</c>; one had to guess a position from old change sets.
 /// </para>
 /// </summary>
@@ -382,7 +382,7 @@ public sealed record NendoMcpDescription(
     NendoMcpSurfaces? Surfaces,
     NendoMcpHealth? Health)
 {
-    /// <summary>The facets this read carried, in the order include named them; every facet when include was omitted (W-150).</summary>
+    /// <summary>The facets this read carried, in the order include named them; every facet when include was omitted.</summary>
     public IReadOnlyList<string> Included { get; init; } = [];
 
     /// <summary>
@@ -427,7 +427,7 @@ public sealed record NendoMcpExtensionPackage(
     IReadOnlyList<NendoMcpExtensionFile> Files);
 
 /// <summary>
-/// The open file's custom views' recent runtime events (W-251). <paramref name="Source"/> says
+/// The open file's custom views' recent runtime events. <paramref name="Source"/> says
 /// which of three kinds of evidence this is: neither a definition's validation nor a test of the
 /// view's source, but what the embedded host saw.
 /// </summary>

@@ -3,8 +3,8 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review's findings about automatic actions and calculations that installed and
-/// then failed every save, or skipped silently, built on 2026-10-13 (W-209). Each case runs a
+/// Automatic actions and calculations that must not install and then fail every save, or
+/// skip silently. Each case runs a
 /// real <c>.nendo</c> file through the ordinary coordinator.
 /// </summary>
 [DoNotParallelize]
@@ -177,7 +177,7 @@ public sealed class BehaviourEarlyFailureReviewTests
     }
 
     /// <summary>
-    /// The independent review of EBH-06: the duplicate check belongs to install. In the graph
+    /// The duplicate check belongs to install. In the graph
     /// that every open compiles, a file that already held two calculations of one field lost
     /// every calculation it had, where before only reads of that one record type failed.
     /// </summary>
@@ -275,7 +275,7 @@ public sealed class BehaviourEarlyFailureReviewTests
     }
 
     /// <summary>
-    /// The independent review of EBH-09: install exempts a retired field and a numbered one from
+    /// Install exempts a retired field and a numbered one from
     /// what a create step must fill, so making such a field active again, or removing its
     /// sequence, can leave the step short of a required value just as a new requirement can.
     /// </summary>
@@ -307,7 +307,7 @@ public sealed class BehaviourEarlyFailureReviewTests
 
     /// <summary>
     /// The check compares every required field a create step leaves empty with the change, not
-    /// only the first: a step a host installed before EBH-04 may already leave one empty, and
+    /// only the first: a step a host installed before that check may already leave one empty, and
     /// that one must not hide the field the change makes required.
     /// </summary>
     [TestMethod]

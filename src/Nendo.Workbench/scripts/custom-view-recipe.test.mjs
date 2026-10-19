@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { build } from 'vite';
 
-// Studio's Add view form (W-062): what it may offer and the proposal it makes. The host
+// Studio's Add view form: what it may offer and the proposal it makes. The host
 // validates every change set, so these are not the last line; they hold the form to the
 // Engine's NUI450 rules (NendoSemanticCompiler.Extensions.cs), so a person is offered only
 // choices that compile. The journey through a real host is G17 in tools/Review-ExtensionViews.mjs.
@@ -118,10 +118,10 @@ test('a package names every view that shows it, and where a person finds each on
 });
 
 
-// WXS-12: the form refused package IDs the Engine imports, such as org.view- and org.my--view,
-// and the host's actor check refused every write of their views. One table holds all three;
+// The form, the Engine and the host's actor check take the same package IDs, such as org.view-
+// and org.my--view, so no view the Engine imports is refused its writes. One table holds all three;
 // DesktopPackageIdRuleTests runs it against the Engine's rule and the host's actor check.
-test('WXS-12: the Add view form takes exactly the package IDs the Engine takes', () => {
+test('the Add view form takes exactly the package IDs the Engine takes', () => {
   const table = JSON.parse(readFileSync(new URL('./package-ids.json', import.meta.url), 'utf8')).ids;
   const base = { kind: 'records', title: 'Board', entityId: 'task', labelFieldId: 'title' };
   const disagreements = table.filter(({ id, valid }) => validPackageId(id) !== valid ||
@@ -129,9 +129,9 @@ test('WXS-12: the Add view form takes exactly the package IDs the Engine takes',
   assert.deepEqual(disagreements, [], 'The form and the Engine disagree on these package IDs.');
 });
 
-// WXS-13: a package only a screen of the file shows (an extensionView root, W-106) read
+// A package only a screen of the file shows (an extensionView root) is shown somewhere, not
 // 'Not shown anywhere yet'.
-test('WXS-13: a screen of the file is listed as one place its package is shown', () => {
+test('a screen of the file is listed as one place its package is shown', () => {
   const withFileView = [...nodes, node('archi', 'archi', null, 'extensionView', { title: 'Archi workbench', packageId: 'org.example.archi', opensFile: true })];
   const uses = viewsOfPackage('org.example.archi', withFileView);
   assert.deepEqual(uses.map(use => [use.kind, use.nodeId, use.title]), [['file', 'archi', 'Archi workbench']],
@@ -141,8 +141,8 @@ test('WXS-13: a screen of the file is listed as one place its package is shown',
   assert.deepEqual(viewsOfPackage('org.example.archi', [...nodes, node('x', 'inner', 'x', 'extensionView', { packageId: 'org.example.archi' })]), []);
 });
 
-// WXS-14: in a file with no record page the panel form asked for a record type it does not offer.
-test('WXS-14: a panel in a file with no record page says there is no page, not that a record type is missing', () => {
+// In a file with no record page the panel form says so, rather than ask for a record type it does not offer.
+test('a panel in a file with no record page says there is no page, not that a record type is missing', () => {
   const pageless = { ...context, nodes: nodes.filter(candidate => candidate.kind !== 'recordForm' && candidate.kind !== 'detailSurface' && candidate.parentNodeId !== 'form') };
   assert.deepEqual(pageChoices(pageless.nodes, entities), []);
   const panel = { kind: 'panel', packageId: 'org.example.glance', title: 'Glance', entityId: '', labelFieldId: '', pageNodeId: null };

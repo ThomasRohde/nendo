@@ -5,7 +5,7 @@ namespace Nendo.Engine;
 /// <summary>
 /// What a budget pays for, so a ceiling it reaches says which allowance ran out: a save's,
 /// one record's read, or one formula's check. Every ceiling once said "for a single save",
-/// also on a list read and on an install (EBH-20).
+/// also on a list read and on an install.
 /// </summary>
 internal enum BehaviourBudgetUse
 {
@@ -35,8 +35,7 @@ internal enum BehaviourBudgetUse
 /// what already happened.
 /// </para>
 /// <para>
-/// Since W-247 (ADR-0008 amendment of 2026-10-18) the work units are the one allowance
-/// nothing renews. A related record's calculation runs under that record's own function-call
+/// The work units are the one allowance nothing renews (ADR-0008). A related record's calculation runs under that record's own function-call
 /// and related-record allowances, as it would on its own read (<see cref="EnterMember"/>); a
 /// record the evaluation is about is read for work, not as a related record (<see cref="SpendRead"/>);
 /// a result is worked out once per budget (<see cref="TryRecall"/>); and a save's call,
@@ -150,8 +149,8 @@ internal sealed class BehaviourBudget
     /// <summary>
     /// Charges reading one record: work alone for a record this evaluation is about, the save's
     /// own records and the member whose calculation is being worked out, and a related record
-    /// for any other. Re-reading the record being saved spent most of a batch's related records
-    /// (W-247).
+    /// for any other, because re-reading the record being saved as a related record would spend
+    /// most of a batch's related records.
     /// </summary>
     internal void SpendRead(string entityId, string recordId)
     {
@@ -177,7 +176,7 @@ internal sealed class BehaviourBudget
 
     /// <summary>
     /// A calculation already worked out for a record under this budget, or its failure. A
-    /// client's two sums over the same projects worked every project out twice (W-247). A spent
+    /// client's two sums over the same projects worked every project out twice. A spent
     /// allowance is never remembered: it is this budget's, not the record's.
     /// </summary>
     internal bool TryRecall(string calculationId, string recordId, out (BehaviourValue? Value, NendoCalculationException? Failure) known) =>
@@ -192,7 +191,7 @@ internal sealed class BehaviourBudget
     /// <summary>
     /// Works out a related record's calculation under that record's own function-call and
     /// related-record allowances, as its own read would, while every unit of work is still
-    /// charged here. A client's total of 33 entries ran out of the client's 64 calls (W-247).
+    /// charged here. A client's total of 33 entries ran out of the client's 64 calls.
     /// The owner still pays one related record for each member it reads.
     /// </summary>
     internal MemberScope EnterMember(string entityId, string recordId)
@@ -218,8 +217,8 @@ internal sealed class BehaviourBudget
 
     /// <summary>
     /// The refusal for an allowance of this budget that ran out, worded for what the budget pays
-    /// for, with what it had spent of every allowance (W-246) and, on a save, the step that spent
-    /// most (W-247).
+    /// for, with what it had spent of every allowance and, on a save, the step that spent
+    /// most.
     /// </summary>
     internal NendoCalculationException Exhausted(string what)
     {
@@ -251,7 +250,7 @@ internal sealed class BehaviourBudget
             : string.Empty);
 
     /// <summary>
-    /// A ceiling met inside a related record's calculation, with that step named (W-246). The
+    /// A ceiling met inside a related record's calculation, with that step named. The
     /// calculation the person sees is the outermost one; without the path they could not tell
     /// which member's formula spent the allowance.
     /// </summary>

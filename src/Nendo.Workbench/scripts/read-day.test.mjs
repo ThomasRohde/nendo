@@ -4,9 +4,9 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// W-217 (R2LAT-01): Nendo stays open overnight in the tray, and every read was fresh for as
-// long as the change sequence stood still, so a screen 'Due today' still listed yesterday's
-// tasks the next morning. The civil day is part of each answer's freshness now. Driven through
+// Nendo stays open overnight in the tray, so a read is not fresh merely because the change
+// sequence stood still: a screen 'Due today' would list yesterday's tasks the next morning.
+// The civil day is part of each answer's freshness. Driven through
 // the real readIsPending and loadAccumulatedPage with the clock replaced and the host a counter.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const host = { calls: [], sequence: 7 };

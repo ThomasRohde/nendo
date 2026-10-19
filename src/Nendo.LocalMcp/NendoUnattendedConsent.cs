@@ -16,7 +16,7 @@ namespace Nendo.LocalMcp;
 /// <para>
 /// The host supplies it only at <see cref="AgentAccessMode.Unattended"/>. At every level
 /// below, it is null and the refusals are exactly what they were
-/// (ADR-0009, 2026-09-22 amendment).
+/// (ADR-0009).
 /// </para>
 /// </remarks>
 public delegate Task NendoUnattendedConsent(CancellationToken cancellationToken);

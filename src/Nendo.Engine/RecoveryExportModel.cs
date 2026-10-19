@@ -19,7 +19,7 @@ public sealed record NendoRecoveryExportPlan(
 
     /// <summary>
     /// Where the next part starts when this one reached its row or byte limit, or null when
-    /// nothing is left (R2SMA-13).
+    /// nothing is left.
     /// </summary>
     public string? NextAfterRecordId { get; init; }
 }
@@ -51,7 +51,7 @@ internal static class RecoveryCsvWriter
         string? afterRecordId = null)
     {
         // A reference is a record ID, so it goes out as one: a relationship is the one thing a
-        // person in safe mode could not otherwise get out of the file (R2SMA-04).
+        // person in safe mode could not otherwise get out of the file.
         var fields = entity.Fields.Where(field => field.StorageKind is >= NendoStorageKind.Text and <= NendoStorageKind.Reference)
             .OrderBy(field => field.FieldId, StringComparer.Ordinal).Take(MaximumFields).ToArray();
         var selectedIds = fields.Select(field => field.FieldId).ToHashSet(StringComparer.Ordinal);
@@ -59,7 +59,7 @@ internal static class RecoveryCsvWriter
             .Order(StringComparer.Ordinal).ToArray();
         var all = records.Where(record => record.EntityId == entity.EntityId).OrderBy(record => record.RecordId, StringComparer.Ordinal).ToArray();
         // A later part starts after the last record an earlier part examined, so the parts
-        // together hold every record once, in the order the first part began (R2SMA-13).
+        // together hold every record once, in the order the first part began.
         var rows = afterRecordId is null ? all : all.Where(record => string.CompareOrdinal(record.RecordId, afterRecordId) > 0).ToArray();
         string? lastExamined = null;
         using var output = new MemoryStream();

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The timeline, ADR-0004's 2026-09-14 amendment (S3): records on a spine by one
+/// The timeline (ADR-0004): records on a spine by one
 /// Date field, one civil year at a time, with an optional end date that turns an
 /// entry into a span, a stored Text field that titles it and a single-choice
 /// field that tones its dot. It reads what a calendar reads — two date bounds and

@@ -7,7 +7,7 @@ using ModelContextProtocol.Protocol;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// The one way this suite's tests connect an MCP client to a host they started (TST-02).
+/// The one way this suite's tests connect an MCP client to a host they started.
 ///
 /// Three copies each allowed 5 s for the host's first answer, half of what the LocalMcp suite
 /// allows, and under the full gate a fresh host took longer: "Initialization timed out" in

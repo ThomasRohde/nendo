@@ -1,5 +1,5 @@
 async (page) => {
-  // The Archi workbench (extensions/archi, W-109) framed by the fixture broker as the Workbench
+  // The Archi workbench (extensions/archi) framed by the fixture broker as the Workbench
   // frames it, over Archisurance as Archi.nendo holds it (tools/archi/fixtures.mjs, which
   // Review-ArchiWorkbench.ps1 puts in place of the placeholder below). Record writes are offered,
   // records.batch included, so every gesture is measured by what reaches the fixture's records.
@@ -33,8 +33,8 @@ async (page) => {
   })));
   const selected = async () => (await rows()).find(row => row.selected) ?? null;
   const results = {};
-  // W-112: the model as the fixture holds it, value for value, the revisions the view has written --
-  // its batches, and since W-103 Nendo's undos and redos of them -- and one control of Nendo's row
+  // The model as the fixture holds it, value for value, the revisions the view has written --
+  // its batches, and Nendo's undos and redos of them -- and one control of Nendo's row
   // as the view last declared it.
   const modelNow = async () => JSON.stringify(await Promise.all(['ar.model', 'ar.folder', 'ar.specialization', 'ar.concept', 'ar.view', 'ar.item', 'ar.property'].map(async entityId =>
     (await records(entityId)).map(record => [record.recordId, Object.entries(record.values).filter(([, value]) => value !== null).sort(([a], [b]) => (a < b ? -1 : 1))])
@@ -110,7 +110,7 @@ async (page) => {
   assert(await view.evaluate(() => getComputedStyle(document.getElementById('own-toolbar')).display === 'none'), 'The workbench drew its own toolbar beside Nendo’s.');
   results.read = { rows: first.length, toolbar: toolbar.items.map(item => item.id ?? item.kind) };
 
-  // ---- W-117: the validator reports what archi-online reports for Archisurance (64 nested
+  // ---- The validator reports what archi-online reports for Archisurance (64 nested
   // elements and 8 duplicate names; tools/archi/validation-parity.json), and each issue opens
   // what it names: the object on its view, or the concept in the tree.
   assert(toolbar.items.some(item => item.id === 'validator' && item.kind === 'toggle'), 'Nendo’s row has no Validator toggle.');
@@ -250,7 +250,7 @@ async (page) => {
   const viewName = (await records('ar.view')).find(record => record.recordId === viewButton).values['ar.view.name'];
   assert(await view.evaluate(name => document.querySelector('#properties h2')?.textContent === name, viewName), 'The properties do not show the view the tree selected.');
   results.linked = { view: viewName };
-  // R02-003: the actual helper's list must name every concept visible in this view.
+  // The actual helper's list must name every concept visible in this view.
   const expectedAlternative = (await records('ar.item')).filter(item => item.values['ar.item.view'] === viewButton && item.values['ar.item.kind'] === 'Element')
     .map(item => item.values['ar.item.concept']);
   const conceptNames = new Map((await records('ar.concept')).map(record => [record.recordId, record.values['ar.concept.name']]));
@@ -258,7 +258,7 @@ async (page) => {
   await until(count => document.querySelectorAll('.diagram-alternative li').length >= count, namedAlternative.length, 'The diagram text alternative never loaded.');
   const alternativeText = await view.locator('.diagram-alternative li').allTextContents();
   assert(namedAlternative.length > 0 && namedAlternative.every(name => alternativeText.includes(name)) && alternativeText.every(name => name.length > 0),
-    'R02-003 the diagram text alternative lost its concept names: ' + JSON.stringify({ expected: namedAlternative, actual: alternativeText }));
+    'the diagram text alternative lost its concept names: ' + JSON.stringify({ expected: namedAlternative, actual: alternativeText }));
   // The lists in a concept's Analysis read as rows that go to a record, not as bulleted buttons.
   await page.evaluate(() => window.broker.command('find', 'Customer', 'toolbar'));
   await until(id => !!document.querySelector(`#tree .row[data-id="${id}"]`), customer.recordId, 'Customer is not in the tree under Find.');
@@ -276,7 +276,7 @@ async (page) => {
   results.lists = lists;
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
-  // ---- W-118: a concept's Analysis lists what archi-online lists, in its order (analysis.test.mjs
+  // ---- A concept's Analysis lists what archi-online lists, in its order (analysis.test.mjs
   // measures every concept of eight models), and a view in it opens on the concept's first object
   // there, the one archi-online's findInView names, outlined and declared as the place.
   const allRecords = async () => Object.fromEntries(await Promise.all(['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.specialization', 'ar.view', 'ar.item', 'ar.property']
@@ -312,10 +312,10 @@ async (page) => {
     `A view in the Analysis opened on ${JSON.stringify(occurrence)}, not view ${otherView} with Customer's object ${wantObject} selected.`);
   results.analysis = { relations: wantRelations.length, views: wantViews.length, opened: otherView, object: wantObject };
 
-  // ---- W-118: the Visualiser draws archi-online's graph around the selection, follows it, and its
+  // ---- The Visualiser draws archi-online's graph around the selection, follows it, and its
   // controls change the graph as archi-online's do. Measured as the boxes drawn against the graph
   // archi-online builds on the same records.
-  // F-245: what the Visualiser shows at the end of every task that changes it, which is what the
+  // What the Visualiser shows at the end of every task that changes it, which is what the
   // browser may paint: the boxes and the camera they are shown at. A graph is only ever shown at its
   // fitted camera; drawn at archi-online's starting camera and fitted a task later, it jumped (the
   // owner's flicker). Sampled per animation frame instead, it was caught only when a paint fell
@@ -360,7 +360,7 @@ async (page) => {
   const settled = new Map(painted.map(([boxes, camera]) => [boxes, camera]));
   const jumps = painted.filter(([boxes, camera]) => camera !== settled.get(boxes));
   assert(painted.length > 0 && settled.size >= 2 && jumps.length === 0,
-    `F-245: the Visualiser showed ${jumps.length} of ${painted.length} states at a camera other than the graph's fitted one, first ${JSON.stringify(jumps.slice(0, 3))}; fitted ${JSON.stringify([...settled])}.`);
+    `the Visualiser showed ${jumps.length} of ${painted.length} states at a camera other than the graph's fitted one, first ${JSON.stringify(jumps.slice(0, 3))}; fitted ${JSON.stringify([...settled])}.`);
   await view.selectOption('#visualiser-direction', 'outgoing');
   await sameNodes(customer.recordId, { depth: 2, direction: 'outgoing' }, 'Outgoing at depth 2');
   await view.selectOption('#visualiser-direction', 'both');
@@ -459,7 +459,7 @@ async (page) => {
   const property = (await records('ar.property')).find(record => record.values['ar.property.concept'] === customer.recordId);
   assert(property?.values['ar.property.key'] === 'owner' && property.values['ar.property.value'] === 'Sales', `The property record is not owner = Sales on Policyholder: ${JSON.stringify(property)}; the file holds ${JSON.stringify(await records('ar.property'))}; the view says ${JSON.stringify(await status())}.`);
   results.edit = { renamed: 'Policyholder', property: property.recordId };
-  // Two edits in the same moment (F-211): the second was planned against the version the first
+  // Two edits in the same moment: the second was planned against the version the first
   // had already moved on, and refused as a changed target. Both must land.
   // Settle first: leave the fields, and wait until the last edit's write and reread are done.
   await view.evaluate(() => document.activeElement?.blur());
@@ -548,7 +548,7 @@ async (page) => {
   assert(batches === requestsBefore + 1, `The delete took ${batches - requestsBefore} batches, not one.`);
   results.delete = { question, relationships: relationships.length, boxes: boxes.length };
 
-  // ---- W-112: Undo and Redo of what the file saved, from Nendo's row. Every gesture since the
+  // ---- Undo and Redo of what the file saved, from Nendo's row. Every gesture since the
   // rename -- a rename, a documentation, two property lists, a new element, a move and a delete
   // with its relationships and boxes -- walked back one revision each to the model as it was, value
   // for value, and forward again to the model as it is. Undo names what it undoes. Then an undo of
@@ -595,7 +595,7 @@ async (page) => {
   await page.evaluate(() => window.broker.command('find', '', 'toolbar'));
 
 
-  // ---- W-110: a view opens drawn in the middle, and the diagram and the tree select each other.
+  // ---- A view opens drawn in the middle, and the diagram and the tree select each other.
   const allViews = await records('ar.view');
   const itemsFirst = await records('ar.item');
   const elementsOn = id => itemsFirst.filter(item => item.values['ar.item.view'] === id && item.values['ar.item.kind'] === 'Element').length;
@@ -724,7 +724,7 @@ async (page) => {
   assert(refusals.length === 0, `Nendo's rules refused the workbench's controls: ${JSON.stringify(refusals)}.`);
   assert(await view.evaluate(() => getComputedStyle(document.getElementById('own-toolbar')).display === 'none'), 'The workbench fell back to its own toolbar.');
 
-  // ---- W-127: the workbench's places in Nendo's Back and Forward (the owner's F-215). Opening
+  // ---- The workbench's places in Nendo's Back and Forward. Opening
   // another view is a step; a selection corrects the step it was made on; Back hands a place back
   // as the event place, and a view started again finds it in its context. None of it echoes.
   const declared = await page.evaluate(() => window.broker.places.map(entry => ({ ...entry })));
@@ -769,7 +769,7 @@ async (page) => {
   await page.evaluate(() => window.broker.startAt(null));
   results.places = { declared: declared.length, steps: declared.filter(entry => !entry.replace).length, echoedBack: echoedBack.length, restarted: restarted.length };
 
-  // ---- W-111: Edit opens the view in archi-online's editor. Gestures collect as edits waiting to
+  // ---- Edit opens the view in archi-online's editor. Gestures collect as edits waiting to
   // be committed; Undo and Redo work on them; Commit writes the net difference as one revision;
   // Discard drops them; a refused commit keeps them; they survive the workbench starting again.
   {
@@ -792,7 +792,7 @@ async (page) => {
   await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 0 && document.querySelectorAll('.archi-palette .pal-btn').length > 50,
     null, 'Edit did not open the view in archi-online\u2019s editor with its palette.');
   await pendingIs(0, 'An editor with nothing done');
-  // The whole drawing is in sight when Edit opens the view (the owner, W-114).
+  // The whole drawing is in sight when Edit opens the view (the owner).
   const fitted = await view.waitForFunction(() => {
     const stage = document.querySelector('.archi-editor .view-svg')?.getBoundingClientRect();
     const boxes = [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.getBoundingClientRect());
@@ -918,7 +918,7 @@ async (page) => {
     `Two drags, an undo and a redo did not commit as one revision setting the box's place: ${JSON.stringify(committed).slice(0, 400)}.`);
   const movedTo = await storedItem(moving);
   assert(movedTo.values['ar.item.x'] > startedAt.values['ar.item.x'] + 60, `The box was not moved in the file: ${startedAt.values['ar.item.x']} to ${movedTo.values['ar.item.x']}.`);
-  // W-112: once committed, the edits are one step of the file's. Undo puts the box back where it
+  // Once committed, the edits are one step of the file's. Undo puts the box back where it
   // started, in one revision, and Redo moves it again; nothing is left waiting either way.
   await labelIs('undo', 'Undo Commit 1 change to the view', 'Undo does not name the commit');
   await step('undo');
@@ -1094,7 +1094,7 @@ async (page) => {
 
   // Delete from the view, then Discard: the view is as stored again.
   const objectsStored = (await nodeIds()).length;
-  // The validator checks what the editor shows, waiting edits included (W-117): the actor's only
+  // The validator checks what the editor shows, waiting edits included: the actor's only
   // box deleted from the view, and not committed, makes the actor unused; Discard makes it used again.
   const actorConcept = (await records('ar.concept')).find(record => record.recordId === itemOf(actorBox)['ar.item.concept']);
   const unusedActor = `'${actorConcept.values['ar.concept.name'] || 'Business Actor'}' is not used in a View`;
@@ -1144,7 +1144,7 @@ async (page) => {
   await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
   await pendingIs(0, 'The kept edit committed');
   assert((await storedItem(moving)).values['ar.item.y'] > movedTo.values['ar.item.y'], 'The kept edit did not reach the file.');
-  // ---- W-113: an element box dropped into another element box is nested in it, and Archi asks
+  // ---- An element box dropped into another element box is nested in it, and Archi asks
   // which relationship the nesting stands for (archi-online's own dialog, with None among the
   // choices). The move waits like any other edit and commits with the relationship chosen.
   {
@@ -1202,7 +1202,7 @@ async (page) => {
       `The nesting did not reach the file: parent ${nested.values['ar.item.parent']}, relationship ${JSON.stringify(relationship?.values ?? null)}.`);
     results.nesting = { title: asked.title, choices: asked.choices.length, chosen, relationship: typeKey.get(relationship.values['ar.concept.type']) };
 
-    // ---- W-113: Arrange, from Nendo's row, on a selection made with real clicks (Ctrl adds). Each
+    // ---- Arrange, from Nendo's row, on a selection made with real clicks (Ctrl adds). Each
     // command commits what archi-online's own operation makes of the same records and selection
     // (arrangeModel in canvas.js), is one edit waiting and one Undo step, and commits as one batch.
     // Four short menus, each holding only its own commands (the owner found one menu of 27 crowded).
@@ -1316,7 +1316,7 @@ async (page) => {
     await until(() => !document.querySelector('.archi-editor .view-grid'), null, 'Hiding the grid left it drawn.');
     results.arrange = { arranged, pasted };
 
-    // ---- W-114: how a box looks, in archi-online's own Appearance and Label tabs beside the view.
+    // ---- How a box looks, in archi-online's own Appearance and Label tabs beside the view.
     // Each change waits like a move and commits to the box's record; a font chosen there keeps
     // Archi's own string; the label expression is drawn; and the workbench started again shows
     // every value in the tabs.
@@ -1379,7 +1379,7 @@ async (page) => {
     await page.evaluate(() => window.broker.command('edit', true, 'toolbar'));
     await until(() => document.querySelectorAll('.archi-editor [data-node-id]').length > 10, null, 'Edit did not open again.');
     // Edit opened with the Appearance panel already shown, as this device keeps it: the whole
-    // drawing is still in sight (the owner's report, W-114).
+    // drawing is still in sight (the owner's report).
     const inSight = await view.waitForFunction(() => {
       const stage = document.querySelector('.archi-editor .view-svg')?.getBoundingClientRect();
       const boxes = [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.getBoundingClientRect());
@@ -1391,7 +1391,7 @@ async (page) => {
     });
     assert(inSight, `Edit opened with the Appearance panel shown and ${cut} boxes out of sight.`);
     // A view small enough to show at 100% is fitted too, as the drawing outside Edit is: centred,
-    // not left in the corner (the owner, W-114).
+    // not left in the corner (the owner).
     // In a window as large as the owner's, where the view fits at 100% and archi-online would leave it there.
     await page.setViewportSize({ width: 2600, height: 1500 });
     const smallView = (await records('ar.view')).find(record => record.values['ar.view.name'] === 'Application Structure View');
@@ -1430,7 +1430,7 @@ async (page) => {
     await until(() => document.querySelector('.archi-style')?.hidden === true, null, 'The Appearance toggle did not hide the panel.');
     results.appearance = { fill: shown.fill, gradient: shown.gradient, lineWidth: shown.lineWidth, font: styled['ar.item.font'], label: preview };
 
-    // ---- W-116: a view's viewpoint, picked in its properties from Archi's 25 by name, ghosts what
+    // ---- A view's viewpoint, picked in its properties from Archi's 25 by name, ghosts what
     // it leaves out and greys those types in the palette at once, in the editor and in the drawing
     // outside it, with nothing loaded again; None shows everything. What is ghosted is what
     // archi-online's rules name for the records as stored, box by box and line by line.
@@ -1515,7 +1515,7 @@ async (page) => {
       results.viewpoints = viewpoints;
     }
 
-    // ---- W-115: Archi's automation, each archi-online's own operation with ELK in a worker.
+    // ---- Archi's automation, each archi-online's own operation with ELK in a worker.
     // Auto-layout from the Lay out menu commits what archi-online's layout makes of the same
     // records, as one Undo step and one batch of moves; the automatic relationships preferences
     // decide whether the line a nesting stands for is drawn; Generate View For makes a view of an
@@ -1558,9 +1558,9 @@ async (page) => {
       automation.layout = { boxes: top.length, writes: laidOut[0].writes.length };
 
       // The automatic relationships preferences: Archi's defaults shown; nested connections off
-      // draws the line W-113's nesting stands for, in the editor; the defaults hide it again.
+      // draws the line a nesting stands for, in the editor; the defaults hide it again.
       const nestedLine = itemsNow.find(item => item.values['ar.item.concept'] === relationship.recordId && item.values['ar.item.view'] === treeView.recordId);
-      assert(nestedLine, "W-113's nesting left no line for its relationship on the view.");
+      assert(nestedLine, "The nesting left no line for its relationship on the view.");
       const lineDrawn = () => view.evaluate(id => !!document.querySelector(`.archi-editor [data-conn-id="${id}"]`), nestedLine.recordId);
       assert(!(await lineDrawn()), 'The line a nesting stands for is drawn in the editor.');
       await page.evaluate(() => window.broker.command('automatic-relationships', null, 'toolbar'));
@@ -1620,7 +1620,7 @@ async (page) => {
         `Generate View For saved ${generatedBatches.length} batches of ${JSON.stringify(generatedBatches.map(batch => batch.writes.length))} writes, ${generatedBoxes.length} boxes and ${generatedLines.length} lines ` +
         `where archi-online makes ${generatedReference.elements.length} and ${generatedReference.relationships.length}; ${boundsDiffer.length} boxes are placed elsewhere.`);
       await until(count => document.querySelectorAll('.archi-editor [data-node-id]').length === count, generatedBoxes.length, 'The generated view did not open in the editor.');
-      // Undo takes it away as one step of the file's (W-112): Nendo's undo of the batch (W-103),
+      // Undo takes it away as one step of the file's: Nendo's undo of the batch,
       // and no batch of the view's own, nothing waiting.
       const batchesBeforeUndo = (await batches()).length;
       const undosBefore = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.undo').length);
@@ -1659,7 +1659,7 @@ async (page) => {
     });
     assert(editorColours[mode].palette === editorColours[mode].token && editorColours[mode].paper === 'rgb(255, 255, 255)',
       `In the ${mode} theme the editor's palette is not Nendo's surface, or its paper is not white: ${JSON.stringify(editorColours[mode])}.`);
-    // ABS-08: a double-click on a box renames it in place, in a box whose text must show in both
+    // A double-click on a box renames it in place, in a box whose text must show in both
     // themes; in the dark one it was white text on a white box.
     const boxIds = new Set((await records('ar.item')).filter(item => item.values['ar.item.kind'] === 'Element').map(item => item.recordId));
     const renamed = await view.evaluate(ids => [...document.querySelectorAll('.archi-editor [data-node-id]')].map(node => node.dataset.nodeId)
@@ -1694,7 +1694,7 @@ async (page) => {
     })()) };
   }
 
-  // ---- W-119: Archi's model tools from Nendo's Tools menu, each archi-online's own operation on the
+  // ---- Archi's model tools from Nendo's Tools menu, each archi-online's own operation on the
   // mirror, saved as one batch, so one revision that Undo takes back (manage.test.mjs measures the
   // writes; this measures what the person does). A specialization made in the manager is offered by
   // New in the tree and in the editor's palette, and filters the tree; a property key is renamed
@@ -1930,7 +1930,7 @@ async (page) => {
   results.themes = measured;
 
 
-  // ---- W-110: every element type in both figures and every relationship type draw, and a view of
+  // ---- Every element type in both figures and every relationship type draw, and a view of
   // 500 boxes pans without dropping frames.
   await page.evaluate(value => { window.broker.setFixture(value); window.broker.pushChanges(); }, '__ARCHI_GALLERY__');
   await until(() => /Every figure/.test(document.getElementById('tree').textContent) || true, null, 'The gallery did not arrive.');
@@ -2029,7 +2029,7 @@ async (page) => {
   assert(view !== null, 'Without Nendo’s row the workbench did not draw its own controls.');
   results.ownToolbar = true;
 
-  // ---- R30-001: restore a real canvas diff with 101 new elements and boxes. Commit must
+  // ---- Restore a real canvas diff with 101 new elements and boxes. Commit must
   // refuse all 202 writes before the broker receives any, preserving the stored draft.
   const boundView = fixture.records['ar.view'][0].recordId;
   const savedDraft = await view.evaluate(async ({ sets, viewId }) => {
@@ -2075,7 +2075,7 @@ async (page) => {
   await until(() => localStorage.getItem('archi-edits') === null, null, 'Discard did not drop the over-limit draft.');
   await page.evaluate(() => { window.broker.startAt(null); window.broker.command('edit', false, 'toolbar'); });
 
-  // ---- R30-004: both named and unnamed valid relationship cycles stay in the tree and
+  // ---- Both named and unnamed valid relationship cycles stay in the tree and
   // render selectable source/target links in Properties, in both themes.
   // run-code's sandbox has no structuredClone; the fixture is plain JSON.
   const cycleFixture = JSON.parse(JSON.stringify(fixture));
@@ -2111,7 +2111,7 @@ async (page) => {
   }
   results.relationshipCycles = { records: 4, propertyRenders, themes: 2 };
 
-  // ---- W-120: Save as .archimate hands Archisurance to the browser's downloads as Archi's XML,
+  // ---- Save as .archimate hands Archisurance to the browser's downloads as Archi's XML,
   // each object under the Archi ID it came with. Open into a file that already holds a model is
   // refused before anything is chosen. The XML saved here is what the new model opens below.
   // Archisurance as it was before the steps above edited it, so what is saved is its own.
@@ -2146,7 +2146,7 @@ async (page) => {
   assert(!savedIds.some(id => id.startsWith('ar-') || id.startsWith('ar.')) && new Set(savedIds).size === savedIds.length,
     'The saved file names an object by its record ID, or one ID twice.');
   await until(() => /^Saved Archisurance\.archimate, 120 elements/.test(document.getElementById('status').textContent), null, 'The status line did not say what was saved.');
-  // W-121: Save as Exchange XML checks the file against Archi 5.9's schemas with libxml2, which
+  // Save as Exchange XML checks the file against Archi 5.9's schemas with libxml2, which
   // xsd.js brings only now, and downloads it only when it is valid.
   const xsdLoads = () => view.evaluate(() => performance.getEntriesByType('resource').filter(entry => /\/xsd\.js(\?|$)/.test(entry.name)).length);
   const xsdBefore = await xsdLoads();
@@ -2172,7 +2172,7 @@ async (page) => {
   await view.click('#open-archimate button[value="cancel"]');
   results.saveArchimate = { ...savedFile, ids: savedIds.length, bytes: savedXml.length };
 
-  // ---- W-123: every Archisurance view exports from Nendo's row as Archi exports a view: an SVG
+  // ---- Every Archisurance view exports from Nendo's row as Archi exports a view: an SVG
   // cropped to the drawing with a 10-pixel margin, every element's name as SVG text in the
   // canvas's font, nothing left as HTML; PNG at 1×, 2× and 4× of that size; and a transparent
   // background when asked. Measured against archi-online's geometry of the same records.
@@ -2257,7 +2257,7 @@ async (page) => {
   assert(checked?.checked === true, 'The Export menu does not show the transparent background as chosen.');
   // Copy as picture, with Transparent background in files still chosen: the clipboard gets the white page.
   // Copy as picture, chosen in Nendo's row: focus is in the Workbench's page, as after a click in
-  // its row, so the clipboard takes the PNG only because the view takes focus first (W-123, G36).
+  // its row, so the clipboard takes the PNG only because the view takes focus first (G36).
   await page.bringToFront();
   await page.evaluate(() => { document.body.tabIndex = -1; document.body.focus(); });
   assert(await page.evaluate(() => document.hasFocus() && document.activeElement === document.body), 'The Workbench page did not hold focus before Copy.');
@@ -2295,7 +2295,7 @@ async (page) => {
   results.exportViews = { views: exportViews.length, largest: largest.values['ar.view.name'], svg: svgOf[largest.recordId], pngs,
     names: Object.values(svgOf).reduce((sum, entry) => sum + entry.names, 0) };
 
-  // ---- W-130 (ADR-0022): a new Archi model keeps the concept types and the top-level folders
+  // ---- A new Archi model (ADR-0022) keeps the concept types and the top-level folders
   // and leaves the Model record out with the work. The workbench starts one empty model, so the
   // tree has a root, and the nine folders sit under it. Measured in the broker's records.
   const fresh = JSON.parse(JSON.stringify(fixture));
@@ -2323,7 +2323,7 @@ async (page) => {
   assert((await records('ar.model')).length === 1, 'The workbench started more than one model.');
   results.emptyModel = { models: 1, folders: 9 };
 
-  // ---- W-120: the saved Archisurance opens into the new model. A dropped file opens the dialog
+  // ---- The saved Archisurance opens into the new model. A dropped file opens the dialog
   // with what it holds and Cancel writes nothing; the picker opens on a click inside the view, and
   // Open saves the model in batches of at most 200, after which the records are Archisurance's own.
   const dropFile = xml => view.evaluate(text => {
@@ -2332,7 +2332,7 @@ async (page) => {
     document.getElementById('centre').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   }, xml);
   const batchesBeforeDrop = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
-  // W-121: an Open Exchange file dropped on the workbench is told from an .archimate by what it
+  // An Open Exchange file dropped on the workbench is told from an .archimate by what it
   // holds, and read in the browser as archi-online reads it; Cancel writes nothing.
   await view.evaluate(text => {
     const transfer = new DataTransfer();
@@ -2344,7 +2344,7 @@ async (page) => {
     'A dropped Exchange XML file did not open the dialog saying what it holds, read as Open Exchange XML.');
   await view.click('#open-archimate button[value="cancel"]');
   await until(() => !document.getElementById('open-archimate').open, null, 'Cancel left the dialog open.');
-  // W-213: what the dialog says of a file before Open writes anything. Each is dropped, read and
+  // What the dialog says of a file before Open writes anything. Each is dropped, read and
   // cancelled; the check after the last Cancel below measures that none of them wrote a record.
   const dropNamed = (text, name) => view.evaluate(({ text, name }) => {
     const transfer = new DataTransfer();
@@ -2362,7 +2362,7 @@ async (page) => {
     return said;
   };
   results.openRefusals = {};
-  // ABS-01: an .archimate cut short before its relationships, as a download that broke off, and an
+  // An .archimate cut short before its relationships, as a download that broke off, and an
   // Exchange file cut before its relationships, are refused; they read as smaller, whole models.
   for (const [name, text, cutBefore] of [['Archisurance.archimate', savedXml, 'type="relations"'], ['Archisurance.xml', exchangeXml, '<relationships>']]) {
     const said = await dialogSays(text.slice(0, text.indexOf(cutBefore)), name, `${name} cut short`);
@@ -2373,7 +2373,7 @@ async (page) => {
     assert(/not well-formed XML \(error on line \d+ at column \d+: [^)]+\)/.test(said.summary),
       `${name} was refused without the parser's words, so the person cannot tell where it breaks off: ${JSON.stringify(said.summary)}.`);
   }
-  // ABS-02: Sketch and Canvas views are left out, and the dialog says so.
+  // Sketch and Canvas views are left out, and the dialog says so.
   const views = savedXml.match(/<folder [^>]*type="diagrams"[^>]*>/)[0];
   const sketches = savedXml.replace(views, views + '<element xsi:type="archimate:SketchModel" name="Whiteboard" id="id-w213-sketch"><child xsi:type="archimate:Sticky" id="id-w213-sticky" name="An idea"><bounds x="12" y="12" width="75" height="63"/></child></element>' +
     '<element xsi:type="canvas:CanvasModel" name="Canvas" id="id-w213-canvas"/>')
@@ -2383,7 +2383,7 @@ async (page) => {
   results.openRefusals.sketches = sketched.summary;
   assert(sketched.summary === 'Archisurance: 120 elements, 176 relationships, 17 views. Left out: 1 Sketch view, 1 Canvas view, 1 view reference to one. Archi.nendo holds no Sketch or Canvas views.' && !sketched.openDisabled,
     `The dialog did not say that the file's Sketch and Canvas views are left out: ${JSON.stringify(sketched)}.`);
-  // ABS-03: a relationship to an element the file does not hold is refused before the first batch.
+  // A relationship to an element the file does not hold is refused before the first batch.
   const relations = savedXml.match(/<folder [^>]*type="relations"[^>]*>/)[0];
   const actor = savedXml.match(/<element xsi:type="archimate:BusinessActor"[^>]* id="([^"]+)"/)[1];
   const dangling = await dialogSays(savedXml.replace(relations, `${relations}<element xsi:type="archimate:AssociationRelationship" id="id-w213-dangling" source="${actor}" target="id-nowhere"/>`),
@@ -2404,7 +2404,7 @@ async (page) => {
   await until(() => document.getElementById('open-archimate').open && !document.getElementById('open-archimate-choose').disabled, null,
     'Open .archimate… did not offer a choice in the new, empty model.');
   // Choose clicks the dialog's file input with the person's activation, which is what opens
-  // Windows' picker in a view (W-104, G34). The click is caught rather than let through: the CLI
+  // Windows' picker in a view (G34). The click is caught rather than let through: the CLI
   // stops running this probe, and still exits 0, once a real file chooser is open.
   await view.evaluate(() => {
     window.inputClicks = [];

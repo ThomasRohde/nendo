@@ -1,5 +1,5 @@
 // Writes preview-probe.mjs with a snapshot as the fixture broker's file: the Manuscript schema
-// from the lane's fixture, the snapshot's records, and its pictures as data addresses (W-293).
+// from the lane's fixture, the snapshot's records, and its pictures as data addresses.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fixture } from '../definition.mjs';

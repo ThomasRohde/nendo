@@ -3,8 +3,8 @@ import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { build } from 'vite';
 
-// The keys the window answers to and how the command palette orders what was typed
-// (W-067). What a key presses is main.ts's wiring over controls that already exist; what
+// The keys the window answers to and how the command palette orders what was typed.
+// What a key presses is main.ts's wiring over controls that already exist; what
 // is held here is the table, the matcher and the ranking, which are pure.
 const bundle = await build({ configFile: false, logLevel: 'error', build: { ssr: 'src/shortcuts.ts', write: false, rollupOptions: { output: { codeSplitting: false } } } });
 const { shortcuts, shortcut, matchShortcut, rankCommands, shortcutsShownFrom, shortcutsStorageKey } =
@@ -29,7 +29,7 @@ test('each shortcut in the table is one key, and the matcher answers every one i
   });
 });
 
-test('WCS-12: Ctrl / is Ctrl / on a keyboard where / needs Shift', () => {
+test('Ctrl / is Ctrl / on a keyboard where / needs Shift', () => {
   // Danish, German and Nordic layouts type '/' with Shift 7, so the event is key '/' with Shift.
   assert.equal(matchShortcut(key('/', { code: 'Digit7', ctrlKey: true, shiftKey: true })), 'hints');
   assert.equal(matchShortcut(key('/', { code: 'Slash', ctrlKey: true })), 'hints', 'US: Ctrl /');
@@ -49,7 +49,7 @@ test('a key with a modifier the table does not name is somebody else’s', () =>
   assert.equal(matchShortcut(key('ArrowLeft', { altKey: true })), null);
 });
 
-test('W-217 R2LAT-03: a chord is read by its physical key when the layout types a non-Latin letter or AZERTY digit-row symbol there', () => {
+test('a chord is read by its physical key when the layout types a non-Latin letter or AZERTY digit-row symbol there', () => {
   const ctrl = (value, code, modifiers = {}) => matchShortcut(key(value, { code, ctrlKey: true, ...modifiers }));
   assert.equal(ctrl('л', 'KeyK'), 'palette', 'Russian layout: Ctrl K reports key л');
   assert.equal(ctrl('κ', 'KeyK'), 'palette', 'Greek layout');

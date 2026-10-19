@@ -35,7 +35,7 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
 
     /// <summary>
     /// This launch, and no other: every read carries it, and a request that names another is
-    /// refused, so an answer meant for a replaced conversation never reaches this one (ACP-07).
+    /// refused, so an answer meant for a replaced conversation never reaches this one.
     /// </summary>
     internal string ConversationId { get; } = Guid.NewGuid().ToString("N");
 
@@ -67,7 +67,7 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         if (command.ResolvedPath is null)
             throw new NendoPreconditionException("agent-not-found", $"{command.Name} is not installed on this computer: {command.Program} was not found.");
         // Every folder left by a launch that did not end through EndAsync -- a host that was
-        // killed, upgraded over or logged off, or a delete that gave up -- goes first (DAE-11).
+        // killed, upgraded over or logged off, or a delete that gave up -- goes first.
         SweepFolders(sessionsRoot);
         var folder = Path.Combine(sessionsRoot, FolderName(Environment.ProcessId));
         Directory.CreateDirectory(folder);
@@ -91,7 +91,7 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     /// <summary>
     /// When the program stops on its own, the conversation says so, with what it last said. When
     /// the conversation ends first -- an agent refused at the handshake keeps running with its
-    /// input open -- the program is ended with it (ACP-01).
+    /// input open -- the program is ended with it.
     /// </summary>
     private async Task WatchAsync()
     {
@@ -107,7 +107,7 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         var tail = _process.StandardErrorTail;
         var said = tail.Length == 0 ? string.Empty : $" It said: {Last(tail, 600)}";
         // A connection that ended while the program still runs says why it ended: Nendo may have
-        // ended it, over a message too large, and "stopped answering" blamed the agent (DAE-14).
+        // ended it, over a message too large, and "stopped answering" blamed the agent.
         var how = _process.ExitCode is { } code ? $"{Command.Name} stopped (exit code {code})."
             : _conversation.Closed.IsCompleted ? $"{Command.Name} was disconnected. {_conversation.Closed.Result}"
             : $"{Command.Name} stopped answering.";

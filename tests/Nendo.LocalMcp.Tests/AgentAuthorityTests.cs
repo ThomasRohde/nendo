@@ -89,7 +89,7 @@ public sealed class AgentAuthorityTests
     }
 
     /// <summary>
-    /// MHS-02. An acquire under the holder's idempotency key returned the holder's whole grant,
+    /// An acquire under the holder's idempotency key returned the holder's whole grant,
     /// application handle included, for as long as the lease was held. Two agents following the
     /// same skill could send the same key, and the second then wrote under the first's lease. A
     /// replay is the recovery for a lost response, so it now holds only until the lease is first

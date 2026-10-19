@@ -3,8 +3,8 @@ import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
 // History's "View changes" through the function view-history.ts draws it with. Help and the
-// guides said History records which automatic action made each change; the opened entry drew
-// only the operation and its class (2026-10-10).
+// guides say History records which automatic action made each change, so the opened entry
+// names it beside the operation and its class.
 const { operationDetailsMarkup } = await bundleOf('src/history-markup.ts');
 
 const operation = (operationId, attribution = null) =>
@@ -15,7 +15,7 @@ const made = (triggerName) => ({
 });
 
 test('an operation an automatic action made names the action by its trigger; the author’s own names none', () => {
-  // A save's revision, which History offers to undo; one it does not offer says so (UIT-04, studio-review.test.mjs).
+  // A save's revision, which History offers to undo; one it does not offer says so (studio-review.test.mjs).
   const markup = operationDetailsMarkup([operation('edit-done'), operation('generated-1', made('Keep the project stage current'))], [], true);
   const lines = [...markup.matchAll(/<li>(.*?)<\/li>/g)].map(match => match[1].replace(/<[^>]+>/g, ''));
   assert.deepEqual(lines, [
@@ -24,7 +24,7 @@ test('an operation an automatic action made names the action by its trigger; the
   ]);
 });
 
-test('a created or restored record reads as History undoes it, not as cannot be undone (R2RM-05)', () => {
+test('a created or restored record reads as History undoes it, not as cannot be undone', () => {
   const both = [
     { operationId: 'c', operationType: 'data.createRecord', reversibility: 'irreversibleDeclared', canonicalJson: '{}' },
     { operationId: 'r', operationType: 'data.restoreDeletedRecord', reversibility: 'irreversibleDeclared', canonicalJson: '{}' },

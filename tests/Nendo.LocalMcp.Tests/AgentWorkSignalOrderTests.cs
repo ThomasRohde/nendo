@@ -1,7 +1,7 @@
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// R2SP-12. The work signal took each state under its lock and delivered it after releasing
+/// The work signal took each state under its lock and delivered it after releasing
 /// it, so two overlapping calls' deliveries were in no order: one call's idle could arrive
 /// after the next call's busy, and the window said nothing was running for the whole of a
 /// long write.

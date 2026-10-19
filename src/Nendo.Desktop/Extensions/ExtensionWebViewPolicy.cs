@@ -18,7 +18,7 @@ namespace Nendo.Desktop;
 internal static class ExtensionWebViewPolicy
 {
     /// <summary>
-    /// Each window's download handler, which tells that window of what it saved (F-237). The event's
+    /// Each window's download handler, which tells that window of what it saved. The event's
     /// sender may be another wrapper of the same browser, so the window rides in the handler.
     /// </summary>
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CoreWebView2,
@@ -57,7 +57,7 @@ internal static class ExtensionWebViewPolicy
     /// A download goes to the person's Downloads folder, under a name that overwrites nothing,
     /// without WebView2's own downloads panel. That panel opened over Nendo's window to ask about
     /// an Exchange XML file a view saved from a command in Nendo's row, which carries no click
-    /// into the view, and after Keep the browser process spun and the window stayed white (F-237).
+    /// into the view, and after Keep the browser process spun and the window stayed white.
     /// The view says what it saved.
     /// </summary>
     private static void OnDownloadStarting(CoreWebView2DownloadStartingEventArgs args, Action<string>? saved)
@@ -106,7 +106,7 @@ internal static class ExtensionWebViewPolicy
     /// The whole answer a view gets, which the handler only copies. A request carries the
     /// Workbench's origin whichever view asked, so an answer WebView2's own prompt kept would
     /// cover every view of every file: the person's Allow for their own map view would hand a
-    /// file someone sent them their location without asking (DAE-02). So nothing is left to that
+    /// file someone sent them their location without asking. So nothing is left to that
     /// prompt and nothing is kept. Autoplay is allowed because the frame delegates it.
     /// </summary>
     internal static (bool Handled, bool SavesInProfile, CoreWebView2PermissionState State) ViewPermission(CoreWebView2PermissionKind kind) =>
@@ -139,7 +139,7 @@ internal static class ExtensionWebViewPolicy
     /// A view, or a frame a view nests, cannot load the Workbench's own origin. That document
     /// would share an origin with the Workbench and could reach into it (S9b). Nor can it start
     /// another app through a scheme of its own: a frame sent to <c>search-ms:</c> or
-    /// <c>ms-settings:</c> reached WebView2's "open this app?" prompt (DAE-13). A <c>mailto:</c>
+    /// <c>ms-settings:</c> reached WebView2's "open this app?" prompt. A <c>mailto:</c>
     /// link the person followed opens their mail app, as a pop-up's does.
     /// </summary>
     private static void OnFrameNavigationStarting(CoreWebView2 sender, CoreWebView2NavigationStartingEventArgs args)

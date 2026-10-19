@@ -369,7 +369,7 @@ internal sealed class NendoDataTools(
             () => mutations.SetKeptInNewFilesAsync(applicationHandle, leaseId, entityId, recordId, records, kept, idempotencyKey, cancellationToken),
             [entityId, .. records?.Select(record => record?.EntityId) ?? []]);
 
-    // Pictures for agents (ADR-0031 point 12, W-269). An agent embeds a picture it holds, in
+    // Pictures for agents (ADR-0031 point 12). An agent embeds a picture it holds, in
     // chunks that each fit one request, and gets its address. No tool reads a local file or
     // fetches a web address: an agent writes such an address as text with set_field.
     [McpServerTool(Name = "nendo.data.put_media", Title = "Embed a picture", Destructive = true, Idempotent = true,

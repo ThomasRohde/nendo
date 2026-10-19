@@ -2,10 +2,10 @@ import type { EntitySnapshot, UiNodeSnapshot } from './host-types';
 import { storageKindName } from './extension-model';
 
 /**
- * Studio's Add view form (W-062): the choices it may offer, and the proposal it makes.
+ * Studio's Add view form: the choices it may offer, and the proposal it makes.
  *
- * A custom view is a node in the file's screens, and a person used to be able to add one
- * only through an agent's change set. This builds the same canonical operations an agent's
+ * A custom view is a node in the file's screens, which a person can add here as well as
+ * through an agent's change set. This builds the same canonical operations an agent's
  * inline node expands to -- `ui.addNode`, then one `ui.setProperty` per property in name
  * order -- and sends them through the lane every Studio proposal travels. The host
  * validates it like any other change set, so nothing here is trusted: what this module
@@ -111,7 +111,7 @@ export interface AddViewContext {
  * 3 to 80 characters in at least two dotted segments, each starting with a letter, of lowercase
  * letters, digits and hyphens. The form and the host's actor check used a stricter pattern, so a
  * package the file carries, such as org.view- or org.my--view, was refused here and every write
- * its views made was refused as actor-not-allowed (WXS-12). scripts/package-ids.json holds the
+ * its views made was refused as actor-not-allowed. scripts/package-ids.json holds the
  * three to one table.
  */
 export function validPackageId(packageId: string): boolean {
@@ -126,7 +126,7 @@ export function refusalFor(input: AddViewInput, context: AddViewContext): string
   if (title.length === 0 || title.length > 120) return 'Give the view a title of up to 120 characters.';
   if (!validPackageId(input.packageId)) return 'Choose a package this file carries.';
   // A panel's record type is its page's, and the form offers no record type for one: in a file
-  // with no record page the person was asked to choose a record type that was not there (WXS-14).
+  // with no record page the person was asked to choose a record type that was not there.
   if (input.kind === 'panel') {
     const pages = pageChoices(context.nodes, context.entities);
     if (pages.length === 0) return 'This file has no record page to put a panel on yet.';
@@ -205,15 +205,15 @@ export function addViewProposal(input: AddViewInput, context: AddViewContext): R
 }
 
 /**
- * One place a package is shown. `file` is a screen of the file (an extensionView root, W-106),
+ * One place a package is shown. `file` is a screen of the file (an extensionView root),
  * which the Add view form does not make but the file may carry, and may open on.
  */
 export interface ViewUse { nodeId: string; surfaceId: string; kind: ViewKind | 'file'; title: string; entityId: string | null; pageTitle: string | null }
 
 /**
- * Where accepting a view the Add view form made puts the person (W-062): a screen opens in Use,
+ * Where accepting a view the Add view form made puts the person: a screen opens in Use,
  * selected; a panel has no page without a record, so it is named and the person stays put.
- * Accepting a Studio proposal returns to the page it came from (UIT-02), so the screen's landing
+ * Accepting a Studio proposal returns to the page it came from, so the screen's landing
  * has to name Use itself, or the sentence says "open now" over Screens.
  */
 export function addedViewLanding(
@@ -236,12 +236,12 @@ export function viewUsePlace(use: ViewUse, entities: readonly Pick<EntitySnapsho
 
 /**
  * Where each package is shown: the views that name it, with the record type a screen is
- * listed under and the page a panel sits on. It answers the owner's question on first use
- * (C-189) -- which package to install to see a graph that was already there.
+ * listed under and the page a panel sits on. It answers a first-use question: which package
+ * to install to see a graph that is already there.
  */
 export function viewsOfPackage(packageId: string, nodes: readonly UiNodeSnapshot[]): ViewUse[] {
   // A screen of the file shows its package too: left out, a package that only such a screen
-  // shows, perhaps the one the file opens on, read 'Not shown anywhere yet' (WXS-13).
+  // shows, perhaps the one the file opens on, read 'Not shown anywhere yet'.
   const isFileView = (node: UiNodeSnapshot): boolean => node.kind === 'extensionView' && node.parentNodeId === null;
   return nodes
     .filter((node) => node.properties.packageId === packageId && (isFileView(node) || viewKinds.some((kind) => kind.nodeKind === node.kind)))

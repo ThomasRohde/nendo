@@ -33,8 +33,8 @@ public static class DesktopShellContract
         new(BridgeProtocolVersion, PermanentStudioRoute, WorkbenchUri);
 
     /// <summary>
-    /// The host serves the version the bundled Workbench speaks and no other. Versions 2 to 6
-    /// were retired on 2026-10-04 (W-135): nothing that ships with Nendo sends them.
+    /// The host serves the version the bundled Workbench speaks and no other. Earlier versions
+    /// are retired: nothing that ships with Nendo sends them.
     /// </summary>
     public static bool IsSupportedBridgeProtocol(int version) => version == BridgeProtocolVersion;
 

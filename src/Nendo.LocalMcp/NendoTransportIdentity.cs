@@ -18,7 +18,7 @@ internal static class NendoTransportIdentity
     {
         // A handshake-era client names itself only in initialize, and the host is stateless,
         // so every later request named it "Local agent". The HTTP User-Agent is on every
-        // request, and its first product token is the client's name (W-150).
+        // request, and its first product token is the client's name.
         if (string.IsNullOrWhiteSpace(clientInfo?.Name) && RequestUserAgent.Value is { } agent)
         {
             return agent;

@@ -121,7 +121,7 @@ internal sealed class DesktopTrayIcon : IDisposable
     /// process's send, so it must be quick; it is what the tray's own Open does.
     /// </param>
     /// <param name="sessionEnding">
-    /// Windows is ending the session: a shutdown, a restart, a sign-out (DSH-07). This hidden
+    /// Windows is ending the session: a shutdown, a restart, a sign-out. This hidden
     /// window is top-level, so it hears it, and it hears it whether or not the main window is
     /// showing. Raised on the message-pumping thread; Windows ends the process soon after.
     /// </param>
@@ -158,7 +158,7 @@ internal sealed class DesktopTrayIcon : IDisposable
 
     /// <summary>
     /// Shows another icon: the open file's own, which is how two open files are told apart
-    /// in the notification area before anybody reads a tooltip (W-089).
+    /// in the notification area before anybody reads a tooltip.
     /// </summary>
     internal void SetIcon(string path)
     {

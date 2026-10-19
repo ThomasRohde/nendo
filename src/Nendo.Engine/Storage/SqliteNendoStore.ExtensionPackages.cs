@@ -304,7 +304,7 @@ internal sealed partial class SqliteNendoStore
             }
         }
         // A new path an import would leave out is refused, so export and import give the same
-        // package (EXT-07). One already stored keeps working, and a compensation puts back what was there.
+        // package. One already stored keeps working, and a compensation puts back what was there.
         if (previous is null && !_replayingRecordedOperations && NendoExtensionContent.LeftOutOnImport(operation.Path))
             throw new NendoValidationException(
                 $"{operation.Path} would not survive export and import: an import leaves out {NendoExtensionArchives.ManifestName} at the root and any path with a segment that starts with a dot or is node_modules. Put the file somewhere else in the package.");
@@ -480,7 +480,7 @@ internal sealed partial class SqliteNendoStore
             or "extension.setState";
 
     /// <summary>
-    /// Keeps, replaces or removes one value of a view (ADR-0013 Phase 3). Only for a package the
+    /// Keeps, replaces or removes one value of a view (ADR-0013). Only for a package the
     /// file carries, within the per-view key count and the per-package byte bound, and, with an
     /// expected version, only while the key is at it. The evidence is the value it replaced, which
     /// is what reversing it sets back.
@@ -513,7 +513,7 @@ internal sealed partial class SqliteNendoStore
         else
         {
             // The stored form is bounded too: a character outside the basic plane is still written
-            // as two escapes, so a value within the bound as sent can pass it as stored (EXT-01).
+            // as two escapes, so a value within the bound as sent can pass it as stored.
             if (System.Text.Encoding.UTF8.GetByteCount(operation.ValueJson) > NendoExtensionLimits.StateValueBytes)
                 throw new NendoPreconditionException("state-too-large",
                     $"A state value is at most {NendoExtensionLimits.StateValueBytes / 1024} KiB of JSON as it is kept, and {operation.Key} would be larger.");
@@ -525,7 +525,7 @@ internal sealed partial class SqliteNendoStore
             {
                 AddStateKey(upsert, operation);
                 upsert.Parameters.AddWithValue("@value", operation.ValueJson);
-                // Never a number the key had before, even after it was forgotten (EXT-09): no lower
+                // Never a number the key had before, even after it was forgotten: no lower
                 // than the change sequence this write commits at, which only rises. Counting up from
                 // the row alone restarted at 1 after a forget, so a stale expectedVersion matched.
                 var sequenceAfter = Convert.ToInt64(await ScalarAsync(
@@ -585,7 +585,7 @@ internal sealed partial class SqliteNendoStore
                     $"A view keeps at most {NendoExtensionLimits.StateKeysPerView} keys. Remove one before adding {operation.Key}.");
         }
         // What a removed view kept stays, so compensating the removal brings it back, but it no
-        // longer counts against the views that are there (EXT-10): nothing could free it.
+        // longer counts against the views that are there: nothing could free it.
         await using var bytes = Command("""
             SELECT coalesce(sum(length(CAST(value_json AS BLOB))), 0) FROM __nendo_extension_state
             WHERE package_id = @package AND (view_id = '' OR view_id IN (SELECT node_id FROM __nendo_ui_node));
@@ -681,7 +681,7 @@ internal sealed partial class SqliteNendoStore
                 var applied = payload.GetProperty("value");
                 var previousVersion = previous is { } before ? before.GetProperty("version").GetInt64() : 0;
                 // The version this write left. Evidence written before versions followed the change
-                // sequence (EXT-09) does not name it, and there it was one past the replaced one.
+                // sequence does not name it, and there it was one past the replaced one.
                 var leftAt = evidence.RootElement.TryGetProperty("version", out var left) && left.ValueKind == JsonValueKind.Number
                     ? left.GetInt64() : previousVersion + 1;
                 var expected = applied.ValueKind == JsonValueKind.Null ? SetExtensionStateOperation.ExpectAbsent : leftAt;

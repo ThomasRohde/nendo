@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Removing unused pictures from History (ADR-0031 point 8, W-273): the host asks first, so a file
+/// Removing unused pictures from History (ADR-0031 point 8): the host asks first, so a file
 /// with nothing to remove gets no backup; otherwise it backs the file up beside itself and only
 /// then removes what nothing names.
 /// </summary>

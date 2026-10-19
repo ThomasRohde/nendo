@@ -59,7 +59,7 @@ internal sealed partial class SqliteNendoStore
         {
             foreach (var source in await ReadEntityMappingsAsync(transaction, ct))
             foreach (var reference in source.Fields.Where(candidate => candidate.Reference?.TargetEntityId == entity.EntityId))
-                // A reference added in this mutation has no column yet, and so points at nothing (ESS-01).
+                // A reference added in this mutation has no column yet, and so points at nothing.
                 if (await ColumnExistsAsync(source.PhysicalTableName, reference.PhysicalColumnName, transaction, ct) &&
                     Convert.ToInt64(await ScalarAsync($"SELECT EXISTS(SELECT 1 FROM {Quote(source.PhysicalTableName)} WHERE {Quote(reference.PhysicalColumnName)} IS NOT NULL);", transaction, ct), CultureInfo.InvariantCulture) != 0)
                     throw new NendoPreconditionException("entity-referenced", "Clear or reassign incoming references before retiring this record type.");
@@ -88,8 +88,8 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// A bound reference shows its target by a label field, so retiring that field left every
     /// target created afterwards with no label and a board grouped by it refusing with advice
-    /// nobody could follow (ESS-09). schema.setReferenceLabel moves the reference to another label
-    /// first (W-232). A retired reference, or one on a retired record type, draws and groups
+    /// nobody could follow. schema.setReferenceLabel moves the reference to another label
+    /// first. A retired reference, or one on a retired record type, draws and groups
     /// nothing and cannot be relabelled, so it does not hold its label: reactivating it later
     /// meets a retired label as any reactivation meets what retired after it.
     /// </summary>
@@ -117,7 +117,7 @@ internal sealed partial class SqliteNendoStore
         var temporary = "retirement_" + Guid.NewGuid().ToString("N");
         // Only the columns the table has: a field added earlier in the same mutation gets its
         // column when the mutation ends, appended after these. Copying it from a table that does
-        // not have it yet failed as a raw SQLite error (ESS-01).
+        // not have it yet failed as a raw SQLite error.
         var existing = new List<FieldMapping>();
         foreach (var field in entity.Fields)
             if (await ColumnExistsAsync(entity.PhysicalTableName, field.PhysicalColumnName, transaction, ct)) existing.Add(field);
@@ -143,7 +143,7 @@ internal sealed partial class SqliteNendoStore
         {
             // Every property that names one: an ordering, a date, an axis or a relation's target
             // as well as a binding. Only four were read, so a retirement under any other bound
-            // field was accepted and every custom screen then failed to compile (ESM-04).
+            // field was accepted and every custom screen then failed to compile.
             var namesEntity = pair.Key == "entityId" || pair.Key.EndsWith("EntityId", StringComparison.Ordinal);
             var namesField = pair.Key is "fieldId" or "cardFieldIds" || pair.Key.EndsWith("FieldId", StringComparison.Ordinal);
             if (!namesEntity && !namesField) continue;
@@ -182,7 +182,7 @@ internal sealed partial class SqliteNendoStore
         {
             if (definition.OwningEntityId is { } owner && entities.Contains(owner)) throw Refuse(definition, owner);
             // A retired relevant field never changes again, so the trigger would never run on an
-            // update (EBH-08).
+            // update.
             if (definition is NendoTriggerDefinition listening &&
                 listening.RelevantFieldIds.FirstOrDefault(fields.Contains) is { } relevant)
                 throw Refuse(definition, relevant);
@@ -220,7 +220,7 @@ internal sealed partial class SqliteNendoStore
                     if (fields.Contains(assignment.FieldId)) throw Refuse(action, assignment.FieldId);
                 // A link sets a reference of the new record, so retiring that reference, or the
                 // one the link follows from the event record, left the next create refused with
-                // field-retired (EBH-09).
+                // field-retired.
                 foreach (var link in step.Links)
                 {
                     if (fields.Contains(link.FieldId)) throw Refuse(action, link.FieldId);

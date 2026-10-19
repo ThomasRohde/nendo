@@ -1,5 +1,5 @@
 // Puts a custom-view package folder into the file a running Nendo has open, as a proposal
-// a person accepts (ADR-0013, 2026-09-25). The folder holds a nendo-package.json and the
+// a person accepts (ADR-0013). The folder holds a nendo-package.json and the
 // package's files; the manifest itself is not stored, because the package row holds it.
 //
 //   node tools/Put-NendoPackage.mjs <folder> [--application <applicationId>] [--endpoint <url>] [--title <title>]

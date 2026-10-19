@@ -65,7 +65,7 @@ public sealed partial class MainWindow
         var bar = DescribeTitleBar();
         if (!DesktopTitleBarRegions.Changed(_titleBar, _titleBarScale, bar, scale)) return;
         // A new display scale also moves the window's minimum, which is in physical pixels and
-        // which Windows leaves at the old screen's scale (DSH-14). Not before the first reading:
+        // which Windows leaves at the old screen's scale. Not before the first reading:
         // the window opened with the minimum for the screen it opened on.
         if (_titleBarScale > 0) DesktopWindowPolicy.ApplyMinimum(AppWindow, _titleBarScale, scale);
         _titleBar = bar;

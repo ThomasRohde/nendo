@@ -3,7 +3,7 @@ using System.Text;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// CSV with pictures (ADR-0031 point 14, W-272): an export with pictures writes the file's pictures
+/// CSV with pictures (ADR-0031 point 14): an export with pictures writes the file's pictures
 /// beside the CSV, a file in that folder imports the CSV and embeds the linked pictures, and every
 /// picture arrives with the same bytes. A CSV naming a picture the file does not hold is refused
 /// before review, by its row.

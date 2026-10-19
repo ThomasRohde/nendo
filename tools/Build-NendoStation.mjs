@@ -902,7 +902,7 @@ const LENS_ID = 'org.nendo.systems-lens';
 const LENS_FOLDER = path.join('extensions', 'systems-lens');
 
 // The Systems Lens package as its folder has it, every file but the manifest, which the
-// package row holds instead (ADR-0013, 2026-09-25). Read afresh on every run, so the
+// package row holds instead (ADR-0013). Read afresh on every run, so the
 // stage carries the code as it is now, not as it was when this script was written.
 async function lensFiles() {
   const manifest = JSON.parse(await fs.readFile(path.join(LENS_FOLDER, 'nendo-package.json'), 'utf8'));
@@ -1013,7 +1013,7 @@ STAGES['lens-fields'] = {
   appliedWhen: async client => hasNode(client, 'systemsLens.componentSystem'),
 };
 
-// The schematic's code, carried in the file (ADR-0013, 2026-09-25): no install, no
+// The schematic's code, carried in the file (ADR-0013): no install, no
 // consent and no pin. Re-running after an edit to the folder proposes only the files that
 // changed, each naming the content it replaces, so the review is the edit.
 // The 96 KiB bound on one extension.putFile is on its JSON payload, where base64 makes the

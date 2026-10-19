@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-082. Claude Code shows server instructions and each tool description up to 2,048
+/// Claude Code shows server instructions and each tool description up to 2,048
 /// characters and drops the rest, with nothing on the wire to say so. Measured on
 /// 2026-09-27: the instructions were 2,755 characters and lost the sentence saying no
 /// SQL, file, process or network access exists; <c>add_operations</c> lost its amend
@@ -57,7 +57,7 @@ public sealed class SurfaceTextBoundTests
             StringAssert.Contains(viaClient, required, $"At {mode} the instructions no longer say it.");
         }
         // How to read without resources/read is said before a client's list cuts the text: one
-        // showed 150 characters, and its agent opened the file's storage instead (2026-10-08).
+        // showed 150 characters, and its agent opened the file's storage instead.
         const string readTool = "nendo.read.resource";
         var named = viaClient.IndexOf(readTool, StringComparison.Ordinal);
         Assert.IsGreaterThanOrEqualTo(0, named, $"At {mode} the instructions do not name {readTool}.");

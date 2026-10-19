@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A file's own look (W-089): a tone and a letter, drawn as a badge on the Nendo mark wherever
+/// A file's own look: a tone and a letter, drawn as a badge on the Nendo mark wherever
 /// the file has an icon. Every file has one by default; what a file chose is a row in its own
 /// protected table at the end of the layout ladder, as the purpose is.
 /// </summary>

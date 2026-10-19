@@ -26,7 +26,7 @@ Start-Sleep -Milliseconds 200
 [uint32]$taskForegroundProcess=0
 [void][BcmMouseProbe]::GetWindowThreadProcessId([BcmMouseProbe]::GetForegroundWindow(),[ref]$taskForegroundProcess)
 if($taskForegroundProcess -ne $ProcessId){throw 'BCM did not become the foreground window'}
-# The page's origin is the XAML island's, which is the window's top edge since the top bar became the title bar (W-093).
+# The page's origin is the XAML island's, which is the window's top edge, because the top bar is the title bar.
 if($ClientCoordinates){$taskPage=[BcmMouseProbe]::Page($taskProcess.MainWindowHandle);$X=$taskPage.left+[int]($ClientX*$Dpr);$Y=$taskPage.top+[int]($ClientY*$Dpr)}
 [void][BcmMouseProbe]::SetCursorPos($X,$Y)
 try {

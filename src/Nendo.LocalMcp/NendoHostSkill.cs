@@ -9,7 +9,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// The skill this host serves over the Skills extension (W-154, SEP-2640): a
+/// The skill this host serves over the Skills extension (SEP-2640): a
 /// <c>SKILL.md</c> that says when to read each of the authoring resources, with the
 /// vocabulary, the examples and the view API as its supporting files. Generated from the
 /// same tables the vocabulary is, build-static, so the manifest's digests are the bytes
@@ -26,7 +26,7 @@ internal static class NendoHostSkill
 
     /// <summary>
     /// The public guide that names the discovery folder. The protocol itself carries no path of any
-    /// kind, the host's own folders included, so the text points there instead (W-169).
+    /// kind, the host's own folders included, so the text points there instead.
     /// </summary>
     internal const string AgentsGuide = "https://thomasrohde.github.io/nendo/docs/agents";
     internal const string DescriptionText =
@@ -86,7 +86,7 @@ internal static class NendoHostSkill
     internal static JsonObject GetResult(JsonNode? parameters, IReadOnlyList<NendoFileSkills.FileSkill> fileSkills)
     {
         // A uri that is not text is the caller's mistake, said as one: GetValue threw for a number
-        // or an object, and the client was told only that an internal error occurred (MTD-21).
+        // or an object, and the client was told only that an internal error occurred.
         var given = parameters?["uri"];
         string? uri = null;
         if (given is not null && !(given is JsonValue value && value.TryGetValue(out uri)))

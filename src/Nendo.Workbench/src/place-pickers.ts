@@ -1,7 +1,7 @@
 import { focusWithoutInteraction, requiredElement } from './shell';
 
 /**
- * The breadcrumb as the place to choose where you are (ADR-0013, 2026-09-28; W-092).
+ * The breadcrumb as the place to choose where you are (ADR-0013).
  *
  * On a Use screen the top bar's breadcrumb already named the record type and the view, and the
  * Use toolbar below named them again as Showing and View. Now the two names in the breadcrumb

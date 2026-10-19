@@ -43,7 +43,7 @@ test('preset return paths never pass through unrelated behaviour nodes', () => {
     });
   }
 });
-// ABS-12: records edited in Studio can disagree. One transition whose node was moved to another
+// Records edited in Studio can disagree. One transition whose node was moved to another
 // species, or whose Route points do not read, made the whole species unloadable with a raw error.
 test('a species with an inconsistent transition still loads, leaves it out or routes it afresh, and names it', () => {
   const r = fixture().records;

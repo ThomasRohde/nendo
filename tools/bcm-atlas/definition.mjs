@@ -30,20 +30,20 @@ export const defs = [
     ['stage', 'Stage', 'text', false, 'singleChoice', ['Proposed', 'Discovery', 'Delivery', 'Complete']],
     ['start', 'Start', 'date', false, 'date'], ['end', 'Target completion', 'date', false, 'date'],
     ['priority', 'Priority', 'text', false, 'singleChoice', ['Low', 'Medium', 'High']], ['success', 'Success measure', 'text', false, 'longText']]],
-  // One scored judgement of one capability on one dimension at one date (W-080). History keeps
+  // One scored judgement of one capability on one dimension at one date. History keeps
   // every one; the map shows the latest.
   ['assessment', 'Assessment', 'assess', [
     ['name', 'Assessment', 'text', true], ['capability', 'Capability', 'reference', true],
     ['dimension', 'Dimension', 'text', true, 'singleChoice', ['Maturity', 'Business value', 'IT health']],
     ['score', 'Score', 'integer', true, 'rating', null, 1, 5], ['date', 'Assessed on', 'date', true, 'date'],
     ['assessor', 'Assessor', 'text'], ['evidence', 'Evidence', 'text', false, 'longText']]],
-  // An initiative covers several capabilities (W-081): one link record per capability it changes.
+  // An initiative covers several capabilities: one link record per capability it changes.
   ['scope', 'Initiative scope', 'scope', [
     ['name', 'Scope', 'text', true], ['initiative', 'Initiative', 'reference', true], ['capability', 'Capability', 'reference', true],
     ['note', 'Why it is in scope', 'text', false, 'longText']]],
 ];
 
-// Fields no two records may share (ADR-0020): a capability's code names it on import (W-075).
+// Fields no two records may share (ADR-0020): a capability's code names it on import.
 export const unique = ['cap.code'];
 
 // [record type, reference field, target record type, the target's label field].

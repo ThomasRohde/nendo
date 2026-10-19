@@ -53,7 +53,7 @@ public sealed class WorkbenchAgentSessionProtocolTests
     [TestMethod]
     public async Task AnAgentHiddenOnThisDeviceStaysHiddenAndComesBack()
     {
-        // W-199, the owner: "at work we only have Copilot". Hiding is this device's choice, kept
+        // A person may have only one of the agents at work. Hiding is this device's choice, kept
         // beside the person's own command and never in the file.
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(

@@ -17,7 +17,7 @@ public sealed partial class NendoApplicationService
 
     public NendoSessionHealth Health => _coordinator.Health;
 
-    /// <summary>The open file's custom views' recent runtime events (W-251); see <see cref="NendoViewEvents"/>.</summary>
+    /// <summary>The open file's custom views' recent runtime events; see <see cref="NendoViewEvents"/>.</summary>
     public NendoViewEvents ViewEvents => _coordinator.ViewEvents;
 
     public NendoFileCapabilities Capabilities => _coordinator.Capabilities;
@@ -45,7 +45,7 @@ public sealed partial class NendoApplicationService
         remove => _coordinator.Committed -= value;
     }
 
-    /// <summary>The same commit, with the records it changed and whether the definition moved (W-171).</summary>
+    /// <summary>The same commit, with the records it changed and whether the definition moved.</summary>
     public event Action<NendoCommitSummary>? CommittedChanges
     {
         add => _coordinator.CommittedChanges += value;
@@ -97,7 +97,7 @@ public sealed partial class NendoApplicationService
     public Task<NendoStorageHealthSnapshot> VerifyIntegrityAsync(CancellationToken cancellationToken = default) =>
         _coordinator.VerifyIntegrityAsync(cancellationToken);
 
-    /// <summary>Part of a package file as a waiting proposal would leave it, bound to its reviewed digest (review R-017).</summary>
+    /// <summary>Part of a package file as a waiting proposal would leave it, bound to its reviewed digest.</summary>
     public Task<NendoProposalFileWindow> ReadProposalPackageFileAsync(
         string proposalId, string reviewedDigest, string packageId, string path, long offset, int length,
         CancellationToken cancellationToken = default) =>
@@ -147,11 +147,11 @@ public sealed partial class NendoApplicationService
         return new(put.Address, result);
     }
 
-    /// <summary>What the file's embedded pictures weigh against the budget, and how much of that nothing names (W-273).</summary>
+    /// <summary>What the file's embedded pictures weigh against the budget, and how much of that nothing names.</summary>
     public Task<NendoMediaUsage> ReadMediaUsageAsync(CancellationToken cancellationToken = default) =>
         _coordinator.ReadMediaUsageAsync(cancellationToken);
 
-    /// <summary>Removes the pictures nothing names, after the backup the plan names, and compacts the file (W-273).</summary>
+    /// <summary>Removes the pictures nothing names, after the backup the plan names, and compacts the file.</summary>
     public Task<NendoMediaRemovalResult> RemoveUnusedMediaAsync(string backupPlanId, CancellationToken cancellationToken = default) =>
         _coordinator.RemoveUnusedMediaAsync(backupPlanId, cancellationToken);
 
@@ -165,8 +165,8 @@ public sealed partial class NendoApplicationService
         _coordinator.ReadExtensionStateAsync(packageId, viewId, key, cancellationToken);
 
     /// <summary>
-    /// Keeps, replaces or removes one value of a custom view (<c>nendo.state</c>, ADR-0013
-    /// Phase 3): one Data revision under the request's origin, described in the words History
+    /// Keeps, replaces or removes one value of a custom view (<c>nendo.state</c>, ADR-0013):
+    /// one Data revision under the request's origin, described in the words History
     /// shows, and reversible there.
     /// </summary>
     public Task<NendoApplyResult> SetExtensionStateAsync(
@@ -494,7 +494,7 @@ public sealed partial class NendoApplicationService
                 request.EntityId, request.RecordId, pair.Key,
                 request.ExpectedRecordVersion + ordinal, pair.Value,
                 request.ExpectedTargetVersions is not null && request.ExpectedTargetVersions.TryGetValue(pair.Key, out var targetVersion) ? targetVersion : null)).ToArray();
-        // History names what a save changed, as the other writes do (ESQ-15): the record type,
+        // History names what a save changed, as the other writes do: the record type,
         // and the field when it is the only one. A type the definition lacks is the store's to
         // refuse, so the description does not refuse it first.
         var entity = (await _coordinator.GetDefinitionSnapshotAsync(cancellationToken)).Entities
@@ -503,7 +503,7 @@ public sealed partial class NendoApplicationService
         var description = entity is null ? "Edit record fields"
             : only is not null ? $"Edit {entity.DisplayName} {only.DisplayName}"
             : $"Edit {entity.DisplayName}";
-        // The digest reads the words every form save had before (ESQ-15), so a retry stays exact
+        // The digest reads the words every form save had before, so a retry stays exact
         // after a rename and across the host that first named the type.
         return await _coordinator.ApplyAsync(new NendoMutation(request.Context.IdempotencyScope,
             request.Context.IdempotencyKey, request.Context.Origin, description, operations) { DigestDescription = "Edit record fields" },
@@ -519,7 +519,7 @@ public sealed partial class NendoApplicationService
         RequireIdentity(request.RecordId, "record ID");
         RequireContext(request.Context);
         // The command and its steps are definition: a record button reads no records to find
-        // them (ESQ-04; AuthorityCacheTests).
+        // them (AuthorityCacheTests).
         var compilation = await CompileSemanticDefinitionAsync(cancellationToken);
 
         // Contract version 3 carries commands in the surface tree and a command

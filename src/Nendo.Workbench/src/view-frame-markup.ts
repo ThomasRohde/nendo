@@ -20,7 +20,7 @@ export const frameSandbox = 'allow-scripts allow-same-origin allow-forms allow-p
 /**
  * What a view's frame delegates. The browser blocks a feature the frame does not name, and the
  * host answers what reaches it: everything but a clipboard read, autoplay and several downloads
- * is refused, and nothing is kept (DAE-02).
+ * is refused, and nothing is kept.
  */
 export const frameAllow = 'clipboard-read; clipboard-write; fullscreen; web-share; autoplay; encrypted-media; picture-in-picture';
 

@@ -20,7 +20,7 @@ public static class NendoMedia
     /// <summary>The most one embedded item may hold (ADR-0031 point 6).</summary>
     public const long MaximumItemBytes = 64L * 1024 * 1024;
 
-    /// <summary>The most embedded content one file may hold (ADR-0031 point 6), measured on 2026-10-16 (W-264).</summary>
+    /// <summary>The most embedded content one file may hold (ADR-0031 point 6).</summary>
     public const long MaximumFileBytes = 2048L * 1024 * 1024;
 
     /// <summary>How long an address may be, in characters: room for a long web address or a deep path.</summary>

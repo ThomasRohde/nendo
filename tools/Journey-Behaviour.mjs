@@ -1,4 +1,4 @@
-// The real-host behaviour journey: ADR-0008 stage S7, obligation P7.
+// The real-host behaviour journey (ADR-0008).
 //
 // It drives the actual WinUI apphost's WebView over CDP and asserts against the
 // real DOM. A passing unit suite is not this evidence: what is checked here is that
@@ -146,7 +146,7 @@ async function openProjectRecord(recordId) {
   })()`), 'the sort state on a Studio column header');
   assert(header.label === true && header.sort === 'none',
     `Studio's column header lost its sort control or its aria-sort: ${JSON.stringify(header)}`);
-  // Its accent is a tint since W-096 took the coloured left edges away, so the tint is what is measured.
+  // Its accent is a tint, not a coloured left edge, so the tint is what is measured.
   assert(cells.calculated?.classed === true && !/^(transparent|rgba\(0, 0, 0, 0\))$/.test(cells.calculated.tint),
     `Studio's calculated column lost its class, so it reads like a stored one: ${JSON.stringify(cells.calculated)}`);
   await click(`.ag-row[row-id="${recordId}"] .record-open-button`);

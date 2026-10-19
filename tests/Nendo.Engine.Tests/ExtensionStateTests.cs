@@ -3,7 +3,7 @@ using System.Text;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// What a custom view keeps with the file (ADR-0013 Phase 3, <c>nendo.state</c>): one Data
+/// What a custom view keeps with the file (ADR-0013, <c>nendo.state</c>): one Data
 /// operation, <c>extension.setState</c>, per view or shared by a package, versioned like a
 /// record, bounded, attributed to its origin in History and reversed there.
 /// </summary>
@@ -107,7 +107,7 @@ public sealed class ExtensionStateTests
     }
 
     /// <summary>
-    /// EXT-01: a value is bounded as it is kept, and kept as it was written. The default JSON writer
+    /// A value is bounded as it is kept, and kept as it was written. The default JSON writer
     /// escaped every non-ASCII letter into six characters, so 40 KB of Danish passed the 64 KiB check
     /// and failed the table's own bound as a raw SQLite error.
     /// </summary>
@@ -132,7 +132,7 @@ public sealed class ExtensionStateTests
     }
 
     /// <summary>
-    /// EXT-09: a key's version never returns to a number it had, even after the key is forgotten and
+    /// A key's version never returns to a number it had, even after the key is forgotten and
     /// set again, or put back by History. It restarted at 1, so a write that expected a version from
     /// before the forget replaced a value its writer never read.
     /// </summary>
@@ -158,7 +158,7 @@ public sealed class ExtensionStateTests
     }
 
     /// <summary>
-    /// EXT-10: what a removed view kept stays for compensation but no longer counts against the
+    /// What a removed view kept stays for compensation but no longer counts against the
     /// package's 1 MiB, which no surface could free.
     /// </summary>
     [TestMethod]

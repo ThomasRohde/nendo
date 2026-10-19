@@ -354,7 +354,7 @@ export function boardMarkup(plan: ApplicationPlan, node: SurfaceNodePlan): strin
   const malformed = ungrouped.filter((record) => record.values[board.groupByFieldId] != null &&
     stringValue(record.values[board.groupByFieldId]).length > 0);
   // The lane is drawn for its total only when an unset record can be on the board: under the
-  // board's own `ne` or `eq` on the grouping field none can, and its 0 would be false (ESQ-05).
+  // board's own `ne` or `eq` on the grouping field none can, and its 0 would be false.
   // A loaded record with a value outside the columns still shows it, with the data issue.
   const showFallback = ungrouped.length > 0 || (columnTiles && board.unsetReachable);
   // A stored value the board has no column for is a data issue either way, but not the
@@ -398,7 +398,7 @@ function entityDisplayName(entityId: string): string {
 }
 
 /**
- * One matrix (ADR-0004, 2026-09-17 amendment, S6): two crossed choice fields, the
+ * One matrix (ADR-0004): two crossed choice fields, the
  * surface's window placed into cells, and one exact number in each of them.
  *
  * The number and the cards are two different quantities and the cell says so. The number
@@ -509,7 +509,7 @@ export function listMarkup(plan: ApplicationPlan, node: SurfaceNodePlan | null):
   const board = boardView(plan);
   const dotFieldId = board?.groupByFieldId ?? surfaceAccentFieldId(plan, selectedSurfaceNode(plan));
   const [headingFieldId, ...detailFieldIds] = listFieldIds(plan, node);
-  // Every field a list declares is a column (F-225: a fourth was silently dropped). A list
+  // Every field a list declares is a column, a fourth and later ones included. A list
   // that declares none shows its record type's first three fields, not all of them.
   const details = node !== null && nodeFieldIds(node).length > 0 ? detailFieldIds : detailFieldIds.slice(0, 2);
   // A record with no value for the dot keeps its place, so every row's columns line up with the head.

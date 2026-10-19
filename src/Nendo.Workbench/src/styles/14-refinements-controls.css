@@ -47,7 +47,7 @@
 /* Findings and actions are different lengths. Let each card end where its own
    content ends instead of stretching one into a tall empty panel. Side by side only
    where both fit; below 901px they stack (01-file-menu.css), or the findings squeezed
-   to a sliver beside the actions' 320px (CSS-02). */
+   to a sliver beside the actions' 320px. */
 .recovery-layout { align-items: start; }
 
 @media (min-width: 901px) {
@@ -100,17 +100,17 @@
 .record-inspector .inspector-heading:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 
 /* The sticky header and Save bar stand over the scroller's edges, so a control that Tab brings
-   to either edge would sit under them (WCAG 2.4.11). The scroller keeps that room clear (UIS-05). */
+   to either edge would sit under them (WCAG 2.4.11). The scroller keeps that room clear. */
 .record-inspector { scroll-padding-block: 5.5rem 5.5rem; }
 
-/* A stored value reads at the body size, not at its label's (UIS-10). */
+/* A stored value reads at the body size, not at its label's. */
 .record-form label :is(input, select, textarea) {
   color: var(--ink);
   font-size: 1rem;
   font-weight: 400;
 }
 
-/* The record that is open beside the list (UIS-11). */
+/* The record that is open beside the list. */
 .record-row > button.is-current,
 .record-card.is-current,
 .calendar-entry.is-current {
@@ -213,7 +213,7 @@
 
 /* The bleed above reaches through a .record-form's padding. The Make required, Reactivate and
    Convert reference forms put their bar straight in the card, which has none, so it ran 24px
-   past both edges and the card's clip left Preview flush against its border (UIT-13). */
+   past both edges and the card's clip left Preview flush against its border. */
 .record-form-card > .form-actions { margin-right: 0; margin-left: 0; }
 
 /* --- Data grid ------------------------------------------------------------- */
@@ -264,7 +264,7 @@
   font-size: 0.85rem;
 }
 
-/* A line that takes something away wears the danger tone, not the plus of an addition (UIT-09). */
+/* A line that takes something away wears the danger tone, not the plus of an addition. */
 .change-mark[data-change="remove"] {
   border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
   color: var(--danger);
@@ -659,7 +659,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
 }
 .behaviour-approval-actions { margin-top: 4px; }
 
-/* What accepting a proposal means for consent to automatic actions (W-008), first in
+/* What accepting a proposal means for consent to automatic actions, first in
    the review's summary, so the reason Accept waits is on screen when the review opens. The same accent as the approval panel, so the two read as one
    feature; warning where accepting would be refused or pauses editing. */
 .proposal-consent {
@@ -671,7 +671,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
 .proposal-consent p { margin: 0; line-height: 1.45; font-size: 0.82rem; }
 .proposal-consent-note { color: var(--warning); font-weight: 650; }
 
-/* The record-page header (ADR-0004, 2026-09-14): a band above the form carrying the
+/* The record-page header (ADR-0004): a band above the form carrying the
    title field, the subtitle field and the accent choice's chip, in the accent's tone. */
 .record-hero {
   display: grid;
@@ -785,7 +785,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
 .record-form textarea,
 .record-form select { user-select: text; }
 
-/* Charts (ADR-0004, 2026-09-14): a proportion bar and a progress ring, drawn from exact
+/* Charts (ADR-0004): a proportion bar and a progress ring, drawn from exact
    numbers that are shown beside the shape. A segment is a button so a screen reader
    reads the chart as its numbers, and a drill opens the list narrowed to the group. */
 .chart-tile {
@@ -843,7 +843,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
 .chart-table th, .chart-table td { padding: 2px 10px 2px 0; text-align: left; border-bottom: 1px solid var(--line); }
 .chart-table-toggle { justify-self: start; padding: 0; }
 
-/* Over time, ADR-0004 2026-09-16 amendment (S5). A trend's columns and an activity
+/* Over time (ADR-0004). A trend's columns and an activity
    grid's squares. Both keep a slot for a period with nothing in it: an empty column is a
    baseline tick and a quiet day is the lightest step, because a chart that omits them
    looks exactly like a busy one and says something else. */
@@ -983,7 +983,7 @@ button.studio-header-label:hover .studio-sort-indicator[data-sort="none"] { opac
 
 .drill-clear .outline-icon { width: 14px; height: 14px; }
 
-/* The range strip (S4): both ends of one field, with a rule between them. It is
+/* The range strip: both ends of one field, with a rule between them. It is
    not a chart — nothing here is proportional, because two numbers state a span
    and a drawn proportion of one would imply a distribution nothing read. */
 .range-strip {

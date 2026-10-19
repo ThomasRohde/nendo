@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The tree read pages by key (ADR-0019, 2026-10-16 amendment): each page resumes after the record
+/// The tree read pages by key (ADR-0019): each page resumes after the record
 /// the one before ended on, so a page costs its own records and a whole read costs what it returns.
 /// Until then every page walked and sorted the whole subtree and cut itself by position, and the
 /// walk refused past 10,000 records.
@@ -59,7 +59,7 @@ public sealed class HierarchyTreePagingTests
     }
 
     /// <summary>
-    /// The measure of the amendment: a whole read seeks about as many rows as it returns, however
+    /// The measure of paging by key: a whole read seeks about as many rows as it returns, however
     /// far into the tree a page is, on a wide flat level and on nested levels alike. A walk that
     /// re-reads what came before each page seeks rows in the square of the tree's size.
     /// </summary>

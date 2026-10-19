@@ -3,8 +3,8 @@ using System.Globalization;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The read behind a <c>trendChart</c> and an <c>activityGrid</c>, ADR-0004 2026-09-16
-/// amendment, slice S5.
+/// The read behind a <c>trendChart</c> and an <c>activityGrid</c>
+/// (ADR-0004).
 /// <para>
 /// One rule is worth more than the rest and is asserted first: a bucket with nothing in it
 /// is still a bucket. Every other chart in this product groups by something written down in
@@ -18,7 +18,7 @@ namespace Nendo.Engine.Tests;
 public sealed class DateBucketReadTests
 {
     /// <summary>
-    /// TST-13: the keys and stored dates are written in the invariant culture, so a person whose
+    /// The keys and stored dates are written in the invariant culture, so a person whose
     /// culture counts years another way (th-TH: 2026 is 2569) reads the same buckets. The tests
     /// formatted with the current culture, stored a due date in 2569 and looked for its key there.
     /// </summary>
@@ -118,8 +118,8 @@ public sealed class DateBucketReadTests
 
     /// <summary>
     /// A day grid over a leap year is 366 buckets, which is exactly the published ceiling.
-    /// S1 chose that number "so the day buckets of a later slice have a stated bound rather
-    /// than a new rule"; this is that slice, and this asserts the bound was not one short.
+    /// The number was chosen so the day buckets have a stated bound rather than a new rule, and
+    /// this asserts the bound is not one short.
     /// </summary>
     [TestMethod]
     public void ALeapYearOfDaysMeetsThePublishedCeilingExactly()

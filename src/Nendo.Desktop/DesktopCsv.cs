@@ -17,12 +17,12 @@ internal sealed partial class DesktopSessionController
         IReadOnlyDictionary<string, string>? pictureAddresses = null) =>
         QueryAsync(service => service.ExportCsvFileAsync(entityId, destination, cancellationToken, pictureAddresses), cancellationToken);
 
-    /// <summary>The record type's embedded pictures, written beside the CSV (W-272).</summary>
+    /// <summary>The record type's embedded pictures, written beside the CSV.</summary>
     internal Task<IReadOnlyDictionary<string, string>> ExportCsvPicturesAsync(string entityId, string csvFolder, CancellationToken cancellationToken = default) =>
         QueryAsync(service => service.ExportCsvPicturesAsync(entityId, csvFolder, cancellationToken), cancellationToken);
 
     /// <summary>
-    /// Copies the record type's linked picture files into the file (W-272), each picture its own
+    /// Copies the record type's linked picture files into the file, each picture its own
     /// revision, read against the open file's folder.
     /// </summary>
     internal async Task<NendoEmbedLinkedResult> EmbedLinkedPicturesAsync(string entityId, CancellationToken cancellationToken = default)

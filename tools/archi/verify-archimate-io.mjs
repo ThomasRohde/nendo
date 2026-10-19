@@ -1,10 +1,10 @@
-// W-120: the workbench opens and saves .archimate files with archi-online's semantics. For
+// The workbench opens and saves .archimate files with archi-online's semantics. For
 // Archisurance and each of archi-online's phase fixtures, this reads the file as archi-online
 // does, opens it into an empty Archi.nendo as the workbench does (canvas.js: readArchimate,
 // planImport, importBatches), saves the records back (exportArchimate), and compares archi-online's
 // own reading of that save with its reading of the original, by archi-online's Phase 2 semantics
 // (tools/phase2-semantics.mjs: ids, order, attributes and Archi 5.9's defaults). Images are left
-// out on purpose (F-208), so they are taken out of the original before comparing, and named.
+// out on purpose, so they are taken out of the original before comparing, and named.
 // Then Desktop Archi opens each save and saves it again, and its save is compared the same way.
 //
 //   node tools/archi/verify-archimate-io.mjs                 every fixture, with Desktop Archi
@@ -131,7 +131,7 @@ try {
     const reread = canvas.parseArchimateText(saved.xml);
     const ours = compare(`${name}, opened and saved by the workbench`, reference.model, reread);
     if (ours) problems.push(ours);
-    // W-114: every label expression gives archi-online's text after the trip through the records.
+    // Every label expression gives archi-online's text after the trip through the records.
     const labelled = [...Object.values(reference.model.nodes), ...Object.values(reference.model.connections), ...Object.values(reference.model.folders)]
       .filter(item => item.labelExpression);
     const differentLabels = labelled.filter(item => canvas.evaluateLabelExpression(reference.model, item.id).text !== canvas.evaluateLabelExpression(reread, item.id).text);

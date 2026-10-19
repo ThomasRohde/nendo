@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { buildMirror, geometry, archiOnlineCommit, toRecords, writesFor, isNodeGhosted, isConnectableGhosted, VIEWPOINTS, unreadableValues, exportArchimate } from '../../extensions/archi/canvas.js';
 
-// W-110: the workbench draws from a mirror of Archi.nendo's records, through archi-online's own
+// The workbench draws from a mirror of Archi.nendo's records, through archi-online's own
 // geometry. The reference is archi-online's geometry of its own parse of the same file
 // (archisurance-geometry.json, from make-fixture.mjs), so a difference is the mirror's.
 const { records } = JSON.parse(readFileSync(new URL('./archisurance.json', import.meta.url), 'utf8'));
@@ -37,11 +37,11 @@ test('every Archisurance view has the bounds and routes archi-online gives it, o
   assert.equal(connections, 199);
 });
 
-// W-111: the editor writes the difference between two models. The mirror's inverse has to be
+// The editor writes the difference between two models. The mirror's inverse has to be
 // exact, or opening a view and committing nothing would write.
 const storedById = new Map(Object.values(records).flat().map(record => [record.recordId, record]));
 
-// With W-119 the model and the nine top-level folders are planned too: 778 and those ten.
+// The model and the nine top-level folders are planned too: 778 and those ten.
 test('the mirror turned back into records is the records: every owned field of all 788, and no writes', () => {
   const mirror = buildMirror(records);
   const planned = toRecords(mirror, storedById);
@@ -115,7 +115,7 @@ test('committed later, collected edits write only what they changed: a field set
     values: { 'ar.item.x': storedById.get(node.id).values['ar.item.x'] + 40 } }]);
 });
 
-// W-116: a view's viewpoint is the key its record stores, and what the canvas ghosts follows it.
+// A view's viewpoint is the key its record stores, and what the canvas ghosts follows it.
 test("a view's stored viewpoint reaches the mirror, and ghosts exactly the boxes whose type it leaves out, with their lines", () => {
   const view = records['ar.view'].find(record => record.values['ar.view.name'] === 'Organisation Tree View');
   assert.equal(view.values['ar.view.viewpoint'], 'organization');
@@ -140,7 +140,7 @@ test("a view's stored viewpoint reaches the mirror, and ghosts exactly the boxes
   assert.equal(VIEWPOINTS.length, 25);
 });
 
-// ABS-07: Bendpoints and Legend options are long text a person edits on a record page. One value
+// Bendpoints and Legend options are long text a person edits on a record page. One value
 // that does not read as JSON must not stop the canvas, Analysis, the editor, the validator and
 // the exports, which all draw from the mirror; the item is drawn without it and named.
 test('a diagram item whose bendpoints or legend do not read is drawn without them and named, and the model still reads', () => {

@@ -1,4 +1,4 @@
-/** What a recent file's state means to the person, not the host's word for it (WMX-15). */
+/** What a recent file's state means to the person, not the host's word for it. */
 export function recentFileState(state: string): string {
   switch (state) {
     case 'available': return 'Open';

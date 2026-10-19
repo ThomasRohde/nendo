@@ -121,7 +121,7 @@
   color: var(--ink);
 }
 
-/* A thumbnail in a list row, on a board card and in Studio's cell (W-267, W-268). */
+/* A thumbnail in a list row, on a board card and in Studio's cell. */
 .media-thumb {
   display: inline-block;
   flex: none;
@@ -145,11 +145,11 @@
 .media-cover.is-empty { background: var(--surface-soft); }
 .media-cover.is-missing { background: var(--surface-soft); border-bottom-style: dashed; }
 
-/* Studio's cell: a small preview, then the address itself (W-268). */
+/* Studio's cell: a small preview, then the address itself. */
 .studio-media-cell { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .studio-media-address { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); color: var(--muted); }
 
-/* A picture in a Markdown field (W-271): fitted to the text column. */
+/* A picture in a Markdown field: fitted to the text column. */
 .markdown-picture { display: block; margin: 8px 0; }
 .markdown-picture img { display: block; max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-control); }
 .markdown-picture.is-missing { padding: 8px 10px; border: 1px dashed var(--warning); border-radius: var(--radius-control); background: var(--surface-soft); }

@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S8 of ADR-0008, obligation P6: compensating a causal revision reverses the
+/// ADR-0008, obligation P6: compensating a causal revision reverses the
 /// whole of it.
 /// <para>
 /// The edit a person made and the writes its actions produced committed together, so
@@ -153,7 +153,7 @@ public sealed class BehaviourCompensationTests
             "Restoring different rules left the old consent standing.");
     }
 
-    // R-015. A reference move whose action also updated both parents: the inverse that puts
+    // A reference move whose action also updated both parents: the inverse that puts
     // the reference back must expect the former parent at the version its own reversal
     // leaves, not the version it had before the move.
     [TestMethod]

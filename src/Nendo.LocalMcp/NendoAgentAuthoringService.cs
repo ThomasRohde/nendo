@@ -27,7 +27,7 @@ internal sealed partial class NendoAgentAuthoringService(
 
     /// <summary>
     /// A record operation's payload carries a value the person may have stored at any size, so it is
-    /// bounded by the request body, as the data tools' values are (R2AP-03); the description
+    /// bounded by the request body, as the data tools' values are; the description
     /// operations keep the 32 KiB they need.
     /// </summary>
     private static readonly int RecordPayloadBytes = Limits.RequestBodyBytes;
@@ -36,7 +36,7 @@ internal sealed partial class NendoAgentAuthoringService(
     /// <summary>
     /// Payload keys an author reaches for on one operation that another operation carries. A
     /// refusal that only listed what addField takes left an agent that sent unique to find
-    /// schema.setFieldUnique in the skill's operation list (2026-10-08).
+    /// schema.setFieldUnique in the skill's operation list.
     /// </summary>
     private static readonly IReadOnlyDictionary<(string Operation, string Key), string> MisplacedKeys =
         new Dictionary<(string, string), string>
@@ -44,18 +44,18 @@ internal sealed partial class NendoAgentAuthoringService(
             [("schema.addField", "unique")] = "A field is made unique by schema.setFieldUnique, which may follow in the same mutation.",
             [("schema.addField", "type")] = "The kind of value is storageKind.",
             [("schema.createEntity", "keptInNewFiles")] = "Whether a new file keeps the type's records is schema.setKeptInNewFiles.",
-            // MAA-18: the direct create tools take keptInNewFiles; a change set's create does not.
+            // The direct create tools take keptInNewFiles; a change set's create does not.
             [("data.createRecord", "keptInNewFiles")] = "In a change set a record is kept in new files by data.setKeptInNewFiles, which may follow in the same mutation; keptInNewFiles belongs to the direct create tools.",
         };
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Dictionary<string, Draft> _drafts = new(StringComparer.Ordinal);
     // The operations behind each validated proposal, kept so a proposal the file moved
-    // under can be validated again at the new revision (W-157). They leave with the
+    // under can be validated again at the new revision. They leave with the
     // proposal: on reject, on accept, and when the host closes. They survive the lease,
     // as the proposal does.
     private readonly Dictionary<string, Draft> _validated = new(StringComparer.Ordinal);
     // What became of a change set whose proposal has left the queue, so a later call names the
-    // proposal and its fate rather than calling the change set unknown (MAA-09). Bounded.
+    // proposal and its fate rather than calling the change set unknown. Bounded.
     private readonly NendoReplayCache<string, Settled> _settled = new();
     // Internal fault boundary for deterministic cancellation tests; never a tool or host setting.
     internal Action? BeforeInvalidPreviewCleanup { get; set; }
@@ -118,7 +118,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     var open = _drafts.Values.Where(value => value.ApplicationHandle == applicationHandle).ToArray();
                     if (open.Length >= MaximumDraftsPerSession)
                     {
-                        // Drafts are listed by no resource, so the refusal names them (MAA-15).
+                        // Drafts are listed by no resource, so the refusal names them.
                         throw new NendoAgentAuthoringException(
                             "DRAFT_LIMIT",
                             $"This session already holds {open.Length} open change-set drafts, the most limits.draftsPerSession " +
@@ -127,7 +127,7 @@ internal sealed partial class NendoAgentAuthoringService(
                             "Validate one, reject one with nendo.change_set.reject, or release the lease, which discards " +
                             "every draft never validated.");
                     }
-                    // The manifest is all the identity check reads; the full snapshot read every record (PERF-07).
+                    // The manifest is all the identity check reads; the full snapshot read every record.
                     var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
                     var changeSetId = $"change-set-{NendoText.RandomHex(16)}";
@@ -349,7 +349,7 @@ internal sealed partial class NendoAgentAuthoringService(
 
     /// <summary>
     /// A draft becomes a proposal on a private clone, or stays an amendable draft. Shared by
-    /// validate and revalidate (W-157): the second is validation of the same operations at
+    /// validate and revalidate: the second is validation of the same operations at
     /// a newly captured revision, which ADR-0007's replay promotion then checks as always.
     /// Called under the gate.
     /// </summary>
@@ -448,7 +448,7 @@ internal sealed partial class NendoAgentAuthoringService(
     /// <summary>
     /// A refusal's operationId counts canonical operations, after inline properties expand, anchors
     /// add moves and chunks join, so it cannot be mapped back to what was sent; amend takes the
-    /// mutation ordinal as sent, and the hint names it (MAA-03). Only for a draft: a proposal's
+    /// mutation ordinal as sent, and the hint names it. Only for a draft: a proposal's
     /// diagnostics are revalidated or rejected, never amended.
     /// </summary>
     private static NendoCompilerDiagnostic Locate(NendoCompilerDiagnostic diagnostic, IReadOnlyDictionary<string, int> sentIn) =>
@@ -461,7 +461,7 @@ internal sealed partial class NendoAgentAuthoringService(
             : diagnostic;
 
     /// <summary>
-    /// Validates a proposal's operations again at the file's current revision (W-157): the
+    /// Validates a proposal's operations again at the file's current revision: the
     /// old proposal is rejected, the kept operations become a new draft captured now, and
     /// that draft goes through the same clone validation. Still replay of validated
     /// operations at promotion, never a clone swap, so ADR-0007 holds as written; the
@@ -506,7 +506,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     }
                     // Everything that may refuse or be cancelled happens before the old proposal is
                     // rejected, and nothing after the reject waits on the caller: a cancellation in
-                    // between used to leave neither the proposal nor its operations (MAA-07).
+                    // between used to leave neither the proposal nor its operations.
                     var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
                     RequireHostIdentity(snapshot);
                     await proposals.RejectAsync(application, owned.ProposalId, CancellationToken.None);
@@ -645,7 +645,7 @@ internal sealed partial class NendoAgentAuthoringService(
 
     /// <summary>
     /// Accepts a proposal this session validated, at <see cref="AgentAccessMode.Unattended"/>
-    /// and nowhere else (ADR-0009, 2026-09-22 amendment).
+    /// and nowhere else (ADR-0009).
     /// <para>
     /// It promotes through the same store method the person's own Accept button calls, and
     /// passes the reviewed operation digest rather than omitting it: the digest is optional
@@ -698,7 +698,7 @@ internal sealed partial class NendoAgentAuthoringService(
                     // Engine as previewable until this device approves them. The data lane at
                     // this level grants on that refusal and retries once; acceptance does the
                     // same, so proposing the actions first and the records after is not stopped
-                    // on the second proposal (ADR-0009, 2026-09-29 table).
+                    // on the second proposal (ADR-0009's table).
                     if (!outcome.Applied && outcome.State == NendoProposalState.Previewable && NeedsConsent())
                     {
                         approved = await unattended.GrantAsync(cancellationToken);
@@ -778,7 +778,7 @@ internal sealed partial class NendoAgentAuthoringService(
 
     /// <summary>
     /// Lets go of the operations behind every proposal that has left the queue without this
-    /// service seeing it go: the person accepted or rejected it in Nendo (MAA-09). Called under
+    /// service seeing it go: the person accepted or rejected it in Nendo. Called under
     /// the gate at the start of each call, and from the queue's change notice when the gate is free.
     /// </summary>
     private void PruneSettled()
@@ -861,7 +861,7 @@ internal sealed partial class NendoAgentAuthoringService(
 
     // The one place a proposal state becomes the word a result carries. The wire keeps
     // strings (begin and add say "draft"; accept says "active" or "stale") so the output
-    // schemas are unchanged; the enum is the type behind every one of them (W-159).
+    // schemas are unchanged; the enum is the type behind every one of them.
     private static string StateName(NendoProposalState state) => state switch
     {
         NendoProposalState.Active => "active",
@@ -953,7 +953,7 @@ internal sealed partial class NendoAgentAuthoringService(
     /// A draft has not been reviewed, so when the revision moved under it and no operation pins
     /// one, it is captured again here: every omitted expectedDefinitionRevision is filled from the
     /// captured revision at validate, and the clone checks the operations as always. Refusing it
-    /// left no way out but reject and resend, since revalidate takes proposals only (MAA-02).
+    /// left no way out but reject and resend, since revalidate takes proposals only.
     /// </summary>
     private long? RequireCapturedAuthority(Draft draft, NendoSessionSnapshot snapshot)
     {
@@ -1220,7 +1220,7 @@ internal sealed partial class NendoAgentAuthoringService(
         return document.RootElement.Clone();
     }
 
-    // The Desktop's prepare path fills a view's operations the same way (W-241).
+    // The Desktop's prepare path fills a view's operations the same way.
     private static JsonElement ResolveRevision(NendoAgentOperationInput operation, long revision) =>
         NendoDefinitionRevisions.Resolve(operation.OperationType, operation.Payload.Element, revision);
 
@@ -1295,7 +1295,7 @@ internal sealed partial class NendoAgentAuthoringService(
             result[mutationIndex][operationIndex] = new NendoAgentOperationInput(begun.OperationType, Object(writer =>
             {
                 // sha256 and byteLength beside text or base64 check the bytes sent with them, which
-                // were the first part only; kept beside the joined file they refused it (MAA-11).
+                // were the first part only; kept beside the joined file they refused it.
                 foreach (var property in begun.Payload.Element.EnumerateObject()
                              .Where(property => property.Name is not ("text" or "base64" or "append" or "sha256" or "byteLength")))
                     property.WriteTo(writer);
@@ -1418,7 +1418,7 @@ internal sealed partial class NendoAgentAuthoringService(
         }
         // A package file is the one payload that is content rather than description, so it
         // gets the larger bound; a file past that arrives in chunks with append. A record
-        // operation carries a stored value, bounded by the request body (R2AP-03).
+        // operation carries a stored value, bounded by the request body.
         var payloadBytes = operation.OperationType switch
         {
             "extension.putFile" => PutFilePayloadBytes,
@@ -1447,7 +1447,7 @@ internal sealed partial class NendoAgentAuthoringService(
                 $"{operation.OperationType} does not take {string.Join(", ", unknown)}; it takes " +
                 $"{string.Join(", ", published.RequiredPayload.Concat(published.OptionalPayload))}.{elsewhere}");
         }
-        // A required key left out is refused rather than read as null (MAA-10): the Engine binds
+        // A required key left out is refused rather than read as null: the Engine binds
         // several as optional, so setLook without letter reset the letter and setPurpose {} cleared
         // the purpose, though the table publishes both keys as required.
         var required = NendoAuthoringOperations.All.Single(candidate => candidate.OperationType == operation.OperationType).RequiredPayload;
@@ -1467,9 +1467,9 @@ internal sealed partial class NendoAgentAuthoringService(
     }
 
     /// <summary>
-    /// A placement key sent as null is a key not sent (MAA-04): a null beforeNodeId or afterNodeId
+    /// A placement key sent as null is a key not sent: a null beforeNodeId or afterNodeId
     /// leaves the payload, and so does a null position beside an anchor that places the node, or on
-    /// a new node, which then goes after its siblings (W-245).
+    /// a new node, which then goes after its siblings.
     /// </summary>
     private static NendoAgentOperationInput WithoutUnusedAnchors(NendoAgentOperationInput operation)
     {

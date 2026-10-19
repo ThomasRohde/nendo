@@ -18,7 +18,7 @@ const additions = new Set(['addEntity', 'addField', 'addChoice', 'addUiNode', 'c
 
 /**
  * Whether a line adds, takes away or changes. Every line wore a plus, so "Remove the package
- * Board glance from this file" and "Retire Energy on Task" read as additions (UIT-09).
+ * Board glance from this file" and "Retire Energy on Task" read as additions.
  */
 export function changeMark(entry: Pick<SemanticDiffEntry, 'kind' | 'summary'>): ChangeMark {
   if (removals.has(entry.kind)) return 'remove';
@@ -38,7 +38,7 @@ const packageKinds = new Set(['setExtensionPackage', 'putExtensionFile', 'remove
  * Whether History will offer Undo for this proposal once accepted, as History judges it: one
  * change, a batch of record changes, or a package with its files (SqliteNendoStore.ReadQueries).
  * Add view is one node and its settings together, so History never offers it, while every line
- * of its review read "Can be undone" (UIT-04).
+ * of its review read "Can be undone".
  */
 export function historyOffersUndo(preview: Pick<ProposalPreview, 'operationCount' | 'semanticDiff'>): boolean {
   const kinds = preview.semanticDiff.map((entry) => entry.kind);
@@ -46,7 +46,7 @@ export function historyOffersUndo(preview: Pick<ProposalPreview, 'operationCount
   return kinds.length > 0 && (kinds.every((kind) => dataKinds.has(kind)) || kinds.every((kind) => packageKinds.has(kind)));
 }
 
-/** A line's class, and whether History will undo it: the class alone read as a promise (UIT-04). */
+/** A line's class, and whether History will undo it: the class alone read as a promise. */
 export function reviewReversibility(entry: Pick<SemanticDiffEntry, 'reversibility'>, undoneFromHistory: boolean): string {
   const label = reversibilityLabel(entry.reversibility);
   return undoneFromHistory || label === 'Cannot be undone' ? label : `${label}, but not from History`;
@@ -60,7 +60,7 @@ export function proposalChangesMarkup(preview: Pick<ProposalPreview, 'operationC
   }).join('');
 }
 
-/** The sentence under the preview when History will not undo the proposal as a whole (UIT-04). */
+/** The sentence under the preview when History will not undo the proposal as a whole. */
 export function historyUndoNote(preview: Pick<ProposalPreview, 'operationCount' | 'semanticDiff'>): string {
   if (historyOffersUndo(preview) || preview.semanticDiff.every((entry) => reversibilityLabel(entry.reversibility) === 'Cannot be undone')) return '';
   return '<p class="proposal-undo-note">History will not offer Undo for this as a whole: it undoes one change, a batch of record changes, or a package with its files. A later proposal can change it back.</p>';
@@ -90,7 +90,7 @@ function rootName(root: SurfaceNodePlan): string {
  * The record types and screens the change set itself addresses, read from the IDs its lines
  * carry. The panel named the first record type and the first titled screen of the whole
  * candidate, so a board rename read "Screen" with the record form's name and a field added to a second type read
- * as a change to the first (UIT-01).
+ * as a change to the first.
  */
 export function proposalPlace(diff: readonly SemanticDiffEntry[], plans: readonly ApplicationPlan[], entities: readonly Pick<EntitySnapshot, 'entityId' | 'displayName'>[]): ProposalPlace {
   const ids = new Set(diff.flatMap((entry) => entry.semanticIds));
@@ -134,7 +134,7 @@ function ancestorsOf(use: { nodeId: string; surfaceId: string }, nodes: readonly
 /**
  * What a removed package leaves without code: each screen and panel that names it, by title and
  * place, less any the same proposal removes. The review said only "a view that uses the
- * package", and an agent's removal is reviewed nowhere else (UIT-20).
+ * package", and an agent's removal is reviewed nowhere else.
  */
 export function packageRemovalMarkup(
   diff: readonly SemanticDiffEntry[],
@@ -171,13 +171,13 @@ export function isStudioPrepared(preview: Pick<ProposalPreview, 'origin'>): bool
 }
 
 /**
- * Where accepting takes the person (UIT-02). A proposal Studio prepared goes back to the page it
+ * Where accepting takes the person. A proposal Studio prepared goes back to the page it
  * came from, where the change shows; every proposal landed on Use when the file had screens, so
  * a field added on Structure was accepted onto a screen that did not show it. Only a proposal
  * that builds the file's first screens lands on Use, where they now are.
  */
 export function viewAfterAccepting(input: { returnView: ViewName; buildsScreens: boolean; hadScreens: boolean; fromView: boolean; codeOnly: boolean; landsOn?: ViewName | null }): ViewName {
-  // A view the Add view form made opens where it is (W-062), whatever page the form was on.
+  // A view the Add view form made opens where it is, whatever page the form was on.
   if (input.landsOn != null) return input.landsOn;
   if (input.fromView || input.codeOnly) return input.returnView;
   return input.buildsScreens && !input.hadScreens ? 'use' : input.returnView;
@@ -185,7 +185,7 @@ export function viewAfterAccepting(input: { returnView: ViewName; buildsScreens:
 
 /**
  * What a Studio form says when the host refuses its change on the copy of the file: the host's
- * own words, said in the form, which keeps what was typed (WSP-19).
+ * own words, said in the form, which keeps what was typed.
  */
 export function proposalRefusal(preview: Pick<ProposalPreview, 'diagnostics'>): string {
   const said = preview.diagnostics.map((item) => `${item.message} ${item.hint ?? ''}`.trim()).filter((text) => text !== '');

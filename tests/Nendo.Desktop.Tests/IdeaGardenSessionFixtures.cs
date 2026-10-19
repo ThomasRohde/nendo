@@ -6,8 +6,7 @@ namespace Nendo.Desktop.Tests;
 /// The Idea Garden reference application, driven through a Desktop session for tests that need a
 /// file with a schema, records or a waiting proposal in it.
 /// <para>
-/// These lived in the Desktop until W-135 (2026-10-04) retired bridge protocols 2 to 6, the last
-/// production callers. They go through the session's own request gate, so a test that expects a
+/// These have no production caller since bridge protocols 2 to 6 were retired. They go through the session's own request gate, so a test that expects a
 /// refusal (no file, recovery, a lost write owner) still meets the real one.
 /// </para>
 /// </summary>

@@ -4,8 +4,7 @@ namespace Nendo.Engine.Tests;
 /// Restoring deleted records that point at each other. Archi's editor commits "delete a box
 /// from the view" as one revision: the connections on the box first, then the box, because a
 /// record still pointed at cannot be deleted. Undoing it put the box back first, at its next
-/// version, and then refused its connections as pointing at a target that had changed
-/// (owner-reported, 2026-10-01).
+/// version, and then refused its connections as pointing at a target that had changed.
 /// </summary>
 [TestClass]
 public sealed class RecordRestoreTests

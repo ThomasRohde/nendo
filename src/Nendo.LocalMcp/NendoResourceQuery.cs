@@ -12,7 +12,7 @@ namespace Nendo.LocalMcp;
 /// The SDK matches a URI against each template's expansion, which fixes the order of the
 /// query parameters and reads an empty value as a value. <c>?limit=2&amp;cursor=</c> was
 /// refused as an unknown resource URI and <c>?cursor=&amp;limit=2</c> as an invalid cursor,
-/// although both ask for the first page (F-178). A query is now read as a set, in any
+/// although both ask for the first page. A query is now read as a set, in any
 /// order, and an empty cursor is no cursor: the first page. Every other empty value stays
 /// a value, for the read to refuse by name as it did. A name the template does not
 /// declare, or one given twice, is refused naming the ones it does, where the SDK said

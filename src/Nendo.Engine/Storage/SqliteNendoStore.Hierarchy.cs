@@ -90,7 +90,7 @@ internal sealed partial class SqliteNendoStore
             if (order.StorageKind != NendoStorageKind.Integer)
                 throw new NendoPreconditionException("hierarchy-order-invalid", "The order field must be an Integer field of the same record type.");
             // Siblings are ordered under each parent, so two parents' children share positions;
-            // a unique order field refused ordinary moves as value-not-unique (ESS-10).
+            // a unique order field refused ordinary moves as value-not-unique.
             if (order.Unique)
                 throw new NendoPreconditionException("hierarchy-field-in-use",
                     $"{order.DisplayName} is unique, and a hierarchy orders each parent's children on their own, so children of different parents share positions. Stop keeping {order.DisplayName} unique first, or order by another field.");
@@ -160,12 +160,12 @@ internal sealed partial class SqliteNendoStore
     private static string TreeIndexName(EntityMapping entity) => $"nendo_tree_{entity.PhysicalTableName}";
 
     /// <summary>
-    /// The index a tree read seeks siblings by (ADR-0019, 2026-10-16 amendment): parent, order,
+    /// The index a tree read seeks siblings by (ADR-0019): parent, order,
     /// record ID, so the children after one sibling are one range. Outside the protected
     /// namespace, as reference and link indexes are, and dropped with the declaration. A
     /// hierarchy without an order field needs none: the reference index is (parent, record ID).
     /// Created when the declaring mutation materializes, so a table or field added in the same
-    /// mutation has its columns by then. A file declared before the amendment has none until it is
+    /// mutation has its columns by then. A hierarchy declared without the index has none until it is
     /// declared again, and its ordered levels are sorted per seek, never refused.
     /// </summary>
     private async Task EnsureTreeIndexAsync(EntityMapping entity, NendoHierarchy hierarchy, SqliteTransaction transaction, CancellationToken ct)
@@ -215,7 +215,7 @@ internal sealed partial class SqliteNendoStore
         // A record type created in the same mutation has no table yet, and so no records.
         if (!await TableExistsAsync(entity.PhysicalTableName, transaction, ct)) return;
         // A parent field added in the same mutation has no column until the mutation ends, and
-        // so no values: every record is top-level. Selecting it failed as a raw SQLite error (ESS-01).
+        // so no values: every record is top-level. Selecting it failed as a raw SQLite error.
         if (!await ColumnExistsAsync(entity.PhysicalTableName, parent.PhysicalColumnName, transaction, ct)) return;
         var table = Quote(entity.PhysicalTableName);
         var column = Quote(parent.PhysicalColumnName);

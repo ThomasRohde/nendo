@@ -4,7 +4,7 @@ namespace Nendo.Desktop;
 
 /// <summary>
 /// Which file instance keeps its views' storage across the change of the view origin's key
-/// (ADR-0013, 2026-10-13). The key gained the instance ID, which moved every view to a new origin;
+/// (ADR-0013). The key gained the instance ID, which moved every view to a new origin;
 /// for each application, the instance this device opened most recently keeps the origin it had,
 /// so the owner's own views keep their drafts at the upgrade.
 /// <para>

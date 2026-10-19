@@ -25,7 +25,7 @@ if (-not (Test-Path -LiteralPath $payload)) { throw "No published payload at $pa
 $inventorySource = Join-Path $pilot 'nendo-install.json'
 if (-not (Test-Path -LiteralPath $inventorySource)) { throw "No payload inventory at $inventorySource. Run Build-NendoInstaller.ps1 first." }
 # The Workbench bundle carries AG Grid Community (MIT) and Lucide's icon paths (ISC); both licences
-# require their notice in every copy, and the Workbench build writes it beside the bundle (WST-02).
+# require their notice in every copy, and the Workbench build writes it beside the bundle.
 # Checked here as well as in Test-NendoInstaller.ps1, because this is the lane that runs on a
 # machine with an owner installation.
 $notices = Join-Path $payload 'Workbench/THIRD-PARTY-NOTICES.txt'

@@ -102,7 +102,7 @@ internal sealed class NendoMcpResources(
 
     /// <summary>
     /// The vocabulary, or the sections include names. An agent that read it whole got some
-    /// sixty kilobytes and grepped a saved copy for the operation it wanted (2026-10-08). The
+    /// sixty kilobytes and grepped a saved copy for the operation it wanted. The
     /// sections are the document's own top-level names, so a section added later can be named
     /// the day it appears.
     /// </summary>
@@ -279,7 +279,7 @@ internal sealed class NendoMcpResources(
             // The store projects each proposal as it was at validate time, and only an
             // attempted promotion rewrites it. A proposal captured a definition revision,
             // and acceptance of any other advances it, so the live revision says now what
-            // the next accept would say then: stale (W-144).
+            // the next accept would say then: stale.
             var summaries = proposals.Snapshot();
             if (summaries.Count == 0) return summaries;
             var revision = await projection.GetDefinitionRevisionAsync(cancellationToken);
@@ -338,7 +338,7 @@ internal sealed class NendoMcpResources(
                 catch (NendoPreconditionException exception) when (exception.Code == "proposal-not-found")
                 {
                     // Accepted before this host run, or by the person in Nendo: the Engine
-                    // keeps the receipt, not the preview, so the answer is the receipt (F-261).
+                    // keeps the receipt, not the preview, so the answer is the receipt.
                     var accepted = await AcceptedFromReceiptAsync(proposalId, cancellationToken);
                     if (accepted is null) throw;
                     return accepted;
@@ -388,7 +388,7 @@ internal sealed class NendoMcpResources(
     public Task<string> GetExtensionsAsync(CancellationToken cancellationToken) =>
         TranslateAsync(() => projection.GetExtensionsAsync(cancellationToken));
 
-    // W-251. What the open file's views did when they ran in this Nendo's embedded host, so the
+    // What the open file's views did when they ran in this Nendo's embedded host, so the
     // agent that wrote one can see a thrown error or a refused call it would otherwise never learn of.
     [McpServerResource(
         Name = "nendo.application.extension.events",
@@ -404,7 +404,7 @@ internal sealed class NendoMcpResources(
                     log.Events.Select(item => new NendoMcpViewEvent(item.At, item.Kind.ToString().ToLowerInvariant(), item.ViewId, item.Method, item.Code, item.Text)).ToArray()))
                 .ToArray())));
 
-    // W-094. The first sentence is the condition, because it is the one sentence describe's
+    // The first sentence is the condition, because it is the one sentence describe's
     // reads index shows: an agent that is not writing a view's code has no reason to read on.
     [McpServerResource(
         Name = "nendo.application.view.api",

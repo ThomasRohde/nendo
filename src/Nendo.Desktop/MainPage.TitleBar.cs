@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop;
 
 /// <summary>
-/// The page's half of the title bar (W-093): the Workbench says where its controls are in the
+/// The page's half of the title bar: the Workbench says where its controls are in the
 /// top bar, and this page, which knows where the WebView sits in the window, hands them to it.
 /// </summary>
 public sealed partial class MainPage : IWorkbenchWindowHost

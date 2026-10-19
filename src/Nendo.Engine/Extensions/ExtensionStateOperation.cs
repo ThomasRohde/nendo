@@ -4,7 +4,7 @@ using System.Text.Json;
 namespace Nendo.Engine;
 
 /// <summary>
-/// Keeps one small JSON value for a custom view, with the file (ADR-0013 Phase 3,
+/// Keeps one small JSON value for a custom view, with the file (ADR-0013,
 /// <c>nendo.state</c>). A null value removes the key. Data, not definition: it changes no
 /// record and no screen, and it is reversed by setting the value it replaced.
 /// </summary>
@@ -36,7 +36,7 @@ public sealed record SetExtensionStateOperation : NendoOperation
                 using var document = JsonDocument.Parse(valueJson);
                 // Stored as the writer spells it, without whitespace: one spelling for one value. Text
                 // stays as written rather than escaped, so a value within the bound stays within it
-                // stored (EXT-01): the default encoder turned each non-ASCII letter into six characters.
+                // stored: the default encoder turned each non-ASCII letter into six characters.
                 using var stream = new MemoryStream();
                 using (var compact = new Utf8JsonWriter(stream, new JsonWriterOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
                     document.RootElement.WriteTo(compact);

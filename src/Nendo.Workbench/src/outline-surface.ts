@@ -14,7 +14,7 @@ import { createReadChase } from './read-chase';
 import { content, rerender, showError } from './shell';
 
 /**
- * The outline surface (ADR-0019 stage 6, ADR-0004's B6): a declared hierarchy in Use, drawn
+ * The outline surface (ADR-0019, ADR-0004): a declared hierarchy in Use, drawn
  * as an ARIA treegrid. It reads the tree a level at a time in sibling order -- the top level,
  * then each open record's children, in pages of 100 -- and opens `expandDepth` levels by
  * itself. What a person opens or closes is kept on their device, never in the file. With

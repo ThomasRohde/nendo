@@ -3,7 +3,7 @@ import type { EntitySnapshot, RecordSnapshot } from './host-types';
 import { referenceControl } from './reference-controls';
 
 /**
- * Structure's calculated fields (UIT-19, accepted 2026-10-13): a read-only Calculated group with
+ * Structure's calculated fields: a read-only Calculated group with
  * each calculation's formula and result type, counted apart from the stored fields, and beside a
  * stored field the calculations that keep it from being retired. Structure listed stored fields
  * only and counted them as all the fields, so a calculation was missing from the type's own
@@ -112,7 +112,7 @@ export function calculatedFieldsMarkup(entity: Named, entities: readonly Named[]
 
 /**
  * A record as a person knows it on a Studio form: by its first current text value, else by its
- * ID. The reference conversion headed every record with its ID alone (WSP-21).
+ * ID. The reference conversion headed every record with its ID alone.
  */
 export function recordHeading(entity: Pick<EntitySnapshot, 'fields'>, record: Pick<RecordSnapshot, 'recordId' | 'values'>, exceptFieldId: string): string {
   const label = entity.fields.find((candidate) => candidate.fieldId !== exceptFieldId && !candidate.retired && storageLabel(candidate.storageKind) === 'Text');
@@ -129,7 +129,7 @@ export function conversionRecordMarkup(entity: Pick<EntitySnapshot, 'fields'>, f
 /**
  * The title of a Make required or Reactivate proposal. A batch that only fills values says so:
  * accepting the first of three batches announced "Make Status required accepted." while Status
- * was still optional (WSP-20).
+ * was still optional.
  */
 export function requirementTitle(fieldName: string, change: { reactivate: boolean; required: boolean; batch: number | null }): string {
   if (change.batch !== null) return `Fill missing ${fieldName} values (first ${change.batch})`;
@@ -140,8 +140,8 @@ type Field = EntitySnapshot['fields'][number];
 type Entities = readonly Pick<EntitySnapshot, 'entityId' | 'displayName' | 'retired' | 'fields'>[];
 
 /**
- * The text fields a bound reference may show its records by instead of its label (ADR-0003,
- * 2026-10-14 note, W-232): the target's active Text fields, its current label left out. The
+ * The text fields a bound reference may show its records by instead of its label
+ * (ADR-0003): the target's active Text fields, its current label left out. The
  * Engine applies the same rule, so a choice offered here is one it accepts.
  */
 export function referenceLabelChoices(field: Field, entities: Entities): Field[] {
@@ -155,7 +155,7 @@ export function referenceLabelChoices(field: Field, entities: Entities): Field[]
 /**
  * A bound reference's target and label in its Stores column, with Label by… to change the label.
  * A label could be chosen once, when the reference was bound, and then held its field from
- * retirement with nothing that moved it (ESS-09).
+ * retirement with nothing that moved it.
  */
 export function referenceLabelMarkup(entity: Pick<EntitySnapshot, 'retired'>, field: Field, entities: Entities): string {
   const reference = field.reference;

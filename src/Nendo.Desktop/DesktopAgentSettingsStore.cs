@@ -75,7 +75,7 @@ internal sealed class DesktopAgentSettingsStore
     /// <para>
     /// The settings are the device's, and every open file is a window of its own. This store was
     /// read once per window, so a lease expiry or a Fixed port choice saved in one window never
-    /// reached a listener another window started later, nor its Agent page (R2SP-02). The window
+    /// reached a listener another window started later, nor its Agent page. The window
     /// refreshes before each listener start and each status read: the document is 4 KB at most.
     /// </para>
     /// </summary>
@@ -163,7 +163,7 @@ internal sealed class DesktopAgentSettingsStore
 
     private static bool IsPort(int value) => value is >= 1024 and <= 65535;
 
-    // A document saved before 2026-09-13 also carries stableCredential; it is ignored on read.
+    // An older document may also carry stableCredential; it is ignored on read.
     private sealed record StoredAgentSettings(
         int Version,
         bool LeaseExpiry,

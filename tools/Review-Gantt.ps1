@@ -15,8 +15,8 @@ $run = [Guid]::NewGuid().ToString('N')
 $infoPath = Join-Path $output "gantt-server-$run.json"
 $probePath = Join-Path $output "gantt-probe-$run.mjs"
 $serverScript = Join-Path $PSScriptRoot 'Graph-FixtureServer.mjs'
-# The view kit's own tests, that every package carries the kit byte for byte (W-064), and that a
-# view stylesheet claiming the Workbench's tokens holds their values (GGV-14).
+# The view kit's own tests, that every package carries the kit byte for byte, and that a
+# view stylesheet claiming the Workbench's tokens holds their values.
 & node --test (Join-Path $PSScriptRoot 'view-kit/kit.test.mjs') (Join-Path $PSScriptRoot 'view-kit/tokens.test.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'View kit tests failed.' }
 $server = Start-Process node -ArgumentList @("`"$serverScript`"", "`"$infoPath`"", '../extensions/gantt') -WindowStyle Hidden -PassThru
@@ -38,8 +38,8 @@ try {
     $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
     $exitCode = $LASTEXITCODE
     Write-Host $ran
-    # TGA-01: run-code ends early and exits 0 when a dialog opens, so an exit code alone passed a
-    # label that became markup and opened an alert.
+    # run-code ends early and exits 0 when a dialog opens (a label that became markup and opened
+    # an alert, say), so an exit code alone would pass a probe that stopped part-way.
     # The probe's source is echoed too, so its last word counts only as the run's own result.
     if ($exitCode -ne 0 -or $ran.Contains('### Modal state') -or $ran -notmatch '### Result\r?\n"gantt ok ') {
         throw 'Gantt browser measurements did not complete.'

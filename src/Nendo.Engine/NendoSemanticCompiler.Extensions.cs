@@ -73,7 +73,7 @@ public sealed partial class NendoSemanticCompiler
     }
 
     /// <summary>
-    /// The file's own views (W-106): each a screen with no record type in context, compiled
+    /// The file's own views: each a screen with no record type in context, compiled
     /// childless. At most one opens the file, since a file opens on one screen.
     /// </summary>
     private static IReadOnlyList<NendoSurfaceNodePlan> CompileFileViews(IReadOnlyList<NendoUiNodeSnapshot> roots,
@@ -110,7 +110,7 @@ public sealed partial class NendoSemanticCompiler
         NendoEntitySnapshot nodes, NendoEntitySnapshot? edges, ICollection<NendoCompilerDiagnostic> diagnostics)
     {
         // The view sends one record type's clauses in one query, so each type spends the query's
-        // filter ceiling on its own; nine on one type compiled and every load was refused (ESM-06).
+        // filter ceiling on its own; nine on one type compiled and every load was refused.
         var perType = new Dictionary<string, List<NendoUiNodeSnapshot>>(StringComparer.Ordinal);
         foreach (var clause in children.Where(child => child.Kind == "filterClause"))
         {

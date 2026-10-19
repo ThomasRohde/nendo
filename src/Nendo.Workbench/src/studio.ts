@@ -6,7 +6,7 @@ export function selectedEntity(session: DesktopSessionView, entityId: string | n
 
 /**
  * A rename names what it renames: the field, its record type and the old name. "Rename to Owner"
- * left the review, the outcome and History to guess which field had been renamed (WSP-20).
+ * left the review, the outcome and History to guess which field had been renamed.
  */
 export function renameSchemaProposal(entityId: string, fieldId: string | null, displayName: string, expectedDefinitionRevision: number,
   names: { current: string; typeName: string }): Record<string, unknown> {
@@ -24,9 +24,7 @@ export function renameSchemaProposal(entityId: string, fieldId: string | null, d
 
 // Renaming a board is Studio's one surface proposal, and it travels the lane every
 // agent change travels: one property set on the board root, through
-// proposal.prepareChangeSet. It used to send a compatibility method that named the
-// starter file's board by constant ID, and the host stopped admitting that method
-// at the current protocol on 2026-09-03 while the form went on calling it (F-084).
+// proposal.prepareChangeSet, addressed by the board's own node rather than a constant ID.
 export function renameBoardProposal(surfaceId: string, nodeId: string, title: string): Record<string, unknown> {
   title = title.trim();
   if (!title || title.length > 120) throw new Error('Enter a board title up to 120 characters.');
@@ -86,7 +84,7 @@ export function fieldProposal(entityId: string, name: string, kind: string, choi
   // named before it costs a proposal.
   let bounds: { min: number; max: number } | null = null;
   if (kind === 'rating') {
-    // An empty box is not 0: Number('') is, and a scale set once would have started there (WSP-10).
+    // An empty box is not 0: Number('') is, and a scale set once would have started there.
     const lowest = (scale?.min ?? '').trim();
     const highest = (scale?.max ?? '').trim();
     const min = lowest === '' ? Number.NaN : Number(lowest);

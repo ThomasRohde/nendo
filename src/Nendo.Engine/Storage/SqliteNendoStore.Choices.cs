@@ -17,7 +17,7 @@ internal sealed partial class SqliteNendoStore
         """;
 
     /// <summary>
-    /// A choice option's colour, ADR-0004 2026-09-14 amendment. Its own table rather
+    /// A choice option's colour, ADR-0004. Its own table rather
     /// than a column on <c>__nendo_choice</c>, because the protected layout is a
     /// fingerprint of verbatim DDL: a fresh file and an older one that gains a tone
     /// must end with byte-identical schema text, which an ALTER TABLE rewrite does not
@@ -124,7 +124,7 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// A new stable option at the end of a single-choice field (ADR-0003, 2026-10-17 note). The
+    /// A new stable option at the end of a single-choice field (ADR-0003). The
     /// options list in <c>__nendo_field</c> gains the ID and <c>__nendo_choice</c> gains its label,
     /// with a row for every option as a first label edit writes them, so the two stay one list.
     /// No table is altered and no record is touched.
@@ -274,7 +274,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// A restore brings back only what the record held, so a retired option it held refuses
     /// the restore by name, with the route that works, rather than asking for a choice there is
-    /// nothing to make (R2RM-07).
+    /// nothing to make.
     /// </summary>
     private static void RequireRestorableChoice(EntityMapping entity, FieldMapping field, string recordId, JsonElement value)
     {

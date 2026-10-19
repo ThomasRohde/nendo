@@ -4,7 +4,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-// Custom views running inline in a real Nendo (ADR-0013, 2026-09-25), against an isolated
+// Custom views running inline in a real Nendo (ADR-0013), against an isolated
 // profile built by DesktopExtensionViewJourneyTests. The page and each view frame are driven
 // over the browser's debugging port; which process holds which frame comes from the host's
 // own diagnostics. Every check measures: a latency, a process ID, a state attribute, an
@@ -16,7 +16,7 @@ const report = { checks: [], measurements: {} };
 function assert(value, message) { if (!value) throw new Error(message); }
 function check(line) { report.checks.push(line); console.log('ok  ' + line); }
 // A step the machine cannot run, named with the reason. Not a pass and not a failure: the test
-// reports the journey Inconclusive with this line, as the opt-in lanes do (TST-01).
+// reports the journey Inconclusive with this line, as the opt-in lanes do.
 function interlock(step, reason) { (report.interlocks ??= []).push({ step, reason }); console.log(`interlock: ${step} was not run: ${reason}`); }
 async function waitFor(read, label, timeout = 25000) {
   const until = Date.now() + timeout;
@@ -149,7 +149,7 @@ const inFrame = (frame, expression, timeout) => evaluateIn(frame.session, expres
 // As a click in the frame would: the expression runs with the person's activation.
 const byPerson = (frame, expression, timeout) => evaluateIn(frame.session, expression, timeout, true);
 
-// W-104: the Open dialog Nendo's window owns, found by its owner, its title read, and closed as
+// The Open dialog Nendo's window owns, found by its owner, its title read, and closed as
 // Cancel closes it. Windows draws it in the browser's process, so it is matched by the window
 // that owns it rather than by the process that drew it.
 const dialogSource = `using System; using System.Collections.Generic; using System.Runtime.InteropServices; using System.Text;
@@ -180,14 +180,14 @@ public static class NendoJourneyDialogs {
     return found.ToArray();
   }
 }`;
-// W-123: what another program reads from the Windows clipboard after a view copied a picture:
+// What another program reads from the Windows clipboard after a view copied a picture:
 // the formats on it, and a corner and the centre pixel of each image format that decodes.
 function readWindowsClipboard() {
   const script = [
     "$ErrorActionPreference = 'Stop'",
     'Add-Type -AssemblyName System.Windows.Forms, System.Drawing',
     // Another program holding the clipboard open is a moment, not a failure: WinForms already
-    // retries for about a second, and this waits two more before it gives up (TST-01).
+    // retries for about a second, and this waits two more before it gives up.
     '$data = $null; for ($try = 1; -not $data; $try++) { try { $data = [Windows.Forms.Clipboard]::GetDataObject() } catch { if ($try -ge 20) { throw }; Start-Sleep -Milliseconds 100 } }',
     '$out = [ordered]@{ formats = @($data.GetFormats()) }',
     'function Sample($bitmap) { $c = $bitmap.GetPixel(2, 2); $m = $bitmap.GetPixel([int]($bitmap.Width / 2), [int]($bitmap.Height / 2)); "$($bitmap.Width)x$($bitmap.Height) corner=$($c.A),$($c.R),$($c.G),$($c.B) centre=$($m.A),$($m.R),$($m.G),$($m.B)" }',
@@ -214,7 +214,7 @@ function readWindowsClipboard() {
     }));
 }
 
-// TST-01: a locked workstation refuses every clipboard read, whoever asks. Its input desktop is
+// A locked workstation refuses every clipboard read, whoever asks. Its input desktop is
 // the secure one rather than Default, and LogonUI runs. The reason is returned, or null when the
 // session is unlocked; a probe that cannot answer is a failure, not a guess.
 const lockSource = `using System; using System.Runtime.InteropServices; using System.Text;
@@ -245,7 +245,7 @@ function workstationLocked() {
       try { resolve(lockReason(JSON.parse(String(stdout).trim() || 'null'))); } catch (failure) { reject(failure); }
     }));
 }
-// What the person had copied as text, put back after G36 writes its pictures there (TST-01). The
+// What the person had copied as text, put back after G36 writes its pictures there. The
 // text travels on standard input and output, never on a command line or in a file.
 function clipboardText() {
   const script = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; $text = Get-Clipboard -Raw -Format Text -ErrorAction Stop; ConvertTo-Json -Compress -InputObject @{ text = $text }";
@@ -269,7 +269,7 @@ function closeHostDialog(seconds = 10) {
     (error, stdout, stderr) => error ? reject(new Error(String(stderr || error.message))) : resolve(JSON.parse(String(stdout).trim() || '[]'))));
 }
 
-// W-093: the title bar as the page draws it and as Windows holds it, on the screen showing. The
+// The title bar as the page draws it and as Windows holds it, on the screen showing. The
 // controls are every one in the bar a person can see; the host's diagnostics answer where the page
 // starts in the window, the regions Windows holds and what Windows answers at a point: an empty
 // part of the bar, Minimise, Maximise, Close and the content. Under the bar is the address row
@@ -475,7 +475,7 @@ try {
   }
   check('G16 with views off for the device or the file, no frame is drawn and a frame inserted by hand gets the 403');
 
-  // G17 (W-062): a person adds a view from Studio, without an agent. The Custom views panel
+  // G17: a person adds a view from Studio, without an agent. The Custom views panel
   // names where each package is already shown; the Add view form offers only what compiles,
   // refuses a graph the file has no link record type for, and its proposal is accepted
   // through the ordinary review. The new screen is selected in Use and its view runs.
@@ -509,7 +509,7 @@ try {
     'The accepted view is not the one the form described: ' + JSON.stringify(definition));
   check('G17 Studio names where each package is shown, refuses a graph the file cannot draw, and a view added from the form is accepted, selected in Use and running');
 
-  // G19 (W-065, ADR-0013 Phase 3): a view writes as its package. It creates, updates, runs a
+  // G19 (ADR-0013): a view writes as its package. It creates, updates, runs a
   // record command on, and deletes a record through window.nendo; History names the package on
   // each; a write over a stale version is refused without a change; and a view that floods the
   // host cannot starve a person's save, because it has at most eight requests in flight.
@@ -564,7 +564,7 @@ try {
     `The person's save waited ${report.measurements.personSaveDuringFloodMs} ms behind a view's flood.`);
   check(`G19 a view creates, updates, runs a command on and deletes a record as its package, a stale write is refused, and during an eighty-write flood, eight at a time, the person's save took ${report.measurements.personSaveDuringFloodMs} ms`);
 
-  // G20 (W-063, ADR-0013 Phase 4): develop probe A from a folder. The host's picker answers
+  // G20 (ADR-0013): develop probe A from a folder. The host's picker answers
   // with the folder the journey test made (NENDO_DIAGNOSTICS_DEVELOPMENT_FOLDER); the card says
   // so, the screen runs the folder's code under a Development strip the view cannot cover, a
   // save in the folder reloads it within a measured bound, and Stop developing puts the file's
@@ -600,7 +600,7 @@ try {
   assert((await installGate()).manifest.changeSequence === sequenceBefore, 'Developing from a folder wrote to the file.');
   check(`G20 probe A developed from a folder runs its code under a Development strip the view cannot cover, a save there reached the view in ${report.measurements.developmentReloadMs} ms, and Stop developing restores the file's code`);
 
-  // G21 (W-069, ADR-0013 Phase 3): a view prepares a proposal in its package's name. It opens in
+  // G21 (ADR-0013): a view prepares a proposal in its package's name. It opens in
   // the ordinary review, which names the package; the view has no way to accept it; the person
   // accepts, and History attributes the change to the package.
   await click('#nav-use'); await idle();
@@ -634,7 +634,7 @@ try {
     'History does not name the view’s package on the change it proposed: ' + JSON.stringify(proposedBy));
   check('G21 a view prepares a proposal in its package’s name, the review names the package, the view cannot accept it, it runs on through the review and reads it as accepted, and History attributes the change to the package');
 
-  // G22 (W-069, ADR-0013 Phase 3): a view keeps state with the file. A value comes back after the
+  // G22 (ADR-0013): a view keeps state with the file. A value comes back after the
   // view reloads; three writes to one key sent together reach the file as one, the last winning;
   // and History names the package on each.
   const keeper = await waitFor(async () => (await frames()).find(f => f.view === 'probe' && f.state === 'running'), 'the probe screen running to keep state', 30000);
@@ -647,7 +647,7 @@ try {
     return { layout, writes, has: ['state.get', 'state.set', 'state.delete', 'state.keys'].map(name => nendo.has(name)) };
   })()`, 30000);
   report.measurements.stateWritesMs = Date.now() - keptAt;
-  // A state version is at least the change sequence of the write that set it (EXT-09), so a
+  // A state version is at least the change sequence of the write that set it, so a
   // first write reads a positive whole number, not 1.
   assert(kept.has.every(Boolean) && Number.isInteger(kept.layout?.version) && kept.layout.version > 0 && kept.layout.value?.zoom === 2 && kept.layout.value?.pinned?.join() === 't1',
     'The view could not keep a value: ' + JSON.stringify(kept));
@@ -673,10 +673,10 @@ try {
     'A kept value did not come back after the view reloaded: ' + JSON.stringify(restored));
   check(`G22 a view keeps state with the file: it comes back after a reload, three writes to one key sent together reach the file as one, and History names the package on each (${report.measurements.stateWritesMs} ms)`);
 
-  // G27 to G30 (W-090, ADR-0013 2026-09-28): a view's controls in Nendo's own chrome. The probe
+  // G27 to G30 (ADR-0013): a view's controls in Nendo's own chrome. The probe
   // declares a toolbar; Nendo draws it above the frame in its own controls, sends each press, its
   // Add, a Ctrl K entry and a key back as a command, draws the menu the view asks for, and keeps
-  // its own keys working while the view has focus. Since W-092 the controls share the Use
+  // its own keys working while the view has focus. The controls share the Use
   // toolbar's one row with Add, and the breadcrumb holds the record type and the view (G31).
   await click('#nav-use'); await idle();
   await click('[data-select-surface="probe"]'); await idle();
@@ -724,14 +724,14 @@ try {
   assert(hinted.spill.length === 0 && hinted.overlaps === 0, 'With the key hints on, a control spills its key over the control beside it: ' + JSON.stringify(hinted));
   check(`G27 a view's declared toolbar is drawn by Nendo above its frame (${chromeStrip.height} px) in Nendo's own controls, a label that looks like markup stays text, and with the key hints on each of ${hinted.shown} keys stays inside its control`);
 
-  // G31 (W-092, ADR-0013 2026-09-28, one row above a view): the breadcrumb holds the record type
+  // G31 (ADR-0013, one row above a view): the breadcrumb holds the record type
   // and the view, the Use toolbar holds nothing but what acts on the screen, and the view's
   // controls share its row with Add. Measured, not looked at: the height between the top bar and
   // the view's frame is that one row, where it was the Use toolbar and a strip of its own.
   const oneRow = await evaluate(`(() => { const header = document.querySelector('.workspace-header'), row = document.querySelector('.use-page > .use-toolbar');
     const frame = ${probeMount}.querySelector('iframe'), bar = ${probeStrip}, add = document.querySelector('#new-record');
     // An outcome the person was just shown sits in the message line above the toolbar until they
-    // move on (W-210, UX-04). It is said, not chrome, so its height is set aside and reported.
+    // move on. It is said, not chrome, so its height is set aside and reported.
     const slot = document.querySelector('.message-slot:not([hidden])');
     const said = slot === null ? 0 : slot.getBoundingClientRect().height + parseFloat(getComputedStyle(slot).marginTop) + parseFloat(getComputedStyle(slot).marginBottom);
     const between = frame.getBoundingClientRect().top - header.getBoundingClientRect().bottom - said;
@@ -745,7 +745,7 @@ try {
   report.measurements.betweenTopBarAndView = oneRow.between;
   check(`G31 one row above a view: the breadcrumb holds the record type and the view, and the view's controls share the Use toolbar's row with Add, so ${oneRow.between} px stand between the top bar and the view's frame, the height of that one row`);
 
-  // G32 (W-093): Nendo's top bar is the window's title bar. Measured in the window by the host's
+  // G32: Nendo's top bar is the window's title bar. Measured in the window by the host's
   // own diagnostics: the page starts at the window's top edge, so the height above a screen's
   // content is the bar's alone, where Windows' title bar stood over it; Windows holds the bar as
   // the caption, which drags, and passes each of its controls through to the page; no control
@@ -788,7 +788,7 @@ try {
   check('G28 a press in the strip, Nendo\u2019s own Add (its form left closed) and a Ctrl K entry each reach the view as a command, and the strip shows the press at once');
 
   // G29: the menu a view asks for is Nendo's, at the point in the frame, and answers the pick; Escape answers nothing.
-  // A right-click inside the view leaves its frame focused, which is when a view's menu shows (WXS-08).
+  // A right-click inside the view leaves its frame focused, which is when a view's menu shows.
   await evaluate(`${probeMount}.querySelector('iframe').focus()`);
   await inFrame(chromeFrame, 'probe.menu(40, 30)');
   const menu = await waitFor(() => evaluate(`(() => { const m = document.querySelector('[data-view-menu-open]'); if (!m) return null;
@@ -806,7 +806,7 @@ try {
   await evaluate(`document.querySelector('[data-view-menu-open] .view-menu-item').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))`);
   await waitFor(() => inFrame(chromeFrame, `probe.state.pick === null ? 'dismissed' : null`), 'a dismissed menu answering nothing');
   assert(!(await evaluate(`Boolean(document.querySelector('[data-view-menu-open]'))`)), 'Escape left the menu open.');
-  // WXS-08: while the person types in the strip's search box, a menu the view asks for is not drawn
+  // While the person types in the strip's search box, a menu the view asks for is not drawn
   // and answers nothing, even right after the search command a pause in the typing sent it. The
   // wait lets G28's Ctrl K command, which may open a menu, fall out of its window first.
   await new Promise((resolve) => setTimeout(resolve, 2200));
@@ -848,7 +848,7 @@ try {
   await waitFor(async () => (await heard()).slice(beforeKey).filter(line => line === 'fit::key').length === 2 ? true : null, 'the declared key pressed in the Workbench running its command');
   check('G30 Ctrl K pressed inside a view opens the palette before the view hears it, a key the view keeps reaches it, and a declared key runs its command from inside the view and from the Workbench');
 
-  // G33 (W-127, the owner's F-215): a view takes part in Back and Forward. A place it declares
+  // G33: a view takes part in Back and Forward. A place it declares
   // is a step the Back button names; declaring it again is none; Back and Forward hand the view
   // its place as the event place; and Back from a record the view opened comes back to the view
   // at the place it left, whether its frame kept running or started again.
@@ -890,7 +890,7 @@ try {
   const narrowBar = await measureTitleBar('a 760 × 700 window', true);
   check(`G32 on Studio › Data ${studioBar.above} px stand above the content, and in a 760 × 700 window the rail is the title bar, its ${narrowBar.controls} controls passed through and none under Windows' buttons`);
 
-  // G36 (W-123): a picture copied to the clipboard by a view's command. Pressed in Nendo's row,
+  // G36: a picture copied to the clipboard by a view's command. Pressed in Nendo's row,
   // the command reaches a view whose frame does not have focus; a key pressed inside the view
   // runs it with the view focused. Measured both ways, and with the view taking focus first.
   await click('#nav-use'); await idle();
@@ -957,7 +957,7 @@ try {
     }
   }
 
-  // G34 (W-104): a view reads a file the person chooses with the browser's own file input. The
+  // G34: a view reads a file the person chooses with the browser's own file input. The
   // click opens Windows' Open dialog, owned by Nendo's window; closing it is Cancel, and the view
   // hears cancel with nothing chosen. A chosen file arrives whole: its name, its size and its text.
   // The system file picker is measured too, and what it answers is recorded.
@@ -997,7 +997,7 @@ try {
     'A system file picker was not refused to the view: ' + JSON.stringify(systemPickers));
   check(`G34 a view's file input opens Windows' "${dialogs[0]}" dialog owned by Nendo's window, closing it reaches the view as cancel, and a chosen file arrives whole (${chosen.size} bytes); the open, save and directory pickers are each refused with SecurityError: "Cross origin sub frames aren't allowed to show a file picker."`);
 
-  // G35 (W-104): a file dragged onto a view lands in the view when the view takes it, both when the
+  // G35: a file dragged onto a view lands in the view when the view takes it, both when the
   // drag comes straight onto the view and when it crosses Nendo first, and Nendo's own drop hint
   // steps aside over the view. A view that does not take drops lets a drop fall: nothing opens,
   // nothing moves. Dropped elsewhere, the file is still Nendo's: a file that is not a Nendo file is

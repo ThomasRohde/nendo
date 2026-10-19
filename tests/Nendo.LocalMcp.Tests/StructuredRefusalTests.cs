@@ -7,7 +7,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-149: a tool refusal carries a structured object in the result's <c>_meta</c> beside the
+/// A tool refusal carries a structured object in the result's <c>_meta</c> beside the
 /// text, under the project's reverse-DNS key, so a client reads a code rather than scrapes
 /// one; and no tool description repeats a bound the vocabulary publishes.
 /// </summary>
@@ -80,7 +80,7 @@ public sealed class StructuredRefusalTests
         Assert.IsTrue(shape.Meta is null || !shape.Meta.ContainsKey(NendoToolRefusal.MetaKey));
     }
 
-    /// <summary>W-246: a calculation limit carries what was spent and where as fields, not only in its sentence.</summary>
+    /// <summary>A calculation limit carries what was spent and where as fields, not only in its sentence.</summary>
     [TestMethod]
     public void ACalculationLimitCarriesItsSpendAndPathAsFields()
     {

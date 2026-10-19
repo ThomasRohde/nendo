@@ -63,7 +63,7 @@ function propertyController() {
   return { state, calls, statuses, change, waitForCall, stored: () => stored, api: context.api };
 }
 
-test('R02-001 rapid property key/value entry keeps one record and the newest draft until both writes finish', async () => {
+test('rapid property key/value entry keeps one record and the newest draft until both writes finish', async () => {
   const host = propertyController();
   const key = host.change('key', 'Department');
   await host.waitForCall(1);
@@ -85,7 +85,7 @@ test('R02-001 rapid property key/value entry keeps one record and the newest dra
   assert.equal(host.state.draftProperties, null);
 });
 
-test('R02-001 a refused property create retains its values and stable identity for retry', async () => {
+test('a refused property create retains its values and stable identity for retry', async () => {
   const host = propertyController();
   const first = host.change('key', 'Department');
   await host.waitForCall(1);
@@ -103,7 +103,7 @@ test('R02-001 a refused property create retains its values and stable identity f
   assert.equal(host.stored().find(record => record.recordId === id).values['ar.property.value'], 'Sales');
 });
 
-test('R02-001 a property draft that already matches the file is settled, so later changes show', async () => {
+test('a property draft that already matches the file is settled, so later changes show', async () => {
   const host = propertyController();
   const first = host.change('key', 'Department');
   await host.waitForCall(1); host.calls[0].response.resolve(); await first;
@@ -120,7 +120,7 @@ test('R02-001 a property draft that already matches the file is settled, so late
   assert.equal(host.api.currentPropertyRows(owner())[0].value, 'Changed elsewhere', 'A settled draft hid a later change to the properties.');
 });
 
-test('R02-002 reversed read completion installs only the newest model', async () => {
+test('reversed read completion installs only the newest model', async () => {
   const replies = [], rendered = [], state = { loaded: true };
   const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M, READ_MAX: 50000,
     nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
@@ -136,7 +136,7 @@ test('R02-002 reversed read completion installs only the newest model', async ()
   assert.deepEqual(rendered, [2]);
 });
 
-test('R02-002 a superseded read waits for the newest model before a queued writer can continue', async () => {
+test('a superseded read waits for the newest model before a queued writer can continue', async () => {
   const replies = [], state = { loaded: true }, observed = [];
   const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M, READ_MAX: 50000,
     nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
@@ -153,7 +153,7 @@ test('R02-002 a superseded read waits for the newest model before a queued write
   assert.deepEqual(observed, [2]);
 });
 
-test('R02-003 diagram text alternatives carry every nonempty concept name', () => {
+test('diagram text alternatives carry every nonempty concept name', () => {
   const model = M.buildModel(fixture), view = model.of(M.E.view).find(candidate =>
     model.of(M.E.item).some(item => item.values['ar.item.view'] === candidate.recordId && item.values['ar.item.kind'] === 'Element'));
   const names = model.of(M.E.item).filter(item => item.values['ar.item.view'] === view.recordId && item.values['ar.item.kind'] === 'Element')
@@ -265,7 +265,7 @@ test('an older host without records.batch is not held to the batch limit: a 202-
 });
 
 // A delete is planned from records that already exist, so a later batch names nothing an
-// earlier one created: over 200 writes it goes in batches of 200, as before R30-001, and is
+// earlier one created: over 200 writes it goes in batches of 200, and is
 // not refused. The largest folder delete the Archisurance fixture offers is over 200 writes.
 function largestFolderDelete() {
   const model = M.buildModel(fixture);
@@ -342,7 +342,7 @@ test('the same relationship at both endpoints is labelled twice without being mi
   assert.equal(M.label(model, outer), 'Relationship (Relationship (Actor – Actor) – Relationship (Actor – Actor))');
 });
 
-test("on a Nendo without W-115's icons the row is declared again with words where they would be, and not left for the view's own", async () => {
+test("on a Nendo without the newer row icons the row is declared again with words where they would be, and not left for the view's own", async () => {
   const declared = [];
   let left = null;
   const context = vm.createContext({
@@ -351,7 +351,7 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
     canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
     editor: { canUndo: () => false, canRedo: () => false },
     undoName: () => null, redoName: () => null,
-    // W-119's New and filter entries, which a model with no specializations does not have.
+    // The Specializations Manager's New and filter entries, which a model with no specializations does not have.
     specializedItems: () => [], specializationFilter: () => [],
     leaveNativeChrome: reason => { left = reason; },
     nendo: { ui: { setToolbar(toolbar) {
@@ -372,9 +372,9 @@ test("on a Nendo without W-115's icons the row is declared again with words wher
   assert.equal(find(declared[1].items, 'arrange').icon, 'layers', 'An icon every Nendo has was dropped too.');
 });
 
-// ---- W-213: the Archi findings of the broad review.
+// ---- Large deletes and layouts, the row's size, and renaming in place.
 
-test('ABS-04 after a delete of more than 200 writes, Undo no longer names the gesture before it', async () => {
+test('after a delete of more than 200 writes, Undo no longer names the gesture before it', async () => {
   const plan = largestFolderDelete();
   const host = controller(newElements(0));
   host.api.saved.undo.push({ label: 'Move Customer', revision: 'revision-move' });
@@ -384,7 +384,7 @@ test('ABS-04 after a delete of more than 200 writes, Undo no longer names the ge
     `After Delete ${plan.name} (${plan.writes.length} writes, ${Math.ceil(plan.writes.length / 200)} revisions), Undo names "${host.api.undoName()}" and would run that earlier gesture instead.`);
 });
 
-test('ABS-04 a delete refused after its first batch says it was done only in part, and leaves no Undo', async () => {
+test('a delete refused after its first batch says it was done only in part, and leaves no Undo', async () => {
   const plan = largestFolderDelete();
   const host = controller(newElements(0), true, 2);
   host.api.saved.undo.push({ label: 'Move Customer', revision: 'revision-move' });
@@ -406,7 +406,7 @@ function specializedModel(count, length) {
 }
 
 for (const editing of [true, false]) {
-  test(`ABS-05 with 63 specializations of 80 characters the row stays within Nendo's 16 KiB ${editing ? 'while a view is edited, and keeps Edit, Commit, Discard and Undo' : 'with no view open'}`, async () => {
+  test(`with 63 specializations of 80 characters the row stays within Nendo's 16 KiB ${editing ? 'while a view is edited, and keeps Edit, Commit, Discard and Undo' : 'with no view open'}`, async () => {
     const declared = [];
     let left = null;
     const context = vm.createContext({
@@ -432,7 +432,7 @@ for (const editing of [true, false]) {
   });
 }
 
-test('ABS-05 the workbench\u2019s own row can still edit a view, and commit or discard its edits', () => {
+test('the workbench\u2019s own row can still edit a view, and commit or discard its edits', () => {
   const page = readFileSync(new URL('../../extensions/archi/index.html', import.meta.url), 'utf8');
   const own = page.slice(page.indexOf('<header id="own-toolbar"'), page.indexOf('</header>'));
   assert.deepEqual(['own-edit', 'own-commit', 'own-discard'].filter(id => !own.includes(`id="${id}"`)), [],
@@ -440,7 +440,7 @@ test('ABS-05 the workbench\u2019s own row can still edit a view, and commit or d
 });
 
 for (const named of [true, false]) {
-  test(`ABS-06 F2 on ${named ? 'a named' : 'an unnamed'} relationship starts from its stored name, and one more letter is all that is saved`, async () => {
+  test(`F2 on ${named ? 'a named' : 'an unnamed'} relationship starts from its stored name, and one more letter is all that is saved`, async () => {
     const model = M.buildModel(fixture);
     const relationship = model.of(M.E.concept).find(record => record.values['ar.concept.category'] === 'Relationship' && Boolean(record.values['ar.concept.name']) === named);
     const stored = relationship.values['ar.concept.name'] ?? '';
@@ -467,7 +467,7 @@ for (const named of [true, false]) {
   });
 }
 
-test('ABS-10 a record type read past its cap is said, and no file is saved from it', async () => {
+test('a record type read past its cap is said, and no file is saved from it', async () => {
   const max = Number(/const READ_MAX = (\d+);/.exec(source)[1]);
   const state = { loaded: true };
   const context = vm.createContext({ state, READS: { concepts: M.E.concept, views: M.E.view }, M, READ_MAX: max,
@@ -492,7 +492,7 @@ test('ABS-10 a record type read past its cap is said, and no file is saved from 
   assert.match(statuses.at(-1).message, /^Not saved: the file holds more than 50,000 concepts, and/, `Save names the record type by its ID: ${statuses.at(-1).message}`);
 });
 
-test('ABS-22 edits kept from view A, found while view B is edited, name view A until an edit is made on B', () => {
+test('edits kept from view A, found while view B is edited, name view A until an edit is made on B', () => {
   let editorOptions = null;
   const model = M.buildModel(fixture);
   const [viewA, viewB] = model.of(M.E.view);
@@ -517,7 +517,7 @@ test('ABS-22 edits kept from view A, found while view B is edited, name view A u
   assert.equal(JSON.parse(stored.get('archi-edits')).viewId, viewB.recordId, 'Edits made on view B after kept edits from view A are still named under view A.');
 });
 
-test('ABS-23 a layout that needs more than 200 writes is taken back at once and said', async () => {
+test('a layout that needs more than 200 writes is taken back at once and said', async () => {
   const statuses = [];
   let undone = 0;
   const state = { pending: 0 };
@@ -528,7 +528,7 @@ test('ABS-23 a layout that needs more than 200 writes is taken back at once and 
   assert.equal(undone, 1, `A layout of 214 writes was left waiting, where Commit can never save it: ${JSON.stringify(statuses.at(-1))}`);
   assert.ok(statuses.at(-1).problem && /214 record writes, and at most 200/.test(statuses.at(-1).message), statuses.at(-1).message);
 });
-test('ABS-23 a layout that would pass 200 beside edits already waiting names its own writes', async () => {
+test('a layout that would pass 200 beside edits already waiting names its own writes', async () => {
   const statuses = [];
   const state = { pending: 20 };
   const context = vm.createContext({ state, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),

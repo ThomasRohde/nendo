@@ -32,7 +32,7 @@ internal sealed record RestoreDeletedRecordOperation(string Id, string EntityId,
     /// The version each reference target will hold when the restore runs, for the targets the
     /// compensated revision itself wrote: a parent whose count the deletion's automatic action
     /// updated is at the version the planned inverses leave it, not the one it held at the
-    /// delete (ESS-02). Worked out from the revision's own evidence, never from the file now.
+    /// delete. Worked out from the revision's own evidence, never from the file now.
     /// Absent for every other target, so a restore that plans none keeps its earlier shape.
     /// </summary>
     internal IReadOnlyDictionary<string, long>? PlannedTargetVersions { get; init; }

@@ -317,7 +317,7 @@ $shortcutName = 'Nendo.lnk'
 
 # A named value that may not be there. Under Set-StrictMode reading a missing one
 # off an object that does exist throws about PowerShell rather than about the
-# registration, which is the failure mode F-076 records.
+# registration.
 function Get-NendoRegistryValue([string] $Key, [string] $Name) {
     if (-not (Test-Path -LiteralPath $Key)) { return $null }
     $property = Get-ItemProperty -LiteralPath $Key -Name $Name -ErrorAction SilentlyContinue

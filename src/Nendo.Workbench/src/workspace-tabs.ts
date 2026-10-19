@@ -30,7 +30,7 @@ let nextId = 2;
  * The tab that owns the page there is one of (a launched agent's conversation), by its ID: the
  * tab that last showed it. Ownership was read from the trails, which drop a place when the person
  * goes somewhere new from part-way back or after 50 more moves, so the conversation's own tab
- * then closed without ending the agent (WAU-01).
+ * then closed without ending the agent.
  */
 let ownerTab: number | null = null;
 
@@ -82,14 +82,14 @@ function tabIcon(place: Place | null): IconName {
 }
 
 /**
- * A mark a page may put on its own tab, such as a launched agent's activity (W-200), and what to
+ * A mark a page may put on its own tab, such as a launched agent's activity, and what to
  * do when a tab showing a page is closed. Registered by the page, so the strip needs no page code.
  */
 export interface TabStatus { kind: string; label: string }
 let statusOf: (place: Place) => TabStatus | null = () => null;
 const closedListeners: Array<(places: Place[], ownedOneOfAKind: boolean) => void> = [];
 
-/** A page there is one of in the window: a new tab beside it starts elsewhere (ACP-06). */
+/** A page there is one of in the window: a new tab beside it starts elsewhere. */
 const oneOfAKindView = (view: ViewName): boolean => view === 'agentChat';
 const oneOfAKind = (place: Place): boolean => oneOfAKindView(place.view);
 
@@ -113,13 +113,13 @@ export function setTabStatus(provider: (place: Place) => TabStatus | null): void
 
 /**
  * Called with every place in the closed tab's trail, and whether that tab owned the page there is
- * one of, wherever it has gone since (WAU-01).
+ * one of, wherever it has gone since.
  */
 export function onTabClosed(listener: (places: Place[], ownedOneOfAKind: boolean) => void): void {
   closedListeners.push(listener);
 }
 
-/** What the window's other tabs show, for pointing a launched agent at it (W-200). */
+/** What the window's other tabs show, for pointing a launched agent at it. */
 export function placesInOtherTabs(): Place[] {
   return set.tabs.flatMap((tab, index) => {
     const place = index === set.active ? null : placeOf(tab, index);
@@ -141,9 +141,9 @@ export function drawTabs(): void {
   const refocus = focused?.dataset.tab !== undefined ? `[data-tab="${focused.dataset.tab}"]`
     : focused?.dataset.closeTab !== undefined ? `[data-close-tab="${focused.dataset.closeTab}"]` : null;
   // The list holds only tabs: a close button is the pointer's, as Delete and Ctrl W are the
-  // keyboard's, and New tab stands after the list (UIK-11). One tab is a Tab stop; the arrows move
+  // keyboard's, and New tab stands after the list. One tab is a Tab stop; the arrows move
   // along them. The list scrolls once the tabs reach their narrowest, and the tab on screen is
-  // brought into view, so a tab opened past the window's edge is still seen (UIS-01).
+  // brought into view, so a tab opened past the window's edge is still seen.
   const scrolled = strip.querySelector<HTMLElement>('.tab-list')?.scrollLeft ?? 0;
   strip.innerHTML = '<div class="tab-list" role="tablist" aria-label="Open places">' + set.tabs.map((tab, index) => {
     const place = placeOf(tab, index);
@@ -173,7 +173,7 @@ export function drawTabs(): void {
 /**
  * Keep the place on screen in a second tab, and move to it. Nothing redraws: it is the same place.
  * A page that is one of a kind (a launched agent's conversation) is not copied: the new tab goes
- * to the place before it, or the Agent page, so one conversation never has two tabs (ACP-06).
+ * to the place before it, or the Agent page, so one conversation never has two tabs.
  * `show` is false when the caller moves the new tab itself at once.
  */
 export function newTab(show = true): void {
@@ -198,7 +198,7 @@ export function newTab(show = true): void {
  * Show `view` in a tab of its own: the tab already on it, or a new one beside this tab. A page that
  * is one of a kind in the window, such as a launched agent's conversation (ADR-0030), goes to the
  * tab that owns it, wherever that tab has gone since: Open conversation opened a second tab on it
- * when its own had moved on, though one conversation never has two tabs (WAU-15).
+ * when its own had moved on, though one conversation never has two tabs.
  */
 export async function openTabOn(view: ViewName): Promise<void> {
   const owner = oneOfAKindView(view) ? ownerIndex(set, ownerTab) : -1;
@@ -221,7 +221,7 @@ export async function openTabOn(view: ViewName): Promise<void> {
 
 export async function activateTab(index: number): Promise<void> {
   if (index === set.active || index < 0 || index >= set.tabs.length) return;
-  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  // A press while a save or a read runs is made when it ends, rather than dropped.
   // The tab itself is held, not its place in the strip, which a tab opened or closed meanwhile moves.
   const wanted = set.tabs[index];
   if (deferWhileBusy(() => { const at = set.tabs.indexOf(wanted); if (at >= 0) void activateTab(at); })) return;
@@ -299,7 +299,7 @@ export function closeActiveTab(): void {
 /**
  * Whether the tabs are on screen. A narrow window hides the strip (tabs wait for a wider window,
  * docs/design/mica-direction.md), and the tab keys then acted on tabs nobody could see: Ctrl W
- * closed a conversation's tab and ended its agent (UIK-08).
+ * closed a conversation's tab and ended its agent.
  */
 export function tabsShown(): boolean {
   return !strip.hidden && strip.offsetParent !== null;
@@ -317,8 +317,8 @@ document.addEventListener('keydown', (event) => {
  * routes. The tab is made first, so the route then moves the new tab rather than the old one.
  *
  * Only when the route will move. A page holding unsaved typing refuses to be left, and a tab made
- * before that refusal stayed open and selected beside the sentence saying nothing had moved
- * (WCS-17): the route alone answers then, in its own words. While an action runs, the new tab and
+ * before that refusal stayed open and selected beside the sentence saying nothing had moved:
+ * the route alone answers then, in its own words. While an action runs, the new tab and
  * the move both wait for it to end.
  */
 export function wireOpenInNewTab(rail: HTMLElement): void {
@@ -352,7 +352,7 @@ export function tabCount(): number {
 }
 
 /**
- * Whether a tab can move to a window of its own (W-277): in the Desktop host, with a file open,
+ * Whether a tab can move to a window of its own: in the Desktop host, with a file open,
  * the tabs on screen and more than one of them. A window keeps its last tab.
  */
 export function tabsCanMove(): boolean {
@@ -360,7 +360,7 @@ export function tabsCanMove(): boolean {
 }
 
 /**
- * Move tab `index` to a window of its own (W-277, ADR-0002 2026-10-16). The tab leaves this
+ * Move tab `index` to a window of its own (ADR-0002). The tab leaves this
  * window first, as a close would take it but without being closed: no listener hears it, so a
  * launched agent's conversation keeps running in the window it went to. The host then opens the
  * window on its trail, at the pointer when it was let go outside this one. A window that did not
@@ -395,7 +395,7 @@ export function moveActiveTabToWindow(): void {
 }
 
 /**
- * This window was opened for a tab moved out of another (W-277): its one tab takes that tab's
+ * This window was opened for a tab moved out of another: its one tab takes that tab's
  * trail, and shows the place it was on. A trail that cannot be read leaves the window where it
  * opened, on the file's first screen.
  */

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review of 2026-10-10 on storage, History and canonical payloads (W-208).
+/// Storage, History and canonical payloads.
 /// </summary>
 [TestClass]
 public sealed class StorageReviewTests
@@ -61,7 +61,7 @@ public sealed class StorageReviewTests
         var refused = await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(
             () => service.CompensateRevisionAsync(reordered.RevisionId, "undo-reorder"),
             "Compensation ordered the list by a retired field again.");
-        // Worded for every structure change since R2RM-02 (W-212).
+        // Worded for every structure change.
         StringAssert.Contains(refused.Message, "Only the latest change to the file's structure can be undone", StringComparison.Ordinal);
         Assert.IsTrue((await service.CompileSemanticUiAsync()).IsValid);
     }

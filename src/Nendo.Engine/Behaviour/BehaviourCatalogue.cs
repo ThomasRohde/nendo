@@ -95,7 +95,7 @@ internal static class NendoBehaviourCatalogue
                 ResultType = "integer",
                 Summary = "Whole days from the first date to the second. Negative when the second is earlier.",
             },
-            // ADR-0008, 2026-10-18 amendment (W-248): date arithmetic without a clock. Billable
+            // ADR-0008: date arithmetic without a clock. Billable
             // worked out an invoice's due date, issue date plus terms, in view code, because '+'
             // takes numbers on both sides and nothing else could. A date past the calendar a date
             // holds is refused, never clamped.
@@ -142,10 +142,10 @@ internal static class NendoBehaviourCatalogue
                 ResultType = "integer",
                 // UTF-16 code units, as the text ceiling counts: a character outside the Basic
                 // Multilingual Plane, such as most emoji, counts as two. The summary said
-                // "characters" with no unit (EBH-19).
+                // "characters" with no unit.
                 Summary = "How many UTF-16 code units a text value holds: most characters count as one, and one outside the Basic Multilingual Plane, such as most emoji, counts as two. Empty text is zero, which is an answer rather than a missing one.",
             },
-            // ADR-0008, 2026-09-20 amendment: a formula can refuse by name. The entry
+            // ADR-0008: a formula can refuse by name. The entry
             // produces no value. The analyzer types it from the other outcome of the
             // choice it sits in, which is why its own typing refuses: a refusal reached
             // any other way is a formula that can never answer.
@@ -164,7 +164,7 @@ internal static class NendoBehaviourCatalogue
                 ResultType = "the kind of the other outcome of the choice it sits in",
                 Summary = "Produces no value and reports the sentence given as the calculation's own refusal. It sits in one outcome of a choice; the other outcome says what kind of value it stands for.",
             },
-            // ADR-0008, 2026-10-10 amendment: the one way a formula asks whether a value is
+            // ADR-0008: the one way a formula asks whether a value is
             // there. Every operator and every other function is stopped by an empty input, so
             // "default Billable to true when it was left empty" could not be written at all.
             // It is told an empty argument, or one that an empty input stopped, as empty.
@@ -182,8 +182,8 @@ internal static class NendoBehaviourCatalogue
                     "IsEmpty(x) ? fallback : x gives an empty value a default.",
                 TakesEmpty = true,
             },
-            // ADR-0008, 2026-10-13 amendment: Concat said to convert a number or a date first,
-            // and nothing in the catalogue could (R2AAV-05). One fixed spelling per kind, with
+            // ADR-0008: Concat said to convert a number or a date first,
+            // and nothing in the catalogue could. One fixed spelling per kind, with
             // no locale, so the same value always gives the same text: digits for a whole
             // number, the stored digits of a decimal, and a date as yyyy-MM-dd. Yes and no
             // have no single spelling to choose, so a Boolean is refused rather than guessed.

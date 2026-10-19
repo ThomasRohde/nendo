@@ -23,7 +23,7 @@ import { renderDataRecordDialog } from './view-data';
  * own click in Ctrl K or Studio's search, or a click in the view (`said`, which view-frames.ts
  * answers by whether the view's frame has focus). A view that asks on its own, from a timer or a
  * changes event, is refused without a word on the page: the sentence moved focus out of the
- * field the person was typing in, and blamed them for a move they never asked for (WXS-06).
+ * field the person was typing in, and blamed them for a move they never asked for.
  */
 function refuseNow(action: string, said: boolean): void {
   if (state.actionInFlight)
@@ -33,7 +33,7 @@ function refuseNow(action: string, said: boolean): void {
 }
 
 /**
- * Open a proposal the view's package prepared in Studio's review (ADR-0013 Phase 3). Back
+ * Open a proposal the view's package prepared in Studio's review (ADR-0013). Back
  * returns to where the person was. It does not open over unsaved typing or another action;
  * the proposal then waits, and the view can open it again.
  */
@@ -114,7 +114,7 @@ export async function openScreenFromView(surfaceId: string, said = true): Promis
   const overview = overviewPlan();
   const front = overview !== null && overview.surface.semanticId === rootId;
   const plan = applicationPlans().find((candidate) => useSurfaces(candidate).some((root) => root.semanticId === rootId));
-  // One of the file's own views is a screen too (W-106).
+  // One of the file's own views is a screen too.
   const view = fileViewById(rootId);
   if (!front && plan === undefined && view === null) throw new WorkbenchHostError('not-found', 'That is not a screen Use can show.');
   state.fileView = view === null ? null : view.semanticId;
@@ -167,7 +167,7 @@ export function toastFromView(title: string, text: string): void {
   showOutcome(`${title}: ${text}`);
 }
 
-/** A view's batch asked for Undo in Nendo's notice (W-250), named by the batch's label. */
+/** A view's batch asked for Undo in Nendo's notice, named by the batch's label. */
 export function undoOfferFromView(title: string, label: string | null, undo: () => Promise<void>): void {
   const what = label === null ? 'saved a change' : `saved ${label}`;
   showUndoOffer(`${title} ${what}.`, undo, `${title}: ${label === null ? 'the change' : label} was undone.`);

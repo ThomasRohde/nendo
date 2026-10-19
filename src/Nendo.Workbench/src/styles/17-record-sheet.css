@@ -1,4 +1,4 @@
-/* Studio's record page, as a sheet and a sidebar (W-071).
+/* Studio's record page, as a sheet and a sidebar.
    Slice 17 of styles.css; see that file for why the order matters.
 
    It replaced a 640px card that stacked every field in one column. The markup
@@ -84,7 +84,7 @@
   letter-spacing: -0.01em;
 }
 
-/* Long text as a document (W-242): the heading field and every long text field on one
+/* Long text as a document: the heading field and every long text field on one
    sheet, one under another. Two boxes to a row, each a fixed height with its own
    scrollbar, cut long text off mid-sentence. */
 .record-sheet-main > .record-sheet-document {

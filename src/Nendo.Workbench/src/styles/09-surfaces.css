@@ -46,7 +46,7 @@
   background: var(--status-color, var(--muted));
 }
 
-/* A rating (ADR-0004, 2026-09-14, S2): dots for the scale, filled to the value. The
+/* A rating (ADR-0004): dots for the scale, filled to the value. The
    dots are decoration — the accessible name carries the number — and a value outside
    the scale is shown as itself rather than as a count nobody chose. */
 .rating {
@@ -108,7 +108,7 @@
 }
 
 /* A long unbroken value (an address, an ID, a code) wraps inside what holds it rather than
-   drawing over the next column (WMX-05). */
+   drawing over the next column. */
 .record-card > strong,
 .card-values > span,
 .related-row,
@@ -275,7 +275,7 @@
 /* A Date calendar: one month, Monday first. The grid scrolls rather than
    shrinking the cells past readability on a narrow frame. */
 .calendar-surface { padding: 16px; }
-/* A gallery (ADR-0004, 2026-09-14, S2): the same cards a board stacks in columns, laid
+/* A gallery (ADR-0004): the same cards a board stacks in columns, laid
    out as a grid over one page of records. The column count follows the frame rather than
    a stored number, because a card grid has no groups to keep in step. The cards stretch
    to the tallest in their row, so a value drawn as dots does not leave a short card
@@ -683,7 +683,7 @@
   content: "Starting…";
 }
 
-/* A view this device runs from a folder (ADR-0013 Phase 4) says so above its frame, in the
+/* A view this device runs from a folder (ADR-0013) says so above its frame, in the
    Workbench's own markup, which the view cannot reach. */
 .view-development {
   display: flex;
@@ -806,7 +806,7 @@
   font-size: 0.78rem;
 }
 
-/* Add, and on a link list Link beside it (ADR-0004, 2026-09-29). */
+/* Add, and on a link list Link beside it (ADR-0004). */
 .related-actions {
   display: inline-flex;
   flex-wrap: wrap;
@@ -926,7 +926,7 @@
   display: none !important;
 }
 
-/* A section is a disclosure (ADR-0004 2026-09-20 amendment): its heading is the
+/* A section is a disclosure (ADR-0004): its heading is the
    control, drawn as the legend was, with the browser's own marker kept so it reads as
    something that opens. Closed, the browser draws nothing but the heading. */
 .record-form .form-section > summary {
@@ -951,7 +951,7 @@
   margin-top: 14px;
 }
 
-/* The front page (ADR-0004 2026-09-14 amendment, S4). Every colour is a token, so
+/* The front page (ADR-0004). Every colour is a token, so
    Dark is the same markup under the other palette. */
 /* The surface supplies the inset, as it does for a gallery: every Use surface is
    flush with the toolbar's controls above it, and a front page that set its own
@@ -1055,7 +1055,7 @@
 }
 
 .recent-row:hover { background: var(--surface-soft); }
-/* A row of a record type with no screen opens nothing, so it does not look as if it would (WSP-17). */
+/* A row of a record type with no screen opens nothing, so it does not look as if it would. */
 div.recent-row, div.ranked-row { cursor: default; }
 div.recent-row:hover, div.ranked-row:hover { background: none; }
 .recent-row:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
@@ -1075,7 +1075,7 @@ div.recent-row:hover, div.ranked-row:hover { background: none; }
   font-size: 0.75rem;
 }
 
-/* The matrix (ADR-0004, 2026-09-17, S6): two crossed choice fields as a grid of cells.
+/* The matrix (ADR-0004): two crossed choice fields as a grid of cells.
    One column of row headings plus one per lane, so a heading and its row cannot drift
    apart when a cell is taller than its neighbours. A cell states its exact number in its
    header and holds the loaded window's cards under it. */
@@ -1183,7 +1183,7 @@ div.recent-row:hover, div.ranked-row:hover { background: none; }
 .matrix-total:focus-visible { outline: 2px solid var(--cobalt); outline-offset: 2px; }
 .matrix-total strong { font-size: 0.95rem; }
 
-/* A ranking (ADR-0004, 2026-09-17, S6): rank numerals, a bar against the exact largest,
+/* A ranking (ADR-0004): rank numerals, a bar against the exact largest,
    and the number itself. The bar is decoration; the number is the claim, so it is always
    present and the bar is absent whenever a proportion would be dishonest. */
 .overview-ranked {
@@ -1272,7 +1272,7 @@ div.recent-row:hover, div.ranked-row:hover { background: none; }
   font-variant-numeric: tabular-nums;
 }
 
-/* The outline surface (ADR-0019 stage 6): a declared hierarchy as a treegrid in Use. The
+/* The outline surface (ADR-0019): a declared hierarchy as a treegrid in Use. The
    toggle and the child count are Studio's outline's own classes, so the two read as one
    thing; everything here is the table around them. */
 .outline-surface { padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }

@@ -11,10 +11,9 @@ namespace Nendo.LocalMcp;
 /// The adapter's own result records carry <see cref="System.ComponentModel.DescriptionAttribute"/>
 /// beside each member, which the schema exporter reads. The Engine's records are shared
 /// with the window and say nothing about one adapter's wording, so their descriptions live
-/// here and the transform hook writes them onto the output schema. Until 2026-09-27 the
-/// twenty output schemas carried no property description at all: what a null
-/// <c>recordVersion</c> or an entry in <c>alsoChanged</c> meant lived in XML comments no
-/// client reads. Entries are keyed with <c>nameof</c>, so a renamed member fails the build,
+/// here and the transform hook writes them onto the output schema. Without them, what a null
+/// <c>recordVersion</c> or an entry in <c>alsoChanged</c> means would live in XML comments
+/// no client reads. Entries are keyed with <c>nameof</c>, so a renamed member fails the build,
 /// and a test fails on any output property left without a description.
 /// </para>
 /// </summary>

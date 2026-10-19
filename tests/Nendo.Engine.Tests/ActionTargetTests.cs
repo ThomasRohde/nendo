@@ -76,7 +76,7 @@ public sealed class ActionTargetTests
     /// <remarks>
     /// An action does not know its record type — only the trigger does — so nothing
     /// checked the two together, and the mistake the published catalogue warns about
-    /// installed cleanly and failed at the next save (F-003). By then the person writing
+    /// installed cleanly and failed at the next save. By then the person writing
     /// the record is not the person who wrote the action.
     /// <para>
     /// Both directions are asserted, because refusing is easy and refusing precisely is
@@ -186,7 +186,7 @@ public sealed class ActionTargetTests
     /// mutation rolls it away — and the flag did not roll back with it. Every subsequent
     /// read of the open file then asked for a table that was not there and threw a raw
     /// SQLite error: not a refusal a person or an agent could act on, and not fixable
-    /// without closing the file (F-070).
+    /// without closing the file.
     /// <para>
     /// Found while adding the action/trigger pair check, which is one more way to be
     /// refused after the table exists — but the defect is older than that, and this

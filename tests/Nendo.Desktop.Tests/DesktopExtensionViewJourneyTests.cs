@@ -9,8 +9,8 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Custom views running inline in a real Nendo against an isolated profile (ADR-0013,
-/// 2026-09-25). The page and every view frame are driven over the browser's debugging port,
+/// Custom views running inline in a real Nendo against an isolated profile (ADR-0013).
+/// The page and every view frame are driven over the browser's debugging port,
 /// and which process holds which frame comes from the host's own diagnostics, so nothing
 /// here needs the pointer or the foreground. tools/Review-ExtensionViews.mjs holds the
 /// measurements; this class builds the file and runs the app.
@@ -55,7 +55,7 @@ public sealed class DesktopExtensionViewJourneyTests
             });
           },
           parentDocument() { try { return parent.document ? 'reachable' : 'none'; } catch (error) { return 'blocked:' + error.name; } },
-          // F-237: an XML file saved as a command from Nendo's row saves it, with no click in the view.
+          // An XML file saved as a command from Nendo's row saves it, with no click in the view.
           downloadXml(name) {
             const link = document.createElement('a');
             link.href = URL.createObjectURL(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n<probe>' + 'x'.repeat(200000) + '</probe>\n'], { type: 'application/xml' }));
@@ -85,7 +85,7 @@ public sealed class DesktopExtensionViewJourneyTests
             });
           },
           storage(value) { if (value !== undefined) localStorage.setItem('probe', value); return localStorage.getItem('probe'); },
-          // W-090: controls for Nendo to draw, with a label that looks like markup, and Nendo's Add.
+          // Controls for Nendo to draw, with a label that looks like markup, and Nendo's Add.
           declare() {
             return nendo.ui.setToolbar({ add: 'probe-add', items: [
               { kind: 'choice', id: 'mode', label: 'Mode', hideLabel: true, value: 'one', options: [{ value: 'one', label: 'One' }, { value: 'two', label: 'Two' }] },
@@ -98,7 +98,7 @@ public sealed class DesktopExtensionViewJourneyTests
               { kind: 'menu', id: 'export', label: 'Export', icon: 'export', items: [{ id: 'export-svg', label: 'SVG' }, { kind: 'check', id: 'light', label: 'Light', checked: false }] },
             ] }).then(() => 'declared', error => 'refused: ' + error.code + ': ' + error.message);
           },
-          // A row as full as the Archi workbench's while editing, with Nendo's Add (the owner's report, W-115).
+          // A row as full as the Archi workbench's while editing, with Nendo's Add (the owner's report).
           crowd() {
             const button = (id, label, extra = {}) => ({ kind: 'button', id, label, ...extra });
             const menu = (id, label, icon, ids) => ({ kind: 'menu', id, label, ...(icon ? { icon } : {}), items: ids.map(([item, text]) => ({ id: item, label: text })) });
@@ -128,7 +128,7 @@ public sealed class DesktopExtensionViewJourneyTests
               .then(pick => { state.pick = pick; }, error => { state.pick = 'error: ' + error.code; });
             return 'asked';
           },
-          // W-104: a file the person chooses, with the browser's own input; what arrives lands in state.
+          // A file the person chooses, with the browser's own input; what arrives lands in state.
           pickFile(accept) {
             let input = document.getElementById('probe-file');
             if (!input) {
@@ -154,7 +154,7 @@ public sealed class DesktopExtensionViewJourneyTests
             if (typeof window[name] !== 'function') return Promise.resolve('absent');
             return window[name]().then(() => 'opened', error => 'refused: ' + error.name + ': ' + error.message);
           },
-          // W-123: a picture to the clipboard from a command, as Copy as picture writes one; with
+          // A picture to the clipboard from a command, as Copy as picture writes one; with
           // focus taken first or not.
           copyPicture(focusFirst, drawn) {
             if (focusFirst) window.focus();
@@ -187,7 +187,7 @@ public sealed class DesktopExtensionViewJourneyTests
               .then(() => 'copied', error => 'refused: ' + error.name + ': ' + error.message)
               .then(answer => ({ answer, focused: document.hasFocus(), active: navigator.userActivation.isActive }));
           },
-          // W-104: a file dropped on the view; the view takes it by cancelling dragover.
+          // A file dropped on the view; the view takes it by cancelling dragover.
           acceptDrops() {
             if (state.accepting) return 'accepting';
             state.accepting = true;
@@ -221,7 +221,7 @@ public sealed class DesktopExtensionViewJourneyTests
     /// record page carrying six views from three packages, and a screen drawn by one of them.
     /// </summary>
     /// <param name="opensOnView">
-    /// W-106: add a view of the file, run by probe B and about Tasks, that says the file opens on it.
+    /// Add a view of the file, run by probe B and about Tasks, that says the file opens on it.
     /// </param>
     internal static async Task SeedAsync(string path, bool opensOnView = false)
     {
@@ -274,7 +274,7 @@ public sealed class DesktopExtensionViewJourneyTests
             new SetUiPropertyOperation("probe-c", "probe", "probe", "configuration", "{\"probe\":true}"),
             .. Bind("probe-f1", "probe", "probe", 0, "estimate"),
             .. Bind("probe-f2", "probe", "probe", 1, "titleLength"),
-            // A record command a view may run (ADR-0013 Phase 3, W-065): Mark reviewed sets the notes.
+            // A record command a view may run (ADR-0013): Mark reviewed sets the notes.
             new AddUiNodeOperation("cmd", "commands", "cmd", null, "recordCommand", 3),
             new SetUiPropertyOperation("cmd-v", "commands", "cmd", "definitionVersion", 3),
             new SetUiPropertyOperation("cmd-e", "commands", "cmd", "entityId", "tasks"),
@@ -316,7 +316,7 @@ public sealed class DesktopExtensionViewJourneyTests
         RunJourneyAsync(path => SeedAsync(path), "Review-ExtensionViews.mjs", "extension views ok");
 
     /// <summary>
-    /// W-106: a file whose view says opensFile opens on it in a real host, the view runs with the
+    /// A file whose view says opensFile opens on it in a real host, the view runs with the
     /// context of a screen of the file, and Studio and the record type are a choice away.
     /// tools/Review-FileView.mjs holds the measurements (G37–G39).
     /// </summary>
@@ -326,7 +326,7 @@ public sealed class DesktopExtensionViewJourneyTests
         RunJourneyAsync(path => SeedAsync(path, opensOnView: true), "Review-FileView.mjs", "file view ok");
 
     /// <summary>
-    /// W-277: a tab moved to a window of its own in a real host, on the same file session, refusing
+    /// A tab moved to a window of its own in a real host, on the same file session, refusing
     /// the file actions that switch the file, hearing the other window's writes and theme, and
     /// closing with its file. tools/Review-TabWindows.mjs holds the measurements (T1–T6).
     /// </summary>
@@ -367,7 +367,7 @@ public sealed class DesktopExtensionViewJourneyTests
         await File.WriteAllTextAsync(Path.Combine(develop, "index.html"), ProbeHtml.Replace("<html lang=\"en\">", "<html lang=\"en\" data-source=\"folder-1\">", StringComparison.Ordinal));
         await File.WriteAllTextAsync(Path.Combine(develop, "probe.js"), ProbeScript);
         launch.Environment["NENDO_DIAGNOSTICS_DEVELOPMENT_FOLDER"] = develop;
-        // F-237: a view's downloads go to a folder of the journey's own.
+        // A view's downloads go to a folder of the journey's own.
         launch.Environment["NENDO_DIAGNOSTICS_DOWNLOAD_FOLDER"] = Directory.CreateDirectory(Path.Combine(output, "downloads")).FullName;
         launch.Environment["WEBVIEW2_USER_DATA_FOLDER"] = Path.Combine(output, "webview");
         launch.Environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--remote-debugging-port=" + port;
@@ -405,13 +405,13 @@ public sealed class DesktopExtensionViewJourneyTests
         try { Directory.Delete(output, recursive: true); }
         catch (IOException) { }
         catch (UnauthorizedAccessException) { }
-        // TST-01: a step the machine could not run (the clipboard on a locked workstation) is
+        // A step the machine could not run (the clipboard on a locked workstation) is
         // named, and the journey is Inconclusive rather than failed; every other check ran.
         if (interlocks is not null) Assert.Inconclusive(interlocks);
     }
 
     /// <summary>
-    /// BL-01: what Windows keeps for the installed Nendo's shell identity, read before the host
+    /// What Windows keeps for the installed Nendo's shell identity, read before the host
     /// starts and compared after it exits. The journey host runs on an isolated device state
     /// under that identity, and used to republish the person's Jump List with rows that start
     /// the Debug build, and to re-register the notification icon and activator at it.

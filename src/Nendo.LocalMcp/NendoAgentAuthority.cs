@@ -48,7 +48,7 @@ public sealed record NendoLeaseGrant(
 
     /// <summary>
     /// The bounds a write plans against, from the one call every agent makes first. An agent
-    /// in a client that could not read resources never saw them anywhere else (2026-10-08).
+    /// in a client that could not read resources never saw them anywhere else.
     /// </summary>
     [Description("The bounds to plan writes against. Every other limit is under limits in nendo://application/vocabulary.")]
     public NendoLeaseLimits? Limits { get; init; }
@@ -218,8 +218,8 @@ internal sealed class NendoAgentAuthority(
     /// <summary>
     /// Grants the single lease. <paramref name="freshHandle"/> is the handle a new session
     /// gets. With <paramref name="idempotencyKey"/>, an exact retry of an acquire whose
-    /// response was lost returns the grant it made rather than LEASE_HELD against itself
-    /// (W-143). With <paramref name="resumeApplicationHandle"/>, a handle this run minted
+    /// response was lost returns the grant it made rather than LEASE_HELD against itself.
+    /// With <paramref name="resumeApplicationHandle"/>, a handle this run minted
     /// earlier is granted the lease again under the same handle, so the proposals, the
     /// pseudonym and the receipt scope it owned are its once more: possession of the
     /// handle is the proof of prior ownership, and the handle is not retired because every
@@ -245,7 +245,7 @@ internal sealed class NendoAgentAuthority(
                 // A replay is the recovery for a lost acquire response, so it answers only the client
                 // that acquired, and only while the grant is unused and recent. A key alone proves
                 // nothing: another agent following the same skill can send the same one, and was
-                // handed the holder's grant (MHS-02).
+                // handed the holder's grant.
                 if (idempotencyKey is not null && Active.AcquireKey == idempotencyKey &&
                     clientDisplayName == Active.ClientDisplayName &&
                     !Active.Used && clock.UtcNow - Active.GrantedAt <= AcquireReplayWindow)

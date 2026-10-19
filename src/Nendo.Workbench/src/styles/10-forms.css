@@ -108,8 +108,8 @@ textarea:focus {
   background: var(--surface);
 }
 
-/* A row is a list item holding a native button, so the row keeps the button's role (review
-   R-013); the item is a grid so the button still stretches across the list. */
+/* A row is a list item holding a native button, so the row keeps the button's role;
+   the item is a grid so the button still stretches across the list. */
 .record-row { display: grid; min-width: 0; }
 
 .record-list button {
@@ -140,7 +140,7 @@ textarea:focus {
 .record-list button > small { flex: 0 0 auto; }
 .record-list .dot-space { visibility: hidden; }
 
-/* The head names each column once, above the rows it labels (F-225). */
+/* The head names each column once, above the rows it labels. */
 .record-list-head {
   display: flex;
   align-items: center;
@@ -425,7 +425,7 @@ textarea:focus {
   min-height: auto;
 }
 
-/* A field presented as Markdown (W-173): the text formatted, its source in a disclosure below. */
+/* A field presented as Markdown: the text formatted, its source in a disclosure below. */
 .markdown-field {
   display: grid;
   gap: 6px;
@@ -471,7 +471,7 @@ textarea:focus {
 }
 
 /* Each block takes its direction from its own text, so a Hebrew or Arabic paragraph reads from
-   the right with its punctuation on its own side (WMX-13). List markers and indents still follow
+   the right with its punctuation on its own side. List markers and indents still follow
    the page, which is left to right. */
 .markdown-body :is(p, li, h3, h4, h5, h6, blockquote, th, td) {
   unicode-bidi: plaintext;
@@ -544,7 +544,7 @@ textarea:focus {
   font-family: var(--mono);
 }
 
-/* The Markdown editor (Tiptap, 2026-10-16): a box like a textarea's, its tools above the text. */
+/* The Markdown editor (Tiptap): a box like a textarea's, its tools above the text. */
 .markdown-editor:has(.markdown-editor-frame) {
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-control);

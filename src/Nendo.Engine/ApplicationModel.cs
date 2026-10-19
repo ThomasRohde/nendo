@@ -53,7 +53,7 @@ public sealed record NendoHistoryFoldResult(
 {
     /// <summary>
     /// Whether the file gave the folded pages back. False when the compaction after the fold could
-    /// not run, a full disk most often: the fold itself committed and stands (ECO-02).
+    /// not run, a full disk most often: the fold itself committed and stands.
     /// </summary>
     public bool SpaceReclaimed { get; init; } = true;
 }
@@ -136,7 +136,7 @@ public sealed record NendoFieldSnapshot(
 
 /// <summary>
 /// The closed scale a <c>rating</c> Integer field is drawn on, both ends counted
-/// (ADR-0004, 2026-09-14 amendment). A stored value outside it is a data issue the
+/// (ADR-0004). A stored value outside it is a data issue the
 /// reader states, never an invented dot count, so the scale bounds the drawing rather
 /// than the column.
 /// </summary>
@@ -146,7 +146,7 @@ public sealed record NendoRatingScale(long Min, long Max);
 /// One option of a single-choice field. <paramref name="Tone"/> is its colour as a
 /// closed named hue from <see cref="NendoSemanticVocabulary.ChoiceTones"/>, or null
 /// for none: a semantic token the renderer maps to Light and Dark colours, never a
-/// hex value stored in the file (ADR-0004, 2026-09-14 amendment).
+/// hex value stored in the file (ADR-0004).
 /// </summary>
 public sealed record NendoChoiceOption(string Id, string DisplayName, bool Retired, string? Tone = null);
 
@@ -173,7 +173,7 @@ public sealed record NendoDerivedFieldSnapshot(
     /// <summary>
     /// The stable IDs of the fields its formula reads, ordered, as the retirement check reads them:
     /// a field named here cannot be retired while this calculation stays. Studio's Structure says so
-    /// beside the field rather than leaving it to a refusal (UIT-19).
+    /// beside the field rather than leaving it to a refusal.
     /// </summary>
     public IReadOnlyList<string> ReadsFieldIds { get; init; } = [];
 
@@ -257,7 +257,7 @@ public sealed record NendoStoredOperationSnapshot(
     /// The label of the record a record operation acts on: its record type's first text field,
     /// read from the record as it stands or, once deleted, from the values its deletion kept.
     /// Null for an operation on no record, or a record whose label is empty. History named no
-    /// record, so three deletes of one type read as three identical lines (UX-07).
+    /// record, so three deletes of one type read as three identical lines.
     /// </summary>
     public string? RecordLabel { get; init; }
 }
@@ -511,7 +511,7 @@ public sealed record NendoExecuteCommandRequest(
     /// <summary>
     /// The record type the caller means the record to be of, when it says. A command runs on its
     /// own record type's record, so one named with another type's record is refused rather than
-    /// run on a record of the same ID in the command's type (R2AP-08). Null checks nothing.
+    /// run on a record of the same ID in the command's type. Null checks nothing.
     /// </summary>
     public string? EntityId { get; init; }
 }
@@ -526,7 +526,7 @@ public sealed class NendoPreconditionException(string code, string message) : Ne
 
     /// <summary>
     /// The record the refusal is about, where a person should be shown which one: a duplicate's
-    /// holder (ADR-0020), or the record a reference points at (R2AP-07). The message names it by
+    /// holder (ADR-0020), or the record a reference points at. The message names it by
     /// ID only, since an audited refusal never carries stored values; the host that shows it to
     /// the file's own user may name the record by its label instead.
     /// </summary>

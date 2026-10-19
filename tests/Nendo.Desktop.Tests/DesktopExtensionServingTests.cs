@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// The host half of custom views running inside the Workbench (ADR-0013, 2026-09-25): an origin
+/// The host half of custom views running inside the Workbench (ADR-0013): an origin
 /// for each package in each file, content served from the open file, and the device's switches.
 /// </summary>
 [TestClass]
@@ -24,7 +24,7 @@ public sealed class DesktopExtensionServingTests
         Assert.AreEqual(host, ExtensionOrigins.Host("app-one", "instance-one", PackageId), "An origin that moved would lose the view's storage.");
         Assert.AreNotEqual(host, ExtensionOrigins.Host("app-two", "instance-one", PackageId), "Two files carrying one package must not share storage.");
         Assert.AreNotEqual(host, ExtensionOrigins.Host("app-one", "instance-one", "org.example.chart"));
-        // DAE-06 (2026-10-13): a Duplicate keeps its original's application ID and gets a new
+        // A Duplicate keeps its original's application ID and gets a new
         // instance ID; sharing the original's origin gave it the original's drafts and unanswered saves.
         Assert.AreNotEqual(host, ExtensionOrigins.Host("app-one", "instance-two", PackageId),
             "A Duplicate (one application ID, another instance) shares its original's view storage.");
@@ -42,8 +42,8 @@ public sealed class DesktopExtensionServingTests
     }
 
     /// <summary>
-    /// The instance ID entered the origin's key on 2026-10-13 (DAE-06), which moved every view to a
-    /// new origin and would have lost the owner's drafts at the upgrade. For each application, the
+    /// The instance ID is part of the origin's key, which would move every view of a file kept
+    /// before it to a new origin and lose its drafts. For each application, the
     /// instance this device opened last keeps the origin it had; another instance of it, a
     /// Duplicate made since among them, gets the new one. The choice is written once.
     /// </summary>
@@ -294,7 +294,7 @@ public sealed class DesktopExtensionServingTests
     }
 
     /// <summary>
-    /// DAE-01. A file's stored hash is only shape-checked when it opens, and view content was
+    /// A file's stored hash is only shape-checked when it opens, and view content was
     /// cached by that stated hash for as long as the window lived. A crafted file could file its
     /// own script under the hash of a well-known view's script, and the next file opened in the
     /// window then ran the planted bytes at its own origin, with its own records.
@@ -338,7 +338,7 @@ public sealed class DesktopExtensionServingTests
     }
 
     /// <summary>
-    /// DAE-01, the second half: view content is cached for one file session only. Content
+    /// View content is cached for one file session only. Content
     /// cached while a file was open is not answered once it closes, so a reopened file is read
     /// afresh, and a cache can never carry one file's bytes into another file's view.
     /// </summary>
@@ -371,7 +371,7 @@ public sealed class DesktopExtensionServingTests
     }
 
     /// <summary>
-    /// DAE-02. A view's request for anything but a clipboard read or several downloads went to
+    /// A view's request for anything but a clipboard read or several downloads went to
     /// WebView2's own prompt. The request carries the Workbench's origin, so an Allow kept there
     /// covered every view of every file: the person's own map view's location grant reached a
     /// view in a file someone sent them. Every other kind is now refused, and nothing is kept.
@@ -394,7 +394,7 @@ public sealed class DesktopExtensionServingTests
     }
 
     /// <summary>
-    /// DAE-13. Only a view's pop-ups were held to http, https and mailto; a frame sent to any
+    /// Only a view's pop-ups were held to http, https and mailto; a frame sent to any
     /// other scheme reached WebView2's prompt to open the app registered for it, so a view in a
     /// received file could offer Explorer opening a remote share dressed as a search.
     /// </summary>

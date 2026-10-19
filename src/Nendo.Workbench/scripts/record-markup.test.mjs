@@ -14,7 +14,7 @@ const stage=field('stage','singleChoice',{options:['open','won'],choices:[{id:'o
 const plan={entity:{semanticId:'deal',displayName:'Deal',fields:[field('name'),stage,field('note')],derivedFields:[]},records:[],surfaces:[]};
 const record={semanticId:'r1',automationTarget:'record-r1',version:3,values:{name:'Acme',stage:'won',note:'hi'},referenceLabels:null,calculations:null};
 
-test('W-217 R2LAT-05: an Integer field asks for the numeric keypad and a Decimal for the decimal one',()=>{
+test('an Integer field asks for the numeric keypad and a Decimal for the decimal one',()=>{
  assert.match(fieldControlMarkup(field('count','singleLine',{storageKind:1}),null),/inputmode="numeric"/);
  assert.doesNotMatch(fieldControlMarkup(field('count','singleLine',{storageKind:1}),null),/inputmode="decimal"/);
  assert.match(fieldControlMarkup(field('price','singleLine',{storageKind:2}),null),/inputmode="decimal"/);
@@ -30,7 +30,7 @@ test('a card is addressable by record id and names the record in its accessible 
  // none of, so the stored id is what shows here.
  assert.match(markup,/class="card-chip"[^>]*>won</);
  assert.match(markup,/<small>note<\/small>hi/);
- // The concurrency counter is not a person's number (UX-13).
+ // The concurrency counter is not a person's number.
  assert.doesNotMatch(markup,/>v3</);
 });
 
@@ -131,7 +131,7 @@ test('a related list that has not loaded says so, and one with nothing in it say
  assert.equal(relatedKey(relation,'r1'),'rel.tasks:r1');
 });
 
-test('a relation with nothing in it names the type and the field (W-042)',()=>{
+test('a relation with nothing in it names the type and the field',()=>{
  // "No related records yet." was the same sentence on every relation of a page that has
  // four of them, and it named neither half of the inverse the node already carries.
  const relation=node('rel.tasks','relatedList',{title:'Tasks',targetEntityId:'task',viaFieldId:'task.deal'});
@@ -139,7 +139,7 @@ test('a relation with nothing in it names the type and the field (W-042)',()=>{
  assert.equal(relatedListEmpty(relation,entities),'No Task records point at this one through Deal yet.');
 
  // It states what it can and stops. The relation's Add sits beside this sentence rather
- // than inside it (ADR-0004, 2026-09-18 amendment), so the sentence names what is missing
+ // than inside it (ADR-0004), so the sentence names what is missing
  // and the button is the thing that is done about it.
  assert.ok(!/Add/.test(relatedListEmpty(relation,entities)));
 
@@ -160,8 +160,8 @@ test('the form is one element the wiring can find, and offers Delete only on a s
  assert.ok(!recordFormMarkup(null,[],'Add',' ',' ',false).includes('novalidate'));
 });
 
-test('the record page sorts fields by the room they need (W-071)',()=>{
- // Direction A of the record details canvas: long text in the wide main column, every
+test('the record page sorts fields by the room they need',()=>{
+ // Long text in the wide main column, every
  // one-line field in the side panel, the first line of text heading the page. Asserted
  // here because the gate only ever reads one record type's page.
  const text={backId:'close-inspector',backLabel:'Back to Data',headingId:'record-details-heading',heading:'Deal details',submitLabel:'Save changes'};
@@ -174,7 +174,7 @@ test('the record page sorts fields by the room they need (W-071)',()=>{
  assert.match(main,/class="record-sheet-title">(<div class="scalar-field">)?<label>name<input name="name"/);
  assert.match(main,/<textarea name="note"/);
  assert.match(main,/<textarea name="brief"/);
- // Long text is one document (W-242): the heading field and each long field one under
+ // Long text is one document: the heading field and each long field one under
  // another on one sheet, never two to a row, and an empty box says so.
  assert.match(main,/<article class="record-sheet-document"><div class="record-sheet-title">[\s\S]*<\/article>/);
  assert.equal(main.match(/<section class="record-sheet-section">/g)?.length,2);

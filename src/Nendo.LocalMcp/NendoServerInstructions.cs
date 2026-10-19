@@ -3,7 +3,7 @@ namespace Nendo.LocalMcp;
 /// <summary>
 /// What the host tells a client before its first call. A client shows this only up to
 /// its own cut: a widely used client stops at 2,048 characters and says nothing on the wire, so
-/// the sentences past that point are never read. Measured on 2026-09-27, the text was
+/// the sentences past that point are never read. An earlier text measured
 /// 2,755 characters and lost the one that says no SQL, file, process or network access
 /// exists. It is written to fit under <see cref="MaximumCharacters"/> in every variant,
 /// and a test reads every variant back from both handshakes and holds it there.
@@ -20,7 +20,7 @@ internal static class NendoServerInstructions
     // read the same sentence from each and could not say which file it was about to change.
     // How to read comes next, inside the first 150 characters: a client that lists servers
     // cut this text there, and its agent, whose client had tools and no resources/read, read
-    // the file's storage instead because nothing it saw said how else (2026-10-08).
+    // the file's storage instead because nothing it saw said how else.
     internal static string For(AgentAccessMode mode, TimeSpan? leaseTtl, string? fileName = null) =>
         (NendoFileLabel.Short(fileName) is { } name ? $"This is the Nendo file {name}. " : "This is a Nendo file. ") +
         "If your client cannot read MCP resources, read them with the tool nendo.read.resource; start with " +

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The breakdown chart, ADR-0004 2026-09-14 amendment, slice S1. A tile in the sense
+/// The breakdown chart (ADR-0004). A tile in the sense
 /// a summary tile is: accepted where it is accepted, scoped as it is scoped, refusing
 /// the numbers it refuses, and its own only in the grouping field, which must close
 /// the groups and which is not a filter.

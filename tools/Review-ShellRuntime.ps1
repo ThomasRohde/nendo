@@ -99,7 +99,7 @@ public static class NendoWindowIdentity
 }
 '@
 
-# Reading the icon a window carries, from outside it (W-089). The window's own icon is
+# Reading the icon a window carries, from outside it. The window's own icon is
 # what Alt+Tab and the taskbar's thumbnails draw; it is fetched with WM_GETICON and its
 # pixels read back, so what is measured is the picture, not the call that set it.
 Add-Type -Language CSharp -TypeDefinition @'
@@ -276,9 +276,9 @@ try {
     }
     $results['fileStillOpen'] = $true
 
-    # --- Opening the same file again brings this window back (W-089) --------------
-    # Before, the second process could only refuse the file and offer a read-only copy,
-    # while the window that had it stayed hidden. Measured as a person would see it: the
+    # --- Opening the same file again brings this window back ----------------------
+    # The second process hands the file to the window that has it, rather than refusing it
+    # and offering a read-only copy while that window stays hidden. Measured as a person would see it: the
     # hidden window becomes visible, and the second launch ends without one of its own.
     $second = Start-Process -FilePath $Executable -WorkingDirectory (Split-Path $Executable) -PassThru -Environment @{
         NENDO_STARTUP_CREATE = ''
@@ -327,7 +327,7 @@ try {
     }
     $results['windowCarriesTheShellIdentity'] = $laneAppId
 
-    # The file's icon (W-089): the window carries the mark with a badge in the file's tone.
+    # The file's icon: the window carries the mark with a badge in the file's tone.
     # Drawn once the file is open, off the window's thread, so it is waited for.
     $script:badge = 'not read yet'
     Wait-For { $script:badge = [NendoWindowIcon]::BadgeShare($handle); $script:badge -match '^\d+ (\d+)$' -and [int]$Matches[1] -ge 20 } `

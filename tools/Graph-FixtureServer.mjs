@@ -9,7 +9,7 @@ import { writeInfoFile } from './info-file.mjs';
 //  - the broker origin serves Graph-FixtureBroker.html, which frames the view origin and
 //    answers it from fixture data as the Workbench's broker does, and /toolbar-rules.js: the
 //    Workbench's own rules for a view's toolbar and menu (view-toolbar-model.ts), built here,
-//    so the broker refuses a declaration exactly as Nendo would (W-091).
+//    so the broker refuses a declaration exactly as Nendo would.
 // argv[2] is where to write {pid, viewOrigin, brokerUrl}; argv[3] names the package folder,
 // relative to this file, defaulting to the offline dependency graph.
 const here = path.dirname(fileURLToPath(import.meta.url));

@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-216: what the session does for the window's file actions, held through the controller the
+/// What the session does for the window's file actions, held through the controller the
 /// window drives — the open a launch asks for, opening another file while one is open, the
 /// recovery panel's reads, the fold's backup and the recent list.
 /// </summary>
@@ -11,7 +11,7 @@ namespace Nendo.Desktop.Tests;
 public sealed class DesktopSessionFollowTests
 {
     /// <summary>
-    /// DSH-01: a launch's open called the plain open, which refused a synced folder or a known
+    /// A launch's open called the plain open, which refused a synced folder or a known
     /// copy outright, and the window showed one fixed sentence. It now assesses first, and an
     /// assessment that needs the person goes to the questions a picked file meets.
     /// </summary>
@@ -50,8 +50,8 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// R2SMA-08: a launch of a file Nendo opens only read-only — marked read-only here; needing
-    /// recovery or an upgrade alike — ended on the recovery panel with no file open. Since DSH-01 the
+    /// A launch of a file Nendo opens only read-only — marked read-only here; needing
+    /// recovery or an upgrade alike — does not end on the recovery panel with no file open. The
     /// launch assesses first, and a file that can be read but not written goes to the question
     /// offering Inspect read-only, with the inspection's own reason.
     /// </summary>
@@ -79,7 +79,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-06: opening another file closed this one before the new one was assessed, so a Cancel
+    /// Opening another file closed this one before the new one was assessed, so a Cancel
     /// or a refusal left nothing open and the proposals discarded; and the open file chosen again
     /// was closed and reopened.
     /// </summary>
@@ -120,7 +120,7 @@ public sealed class DesktopSessionFollowTests
         Assert.AreNotEqual(opened.FileSessionId, replaced.FileSessionId);
     }
 
-    /// <summary>DSH-06: a copy assessed while its original is open meets the collision, from the open file's own observation.</summary>
+    /// <summary>A copy assessed while its original is open meets the collision, from the open file's own observation.</summary>
     [TestMethod]
     public async Task ACopyAssessedWhileItsOriginalIsOpenIsTheKnownCollision()
     {
@@ -136,7 +136,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-11: the window followed the session only through Workbench responses, so the recovery
+    /// The window followed the session only through Workbench responses, so the recovery
     /// panel's actions left the caption, icon, Jump List and placement naming the last file.
     /// </summary>
     [TestMethod]
@@ -158,7 +158,7 @@ public sealed class DesktopSessionFollowTests
         Assert.AreEqual("desktop-session.nendo", seen[^1]);
     }
 
-    /// <summary>DSH-12: the recovery panel and the native actions read every record to set a few button states.</summary>
+    /// <summary>The recovery panel and the native actions read every record to set a few button states.</summary>
     [TestMethod]
     public async Task TheRecoveryPanelsViewCarriesNoRecords()
     {
@@ -176,7 +176,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-20: the fold's backup beside a file whose synced folder the person accepted was refused
+    /// The fold's backup beside a file whose synced folder the person accepted was refused
     /// as an unacknowledged path, so the fold could never run there.
     /// </summary>
     [TestMethod]
@@ -201,7 +201,7 @@ public sealed class DesktopSessionFollowTests
         Assert.AreEqual("unsupported-sync-location", other.Code);
     }
 
-    /// <summary>DSH-20: a file opened read-only in a synced folder gets no backup grant from the fold.</summary>
+    /// <summary>A file opened read-only in a synced folder gets no backup grant from the fold.</summary>
     [TestMethod]
     public async Task TheFoldsBackupIsNotCoveredForAFileWhoseLocationWasNotAccepted()
     {
@@ -216,7 +216,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-20 with DSH-04, after review: the fold's backup rebound to the session open at the
+    /// The fold's backup rebound to the session open at the
     /// moment, read outside the gate, so a fold running off the UI thread could act on the next
     /// file after a close or a replacement. It now belongs to its own request's session.
     /// </summary>
@@ -253,7 +253,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-21, after review: the list read outside the gate still opened the file open here, which
+    /// The list read outside the gate still opened the file open here, which
     /// during a write reads as unavailable (its journal exists) and holds a lock the commit waits
     /// out. The open file is confirmed from the observation it was opened with.
     /// </summary>
@@ -280,7 +280,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-21: the Workbench's recent list opened every remembered file while holding the request
+    /// The Workbench's recent list opened every remembered file while holding the request
     /// gate, so one on a disconnected share held every read behind it.
     /// </summary>
     [TestMethod]
@@ -314,7 +314,7 @@ public sealed class DesktopSessionFollowTests
     }
 
     /// <summary>
-    /// DSH-22: the handoff check observed the recent file in full only to learn its path, and the
+    /// The handoff check observed the recent file in full only to learn its path, and the
     /// assessment then observed it again. The path comes from the history alone now: here the file
     /// cannot even be opened, and its path is still known.
     /// </summary>

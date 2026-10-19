@@ -2,16 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// Back and forward, everywhere, not only out of a relation (W-046).
+// Back and forward, everywhere, not only out of a relation.
 //
-// W-033 gave a related row one step back to the record it was opened from; everything
-// else a person navigates had no way back at all. What is asserted here is the trail
+// What is asserted here is the trail
 // itself: when a draw counts as a move, what going somewhere new does to the way forward,
 // and what a restore is allowed to record while it runs.
 //
 // The other half — reading a place out of the session and putting one back — reads the
-// shared `state`, which this bundle owns a private copy of, so it belongs to the gate
-// (C-196, C-197), exactly as the related-row journey does.
+// shared `state`, which this bundle owns a private copy of, so it belongs to the gate,
+// exactly as the related-row journey does.
 const { createTrail, placeKey, trailCeiling } = await bundleOf('src/navigation-trail.ts');
 
 const place = (over = {}) => ({
@@ -37,7 +36,7 @@ const place = (over = {}) => ({
   ...over,
 });
 
-test('a file view over the same record type is a place of its own, and so is a second view (UIS-09)', () => {
+test('a file view over the same record type is a place of its own, and so is a second view', () => {
   // A file view keeps the record type and screen of whatever came before, so without the view
   // in the key, board -> Garden -> Codemap collapsed into one entry and Back skipped the board.
   const trail = createTrail();
@@ -225,7 +224,7 @@ test('closing the file closes the way back to it', () => {
   assert.equal(trail.isRestoring(), false, 'a cleared trail is not left holding a restore');
 });
 
-test('a view that moves makes a step, and a view that corrects its place does not (W-127)', () => {
+test('a view that moves makes a step, and a view that corrects its place does not', () => {
   const trail = createTrail();
   trail.record(place({ surfaceId: 'ar.screen.archi' }));
   const at = (value, label = 'View') => place({ surfaceId: 'ar.screen.archi', viewPlaces: [{ view: '["screen","archi",null]', value, label }] });
@@ -240,7 +239,7 @@ test('a view that moves makes a step, and a view that corrects its place does no
 
 const places = await bundleOf('src/view-places.ts');
 
-test('a view keeps its place on the screen it declared it on, and Back puts the old one back (W-127)', () => {
+test('a view keeps its place on the screen it declared it on, and Back puts the old one back', () => {
   const archi = places.viewAnchor({ view: 'use', applicationEntityId: 'ar.model', showOverview: false, surfaceId: 'ar.screen.archi', recordId: null });
   const record = places.viewAnchor({ view: 'use', applicationEntityId: 'ar.concept', showOverview: false, surfaceId: 'ar.concept.list', recordId: 'ar-1' });
   const view = places.viewPlaceKey({ placement: 'screen', viewId: 'archi', recordId: null });
@@ -263,7 +262,7 @@ test('the places kept are bounded, and it is the one used longest ago that goes'
   assert.equal(places.viewPlaceOf(anchorOf(places.viewPlaceCeiling), view)?.value, places.viewPlaceCeiling);
 });
 
-// Review R-002: going to a tab is a transaction. The tab controller's moves (tab-set.ts) are
+// Going to a tab is a transaction. The tab controller's moves (tab-set.ts) are
 // driven here with the real trail; `show` stands for revisitCurrent, which answers false when
 // the destination's record type has gone or its record cannot be read.
 const { switchTab, closeTabAt } = await bundleOf('src/tab-set.ts');
@@ -279,7 +278,7 @@ function twoTabs() {
   return { trail, set, a, a2, b };
 }
 
-test('R-002: a tab whose place is refused leaves the tab on screen selected, with its own trail', async () => {
+test('a tab whose place is refused leaves the tab on screen selected, with its own trail', async () => {
   for (const reason of ['record type retired', 'record read failed']) {
     const { trail, set, a2, b } = twoTabs();
     const before = JSON.stringify(trail.inspect());
@@ -296,7 +295,7 @@ test('R-002: a tab whose place is refused leaves the tab on screen selected, wit
   }
 });
 
-test('R-002: closing the tab on screen when its neighbour is refused closes nothing', async () => {
+test('closing the tab on screen when its neighbour is refused closes nothing', async () => {
   const { trail, set, a2 } = twoTabs();
   assert.equal(await closeTabAt(set, 0, trail, async () => false), false);
   assert.equal(set.tabs.length, 2);
@@ -304,7 +303,7 @@ test('R-002: closing the tab on screen when its neighbour is refused closes noth
   assert.equal(placeKey(trail.current()), placeKey(a2));
 });
 
-test('R-002: a tab that is shown swaps the trails, and closing the old one keeps the right one', async () => {
+test('a tab that is shown swaps the trails, and closing the old one keeps the right one', async () => {
   const { trail, set, a2, b } = twoTabs();
   assert.equal(await switchTab(set, 1, trail, async () => true), true);
   assert.equal(set.active, 1);
@@ -316,12 +315,12 @@ test('R-002: a tab that is shown swaps the trails, and closing the old one keeps
   assert.equal(placeKey(trail.current()), placeKey(b));
 });
 
-// ACP-06 (review of 2026-10-10): + on a launched agent's conversation made a second tab of the
-// same conversation, and closing either ended the agent the other still showed; a conversation
-// tab that went on to Data no longer counted as its owner, so closing it left the agent running.
+// + beside a launched agent's conversation starts from the place before it, so no second tab
+// shows the same conversation, where closing either would end the agent the other still shows;
+// and a conversation tab that goes on to Data still owns it, so closing it ends the agent.
 const { ownerIndex, trailForNewTab } = await bundleOf('src/tab-set.ts');
 
-test('ACP-06: a new tab beside a conversation starts from the place before it', () => {
+test('a new tab beside a conversation starts from the place before it', () => {
   const chat = place({ view: 'agentChat', eyebrow: 'Local collaboration', title: 'Copilot', surfaceId: null });
   const board = place();
   const data = place({ view: 'data', eyebrow: 'Studio', title: 'Data', surfaceId: null });
@@ -333,10 +332,9 @@ test('ACP-06: a new tab beside a conversation starts from the place before it', 
   assert.equal(trailForNewTab({ places: [board, data], cursor: 1 }, oneOfAKind).places[0].view, 'data', 'An ordinary place was not copied as it is.');
 });
 
-// WAU-01 (broad review, 2026-10-13): ownership was read from what a tab's trail held, and a trail
-// does not keep the conversation. Back to the Agent page and then Data, or 50 more moves, dropped
-// it, so closing the conversation's own tab left the agent running. The owner is the tab, by ID.
-test('WAU-01: a trail drops the conversation, so the tab that owns it is known by its ID', () => {
+// A trail does not keep the conversation: Back to the Agent page and then Data, or 50 more moves,
+// drop it. So ownership is not read from what a tab's trail holds; the owner is the tab, by ID.
+test('a trail drops the conversation, so the tab that owns it is known by its ID', () => {
   const agent = place({ view: 'agent', eyebrow: 'Local collaboration', title: 'Agent', surfaceId: null });
   const chat = place({ view: 'agentChat', eyebrow: 'Local collaboration', title: 'Copilot', surfaceId: null });
   const data = place({ view: 'data', eyebrow: 'Studio', title: 'Data', surfaceId: null });

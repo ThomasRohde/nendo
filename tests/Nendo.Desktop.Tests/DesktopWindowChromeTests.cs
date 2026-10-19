@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-216: the window's rules around the Workbench's browser, the taskbar, Windows ending the
+/// The window's rules around the Workbench's browser, the taskbar, Windows ending the
 /// session and the way out, each held without a window, a browser or a taskbar. What Windows
 /// and WebView2 then do with them is the journey's.
 /// </summary>
@@ -11,7 +11,7 @@ namespace Nendo.Desktop.Tests;
 public sealed class DesktopWindowChromeTests
 {
     /// <summary>
-    /// DSH-02: a cancelled or superseded navigation reported a failure, and recovery replaced a
+    /// A cancelled or superseded navigation reported a failure, and recovery replaced a
     /// healthy view. They carry another navigation's ID; the Workbench's own latest navigation
     /// failing, cancelled included, still goes to recovery rather than leaving a blank view.
     /// </summary>
@@ -27,7 +27,7 @@ public sealed class DesktopWindowChromeTests
             "A failure before the Workbench's navigation was seen is still the view's.");
     }
 
-    /// <summary>DSH-03: a response posted to a browser that had gone threw out of the async handler and ended the process.</summary>
+    /// <summary>A response posted to a browser that had gone threw out of the async handler and ended the process.</summary>
     [TestMethod]
     public void APostToABrowserThatHasGoneIsCaught()
     {
@@ -38,7 +38,7 @@ public sealed class DesktopWindowChromeTests
         Assert.IsTrue(posted);
     }
 
-    /// <summary>DSH-05: at standard scales the bar measures the same in page pixels, so a move between screens raised nothing.</summary>
+    /// <summary>At standard scales the bar measures the same in page pixels, so a move between screens raised nothing.</summary>
     [TestMethod]
     public void ANewDisplayScaleIsAChangeEvenWhenTheBarMeasuresTheSame()
     {
@@ -50,7 +50,7 @@ public sealed class DesktopWindowChromeTests
         Assert.IsFalse(DesktopTitleBarRegions.Changed(bar, 1.5, new TitleBarView(48, 0, 144), 1.5));
     }
 
-    /// <summary>DSH-07: a shutdown or sign-out closes no window, so the session was never ended.</summary>
+    /// <summary>A shutdown or sign-out closes no window, so the session was never ended.</summary>
     [TestMethod]
     public void WindowsEndingTheSessionEndsItWithinItsBound()
     {
@@ -76,7 +76,7 @@ public sealed class DesktopWindowChromeTests
         Assert.IsFalse(DesktopSessionEnd.Drain(() => throw new IOException("cleanup"), TimeSpan.FromSeconds(1)));
     }
 
-    /// <summary>DSH-13: a window shown from the tray got its badge back but not its progress.</summary>
+    /// <summary>A window shown from the tray got its badge back but not its progress.</summary>
     [TestMethod]
     public void ANewTaskbarButtonGetsTheProgressOfWorkStillRunning()
     {
@@ -98,7 +98,7 @@ public sealed class DesktopWindowChromeTests
     }
 
     /// <summary>
-    /// R2SP-13. The status bar's pill and the busy bar wait 700 ms before they say an agent is
+    /// The status bar's pill and the busy bar wait 700 ms before they say an agent is
     /// working, because a fast read must not flash an indicator. The taskbar showed every call at
     /// once, so a client reading the file every minute flashed the button's progress each time.
     /// </summary>
@@ -134,7 +134,7 @@ public sealed class DesktopWindowChromeTests
     }
 
     /// <summary>
-    /// R2SP-06, after review. A view failure's line waits for the device-wide lock every window
+    /// A view failure's line waits for the device-wide lock every window
     /// takes, and the failure that reaches every window at once is the one it keeps, so writing it
     /// on the window's thread held the recovery panel back. The line is written off that thread;
     /// only the way out waits for it.
@@ -149,7 +149,7 @@ public sealed class DesktopWindowChromeTests
         Assert.IsGreaterThan(run, record, "The view failure's line is written before it leaves the window's thread.");
     }
 
-    /// <summary>DSH-14: the sizes were handed to Windows as physical pixels, half-size at 200%.</summary>
+    /// <summary>The sizes were handed to Windows as physical pixels, half-size at 200%.</summary>
     [TestMethod]
     public void TheWindowsSizesAreThePagesPixelsAtTheDisplaysScale()
     {
@@ -168,7 +168,7 @@ public sealed class DesktopWindowChromeTests
         Assert.AreEqual(DesktopWindowPolicy.FitTo(workArea), DesktopWindowPolicy.FitTo(workArea, double.NaN));
     }
 
-    /// <summary>DSH-19: a cleanup failure on the way out escaped an async void handler after Exit.</summary>
+    /// <summary>A cleanup failure on the way out escaped an async void handler after Exit.</summary>
     [TestMethod]
     public async Task ACleanupFailureOnTheWayOutIsReturnedNotThrown()
     {
@@ -182,7 +182,7 @@ public sealed class DesktopWindowChromeTests
         Assert.IsNull(await DesktopShellSafety.ShutdownAsync(() => Task.CompletedTask));
     }
 
-    /// <summary>DSH-23: the constructor's icon was unguarded, so a missing icon ended the launch.</summary>
+    /// <summary>The constructor's icon was unguarded, so a missing icon ended the launch.</summary>
     [TestMethod]
     public void AMissingIconLeavesTheWindowWithoutOne()
     {
@@ -195,7 +195,7 @@ public sealed class DesktopWindowChromeTests
     }
 
     /// <summary>
-    /// DSH-15: F5 and Ctrl+R reloaded the Workbench and dropped an open form's typing. WebView2
+    /// F5 and Ctrl+R reloaded the Workbench and dropped an open form's typing. WebView2
     /// handles those keys before the page can stop them, and WinUI's WebView2 has no controller to
     /// filter them one by one, so the setting is what there is to hold: off in a shipped build, on
     /// in a Debug build for F12. Whether a real F5 then reloads is a journey's to measure, and no
@@ -216,29 +216,29 @@ public sealed class DesktopWindowChromeTests
     }
 
     /// <summary>
-    /// The call sites of DSH-03, DSH-19 and DSH-23, which the window owns and no lane drives: each
-    /// goes through the guarded helper the tests above hold.
+    /// The window's own call sites for posting a response, shutting down and setting its icon, which
+    /// no lane drives: each goes through the guarded helper the tests above hold.
     /// </summary>
     [TestMethod]
     public void TheWindowCallsTheGuardedHelpers()
     {
         var deliver = Between(Source("MainPage.xaml.cs"), "void DeliverResponse()", "Owner?.ApplyFileName");
-        StringAssert.Contains(deliver, "DesktopShellSafety.TryPost(", "A response is posted to the browser unguarded (DSH-03).");
-        Assert.DoesNotContain("_webView.CoreWebView2?.PostWebMessageAsJson", deliver, "A response is posted to the browser unguarded (DSH-03).");
+        StringAssert.Contains(deliver, "DesktopShellSafety.TryPost(", "A response is posted to the browser unguarded.");
+        Assert.DoesNotContain("_webView.CoreWebView2?.PostWebMessageAsJson", deliver, "A response is posted to the browser unguarded.");
 
         var window = Source("MainWindow.xaml.cs");
         var closing = Between(window, "private async Task ExitAsync()", "finally");
         StringAssert.Contains(closing, "await DesktopShellSafety.ShutdownAsync(page.ShutdownAsync)",
-            "The close handler awaits the session's shutdown where a failure escapes (DSH-19).");
-        Assert.DoesNotContain("await page.ShutdownAsync()", closing, "The close handler awaits the session's shutdown where a failure escapes (DSH-19).");
+            "The close handler awaits the session's shutdown where a failure escapes.");
+        Assert.DoesNotContain("await page.ShutdownAsync()", closing, "The close handler awaits the session's shutdown where a failure escapes.");
 
         var constructor = Between(window, "internal MainWindow(DesktopStartupRequest? startupRequest)", "_placementFile = startupRequest?.Path;");
-        StringAssert.Contains(constructor, "DesktopShellSafety.TrySetIcon(AppWindow.SetIcon,", "The constructor sets the icon unguarded (DSH-23).");
-        Assert.DoesNotContain("AppWindow.SetIcon(Path", constructor, "The constructor sets the icon unguarded (DSH-23).");
+        StringAssert.Contains(constructor, "DesktopShellSafety.TrySetIcon(AppWindow.SetIcon,", "The constructor sets the icon unguarded.");
+        Assert.DoesNotContain("AppWindow.SetIcon(Path", constructor, "The constructor sets the icon unguarded.");
     }
 
     /// <summary>
-    /// DSH-14, after review: the minimum is physical pixels, which Windows does not rescale when the
+    /// The minimum is physical pixels, which Windows does not rescale when the
     /// window moves to a screen of another scale (microsoft/microsoft-ui-xaml#10452), so a minimum
     /// set on a 200% laptop kept the window from shrinking on a 100% monitor. It is set again for
     /// each new scale.
@@ -257,7 +257,7 @@ public sealed class DesktopWindowChromeTests
     }
 
     /// <summary>
-    /// R2SMA-09: the native recovery panel's outcome InfoBar sat inside a 96-pixel scroll area under
+    /// The native recovery panel's outcome InfoBar sat inside a 96-pixel scroll area under
     /// the reason and the session lines, so a backup's or an export's result opened below its fold.
     /// No lane drives the native panel with an action, so the markup is what there is to hold.
     /// </summary>
@@ -273,7 +273,7 @@ public sealed class DesktopWindowChromeTests
     }
 
     /// <summary>
-    /// R2SMA-14: a native dialog took the page's theme once, as it was made, so a dialog open across
+    /// A native dialog took the page's theme once, as it was made, so a dialog open across
     /// a Windows theme switch under System kept the old one. No lane flips the theme under an open
     /// dialog, so the helper's source is what there is to hold.
     /// </summary>

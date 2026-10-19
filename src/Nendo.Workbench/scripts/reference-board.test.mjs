@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// A board grouped by a reference (ADR-0004, 2026-09-17 amendment, S7): where the columns
+// A board grouped by a reference (ADR-0004): where the columns
 // come from, what the surface's own clauses still remove from them, and the ceiling.
 const { boardViewOf, excludedLanesNote, maximumReferenceBoardColumns, referenceColumnsEmpty, referenceColumnsOverflow } =
   await bundleOf('src/surface-model.ts');
@@ -92,10 +92,9 @@ test('the board says why it will not draw, in a sentence that reads', () => {
   assert.ok(unknown.includes('holds more records than the 24 columns'), unknown);
 });
 
-// The other end of the same range (W-042, F-060). The ceiling case above was written
-// carefully and the zero case was not written at all: the board drew the Ungrouped lane,
-// stated 0, and explained nothing -- while that lane told a person to move a card to a
-// named column, on a board that had none.
+// The other end of the same range. With no columns at all, the board must not draw an
+// Ungrouped lane that states 0 and explains nothing, while telling a person to move a card to
+// a named column, on a board that has none.
 const drawable = (semanticId, displayName, extra = {}) =>
   ({ semanticId, displayName, storageKind: 0, presentation: 'singleLine', required: false, retired: false, options: [], choices: [], ...extra });
 const title = drawable('title', 'Title');
@@ -137,7 +136,7 @@ test('a board that still has columns keeps the instruction it can carry out', ()
   assert.ok(!drawn.includes('excludes every'), drawn);
 });
 
-test('W-217 ESQ-05: a board whose own clause on the grouping field leaves out unset values draws no Ungrouped lane', () => {
+test('a board whose own clause on the grouping field leaves out unset values draws no Ungrouped lane', () => {
   const tile = node('total', 'summaryTile', { aggregate: 'count', scope: 'group', title: 'Count' });
   const notDone = node('b', 'boardSurface', { groupByFieldId: 'stage' }, [node('bind', 'fieldBinding', { fieldId: 'title' }), clause('c1', 'stage', 'ne', 'done'), tile]);
   assert.equal(boardViewOf(notDone, [title, stage]).unsetReachable, false, 'ne Done never matches a record with no stage');
@@ -160,8 +159,7 @@ test('W-217 ESQ-05: a board whose own clause on the grouping field leaves out un
 test('at zero the board says the same kind of thing it says above the ceiling', () => {
   const said = referenceColumnsEmpty('Author', true);
 
-  // The asymmetry F-060 is about: the ceiling sentence names the type, the count and the
-  // bound, and this one named nothing because it did not exist.
+  // The ceiling sentence names the type, the count and the bound, and this one says as much.
   assert.ok(said.includes('Author') && said.includes('no columns'), said);
   assert.ok(said.includes('every record of that type would be one'), said);
   // The action has to be one the board's own screen can carry out. Showing and Add are

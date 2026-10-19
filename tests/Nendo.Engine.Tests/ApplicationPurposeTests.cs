@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// What the file is for, ADR-0004 2026-09-15 amendment. A row in its own protected table at
+/// What the file is for (ADR-0004). A row in its own protected table at
 /// the end of the layout ladder, belonging to the file rather than to a record type or a
 /// node: a file with no front page still has one, clearing removes the row rather than
 /// storing a blank, and a file nobody has told carries nothing at all.

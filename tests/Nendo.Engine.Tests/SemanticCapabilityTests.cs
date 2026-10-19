@@ -3,8 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The central capability calculation, ADR-0004's 2026-09-12 vocabulary-widening
-/// amendment. Contract version 3's tree is preserved across the widening, so the
+/// The central capability calculation (ADR-0004). Contract version 3's tree is preserved across the widening, so the
 /// version number on a root no longer says what a host must understand: what a
 /// stored definition needs is read from its shape. Before this, only setting
 /// definitionVersion raised the recorded minimum, so a second list root or a tile

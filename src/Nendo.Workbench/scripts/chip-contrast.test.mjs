@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// UIS-06: a choice chip's text is its option's colour mixed with the theme's ink, on a tint of the
+// A choice chip's text is its option's colour mixed with the theme's ink, on a tint of the
 // same colour. For the hue derived for an option nobody coloured, 183 of 360 hues fell below
 // 4.5:1 in Light (2.56:1 at a pale yellow). This resolves the chip's own CSS, as the stylesheet
 // and the inline style choiceStyle writes declare it, for every named tone and every derived hue,
@@ -64,8 +64,8 @@ test('every chip, named tone or derived hue, reads at 4.5:1 in both themes', () 
   assert.deepEqual([...new Set(failures)].slice(0, 12), [], `Chips below 4.5:1 (${new Set(failures).size} in all).`);
 });
 
-// UIS-13: a type tile's letters on its tint, on each place it is drawn: the rail, a selected rail
-// row, the active tab and the address field. They were drawn in the tone itself, 2.71:1 at worst.
+// A type tile's letters on its tint, on each place it is drawn: the rail, a selected rail row,
+// the active tab and the address field. Drawn in the tone itself, they reach 2.71:1 at worst.
 test('every type tile reads at 4.5:1 wherever it is drawn, in both themes', () => {
   const native = css('21-native.css');
   const mica = (theme) => { const at = native.indexOf(`:root${theme} { --mica: `); return hex(native.slice(at).match(/--mica: (#[0-9a-fA-F]{6})/)[1]); };

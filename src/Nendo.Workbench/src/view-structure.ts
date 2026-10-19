@@ -30,7 +30,7 @@ export function renderStructure(): void {
   }
   const activated = state.compilation?.isValid === true;
   const recipe = currentRecipe();
-  // A field a calculation reads cannot be retired while it stays; Retire says why instead of offering it (UIT-19).
+  // A field a calculation reads cannot be retired while it stays; Retire says why instead of offering it.
   const retireBlocked = (field: EntitySnapshot['fields'][number]): boolean => !field.retired && calculationsReading(field.fieldId, state.session.entities).length > 0;
   // The same for the record type: its own calculations and any that read it hold it.
   const typeHeld = !entity.retired && calculationsHoldingType(entity.entityId, state.session.entities).length > 0;
@@ -182,7 +182,7 @@ export function renderNumbering(entity: EntitySnapshot, fieldId: string): void {
 
 /**
  * Label by…: show a bound reference's records by another active text field of its target
- * (ADR-0003, 2026-10-14 note, W-232). A reviewed schema.setReferenceLabel; no stored value moves.
+ * (ADR-0003). A reviewed schema.setReferenceLabel; no stored value moves.
  */
 export function renderReferenceLabel(entity: EntitySnapshot, fieldId: string): void {
   const field = entity.fields.find(candidate => candidate.fieldId === fieldId);
@@ -235,7 +235,7 @@ export function renderAddField(entity: EntitySnapshot): void {
     requiredElement<HTMLElement>('#reference-definition').hidden = (event.target as HTMLSelectElement).value !== 'reference';
     const rating = (event.target as HTMLSelectElement).value === 'rating';
     requiredElement<HTMLElement>('#field-scale').hidden = !rating;
-    // An emptied bound is refused where it is typed, not read as 0 (WSP-10).
+    // An emptied bound is refused where it is typed, not read as 0.
     for (const bound of content.querySelectorAll<HTMLInputElement>('#field-scale input')) bound.required = rating;
   });
   const updateReferenceLabels = (): void => {
@@ -327,7 +327,7 @@ export function renderReferenceConversion(entity: EntitySnapshot, fieldId: strin
               throw new Error('The file or definition changed. Return to Structure and review again.');
             const records = forms.map((form, index) => {
               // Only a target chosen, or Clear pressed, in the record's own picker maps it. A search
-              // typed and abandoned fired the form's change and counted as clearing it (WSP-01).
+              // typed and abandoned fired the form's change and counted as clearing it.
               if (form.querySelector<HTMLElement>('[data-reference-field]')?.dataset.chosen !== 'true') throw new Error('Choose a target or explicitly clear every record before previewing.');
               const targetRecordId = String(new FormData(form).get(fieldId) ?? '') || null;
               const expectedTargetRecordVersion = referenceVersions(form, { [fieldId]: targetRecordId })[fieldId] ?? null;
@@ -420,7 +420,7 @@ export async function renderFieldRequirement(entity: EntitySnapshot, fieldId: st
   const fileSessionId = state.session.fileSessionId;
   const expectedDefinitionRevision = state.session.manifest!.definitionRevision;
   // The page the person pressed on. The read can outlast a move to another page, and the form
-  // was then drawn over whatever was there (WSP-22).
+  // was then drawn over whatever was there.
   const place = content.dataset.place;
   const view = state.view;
   const stillHere = (): boolean => state.session.fileSessionId === fileSessionId && content.dataset.place === place && state.view === view

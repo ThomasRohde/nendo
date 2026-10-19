@@ -8,7 +8,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-085. Measured on 2026-09-27: every successful tool call wrote two activity entries, so
+/// Measured on 2026-09-27: every successful tool call wrote two activity entries, so
 /// the twenty the Agent page shows held ten calls; an import's revisions were attributed to
 /// a bare "agent" while every other agent write named its session; and the host cleared
 /// every log provider, so a failure inside it left no trace but a type name.

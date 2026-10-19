@@ -4,7 +4,7 @@ using Nendo.Engine.Storage;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A file's own picture as its icon (ADR-0004, 2026-10-19 amendment, W-001): a square PNG the
+/// A file's own picture as its icon (ADR-0004): a square PNG the
 /// file embeds, named by a row in its own protected table on the rung above media, drawn instead
 /// of the tone and letter, and kept by everything that keeps the file's pictures.
 /// </summary>

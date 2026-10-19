@@ -79,7 +79,7 @@ internal sealed partial class SqliteNendoStore
         var payload = canonical.RootElement.GetProperty("payload");
         var previous = evidence.RootElement.GetProperty("previousPresentation");
         // A field that had no presentation gets none back. Mapped to singleLine, its undo left a
-        // presentation the author never set (ESS-06).
+        // presentation the author never set.
         return new(NendoCanonical.DeterministicId("operation", "studio.p5.compensation", key, 0),
             payload.GetProperty("entityId").GetString()!,
             payload.GetProperty("fieldId").GetString()!,

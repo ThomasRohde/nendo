@@ -304,7 +304,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
     /// <summary>
     /// The typed busy outcome ADR-0011 asks for: the write was rolled back whole, so nothing
     /// changed and the same save can be sent again. It reached adapters as a raw SQLite error,
-    /// which an agent read as a host fault (ESC-06).
+    /// which an agent read as a host fault.
     /// </summary>
     private static NendoPreconditionException FileBusy() => new("file-busy",
         "Another program is using this file, so the change was not saved and nothing changed. Close it, or wait for it to finish, and try again.");
@@ -432,7 +432,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
             {
                 var mutationIndex = results.Count;
                 // A clone validation that refuses asks where, so it can try again without
-                // what was refused (W-010). The filters record and never catch.
+                // what was refused. The filters record and never catch.
                 try
                 {
                     var newEntityIds = mutation.Operations
@@ -871,8 +871,8 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
 
     /// <summary>
     /// An operation ID names one operation in the file's whole history, and the history table
-    /// holds it unique. A reused one used to fail at the insert as a raw SQLite error, which a
-    /// proposal reported as an internal failure rather than naming the operation (ESM-07).
+    /// holds it unique. A reused one is refused here, naming the operation, rather than at the
+    /// insert as a raw SQLite error a proposal would report as an internal failure.
     /// </summary>
     private async Task RequireUnusedOperationIdsAsync(IEnumerable<NendoOperation> operations, SqliteTransaction transaction,
         CancellationToken cancellationToken)
@@ -1161,7 +1161,7 @@ internal sealed partial class SqliteNendoStore : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         // Every full scan this connection runs is counted, whichever path asked for it. The
-        // counter sat in one caller, so an open that scanned twice more reported one (ESC-09).
+        // counter sat in one caller, so an open that scanned twice more reported one.
         if (sql.Contains("integrity_check", StringComparison.Ordinal)) IntegrityCheckCount++;
         await using var command = Command(sql, transaction);
         return await command.ExecuteScalarAsync(cancellationToken);

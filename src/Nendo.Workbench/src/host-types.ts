@@ -27,7 +27,7 @@ export interface ManifestSnapshot {
   // What the file is for, in the author's words, or null when nobody has said. The
   // file's own, not the front page's: a file with no overview still carries one.
   purpose: string | null;
-  /** The look the file chose (W-089): a tone and a letter, either null for its default. Null when it chose none. */
+  /** The look the file chose: a tone and a letter, either null for its default. Null when it chose none. */
   look?: ChosenLook | null;
   /** The application's own name for one new file of it (ADR-0022), such as "Archi model", or null. */
   newFileLabel?: string | null;
@@ -37,7 +37,7 @@ export interface ManifestSnapshot {
 export interface ChosenLook {
   tone: string | null;
   letter: string | null;
-  /** The media: address of the file's own picture, or null when it has none (W-001). */
+  /** The media: address of the file's own picture, or null when it has none. */
   icon?: string | null;
 }
 
@@ -49,7 +49,7 @@ export interface ResolvedLook {
   letterChosen: boolean;
   defaultTone: string | null;
   defaultLetter: string | null;
-  /** The media: address of the file's own picture, drawn instead of the tone and letter (W-001). */
+  /** The media: address of the file's own picture, drawn instead of the tone and letter. */
   icon?: string | null;
 }
 
@@ -92,7 +92,7 @@ export interface EntitySnapshot {
     resultType: string | number;
     resultNullable: boolean;
     expression: string;
-    /** The stable IDs of the fields its formula reads; a field named here cannot be retired while it stays (UIT-19). */
+    /** The stable IDs of the fields its formula reads; a field named here cannot be retired while it stays. */
     readsFieldIds?: string[];
     /** The calculations it reads, by calculation ID. */
     readsCalculationIds?: string[];
@@ -167,7 +167,7 @@ export interface DesktopSessionView {
   hostVersion?: string;
   /** Whether this file's custom views may run here, and the packages it carries. Absent without a file. */
   extensions?: ExtensionRuntimeView | null;
-  /** The file's look as its icon draws it (W-089). Absent without a file, and in recovery. */
+  /** The file's look as its icon draws it. Absent without a file, and in recovery. */
   look?: ResolvedLook | null;
   /** Where this file's pictures are served (ADR-0031): /m/{sha256} and /f/?a={address}. Absent without a file. */
   mediaOrigin?: string | null;
@@ -212,7 +212,7 @@ export interface ExtensionPackageView {
   totalBytes: number;
   /** Changes whenever the package's content does, so a view restarts on accepted code. */
   contentDigest?: string;
-  /** The name of the folder this device runs the package from while it is developed (ADR-0013 Phase 4), or null. */
+  /** The name of the folder this device runs the package from while it is developed (ADR-0013), or null. */
   developmentFolder?: string | null;
 }
 
@@ -302,7 +302,7 @@ export interface AgentTranscriptEntry {
 }
 
 /**
- * One of the agent's own settings for the session (ADR-0030, 2026-10-08): its model, effort, mode
+ * One of the agent's own settings for the session (ADR-0030): its model, effort, mode
  * or anything else it offers, with the values it offers. `category` is the agent's word for it.
  */
 export interface AgentOption {
@@ -327,7 +327,7 @@ export interface AgentCommand {
 /** The conversation tab's read: the agent, its state, and what changed after the revision asked from. */
 export interface LaunchedAgentView {
   exists: boolean;
-  /** Which launch this read is of. A read of another launch is never merged into this one (ACP-07). */
+  /** Which launch this read is of. A read of another launch is never merged into this one. */
   conversationId: string | null;
   agentId: string | null;
   name: string | null;
@@ -343,20 +343,20 @@ export interface LaunchedAgentView {
   more: boolean;
   signInMethods: Array<{ id: string; name: string; description: string | null }>;
   options: AgentOption[];
-  /** The order of the oldest entry the host still keeps: every entry before it is gone (ACP-03). */
+  /** The order of the oldest entry the host still keeps: every entry before it is gone. */
   firstOrder: number;
-  /** A sign-in the person started still runs; another is refused until it ends (DAE-10). */
+  /** A sign-in the person started still runs; another is refused until it ends. */
   signingIn?: boolean;
   /** The agent's slash commands, as it last stated them; absent from an older host. */
   commands?: AgentCommand[];
 }
 
 /**
- * The window's title bar in CSS pixels (W-093): how tall it is, and how much of its width
+ * The window's title bar in CSS pixels: how tall it is, and how much of its width
  * Windows keeps for its own Minimise, Maximise and Close at the left and at the right. Nendo's
  * top bar is the title bar, so it keeps that width free.
  */
-/** A file a view downloaded, saved by the host (F-237): an identifier to show it by, its name and its folder's. */
+/** A file a view downloaded, saved by the host: an identifier to show it by, its name and its folder's. */
 export interface HostDownloadSaved {
   id: string;
   fileName: string;
@@ -394,7 +394,7 @@ export interface AgentProposalSummary {
 
 /**
  * What accepting a proposal means for this device's consent to the file's automatic
- * actions (ADR-0009, 2026-09-29 amendment). Facts only: whether consent is held right
+ * actions (ADR-0009). Facts only: whether consent is held right
  * now comes from the session's behaviourTrust, which a cached preview cannot know.
  */
 export interface ProposalBehaviour {
@@ -515,11 +515,11 @@ export interface AgentStatus {
   usingPreferredPort: boolean;
   settingsPersisted: boolean;
   settingsNotice: string | null;
-  /** This device turns the level on again whenever this file opens (ADR-0009, W-126). */
+  /** This device turns the level on again whenever this file opens (ADR-0009). */
   remembered?: boolean;
 }
 
-/** An automatic action a save did not run, because its trigger's condition could not be worked out (EBH-01). */
+/** An automatic action a save did not run, because its trigger's condition could not be worked out. */
 export interface BlockedCondition {
   triggerId: string;
   displayName: string;
@@ -553,7 +553,7 @@ export interface CompilerDiagnostic {
   semanticId: string | null;
   propertyPath: string | null;
   hint: string;
-  /** The operation a validation refused, when the refusal is about one (W-010). */
+  /** The operation a validation refused, when the refusal is about one. */
   operationId?: string | null;
 }
 
@@ -673,7 +673,7 @@ export interface CompileResult {
   sourceChangeSequence?: number | null;
   applications?: ApplicationPlan[];
   overview?: OverviewPlan | null;
-  /** The file's own views (extensionView, W-106), in authored order: screens beside the front page. */
+  /** The file's own views (extensionView), in authored order: screens beside the front page. */
   views?: SurfaceNodePlan[];
 }
 
@@ -729,7 +729,7 @@ export interface SemanticDiffEntry {
   reversibility: string | number;
 }
 
-/** Part of a package file as a waiting proposal leaves it (proposal.readPackageFile, review R-017). */
+/** Part of a package file as a waiting proposal leaves it (proposal.readPackageFile). */
 export interface ProposalFileWindow {
   proposalId: string;
   reviewedDigest: string;
@@ -745,7 +745,7 @@ export interface ProposalFileWindow {
 
 export interface ProposalPreview {
   previewRecordCounts?: Record<string, number>;
-  /** Who prepared it: workbench, an agent, or extension:‹package› for a custom view (ADR-0013 Phase 3). */
+  /** Who prepared it: workbench, an agent, or extension:‹package› for a custom view (ADR-0013). */
   origin?: string;
   proposalId: string;
   title: string;
@@ -764,7 +764,7 @@ export interface ProposalPreview {
   previewOverview?: OverviewPlan | null;
   /** What the proposal does to each custom-view package file, as lines to read. */
   packageChanges?: ExtensionFileChange[];
-  /** The look the file chose before and would choose after (W-089); both absent when the proposal does not touch it. */
+  /** The look the file chose before and would choose after; both absent when the proposal does not touch it. */
   lookBefore?: ChosenLook | null;
   lookAfter?: ChosenLook | null;
   /** What accepting means for consent to automatic actions; absent when it asks nothing new. */
@@ -855,7 +855,7 @@ export function isHostRoute(value: unknown): value is HostRoute {
 export interface WorkbenchClient {
   readonly mode: WorkbenchMode;
   request<T>(method: string, payload?: Record<string, unknown>): Promise<T>;
-  /** The file session requests go out under now; it moves before the renderer redraws (WXS-01). */
+  /** The file session requests go out under now; it moves before the renderer redraws. */
   currentFileSession?(): string | null;
   /** Listen for a view the host asked to show. Returns a function that stops listening. */
   onNavigate?(listener: (route: HostRoute) => void): () => void;
@@ -869,7 +869,7 @@ export interface WorkbenchClient {
    * worse than a screen that is a second behind.
    */
   onFileChanged?(listener: (changeSequence: number) => void): () => void;
-  /** A package developed from a folder changed there; its views load it again (ADR-0013 Phase 4). */
+  /** A package developed from a folder changed there; its views load it again (ADR-0013). */
   onExtensionDevelopmentChanged?(listener: (packageId: string) => void): () => void;
   /** Device custom-view switches changed, including a change made in another window. */
   onExtensionSettingsChanged?(listener: () => void): () => void;
@@ -883,22 +883,22 @@ export interface WorkbenchClient {
    * gate and the window cannot answer anything else.
    */
   onAgentActivity?(listener: (activity: AgentWork) => void): () => void;
-  /** Listen for the window's title bar changing shape: a new display scale, so new sizes (W-093). */
+  /** Listen for the window's title bar changing shape: a new display scale, so new sizes. */
   onTitleBarChanged?(listener: (bar: WindowTitleBar) => void): () => void;
-  /** A file a view downloaded is saved; WebView2's own downloads panel is never shown (F-237). */
+  /** A file a view downloaded is saved; WebView2's own downloads panel is never shown. */
   onDownloadSaved?(listener: (saved: HostDownloadSaved) => void): () => void;
   /**
    * The agent launched from the Agent page said or asked something (ADR-0030). The host sends
    * the conversation's revision and nothing else; the tab reads what changed after its own.
    */
   onAgentSessionChanged?(listener: (revision: number) => void): () => void;
-  /** Another window of this file set the device's theme (W-277): the preference to draw, not to save again. */
+  /** Another window of this file set the device's theme: the preference to draw, not to save again. */
   onAppearanceChanged?(listener: (preference: string) => void): () => void;
   pendingMutation?(): PendingMutation | null;
-  /** `intoThisFile`: the person said the open file is the one the save was made in, renamed (WCS-03). */
+  /** `intoThisFile`: the person said the open file is the one the save was made in, renamed. */
   retryPendingMutation?(intoThisFile?: boolean): Promise<DesktopOperationView | null>;
   checkPendingMutation?(): Promise<DesktopOperationView | null>;
-  /** Drops a save the host stopped and whose receipt was not found; null when dropped (WCS-22). */
+  /** Drops a save the host stopped and whose receipt was not found; null when dropped. */
   discardPendingMutation?(): Promise<DesktopOperationView | null>;
   /** Stop whatever is still running, and resolve only once it has actually stopped. */
   cancelInFlight?(): Promise<CancelledRequests>;
@@ -957,5 +957,5 @@ export function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/** Which window of the file a page is in, and the trail of the tab a tab window was opened for (W-277). */
+/** Which window of the file a page is in, and the trail of the tab a tab window was opened for. */
 export interface TabWindowStart { role: 'main' | 'tab'; trail: string | null }

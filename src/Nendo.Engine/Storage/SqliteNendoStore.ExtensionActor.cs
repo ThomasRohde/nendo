@@ -4,7 +4,7 @@ namespace Nendo.Engine.Storage;
 
 internal sealed partial class SqliteNendoStore
 {
-    /// <summary>The origin prefix a host gives a write made in a custom view's package's name (ADR-0013 Phase 3).</summary>
+    /// <summary>The origin prefix a host gives a write made in a custom view's package's name (ADR-0013).</summary>
     internal const string ExtensionActorPrefix = "extension:";
 
     /// <summary>
@@ -14,7 +14,7 @@ internal sealed partial class SqliteNendoStore
     /// A host admits a view's write before it reaches this store, and the package can be
     /// removed in between by a writer that host does not serialize with: an agent accepting
     /// its own removal proposal commits through this store's lock and nothing else. Checking
-    /// here, under the same lock and in the same transaction, leaves no such gap (R-014). An
+    /// here, under the same lock and in the same transaction, leaves no such gap. An
     /// exact replay of a write that did commit is answered before this check, so its receipt
     /// still says what happened.
     /// </para>

@@ -1,7 +1,7 @@
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// R2SP-04: a launched agent's tool step and permission card say "Nendo" for a tool that goes
+/// A launched agent's tool step and permission card say "Nendo" for a tool that goes
 /// through this file's MCP server. Every Nendo file's server offers the same tools, so the name
 /// of a server the person registered for another file matched too, and a delete in the Planner
 /// was labelled as this file's own boundary.
@@ -32,7 +32,7 @@ public sealed class AgentToolOriginTests
 
     /// <summary>
     /// What agents send: another server's tool by its metadata name, titled with the bare tool name
-    /// or with its input. The metadata name decides (DAE-08).
+    /// or with its input. The metadata name decides.
     /// </summary>
     [TestMethod]
     [DataRow("mcp__nendo-planner__nendo_data_delete_record", "nendo.data.delete_record")]

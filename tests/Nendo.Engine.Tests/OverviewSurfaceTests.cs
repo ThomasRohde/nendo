@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The overview page, ADR-0004's 2026-09-14 amendment (S4): the first root that
+/// The overview page (ADR-0004): the first root that
 /// belongs to the file rather than to a record type. Every rule here follows from
 /// that one fact — the root has no <c>entityId</c>, so each tile, chart and recent
 /// list under it names the type it reads, and anything that needs a record in hand

@@ -29,10 +29,10 @@ public sealed record NendoCanonicalOperationRequest(
 /// Checks one canonical operation's shape without a file: the same typed
 /// construction a proposal compiles through, run where the operation is sent.
 /// <para>
-/// A payload the compiler would refuse used to be discovered at validate, and a
-/// validate that threw left the draft frozen, so a wrong guess at one payload key
-/// cost the whole change set. Checked here, it costs one refused call that names
-/// the operation — and nothing has entered the draft.
+/// A payload the compiler would refuse is refused here rather than at validate, where a
+/// throw would leave the draft frozen and a wrong guess at one payload key would cost
+/// the whole change set. Here it costs one refused call that names the operation — and
+/// nothing has entered the draft.
 /// </para>
 /// </summary>
 public static class NendoCanonicalOperations
@@ -401,7 +401,7 @@ internal static class CanonicalChangeSetRequestCompiler
     private static int Integer(JsonElement source, string name)
     {
         // TryGetInt32 throws rather than answering false for a string, null or object, which
-        // reached the agent as an internal error instead of this refusal (ESM-09).
+        // reached the agent as an internal error instead of this refusal.
         if (!source.TryGetProperty(name, out var value) || value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var result))
         {
             throw new NendoValidationException($"Canonical operation property {name} requires an integer.");
@@ -526,7 +526,7 @@ internal static class CanonicalChangeSetRequestCompiler
             slug = $"{prefix}_{slug}";
         }
         // A table named sqlite_... is SQLite's own, so such a record type ID gets its kind in front,
-        // and entity.sqlite_log still works (ESC-05).
+        // and entity.sqlite_log still works.
         if (prefix == "entity" && $"{slug}_".StartsWith("sqlite_", StringComparison.Ordinal))
         {
             slug = $"{prefix}_{slug}";

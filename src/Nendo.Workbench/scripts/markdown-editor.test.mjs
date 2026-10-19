@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// The Markdown field's editor (Tiptap, 2026-10-16) stores Markdown that markdown.ts draws. What it
+// The Markdown field's editor (Tiptap) stores Markdown that markdown.ts draws. What it
 // reads and writes back must draw the same, and text must stay the text that was typed.
 const { markdownManager, writtenMarkdown } = await bundleOf('src/markdown-editor-kit.ts', { withPackages: true });
 const { markdownMarkup } = await bundleOf('src/markdown.ts');

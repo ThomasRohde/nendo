@@ -88,8 +88,8 @@ public sealed class WorkbenchLifecycleTests
     [TestMethod]
     public async Task AnOlderRendererReachesNoFileLifecycleAtAll()
     {
-        // Before W-135 a renderer at 2 to 4 was pinned to the first file it saw and kept its
-        // reads, and only the lifecycle methods were fenced off. Now it reaches nothing.
+        // A renderer at an older bridge protocol reaches nothing: neither a file's reads nor its
+        // lifecycle methods.
         await using var workspace = new DesktopTestWorkspace();
         await using var session = new DesktopSessionController(fileHistoryRoot: workspace.FileHistoryRoot);
         var opened = await session.CreateAsync(workspace.FilePath);

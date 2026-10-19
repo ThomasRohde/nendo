@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// A .nendo file dragged onto the window (W-048).
+// A .nendo file dragged onto the window.
 //
 // What is asserted here is the part that decides: how much the page is allowed to
 // promise while a drag is still in the air, and what it does with what actually

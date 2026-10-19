@@ -118,7 +118,7 @@ internal static class DesktopWindowHandoff
 
     /// <summary>
     /// The request as it travels: "show", "show:agent" to go to a view as well, or "show:agent:3"
-    /// for a notification raised in that process's third file session (R2SP-10).
+    /// for a notification raised in that process's third file session.
     /// </summary>
     internal static string Request(string? route, int? generation = null) =>
         route is null ? ShowCommand : generation is { } raisedIn ? $"{ShowCommand}:{route}:{raisedIn}" : $"{ShowCommand}:{route}";

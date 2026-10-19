@@ -40,7 +40,7 @@ internal sealed class DesktopNotificationTrigger
     /// <summary>
     /// The window's file session changed: a file opened, closed or was replaced, including the
     /// same file reopened from the recovery panel. Everything the trigger latched belongs to
-    /// the session that has gone (DSH-08): a loss of write authority or an approval reminder
+    /// the session that has gone: a loss of write authority or an approval reminder
     /// latched for it suppressed the same notice for the next file in this window.
     /// </summary>
     internal void OnFileSession(string? fileSessionId)

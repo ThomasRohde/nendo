@@ -1,4 +1,4 @@
-# Builds the pictures reference file, workspace/Herbarium.nendo (W-274, ADR-0031), through the
+# Builds the pictures reference file, workspace/Herbarium.nendo (ADR-0031), through the
 # Engine's typed operations, and the folder of linked pictures beside it. Refuses to write over a
 # file that exists: move the old one away first. -Measure instead measures a file at the 2 GiB
 # budget (open, backup, size) under artifacts/herbarium/measure; build nothing while it runs.

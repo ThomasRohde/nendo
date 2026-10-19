@@ -86,7 +86,7 @@ public sealed class RecoveryExportTests
     }
 
     /// <summary>
-    /// R2SMA-04: every reference field was left out as "unsupported or over-limit", so the one CSV a
+    /// Every reference field was left out as "unsupported or over-limit", so the one CSV a
     /// read-only or recovery session can make lost which project each task belongs to.
     /// </summary>
     [TestMethod]

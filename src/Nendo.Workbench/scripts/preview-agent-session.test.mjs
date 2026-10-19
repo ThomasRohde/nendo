@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// WAU-16 (broad review, 2026-10-13): the browser preview's scripted agent, which the agent-chat
-// lane drives, let an old turn's timers write into the next conversation and run after Stop, and
-// launched a second agent while one ran, where the Desktop host refuses. The lane could then read
-// states production never reaches. Measured against the real class with a clock of its own.
+// The browser preview's scripted agent, which the agent-chat lane drives, keeps an old turn's
+// timers out of the next conversation, runs nothing after Stop, and refuses a second launch while
+// one runs, as the Desktop host does, so the lane never reads states production cannot reach.
+// Measured against the real class with a clock of its own.
 const timers = [];
 let now = 0;
 globalThis.window = {
@@ -36,7 +36,7 @@ function ready() {
 
 const kinds = (view) => view.entries.map((entry) => entry.kind);
 
-test('WAU-16: an old turn writes nothing into the conversation that New session started', () => {
+test('an old turn writes nothing into the conversation that New session started', () => {
   const session = ready();
   session.handle('agentSession.prompt', { text: 'hello', after: 0 });
   advance(100);
@@ -48,7 +48,7 @@ test('WAU-16: an old turn writes nothing into the conversation that New session 
   assert.deepEqual(kinds(fresh), [], `The new conversation holds the old turn's steps: ${kinds(fresh).join(', ')}.`);
 });
 
-test('WAU-16: a turn stopped by Stop asks nothing afterwards', () => {
+test('a turn stopped by Stop asks nothing afterwards', () => {
   const session = ready();
   session.handle('agentSession.prompt', { text: 'hello', after: 0 });
   advance(100);
@@ -60,7 +60,7 @@ test('WAU-16: a turn stopped by Stop asks nothing afterwards', () => {
   assert.equal(after.working, false);
 });
 
-test('WAU-16: a second launch while an agent runs is refused, as the Desktop host refuses it', () => {
+test('a second launch while an agent runs is refused, as the Desktop host refuses it', () => {
   const session = ready();
   assert.throws(() => session.handle('agentSession.launch', { agentId: 'opencode' }), (error) => error.code === 'agent-already-running',
     'A second agent was launched while one ran.');

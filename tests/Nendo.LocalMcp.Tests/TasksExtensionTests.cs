@@ -6,12 +6,12 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// The Tasks extension (SEP-2663) is not served since 2026-10-08. W-152 ran validate, import
-/// and the integrity scan as tasks for a client that declared it; GitHub Copilot CLI declares
+/// The Tasks extension (SEP-2663) is not served. Run as tasks for a client that declared it,
+/// validate, import and the integrity scan failed: GitHub Copilot CLI declares
 /// it on every request, refuses the CreateTaskResult it is then sent ("expected CallToolResult
 /// from tools/call, got CreateTaskResult"), and never polls, so its agent lost every
-/// validate's diagnostics. Each of the three is now answered within its request, whatever the
-/// client declares, and discover no longer offers the extension.
+/// validate's diagnostics. Each of the three is answered within its request, whatever the
+/// client declares, and discover does not offer the extension.
 /// </summary>
 [TestClass]
 public sealed class TasksExtensionTests

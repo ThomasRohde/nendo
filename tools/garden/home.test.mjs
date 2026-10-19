@@ -37,7 +37,7 @@ test('tags by how many notes carry them, sized one to four', () => {
   assert.deepEqual(view.tags.map(t => [t.name, t.count, t.size]), [['x', 3, 4], ['y', 2, 3], ['z', 1, 1]]);
 });
 
-test('every pinned note and every tag in use comes back, for the page to count and show all (G-014)', () => {
+test('every pinned note and every tag in use comes back, for the page to count and show all', () => {
   const notes = Array.from({ length: PINNED + 1 }, (_, i) => note(`p${i}`, { 'gd.note.title': `Pin ${String.fromCharCode(73 - i)}`, 'gd.note.pinned': true }));
   const view = overview({ notes });
   assert.equal(view.pinned.length, PINNED + 1, 'a ninth pin is a card too');

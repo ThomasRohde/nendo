@@ -7,7 +7,7 @@ namespace Nendo.LocalMcp;
 /// <para>
 /// These lived in plain dictionaries for the life of the lease, and a lease has no expiry by
 /// default, so a long session kept every begin, add, amend, validate, reject and accept it
-/// ever made -- a validate's entry holding its whole preview (F-182). A retry arrives within
+/// ever made -- a validate's entry holding its whole preview. A retry arrives within
 /// moments of the call it repeats; one arriving after 256 later calls of the same kind is
 /// treated as a new call, which is what the contract says.
 /// </para>

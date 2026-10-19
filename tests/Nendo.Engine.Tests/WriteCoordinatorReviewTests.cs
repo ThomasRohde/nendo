@@ -5,14 +5,14 @@ using Nendo.Engine.Storage;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-221: the write coordinator's file lifecycle, its proposals and its read-only sessions, as the
-/// broad review found them. Each test names the finding it holds.
+/// The write coordinator's file lifecycle, its proposals and its read-only sessions: each
+/// test holds one defect.
 /// </summary>
 [TestClass]
 public sealed class WriteCoordinatorReviewTests
 {
     /// <summary>
-    /// ECO-01: a read-only session pinned the file without sharing it for delete, so the writer's
+    /// A read-only session pinned the file without sharing it for delete, so the writer's
     /// restore failed to rename the original after its recovery record was written, and the file
     /// opened in recovery for a replacement that never moved a byte.
     /// </summary>
@@ -41,7 +41,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-02: the commit events came after the compaction and the inspection, so a full disk during
+    /// The commit events came after the compaction and the inspection, so a full disk during
     /// the compaction reported a fold that had removed the history as failed, and nothing heard of it.
     /// </summary>
     [TestMethod]
@@ -72,7 +72,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-03: only the validation's own handler removed a proposal that failed, so a cancel during the
+    /// Only the validation's own handler removed a proposal that failed, so a cancel during the
     /// refusal diagnosis or during the proposal's last write left it registered, with a full copy of
     /// the file in its workspace, under an ID the caller never received.
     /// </summary>
@@ -100,7 +100,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-04: the proposal was written as Applying outside the handler that puts it back, so a cancel
+    /// The proposal was written as Applying outside the handler that puts it back, so a cancel
     /// during that write left it Applying with nothing committed, and every later accept was refused.
     /// </summary>
     [TestMethod]
@@ -123,7 +123,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-05: removing a proposal's workspace threw while another program held one of its files, so
+    /// Removing a proposal's workspace threw while another program held one of its files, so
     /// a reject failed and left the proposal listed, and a restore that had moved nothing became an
     /// interrupted replacement.
     /// </summary>
@@ -162,7 +162,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-06: after a definition write committed, the requirement refresh used the caller's token and
+    /// After a definition write committed, the requirement refresh used the caller's token and
     /// the commit events called their observers unguarded, so a cancel or a faulty observer reported a
     /// committed write as failed and kept the others from hearing of it.
     /// </summary>
@@ -209,7 +209,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-07: a read-only session has no store, so its package files and view state were refused as
+    /// A read-only session has no store, so its package files and view state were refused as
     /// "open for inspection only": Help lost the file's own pages and a package export failed.
     /// </summary>
     [TestMethod]
@@ -242,7 +242,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-08: records a proposal deletes, and those its reference writes point at, were not among the
+    /// Records a proposal deletes, and those its reference writes point at, were not among the
     /// versions the review captured, so an edit to one after the review made the proposal Failed, with
     /// a form's words, instead of Stale.
     /// </summary>
@@ -281,7 +281,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-09: a read-only session took the instance and write leases to restore, and kept them when
+    /// A read-only session took the instance and write leases to restore, and kept them when
     /// the staging failed, so another window could not open the file for editing although nothing was
     /// editing it.
     /// </summary>
@@ -305,7 +305,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-10: an open confirming an earlier observation checked the file's physical facts, but not
+    /// An open confirming an earlier observation checked the file's physical facts, but not
     /// the pending replacement record or the read-only mark a fresh inspection refuses on.
     /// </summary>
     [TestMethod]
@@ -343,8 +343,8 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// R2SMA-10: a restore or an upgrade replaced a file marked read-only with a fresh one without the
-    /// mark. The owner chose (2026-10-13) to refuse and ask for the mark to be cleared first.
+    /// A restore or an upgrade replaced a file marked read-only with a fresh one without the
+    /// mark. The rule is to refuse and ask for the mark to be cleared first.
     /// </summary>
     [TestMethod]
     [DataRow("restore-prepare")]
@@ -390,7 +390,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// R2SMA-11: the file-format versions a file records were worded as Nendo versions, so 'These
+    /// The file-format versions a file records were worded as Nendo versions, so 'These
     /// surfaces need Nendo 1.11.0' told a person on Nendo 0.19.0 to update a Nendo that reads it.
     /// </summary>
     [TestMethod]
@@ -420,7 +420,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// R2SMA-12: a read-only session compares every source with what it inspected at open, so after
+    /// A read-only session compares every source with what it inspected at open, so after
     /// a writer commits every backup fails the same way, and the advice to review a new backup could
     /// never work. It now names Inspect file again.
     /// </summary>
@@ -449,7 +449,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// W-221 review: a read-only restore took the file it reviewed from its pin, which follows the
+    /// A read-only restore took the file it reviewed from its pin, which follows the
     /// file it opened, while the stage and the digest check read the name. Another file with the same
     /// content at the name passed them, and the rename then interrupted the replacement.
     /// </summary>
@@ -479,7 +479,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// ECO-01, W-221 review: a reader's handle without delete sharing — another window's Jump List
+    /// A reader's handle without delete sharing — another window's Jump List
     /// refresh, a digest check, any program — made the rename fail after the recovery record was
     /// written. The exclusive handle is now taken first: a handle let go within a moment is waited
     /// out, and one held longer is refused with nothing changed and the session still open.
@@ -525,7 +525,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// W-221 review: a file moved away or replaced under a read-only session reached the caller as a
+    /// A file moved away or replaced under a read-only session reached the caller as a
     /// raw FileNotFoundException from the read-only-mark check, or a raw SQLite error from a package read.
     /// </summary>
     [TestMethod]
@@ -556,7 +556,7 @@ public sealed class WriteCoordinatorReviewTests
     }
 
     /// <summary>
-    /// W-221 review: every package-file read scanned the whole file for its digest, so Help with N
+    /// Every package-file read scanned the whole file for its digest, so Help with N
     /// pages was N full scans. One scan now serves every read while the file is unchanged.
     /// </summary>
     [TestMethod]

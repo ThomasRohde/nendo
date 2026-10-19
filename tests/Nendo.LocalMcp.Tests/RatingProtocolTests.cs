@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// A rating scale authored from outside, ADR-0004 2026-09-14 amendment, slice S2. The
+/// A rating scale authored from outside (ADR-0004). The
 /// bounds are ordinary payload keys on the field operation, published where an agent
 /// reads the rules, read back on the schema resource, and refused by name off a rating.
 /// </summary>

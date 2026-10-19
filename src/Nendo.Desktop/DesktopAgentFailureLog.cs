@@ -5,7 +5,7 @@ namespace Nendo.Desktop;
 /// <summary>
 /// A capped, device-local record of agent requests that failed inside Nendo, kept under
 /// the same switch and the same bounds as <see cref="DesktopViewFailureLog"/>
-/// (ADR-0002, 2026-09-27 amendment).
+/// (ADR-0002).
 /// <para>
 /// An agent told <c>NENDO_INTERNAL_ERROR</c> could report a type name and nothing else,
 /// and the host kept nothing it could be matched against. Each line here carries the

@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-144: the smaller defects of the 2026-10-04 MCP review, one measuring guard each.
+/// Smaller MCP defects, one measuring guard each.
 /// </summary>
 [TestClass]
 public sealed class SmallDefectSweepTests

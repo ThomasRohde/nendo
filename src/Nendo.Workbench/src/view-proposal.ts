@@ -70,9 +70,9 @@ export async function promoteProposal(): Promise<void> {
     // A proposal that only brings code goes back to where it began: Use, where its view now
     // runs, or Studio's Custom views panel.
     const codeOnly = !state.proposal.previewApplications?.length && (state.proposal.packageChanges?.length ?? 0) > 0;
-    // A view's own proposal goes back to the view, which is still running there (ADR-0013 Phase 3).
+    // A view's own proposal goes back to the view, which is still running there (ADR-0013).
     const fromView = state.proposal.origin?.startsWith('extension:') === true;
-    // A view the Add view form made lands the person on it, or names where it is (W-062).
+    // A view the Add view form made lands the person on it, or names where it is.
     const landing = landAddedView(state.proposal.proposalId);
     const landed = landing?.sentence ?? null;
     state.view = viewAfterAccepting({ returnView: state.proposalReturnView, buildsScreens: (state.proposal.previewApplications?.length ?? 0) > 0,
@@ -108,9 +108,9 @@ export function leaveProposal(): void {
 /**
  * The review's Discard. A proposal Studio prepared stayed in the host after Back, with its copy
  * of the file, where nothing in Studio could reach it, and the trail then called it no longer
- * waiting (UIT-10). Discard rejects it and says so; preparing it again is one press on the page
+ * waiting. Discard rejects it and says so; preparing it again is one press on the page
  * it came from. Only a proposal Studio itself prepared is rejected: a custom view's waits for the
- * view (ADR-0013), and an agent's is rejected only on the Agent page, which asks first (UX-24).
+ * view (ADR-0013), and an agent's is rejected only on the Agent page, which asks first.
  */
 export async function discardProposal(): Promise<void> {
   if (state.proposal === null || state.actionInFlight) return;

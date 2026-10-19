@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { STAGES, STAGE_ORDER } from '../archi-definition.mjs';
 
-// The owner found the On views count missing (W-117, 2026-09-30): a Use list drew a record's
-// first three fields and dropped the rest (F-225). Nendo now draws every bound field, but an
+// The owner found the On views count missing (2026-09-30): a Use list drew a record's
+// first three fields and dropped the rest. Nendo now draws every bound field, but an
 // older host still draws three, so each count is kept among the first three where it can be.
 // The screens are replayed here in stage order, moves included, to name what an older host draws.
 const DRAWN = 3;

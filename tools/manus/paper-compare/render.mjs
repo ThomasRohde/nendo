@@ -1,6 +1,6 @@
 // From a snapshot folder, the paper's export plan (plan.json), its Word exports (paper.docx, as the
 // view writes it, and paper-typeset.docx, set as TeX sets it) and its LaTeX reference (tex/paper.tex). `breaks.json`, when present, names the
-// headings the reference starts a column with (W-293, Compare-ManusPaper.ps1).
+// headings the reference starts a column with (Compare-ManusPaper.ps1).
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Lexer } from '../../../extensions/manuscript/vendor/editor.js';

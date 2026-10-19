@@ -4,7 +4,7 @@ import { escapeAttribute, escapeHtml } from './format';
  * Controls that only read or move between pages, marked `data-reads` so the read-only sweep in
  * main.ts leaves them live. In a read-only or recovery session, or a file waiting for approval of
  * its automatic actions, the record-type pickers and Show retired data were disabled with every
- * edit, although none of them writes the file (R2SMA-07).
+ * edit, although none of them writes the file.
  */
 
 /** The record-type picker on Structure and on Screens. */

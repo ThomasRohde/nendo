@@ -90,9 +90,8 @@ public enum NendoAggregateFunction
 /// The keys one binding shape takes on the wire, and what each one is for.
 /// <para>
 /// One table, three readers: the codec refuses a key that is not in it and names the
-/// ones that are, the vocabulary publishes it, and a test holds the two together. The
-/// published list of required keys used to be written out by hand, and omitted the
-/// key a sum needs — so a client could learn it only by reading this source.
+/// ones that are, the vocabulary publishes it, and a test holds the two together, so the
+/// published list of required keys cannot omit one a client could learn only from this source.
 /// </para>
 /// </summary>
 public sealed record NendoBindingShape(
@@ -530,7 +529,7 @@ public sealed record NendoActionTarget(NendoActionTargetKind Kind, string? Refer
 /// A reference a create step sets on the record it creates: to the record that raised the
 /// event, or to the record one of its references names. A formula has no reference values, so
 /// without this a created record could not point back at what caused it — a project's kickoff
-/// task could not name its project (2026-10-10).
+/// task could not name its project.
 /// </summary>
 public sealed record NendoActionLink(string FieldId, NendoActionTarget Target)
 {
@@ -748,11 +747,11 @@ public abstract record NendoBehaviourDefinition
         new(@"\bAddDays\s*\(", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     /// <summary>
-    /// The host this definition needs (ADR-0008, 2026-10-10): a link, a calculated aggregate
+    /// The host this definition needs (ADR-0008): a link, a calculated aggregate
     /// member or IsEmpty is refused by an older host, which would read the file as damaged.
     /// </summary>
     internal string RequiredHostVersion =>
-        // AddDays (ADR-0008, 2026-10-18) and ToText (2026-10-13) are names an older host's catalogue refuses.
+        // AddDays and ToText (ADR-0008) are names an older host's catalogue refuses.
         Expressions.Any(expression => AddDaysCall.IsMatch(expression)) ? NendoFormat.DatePeriodsMinimumHostVersion :
         Expressions.Any(expression => ToTextCall.IsMatch(expression)) ? NendoFormat.ToTextMinimumHostVersion :
         AllBindings.Any(binding => binding.MemberCalculationId is not null) ||

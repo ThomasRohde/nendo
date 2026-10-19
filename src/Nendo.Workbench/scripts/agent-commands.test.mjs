@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// ACP slash commands (owner, 2026-10-15): the agent advertises its commands, the message box
+// ACP slash commands: the agent advertises its commands, the message box
 // offers them after a / that starts the message, and running one is the message itself.
 const { commandAt, commandChoices, commandHint, commandMenuMarkup, keysLine, maximumCommandChoices } = await bundleOf('src/agent-command-model.ts');
 const { emptyChat, mergeChat } = await bundleOf('src/agent-chat-model.ts');

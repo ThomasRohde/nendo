@@ -423,7 +423,7 @@ public sealed class SearchIndexTests
     }
 
     /// <summary>
-    /// PERF-09: a last word of one letter is searched as that word, not as a prefix. Studio's box and
+    /// A last word of one letter is searched as that word, not as a prefix. Studio's box and
     /// Ctrl K wait for two letters of text, but "big a" still made 'a' a prefix, which walks most of
     /// the index; the FTS5 table keeps prefixes of two and three only. A single letter of a script
     /// written without spaces is a whole word too, and two letters are a prefix again.

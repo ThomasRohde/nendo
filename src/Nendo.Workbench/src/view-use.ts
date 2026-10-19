@@ -51,7 +51,7 @@ export async function selectSurface(surfaceId: string): Promise<void> {
   const node = surfaceById(plan, surfaceId);
   if (node === null) return;
   // Before the selection moves: the record beside the surface is left and the page
-  // redrawn, which is the record's unsaved typing gone without a word (W-049).
+  // redrawn, which is the record's unsaved typing gone without a word.
   if (refuseWhileDirty('choosing another screen')) return;
   selectedSurfaces.set(entityId, surfaceId);
   leaveRecordContext();
@@ -112,7 +112,7 @@ function relatedCreateFields(target: ApplicationPlan, viaFieldId: string): Field
 }
 
 /**
- * The form for a record being added from a related list (ADR-0004, 2026-09-18 amendment).
+ * The form for a record being added from a related list (ADR-0004).
  *
  * It is the related type's own record page rendered as a create form, in the pane the
  * record page was in, so every rule that page already carries — its sections, its tabs, its
@@ -140,7 +140,7 @@ function relatedCreateInspector(created: CreateRelated, target: ApplicationPlan)
 export function renderUse(): void {
   // The front page is not one of a record type's surfaces, so it is chosen here
   // rather than in the surface picker. A file without one never reaches this.
-  // One of the file's own views comes first while it is chosen (W-106).
+  // One of the file's own views comes first while it is chosen.
   const fileView = fileViewById(state.fileView);
   if (fileView !== null) { renderFileView(fileView); return; }
   const overview = overviewPlan();
@@ -164,7 +164,7 @@ export function renderUse(): void {
   const surface = selectedSurfaceNode(plan);
   const board = selectedBoard(plan);
   const entityName = plan.entity.displayName;
-  // Where you are is chosen in the breadcrumb (W-092): its record type and its view are the two
+  // Where you are is chosen in the breadcrumb: its record type and its view are the two
   // pickers. The row below keeps what acts on the screen, and a custom view's controls join it.
   const pickers = drawPlacePickers(`<span class="place-root">Use</span><span class="place-dot" aria-hidden="true">·</span><label class="place-entity"><span class="visually-hidden">${showingLabel()}</span><select id="use-entity">${showingOptionsMarkup({ overview: false, fileView: null, entityId: plan.entity.semanticId })}</select><span class="place-chevron" aria-hidden="true">${icon('chevron')}</span></label><span class="place-sep" aria-hidden="true">/</span>${surfaceSelectorMarkup(plan)}`);
   const back = `${drillPillMarkup(plan)}${quickFilterPill(surface)}${state.returnTo === null ? '' : `<button id="related-back" class="text-button related-back" type="button"><span aria-hidden="true">←</span> Back to ${escapeHtml(state.returnTo.label)}</button>`}`;
@@ -240,7 +240,7 @@ export function renderUse(): void {
   // including a related record half filled in and the way back to somewhere else — so
   // not while that context is holding unsaved typing.
   requiredElement<HTMLButtonElement>('#new-record').addEventListener('click', () => {
-    // A custom view on this screen may take Add for its own way of adding (W-090): the
+    // A custom view on this screen may take Add for its own way of adding: the
     // Capability Atlas adds under the card that is selected. Then Add is its command, and the
     // record context beside it is left as it is.
     const viewAdd = viewAddCommand();
@@ -249,7 +249,7 @@ export function renderUse(): void {
     leaveRecordContext(); state.creatingRecord = true; rerender();
   });
   for (const card of content.querySelectorAll<HTMLButtonElement>('[data-record-id]')) {
-    // The open record is marked in the list, board or gallery beside its inspector (UIS-11).
+    // The open record is marked in the list, board or gallery beside its inspector.
     const current = state.selectedRecordId !== null && card.dataset.recordId === state.selectedRecordId && card.closest('.record-inspector') === null;
     card.classList.toggle('is-current', current);
     if (current) card.setAttribute('aria-current', 'true'); else card.removeAttribute('aria-current');
@@ -263,7 +263,7 @@ export function renderUse(): void {
       state.returnTo = null;
       rerender();
       // The record opens beside the list: its inspector takes focus, or a keyboard user reaches
-      // it only by tabbing through the rest of the list (UIK-04).
+      // it only by tabbing through the rest of the list.
       focusWithoutInteraction(content.querySelector<HTMLElement>('#inspector-heading'));
     });
   }
@@ -279,7 +279,7 @@ export function renderUse(): void {
   // page and on their unsaved typing, for the reason draft-guard.ts gives.
   // A reference board's columns are chased for themselves. They were read only as a step of
   // a pending tile, so a board with no tiles of its own said "Reading the ... records this
-  // board's columns come from" for good (the planner's By initiative, 2026-10-15).
+  // board's columns come from" for good (the planner's By initiative).
   if (boardColumnsPending(plan) || visibleTiles(plan).some(tilePending) || visibleCharts(plan).some(chartPending) || matrixPending(plan))
     surfaceChase.run(() => refreshVisibleTiles(plan), rerender, error => showError(messageFor(error)), holdingThePage);
   if (selected !== null && relatedWindowsPending(plan, selected.semanticId)) {
@@ -461,7 +461,7 @@ function retryAfterSave(key: string, surfaceId: string, read: () => void): void 
 export function wireCalendar(plan: ApplicationPlan, node: SurfaceNodePlan): void {
   const surfaceId = node.semanticId;
   const reload = (): void => {
-    // A save beside the calendar emptied its pages; it reads again once the save is done (WDV-14).
+    // A save beside the calendar emptied its pages; it reads again once the save is done.
     if (state.actionInFlight) { retryAfterSave(calendarKeyFor(node), surfaceId, reload); return; }
     if (refuseWhileDirty('reading the calendar again')) return;
     state.actionInFlight = true;

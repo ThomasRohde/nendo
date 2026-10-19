@@ -10,7 +10,7 @@ namespace Nendo.Engine.Tests;
 [TestClass]
 public sealed class BehaviourFunctionCallTests
 {
-    // R-004. The analyzer types an alias that shares a built-in's name as the
+    // The analyzer types an alias that shares a built-in's name as the
     // author's function; the evaluator must then run that function, not the built-in.
     [TestMethod]
     public void AnAliasNamedLikeABuiltInRunsTheAuthorsFunctionWithTheSameSignature()
@@ -84,7 +84,7 @@ public sealed class BehaviourFunctionCallTests
             "The action stored the built-in's answer (5) rather than the aliased function's.");
     }
 
-    // R-011. A parameter declared nullable takes an empty argument as a typed empty.
+    // A parameter declared nullable takes an empty argument as a typed empty.
     [TestMethod]
     public void ANullableParameterTakesAnEmptyArgumentTheFunctionNeverReads()
     {
@@ -177,7 +177,7 @@ public sealed class BehaviourFunctionCallTests
         adapter.Validate(new BehaviourFormula("caller", source, parameters,
             calls.ToDictionary(call => call.Alias, call => call.Target, StringComparer.Ordinal), resultNullable), Budget());
 
-    // R2AAV-01. A function's declared result is its published signature, so installing a formula
+    // A function's declared result is its published signature, so installing a formula
     // of another kind is refused naming the function, and so is a definition that calls one,
     // rather than typing its callers by the formula and blaming a calculation that trusted it.
     [TestMethod]
@@ -197,7 +197,7 @@ public sealed class BehaviourFunctionCallTests
         StringAssert.Contains(refused.Message, "Function 'fn.label' declares integer but its formula produces text.");
     }
 
-    // R2AAV-01. A file a host wrote before installation checked declarations keeps working: the
+    // A file a host wrote before installation checked declarations keeps working: the
     // check runs where a definition is installed, never on the open and save every file compiles.
     // A stored function whose formula is not its declared kind is read by its formula, as it was,
     // and its callers and every other calculation still compute; only a new caller is refused.
@@ -221,7 +221,7 @@ public sealed class BehaviourFunctionCallTests
         StringAssert.Contains(refused.Message, "'calc.thrice' calls 'fn.twice', which declares text but whose formula produces integer.");
     }
 
-    // R2AAV-01, as the independent review reproduced it: a function declared decimal over a
+    // A function declared decimal over a
     // whole-number formula, called by a calculation declared integer. Reading every caller as the
     // declaration made that calculation a decimal one, so after a reopen every calculation
     // vanished and every data write failed with "'calc.twice' declares integer but its formula
@@ -241,7 +241,7 @@ public sealed class BehaviourFunctionCallTests
         Assert.AreEqual(6L, Calculated(item, "next"));
     }
 
-    // R2AAV-01. A whole-number body under a decimal declaration loses nothing, and its callers
+    // A whole-number body under a decimal declaration loses nothing, and its callers
     // compute in decimal as the signature says, so a total past Int64 is answered, not an overflow.
     [TestMethod]
     public void AWholeNumberBodyDeclaredDecimalIsCalledAsADecimal()
@@ -261,7 +261,7 @@ public sealed class BehaviourFunctionCallTests
         Assert.AreEqual(18446744073709551614m, result.AsDecimal());
     }
 
-    // R2AAV-01. A caller declared integer reads the whole number the formula produces, as every
+    // A caller declared integer reads the whole number the formula produces, as every
     // caller did before declarations were checked, so a file holding one keeps compiling.
     [TestMethod]
     public void AnIntegerCallerReadsTheWholeNumberADecimalDeclaredFunctionProduces()

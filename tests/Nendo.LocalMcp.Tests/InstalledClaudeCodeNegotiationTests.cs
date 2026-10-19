@@ -59,7 +59,7 @@ internal static class InstalledClients
 }
 
 /// <summary>
-/// The lane the 2026-09-13 blackbox review ran by hand: Claude Code registered against the live endpoint
+/// Claude Code registered against the live endpoint
 /// with nothing but its URL. Opt in with NENDO_RUN_INSTALLED_CLAUDE_TEST=1; it needs an installed,
 /// signed-in Claude Code.
 /// </summary>
@@ -73,7 +73,7 @@ public sealed class InstalledClaudeCodeNegotiationTests
     {
         if (Environment.GetEnvironmentVariable("NENDO_RUN_INSTALLED_CLAUDE_TEST") != "1")
         {
-            // W-158: a lane that did not run says so, rather than reporting a pass it did not earn.
+            // A lane that did not run says so, rather than reporting a pass it did not earn.
             Assert.Inconclusive("The installed-client lane runs with NENDO_RUN_INSTALLED_CLAUDE_TEST=1; this run did not exercise it.");
         }
 

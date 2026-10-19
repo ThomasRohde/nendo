@@ -8,7 +8,7 @@ type GridField = EntitySnapshot['fields'][number];
 /**
  * Whether a field is edited as a date: by its presentation or by what it stores, as the record
  * form decides (record-markup.ts). A Date field may have no presentation at all, and the grid
- * gave it free text that refused anything but yyyy-MM-dd (W-217).
+ * gave it free text that refused anything but yyyy-MM-dd.
  */
 export function isDateField(field: GridField): boolean {
   return field.presentation === 'date' || storageLabel(field.storageKind) === 'Date';
@@ -32,7 +32,7 @@ export function defaultColumnWidth(field: GridField): number {
 }
 
 /**
- * Studio's grid select editors, kept from rewriting what they did not change (WDV-02).
+ * Studio's grid select editors, kept from rewriting what they did not change.
  *
  * AG Grid's select editor sets itself to the first value it is offered when the cell's value is
  * not among them, and leaving the editor commits that. A retired choice, or a rating outside its

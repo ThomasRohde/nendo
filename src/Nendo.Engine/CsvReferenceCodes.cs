@@ -2,7 +2,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// A reference column that names its targets by a unique field of the target record type
-/// rather than by record ID (W-075, ADR-0020 2026-09-29 amendment).
+/// rather than by record ID (ADR-0020).
 /// <para>
 /// A spreadsheet names a parent by its code, "1.2", and a record ID is something only the
 /// file knows. So a mapping may say which unique field of the target its cells hold, and
@@ -22,7 +22,7 @@ public static class NendoCsvReferenceCodes
     /// <para>
     /// A cell is read as the decode will read it under <paramref name="options"/>: a row whose
     /// code is empty or null has no code, so no row names it as a parent, and a row whose parent
-    /// is empty or null is at the top level (ESQ-01). Without options, External CSV is assumed,
+    /// is empty or null is at the top level. Without options, External CSV is assumed,
     /// where an empty cell names nothing.
     /// </para>
     /// </summary>
@@ -117,7 +117,7 @@ internal sealed class CsvCodeResolver
     private readonly string _targetName;
     private readonly string _matchName;
     // Keyed without regard to case, each with every holder: SQLite's NOCASE folds only A to Z, so
-    // "Ærø" and "ærø" can both be held, and a code is matched in its exact case first (W-214).
+    // "Ærø" and "ærø" can both be held, and a code is matched in its exact case first.
     private readonly IReadOnlyDictionary<string, List<(string Text, string RecordId, long Version)>> _existing;
     private readonly IReadOnlyDictionary<string, List<(string Text, int Row)>> _rows;
 
@@ -184,7 +184,7 @@ internal sealed class CsvCodeResolver
         {
             for (var index = 0; index < document.Rows.Count; index++)
             {
-                // Keyed by the code the decode reads, which Resolve is given (ESQ-01).
+                // Keyed by the code the decode reads, which Resolve is given.
                 if (NendoCsvReferenceCodes.CodeOf(document.Rows[index][own.Column], options) is not { } text) continue;
                 if (!rows.TryGetValue(text, out var at)) rows[text] = at = [];
                 at.Add((text, index));

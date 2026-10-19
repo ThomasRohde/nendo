@@ -157,7 +157,7 @@ internal sealed partial class SqliteNendoStore
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
         // Like every read of the active file, it fixes a snapshot and checks the change token first,
-        // so an outside commit taints the session rather than being shown as Nendo's (ESC-08).
+        // so an outside commit taints the session rather than being shown as Nendo's.
         _ = await ReadAuthoritySnapshotAsync(transaction, ct);
         var (plan, reason) = await PlanHistoryFoldAsync(policy, transaction, ct);
         var rows = plan?.OperationRows ?? Convert.ToInt64(await ScalarAsync("SELECT COUNT(*) FROM __nendo_operation;", transaction, ct), CultureInfo.InvariantCulture);
@@ -221,7 +221,7 @@ internal sealed partial class SqliteNendoStore
                 // A protected table the fold created goes with the rollback; the flag that
                 // remembers it does not, and a later read then asked for a table that is not there.
                 ForgetBehaviourTableCache();
-                // The fold runs on the open file, which another program can hold too (ESC-06).
+                // The fold runs on the open file, which another program can hold too.
                 if (IsBusy(exception)) throw FileBusy();
             }
             throw;
@@ -261,7 +261,7 @@ internal sealed partial class SqliteNendoStore
 
         await EnsureHistoryFoldLayoutAsync(transaction, ct);
         // Each deleted revision cascades into its idempotency row, a scan of that whole table
-        // per revision without the index (PERF-01), so the indexes come first.
+        // per revision without the index, so the indexes come first.
         await EnsureRevisionIndexesAsync(transaction, ct);
         await using (var delete = Command("DELETE FROM __nendo_revision WHERE change_sequence > 0 AND change_sequence <= $last;", transaction))
         {

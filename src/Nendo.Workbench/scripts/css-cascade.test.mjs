@@ -3,13 +3,13 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { pageSources, sliceNames, sliceText, stylesheetIndex, stylesheetRules } from './css-slices.mjs';
 
-// The stylesheet's slices read as one cascade, and the broad review of 2026-10-10 found it saying
-// things the page never does (W-215). These hold the slices to what the page emits and draws.
+// The stylesheet's slices read as one cascade, and a cascade can say things the page never does.
+// These hold the slices to what the page emits and draws.
 const rules = stylesheetRules();
 const sources = pageSources();
 const repository = new URL('../../../', import.meta.url);
 
-// CSS-16. Rules for classes no source emits, kept because nothing said so.
+// Rules for classes no source emits linger unless something says so.
 test('every class a stylesheet styles is one the page can emit', () => {
   const classes = new Set(rules.flatMap((rule) => rule.selectors.flatMap((selector) => [...selector.matchAll(/\.([a-zA-Z_][\w-]*)/g)].map((match) => match[1]))));
   const named = (name) => new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(sources);
@@ -27,7 +27,7 @@ test('every class a stylesheet styles is one the page can emit', () => {
   assert.deepEqual(unemitted, [], 'The stylesheet styles classes that no .ts source or index.html emits, so those rules are dead');
 });
 
-// CSS-16. Narrow-window rules a later rule with the same selector always beat: a maintainer edits
+// Narrow-window rules a later rule with the same selector always beat: a maintainer edits
 // them and nothing changes on screen, which is how the compact-rail and recovery defects survived.
 const longhands = {
   padding: /^padding-/, margin: /^margin-/, border: /^border-(?!radius|collapse|spacing)/, overflow: /^overflow-[xy]$/,
@@ -51,7 +51,7 @@ test('no declaration under a media or container query is always beaten by a late
   assert.deepEqual(shadowed, [], 'A conditional declaration can never win, because a later unconditional rule sets the same property for the same selector');
 });
 
-// CSS-17. The Mica radius scale and the stylesheet's own colour tokens, not literals.
+// The Mica radius scale and the stylesheet's own colour tokens, not literals.
 const onRoot = (rule) => rule.selectors.every((selector) => /^:root(\[[^\]]+\])?$/.test(selector));
 
 test('every corner radius is a token or one of the small fixed marks', () => {
@@ -78,7 +78,7 @@ test('no rule writes a colour itself; colours are tokens declared on :root', () 
   assert.deepEqual(literals, [], 'A rule writes a colour literal instead of a token, so it cannot follow the theme');
 });
 
-// CSS-18. Text below 0.75rem only where mica-direction.md says so. The doc's list, by selector:
+// Text below 0.75rem only where mica-direction.md says so. The doc's list, by selector:
 // key caps, the Activity card's count, a type tile's letters, the Agent page's launch command and
 // its renamed note, and the conversation's tags, context line, option names, @ menu and the line
 // under the box.
@@ -107,7 +107,7 @@ test('text below 0.75rem is only the small labels mica-direction.md lists', () =
   }
 });
 
-// CSS-18. The slices' comments say where they load and what the page allows; a contributor who
+// The slices' comments say where they load and what the page allows; a contributor who
 // trusted '15 loads last' put a narrow-window rule where 21-native.css silently beat it.
 test('each slice names its own place in the load order, and only the last claims to load last', () => {
   const wrong = [];

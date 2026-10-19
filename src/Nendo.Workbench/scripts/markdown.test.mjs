@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-173: a text field presented as Markdown reads formatted on a record page, and stored text
+// A text field presented as Markdown reads formatted on a record page, and stored text
 // never becomes markup: every character is escaped before a tag is added.
 const { markdownMarkup } = await bundleOf('src/markdown.ts');
 const { fieldControlMarkup, recordSheetMarkup } = await bundleOf('src/record-markup.ts');

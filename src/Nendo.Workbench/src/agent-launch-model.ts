@@ -5,7 +5,7 @@ import { icon } from './icons';
 /**
  * A Copy that just ran on the Agent page: whether the text reached the clipboard, and the text.
  * It is drawn where the person clicked, on the button and in a line under it, rather than only
- * announced: the owner could not tell that anything had been copied (2026-10-08).
+ * announced, which leaves a sighted person unable to tell that anything was copied.
  */
 export interface CopyFeedback { ok: boolean; text: string }
 
@@ -34,7 +34,7 @@ export function launchCopyText(agent: LaunchableAgent): string | null {
 /** The ID the person's own command is hidden by, as the host keeps it. */
 export const customAgentId = 'custom';
 
-/** The Agent page's tabs (W-199, the owner's design A of 2026-10-09). */
+/** The Agent page's tabs. */
 export type AgentTab = 'activity' | 'launch' | 'connect';
 
 export const agentTabs: ReadonlyArray<{ id: AgentTab; label: string; icon: 'activity' | 'rocket' | 'plug'; purpose: string }> = [
@@ -47,7 +47,7 @@ export const agentTabs: ReadonlyArray<{ id: AgentTab; label: string; icon: 'acti
 export interface AgentTabFacts { pending: number; running: string | null; installed: number | null; endpoint: string | null }
 
 /**
- * The tabs as three cards, the owner's design C (2026-10-10): the strip of three words was hard
+ * The tabs as three cards, since a strip of three words was hard
  * to find. Each card has an icon, says in a line what it is for, and says what is behind it now,
  * so a person need not open one to know: what waits, which agent runs, and where agents connect.
  */
@@ -88,7 +88,7 @@ export interface LaunchTilesView {
 }
 
 /**
- * Launch as tiles (ADR-0030, W-199): the running agent first, then the installed ones, the
+ * Launch as tiles (ADR-0030): the running agent first, then the installed ones, the
  * person's own command, and the ones not installed. Each can be hidden on this computer, where
  * the person does not use it ("at work we only have Copilot"); a hidden one comes back from the
  * line under the tiles. The running agent is never hidden from view while it runs.

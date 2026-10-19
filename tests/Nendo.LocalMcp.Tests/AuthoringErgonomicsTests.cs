@@ -7,8 +7,8 @@ namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
 /// What an unattended agent spends to build an application, and what it is told
-/// when a write cannot land. Each case here was a finding in the 2026-09-11
-/// blackbox review, measured by building a complete CRM through MCP alone.
+/// when a write cannot land. Each case here was found by building a
+/// complete CRM through MCP alone.
 /// </summary>
 [TestClass]
 [DoNotParallelize]
@@ -138,7 +138,7 @@ public sealed class AuthoringErgonomicsTests
         // tool names could not tell the product had calculations, and the transport
         // paragraph stood first, addressed to someone building an HTTP client. It is gone
         // now: it pushed the sentences an agent needs past a client's 2,048-character cut,
-        // and server/discover and the MCP contract already carry it (W-082).
+        // and server/discover and the MCP contract already carry it.
         var instructions = client.ServerInstructions ?? string.Empty;
         StringAssert.StartsWith(instructions, "This is the Nendo file fixture.nendo. If your client");
         StringAssert.Contains(instructions, "calculated fields");
@@ -190,7 +190,7 @@ public sealed class AuthoringErgonomicsTests
     /// knows the real cause and now says it.
     /// </summary>
     /// <summary>
-    /// F-058: the summary listed every surface by kind and title, which is not enough to
+    /// The summary listed every surface by kind and title, which is not enough to
     /// judge one. It did not say that the matrix was nine rows by five columns, or that
     /// the board it listed grouped by a record type holding no records — which was true,
     /// and accepting it produced a board that drew nothing.
@@ -224,7 +224,7 @@ public sealed class AuthoringErgonomicsTests
         await AddAsync("Bind the CRM references", CrmAuthoringFixture.ReferenceOperations());
         await AddAsync("Shape the CRM surfaces", CrmAuthoringFixture.SurfaceOperations());
         await AddAsync("Add two screens whose size matters", CrmAuthoringFixture.ShapeProbeSurfaceOperations());
-        // MAA-06: the grid's own clause leaves out one stage, so it draws three rows, as the
+        // The grid's own clause leaves out one stage, so it draws three rows, as the
         // renderer's reachable lanes do; the shape counted every option.
         await AddAsync("Leave won deals off the grid",
         [
@@ -309,7 +309,7 @@ public sealed class AuthoringErgonomicsTests
         StringAssert.Contains(refused, validated.ProposalId);
         StringAssert.Contains(refused, "accept");
         // The remedy is the one this level offers: at Unattended the agent accepts its own
-        // proposal, and below it only the person can (W-083).
+        // proposal, and below it only the person can.
         if (mode >= AgentAccessMode.Unattended)
         {
             StringAssert.Contains(refused, "nendo.change_set.accept applies it");
@@ -402,8 +402,8 @@ public sealed class AuthoringErgonomicsTests
 
     /// <summary>
     /// The board's size sentence embeds the record type's name as the person chose it,
-    /// and "one column per Initiatives, 6 of them" is what the owner read (W-044, C-079).
-    /// The sentence says "per {name} record" now, which reads the same for Account and
+    /// and "one column per Initiatives, 6 of them" reads wrongly.
+    /// The sentence says "per {name} record", which reads the same for Account and
     /// for Initiatives. Asserted here over a plural name with records behind it, in the
     /// size sentence and in the diff line; the singular, empty case is asserted above.
     /// </summary>
@@ -534,13 +534,13 @@ public sealed class AuthoringErgonomicsTests
     /// </summary>
     /// <remarks>
     /// The examples resource claimed a Reference field "cannot be bound in the mutation
-    /// that creates it", and the operation contract said nothing at all, so F-061 was
-    /// opened on the premise that an author reading the operations would be refused by a
+    /// that creates it", and the operation contract said nothing at all, which suggested
+    /// that an author reading the operations would be refused by a
     /// rule published only in an example. Measured, neither was true: binding in the same
     /// mutation validates, promotes and leaves the reference bound. The rule was a
     /// documentation artefact, over-generalised from schema.createEntity -- a record type
     /// exists physically from the end of its mutation, while binding is metadata and does
-    /// not wait. F-069 records it.
+    /// not wait.
     /// <para>
     /// So this asserts the published text against the boundary in both arrangements. The
     /// one-mutation form is the one that matters: it is what an author writes naturally,
@@ -566,9 +566,9 @@ public sealed class AuthoringErgonomicsTests
         var addField = vocabulary.Operations.Single(operation => operation.OperationType == "schema.addField");
         var configure = vocabulary.Operations.Single(operation => operation.OperationType == "schema.configureReference");
         StringAssert.Contains(addField.Summary, "same mutation",
-            "schema.addField is where an author decides how to make a reference field, so it has to say how binding works. Saying nothing is what opened F-061.");
+            "schema.addField is where an author decides how to make a reference field, so it has to say how binding works.");
         StringAssert.Contains(configure.Summary, "same mutation",
-            "The operation that does the binding has to say when it can run, and say something true: the examples resource published the opposite for months (F-069).");
+            "The operation that does the binding has to say when it can run, and say something true: the examples resource once published the opposite.");
         Assert.DoesNotContain("cannot be bound in the mutation", configure.Summary,
             "The constraint this once claimed is not enforced. Publishing it sends an author splitting a change set for no reason.");
 

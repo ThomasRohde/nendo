@@ -6,9 +6,9 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// What an agent needs in a client that calls tools and cannot read resources. An outside review
-/// on 2026-10-08 ran one: it could read nothing through Nendo, so it opened the file's storage.
-/// Every read is now a tool, the instructions say so before a client's cut, and the lease grant
+/// What an agent needs in a client that calls tools and cannot read resources. An agent in one
+/// that could read nothing through Nendo opened the file's storage instead.
+/// Every read is a tool, the instructions say so before a client's cut, and the lease grant
 /// carries the limits and the first reads.
 /// </summary>
 [TestClass]
@@ -39,7 +39,7 @@ public sealed class ToolOnlyClientTests
             var result = await ReadAsync(client, uri);
             Assert.AreNotEqual(true, result.IsError, $"{uri}: {JsonSerializer.Serialize(result)}");
             Assert.AreEqual(expected, Text(result), $"{uri} read through the tool is not what resources/read returns.");
-            // Nothing beside the text that a client could read instead of it (2026-10-09).
+            // Nothing beside the text that a client could read instead of it.
             Assert.IsNull(result.StructuredContent, $"{uri}: the read carries structuredContent a client may take in place of the text.");
         }
 

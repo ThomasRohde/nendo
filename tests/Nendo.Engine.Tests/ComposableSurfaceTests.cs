@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Contract version 3, accepted by the ADR-0004 2026-09-09 amendment: an ordered
+/// Contract version 3, accepted by the ADR-0004: an ordered
 /// node tree whose structure is governed by the vocabulary table rather than by
 /// a hard-coded depth-two rule.
 /// </summary>
@@ -170,7 +170,7 @@ public sealed class ComposableSurfaceTests
         Assert.AreEqual("recordForm", compiled.Applications.Single().Surfaces.Single().Kind);
     }
 
-    // P6-C: a declared filter and ordering are part of the durable contract, so
+    // A declared filter and ordering are part of the durable contract, so
     // every element of them is checked against the closed vocabulary and the
     // record type they are declared on.
     [TestMethod]
@@ -329,7 +329,7 @@ public sealed class ComposableSurfaceTests
             new NendoStorageHealthSnapshot("DELETE", "FULL", 2_000, "ok", []));
     }
 
-    // P6-D: a command owns ordered steps, and every step value is checked against
+    // A command owns ordered steps, and every step value is checked against
     // the field it assigns.
     [TestMethod]
     [DataRow("unknownStepField", "NUI284", "fieldId")]
@@ -508,7 +508,7 @@ public sealed class ComposableSurfaceTests
         var form = document.RootElement.GetProperty("kinds").EnumerateArray()
             .Single(kind => kind.GetProperty("kind").GetString() == "recordForm");
         CollectionAssert.AreEqual(
-            // A custom view on the record page is its child too (ADR-0013, 2026-09-24).
+            // A custom view on the record page is its child too (ADR-0013).
             new[] { "extensionRecordPanel", "fieldBinding", "recordCommand", "section", "tabGroup" },
             form.GetProperty("children").EnumerateArray().Select(value => value.GetString()).ToArray());
         Assert.IsTrue(form.GetProperty("canBeRoot").GetBoolean());

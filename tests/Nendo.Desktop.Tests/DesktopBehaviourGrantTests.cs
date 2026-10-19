@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Stage S6 of ADR-0008, device side: where consent is kept, and what happens when
+/// ADR-0008, device side: where consent is kept, and what happens when
 /// it cannot be read.
 /// <para>
 /// The store answers one question — may this file run its actions — and it must
@@ -201,7 +201,7 @@ public sealed class DesktopBehaviourGrantTests
         var grants = Enumerable.Range(0, 12).Select(index => Grant() with { ApplicationId = "application-" + index }).ToArray();
         var stores = grants.Select(_ => new DesktopBehaviourGrantStore(workspace.FileHistoryRoot)).ToArray();
         await Task.WhenAll(grants.Select((grant, index) => Task.Run(() => stores[index].Approve(grant))));
-        // What the design promises (TST-18): each approval is saved, or says it is this session's
+        // What the design promises: each approval is saved, or says it is this session's
         // and holds here; none is silently dropped by another store's save.
         var reopened = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
         for (var index = 0; index < grants.Length; index++)
@@ -219,7 +219,7 @@ public sealed class DesktopBehaviourGrantTests
     }
 
     /// <summary>
-    /// TST-18: a read refused under the lock (a scanner holding the document open, say) left the
+    /// A read refused under the lock (a scanner holding the document open, say) left the
     /// store with only its own approvals in hand, and it saved them over every other window's:
     /// the recorded flake lost application-3 of twelve. Reading the document is denied here
     /// while replacing it is not, which is that moment held still.
@@ -340,7 +340,7 @@ public sealed class DesktopBehaviourGrantTests
     /// The same refusal in the casing the store itself writes. The lowercase rows above
     /// never get past the version check, because the reader is case-sensitive; these
     /// reach the per-grant validation, where a null entry or a missing member used to
-    /// throw a NullReferenceException that closed every file on open (R-017).
+    /// throw a NullReferenceException that closed every file on open.
     /// </summary>
     [TestMethod]
     [DataRow("{\"Version\":1,\"Grants\":[null]}")]

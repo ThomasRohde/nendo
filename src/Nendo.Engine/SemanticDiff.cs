@@ -44,7 +44,7 @@ internal static class SemanticDiff
     {
         /// <summary>
         /// Field and record type names as the active file has them, before a rename in this
-        /// change set overwrites them, so a rename can say what it renames (ESM-14).
+        /// change set overwrites them, so a rename can say what it renames.
         /// </summary>
         public IReadOnlyDictionary<string, string> ActiveFields { get; init; } = new Dictionary<string, string>();
 
@@ -99,9 +99,9 @@ internal static class SemanticDiff
                 labels[relabel.FieldId] = relabel.LabelFieldId;
                 continue;
             }
-            // Adding a binding and saying what it binds is one change, and it used to cost
-            // two lines of which the first said nothing: "Show a field on its surface." then
-            // "Bind to Title." The node's own line now carries the field name, so this one is
+            // Adding a binding and saying what it binds is one change, not two lines of which
+            // the first says nothing: "Show a field on its surface." then "Bind to Title."
+            // The node's own line carries the field name, so this one is
             // dropped -- but only when the same change set adds the node. Re-pointing a
             // binding the person already has is a change to something they have, and keeps
             // its line.
@@ -113,7 +113,7 @@ internal static class SemanticDiff
             }
             // A summary tile added and configured in one change set is one line: what it
             // counts, over what, and its label, said where the tile is added. Its
-            // properties changed later on a tile the person has keep their lines (W-052).
+            // properties changed later on a tile the person has keep their lines.
             if (operation is SetUiPropertyOperation { PropertyName: "aggregate" or "fieldId" or "scope" or "entityId" } tiled &&
                 names.NodeKinds.GetValueOrDefault(tiled.NodeId, string.Empty) == "summaryTile" &&
                 names.AddedNodes.Contains(tiled.NodeId))
@@ -140,7 +140,7 @@ internal static class SemanticDiff
             }
             // A filter clause added and filled in one change set is one statement, said on
             // the line that adds it: the field, the comparison and the value together,
-            // where four lines used to open with one that said nothing. A property changed
+            // rather than four lines opening with one that says nothing. A property changed
             // on a clause the person already has keeps its own line.
             if (operation is SetUiPropertyOperation { PropertyName: "fieldId" or "operator" or "value" or "valueKind" } term &&
                 names.NodeKinds.GetValueOrDefault(term.NodeId, string.Empty) == "filterClause" &&
@@ -362,7 +362,7 @@ internal static class SemanticDiff
         // A skill package's files are never run (ADR-0024); what accepting them means is said
         // in a line of its own too.
         // Each put is said as the kind its package had when the file went in, so a package removed
-        // and re-created as the other kind in the same change set is reviewed as what it became (ESM-02).
+        // and re-created as the other kind in the same change set is reviewed as what it became.
         if (packages.PutIntoView)
         {
             result.Add(Entry("extensionCode",
@@ -421,7 +421,7 @@ internal static class SemanticDiff
                     ? $"Update the skill package {operation.Title} ({operation.PackageId})" + (operation.Version is null ? "." : $": it is version {operation.Version}.")
                     : $"Add the skill package {operation.Title} ({operation.PackageId}): instructions for an agent, read from {NendoAgentSkill.FileName}, offered as the skill {NendoAgentSkill.NameFor(operation.PackageId)}. Nothing in it runs.";
             }
-            // A view package of an ID a skill package had: its code runs, whatever the ID was (ESM-02).
+            // A view package of an ID a skill package had: its code runs, whatever the ID was.
             _skills.Remove(operation.PackageId);
             return existed
                 ? $"Update the custom-view package {operation.Title} ({operation.PackageId}): it starts at {operation.EntryPoint}" +
@@ -437,7 +437,7 @@ internal static class SemanticDiff
             var had = _files.TryGetValue(key, out var before);
             _files[key] = (operation.Sha256, operation.ByteLength, operation.MediaType);
             if (!had) return $"Add {operation.Path} to {Title(operation.PackageId)} ({operation.MediaType}, {Size(operation.ByteLength)}).";
-            // The media type decides how the file is served, as a page, a script or inert text (EXT-02).
+            // The media type decides how the file is served, as a page, a script or inert text.
             if (before.Sha256 == operation.Sha256 && before.MediaType != operation.MediaType)
                 return $"Serve {operation.Path} in {Title(operation.PackageId)} as {operation.MediaType} instead of {before.MediaType}; the content is unchanged.";
             return before.Sha256 == operation.Sha256
@@ -456,7 +456,7 @@ internal static class SemanticDiff
             var title = Title(operation.PackageId);
             _titles.Remove(operation.PackageId);
             // Its kind goes with it: the ID may come back as the other kind in the same change set,
-            // and code put into a view package re-created there must read as code that runs (ESM-02).
+            // and code put into a view package re-created there must read as code that runs.
             _skills.Remove(operation.PackageId);
             return $"Remove {title} from this file.";
         }
@@ -651,7 +651,7 @@ internal static class SemanticDiff
 
     /// <summary>
     /// "Show Tasks.Project's records by Code instead of Name.": what a person sees change, and that
-    /// nothing they stored does (W-232).
+    /// nothing they stored does.
     /// </summary>
     private static string ReferenceLabelSummary(DiffNames names, string? previousLabelFieldId, SetReferenceLabelOperation value) =>
         $"Show {EntityName(names, value.EntityId)}.{FieldName(names, value.FieldId)}'s records by {FieldName(names, value.LabelFieldId)}" +
@@ -825,9 +825,8 @@ internal static class SemanticDiff
     private static string NodeDescription(DiffNames names, string nodeId)
     {
         if (!names.NodeKinds.TryGetValue(nodeId, out var kind)) return "an unknown node";
-        // An unnamed node is described by what it is. It used to be described by its
-        // identifier prettified into words, which reads as a name the author chose and
-        // is not one.
+        // An unnamed node is described by what it is, not by its identifier prettified
+        // into words, which reads as a name the author chose and is not one.
         if (!names.NodeLabels.TryGetValue(nodeId, out var label)) return KindNoun(kind);
         return $"{KindNoun(kind)} \"{label}\"{Position(names, nodeId, kind, label)}";
     }
@@ -851,9 +850,8 @@ internal static class SemanticDiff
 
     /// <summary>
     /// Which of several identically named nodes this one is. Two roots of a kind may
-    /// legitimately carry the same title, and the summary used to tell them apart by
-    /// printing the stable ID — an identifier in front of a person who has no use for
-    /// one. Counting them says the same thing in their terms, and says nothing at all
+    /// legitimately carry the same title. Printing the stable ID would put an identifier
+    /// in front of a person who has no use for one; counting them says the same thing in their terms, and says nothing at all
     /// when the name is unambiguous.
     /// </summary>
     private static string Position(DiffNames names, string nodeId, string kind, string label)
@@ -952,7 +950,7 @@ internal static class SemanticDiff
     /// A summary tile as a reviewer would state it: what it counts, over what, and its
     /// label, in one sentence. "Add the summary "Delivered"." followed by "Count the
     /// records covered." and "Count one board column rather than the whole surface." was
-    /// three lines for one number (W-052).
+    /// three lines for one number.
     /// </summary>
     private static string TileSentence(AddUiNodeOperation operation, DiffNames names)
     {

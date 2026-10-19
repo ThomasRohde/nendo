@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// A custom view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090), through the
+// A custom view's controls in Nendo's own chrome (ADR-0013), through the
 // real modules: the declaration as the broker rebuilds it, the markup the page draws from it,
 // what Ctrl K lists, which keys run what, and the key table kept in step with Nendo's own.
 const model = await bundleOf('src/view-toolbar-model.ts');
@@ -54,7 +54,7 @@ test('G27: the strip is Nendo’s own controls, and every word a view sends land
   assert.match(html, /<button type="button" class="view-toolbar-button is-icon" data-view-command="pan" aria-pressed="true" aria-label="Pan" title="Pan"><svg class="outline-icon"/);
   assert.match(html, /<div class="view-toolbar-joined" role="group" aria-label="Zoom">/);
   assert.match(html, /data-view-command="zoom-in" aria-label="Zoom in" aria-keyshortcuts="Control\+Plus" title="Zoom in \(Ctrl \+\)" disabled>/);
-  // The whole text is the title too, for where the row cuts it short (W-092).
+  // The whole text is the title too, for where the row cuts it short.
   assert.match(html, /<span class="view-toolbar-text is-mono" title="115%">115%<\/span>/);
   assert.match(html, /<button type="button" class="view-toolbar-button" data-view-menu="export" aria-haspopup="menu" aria-expanded="false" title="Export">/);
   assert.match(html, /<span class="toolbar-spacer" aria-hidden="true"><\/span>/);
@@ -145,7 +145,7 @@ test('G30: keys are one spelling: a key event and a declaration meet, a symbol i
   assert.equal(markup.keyAria('Ctrl+Plus'), 'Control+Plus');
 });
 
-test('W-217 R2LAT-03: a view hands Nendo’s keys back under a non-Latin or AZERTY layout, read by the physical key', () => {
+test('a view hands Nendo’s keys back under a non-Latin or AZERTY layout, read by the physical key', () => {
   const chord = (keyName, code, modifiers = {}) => protocol.chordOf({ key: keyName, code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...modifiers });
   assert.equal(chord('л', 'KeyK', { ctrlKey: true }), 'Ctrl+K', 'Russian layout');
   assert.equal(chord('า', 'KeyK', { ctrlKey: true }), 'Ctrl+K', 'Thai layout');
@@ -164,7 +164,7 @@ test('W-217 R2LAT-03: a view hands Nendo’s keys back under a non-Latin or AZER
   assert.equal(chord('k', 'KeyK', { ctrlKey: true, altKey: true }), 'Ctrl+Alt+K', 'a Latin letter with Ctrl and Alt is still a chord');
 });
 
-test('W-115: More holds what the row has no room for, each as Nendo would pick it from a menu, and the row ends with More only in the Use toolbar', () => {
+test('More holds what the row has no room for, each as Nendo would pick it from a menu, and the row ends with More only in the Use toolbar', () => {
   // Everything after the search: separator, Pan, the Zoom group, the text and Export.
   const more = markup.overflowMenu(toolbar.items, [6, 7, 8, 9, 10]);
   const shape = more.map((item) => item.kind === 'separator' ? '—' : item.kind === 'label' ? `[${item.label}]`

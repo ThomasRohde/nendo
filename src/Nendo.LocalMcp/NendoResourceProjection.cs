@@ -54,14 +54,14 @@ internal sealed class NendoResourceProjection(
         }
     }
 
-    /// <summary>The Engine's own preview of a proposal, whoever prepared it (W-148): the person already sees all of it in Pending changes.</summary>
+    /// <summary>The Engine's own preview of a proposal, whoever prepared it: the person already sees all of it in Pending changes.</summary>
     internal async Task<NendoAgentProposalPreview> GetProposalAsync(string proposalId, CancellationToken cancellationToken)
     {
         NendoText.RequireText(proposalId, "proposal ID", 200);
         return NendoAgentProposalStore.ProjectPreview(await application.GetProposalAsync(proposalId, cancellationToken));
     }
 
-    /// <summary>The revisions an acceptance of this proposal committed, or null when none is recorded (F-261).</summary>
+    /// <summary>The revisions an acceptance of this proposal committed, or null when none is recorded.</summary>
     internal Task<NendoChangeSetApplyResult?> GetProposalReceiptAsync(string proposalId, CancellationToken cancellationToken)
     {
         NendoText.RequireText(proposalId, "proposal ID", 200);
@@ -144,7 +144,7 @@ internal sealed class NendoResourceProjection(
                     field.FieldId, field.DisplayName, field.CalculationId,
                     field.ResultType, field.ResultNullable, field.Expression)
                 {
-                    // What blocks retiring a field or a record type, said before an agent tries (UIT-19).
+                    // What blocks retiring a field or a record type, said before an agent tries.
                     ReadsFieldIds = field.ReadsFieldIds,
                     ReadsCalculationIds = field.ReadsCalculationIds,
                     ReadsEntityIds = field.ReadsEntityIds,
@@ -215,7 +215,7 @@ internal sealed class NendoResourceProjection(
 
     /// <summary>
     /// A page of one record type, or one record by ID, filtered and sorted through the same
-    /// typed query the screens use (W-145). Before, the adapter passed only the entity, the
+    /// typed query the screens use. Before, the adapter passed only the entity, the
     /// limit and the cursor, so an agent paged a whole type to find one record or one value.
     /// </summary>
     internal async Task<NendoMcpPage<NendoMcpRecord>> GetRecordsAsync(
@@ -231,7 +231,7 @@ internal sealed class NendoResourceProjection(
     {
         RequireLimit(limit);
         // An empty recordId or filter read the whole record type, and a client that built the
-        // address from an empty variable took the first record as the one it meant (MTD-13).
+        // address from an empty variable took the first record as the one it meant.
         if (recordId is not null && string.IsNullOrWhiteSpace(recordId))
             throw new NendoValidationException("recordId names one record and is empty here; leave it out to read the page.");
         if (filter is not null && string.IsNullOrWhiteSpace(filter))
@@ -339,7 +339,7 @@ internal sealed class NendoResourceProjection(
                     !clause.TryGetProperty("op", out var op) || op.ValueKind != JsonValueKind.String)
                     throw new NendoValidationException("Each filter clause is an object with fieldId, op and, unless op is isNull or isNotNull, value.");
                 // A key no clause has, a negate say, was dropped silently, and the read answered
-                // the opposite of what was asked (MTD-14).
+                // the opposite of what was asked.
                 foreach (var key in clause.EnumerateObject())
                     if (key.Name is not ("fieldId" or "op" or "value"))
                         throw new NendoValidationException(
@@ -385,7 +385,7 @@ internal sealed class NendoResourceProjection(
         /// <summary>
         /// A stored field of the record type: what an aggregate folds and groups by (ADR-0004 keeps
         /// calculated-field grouping refused). A calculated one is refused by name; the Engine
-        /// answered it as a field that did not exist, though the schema read listed it (MTD-06).
+        /// answered it as a field that did not exist, though the schema read listed it.
         /// </summary>
         internal async Task RequireStoredAsync(string fieldId, string use)
         {
@@ -408,8 +408,8 @@ internal sealed class NendoResourceProjection(
             .OrderBy(value => value, StringComparer.Ordinal).ToArray();
 
     /// <summary>
-    /// One exact aggregate over a filtered record type, through the Engine's own folds
-    /// (W-146): whole, grouped by a closed field, by two of them as a grid, or by civil-date
+    /// One exact aggregate over a filtered record type, through the Engine's own folds:
+    /// whole, grouped by a closed field, by two of them as a grid, or by civil-date
     /// bucket. Nothing is paged and every number is an invariant lexeme.
     /// </summary>
     internal async Task<NendoMcpAggregate> GetAggregateAsync(
@@ -442,7 +442,7 @@ internal sealed class NendoResourceProjection(
         if (shapes > 1)
             throw new NendoValidationException("Choose one shape: groupBy, rowBy with columnBy, or dateFieldId with bucket and range.");
         // bucket and range without dateFieldId answered the whole aggregate, which read as the
-        // range's own (MTD-14).
+        // range's own.
         if (string.IsNullOrWhiteSpace(dateFieldId) && (!string.IsNullOrWhiteSpace(bucket) || !string.IsNullOrWhiteSpace(range)))
             throw new NendoValidationException("bucket and range work with dateFieldId, the date field they divide; name it, or leave both out for the whole aggregate.");
         var field = string.IsNullOrWhiteSpace(fieldId) ? null : fieldId;
@@ -511,7 +511,7 @@ internal sealed class NendoResourceProjection(
         };
     }
 
-    /// <summary>How many records each record type holds now, keyed by entity ID (W-146).</summary>
+    /// <summary>How many records each record type holds now, keyed by entity ID.</summary>
     private async Task<IReadOnlyDictionary<string, long>> CountRecordsAsync(
         IEnumerable<NendoEntitySnapshot> entities, List<long> seen, CancellationToken cancellationToken)
     {
@@ -564,7 +564,7 @@ internal sealed class NendoResourceProjection(
         GetDescriptionAsync(null, cancellationToken);
 
     /// <summary>
-    /// The whole application, or the facets include names (W-150): a client that needs the
+    /// The whole application, or the facets include names: a client that needs the
     /// manifest and the record types takes those and leaves the compiled screens, which are
     /// most of a mature file's describe, for a later read. A facet left out is null or empty.
     /// </summary>
@@ -612,7 +612,7 @@ internal sealed class NendoResourceProjection(
         }, cancellationToken);
     }
 
-    /// <summary>One record type as a bundle (W-150): schema, record count and its compiled surfaces.</summary>
+    /// <summary>One record type as a bundle: schema, record count and its compiled surfaces.</summary>
     internal Task<NendoMcpEntityBundle> GetEntityBundleAsync(string entityId, CancellationToken cancellationToken) =>
         CoherentAsync(async (snapshot, seen) => Bundle(
             entityId,

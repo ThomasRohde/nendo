@@ -76,7 +76,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// The name a unique index takes when <see cref="UniqueIndexName"/> already belongs to another
     /// table: physical names may hold underscores, so task.due_code and task_due.code both read
-    /// nendo_unique_task_due_code, and IF NOT EXISTS skipped the second without a word (ESS-04).
+    /// nendo_unique_task_due_code, and IF NOT EXISTS skipped the second without a word.
     /// The field ID's digest tells them apart; an index made under the plain name keeps it.
     /// </summary>
     private static string ClashFreeUniqueIndexName(EntityMapping entity, FieldMapping field) =>
@@ -124,7 +124,7 @@ internal sealed partial class SqliteNendoStore
             throw new NendoPreconditionException("field-unique-invalid",
                 $"{field.DisplayName} is {UniqueShape(field)}. Only a single-line Text field or a plain Integer field can be unique.");
         // A hierarchy orders each parent's children on their own, so positions repeat across
-        // parents; uniqueness over the whole record type refused ordinary moves (ESS-10).
+        // parents; uniqueness over the whole record type refused ordinary moves.
         if (operation.Unique && entity.Hierarchy?.OrderFieldId == field.FieldId)
             throw new NendoPreconditionException("hierarchy-field-in-use",
                 $"{entity.DisplayName} orders its hierarchy by {field.DisplayName}, and children of different parents share positions, so it cannot be unique.");
@@ -153,7 +153,7 @@ internal sealed partial class SqliteNendoStore
                 delete.Parameters.AddWithValue("@field", field.FieldId);
                 await delete.ExecuteNonQueryAsync(ct);
             }
-            // Only this table's own index: the plain name may be another table's (ESS-04).
+            // Only this table's own index: the plain name may be another table's.
             foreach (var name in new[] { UniqueIndexName(entity, field), ClashFreeUniqueIndexName(entity, field) })
                 if (await IndexTableAsync(name, transaction, ct) == entity.PhysicalTableName)
                     await NonQueryAsync($"DROP INDEX {Quote(name)};", transaction, ct);
@@ -206,7 +206,7 @@ internal sealed partial class SqliteNendoStore
             while (await rows.ReadAsync(ct))
             {
                 // A record ID may hold spaces, so the group is read as a JSON array, never split on
-                // a space: 'Task 1' and 'Task 2' were named '1 and 2 and Task and Task' (ESS-12).
+                // a space: 'Task 1' and 'Task 2' were named '1 and 2 and Task and Task'.
                 collisions.Add(string.Join(" and ", JsonSerializer.Deserialize<string[]>(rows.GetString(0))!.Order(StringComparer.Ordinal)));
             }
         if (collisions.Count == 0) return;

@@ -1,5 +1,5 @@
 {
-  "about": "Package IDs and whether the Engine takes each (NendoExtensionContent.ValidPackageId). The host's actor check (WorkbenchProtocolHandler.ExtensionActorPackage, DesktopPackageIdRuleTests) and Studio's Add view form (validPackageId, custom-view-recipe.test.mjs) are held to the same answers (WXS-12).",
+  "about": "Package IDs and whether the Engine takes each (NendoExtensionContent.ValidPackageId). The host's actor check (WorkbenchProtocolHandler.ExtensionActorPackage, DesktopPackageIdRuleTests) and Studio's Add view form (validPackageId, custom-view-recipe.test.mjs) are held to the same answers.",
   "ids": [
     { "id": "org.example.glance", "valid": true },
     { "id": "a.b", "valid": true },

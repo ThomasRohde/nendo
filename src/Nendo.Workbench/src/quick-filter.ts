@@ -32,7 +32,7 @@ export function wireQuickFilter(plan: ApplicationPlan, surface: SurfaceNodePlan 
   const menu = content.querySelector<HTMLDetailsElement>('[data-testid="quick-filter"]');
   // Chromium fires toggle on a details inserted open. Only a change from what was drawn is
   // the person opening or closing it; otherwise each redraw read the targets and redrew the
-  // menu open again, without end (WDV-01).
+  // menu open again, without end.
   let drawn = menu?.open ?? false;
   menu?.addEventListener('toggle', () => {
     if (menu.open === drawn) return;
@@ -46,7 +46,7 @@ export function wireQuickFilter(plan: ApplicationPlan, surface: SurfaceNodePlan 
     field.reference != null && !quickFilterTargets.has(field.reference.targetEntityId)))
     queueMicrotask(() => void readTargets(plan));
   menu?.addEventListener('keydown', event => {
-    // The menu's Escape is the menu's: the page's own Escape would also close the record (UIS-04).
+    // The menu's Escape is the menu's: the page's own Escape would also close the record.
     if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation();
       // A value only looked at goes back, so leaving the select does not apply it.
@@ -57,7 +57,7 @@ export function wireQuickFilter(plan: ApplicationPlan, surface: SurfaceNodePlan 
   for (const select of content.querySelectorAll<HTMLSelectElement>('[data-quick-filter]')) {
     // Chromium on Windows changes a closed select's value on each arrow key and fires change at
     // once, so applying every change applied the first choice a keyboard user looked at, closed
-    // the menu and dropped focus (UIK-07). A change made with the keys waits for Enter, or for
+    // the menu and dropped focus. A change made with the keys waits for Enter, or for
     // focus to leave the select; a pick from the open list applies as before.
     const drawn = select.value;
     select.dataset.drawn = drawn;

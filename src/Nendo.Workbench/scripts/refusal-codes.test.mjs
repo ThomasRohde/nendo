@@ -4,10 +4,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// WCS-01, WST-03. The journal settles a save only on a code it knows to be a complete
-// refusal. value-not-unique was missing, so a duplicate in a unique field left the save
-// pending for good and locked editing of the file on this device, while the tests pinned a
-// hand-copied list and passed. Here the codes come from the Engine and the Desktop host
+// The journal settles a save only on a code it knows to be a complete refusal. A code missing
+// from its list, such as value-not-unique, leaves the save pending for good and locks editing of
+// the file on this device, and a hand-copied list in a test would still pass. Here the codes come from the Engine and the Desktop host
 // themselves: each one must either settle the journal or be named below as not doing so.
 const { isConfirmedRejection } = await bundleOf('src/pending-mutations.ts');
 const { decideWriteFailure } = await bundleOf('src/write-failure.ts');
@@ -59,9 +58,9 @@ const notSettled = new Set([
   'open-assessment-unavailable', 'partial-export-confirmation', 'proposal-exists', 'proposal-file-missing', 'proposal-not-previewable',
   'proposal-waiting', 'reopen-to-verify', 'required-field-needs-migration', 'stale-cursor', 'state-too-large', 'state-version-conflict',
   'reference-label-in-use', 'reference-label-unchanged', 'title-unchanged', 'ui-node-not-found', 'ui-property-absent', 'unknown-method',
-  // A read-only session's reads of package files and view state (W-221); a read-only session journals no write.
+  // A read-only session's reads of package files and view state; a read-only session journals no write.
   'read-only-file-changed',
-  // Tab windows (W-277): a file action a tab window leaves to the main window, a move with no file,
+  // Tab windows: a file action a tab window leaves to the main window, a move with no file,
   // and the journey's close of a window. None is a journaled write.
   'main-window-only', 'no-file', 'main-window',
 ]);

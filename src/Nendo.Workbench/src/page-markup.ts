@@ -181,7 +181,7 @@ export function pageHasTabs(plan: ApplicationPlan): boolean {
 }
 
 /**
- * The record-page header (ADR-0004, 2026-09-14): the field that heads the page, the
+ * The record-page header (ADR-0004): the field that heads the page, the
  * field shown under it, and the choice whose tone colours the band. Nothing is drawn
  * when the page names none of them, so a page authored before headers existed is
  * unchanged. The values are read from the record, never edited here: the form
@@ -221,7 +221,7 @@ export function recordActionsMarkup(plan: ApplicationPlan, record: RecordPlan): 
 }
 
 export function inspectorMarkup(plan: ApplicationPlan, record: RecordPlan): string {
-  // Named by the record, as its row in the list is, so the form says which record it edits (UIS-11).
+  // Named by the record, as its row in the list is, so the form says which record it edits.
   // The page's own title field when it names one, as its hero does.
   const declared = pageRoot(plan)?.properties.titleFieldId;
   const title = recordFieldDisplay(record, typeof declared === 'string' ? declared : titleFieldOf(plan, listFieldIds(plan, null)), plan.entity.derivedFields);

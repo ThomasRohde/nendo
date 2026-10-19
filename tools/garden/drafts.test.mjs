@@ -57,7 +57,7 @@ test('drafts come back as they were kept, by note, and none from storage that ho
   assert.equal(readDrafts(null, 'k').size, 0);
 });
 
-test('past the bound the oldest drafts are not kept, and each one not kept is named (G-001)', () => {
+test('past the bound the oldest drafts are not kept, and each one not kept is named', () => {
   const storage = memory();
   const many = new Map(Array.from({ length: DRAFT_LIMITS.count + 5 }, (_, i) => [`gd.note.${i}`, { title: `${i}`, body: 'x', version: 1, at: i }]));
   const counted = writeDrafts(storage, 'k', many);
@@ -75,7 +75,7 @@ test('past the bound the oldest drafts are not kept, and each one not kept is na
   assert.deepEqual(writeDrafts(storage, 'k', full).dropped, []);
 });
 
-test('storage that refuses a write names every draft and leaves no stale copy to come back (G-001)', () => {
+test('storage that refuses a write names every draft and leaves no stale copy to come back', () => {
   const stale = memory();
   stale.setItem('k', JSON.stringify([{ id: 'gd.note.old', title: 'old', body: 'old', version: 1, at: 1 }]));
   const refusing = { ...stale, setItem: () => { throw Error('quota'); } };
@@ -84,7 +84,7 @@ test('storage that refuses a write names every draft and leaves no stale copy to
   assert.deepEqual(writeDrafts(null, 'k', new Map([['a', { title: 'a', body: 'b', at: 1 }]])), { kept: 0, dropped: ['a'], refused: true }, 'no storage keeps nothing, and says so');
 });
 
-test('a save Nendo never answered is kept as it was sent, and let go with null (G-008)', () => {
+test('a save Nendo never answered is kept as it was sent, and let go with null', () => {
   const storage = memory();
   const sent = { draftKey: 'new:abc', noteId: null, title: 'Unanswered', body: 'b', writes: [{ op: 'create', entityId: 'gd.note', recordId: 'gd.note.x', values: {} }], stubs: [], label: 'Save Unanswered', writeKey: 'k-1', draft: { not: 'kept' } };
   assert.equal(writeUnanswered(storage, 'u', sent), true);
@@ -96,7 +96,7 @@ test('a save Nendo never answered is kept as it was sent, and let go with null (
   assert.equal(readUnanswered(storage, 'u'), null);
 });
 
-test('GDN-01 (review): a draft moved off a note that went keeps the note and the version it was written over', () => {
+test('a draft moved off a note that went keeps the note and the version it was written over', () => {
   const storage = memory();
   const moved = { title: 'Brand new idea', body: 'A paragraph.', version: null, hash: null, values: {}, at: 5, from: 'gd.note.seed', fromVersion: 1, fromHash: 'abcd1234' };
   writeDrafts(storage, 'k', new Map([['new:x', moved], ['gd.note.a', { title: 'A', body: 'b', version: 2, hash: null, values: {}, at: 4 }]]));

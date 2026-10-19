@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-093. Nendo's top bar is the window's title bar: the page hands the host the boxes of its
+/// Nendo's top bar is the window's title bar: the page hands the host the boxes of its
 /// controls there, and the host hands Windows the same boxes in the screen's own pixels. What
 /// Windows then does with a press is measured in the real window by the extension-view journey
 /// (G32); this class holds the bridge and the arithmetic.

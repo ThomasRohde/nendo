@@ -27,7 +27,7 @@ internal sealed class GroupedAggregateFold
 
     /// <summary>
     /// An open grouping's groups are the values the data holds rather than a configured list, each
-    /// labelled as the record it points at is (W-249); null for a closed grouping.
+    /// labelled as the record it points at is; null for a closed grouping.
     /// </summary>
     private readonly Dictionary<string, string?>? _labels;
 
@@ -44,7 +44,7 @@ internal sealed class GroupedAggregateFold
         : this([], aggregate, integral) => _labels = new(StringComparer.Ordinal);
 
     /// <summary>
-    /// A fold over a reference's targets (W-249): a group per record the data points at, met as
+    /// A fold over a reference's targets: a group per record the data points at, met as
     /// the rows arrive, bounded like a closed grouping and refused whole past the bound rather
     /// than answered in part.
     /// </summary>

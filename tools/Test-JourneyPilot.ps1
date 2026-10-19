@@ -38,7 +38,7 @@ foreach ($phase in @('create', 'reopen')) {
     }
 }
 
-# ADR-0008 stage S7. A second file, seeded with calculations and one automatic
+# ADR-0008's behaviour. A second file, seeded with calculations and one automatic
 # action, driven through the same real host. Its device-state root is isolated:
 # approving writes durable device trust, and this lane must never reach into the
 # owner's.

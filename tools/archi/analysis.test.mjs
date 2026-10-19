@@ -6,7 +6,7 @@ import * as M from '../../extensions/archi/model.js';
 import * as canvasModule from '../../extensions/archi/canvas.js';
 import { recordSets } from './archimate-records.mjs';
 
-// W-118: a concept's Analysis and the Visualiser's graph, measured against what archi-online gives
+// A concept's Analysis and the Visualiser's graph, measured against what archi-online gives
 // for its own models (analysis-parity.json, from make-analysis-fixture.mjs). Each model goes into
 // records as an import writes them; the Analysis is the workbench's own renderAnalysis, run as it
 // ships, and what it lists is read from the markup it draws, in order.

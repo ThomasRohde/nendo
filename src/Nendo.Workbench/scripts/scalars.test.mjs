@@ -14,7 +14,7 @@ test('integers and decimals preserve all digits and reject overflow or partial i
   assert.throws(() => parseScalar('Decimal', '79228162514264337593543950336'));
   assert.throws(() => parseScalar('Decimal', '0.12345678901234567890123456789'));
 });
-test('W-217 R2LAT-05: a decimal comma is the decimal separator the numpad types, and grouping is still refused', () => {
+test('a decimal comma is the decimal separator the numpad types, and grouping is still refused', () => {
   assert.deepEqual(parseScalar('Decimal', '12,5'), { $nendoNumber: '12.5' });
   assert.deepEqual(parseScalar('Decimal', ' -0,25 '), { $nendoNumber: '-0.25' });
   assert.deepEqual(parseScalar('Decimal', '3,1415'), { $nendoNumber: '3.1415' });

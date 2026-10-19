@@ -11,7 +11,7 @@ if (-not (Test-Path -LiteralPath $api)) {
     & npm.cmd --prefix (Join-Path $repoRoot 'src/Nendo.Workbench') run build
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
 }
-# The workbench's rules over Archisurance (W-109), its validator against archi-online's (W-117), its Analysis and Visualiser against archi-online's (W-118), its model tools' writes (W-119) and its .archimate mapping (W-120). That the kit it carries is the view kit byte for byte is checked once per gate, by the view kit's own tests in Review-Gantt.ps1, which read this copy too.
+# The workbench's rules over Archisurance, its validator against archi-online's, its Analysis and Visualiser against archi-online's, its model tools' writes and its .archimate mapping. That the kit it carries is the view kit byte for byte is checked once per gate, by the view kit's own tests in Review-Gantt.ps1, which read this copy too.
 & node --test (Join-Path $PSScriptRoot 'archi/model.test.mjs') (Join-Path $PSScriptRoot 'archi/canvas.test.mjs') (Join-Path $PSScriptRoot 'archi/view.test.mjs') (Join-Path $PSScriptRoot 'archi/validation.test.mjs') (Join-Path $PSScriptRoot 'archi/analysis.test.mjs') (Join-Path $PSScriptRoot 'archi/manage.test.mjs') (Join-Path $PSScriptRoot 'archi/definition.test.mjs') (Join-Path $PSScriptRoot 'archi/io.test.mjs') (Join-Path $PSScriptRoot 'archi/automation.test.mjs')
 if ($LASTEXITCODE -ne 0) { throw 'Archi workbench node tests failed.' }
 $run = [Guid]::NewGuid().ToString('N')
@@ -46,7 +46,7 @@ try {
     Write-Host $ran
     if ($LASTEXITCODE -ne 0) { throw 'Archi workbench browser measurements failed.' }
     # The CLI ends a probe early when a native dialog or file chooser opens, and still exits 0; the
-    # probe's own last word is the only sign that it measured everything (W-120).
+    # probe's own last word is the only sign that it measured everything.
     if ($ran -notmatch '\\?"complete\\?":\s*true') { throw 'The Archi workbench probe did not run to its end, so it measured only part of the workbench.' }
 } finally {
     & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" close

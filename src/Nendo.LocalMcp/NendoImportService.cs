@@ -15,7 +15,7 @@ public sealed record NendoCsvColumnMapping(int Column, string FieldId)
 {
     /// <summary>
     /// For a reference column: the unique field of the target record type whose values the
-    /// cells hold, such as a code (W-075). Null means the cells hold record IDs.
+    /// cells hold, such as a code. Null means the cells hold record IDs.
     /// </summary>
     [Description("For a reference column only: the ID of a unique field of the target record type whose values the cells hold, such as a code. A cell then names a row of this same import or a record the file holds; one that names nothing, or two things, is refused with its row. Omit it and the cells are record IDs.")]
     public string? MatchFieldId { get; init; }
@@ -137,7 +137,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
             .Select(mapping => new NendoCsvMapping(mapping.Column, mapping.FieldId) { MatchFieldId = mapping.MatchFieldId })
             .ToArray();
         await RequireTargetAsync(entityId, mappings, cancellationToken);
-        // A tree whose parent column holds codes is written parents first (W-075). The order
+        // A tree whose parent column holds codes is written parents first. The order
         // is a pure function of the text, so an exact retry derives the same record IDs.
         var options = new NendoCsvOptions(nendoProfile, emptyIsNull);
         document = await application.OrderCsvParentsFirstAsync(document, entityId, mappings, cancellationToken, options);
@@ -146,7 +146,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // A CSV row carries no reference target versions; decoding reads the current ones.
         // For a batch this key already committed, the current ones are the wrong evidence:
         // the receipt replays only the payload it was written with, and a target edited
-        // since would turn an exact retry into a "different payload" (R-006). So the
+        // since would turn an exact retry into a "different payload". So the
         // committed batches are found first, by their receipts, and their rows carry the
         // versions their own revision recorded. Only rows that may still be written are
         // resolved against the file as it is now, and validated as before.
@@ -188,7 +188,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // Every row is decoded and checked above, before anything is written. A batch after the
         // first is decoded again just before it commits: a batch before it may have moved a
         // record its rows point at, its automatic actions included, and the versions read at the
-        // start would refuse it as target-version-conflict (MTD-01). A batch an earlier call
+        // start would refuse it as target-version-conflict. A batch an earlier call
         // committed keeps the versions its receipt recorded.
         return await CommitAsync(entityId, records.Length, async (ordinal, offset, count) =>
         {
@@ -203,7 +203,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// <summary>
     /// Refuses an import into a record type the file does not hold, or through a field it does
     /// not hold, as the precondition a JSON import and every other write meets, so the refusal
-    /// names an unaccepted proposal that would create it (MTD-07). The CSV path met the native
+    /// names an unaccepted proposal that would create it. The CSV path met the native
     /// importer's dialog sentence first: "Choose an active record type."
     /// </summary>
     private async Task RequireTargetAsync(string entityId, IReadOnlyList<NendoCsvMapping> mappings, CancellationToken cancellationToken)
@@ -228,7 +228,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
 
     /// <summary>
     /// The value bounds every other agent write keeps, applied to each decoded CSV row before the
-    /// first batch, naming the row and the field (MTD-12): a cell up to the CSV profile's own
+    /// first batch, naming the row and the field: a cell up to the CSV profile's own
     /// bound was written unchecked, where the same value as JSON was refused.
     /// </summary>
     private static void RequireValueBounds(IReadOnlyList<NendoCsvRow> rows)
@@ -266,7 +266,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
     }
 
     /// <param name="toEntries">
-    /// Maps records as one batch create maps them (W-147, W-159): an earlier record of the same
+    /// Maps records as one batch create maps them: an earlier record of the same
     /// list may be a reference's target, and the versions are the given receipt's where it has them.
     /// </param>
     internal async Task<NendoImportResult> ImportRecordsAsync(
@@ -284,7 +284,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
             throw new NendoValidationException("Send at least one record.");
         }
         // A record ID twice in the payload is refused whole. A batch checks only its own fifty,
-        // so copies in two batches committed the first and then stopped partway (MTD-08).
+        // so copies in two batches committed the first and then stopped partway.
         var first = new Dictionary<string, int>(StringComparer.Ordinal);
         for (var index = 0; index < records.Count; index++)
         {
@@ -296,10 +296,10 @@ internal sealed class NendoImportService(NendoApplicationService application)
         // Every record is mapped and checked once before anything is written; a record may name
         // an earlier one of the import as a reference's target, as a CSV row may.
         await toEntries(records, null);
-        // Then each batch is mapped again just before it commits (MTD-01): a batch before it may
+        // Then each batch is mapped again just before it commits: a batch before it may
         // have moved a target, and an earlier record is a record of the file by then. A batch this
         // key already committed carries the versions its revision recorded, so an exact retry
-        // after a target was edited replays rather than conflicting (MTD-02).
+        // after a target was edited replays rather than conflicting.
         var committedVersions = await ReadCommittedTargetVersionsAsync(idempotencyKey, records.Count, cancellationToken);
         return await CommitAsync(entityId, records.Count,
             (ordinal, offset, count) => toEntries(records.Skip(offset).Take(count).ToArray(), committedVersions[ordinal]),
@@ -319,7 +319,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// </summary>
     /// <param name="origin">
     /// The session pseudonym every other agent write carries, so History says which session
-    /// imported. The batches were attributed to a bare "agent" until 2026-09-27 (F-180).
+    /// imported.
     /// The origin is part of what a replay must match, and the idempotency scope is shared on
     /// purpose, so a retry from a new lease -- after a restart, say -- can finish what an
     /// earlier one began: a batch that already committed is resubmitted under the origin its
@@ -408,7 +408,7 @@ internal sealed class NendoImportService(NendoApplicationService application)
     /// <para>
     /// The caller may use all two hundred characters the Engine allows, and the suffix would
     /// then push the batch key past that bound, so no batch of such an import could ever be
-    /// written (R-007). A key that does not fit is replaced by <c>import.sha256.</c> and the
+    /// written. A key that does not fit is replaced by <c>import.sha256.</c> and the
     /// full SHA-256 of the caller's key: bounded, stable for a retry, and distinct for
     /// distinct keys. A key that fits keeps its plain form, so a receipt written before this
     /// rule still replays.

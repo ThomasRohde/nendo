@@ -8,7 +8,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-158: the lanes the review found missing. A two-client race runs in the default set;
+/// Evidence lanes beyond the default checks. A two-client race runs in the default set;
 /// the soak lane runs behind NENDO_RUN_SOAK=1 and is Inconclusive otherwise, as the
 /// installed-client lanes now are; the protocol matrix covers every version the SDK lists.
 /// </summary>

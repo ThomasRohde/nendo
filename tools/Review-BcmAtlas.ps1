@@ -12,13 +12,13 @@ if (-not (Test-Path -LiteralPath $api)) {
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $api)) { throw 'The view API could not be built: npm --prefix src/Nendo.Workbench run build failed.' }
 }
 # The package's own tests: bindings, hierarchy and level rules, the frozen lab coordinates, module
-# syntax, and the exported document (W-078).
+# syntax, and the exported document.
 $tests = @('model.test.mjs', 'syntax.test.mjs', 'layout-parity.test.mjs', 'export.test.mjs', 'northstar-csv.test.mjs', 'upgrade.test.mjs') | ForEach-Object { Join-Path $PSScriptRoot "bcm-atlas/$_" }
 & node --experimental-vm-modules --test @tests
 if ($LASTEXITCODE -ne 0) { throw 'Capability Atlas node tests failed.' }
 # The two files the package is shown (bcm-atlas/fixtures.mjs): BCM.nendo's Northstar model, 635
 # capabilities with the file's own schema and Capability map view, generated as the live file was,
-# and a second file whose record types, fields and parts are all different (W-077).
+# and a second file whose record types, fields and parts are all different.
 $fixtureModule = [Uri]::new((Join-Path $PSScriptRoot 'bcm-atlas/fixtures.mjs')).AbsoluteUri
 $run = [Guid]::NewGuid().ToString('N')
 $fixturePath = Join-Path $output "bcm-atlas-fixtures-$run.json"
@@ -48,8 +48,8 @@ try {
     $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
     $exitCode = $LASTEXITCODE
     Write-Host $ran
-    # TGA-01: run-code ends early and exits 0 when a dialog opens (such as the editor's discard
-    # confirm), so an exit code alone passed a probe that stopped part-way.
+    # run-code ends early and exits 0 when a dialog opens (such as the editor's discard
+    # confirm), so an exit code alone would pass a probe that stopped part-way.
     # The probe's source is echoed too, so its last word counts only as the run's own result.
     if ($exitCode -ne 0 -or $ran.Contains('### Modal state') -or $ran -notmatch '### Result\r?\n"bcm-atlas ok ') {
         throw 'Capability Atlas browser measurements did not complete.'

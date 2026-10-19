@@ -4,7 +4,7 @@ using System.Text;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A package arriving from outside a file (ADR-0013, 2026-09-25): a folder or a zip with a
+/// A package arriving from outside a file (ADR-0013): a folder or a zip with a
 /// nendo-package.json, or a legacy .nendoview. Importing proposes only what differs from the
 /// package the file already carries, so a re-import after a one-line edit is a one-file review.
 /// </summary>
@@ -143,7 +143,7 @@ public sealed class ExtensionArchiveTests
     }
 
     /// <summary>
-    /// EXT-03: a zip is bounded by the files it keeps. Entries an import leaves out, such as a
+    /// A zip is bounded by the files it keeps. Entries an import leaves out, such as a
     /// node_modules folder or the shadow tree Finder adds, counted towards the 512 files, so a small
     /// package was refused as too many files. The entries a zip lists have a bound of their own.
     /// </summary>
@@ -166,7 +166,7 @@ public sealed class ExtensionArchiveTests
             "entries");
     }
 
-    /// <summary>EXT-04: a directory entry written with backslashes, as Windows PowerShell 5.1 writes an empty folder, is a folder.</summary>
+    /// <summary>A directory entry written with backslashes, as Windows PowerShell 5.1 writes an empty folder, is a folder.</summary>
     [TestMethod]
     public void AZipWhoseFoldersAreWrittenWithBackslashesReadsLikeAnyOther()
     {
@@ -175,7 +175,7 @@ public sealed class ExtensionArchiveTests
     }
 
     /// <summary>
-    /// EXT-05: an entry the zip cannot give is refused by its name: a compression method .NET does
+    /// An entry the zip cannot give is refused by its name: a compression method .NET does
     /// not read, or a damaged stream. They escaped as raw exceptions and reached the person as a host fault.
     /// </summary>
     [TestMethod]
@@ -202,7 +202,7 @@ public sealed class ExtensionArchiveTests
     }
 
     /// <summary>
-    /// EXT-06: a package cannot hold a file and a folder of one name, in any case. Export writes files
+    /// A package cannot hold a file and a folder of one name, in any case. Export writes files
     /// in path order, so 'lib' and then 'lib/a.js' failed half-written and could never be exported.
     /// </summary>
     [TestMethod]
@@ -232,7 +232,7 @@ public sealed class ExtensionArchiveTests
     }
 
     /// <summary>
-    /// EXT-06, review: a package stored before the rule may already hold a file and a folder of one
+    /// A package stored before the rule may already hold a file and a folder of one
     /// name. A path it holds is put again as before; only a new path is judged.
     /// </summary>
     [TestMethod]
@@ -270,7 +270,7 @@ public sealed class ExtensionArchiveTests
     }
 
     /// <summary>
-    /// EXT-07: what an import leaves out cannot be put, and a manifest spelled in another case is the
+    /// What an import leaves out cannot be put, and a manifest spelled in another case is the
     /// manifest, so a package exported and imported again is the same package.
     /// </summary>
     [TestMethod]

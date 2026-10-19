@@ -3,10 +3,9 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-008 (ADR-0009, 2026-09-29 amendment): the review and the queue say what accepting a
-// proposal means for consent to the file's automatic actions, before Accept is pressed.
-// Before this, the first word about it was after acceptance, with editing already paused,
-// and a proposal the host would refuse to promote was offered with Accept enabled.
+// ADR-0009: the review and the queue say what accepting a proposal means for consent to the
+// file's automatic actions before Accept is pressed, not after acceptance with editing already
+// paused, and a proposal the host would refuse to promote is not offered with Accept enabled.
 //
 // Measured from the real functions the views draw with, and from the view sources for
 // the one thing a bundle cannot reach: that both reviews disable Accept on the answer.

@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-089. The window, the notification area and every notification draw the open file's look,
+/// The window, the notification area and every notification draw the open file's look,
 /// and the About page lets the person choose one. The host hands the look out with the view,
 /// and a chosen look arrives by the same reviewed change set as any other edit to the file.
 /// </summary>

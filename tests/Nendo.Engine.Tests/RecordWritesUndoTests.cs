@@ -3,7 +3,7 @@ using System.Text;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A view undoes and redoes the batches it wrote (ADR-0023, W-103): each step is a compensation
+/// A view undoes and redoes the batches it wrote (ADR-0023): each step is a compensation
 /// of the one before, creates and restores are answered by a delete, a deleted record comes back
 /// under its own ID, and a record changed or pointed at since refuses the whole step.
 /// </summary>
@@ -55,7 +55,7 @@ public sealed class RecordWritesUndoTests
     /// <summary>
     /// A record made by one gesture and moved by the next: once the move is undone, the record is as
     /// the first gesture left it, though at a later version, so the first gesture is undone too and
-    /// both are redone in order. The lane found this refused (W-103).
+    /// both are redone in order. The lane found this refused.
     /// </summary>
     [TestMethod]
     public async Task AGestureIsUndoneAfterALaterGestureOnTheSameRecordWasUndone()
@@ -169,7 +169,7 @@ public sealed class RecordWritesUndoTests
 
     /// <summary>
     /// A revision that carries a keep mark (ADR-0022) is undone, redone and retried with an answer,
-    /// not an error after the commit (ESQ-03): the undo's mark inverse moves no version.
+    /// not an error after the commit: the undo's mark inverse moves no version.
     /// </summary>
     [TestMethod]
     public async Task ARevisionWithAKeepMarkIsUndoneAndRedoneWithAnAnswer()

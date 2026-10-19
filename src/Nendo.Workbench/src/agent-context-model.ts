@@ -2,9 +2,8 @@ import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 
 /**
- * Pointing a launched agent at the file's own things with @ (W-200, the owner's design A with
- * D's menu, 2026-10-09). The owner's first try at "Add more books!" stalled because the agent
- * did not know the record type's ID or its fields; what the person points at travels with the
+ * Pointing a launched agent at the file's own things with @. A request such as "Add more
+ * books!" stalls when the agent does not know the record type's ID or its fields; what the person points at travels with the
  * message, with its IDs and the nendo:// address that reads more, so the agent can act at once.
  *
  * Built to stay cheap on a large file. The menu matches names the Workbench already holds
@@ -273,7 +272,7 @@ export function contextLabel(label: string): string {
 }
 
 /**
- * Fit one more description into what the message already carries (ACP-10). Eight descriptions of
+ * Fit one more description into what the message already carries. Eight descriptions of
  * 6,000 characters each are more than the 32,000 the host takes together, and a message the host
  * refuses cannot be sent at all. A description is cut to the room left, keeping the address that
  * reads the rest; null when too little room is left to say anything useful.
@@ -301,7 +300,7 @@ export function isAttached(attached: readonly ContextAttachment[], item: Pick<Co
 
 /**
  * Add one thing the person chose to what the message points at, as the host will take it: once,
- * no more than eight, and its description cut to the room left (ACP-10). `refused` says why it
+ * no more than eight, and its description cut to the room left. `refused` says why it
  * was not added, naming what to take back; null with the list unchanged when it was there already.
  */
 export function withAttachment(attached: readonly ContextAttachment[], item: ContextAttachment): { attached: ContextAttachment[]; refused: string | null } {

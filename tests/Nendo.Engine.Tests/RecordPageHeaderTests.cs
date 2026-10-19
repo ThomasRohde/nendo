@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The record-page header, ADR-0004 2026-09-14 amendment, slice S0. A
+/// The record-page header (ADR-0004). A
 /// <c>detailSurface</c> may name the stored Text field that heads the page, a field
 /// shown under it, and the single-choice field whose option's tone colours it. Each
 /// is validated by shape and refused by name, and a page that uses any of them moves

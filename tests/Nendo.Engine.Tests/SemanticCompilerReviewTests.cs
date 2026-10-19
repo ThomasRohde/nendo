@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review of 2026-10-10 on the semantic compiler (W-208): definitions that compiled
+/// The semantic compiler: definitions that compiled
 /// and then failed on every read or every press, or that the compiler could not judge at all.
 /// </summary>
 [TestClass]
@@ -54,7 +54,7 @@ public sealed class SemanticCompilerReviewTests
         Assert.IsTrue(compiled.IsValid, Codes(compiled));
     }
 
-    /// <summary>W-248: thisWeek and thisMonth compare a date by the period's first or last day.</summary>
+    /// <summary><c>thisWeek</c> and <c>thisMonth</c> compare a date by the period's first or last day.</summary>
     [TestMethod]
     [DataRow("t-due", "thisWeek", "gte")]
     [DataRow("t-due", "thisWeek", "lte")]

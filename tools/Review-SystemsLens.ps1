@@ -34,8 +34,8 @@ try {
     $ran = & npx.cmd --yes --package '@playwright/cli@0.1.21' playwright-cli "-s=$session" run-code --filename $probePath 2>&1 | Out-String
     $exitCode = $LASTEXITCODE
     Write-Host $ran
-    # TGA-01: run-code ends early and exits 0 when a dialog opens, so an exit code alone passed a
-    # label that became markup and opened an alert.
+    # run-code ends early and exits 0 when a dialog opens (a label that became markup and opened
+    # an alert, say), so an exit code alone would pass a probe that stopped part-way.
     # The probe's source is echoed too, so its last word counts only as the run's own result.
     if ($exitCode -ne 0 -or $ran.Contains('### Modal state') -or $ran -notmatch '### Result\r?\n"systems lens ok ') {
         throw 'Systems Lens browser measurements did not complete.'

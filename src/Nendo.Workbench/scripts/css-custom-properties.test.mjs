@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readdirSync, readFileSync } from 'node:fs';
 
-// W-134. The front page's recent and ranked panels asked for var(--border), which no
-// stylesheet declares. A var() naming an undeclared property with no fallback makes the
-// whole declaration invalid, so both panels drew no border at all and nothing said so.
+// A var() naming an undeclared property with no fallback makes the whole declaration invalid:
+// a panel asking for var(--border), which no stylesheet declares, draws no border at all and
+// nothing says so.
 // This reads every stylesheet and refuses a var() without a fallback unless the property
 // is declared in a stylesheet or set by the Workbench's own code, as an inline style is.
 const styles = new URL('../src/styles/', import.meta.url);
@@ -34,7 +34,7 @@ test('every custom property a stylesheet reads without a fallback exists', () =>
   assert.deepEqual(missing, [], 'A var() with no fallback names a property nothing declares');
 });
 
-// CSS-11. A fallback hides a missing property instead: Failed summary totals read
+// A fallback hides a missing property instead: Failed summary totals read
 // var(--danger-text, var(--muted)), which nothing declared, so a failure always drew in the muted
 // grey of its context line. A var() with a fallback still names a property a stylesheet declares or
 // the Workbench's code sets; the fallback is for the moment before the code has set it.

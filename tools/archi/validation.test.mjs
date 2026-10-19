@@ -4,7 +4,7 @@ import test from 'node:test';
 import { archiOnlineCommit, buildMirror, validateModel, VALIDATION_RULES } from '../../extensions/archi/canvas.js';
 import { recordSets } from './archimate-records.mjs';
 
-// W-117: the workbench's validator is archi-online's, run on the mirror of the file's records. The
+// The workbench's validator is archi-online's, run on the mirror of the file's records. The
 // reference is what archi-online reports for its own models and for the cases of its validation
 // tests (validation-parity.json, from make-validation-fixture.mjs). Each model goes into records
 // as an import writes it and comes back through the mirror, so a difference is the file's or the

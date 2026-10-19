@@ -4,7 +4,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// The civil-date buckets a <c>trendChart</c> or an <c>activityGrid</c> is drawn from
-/// (ADR-0004 2026-09-16 amendment, S5).
+/// (ADR-0004).
 /// <para>
 /// These are the first groups in this product that are generated rather than declared. A
 /// single-choice field's options are written down, so an option nobody has used is still a

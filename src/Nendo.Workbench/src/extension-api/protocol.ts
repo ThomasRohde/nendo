@@ -31,11 +31,11 @@ export const extensionLimits = {
   toastCharacters: 300,
   /**
    * The fewest milliseconds between two moves a view asks of Nendo, ui.openRecord, ui.openScreen
-   * or ui.openStudio, from one view without the person in it (WXS-04): a view that asks in a loop
+   * or ui.openStudio, from one view without the person in it: a view that asks in a loop
    * must not keep the Workbench busy, which drops the person's own clicks.
    */
   navigationIntervalMs: 1_000,
-  /** The most state writes one view sends in any second (ADR-0013 Phase 3); the API spaces them wider. */
+  /** The most state writes one view sends in any second (ADR-0013); the API spaces them wider. */
   stateWritesPerSecond: 2,
   /** How far apart the API sends one view's state writes, coalescing a key written again meanwhile. */
   stateWriteSpacingMs: 600,
@@ -56,7 +56,7 @@ export const extensionLimits = {
   /** The most record types, or fields, one search may name. */
   searchScope: 64,
   /**
-   * A view's toolbar in Nendo's chrome (2026-09-28, W-090): at most this many controls in the
+   * A view's toolbar in Nendo's chrome: at most this many controls in the
    * row, buttons in a group, options in a choice or a select, and items in a menu.
    */
   toolbarItems: 32,
@@ -76,12 +76,12 @@ export const extensionLimits = {
   menusPerSecond: 4,
   /** The most keys one view hands the Workbench in any second. */
   keysPerSecond: 8,
-  // W-251: what a view's runtime events the broker reports to the host, per second, and how long
+  // How many of a view's runtime events the broker reports to the host, per second, and how long
   // an uncaught error's text may be.
   reportsPerSecond: 10,
   errorTextLength: 500,
   /**
-   * A view's place in Back and Forward (2026-09-29, W-127): at most this many UTF-8 bytes of
+   * A view's place in Back and Forward: at most this many UTF-8 bytes of
    * JSON, a label of at most `labelCharacters`, and this many declared in any second.
    */
   placeBytes: 4 * 1024,
@@ -91,7 +91,7 @@ export const extensionLimits = {
 /**
  * Nendo's own keys, in the form a key is normalised to. A view cannot declare one, and a view
  * does not keep one from Nendo: pressed inside a view, api.js hands it to the Workbench, whose
- * shortcut it is (W-090).
+ * shortcut it is.
  */
 export const hostKeys: readonly string[] = Object.freeze([
   'Ctrl+K', 'Ctrl+1', 'Ctrl+2', 'Ctrl+3', 'Ctrl+4', 'Ctrl+5', 'Ctrl+6', 'Ctrl+7',
@@ -151,14 +151,14 @@ export interface KeyEventLike { key: string; code?: string; ctrlKey: boolean; al
 /**
  * Whether a key is AltGr typing a character: Windows reports AltGr as Ctrl and Alt, so Polish
  * AltGr+E arrives as Ctrl, Alt and 'ę', and German AltGr+E as Ctrl, Alt and '€'. A Latin letter
- * or a digit with Ctrl and Alt is still a chord (W-217).
+ * or a digit with Ctrl and Alt is still a chord.
  */
 function altGraph(event: KeyEventLike): boolean {
   return event.ctrlKey && event.altKey && event.key.length === 1 && !/^[A-Za-z0-9]$/.test(event.key);
 }
 
 /**
- * The key a Ctrl or Alt chord was pressed on, whatever the layout types there (W-217). With a
+ * The key a Ctrl or Alt chord was pressed on, whatever the layout types there. With a
  * Russian, Greek, Arabic or Thai layout active, Ctrl and K reports the layout's letter ('л') as
  * its key, and AZERTY's digit row types '&', 'é' and '"', giving the digit only with Shift. So a
  * chord whose key is no Latin letter or digit is named by the physical key instead (`KeyK` is
@@ -260,7 +260,7 @@ export interface ViewContext {
   methods: string[];
   /**
    * Where Back or Forward put this view, as it last declared with `nendo.ui.setPlace`; null
-   * when it has declared none here (W-127). A view starts from it, and hears the event `place`
+   * when it has declared none here. A view starts from it, and hears the event `place`
    * when Back or Forward moves it while it runs.
    */
   place?: Json | null;
@@ -422,7 +422,7 @@ export type PortMessage =
   // A key pressed inside the view that is Nendo's, or one the view declared: the Workbench
   // runs it as if it had been pressed there. Normalised, as normalizeKeys spells it.
   | { t: 'key'; keys: string }
-  // An error the view's own code threw and did not catch (W-251), for the agent that wrote it.
+  // An error the view's own code threw and did not catch, for the agent that wrote it.
   | { t: 'error'; text: string };
 
 /** The UTF-8 length of a string, counted without encoding it, stopping once past `limit`. */

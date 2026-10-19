@@ -6,7 +6,7 @@ const bundle = await build({ configFile: false, logLevel: 'error',
   build: { ssr: 'src/new-file.ts', write: false, rollupOptions: { output: { codeSplitting: false } } } });
 const newFile = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
 
-// ADR-0022 (W-129). Studio says what a new file of the application keeps, and the File menu
+// ADR-0022. Studio says what a new file of the application keeps, and the File menu
 // names a new file by the application's own label.
 test('the File menu names a new file by the application label, or as an empty copy', () => {
   assert.equal(newFile.newFileMenuLabel('Archi model'), 'New Archi model…');

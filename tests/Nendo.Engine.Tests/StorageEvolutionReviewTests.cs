@@ -6,7 +6,7 @@ using Nendo.Engine.Storage;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review's storage, schema evolution and reversibility findings (W-212): each guard
+/// Storage, schema evolution and reversibility: each guard
 /// measures the defect it names and was seen to fail with that defect put back.
 /// </summary>
 [TestClass]
@@ -15,7 +15,7 @@ public sealed class StorageEvolutionReviewTests
     private const int InterruptedRecords = 300;
 
     /// <summary>
-    /// What the child process runs for ESC-01: a large import stopped inside its write
+    /// What the child process runs: a large import stopped inside its write
     /// transaction, after SQLite has spilled pages into the file and before COMMIT.
     /// </summary>
     internal static async Task InterruptedWriteAsync(NendoWriteCoordinator coordinator)
@@ -702,8 +702,8 @@ public sealed class StorageEvolutionReviewTests
         var coordinator = await workspace.CreateAsync();
         var service = await ShapesAsync(coordinator);
         // Two of each kind History offers on a structure change: the first is overtaken, the
-        // second is undone while it is still the latest (ESC-03 adds the unique, sequence and
-        // presentation changes to the offer).
+        // second is undone while it is still the latest (the unique, sequence and
+        // presentation changes are in the offer).
         var kinds = new (string Name, Func<long, string, NendoOperation> First, Func<long, string, NendoOperation> Second)[]
         {
             ("unique", (r, k) => new SetFieldUniqueOperation(k, "caps", "caps.code", true, r), (r, k) => new SetFieldUniqueOperation(k, "caps", "caps.code2", true, r)),

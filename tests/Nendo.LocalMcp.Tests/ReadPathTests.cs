@@ -4,8 +4,8 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// What an agent can observe. The 2026-09-11 blackbox review built a complete CRM
-/// through this interface and then had to open the SQLite file directly to check
+/// What an agent can observe. A review that built a complete CRM
+/// through this interface had to open the SQLite file directly to check
 /// that a button had done what the button said it did: the read paths existed but
 /// were not discoverable, health reported a stale measurement as a current one,
 /// and pending proposals were invisible. Each case here is one of those.

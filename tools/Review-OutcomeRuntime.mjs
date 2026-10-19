@@ -187,7 +187,7 @@ try {
   await reload();
   await click('#nav-surfaces');
   await ready();
-  // A board renames itself from its own card (UIT-16); this file has one board.
+  // A board renames itself from its own card; this file has one board.
   await evaluate(`document.querySelector('[data-board-rename] [data-board-title]').value = 'Receipt recovered'; document.querySelector('[data-board-rename]').requestSubmit()`);
   await ready();
   await waitFor(() => evaluate(`!!document.querySelector('#accept-proposal')`), 'rename proposal');
@@ -199,7 +199,7 @@ try {
   // the page, and the page chases its reads and redraws when they land, within a second
   // of arriving. Wait past that and measure what is on the page, not what was said as it
   // arrived: the sentence, and the one button that answers it. A rename prepared on
-  // Screens is accepted back onto Screens (UIT-02).
+  // Screens is accepted back onto Screens.
   await sleep(2500);
   const retained = await evaluate(`(() => { const slot = document.querySelector('.message-slot:not([hidden])'); return { text: slot?.textContent ?? null, refresh: !!document.querySelector('#refresh-outcome-view') }; })()`);
   assert(retained.text !== null && retained.text.includes('accepted.') && retained.text.includes('Refresh') && retained.refresh,
@@ -233,7 +233,7 @@ try {
     await reload();
     if (mode === 'before') {
       assert(await evaluate(`!!document.querySelector('#pending-save-notice') && document.querySelector('#new-record').disabled`), 'Unresolved save did not survive reload or prevent a new key');
-      // Seen, not only written: the words once went into a pill the chrome had hidden (WCS-14).
+      // Seen, not only written: the words once went into a pill the chrome had hidden.
       assert(await evaluate(`(() => { const pill = document.querySelector('#session-health'); return pill.textContent.includes('Save unconfirmed') && !pill.hidden && pill.getClientRects().length > 0; })()`), 'The status bar does not show the unconfirmed save');
       for (const theme of ['light', 'dark']) {
         await click('[data-theme-option="' + theme + '"]');
@@ -360,7 +360,7 @@ try {
 } catch (error) {
   // A timeout says what the script was waiting for, not what the page was showing.
   // This lane waited sixteen days on a rename form the host had refused in one red
-  // sentence nobody read (F-084). Whatever failed, capture the page and its message
+  // sentence nobody read. Whatever failed, capture the page and its message
   // slot before the process goes, so the next failure names itself.
   try {
     await screenshot('failure.png');

@@ -129,7 +129,6 @@ public sealed class HierarchyMoveReviewTests
         await DeclareAsync(coordinator, service);
         // Into the middle of a dense level: the run grows both ways until it reaches an end,
         // so 102 of the 103 records are written and the revision spans two history pages.
-        // (Before 2026-10-04 the whole level was renumbered wherever the record went; F-260.)
         var request = new NendoMoveRecordRequest(Entity, "moving", 1, null, null, "a051", Context("renumber-many"));
         var original = await service.MoveRecordAsync(request);
 

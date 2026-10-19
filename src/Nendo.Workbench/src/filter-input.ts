@@ -8,7 +8,7 @@ type FilterField = EntitySnapshot['fields'][number];
 /**
  * What the person typed in the Data filter, in the words the grid shows, as the value the field
  * stores: Yes and No for a Boolean, a choice by its label. The filter wanted "true" and the
- * hidden option ID, and refused "Yes" with a message that asked for Yes (UX-08).
+ * hidden option ID, and refused "Yes" with a message that asked for Yes.
  */
 export function filterInput(field: FilterField, typed: string): string {
   const text = typed.trim();
@@ -39,7 +39,7 @@ const dayWords: Readonly<Record<string, string>> = {
  * The clauses the Data filter sends for one field, operator and typed value, and what the status
  * line says of them when that is not the typed value itself.
  *
- * A plain date against a date and time is a day where the person is (W-217): the host refuses an
+ * A plain date against a date and time is a day where the person is: the host refuses an
  * instant without a zone, and an exact instant at midnight is not what a person means by a date.
  * Equals becomes the whole local day, from its start to the next day's start. Does not equal
  * would need an "or" a filter cannot say, so it is refused with what does work. The comparisons
@@ -72,7 +72,7 @@ export function filterPlaceholder(field: FilterField): string {
   return kind === 'Date' || isDateTimeKind(field.storageKind) ? 'YYYY-MM-DD' : '';
 }
 
-/** The touch keypad the Value box asks for: none a whole number would refuse (W-217). */
+/** The touch keypad the Value box asks for: none a whole number would refuse. */
 export function filterInputMode(field: FilterField): '' | 'numeric' | 'decimal' {
   const kind = storageLabel(field.storageKind);
   return kind === 'Integer' ? 'numeric' : kind === 'Decimal' ? 'decimal' : '';

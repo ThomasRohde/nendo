@@ -56,8 +56,8 @@ async function holderNamed(error: unknown, payload: Record<string, unknown>): Pr
 }
 
 /**
- * A reference refusal said with the record it points at named by its label rather than its ID
- * (R2AP-07). Null keeps the host's sentence: no target named, a target that does not exist, or a
+ * A reference refusal said with the record it points at named by its label rather than its ID.
+ * Null keeps the host's sentence: no target named, a target that does not exist, or a
  * read that failed.
  */
 async function targetNamed(error: unknown, payload: Record<string, unknown>): Promise<string | null> {
@@ -106,7 +106,7 @@ export async function runMutation(
     const notice = await refreshAfterOutcome(result);
     rerender();
     // Drawn as well as announced: a hidden live region told a screen reader and nobody else
-    // that a save, an add, a delete or a command had worked (UX-04). An action a condition
+    // that a save, an add, a delete or a command had worked. An action a condition
     // blocked is said in the tone of an alert and kept until the next action, since what it
     // keeps is now stale; it does not take the focus, and it keeps the success's next step.
     const blocked = blockedConditionsNotice(result.mutation.blockedConditions);
@@ -147,15 +147,15 @@ export async function refreshAfterOutcome(result: DesktopMutationView | DesktopP
 /**
  * Codes whose sentence asks the person to refresh the view: the file session ended, or the file
  * kept moving while it was read. They said "Refresh the view" with nothing to press, and the
- * refresh a person reaches for, F5, reloaded the whole window and lost drafts, tabs and the trail
- * (WCS-08). They carry a Refresh view button now, and F5 is that refresh.
+ * refresh a person reaches for, F5, reloaded the whole window and lost drafts, tabs and the trail.
+ * They carry a Refresh view button now, and F5 is that refresh.
  */
 const refreshableCodes = new Set(['stale-file-session', 'view-changed']);
 
 /** A failure said where it can be seen; one that asks for a refresh carries the Refresh view button. */
 export function showFailure(error: unknown, takeFocus = true): void {
   if (!refreshableCodes.has(errorCode(error))) {
-    // A read nobody pressed for says it failed without moving anybody (WCS-07).
+    // A read nobody pressed for says it failed without moving anybody.
     if (takeFocus) showError(messageFor(error)); else showKeptAlert(messageFor(error));
     return;
   }
@@ -179,7 +179,7 @@ export function showFailure(error: unknown, takeFocus = true): void {
 }
 
 /**
- * Read the open file again and redraw, as Refresh view does: F5 and Ctrl R (WCS-08). A page
+ * Read the open file again and redraw, as Refresh view does: F5 and Ctrl R. A page
  * holding unsaved typing refuses, as every other redraw on the person's behalf does.
  */
 export async function refreshView(): Promise<void> {
@@ -264,7 +264,7 @@ export async function handlePageFailure(error: unknown): Promise<void> {
     if (state.view === 'data') {
       // Kept with its button across redraws, and only while the results are the earlier query's:
       // the button was added to the slot by hand, so the next redraw put the sentence back without
-      // it, and the sentence stayed after a redraw had already read the current records (WCS-24).
+      // it, and the sentence stayed after a redraw had already read the current records.
       showKeptAlert('The file changed. These results are from the earlier query. Restart to see the current records.', {
         label: 'Restart query',
         run: async () => {
@@ -289,13 +289,13 @@ export async function handlePageFailure(error: unknown): Promise<void> {
 
 /**
  * The compiled definition of the last refresh, and the revision it was compiled at. A move
- * between screens reuses it while the file has not moved (review R-014); every other refresh,
+ * between screens reuses it while the file has not moved; every other refresh,
  * after a write, an acceptance or a setting, compiles again.
  */
 let compiled: { key: string; definition: CompileResult | null } | null = null;
 
 /**
- * The file session and change the derived state was last committed at (WCS-07). The session
+ * The file session and change the derived state was last committed at. The session
  * snapshot moves before the derived state is rebuilt, so a refresh that failed after adopting a
  * newer snapshot left the screen on the old revision while every later nudge for that change was
  * taken as already seen. Following the file compares against this instead.
@@ -313,7 +313,7 @@ export interface RefreshOptions {
 
 /**
  * Rebuild what the screens draw from, from one revision. The History page and the Agent page
- * read what only they show when they are the screen (review R-014): a move elsewhere reads
+ * read what only they show when they are the screen: a move elsewhere reads
  * neither, and opening either reads it then.
  */
 export async function refreshDerived(attempt = 0, options: RefreshOptions = {}): Promise<void> {
@@ -359,7 +359,7 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   // A calendar or a timeline reads its own bounded pages when it renders, so
   // the shared refresh must not open an unbounded window for one.
   // The query the screen opened under, a drill or a Filter pick included: the declared one alone
-  // put records back on a narrowed screen after every write (W-172).
+  // put records back on a narrowed screen after every write.
   const surfaceDay = readDay();
   const declared = studioOwnsReads || surfaceNode === null || readsOwnRecords(surfaceNode.kind) || applicationEntity === undefined
     ? null
@@ -388,7 +388,7 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
   // a file with a front page opens on it, and one without opens on a record type
   // exactly as it did. Already answered for this file, it stays as the person
   // last left it.
-  // A view of the file that says opensFile comes first, where custom views run (W-106).
+  // A view of the file that says opensFile comes first, where custom views run.
   if (state.showOverview === null) {
     state.fileView = openingFileView(definition, state.session.extensions);
     state.showOverview = state.fileView === null && definition?.isValid === true && (definition.overview ?? null) !== null;
@@ -438,7 +438,7 @@ export async function refreshDerived(attempt = 0, options: RefreshOptions = {}):
 }
 
 export async function openWorkspaceView(target: 'use' | 'data' | 'structure' | 'surfaces' | 'history'): Promise<void> {
-  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  // A press while a save or a read runs is made when it ends, rather than dropped.
   if (deferWhileBusy(() => { void openWorkspaceView(target); })) return;
   // Another view is a redraw, and a redraw is the open form's unsaved typing gone.
   if (refuseWhileDirty('leaving this screen')) return;
@@ -461,7 +461,7 @@ export async function openWorkspaceView(target: 'use' | 'data' | 'structure' | '
     rerender();
   } catch (error) {
     // The screen still shows where the person was, so the state says so too: it named the new
-    // screen under the old one's page and rail, and the next automatic redraw swapped (WCS-18).
+    // screen under the old one's page and rail, and the next automatic redraw swapped.
     // Another file is another screen anyway, and is drawn.
     if (fileChanged) rerender(); else state.view = leaving;
     showFailure(error);
@@ -586,7 +586,7 @@ export async function buildSearchIndex(): Promise<boolean> {
 }
 
 /**
- * Removes the pictures nothing names any more, then compacts the file (ADR-0031 point 8, W-273),
+ * Removes the pictures nothing names any more, then compacts the file (ADR-0031 point 8),
  * after the person has read what that does. The host makes the backup first; the answer names it.
  */
 export async function removeUnusedPictures(): Promise<void> {
@@ -634,7 +634,7 @@ export async function compensateRevision(revisionId: string): Promise<void> {
   // A second press while the question is read or open is the same undo asked twice.
   if (state.actionInFlight || undoAsking) { showError(undoBusy); return; }
   // A multi-record batch, a definition or a package is named and its effect said before it is
-  // undone; one record's edit stays one press (WSP-05, accepted 2026-10-13).
+  // undone; one record's edit stays one press.
   const revision = state.history.find(item => item.revisionId === revisionId);
   if (revision !== undefined && undoMayAsk(revision)) {
     undoAsking = true;
@@ -661,7 +661,7 @@ export async function retryPendingSave(): Promise<void> {
 }
 
 /**
- * Drop a save the person stopped, without sending it (WCS-22). Offered only once the host has
+ * Drop a save the person stopped, without sending it. Offered only once the host has
  * answered the stop and a receipt check found nothing; the receipt is checked again first, and a
  * save that landed after all is confirmed rather than dropped.
  */
@@ -672,7 +672,7 @@ export async function discardPendingSave(): Promise<void> {
 
 /**
  * Send a save made under another file name into the file open now, after the person has said this
- * file is that one renamed (WCS-03). The receipt is looked up first, as Check or retry does.
+ * file is that one renamed. The receipt is looked up first, as Check or retry does.
  */
 export async function sendPendingSaveHere(): Promise<void> {
   if (client.retryPendingMutation === undefined) return;
@@ -689,7 +689,7 @@ export async function sendPendingSaveHere(): Promise<void> {
   await settlePendingSave(() => client.retryPendingMutation!(true), null);
 }
 
-/** Drop a save made in another file from this device, after the person has confirmed it (WCS-03). */
+/** Drop a save made in another file from this device, after the person has confirmed it. */
 export async function discardPendingSaveHere(): Promise<void> {
   if (client.discardPendingMutation === undefined) return;
   const pending = client.pendingMutation?.() ?? null;
@@ -761,7 +761,7 @@ export async function refreshStudioQuery(entityId: string): Promise<void> {
 
 /** Help on a topic, or with none named on the open file's own first page, where it has one (ADR-0027). */
 export async function openHelp(topicId = ''): Promise<void> {
-  // A press while a save or a read runs is made when it ends (WCS-16).
+  // A press while a save or a read runs is made when it ends.
   if (deferWhileBusy(() => { void openHelp(topicId); })) return;
   if (refuseWhileDirty('opening Help')) return;
   state.helpTopicId = topicId; state.view = 'help'; state.creatingRecord = false;
@@ -778,7 +778,7 @@ export async function openHelp(topicId = ''): Promise<void> {
   }
   const pages = await readHelpPages();
   // Opened again since, or left: the answer belongs to a page that is not on screen, and a redraw
-  // would land on whatever is, a record form included (WCS-11).
+  // would land on whatever is, a record form included.
   if (opening !== helpOpenings || state.view !== 'help') { if (opening === helpOpenings) state.helpPages = pages; return; }
   state.helpPages = pages;
   // The first render, before the pages arrived, settled on Start: with no topic named, choose again
@@ -800,9 +800,9 @@ async function readHelpPages(): Promise<FileHelpPage[]> {
  * Prepares a Studio change as a proposal and opens its review. Answers whether the review opened.
  *
  * A press while another action runs says so: it was dropped without a word, and a column rename
- * typed into its header stayed a box nothing answered (WSP-18). A change the host refuses on its
+ * typed into its header stayed a box nothing answered. A change the host refuses on its
  * copy of the file is rejected there and said in the form it came from, which keeps what was
- * typed: it opened a review nothing could accept, whose Back lost the form (WSP-19).
+ * typed: it opened a review nothing could accept, whose Back lost the form.
  */
 export async function prepareApplication(recipe: ApplicationRecipe, returnView: ViewName): Promise<boolean> {
   if (state.actionInFlight) { showError('Wait for the current action to finish, then try again.'); return false; }

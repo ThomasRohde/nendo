@@ -124,7 +124,7 @@ internal static class DesktopNotificationContent
     /// </param>
     /// <param name="generation">
     /// Which of the raising process's file sessions it was raised in: a count, not the session's
-    /// identity, so a click for a file that window has since closed can tell (R2SP-10).
+    /// identity, so a click for a file that window has since closed can tell.
     /// </param>
     internal static string ToXml(DesktopNotification notification, int? window = null, string? logo = null, int? generation = null)
     {
@@ -180,7 +180,7 @@ internal static class DesktopNotificationContent
     /// The view a click raised in file session <paramref name="raisedIn"/> goes to in a window now
     /// in <paramref name="current"/>. A notification raised for a file the window has since closed
     /// brings the window forward and goes nowhere: it landed on the Health or Agent page of
-    /// whatever file the window held by then, which said nothing about the file it named (R2SP-10).
+    /// whatever file the window held by then, which said nothing about the file it named.
     /// </summary>
     internal static string ForFileSession(string route, int? raisedIn, int current) =>
         raisedIn is { } raised && raised != current ? RouteOpen : route;

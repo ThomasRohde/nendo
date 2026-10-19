@@ -136,7 +136,7 @@ export function destroyGrid(): void {
 
 /**
  * Ends a cell edit that is open, which saves its value, before a window key moves anywhere: a
- * key moves no focus, so the editor stayed open and the redraw destroyed it unsaved (WCS-06).
+ * key moves no focus, so the editor stayed open and the redraw destroyed it unsaved.
  * True when one was open.
  */
 export function stopGridEditing(): boolean {
@@ -158,7 +158,7 @@ fileScopedClearable({ clear() { columnWidths.clear(); columnLayouts.clear(); hea
 let headerFocusAfterDraw: string | null = null;
 // A cell save redraws the table. It came back with the focus on the page and its columns
 // scrolled home, so a keyboard user clicked back in for every cell and a column scrolled
-// into view jumped away (UX-03). The cell, and whether the grid had the focus, are kept here.
+// into view jumped away. The cell, and whether the grid had the focus, are kept here.
 let cellFocusAfterDraw: { recordId: string; colId: string; scrollLeft: number; focus: boolean } | null = null;
 
 function gridViewport(): HTMLElement | null {
@@ -257,7 +257,7 @@ function studioHeader(options: StudioHeaderOptions): Pick<ColDef<GridRow>, 'head
 }
 
 // ------------------------------------------------------------------------------------------
-// The outline of a declared hierarchy (ADR-0019 stage 5). A record type that declares one opens
+// The outline of a declared hierarchy (ADR-0019). A record type that declares one opens
 // as an outline; the flat table stays one click away. Levels are read from the host a parent at
 // a time and read again whenever the file has moved on.
 
@@ -304,7 +304,7 @@ async function readMore(entity: EntitySnapshot, parentKey: string): Promise<void
 async function moveInOutline(entity: EntitySnapshot, direction: MoveDirection): Promise<void> {
   const outline = outlines.get(entity.entityId);
   if (outline === undefined || outlineFocus === null || !state.session.capabilities.mutate) return;
-  // A hierarchy with no order field has no sibling order to move within (WDV-09).
+  // A hierarchy with no order field has no sibling order to move within.
   const target = moveTarget(outline, outlineFocus, direction, entity.hierarchy?.orderFieldId != null);
   if (target === null) return;
   const payload = movePayload(outline, outlineFocus, target, mutationKey());
@@ -569,7 +569,7 @@ export function wireStudioQuery(entity: EntitySnapshot): void {
   const operator = form.elements.namedItem('operator') as HTMLSelectElement;
   const value = form.elements.namedItem('value') as HTMLInputElement;
   // A Reference field is filtered by its record, chosen in the picker a record form uses: the
-  // Value box wanted the record's stored ID, which nothing on screen shows (UX-08).
+  // Value box wanted the record's stored ID, which nothing on screen shows.
   const picker = requiredElement<HTMLElement>('[data-query-reference]');
   const pickedFor = (field: EntitySnapshot['fields'][number] | undefined): boolean =>
     field?.reference != null && storageLabel(field.storageKind) === 'Reference';
@@ -772,7 +772,7 @@ export function mountRecordGrid(entity: EntitySnapshot, records: RecordPlan[], o
         // A rating is edited by choosing one of the scale's numbers. The values are the
         // lexemes the cell already carries, so a chosen one needs no conversion on the
         // way back in; the dots are how it reads, not how it is typed. The cell's own value
-        // is offered too, in scale or not, so opening it to look changes nothing (WDV-02).
+        // is offered too, in scale or not, so opening it to look changes nothing.
         : ratingScaleOf(field) !== null
           ? (parameters: { value?: unknown }) => ({ values: editorValues([...(field.required ? [] : ['']), ...ratingSteps(ratingScaleOf(field)!).map(String)], parameters.value) })
           // The large-text editor cuts what it holds at 200 characters unless told otherwise.
@@ -986,13 +986,13 @@ function keptColumn(entity: EntitySnapshot): ColDef<GridRow> {
 export async function commitGridEdit(event: CellValueChangedEvent<GridRow>, scrollLeft?: number): Promise<void> {
   if (event.data === undefined || event.newValue === event.oldValue || event.colDef.colId === undefined) return;
   // The cell's place is kept only across a redraw this edit makes, and dropped after it, so a
-  // later redraw nobody tied to this edit never pulls the focus back here (UX-03).
+  // later redraw nobody tied to this edit never pulls the focus back here.
   const redrawing = async <T>(redraw: () => Promise<T>): Promise<T> => {
     keepCellAcrossDraw(event, scrollLeft);
     try { return await redraw(); } finally { cellFocusAfterDraw = null; }
   };
   // A change the host refused, or one that never left because another was in flight, left its
-  // value drawn in the cell as if it had been saved (UX-02). The table is read again so the cell
+  // value drawn in the cell as if it had been saved. The table is read again so the cell
   // shows what is stored, and the reason stays beside it.
   const putBack = (): Promise<void> => redrawing(async () => {
     const reason = document.querySelector('.message-slot:not([hidden])')?.textContent ?? '';
@@ -1024,7 +1024,7 @@ export async function commitGridEdit(event: CellValueChangedEvent<GridRow>, scro
   try {
     value = value === null || value === undefined || ((field.presentation === 'singleChoice' || ratingScaleOf(field) !== null) && value === '') ? null : parseScalar(storageLabel(field.storageKind), exactNumberText(value) ?? String(value));
   } catch (error) { showError(messageFor(error)); await redrawing(() => recoverAfterWriteFailure()); return; }
-  // An edit that leaves the value as it was writes nothing: no revision, no new version (WDV-02).
+  // An edit that leaves the value as it was writes nothing: no revision, no new version.
   if (gridEditUnchanged(value, event.oldValue)) {
     event.data.values[field.fieldId] = event.oldValue;
     event.api.refreshCells({ rowNodes: [event.node], columns: [event.colDef.colId], force: true });

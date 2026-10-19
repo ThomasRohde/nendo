@@ -8,7 +8,7 @@ internal static partial class WorkbenchMethods
     /// <summary>
     /// Show a file a view saved in its folder, in Explorer, by the identifier its downloadSaved
     /// event named. Only a download this window saved can be shown, so the page never hands the
-    /// host a path (F-237).
+    /// host a path.
     /// </summary>
     internal const string DownloadsShow = "downloads.show";
 }

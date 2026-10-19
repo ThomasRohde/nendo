@@ -5,12 +5,12 @@ namespace Nendo.Engine;
 public sealed partial class NendoWriteCoordinator
 {
     /// <summary>
-    /// The open file's custom views' recent runtime events (W-251): memory only, this file's alone,
+    /// The open file's custom views' recent runtime events: memory only, this file's alone,
     /// gone when it closes. The Workbench reports them and an agent reads them over MCP.
     /// </summary>
     public NendoViewEvents ViewEvents { get; } = new();
 
-    /// <summary>What this read-only session last verified its file against, so a page read is not a full scan (W-221 review).</summary>
+    /// <summary>What this read-only session last verified its file against, so a page read is not a full scan.</summary>
     internal SqliteNendoStore.InspectedContentStamp ReadOnlyContentStamp { get; } = new();
 
     /// <summary>How many times a review's read opened a proposal's clone; a test reads it.</summary>
@@ -20,7 +20,7 @@ public sealed partial class NendoWriteCoordinator
     /// One file of a custom-view package with its bytes, or null when the file carries no such
     /// package or path. Definition, so it is readable whenever the definition is; what a file
     /// in recovery may run is for the host to say, not this read. A read-only session reads
-    /// it from the file it inspected, while that file still holds what was inspected (ECO-07).
+    /// it from the file it inspected, while that file still holds what was inspected.
     /// </summary>
     public async Task<NendoExtensionFileContent?> ReadExtensionFileAsync(string packageId, string path, CancellationToken cancellationToken = default)
     {
@@ -41,7 +41,7 @@ public sealed partial class NendoWriteCoordinator
     }
 
     /// <summary>
-    /// Part of one package file as a waiting proposal would leave it (review R-017), read from the
+    /// Part of one package file as a waiting proposal would leave it, read from the
     /// copy the proposal was validated on, never from the active file. Only a file the proposal
     /// adds or replaces, and only while the proposal is the one reviewed: a digest other than
     /// its reviewed digest is refused, so a review never reads bytes it is not accepting.
@@ -88,7 +88,7 @@ public sealed partial class NendoWriteCoordinator
         finally { _gate.Release(); }
     }
 
-    /// <summary>A view's kept values (ADR-0013 Phase 3): one key's, or every key with its version.</summary>
+    /// <summary>A view's kept values (ADR-0013): one key's, or every key with its version.</summary>
     public async Task<IReadOnlyList<NendoExtensionStateEntry>> ReadExtensionStateAsync(
         string packageId, string viewId, string? key, CancellationToken cancellationToken = default)
     {

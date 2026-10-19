@@ -192,7 +192,7 @@ public sealed partial class NendoWriteCoordinator
 
     // A read-only session compares every source with the content it inspected at open, so after a
     // writer commits, preparing again fails the same way: only a fresh inspection moves it on, and
-    // the advice to review a new backup could never work there (R2SMA-12).
+    // the advice to review a new backup could never work there.
     private NendoPreconditionException SourceChanged() => _readOnlySnapshot is not null
         ? new("backup-source-changed", ReadOnlyFileChangedText)
         : new("backup-source-changed", "The source changed after inspection or confirmation. Review a new backup before continuing.");

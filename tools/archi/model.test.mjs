@@ -6,7 +6,7 @@ import {
   propertyWrites, typeWrite, renameWrite, fieldWrite, rootFolderOfKind, homeKind,
 } from '../../extensions/archi/model.js';
 
-// The Archi workbench's rules (W-109), over Archisurance as Archi.nendo holds it
+// The Archi workbench's rules, over Archisurance as Archi.nendo holds it
 // (tools/archi/archisurance.json, from tools/archi/make-fixture.mjs).
 const fixture = JSON.parse(readFileSync(new URL('./archisurance.json', import.meta.url), 'utf8'));
 const model = () => buildModel(fixture.records);

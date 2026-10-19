@@ -59,7 +59,7 @@ test('a body is text, never markup', () => {
   assert.equal(escape('&<>"\''), '&amp;&lt;&gt;&quot;&#39;');
 });
 
-test('GDN-07: a heading ending in # keeps it, and a link whose words are code shows the code', () => {
+test('a heading ending in # keeps it, and a link whose words are code shows the code', () => {
   assert.ok(render('# Learning C#').includes('<h1>Learning C#</h1>'), `'# Learning C#' must keep its #: ${render('# Learning C#')}`);
   assert.ok(render('## Title ##').includes('<h2>Title</h2>'), 'a closing run after a space is still cut');
   const html = render('Run [`npm ci`](https://docs.npmjs.com/cli/ci) first.');
@@ -68,7 +68,7 @@ test('GDN-07: a heading ending in # keeps it, and a link whose words are code sh
   assert.ok(!html.includes('\u0000'), 'no placeholder is left in the HTML');
 });
 
-test('GDN-05: a box in a numbered list is text, not a box that ticks and saves nothing', () => {
+test('a box in a numbered list is text, not a box that ticks and saves nothing', () => {
   const html = render('1. [ ] Call Sam\n2. [x] Done', { interactive: true });
   assert.ok(!html.includes('<input'), `a numbered '[ ]' must not be drawn as a checkbox, since parse() makes no task of it: ${html}`);
   assert.ok(html.includes('<ol><li>[ ] Call Sam</li>'), html);
@@ -76,7 +76,7 @@ test('GDN-05: a box in a numbered list is text, not a box that ticks and saves n
   assert.ok(!render('- [ ] ', { interactive: true }).includes('<input'), 'a box with no words is no task, as parse() reads it');
 });
 
-test('GDN-07 (review): a body carrying U+0000 or self-referring code spans stays escaped text, and its HTML stays small', () => {
+test('a body carrying U+0000 or self-referring code spans stays escaped text, and its HTML stays small', () => {
   const NUL = '\u0000';
   // A body that writes the placeholder form itself: inside a wikilink's target, a link's address, and a task's words.
   const forged = [

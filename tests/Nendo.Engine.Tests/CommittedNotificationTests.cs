@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The coordinator says when the file moved, W-034.
+/// The coordinator says when the file moved.
 /// <para>
 /// It exists because nothing else can say it. A surface on screen is compared against the
 /// change sequence the renderer holds, and an agent writing through MCP moves the file

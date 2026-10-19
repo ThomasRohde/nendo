@@ -1,6 +1,6 @@
-// What a BCM.nendo built before 2026-09-29 needs to hold assessments over time (W-080): the
-// Assessment record type and its screens, a unique capability code (W-075), both ends of a support
-// link required (W-076), and the Capability map's configuration naming the assessments. Built from
+// What a BCM.nendo built before 2026-09-29 needs to hold assessments over time: the
+// Assessment record type and its screens, a unique capability code, both ends of a support
+// link required, and the Capability map's configuration naming the assessments. Built from
 // definition.mjs, so the upgrade and a file built fresh by build-model.mjs arrive at one schema.
 //
 // Upgrade-BcmAtlas.mjs sends these as one proposal the person accepts, then imports the
@@ -56,7 +56,7 @@ export function upgradeMutations() {
       ],
     },
     {
-      // W-081: an initiative covers several capabilities, one link record each.
+      // An initiative covers several capabilities, one link record each.
       description: `Define ${scopeName}, linking an initiative to each capability it changes`,
       operations: [
         op('schema.createEntity', { entityId: `bcm.${scopeId}`, displayName: scopeName }),

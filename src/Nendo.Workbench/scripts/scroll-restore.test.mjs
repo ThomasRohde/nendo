@@ -16,7 +16,7 @@ import { readdirSync, readFileSync } from 'node:fs';
  *
  * This reads shell.ts and every stylesheet and requires them to agree. It read two of the
  * stylesheets once, so Help's article, which scrolls on its own, went back to its top on every
- * file-change redraw with this test green (WST-01). The exemptions are named, because an
+ * file-change redraw with this test green. The exemptions are named, because an
  * exemption nobody can read is the same hole in a different place.
  */
 const shell = readFileSync(new URL('../src/shell.ts', import.meta.url), 'utf8');

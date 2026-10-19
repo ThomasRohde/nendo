@@ -10,7 +10,7 @@ import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentStat
  * A step it scheduled belongs to the launch and the turn that scheduled it: Stop, End or another
  * launch drops it, and a launch is refused while an agent runs, as the Desktop host does. Old
  * timers wrote into the next conversation and ran after Stop, so the agent-chat lane could read
- * states production never reaches (WAU-16).
+ * states production never reaches.
  */
 export class PreviewAgentSession {
   private readonly listeners = new Set<(revision: number) => void>();
@@ -35,7 +35,7 @@ export class PreviewAgentSession {
     { name: 'compact', description: 'Summarise the conversation so far', hint: null },
     { name: 'init', description: 'Write a guide to this file for later sessions', hint: null },
   ];
-  // The options Copilot CLI 1.0.93 offered when probed on 2026-10-08, trimmed.
+  // The options Copilot CLI 1.0.93 offers, trimmed.
   private options: AgentOption[] = [
     { id: 'mode', name: 'Mode', description: null, category: 'mode', currentValue: 'agent', values: [
       { value: 'agent', name: 'Agent', description: null, group: null }, { value: 'plan', name: 'Plan', description: null, group: null },
@@ -57,7 +57,7 @@ export class PreviewAgentSession {
     return () => { this.listeners.delete(listener); };
   }
 
-  /** The access level changed: the conversation's tab reads again, as the Desktop host tells it to (ACP-12). */
+  /** The access level changed: the conversation's tab reads again, as the Desktop host tells it to. */
   levelChanged(): void {
     if (this.agent === null) return;
     const revision = this.revision;
@@ -65,7 +65,7 @@ export class PreviewAgentSession {
   }
 
   handle(method: string, payload: Record<string, unknown>): unknown {
-    // A request meant for a conversation since replaced is refused, as the Desktop host does (ACP-07).
+    // A request meant for a conversation since replaced is refused, as the Desktop host does.
     if (typeof payload.conversationId === 'string' && payload.conversationId !== this.conversationId)
       throw new WorkbenchHostError('agent-conversation-replaced', 'That conversation has been replaced by a new one. Nothing was sent.');
     switch (method) {
@@ -179,7 +179,7 @@ export class PreviewAgentSession {
   /**
    * Two steps that run at once, as an agent that calls tools in parallel sends them: the first
    * says what came back only once the request is answered, so a step earlier in the run gains a
-   * disclosure while the person has a later one open (WAU-09).
+   * disclosure while the person has a later one open.
    */
   private parallel(after: number): LaunchedAgentView {
     this.pendingStep = this.add({ kind: 'tool', text: '', title: 'Count the records', toolKind: 'read', status: 'in_progress', origin: 'nendo' });

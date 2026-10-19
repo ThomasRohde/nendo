@@ -1,4 +1,4 @@
-// ELK for the Archi workbench (W-115). archi-online's layouts load elkjs whole, on the page; the
+// ELK for the Archi workbench. archi-online's layouts load elkjs whole, on the page; the
 // workbench builds them against this module instead, which runs ELK in a Web Worker from the
 // package's own copy (extensions/archi/vendor/elkjs), as the Work dependencies view does, so a
 // large layout never stalls the view. Under Node, which has no Worker, a test hands in elkjs's

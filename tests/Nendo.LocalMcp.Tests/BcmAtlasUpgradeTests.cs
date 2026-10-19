@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-080: the Capability Atlas upgrade (tools/bcm-atlas/upgrade-operations.json, built from the same
+/// The Capability Atlas upgrade (tools/bcm-atlas/upgrade-operations.json, built from the same
 /// definition as a fresh BCM.nendo) validates and applies to a copy of the committed BCM.nendo, over
 /// the same MCP tools Upgrade-BcmAtlas.mjs uses. The file in workspace/ is only read.
 /// </summary>
@@ -75,7 +75,7 @@ public sealed class BcmAtlasUpgradeTests
         CollectionAssert.AreEqual(
             new[] { "assess.name", "assess.capability", "assess.dimension", "assess.score", "assess.date" },
             assessment.Fields.Where(field => field.Required).Select(field => field.FieldId).ToArray());
-        // W-081: an initiative covers several capabilities, one link each, both ends required.
+        // An initiative covers several capabilities, one link each, both ends required.
         var scope = snapshot.Entities.SingleOrDefault(entity => entity.EntityId == "bcm.scope")
             ?? throw new AssertFailedException("The upgrade did not create the Initiative scope link type.");
         CollectionAssert.AreEquivalent(new[] { "scope.name", "scope.initiative", "scope.capability" },

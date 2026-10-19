@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { bundleOf } from './bundle-of.mjs';
 
-// W-200: @ in the agent tab's message box points the agent at the file's own things. The owner's
-// "Add more books!" stalled because the agent did not know the record type's ID or fields; what
+// @ in the agent tab's message box points the agent at the file's own things. A request such as
+// "Add more books!" stalls when the agent does not know the record type's ID or fields; what
 // the person points at carries them, and the menu stays cheap on a large file.
 const { attachmentsMarkup, contextChoices, contextForHost, describeRecord, describeType, foldsSoFar, maximumDescriptionCharacters, mentionAt, mentionMenuMarkup, recordUri, withAttachment } =
   await bundleOf('src/agent-context-model.ts');
@@ -123,9 +123,9 @@ test('nothing the file names becomes markup', () => {
   assert.match(mentionMenuMarkup([], 0, null), /Nothing in this file has that name/);
 });
 
-// ACP-10 (review of 2026-10-10): the menu offered eight things of up to 6,000 characters each,
-// and the host takes 32,000 together and 120 for a name: six large record types made a message
-// that could not be sent at all, with nothing on screen saying why. The bounds below are the
+// The host takes 32,000 characters together and 120 for a name, so what the menu offers is
+// bounded to fit: six large record types at 6,000 characters each would make a message that
+// could not be sent at all, with nothing on screen saying why. The bounds below are the
 // host's (AgentConversation.Context.cs).
 const hostTotal = 32_000;
 const hostTitle = 120;
@@ -136,7 +136,7 @@ function largeType(index) {
   return { entityId: `t${index}`, name: `Type ${index}`, recordCount: null, fields };
 }
 
-test('ACP-10: what a message points at fits what the host takes, and keeps the address that reads the rest', () => {
+test('what a message points at fits what the host takes, and keeps the address that reads the rest', () => {
   let attached = [];
   const refusals = [];
   for (let index = 0; index < 10; index++) {

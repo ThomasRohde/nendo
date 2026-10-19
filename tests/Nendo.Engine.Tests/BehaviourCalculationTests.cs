@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S3 of ADR-0008: calculated fields over real records, their dependencies and
+/// ADR-0008: calculated fields over real records, their dependencies and
 /// their error semantics, against a real SQLite file through the ordinary services.
 /// </summary>
 /// <remarks>
@@ -238,7 +238,7 @@ public sealed class BehaviourCalculationTests
     }
 
     /// <summary>
-    /// F-223: a plain count on a read is the store's own count, so it has no related-row
+    /// A plain count on a read is the store's own count, so it has no related-row
     /// ceiling. Archi's count of the diagram objects on a view of 300 read as an error.
     /// </summary>
     [TestMethod]
@@ -306,7 +306,7 @@ public sealed class BehaviourCalculationTests
         Assert.AreEqual(beforeManifest.ChangeSequence, (await afterService.GetSnapshotAsync()).Manifest.ChangeSequence);
     }
 
-    // R-005. Rounding digits read from a record are data: out of range, they are a
+    // Rounding digits read from a record are data: out of range, they are a
     // calculation error on that one field, and the record still reads with its
     // stored values and every other calculation.
     [TestMethod]

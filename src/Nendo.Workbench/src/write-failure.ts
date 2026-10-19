@@ -57,7 +57,7 @@ export function namingFieldId(entities: readonly EntitySnapshot[], entityId: str
 }
 
 /**
- * A reference refusal with the target's record ID replaced by its label (R2AP-07). The host names
+ * A reference refusal with the target's record ID replaced by its label. The host names
  * the target by ID, which an agent's or a view's batch needs to find the write; the person's
  * records have generated IDs, so their own form shows the record as its picker did. Only the place
  * the sentence puts the target, after "points at ", is replaced.
@@ -70,7 +70,7 @@ export function nameTarget(message: string, recordId: string, label: string): st
   return `${message.slice(0, at)} points at “${label.trim()}”${message.slice(at + token.length)}`;
 }
 
-/** The reference refusals the host words with the target's record ID (R2AP-07). */
+/** The reference refusals the host words with the target's record ID. */
 export const referenceRefusalCodes: readonly string[] = Object.freeze(['target-version-required', 'target-not-found', 'target-version-conflict']);
 
 /**
@@ -102,7 +102,7 @@ export function referenceTargetOf(entities: readonly EntitySnapshot[], payload: 
  *
  * Only the place the Engine's sentence puts the holder is replaced, between " used by " and
  * " in ". Every occurrence was, so a short ID such as C, inside the field's or the record type's
- * name, garbled the sentence: "That “Alice”ode is already used by “Alice” in “Alice”ontacts" (R2AP-09).
+ * name, garbled the sentence: "That “Alice”ode is already used by “Alice” in “Alice”ontacts".
  * A sentence of another shape is left as the host wrote it.
  */
 export function nameHolder(message: string, recordId: string, label: string): string {

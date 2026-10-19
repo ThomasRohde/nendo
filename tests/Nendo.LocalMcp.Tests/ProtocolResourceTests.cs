@@ -109,20 +109,20 @@ public sealed class ProtocolResourceTests
                 "nendo.application.manifest",
                 "nendo.application.proposals",
                 "nendo.application.surfaces",
-                // Read only by an agent writing a custom view's code (W-094).
+                // Read only by an agent writing a custom view's code.
                 "nendo.application.view.api",
                 // Not about the open file: which Nendos are running and what each has open.
                 "nendo.host.instances",
-                // The authoring skill's SKILL.md (W-154); its supporting files are a template below.
+                // The authoring skill's SKILL.md; its supporting files are a template below.
                 "nendo.host.skill",
             },
             resources.Select(resource => resource.Name).ToArray());
         CollectionAssert.AreEquivalent(
             new[]
             {
-                // describe takes include, so it is listed as a template (W-150).
+                // describe takes include, so it is listed as a template.
                 "nendo.application.describe",
-                // So does the vocabulary since 2026-10-08: one section at a time.
+                // So does the vocabulary: one section at a time.
                 "nendo.application.vocabulary",
                 "nendo.application.entity",
                 "nendo.application.entity.aggregate",
@@ -131,7 +131,7 @@ public sealed class ProtocolResourceTests
                 "nendo.application.entity.schema",
                 "nendo.application.entity.tree",
                 "nendo.application.extension.file",
-                // What the file's views did when they ran here (W-251).
+                // What the file's views did when they ran here.
                 "nendo.application.extension.events",
                 "nendo.application.history",
                 "nendo.application.proposal",
@@ -139,9 +139,9 @@ public sealed class ProtocolResourceTests
                 // Records by any word in their text (ADR-0028).
                 "nendo.application.search",
                 "nendo.host.skill.file",
-                // A file of a skill the open file carries (ADR-0024, W-160).
+                // A file of a skill the open file carries (ADR-0024).
                 "nendo.application.skill.file",
-                // A picture the file embeds (ADR-0031, W-269).
+                // A picture the file embeds (ADR-0031).
                 "nendo.application.media",
             },
             templates.Select(template => template.Name).ToArray());
@@ -278,7 +278,7 @@ public sealed class ProtocolResourceTests
 
     /// <summary>
     /// Inspect serves the two read tools and nothing else, each marked read-only, so a client
-    /// may run them without asking (ADR-0009, 2026-10-08). Until then it served no tool at all.
+    /// may run them without asking (ADR-0009).
     /// </summary>
     internal static async Task AssertOnlyReadToolsAsync(McpClient client)
     {
@@ -299,7 +299,7 @@ public sealed class ProtocolResourceTests
     /// The handshake's one bound, 10 s. The client asks <c>server/discover</c> first and gave
     /// that probe only its own default of 5 s, reporting a slow answer as "The server does not
     /// support the requested protocol version": under load a fresh host's first answer took
-    /// 5.1 to 7.2 s, and the 10 s set here never applied (TST-02 recurring). The probe now has
+    /// 5.1 to 7.2 s, and the 10 s set here never applied. The probe has
     /// the same bound as the handshake (<see cref="HandshakeBound"/>).
     /// </summary>
     internal static readonly TimeSpan HandshakeBound = TimeSpan.FromSeconds(10);

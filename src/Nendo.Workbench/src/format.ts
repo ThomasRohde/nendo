@@ -11,8 +11,8 @@ import { exactNumberText } from './scalars';
 /**
  * The sentence a save adds when an automatic action did not run because its condition could
  * not be worked out, or null when every action that should have run did. The save committed,
- * so this is said beside the outcome rather than as a refusal; until 2026-10-13 it was not
- * said at all, and a total the action keeps went stale with nobody told (EBH-01).
+ * so this is said beside the outcome rather than as a refusal; unsaid, a total the action keeps
+ * would go stale with nobody told.
  */
 export function blockedConditionsNotice(blocked: readonly BlockedCondition[] | undefined): string | null {
   if (blocked === undefined || blocked.length === 0) return null;
@@ -113,7 +113,7 @@ export function laneLabel(value: string | number): string {
 
 /**
  * Whether History can take a change back, in a person's words. "Compensatable with retained
- * state" said nothing to someone deciding whether to accept (UX-06). None of them promises
+ * state" said nothing to someone deciding whether to accept. None of them promises
  * universal undo: the retained-state class says when it holds.
  */
 export function reversibilityLabel(value: string | number): string {
@@ -121,7 +121,7 @@ export function reversibilityLabel(value: string | number): string {
   return normalized === 0 ? 'Can be undone' : normalized === 1 ? 'Can be undone if nothing has changed it since' : 'Cannot be undone';
 }
 
-/** A count and its noun, singular for one: "1 revisions shown" read wrong after every first edit (UX-16). */
+/** A count and its noun, singular for one: "1 revisions shown" read wrong after every first edit. */
 export function counted(count: number, singular: string, plural = `${singular}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? singular : plural}`;
 }
@@ -130,7 +130,7 @@ export function counted(count: number, singular: string, plural = `${singular}s`
  * Whether History's Undo stays available although the file cannot be edited: only when the one
  * thing withholding edits is approval of its automatic actions. An undo puts back what a
  * revision recorded and runs no action, so it is how a person recovers from an action they
- * have just withdrawn approval from (EBH-11, accepted 2026-10-13). A read-only or damaged file
+ * have just withdrawn approval from. A read-only or damaged file
  * keeps Undo off.
  */
 export function undoAllowedWhileUnapproved(session: Pick<DesktopSessionView, 'health' | 'capabilities' | 'behaviourTrust'>): boolean {
@@ -146,7 +146,7 @@ export function approvalNeeded(session: Pick<DesktopSessionView, 'health' | 'cap
 /**
  * Health's chip and File status sentence, in the words of the status pill. A file waiting on
  * approval read "Ready for editing" and "Changes are saved as you work" above the panel saying
- * editing was off (WSP-14).
+ * editing was off.
  */
 export function healthStatus(session: Pick<DesktopSessionView, 'health' | 'capabilities' | 'behaviourTrust' | 'fileName'>): { label: string; healthy: boolean; sentence: string } {
   if (approvalNeeded(session)) return { label: 'Approval needed', healthy: false,
@@ -164,7 +164,7 @@ export function canCompensate(revision: RevisionSummary, history: RevisionSummar
 
 /**
  * Every operation the Engine records, in a person's words. History drew 29 of them as their
- * identifiers (UX-07); a test reads the Engine's own list and fails on any left out.
+ * identifiers; a test reads the Engine's own list and fails on any left out.
  */
 export function operationLabel(value: string): string {
   const labels: Record<string, string> = {
@@ -218,7 +218,7 @@ export function operationLabel(value: string): string {
   return labels[value] ?? value;
 }
 
-/** A local date and time from a datetime-local control, as an exact timestamp with this device's offset (WDV-18). */
+/** A local date and time from a datetime-local control, as an exact timestamp with this device's offset. */
 export function withLocalOffset(local: string): string {
   const seconds = /T\d\d:\d\d$/.test(local) ? `${local}:00` : local;
   const minutes = -new Date(seconds).getTimezoneOffset();
@@ -230,7 +230,7 @@ export function withLocalOffset(local: string): string {
 
 /**
  * The day a fold date names on screen: the person's own date, written yyyy-MM-dd as the
- * checkpoint text writes its dates (W-217). The UTC day can be tomorrow or yesterday where the
+ * checkpoint text writes its dates. The UTC day can be tomorrow or yesterday where the
  * person is, so it stays in the stored checkpoint text and is never shown as their date; the
  * regional format gave the dialog '12.10.2026' beside a checkpoint's '2026-10-11'.
  */
@@ -292,8 +292,7 @@ export function activityLabel(activity: AgentActivity): string {
     if (activity.name.includes('/records')) return 'Read records';
     return 'Read file details';
   }
-  // Every tool, so each call reads as what happened: a call is one entry since
-  // 2026-09-27, and a tool with no label here would read only as "Agent activity".
+  // Every tool, so each call reads as what happened: a call is one entry, and a tool with no label here would read only as "Agent activity".
   const labels: Record<string, string> = {
     'nendo.lease.acquire': 'Took edit access',
     'nendo.lease.status': 'Checked who has edit access',
@@ -336,14 +335,14 @@ export function activityLabel(activity: AgentActivity): string {
 /**
  * Who made a revision, as its History entry says it: the person, in Studio or on a screen; an
  * agent, by the pseudonym the Agent page shows (ADR-0009); a custom view, by its package; or Nendo
- * itself. The guides and Help said History shows this before the entry drew it (2026-10-10).
+ * itself. The guides and Help said History shows this before the entry drew it.
  */
 export function originLabel(origin: string, packages: ReadonlyArray<{ packageId: string; title: string }>): string {
   // The host records a Studio delete, a keep mark, a search-index build and History's own Undo
-  // as 'studio' when the page names no writer; all are the person's own (UIT-06).
+  // as 'studio' when the page names no writer; all are the person's own.
   if (origin === 'workbench' || origin === 'surface' || origin === 'studio') return 'you';
   // The person's own CSV import is recorded under its own origin, and History drew it as
-  // "by csv" (R2AP-10).
+  // "by csv".
   if (origin === 'csv') return 'you (CSV import)';
   if (origin.startsWith('agent-')) return `an agent (${origin})`;
   if (origin.startsWith('extension:')) {
@@ -357,7 +356,7 @@ export function originLabel(origin: string, packages: ReadonlyArray<{ packageId:
 
 /**
  * The sentence under a proposal's title. A proposal a custom view prepared names the view's
- * package (ADR-0013 Phase 3), so the person knows who is asking before reading what.
+ * package (ADR-0013), so the person knows who is asking before reading what.
  */
 export function proposalAuthorLine(preview: { origin?: string }, packages: ReadonlyArray<{ packageId: string; title: string }>): string {
   const prefix = 'extension:';

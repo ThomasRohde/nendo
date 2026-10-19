@@ -1,7 +1,7 @@
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// TST-02: under the full gate a fresh MCP host's first answer ran past this suite's 5 s client
+/// Under the full gate a fresh MCP host's first answer ran past this suite's 5 s client
 /// bound, because the three suites ran at once, this process's thread pool was left at its
 /// default, and three copies of the client each carried the short bound. These hold the shape
 /// that fixed it, so a later change cannot quietly bring one part back.
@@ -48,7 +48,7 @@ public sealed class TestHarnessShapeTests
     }
 
     /// <summary>
-    /// BL-05: every gate run wrote a TRX and a deployment folder into each test project's
+    /// Every gate run wrote a TRX and a deployment folder into each test project's
     /// TestResults, outside artifacts/ and removed by nothing: 467 MB from 285 runs.
     /// </summary>
     [TestMethod]

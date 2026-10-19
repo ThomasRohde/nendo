@@ -1,8 +1,8 @@
 # Systems Lens
 
-A custom view for [Nendo Station](../../docs/design/nendo-station-plan.md): components as
-nodes, the feeds between them as links. An arrow points **from the component that supplies
-to the one it supplies**, so reading left to right is reading the direction of supply.
+A custom view for [Nendo Station](../../docs/nendo-station.md): components as nodes, the
+feeds between them as links. An arrow points **from the component that supplies to the one
+it supplies**, so reading left to right is reading the direction of supply.
 
 What it shows that a list cannot:
 
@@ -32,8 +32,8 @@ title, and on their keys. A right-click on a component opens Nendo's menu, with 
 component and Take it out, or Put it back for the one that is out. The summary line is
 Nendo's row's text, and the explanation of the arrows is behind About, shown over the
 schematic until Escape; the schematic starts at the top of the frame. A problem reading the
-file stays in the frame, whole, and so does the caveat. On an older Nendo the view shows
-its own controls and lines, as it always has.
+file stays in the frame, whole, and so does the caveat. On a Nendo without the toolbar the
+view shows its own controls and lines.
 
 ## Take out, and the line it does not cross
 
@@ -113,27 +113,18 @@ point at Components, and `componentSystem` as its first field. See
 
 ## What measures it
 
-`pwsh ./tools/Review-SystemsLens.ps1` serves this folder on one origin and a fixture broker
-on another, and runs the real `api.js` between them in Playwright (msedge). Its fixture
-carries a reservoir feeding two pumps onto one manifold, a cold plate hanging off one pump
-alone, a three-component coolant circuit, an isolated sensor, a component stored Offline, a
-parallel feed and a markup-shaped label. It measures the layering, exact circuit membership
-and circuit legs, including supply that enters and leaves different circuit members, the
-band read from the System reference's name, state names read from the
-schema, the summary counts, exactly one `ui.openRecord` per selection, **both take-out
-verdicts by name**, the text alternative, that the view asks only for reads and for opening
-a record, Focus dimming, keyboard traversal, non-selectable chrome, a re-read only after a
-`changes` event that ends a take-out and keeps the selection, one read for a burst of
-changes, a dark `theme` event and a canvas token changing the measured colour, the empty
-state, 500 components and 999 feeds read in pages, a refused read shown as text and a
-512×384 window, the zoom and pan and the keyboard kept across a re-read, the selected
-component kept in place when a re-read adds a component, the keyboard kept
-on a text-view button pressed with Enter, one tab stop with each arrow reaching the nearest
-component that way, and a feed outside the view counted in the summary. Then it measures the view again on a broker that offers Nendo's toolbar:
-no controls or title of its own, the toolbar it declares, which the broker reads by the
-Workbench's own rules, each command, both take-out verdicts asked from the toolbar and from
-the component menu, and Open from that menu. It runs inside `Test-Production.ps1`.
-
-When the verdict assertion was written it was falsified: with every component downstream of
-the removed one counted as exposed, the lane reported seven exposed and none still fed,
-where the answer is two and five.
+`pwsh ./tools/Review-SystemsLens.ps1`, inside `Test-Production.ps1`, serves this folder on one
+origin and a fixture broker on another, and runs the real `api.js` between them in Playwright
+(msedge). Its fixture carries a reservoir feeding two pumps onto one manifold, a cold plate
+hanging off one pump alone, a three-component coolant circuit, an isolated sensor, a
+component stored Offline, a parallel feed and a markup-shaped label. It measures the
+layering, exact circuit membership and circuit legs, the band read from the System
+reference's name, state names from the schema, the summary counts, one `ui.openRecord` per
+selection, **both take-out verdicts by name** (two components with no path and five still
+fed), the text alternative, that the view asks only for reads and for opening a record, Focus
+dimming, the keyboard, re-reads after `changes` that end a take-out and keep the selection,
+zoom, pan and the selected component's place, the theme and canvas tokens, the empty state,
+500 components and 999 feeds read in pages, a refused read, a 512×384 window, and a feed
+outside the view counted in the summary. Then, on a broker that offers Nendo's toolbar: no
+controls or title of its own, each declared command, both verdicts asked from the toolbar and
+from the component menu, and Open from that menu.

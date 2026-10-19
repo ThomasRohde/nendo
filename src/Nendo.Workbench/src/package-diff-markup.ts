@@ -8,9 +8,9 @@ import { icon } from './icons';
  * context, so accepting it is reading it rather than trusting a sentence about it. A
  * binary file is said by its sizes; a change longer than the review shows says so, in its
  * folded summary too, and every file the proposal adds or replaces can be read whole before
- * accepting it (review R-017, `package-file-reader.ts`).
+ * accepting it (`package-file-reader.ts`).
  *
- * Each file is a disclosure that starts folded (W-098): a proposal can change many
+ * Each file is a disclosure that starts folded: a proposal can change many
  * files, and every file's lines open at once buried the rest of the review. Folded, a
  * file still says its name, what happened to it, its sizes and how many lines it adds
  * and removes, so the list reads as an overview and a file opens where it matters.
@@ -28,7 +28,7 @@ function fileMarkup(change: ExtensionFileChange): string {
       : `${byteSize(change.bytesBefore)} → ${byteSize(change.bytesAfter)}`;
   const verb = change.change === 'added' ? 'Added' : change.change === 'removed' ? 'Removed' : 'Changed';
   // The media type decides whether the file is served as a page, a script or inert text, so a
-  // change to it is said even when the bytes are the same (EXT-02).
+  // change to it is said even when the bytes are the same.
   const retyped = change.change === 'replaced' && change.mediaTypeBefore !== change.mediaTypeAfter;
   const retypedNote = retyped
     ? `<p class="package-change-note">Served as ${escapeHtml(change.mediaTypeAfter ?? '')} instead of ${escapeHtml(change.mediaTypeBefore ?? '')}.</p>`
@@ -70,8 +70,8 @@ export function byteSize(bytes: number | null | undefined): string {
 /**
  * Characters the review would not otherwise show as they are. Direction controls and invisible
  * format characters (Unicode's Cf, the tag characters among them) reorder or hide code, so a line
- * could read as a closed string and a comment while it runs as one string literal (Trojan Source;
- * WMX-01). The Hangul fillers draw as blank space yet are valid in a name. A soft hyphen is left
+ * could read as a closed string and a comment while it runs as one string literal (Trojan
+ * Source). The Hangul fillers draw as blank space yet are valid in a name. A soft hyphen is left
  * alone, and so is a byte-order mark at the very start of a file. Paths cannot carry any of them:
  * a package path is ASCII.
  */

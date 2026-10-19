@@ -21,7 +21,7 @@ internal enum DesktopCloseOutcome
 /// <para>
 /// A Windows shutdown, restart or sign-out closes no window, so it never comes through
 /// here: the tray's window hears it and ends the session through
-/// <see cref="DesktopSessionEnd"/> (DSH-07).
+/// <see cref="DesktopSessionEnd"/>.
 /// </para>
 /// </summary>
 internal static class DesktopCloseAction

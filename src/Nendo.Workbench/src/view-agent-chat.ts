@@ -11,8 +11,7 @@ import { commandKey, commandsChanged, wireCommands } from './agent-command-menu'
 import { keysLine } from './agent-command-model';
 
 /**
- * The conversation with an agent launched from the Agent page, in a tab of its own (ADR-0030),
- * drawn as the owner's direction A (2026-10-08).
+ * The conversation with an agent launched from the Agent page, in a tab of its own (ADR-0030).
  *
  * The host sends a nudge whenever the conversation moves; this page reads only what changed
  * after the revision it holds and patches the thread item by item. It never redraws the
@@ -30,12 +29,12 @@ let readAgain = false;
 const expanded = new Set<string>();
 /** What each thread item last drew, so an unchanged item is left alone. */
 const drawn = new Map<string, string>();
-/** Each item's markup, built again only when something it draws changed (WAU-05). */
+/** Each item's markup, built again only when something it draws changed. */
 const markup = createMarkupCache();
 let drawnOptions = '';
 /** The agent's commands as the menu last had them, so a read that did not change them leaves it alone. */
 let shownCommands = '';
-/** A launch or a message on its way: a second press waits for its answer (WAU-10). */
+/** A launch or a message on its way: a second press waits for its answer. */
 let launching = false;
 let sending = false;
 
@@ -52,7 +51,7 @@ fileScopedClearable({
 });
 
 /**
- * The conversation's tab says what the agent is doing (W-200): starting, working, thinking or
+ * The conversation's tab says what the agent is doing: starting, working, thinking or
  * waiting for the person, so it shows from any other tab. The strip is redrawn only when that
  * changes, not on every word the agent streams.
  */
@@ -107,9 +106,9 @@ function patchReview(): void {
 
 /**
  * Closing the conversation's tab ends the agent, and everything it started (ADR-0030). The tab
- * that owns it is the one that last showed it, wherever that tab has since gone (ACP-06), known by
- * the tab itself rather than by what its trail still holds, which Back and the trail's bound drop
- * (WAU-01). No other tab's close ends it.
+ * that owns it is the one that last showed it, wherever that tab has since gone, known by
+ * the tab itself rather than by what its trail still holds, which Back and the trail's bound drop.
+ * No other tab's close ends it.
  */
 onTabClosed((_places, ownedConversation) => {
   if (!ownedConversation || !chat.exists || chat.state === 'ended') return;
@@ -150,7 +149,7 @@ document.addEventListener('keydown', (event) => {
   more.querySelector('summary')?.focus();
 }, true);
 
-/** A select's value only looked at with the arrow keys, put back to the agent's own (UIK-06). */
+/** A select's value only looked at with the arrow keys, put back to the agent's own. */
 function revertLooked(select: HTMLSelectElement): void {
   if (select.dataset.keyed !== 'yes') return;
   select.dataset.keyed = '';
@@ -176,7 +175,7 @@ function launchKey(): string {
 
 /**
  * A request names the conversation it was meant for, once a read has said which, so the host
- * refuses it when that conversation has been replaced (ACP-07).
+ * refuses it when that conversation has been replaced.
  */
 function withConversation(payload: Record<string, unknown>): Record<string, unknown> {
   return chat.conversationId === null ? payload : { ...payload, conversationId: chat.conversationId };
@@ -190,7 +189,7 @@ export function agentChatTitle(): string {
 /** Launch an agent from the Agent page and open its conversation in a new tab. */
 export async function launchAgent(agentId: string): Promise<void> {
   // A second press while the launch is on its way was a second launch, refused as already running
-  // and shown in the new tab as an error (WAU-10).
+  // and shown in the new tab as an error.
   if (state.actionInFlight || launching) return;
   launching = true;
   const held = [...content.querySelectorAll<HTMLButtonElement>('[data-launch-agent]:not(:disabled)')];
@@ -203,14 +202,14 @@ export async function launchAgent(agentId: string): Promise<void> {
     // Entry IDs and revisions start again with every launch: the old one's markup is never drawn for the new one.
     markup.clear();
     mergeChat(chat, view, launchKey());
-    // The whole composer starts again: the message, and what it pointed at (ACP-02).
+    // The whole composer starts again: the message, and what it pointed at.
     draft = '';
     resetMentions();
     releaseOwnedPage();
     await openTabOn('agentChat');
     announce(`${chat.name} is starting in a new tab.`);
     followAgentChat();
-    // The page was rebuilt; the keyboard goes where the next step is typed (UIK-03).
+    // The page was rebuilt; the keyboard goes where the next step is typed.
     content.querySelector<HTMLTextAreaElement>('#agent-prompt:not(:disabled)')?.focus();
   } catch (error) {
     showError(messageFor(error));
@@ -232,7 +231,7 @@ export async function saveAgentCommand(commandLine: string): Promise<LaunchableA
   return client.request<LaunchableAgents>('agentSession.setCommand', { commandLine });
 }
 
-/** Hide an agent from Launch on this device, or show it again (W-199). */
+/** Hide an agent from Launch on this device, or show it again. */
 export async function setAgentHidden(agentId: string, hidden: boolean): Promise<LaunchableAgents> {
   return client.request<LaunchableAgents>('agentSession.setHidden', { agentId, hidden });
 }
@@ -252,7 +251,7 @@ export function followAgentChat(): void {
         let more = true;
         while (more) {
           // The launch this read is of is fixed before it goes out: an answer that arrives after
-          // New session, or after the file changed, belongs to the old one and is dropped (ACP-07).
+          // New session, or after the file changed, belongs to the old one and is dropped.
           const key = launchKey();
           const view = await client.request<LaunchedAgentView>('agentSession.read', { after: chat.revision });
           if (key !== launchKey()) { readAgain = true; break; }
@@ -276,13 +275,13 @@ export function renderAgentChat(): void {
     content.querySelector('#pending-save-notice')?.remove();
     patchChat(false);
     // Read again: the access level and what it does with a change may have moved while the
-    // transcript did not (ACP-12).
+    // transcript did not.
     followAgentChat();
     return;
   }
   drawn.clear();
   drawnOptions = '';
-  // Design A of the composer (W-200): what this conversation works on in small chips above the
+  // Design A of the composer: what this conversation works on in small chips above the
   // box, the agent's own options quietly inside it with + and Send, and the keys under it.
   content.innerHTML = `<div class="agent-chat" data-agent-chat data-chat-key="${escapeAttribute(chat.key)}" data-testid="agent-chat">
     <header class="chat-heading">
@@ -347,7 +346,7 @@ export function renderAgentChat(): void {
   content.querySelector<HTMLButtonElement>('#new-agent-session')!.addEventListener('click', () => void newSession());
   // Chromium on Windows changes a closed select on each arrow key and fires change at once, so
   // the first arrow chose the agent's option (Allow All among them), closed More and dropped
-  // focus (UIK-06). A change made with the keys waits for Enter, or for focus to leave.
+  // focus. A change made with the keys waits for Enter, or for focus to leave.
   const optionsBox = content.querySelector<HTMLElement>('#chat-options')!;
   const choose = (select: HTMLSelectElement, keyed: boolean): void => {
     const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
@@ -404,17 +403,17 @@ export function renderAgentChat(): void {
   content.querySelector<HTMLElement>('#chat-sign-in')!.addEventListener('click', (event) => {
     const method = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-sign-in]') : null;
     if (method === null || method.disabled || chat.signingIn) return;
-    // Held at once, before the host's answer says a sign-in runs (DAE-10).
+    // Held at once, before the host's answer says a sign-in runs.
     for (const button of content.querySelectorAll<HTMLButtonElement>('#chat-sign-in [data-sign-in]')) button.disabled = true;
     void act('agentSession.authenticate', { methodId: method.dataset.signIn }, 'Signing in.');
   });
   patchChat(true);
   void checkWaiting();
-  // Always read on showing the tab: the level may have changed on the Agent page (ACP-12).
+  // Always read on showing the tab: the level may have changed on the Agent page.
   followAgentChat();
 }
 
-/** The access level changed on the Agent page: the tab shows it, and what it does with a change, at once (ACP-12). */
+/** The access level changed on the Agent page: the tab shows it, and what it does with a change, at once. */
 export function agentLevelChanged(): void {
   if (chat.exists) followAgentChat();
 }
@@ -428,7 +427,7 @@ function focusedControl(item: HTMLElement): ((next: HTMLElement) => HTMLElement 
   const active = document.activeElement;
   if (!(active instanceof HTMLElement) || !item.contains(active)) return null;
   // A disclosure's summary by the entry and part it shows: by position, focus moved to another
-  // step's when an earlier step gained a disclosure (WAU-09).
+  // step's when an earlier step gained a disclosure.
   const part = active.tagName === 'SUMMARY' ? active.parentElement?.dataset.part : undefined;
   if (part !== undefined) return (next) => next.querySelector<HTMLElement>(`details[data-part="${CSS.escape(part)}"] > summary`);
   for (const name of ['toggleSteps', 'toggleInput', 'optionId'] as const) {
@@ -447,11 +446,11 @@ async function send(): Promise<void> {
   const text = prompt?.value.trim() ?? '';
   if (text === '') return;
   // The message is on its way: a second Enter sent it again, and the host's refusal of the copy
-  // was shown as an error although the first went through (WAU-10).
+  // was shown as an error although the first went through.
   if (sending) return;
   if (!composerState(chat).canSend) {
     // The text is kept; the person is told why it did not go, on screen as well as aloud: the
-    // placeholder that says so is hidden once the box has text (UIK-12, WAU-10).
+    // placeholder that says so is hidden once the box has text.
     const page = content.querySelector<HTMLElement>('[data-agent-chat]');
     const why = chat.working ? `${chat.name} is working. Your message waits here: stop it, or wait for it to finish, then send.`
       : chat.exists && chat.state !== 'ended' ? `${chat.name} is not ready yet. Wait for it, then send.` : null;
@@ -483,7 +482,7 @@ async function act(method: string, payload: Record<string, unknown>, said: strin
   try {
     const key = launchKey();
     const view = await client.request<LaunchedAgentView>(method, withConversation({ ...payload, after: chat.revision }));
-    // An answer for a conversation since replaced says nothing about the one on screen (ACP-07).
+    // An answer for a conversation since replaced says nothing about the one on screen.
     if (key !== launchKey()) return true;
     mergeChat(chat, view, key);
     patchChat(true);
@@ -534,7 +533,7 @@ function patchChat(force: boolean, only?: string): void {
   sendButton.hidden = composer.canStop;
   stopButton.disabled = !composer.canStop;
   stopButton.hidden = !composer.canStop;
-  // Hiding the focused button took the keyboard to the page's body (UIK-03): Send hands it to
+  // Hiding the focused button took the keyboard to the page's body: Send hands it to
   // Stop, and Stop to the message box, where the next message is typed.
   if (roundFocused === 'send' && sendButton.hidden) (stopButton.hidden ? prompt : stopButton).focus({ preventScroll: true });
   if (roundFocused === 'stop' && stopButton.hidden) prompt.focus({ preventScroll: true });
@@ -566,7 +565,7 @@ function patchChat(force: boolean, only?: string): void {
   const items = threadItems(chat);
   const live = chat.working && !waitingForYou(chat);
   const keys = new Set(items.map((item) => item.key));
-  // The items on screen by key, found once rather than with a search of the thread per item (WAU-05).
+  // The items on screen by key, found once rather than with a search of the thread per item.
   const onScreen = new Map<string, HTMLElement>();
   for (const child of [...thread.children] as HTMLElement[]) {
     // The empty state stays while there is still nothing to show; removing it each read wrote it again.
@@ -587,22 +586,22 @@ function patchChat(force: boolean, only?: string): void {
     const next = template.content.firstElementChild as HTMLElement;
     if (held !== null) {
       // A details the person opened stays open as the item grows, and the control they were on
-      // keeps the keyboard: replacing the item took it to the page's body (ACP-05). Each is known
+      // keeps the keyboard: replacing the item took it to the page's body. Each is known
       // by the entry and part it shows, not by its place: a step that gained a disclosure earlier
-      // in the run moved the open one to another step (WAU-09).
+      // in the run moved the open one to another step.
       const opened = new Set([...held.querySelectorAll<HTMLElement>('details[data-part]')].filter((details) => (details as HTMLDetailsElement).open).map((details) => details.dataset.part!));
       const focused = focusedControl(held);
       let shown: HTMLElement = next;
       if (held.tagName === next.tagName) {
         // The same element, its contents renewed: replacing it was a removal and an addition, and
-        // the log said the whole message again for every chunk (UIK-05).
+        // the log said the whole message again for every chunk.
         for (const name of held.getAttributeNames()) if (!next.hasAttribute(name)) held.removeAttribute(name);
         for (const name of next.getAttributeNames()) held.setAttribute(name, next.getAttribute(name)!);
         held.innerHTML = next.innerHTML;
         shown = held;
       } else held.replaceWith(next);
       for (const details of shown.querySelectorAll<HTMLDetailsElement>('details[data-part]')) if (opened.has(details.dataset.part!)) details.open = true;
-      // An answered request has no control left: the keyboard goes to the message box (UIK-03).
+      // An answered request has no control left: the keyboard goes to the message box.
       if (focused !== null) (focused(shown) ?? prompt).focus({ preventScroll: true });
       previous = shown;
       drawn.set(item.key, html);

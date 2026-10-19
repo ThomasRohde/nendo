@@ -4,8 +4,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Nendo.Engine.Tests;
 
-// ADR-0019 delivery stage 1: what a declared hierarchy would cost, measured before any
-// product code. Explicit opt-in driver, invoked by tools/Review-HierarchyCost.ps1; no test
+// ADR-0019: what a declared hierarchy costs. Explicit opt-in driver, invoked by tools/Review-HierarchyCost.ps1; no test
 // calls it. The fixture is built through canonical coordinator operations, so the tables,
 // the reference columns and their covering indexes have the production shape. The reads are
 // the candidate SQL the Engine would run, timed on a read-only connection to that file; the
@@ -15,8 +14,8 @@ public static class ReviewHierarchyCostFixture
     private const int MaxDepth = 32;
     private const int Warmups = 3;
 
-    // Stage 1 ran at 10,000 records with a node of 1,000 children. The 2026-10-16 amendment also
-    // runs it at the file's own bound: a file holds at most 100,000 operation rows and refuses a
+    // The default run is 10,000 records with a node of 1,000 children. The large run is at
+    // the file's own bound: a file holds at most 100,000 operation rows and refuses a
     // write from 99,000 (SqliteNendoStore.WriteCeilingRows), and every create is a row, so 98,000
     // nodes and 500 links leave room for the writes measured afterwards. There the wide node
     // holds 20,000 children, more than the old bound let a move read; the whole-level renumber
@@ -35,11 +34,11 @@ public static class ReviewHierarchyCostFixture
         ["descendantPageRoot"] = 150, ["subtreeAggregateRoot"] = 150, ["subtreeAggregateMiddle"] = 150,
         ["relatedAcrossSubtreeRoot"] = 150, ["declarationScan"] = 1_000,
         ["saveMoveRecord"] = 150, ["renumberWideSiblings"] = 1_000,
-        // Stage 4: reads that evaluate a subtree Count for every record they return.
+        // Reads that evaluate a subtree Count for every record they return.
         ["calculatedPage"] = 150, ["calculatedTreeWindow"] = 150, ["calculatedSnapshot"] = 10_000,
-        // ADR-0020 stage 3: a HierarchyPath column instead of the subtree Count.
+        // ADR-0020: a HierarchyPath column instead of the subtree Count.
         ["pathPage"] = 150, ["pathDeepestRecord"] = 150,
-        // 2026-10-16 amendment. The walk as stage 3 built it, run as SQL so it reads past the old
+        // The position walk that paging by key replaced, run as SQL so it reads past the old
         // bound: every page re-walks and re-sorts the subtree, then cuts by OFFSET. The figures
         // without a target of their own are recorded against the bounded-read target or, for a
         // whole read, against the one-second declaration scan target.
@@ -299,7 +298,7 @@ public static class ReviewHierarchyCostFixture
             SELECT count(*), sum(n.cost), sum(n.flag) FROM sub JOIN node n ON n.__nendo_record_id = sub.id;
             """, SlowSamples, ("@root", tree.RootA));
 
-        // The tree read as stage 3 built it (SqliteNendoStore.HierarchyReads until 2026-10-16):
+        // The tree read that paging by key replaced, kept here for comparison:
         // a path per row, the whole subtree sorted by it, and the page cut by OFFSET.
         const string segment = """
             CASE WHEN {0}.ord IS NULL THEN 'z'
@@ -345,7 +344,7 @@ public static class ReviewHierarchyCostFixture
 
     // ------------------------------------------------------------------------------------------
     // Reads through the service, as Studio, the view API and MCP reach them. A refusal is an
-    // answer: before the 2026-10-16 amendment each of these was refused past 10,000 records.
+    // answer, and is recorded as one.
 
     private static async Task<Dictionary<string, Measure>> MeasureServiceReadsAsync(NendoApplicationService service, Tree tree)
     {
@@ -560,7 +559,7 @@ public static class ReviewHierarchyCostFixture
             return $"{snapshot.Records.Count} records; root inside {Inside(snapshot.Records.Single(record => record.RecordId == tree.RootA))}";
         }, 3);
 
-        // ADR-0020 stage 3: the subtree Count out, a path in its place, so the figures are the path's own.
+        // ADR-0020: the subtree Count out, a path in its place, so the figures are the path's own.
         revision = (await service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await coordinator.ApplyAsync(new("hierarchy-cost", "path", "experiment", "Path instead of count",
         [

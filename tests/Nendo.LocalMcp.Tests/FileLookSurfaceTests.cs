@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-089. A file's look — the tone and letter of the badge its icons carry — is the file's own,
+/// A file's look — the tone and letter of the badge its icons carry — is the file's own,
 /// so an agent reads it with the manifest and can give the file one through the same reviewed
 /// change set as anything else it authors.
 /// </summary>
@@ -75,7 +75,7 @@ public sealed class FileLookSurfaceTests
     }
 
     /// <summary>
-    /// W-001. A file's own picture is part of its look: an agent embeds a picture naming no field,
+    /// A file's own picture is part of its look: an agent embeds a picture naming no field,
     /// proposes it with application.setIcon, reads it back as look.icon, and takes it away again.
     /// </summary>
     [TestMethod]

@@ -4,8 +4,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// PERF-09: Studio's search box sent a search for one letter, a prefix of most of the index and
-// about twenty times the work of two, while the command palette and the @ menu wait for two. The
+// Studio's search box waits for two letters, as the command palette and the @ menu do: one
+// letter is a prefix of most of the index and about twenty times the work of two. The
 // real studio-search.ts runs here against a stand-in box, and the requests it sends are counted.
 const root = fileURLToPath(new URL('..', import.meta.url));
 const host = { calls: [] };

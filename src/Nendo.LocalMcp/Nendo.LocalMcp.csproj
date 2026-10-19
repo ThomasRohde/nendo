@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
-    <!-- skills/list and skills/get (W-154) are request handlers the SDK marks experimental in 2.2.0: MCPEXP002. -->
+    <!-- skills/list and skills/get are request handlers the SDK marks experimental in 2.2.0: MCPEXP002. -->
     <NoWarn>$(NoWarn);MCPEXP002</NoWarn>
   </PropertyGroup>
 
@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <!--
-    The view API reference (W-094): the Workbench's api build writes it beside api.js, from the
+    The view API reference: the Workbench's api build writes it beside api.js, from the
     tables api.js is built from, and this assembly carries it as built for
     nendo://application/view-api.
   -->

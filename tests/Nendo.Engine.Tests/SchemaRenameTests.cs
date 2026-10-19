@@ -41,7 +41,7 @@ public sealed class SchemaRenameTests
         var entityRename = await coordinator.ApplyAsync(Mutation("rename-type", new RenameEntityOperation("rename-type", "e", "Renamed entries", current.Manifest.DefinitionRevision)));
         var latest = await service.GetSnapshotAsync();
         await coordinator.ApplyAsync(Mutation("later", new RenameFieldOperation("later", "e", "f", "Later label", latest.Manifest.DefinitionRevision)));
-        // Only the latest structure change is undone, and the refusal says so in words (R2RM-02).
+        // Only the latest structure change is undone, and the refusal says so in words.
         await Assert.ThrowsExactlyAsync<NendoCompensationNotSupportedException>(() => service.CompensateRevisionAsync(entityRename.RevisionId, "stale-undo"));
         await coordinator.DisposeAsync(); workspace.Forget(coordinator);
         var reopened = await new NendoApplicationService(await workspace.OpenAsync()).GetSnapshotAsync();

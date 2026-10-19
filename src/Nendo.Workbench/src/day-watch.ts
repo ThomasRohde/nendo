@@ -7,7 +7,7 @@ export interface DayWatchTimers {
 }
 
 /**
- * Notices the person's civil day turning (W-217). Every answer that may say `today` carries the
+ * Notices the person's civil day turning. Every answer that may say `today` carries the
  * day it was read on, so a new day makes it pending; something has to wake the page to see that.
  *
  * A timer is armed for the next local midnight itself, not a moment after it, so no screen sits

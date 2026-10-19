@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-143: a lost acquire response is recovered by an exact retry, and a session that
+/// A lost acquire response is recovered by an exact retry, and a session that
 /// released or lost its lease takes it again under its own application handle, with the
 /// proposals it validated still its own.
 /// </summary>

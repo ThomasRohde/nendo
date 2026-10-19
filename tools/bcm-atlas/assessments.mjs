@@ -1,4 +1,4 @@
-// Dated assessments for the Capability Atlas (W-080), derived from capabilities as they stand.
+// Dated assessments for the Capability Atlas, derived from capabilities as they stand.
 //
 // migrated()      what the file already knows, moved without loss: each capability's current
 //                 maturity becomes one Maturity assessment, dated when it was last reviewed, with
@@ -39,7 +39,7 @@ export function migrated(capabilities) {
 }
 
 /**
- * Each initiative's primary capability as its first scope link (W-081): what the file already
+ * Each initiative's primary capability as its first scope link: what the file already
  * says, moved into the link type without loss. The primary capability stays on the initiative.
  */
 export function scopedFromPrimary(initiatives) {

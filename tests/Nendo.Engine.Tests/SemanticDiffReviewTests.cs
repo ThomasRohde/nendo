@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review of 2026-10-10 on the review lines (W-208): each line names what it acts on,
+/// The review lines: each line names what it acts on,
 /// in the person's terms, so two same-named fields or a clause with a value kind can be judged
 /// at the accept gate.
 /// </summary>

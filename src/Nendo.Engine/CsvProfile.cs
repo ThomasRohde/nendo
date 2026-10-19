@@ -9,7 +9,7 @@ public sealed record NendoCsvDocument(IReadOnlyList<string> Headers, IReadOnlyLi
 {
     /// <summary>
     /// The line each row has in the file a person opened, when the rows were reordered
-    /// (parents first, W-075). Null means the rows are in file order.
+    /// (parents first). Null means the rows are in file order.
     /// </summary>
     public IReadOnlyList<int>? SourceRowNumbers { get; init; }
 
@@ -21,7 +21,7 @@ public sealed record NendoCsvMapping(int Column, string FieldId)
 {
     /// <summary>
     /// For a reference column, the unique field of the target record type its cells hold,
-    /// such as a code, in place of record IDs (W-075). Null means record IDs.
+    /// such as a code, in place of record IDs. Null means record IDs.
     /// </summary>
     public string? MatchFieldId { get; init; }
 }
@@ -56,7 +56,7 @@ public static class NendoCsvProfile
     /// <summary>
     /// The encoding an export file is written in: UTF-8 with its byte-order mark, so a
     /// spreadsheet opened on the file by a double-click reads æ, ø and å rather than the
-    /// ANSI code page's guess at them (R2LAT-11). <see cref="Parse"/> drops the mark again.
+    /// ANSI code page's guess at them. <see cref="Parse"/> drops the mark again.
     /// </summary>
     public static Encoding FileEncoding { get; } = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
 
@@ -101,7 +101,7 @@ public static class NendoCsvProfile
             {
                 if (character == '\r' && index + 1 < text.Length && text[index + 1] == '\n') index++;
                 // A line on which nothing was read, not even a quote, is a blank line rather than
-                // a row of one empty cell (ESQ-13). A quoted empty cell, "", is still a row.
+                // a row of one empty cell. A quoted empty cell, "", is still a row.
                 if (started || closedQuote || cell.Length != 0 || row.Count != 0) AddRow();
                 record++;
             }
@@ -118,7 +118,7 @@ public static class NendoCsvProfile
         if (started || closedQuote || cell.Length != 0 || row.Count != 0) AddRow();
         if (rows.Count == 0) throw new NendoValidationException("CSV needs a header row.");
         // A spreadsheet that once formatted a column past the data writes it on every line: a
-        // trailing column with no header and nothing in it is dropped, not refused (ESQ-07).
+        // trailing column with no header and nothing in it is dropped, not refused.
         var width = rows[0].Count;
         while (width > 1 && string.IsNullOrWhiteSpace(rows[0][width - 1]) &&
             rows.Skip(1).All(line => line.Count < width || line[width - 1].Length == 0))
@@ -151,7 +151,7 @@ public static class NendoCsvProfile
         if (isNull)
         {
             // A sequence field is filled by the host when the record is written, so a null
-            // cell is a request for the next code, not a missing required value (F-259).
+            // cell is a request for the next code, not a missing required value.
             if (field.Required && field.Sequence is null) throw new NendoValidationException("Required field cannot be null.");
             return null;
         }
@@ -184,7 +184,7 @@ public static class NendoCsvProfile
         throw new NendoValidationException($"Invalid {field.StorageKind} value: {Expected(field.StorageKind)}, got “{Shown(cell)}”.");
     }
 
-    /// <summary>The exact form a kind takes in a cell (scalars.md), as a person can act on it (ESQ-12).</summary>
+    /// <summary>The exact form a kind takes in a cell (scalars.md), as a person can act on it.</summary>
     private static string Expected(NendoStorageKind kind) => kind switch
     {
         NendoStorageKind.Integer => "expects a whole number such as 42, without spaces or separators",

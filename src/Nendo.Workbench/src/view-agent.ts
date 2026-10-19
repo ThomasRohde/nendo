@@ -16,7 +16,7 @@ import { attachScreenPreview } from './view-proposal';
 import { packageChangesMarkup } from './package-diff-markup';
 import { wirePackageFileReading } from './package-file-dialog';
 import { proposalConsent, proposalConsentMarkup } from './proposal-consent';
-// The same marks and History wording as Studio's review (UIT-09, UIT-04).
+// The same marks and History wording as Studio's review.
 import { proposalChangesMarkup } from './proposal-markup';
 /**
  * Agent access: what this device has granted, where an agent connects, what it
@@ -86,7 +86,7 @@ async function copyToClipboard(key: string, text: string, focusSelector: string)
   lastCopy = { key, ok, text };
   window.clearTimeout(lastCopyTimer);
   // A copy that failed shows the command to run by hand, and that is the only way to get it:
-  // it stays until the next copy, not eight seconds (UIK-02).
+  // it stays until the next copy, not eight seconds.
   if (ok) lastCopyTimer = window.setTimeout(() => {
     if (lastCopy?.key !== key) return;
     lastCopy = null;
@@ -104,7 +104,7 @@ async function copyToClipboard(key: string, text: string, focusSelector: string)
 const runningWords: Record<string, string> = { starting: 'Starting', signIn: 'Waiting for you to sign in', ready: 'Running' };
 
 /**
- * The tab the Agent page shows (W-199, the owner's design A), and whether Launch shows the agents
+ * The tab the Agent page shows, and whether Launch shows the agents
  * hidden on this computer. Page state, so the status poll's redraw keeps both; a new file starts
  * on Activity, where anything waiting for the person is.
  */
@@ -148,7 +148,7 @@ function launchMarkup(): string {
 
 /**
  * Where keyboard focus was on the Agent page, as a selector that finds the same control after a
- * redraw. The status poll rebuilds the page every three seconds, and a tab (W-199) or a level
+ * redraw. The status poll rebuilds the page every three seconds, and a tab or a level
  * that had focus lost it each time, so a person moving with the keyboard was sent back to the
  * top of the document mid-step.
  */
@@ -163,7 +163,7 @@ function focusedControl(): string | null {
     if (value !== undefined) return `[data-${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}="${CSS.escape(value)}"]`;
   }
   if (active.dataset.toggleHidden !== undefined) return '[data-toggle-hidden]';
-  // Two copies while an agent runs, one in the hidden Activity panel (UIK-15).
+  // Two copies while an agent runs, one in the hidden Activity panel.
   if (active.dataset.openAgentChat !== undefined) return '.agent-panel:not([hidden]) [data-open-agent-chat]';
   return null;
 }
@@ -195,7 +195,7 @@ export function renderAgent(): void {
     { value: 'unattended', label: 'Unattended', short: 'Accept and run its own changes' },
   ];
   const modeLabel = modes.find((mode) => mode.value === status.mode)?.label ?? 'Off';
-  // Since W-126 the level comes back when this file opens again on this computer, and the page says so.
+  // The level comes back when this file opens again on this computer, and the page says so.
   const remembered = status.remembered === true
     ? 'This computer turns it on again whenever this file opens; choose Off to stop that.'
     : 'This ends when you lower the level or close the file.';
@@ -216,7 +216,7 @@ export function renderAgent(): void {
   const pendingCount = status.pendingProposals.length;
   const running = runningAgent();
   const refocus = focusedControl();
-  // Design A (W-199): the state, the level as one row, and three tabs. Anything that waits for
+  // Design A: the state, the level as one row, and three tabs. Anything that waits for
   // the person -- an outcome, automatic actions to approve -- stays above the tabs, and Activity,
   // where proposals wait, is the tab a file opens on.
   const panel = (tab: AgentTab, kind: string, body: string): string =>
@@ -371,7 +371,7 @@ export function renderAgentProposal(): void {
   wirePackageFileReading(content, () => state.agentProposal === null ? null : { proposalId: state.agentProposal.proposalId, reviewedDigest: state.agentProposal.operationDigest });
   requiredElement<HTMLButtonElement>('#close-agent-proposal').addEventListener('click', () => { state.agentProposal = null; state.view = 'agent'; rerender(); });
   // An agent's proposal is gone once rejected and the agent has to prepare it again, while
-  // Reject sits one click beside Accept, so it asks first (UX-24).
+  // Reject sits one click beside Accept, so it asks first.
   requiredElement<HTMLButtonElement>('#reject-agent-proposal').addEventListener('click', () => {
     void confirmDialog({
       headingId: 'reject-proposal-heading',
@@ -440,7 +440,7 @@ export function agentPreviewMarkup(summary: AgentPreviewSummary, operationCount:
  * (AreDefaultScriptDialogsEnabled = false) and handles none, so the browser's confirmation
  * never draws anything and reports a No. The first version of this used it, and the effect
  * was that the fifth rung of the ladder did nothing at all when it was clicked — no
- * dialog, no level change, no error (F-120). Test-Production refuses any renderer file
+ * dialog, no level change, no error. Test-Production refuses any renderer file
  * that reaches for one, which is why this comment does not write its name with brackets.
  */
 function confirmUnattended(): Promise<boolean> {
@@ -469,10 +469,10 @@ export async function setAgentMode(mode: AgentAccessMode): Promise<void> {
   clearError();
   try {
     state.agentStatus = await client.request<AgentStatus>('agent.setMode', { mode });
-    // A running conversation shows the level and what it does with a change (ACP-12).
+    // A running conversation shows the level and what it does with a change.
     agentLevelChanged();
     // Whether Launch may launch follows the level, so read it again with it: Launch kept the
-    // old level's answer until the next poll, and said "Choose Inspect" at Inspect (2026-10-10).
+    // old level's answer until the next poll, and said "Choose Inspect" at Inspect.
     try {
       launchable = await client.request<LaunchableAgents>('agentSession.list');
       launchableAt = Date.now();
@@ -530,7 +530,7 @@ export async function copyConnectionCommand(target: ConnectionClient): Promise<v
 }
 
 /**
- * Hide an agent from Launch on this computer, or show it again (W-199). Focus goes to the line
+ * Hide an agent from Launch on this computer, or show it again. Focus goes to the line
  * that brings hidden agents back, so a person who hid the wrong one finds the way back at once.
  */
 async function setHiddenOnThisComputer(agentId: string, hide: boolean): Promise<void> {
@@ -563,7 +563,7 @@ let revoking = false;
 /**
  * Ends the editing agent's access. Outside the window's one-action lock: it is how a person ends
  * the agent write their own save is queued behind, and the button the busy bar and the agent pill
- * send them to stayed pressable during that save but did nothing (WCS-20). It changes no record,
+ * send them to stayed pressable during that save but did nothing. It changes no record,
  * so it cannot race the save it unblocks.
  */
 export async function revokeAgentEditing(): Promise<void> {
@@ -660,7 +660,7 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
     if (notice !== null) showOutcomeRefreshNotice(outcomeMessage, notice);
     else if (result.promotion.applied) showOutcome(outcomeMessage);
     else showOutcome(outcomeMessage);
-    // The review is gone; focus goes to what it left, its outcome (UIK-04).
+    // The review is gone; focus goes to what it left, its outcome.
     const outcome = document.querySelector<HTMLElement>('.message-slot:not([hidden])');
     if (outcome !== null) { outcome.tabIndex = -1; focusWithoutInteraction(outcome); }
   } catch (error) {
@@ -672,7 +672,7 @@ export async function resolveAgentProposal(accept: boolean): Promise<void> {
   }
 }
 
-/** What the status poll reads, so it can tell a change from the same status read again (UIK-01). */
+/** What the status poll reads, so it can tell a change from the same status read again. */
 export function agentDigest(): string {
   return JSON.stringify([state.agentStatus, launchable]);
 }

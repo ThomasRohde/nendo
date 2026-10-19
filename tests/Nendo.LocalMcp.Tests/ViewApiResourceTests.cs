@@ -4,7 +4,7 @@ using ModelContextProtocol.Client;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-094. nendo://application/view-api is window.nendo as an agent reads it before it writes a
+/// <c>nendo://application/view-api</c> is window.nendo as an agent reads it before it writes a
 /// custom view's code. The Workbench's api build writes it from the tables api.js is built from,
 /// and this host serves it as built.
 /// <para>

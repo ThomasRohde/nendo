@@ -1,367 +1,318 @@
 # Archi
 
 An ArchiMate 3.2 modeller in the manner of [Archi](https://www.archimatetool.com/), over
-Archi.nendo's record types (I-007; [the design](../../docs/design/archi-in-nendo.md)). The
-package is `org.nendo.archi`, and this folder is exactly what a file carries.
-`workspace/Archi.nendo` carries it over Archisurance.
+Archi.nendo's record types ([the design](../../docs/design/archi-in-nendo.md)). The package is
+`org.nendo.archi`, and this folder is exactly what a file carries. `workspace/Archi.nendo`
+carries it over Archisurance.
 
 ## Use
 
-Open Archi.nendo: it opens on the workbench, a view of the file itself (W-106, Nendo 1.42.0).
-Elsewhere in Use, **Archi** is the first choice in the breadcrumb's first picker, before the
-record types. With custom views off for the file or the device, the file opens on its record
-types as before, and Studio is always a click away.
+Archi.nendo opens on the workbench, a view of the file itself. Elsewhere in Use, **Archi** is
+the first choice in the breadcrumb's first picker, before the record types. With custom views
+off for the file or the device, the file opens on its record types, and Studio is always a
+click away.
 
 **A new model** is **File → New Archi model…** (ADR-0022): a new file of Archi with the 72
 concept types and the nine top-level folders, and none of this model's concepts, views or
 history. The workbench starts an empty model in it, named *New model*; rename it in
 Properties. The file you were in does not change.
 
+### The tree, the middle and the properties
+
 - **The model tree** starts at the model and holds Archi's nine top-level folders in Archi's
   order; a folder shows its folders first, then its concepts and views by name. An unnamed
   relationship reads as its type and its two ends. A cyclic endpoint reference ends with
   `[cycle]`, so relationships can still be selected and their properties opened.
-- **Find** (Ctrl F) and **Layer**, in Nendo's row above the view, narrow the tree to what
-  matches and open the folders on the way to it. Where the model has specializations,
-  **Specialization** narrows it to the concepts given one (W-119), and a specialized concept's
-  row says so in its tooltip.
+- **Find** (Ctrl F) and **Layer**, in Nendo's row, narrow the tree to what matches and open
+  the folders on the way. Where the model has specializations, **Specialization** narrows it
+  to the concepts given one, and a specialized concept's row says so in its tooltip.
 - **The middle** shows what the selection is part of: a concept's relationships and the views
   it is on, a view's objects and connections and the elements on it. Each entry selects its
   record everywhere.
 - **Properties** edit the selection's fields as Archi's Properties view does, the
   type-specific ones included (access, influence strength, directed, junction type), and its
   ordered key/value properties. A changed type stays within its category and takes the
-  concept to its new layer's folder, as Set Concept Type does.
-  Rapid key/value edits keep their pending rows until saved; a refusal retains the draft
-  for correction or retry. Overlapping reads keep the newest model and record versions.
+  concept to its new layer's folder, as Set Concept Type does. Rapid key/value edits keep
+  their pending rows until saved; a refusal keeps the draft for correction or retry.
+  Overlapping reads keep the newest model and record versions.
 - **New** makes an element of any type (Nendo's Add does the same), a folder or a view. A new
   element goes to the selected folder if it is of its layer, otherwise to its layer's
   top-level folder. The dialog offers the specializations of the type chosen, and New, in the
-  row and in the tree's menu, offers each specialization of an element type as archi-online's
-  tree does: an element of its type, named after it and given it (W-119).
+  row and in the tree's menu, offers each specialization of an element type: an element of
+  its type, named after it and given it.
 - **Drag** a concept, a view or a folder onto a folder of the same layer's tree; a drop
-  anywhere else is not offered. **F2** renames. **Delete** removes the selection with
-  everything Archi removes with it (relationships, the diagram objects and connections that
-  show it, what is nested in them, properties), after saying how much that is, as one
-  revision where Nendo has batch writes.
+  anywhere else is not offered. **F2** renames, starting from the stored name, never from the
+  label the tree shows a relationship by. **Delete** removes the selection with everything
+  Archi removes with it (relationships, the diagram objects and connections that show it,
+  what is nested in them, properties), after saying how much that is, as one revision where
+  Nendo has batch writes.
 - **The keyboard**: the tree is one tab stop; Up, Down, Home and End move, Right opens a
   folder or steps into it, Left closes it or steps out, Enter goes to the properties.
+- **Analysis**, in a concept's properties: its **Model relations**, what starts at it and then
+  what ends at it, each by name, and the views it is **Used in**, by name, from
+  archi-online's own code run on the file's records. A relationship selects it; a view opens
+  with the concept's first object on it outlined.
+- **Viewpoint**, in a view's properties: None or one of Archi's 25 viewpoints, by name.
+  Elements whose type the viewpoint leaves out are drawn faint, with the lines that end on
+  them, in the drawing and in the editor, and the palette greys out their types; Junction and
+  Grouping are always allowed, and Layered allows everything. The change shows at once. The
+  table is archi-online's port of Archi's, checked against the `viewpoints.xml` Desktop Archi
+  5.9 ships. A key no viewpoint has, from another tool, is kept and shown as unknown.
 
-- **The open view** (W-110): choosing a view draws it in the middle with Archi's own figures,
-  icons and connection routes, as archi-online draws them, on white paper in both themes. Drag
-  the paper or scroll to pan, Ctrl and the wheel to zoom, and Zoom and Fit are in Nendo's row
-  (Ctrl -, Ctrl 0, Ctrl +). The navigator in the corner shows the whole view and moves the
-  camera. A click selects the object under the pointer and its concept in the tree; selecting
-  a concept in the tree outlines every box that shows it; a double-click on a view reference
-  opens that view.
-- **Analysis** (W-118), in a concept's properties: its **Model relations**, what starts at it
-  and then what ends at it, each by name, and the views it is **Used in**, by name, as
-  archi-online's Analysis tab lists them, from archi-online's own code run on the file's
-  records. A relationship selects it; a view opens with the concept's first object on it
-  outlined.
-- **Edit** (Ctrl E, W-111) opens the view in archi-online's own editor: its palette by layer,
+### The open view and the editor
+
+- **The open view**: choosing a view draws it in the middle with Archi's own figures, icons
+  and connection routes, as archi-online draws them, on white paper in both themes. Drag the
+  paper or scroll to pan, Ctrl and the wheel to zoom; Zoom and Fit are in Nendo's row (Ctrl -,
+  Ctrl 0, Ctrl +). The navigator in the corner shows the whole view and moves the camera. A
+  click selects the object under the pointer and its concept in the tree; selecting a concept
+  in the tree outlines every box that shows it; a double-click on a view reference opens that
+  view.
+- **Edit** (Ctrl E) opens the view in archi-online's own editor: its palette by layer,
   placing, moving, resizing and nesting boxes, drawing relationships of only the types
   ArchiMate allows between the two ends, reconnecting, bendpoints, the magic connector,
   marquee selection, Delete from the view and direct renaming. Edits collect rather than
   write: **Undo** (Ctrl Z) and **Redo** (Ctrl Y) work on them, **Commit** (Ctrl S) writes all
-  of them to the file as one revision, up to 200 record writes, and **Discard** drops them.
-  A larger Commit saves nothing and keeps every edit waiting; use Undo to reduce it, then
-  commit. A box moved five times is one change of its place when committed. The waiting
-  edits are kept in this browser, so
-  leaving the screen or the file finds them again, opened in the editor; a change to the file
-  meanwhile is carried under them, and a commit writes only what the edits changed. Edit
-  closes only when nothing waits.
-  The palette is as wide as you drag its edge (or step it with the arrow keys), and its
-  buttons fill the width in columns; the width is kept on this device.
-  A box dropped into an element box is nested in it, and archi-online's own dialog asks which
-  relationship the nesting stands for, None among the choices (W-113; before, the question
-  had no place to show and the move was lost).
-- **Appearance** (W-114), a toggle in Nendo's row while editing, shows archi-online's own
-  Appearance and Label tabs beside the view for the one box or line selected: fill, line and
-  font colour and opacity, gradient, line width and style, font, text alignment and position,
-  icon, the alternate figure, a note's border, a plain line's ends, and the label expression
-  with its preview. Each change waits like a move and commits to the box's record; the view
-  draws a label expression as archi-online evaluates it. The panel starts hidden, because it
-  takes room from the drawing, and this device remembers the choice. Its tabs are drawn as
-  Nendo draws tabs. Edit opens a view fitted to the space, as the drawing outside Edit is. The font list is
+  of them to the file as one revision, up to 200 record writes, and **Discard** drops them. A
+  larger Commit saves nothing and keeps every edit waiting; use Undo to reduce it, then
+  commit. A box moved five times is one change of its place when committed. Waiting edits are
+  kept in this browser, so leaving the screen or the file finds them again, opened in the
+  editor, and edits found on another view than the one they were made on say which view that
+  was. A change to the file meanwhile is carried under them, and a commit writes only what the
+  edits changed. Edit closes only when nothing waits. Edit opens a view fitted to the space.
+- The palette is as wide as you drag its edge (or step it with the arrow keys), and its
+  buttons fill the width in columns; the width is kept on this device. A box dropped into an
+  element box is nested in it, and archi-online's own dialog asks which relationship the
+  nesting stands for, None among the choices.
+- **Appearance**, a toggle in Nendo's row while editing, shows archi-online's own Appearance
+  and Label tabs beside the view for the one box or line selected: fill, line and font colour
+  and opacity, gradient, line width and style, font, text alignment and position, icon, the
+  alternate figure, a note's border, a plain line's ends, and the label expression with its
+  preview. Each change waits like a move and commits to the box's record; the view draws a
+  label expression as archi-online evaluates it. The panel starts hidden and this device
+  remembers the choice. Its tabs are drawn as Nendo draws tabs. The font list is
   archi-online's common fonts: a view is never allowed the computer's own list. A legend's
   options are kept and drawn, but not edited here.
-- **Viewpoint** (W-116), in a view's properties: None or one of Archi's 25 viewpoints, by
-  name. Elements whose type the viewpoint leaves out are drawn faint, with the lines that end
-  on them, in the drawing and in the editor, and the palette greys out their types; Junction
-  and Grouping are always allowed, and Layered allows everything. The change shows at once.
-  The table is archi-online's port of Archi's, checked against the `viewpoints.xml` Desktop
-  Archi 5.9 ships. A key no viewpoint has, from another tool, is kept and shown as unknown.
-- **Arrange**, **Copy and paste** and the **editor settings** (W-113), four menus in Nendo's row
-  while editing with **Lay out**, each an icon whose name shows on hover, and so in Ctrl K.
-  Undo, Redo, Appearance, Validator and Export are icons too, so the row fits beside Add; what
-  still does not fit in a narrow window is in Nendo's More menu at the row's end. On a Nendo
-  from before W-115, which lacks the clipboard, layout, undo and redo icons, those controls
-  carry their words instead. Arrange aligns the selected boxes six ways
+- **Arrange**, **Copy and paste** and the **editor settings** are menus in Nendo's row while
+  editing, with **Lay out**, each an icon whose name shows on hover, and so in Ctrl K. Undo,
+  Redo, Appearance, Validator and Export are icons too; what does not fit in a narrow window
+  is in Nendo's More menu at the row's end. On a Nendo that lacks the clipboard, layout, undo
+  and redo icons, those controls carry their words. Arrange aligns the selected boxes six ways
   to the last one selected, matches their width, height or size, distributes three or more,
   and brings them forward or sends them back. Copy and paste holds cut, copy, paste, paste as
   reference (new boxes for the same elements) or as copy (new elements), duplicate and select
   the same type. The gear holds the grid, snapping to it and to alignment guides, and
   Automatic relationships. Each command is archi-online's own operation, as its context menu,
-  still there on a right-click, runs it: one edit waiting and one Undo step. Ctrl+click adds to
-  the selection; Ctrl D, X, C and V and the arrow keys work in the view, Shift with an arrow by
-  a grid step, and the format painter is in the palette. The grid and snapping choices are kept
-  in this view's own storage on this device. One Arrange menu of 27 entries was too crowded
-  (the owner, W-115).
-- **Lay out** and **Automatic relationships** (W-115). **Lay out → Left to right** and **Top to
-  bottom** place the boxes selected, or every box at the top of the view
-  when fewer than two are, in layers with ELK, and route the lines between them at right
-  angles; what is nested in a box moves with it. It is archi-online's own layout: one edit
-  waiting and one Undo step. A layout that needs more than the 200 writes a Commit can save is
-  taken back at once, as Generate view's is, and the status line says to lay out a selection. **Automatic relationships…**, behind the gear, is Archi's preferences page for
-  nesting: whether nesting a box made from the palette, dropped from the tree or moved offers a
+  still there on a right-click, runs it: one edit waiting and one Undo step. Ctrl+click adds
+  to the selection; Ctrl D, X, C and V and the arrow keys work in the view, Shift with an
+  arrow by a grid step, and the format painter is in the palette. The grid and snapping
+  choices are kept in this view's own storage on this device.
+- **Lay out → Left to right** and **Top to bottom** place the boxes selected, or every box at
+  the top of the view when fewer than two are, in layers with ELK, and route the lines between
+  them at right angles; what is nested in a box moves with it. It is archi-online's own
+  layout: one edit waiting and one Undo step. A layout that needs more than the 200 writes a
+  Commit can save is taken back at once, and the status line says to lay out a selection.
+- **Automatic relationships…**, behind the gear, is Archi's preferences page for nesting:
+  whether nesting a box made from the palette, dropped from the tree or moved offers a
   relationship, which types it offers parent to child and child to parent (a Specialization
   always runs child to parent), and which types a nesting stands for, so their lines are not
   drawn. Archi's defaults: six types offered, none reversed, every type hidden while nested.
   The choices are kept in this view's own storage on this device, for every Archi model, and
   the drawing outside Edit follows them as the editor does.
-- **Undo** (Ctrl Z) and **Redo** (Ctrl Y) (W-112), in Nendo's row, on every screen. While edits
-  wait in the editor they undo and redo those, by archi-online's own steps. Otherwise they undo
-  what the file has saved, one gesture at a time and newest first: a rename, a change in the
-  properties, a property list, a new element, folder or view, a move, a delete with everything it
-  took, a commit of the editor's edits, a generated view. The button names the gesture, so Ctrl K
-  and More list *Undo Rename Customer*. Nendo undoes each gesture (W-103, ADR-0023): one
-  revision, linked to the gesture's in History, version-checked, and a deleted element comes back
-  under its own record ID. If something it would put back has changed or been deleted since, or
-  is now used by something new, it is refused, says so, and writes nothing. The steps are this
-  visit's: they go when the workbench is left, and a change made elsewhere refuses the steps it
-  touches. A gesture of more than 200 writes, or one made on a Nendo without `records.undo`, is
-  not undoable here, and Undo then names nothing older: the steps before it end there (W-213),
-  so Ctrl Z never runs the gesture before it instead. A delete that large says so in its
-  confirmation, and one refused after its first batches says it was done only in part. Nendo
-  claims no universal undo.
-- **Generate view for…** (W-115), in the tree's menu on an element and in New: a new view of
-  the element, or of the boxes selected on the view while editing, and the elements related to
-  them, to a depth of one to six, incoming, outgoing or both, optionally with every
-  relationship between them and with a viewpoint the elements fit. It is archi-online's own
-  operation, laid out with ELK, and it is saved at once as one revision and opened. While
-  editing or not, Undo takes it away again, as one revision (W-112).
-- **Validator** (W-117), in Nendo's row, opens Archi's validator under the workbench. It is
-  archi-online's: Archi 5.9's eight checks (invalid relationships, unused elements and
-  relationships, empty views, viewpoint violations, nested elements without a nesting
-  relationship, duplicate names, mixed junction relationships) and its model-integrity pass,
-  grouped by source and severity. It runs when opened and on **Validate**, over the file, or
-  over what the editor shows with its waiting edits while a view is being edited, and says
-  when the model has changed since. Choosing an issue opens what it names: the object on its
-  view, outlined, or the concept, view or folder in the tree. **Rules…** turns checks off,
-  on this device.
-- **Visualiser** (W-118), in Nendo's row, opens under the workbench archi-online's graph of the
-  concept selected and those related to it, laid out by ELK from left to right as
-  archi-online's is (Desktop Archi's is radial). It follows the selection unless **Pin**ned. A
-  click on a box selects its concept; a double-click makes it the focus, and **Back** steps
-  back; **Home** returns to the selection. **Depth** (one to six), **Direction**, **Viewpoint**,
-  **Relationship names** and **Types…** change what it shows, and this device keeps them.
-  The drawing pans and zooms as archi-online's does, on white in both themes, and **SVG**,
-  **PNG** and **Copy** export it as archi-online does. While a view is being edited it shows
-  what the editor shows, waiting edits included.
-- **Tools** (W-119), in Nendo's row, holds Archi's three model tools, each archi-online's own
-  operation run on the file's records and saved as one revision, which Undo takes back:
-  - **Specializations…** is the Specializations Manager: a table of named kinds of an element
-    or relationship type. Add, rename, retype or remove them and **Save** them together. A name
-    is unique for its type; one given to concepts keeps its type; one removed is taken from
-    every concept that has it, and the dialog says how many. Images are not kept (F-208). A
-    concept is given one in its properties, from New, or from the editor's palette, which shows
-    each one under its type's layer.
-  - **Properties…** is the Properties Manager: every property key in the model, with how many
-    times and on how many objects it is used, and where. **Rename everywhere** gives a key a new
-    name on every property that has it; to a key already in use it asks first, and the
-    properties stay separate rows. **Delete the key…** takes every property with it away.
-    Choosing a place opens its object in the tree or on its view.
-  - **Find and replace…** searches names and text, documentation and property values, in the
-    whole model or in the open view, by case and as a regular expression if asked. **Preview**
-    lists every place a replace would change, before and after; untick what to leave, and
-    **Replace** changes the rest. A place changed since the preview refuses the whole replace.
-
-  A change over 200 record writes is refused whole before anything is written, as Generate View
-  For is, and while edits wait in the editor the tools ask for them to be committed or discarded
-  first, since they change the file itself.
-- **Archi file** (W-120), in Nendo's row. **Open .archimate…** reads an Archi model, plain
-  XML or Archi's archive with images, into an empty model: make one with **File → New Archi
-  model…** first, and in a file that already holds a model the dialog says so and offers
-  nothing. Choose the file in the dialog, or drop it anywhere on the workbench. The dialog
-  says what the file holds and what is left out, because Archi.nendo holds no images: image
-  objects, the connections that end on one, and the pictures on figures and specializations;
-  nor Sketch and Canvas views, which it counts too, with any view reference to one and the
-  connections to such a reference. A file that is not well-formed XML, such as one cut short
-  while it downloaded, is refused in the parser's own words, and so is one that Nendo would refuse part
-  of: a reference to something the file does not hold, or a relationship ArchiMate does not
-  allow between its two ends, named in the dialog (W-213). **Open** saves the model in batches
-  of at most 200 record writes, each a change in History named *Open ‹file› (n of m)*. History
-  cannot undo them; to start again, make a new Archi model. **Save as .archimate** downloads
-  the model as plain XML that Desktop Archi opens, each object under the Archi ID it came with, or its record ID without `ar-` when the
-  workbench made it. Edits still waiting to be committed are not in it, and the status line
-  says so. The workbench reads at most 50,000 records of a kind; a file that holds more is said
-  to be read in part, and neither Save writes a file that would leave the rest out.
-  **Open Exchange XML** (W-121): the same dialog reads The Open Group's exchange format,
-  told from an .archimate by what the file holds, as archi-online reads it, and **Open
-  Exchange XML…** in the menu opens it too. **Save as Exchange XML** downloads the model in
-  that format with its folders as the organization, its language and its Dublin Core
-  metadata, after libxml2 has checked it against Archi 5.9's five schemas. A file the
-  schemas refuse is not saved, and the status line names what they refused. The check is
-  `xsd.js`, 1.2 MB, which loads only when you save, not with the workbench. Like every
-  download, the file goes to Downloads, as `Archisurance (1).xml` when `Archisurance.xml` is
-  already there (F-237).
-- **Export** (W-123), in Nendo's row while a view is open, makes a picture of the view as
-  Archi's File › Export › View As Image does: **PNG** at the view's own size, at **2×** or at
-  **4×**, **SVG** with every label as text, or **Copy as picture** to paste elsewhere. It is
+- **Export**, in Nendo's row while a view is open, makes a picture of the view as Archi's
+  File › Export › View As Image does: **PNG** at the view's own size, at **2×** or at **4×**,
+  **SVG** with every label as text, or **Copy as picture** to paste elsewhere. It is
   archi-online's own export: cropped to the drawing with a 10-pixel margin, in the canvas's
   font, and named after the view. **Transparent background in files** leaves out the white
-  page in the PNG and SVG files; Archi's figures draw the same in both themes. Copy as picture
-  copies at 2×, and always keeps the white page, as Archi's copy does: a program that pastes
-  Windows' bitmap shows see-through pixels as black. The picture is what the view shows, edits
-  still waiting included. A PNG too large for one picture comes out at the largest scale one
-  holds, and the status line says so.
-- **Without the workbench**, in Use: Concepts → Elements and Relationships show an *On views*
-  column, a concept's page shows it under Details, and Views → Views shows a *Diagram objects*
-  column (third in Elements and Views, so a Nendo that draws only three fields shows them too). They are calculated counts of the
-  diagram objects that show a concept or that a view holds. Concepts → *Not on any view* and
-  Views → *Empty views* list the zeros (Nendo 1.40.0, which filters on a calculated field).
+  page in the PNG and SVG files. Copy as picture copies at 2× and always keeps the white page,
+  as Archi's copy does, because a program that pastes Windows' bitmap shows see-through pixels
+  as black. The picture is what the view shows, waiting edits included. A PNG too large for
+  one picture comes out at the largest scale one holds, and the status line says so.
+
+### Undo and redo
+
+**Undo** (Ctrl Z) and **Redo** (Ctrl Y), in Nendo's row, work on every screen. While edits
+wait in the editor they undo and redo those, by archi-online's own steps. Otherwise they undo
+what the file has saved, one gesture at a time and newest first: a rename, a change in the
+properties, a property list, a new element, folder or view, a move, a delete with everything
+it took, a commit of the editor's edits, a generated view, a model tool's change. The button
+names the gesture, so Ctrl K and More list *Undo Rename Customer*.
+
+Nendo undoes each gesture (ADR-0023): one revision, linked to the gesture's in History,
+version-checked, and a deleted element comes back under its own record ID. If something it
+would put back has changed or been deleted since, or is now used by something new, it is
+refused with *Something it would put back has changed or been deleted since. Nothing was
+changed.* and writes nothing. The steps belong to this visit: they go when the workbench is
+left, and a change made elsewhere refuses the steps it touches. A gesture of more than 200
+writes, or one made on a Nendo without `records.undo`, is not undoable here, and Undo then
+names nothing older, so Ctrl Z never runs the gesture before it instead. A delete that large
+says so in its confirmation, and one refused after its first batches says it was done only in
+part. Nendo claims no universal undo.
+
+### Generate, validate, visualise
+
+- **Generate view for…**, in the tree's menu on an element and in New: a new view of the
+  element, or of the boxes selected on the view while editing, and the elements related to
+  them, to a depth of one to six, incoming, outgoing or both, optionally with every
+  relationship between them and with a viewpoint the elements fit. It is archi-online's own
+  operation, laid out with ELK, saved at once as one revision and opened. Undo takes it away
+  as one revision.
+- **Validator**, in Nendo's row, opens Archi's validator under the workbench: Archi 5.9's
+  eight checks (invalid relationships, unused elements and relationships, empty views,
+  viewpoint violations, nested elements without a nesting relationship, duplicate names, mixed
+  junction relationships) and its model-integrity pass, grouped by source and severity. It
+  runs when opened and on **Validate**, over the file, or over what the editor shows with its
+  waiting edits while a view is being edited, and says when the model has changed since.
+  Choosing an issue opens what it names: the object on its view, outlined, or the concept,
+  view or folder in the tree. **Rules…** turns checks off, on this device.
+- **Visualiser**, in Nendo's row, opens under the workbench archi-online's graph of the
+  concept selected and those related to it, laid out by ELK from left to right. It follows the
+  selection unless **Pin**ned. A click on a box selects its concept; a double-click makes it
+  the focus, and **Back** steps back; **Home** returns to the selection. **Depth** (one to
+  six), **Direction**, **Viewpoint**, **Relationship names** and **Types…** change what it
+  shows, and this device keeps them. The drawing pans and zooms on white in both themes, and
+  **SVG**, **PNG** and **Copy** export it. While a view is being edited it shows what the
+  editor shows, waiting edits included.
+
+### Tools
+
+**Tools**, in Nendo's row, holds Archi's three model tools, each archi-online's own operation
+run on the file's records and saved as one revision, which Undo takes back:
+
+- **Specializations…** is the Specializations Manager: a table of named kinds of an element
+  or relationship type. Add, rename, retype or remove them and **Save** them together. A name
+  is unique for its type; one given to concepts keeps its type; one removed is taken from
+  every concept that has it, and the dialog says how many. Images are not kept. A concept is
+  given one in its properties, from New, or from the editor's palette, which shows each one
+  under its type's layer.
+- **Properties…** is the Properties Manager: every property key in the model, with how many
+  times and on how many objects it is used, and where. **Rename everywhere** gives a key a new
+  name on every property that has it; to a key already in use it asks first, and the
+  properties stay separate rows. **Delete the key…** takes every property with it away.
+  Choosing a place opens its object in the tree or on its view.
+- **Find and replace…** searches names and text, documentation and property values, in the
+  whole model or in the open view, by case and as a regular expression if asked. **Preview**
+  lists every place a replace would change, before and after; untick what to leave, and
+  **Replace** changes the rest. A place changed since the preview refuses the whole replace.
+
+A change over 200 record writes is refused whole before anything is written, and while edits
+wait in the editor the tools ask for them to be committed or discarded first.
+
+### Archi files
+
+**Archi file**, in Nendo's row:
+
+- **Open .archimate…** reads an Archi model, plain XML or Archi's archive with images, into an
+  empty model: make one with **File → New Archi model…** first; in a file that already holds a
+  model the dialog says so and offers nothing. Choose the file in the dialog, or drop it
+  anywhere on the workbench. The dialog says what the file holds and what is left out, because
+  Archi.nendo holds no images: image objects, the connections that end on one, and the
+  pictures on figures and specializations; nor Sketch and Canvas views, which it counts, with
+  any view reference to one and the connections to such a reference. A file that is not
+  well-formed XML, such as one cut short while it downloaded, is refused in the parser's own
+  words, and so is one Nendo would refuse part of: a reference to something the file does not
+  hold, or a relationship ArchiMate does not allow between its two ends, named in the dialog.
+  **Open** saves the model in batches of at most 200 record writes, each a change in History
+  named *Open ‹file› (n of m)*. History cannot undo them; to start again, make a new Archi
+  model.
+- **Save as .archimate** downloads the model as plain XML that Desktop Archi opens, each object
+  under the Archi ID it came with, or its record ID without `ar-` when the workbench made it.
+  Waiting edits are not in it, and the status line says so.
+- **Open Exchange XML**: the same dialog reads The Open Group's exchange format, told from an
+  .archimate by what the file holds, and **Open Exchange XML…** in the menu opens it too.
+  **Save as Exchange XML** downloads the model in that format with its folders as the
+  organization, its language and its Dublin Core metadata, after libxml2 has checked it
+  against Archi 5.9's five schemas. A file the schemas refuse is not saved, and the status
+  line names what they refused. The check is `xsd.js`, 1.2 MB, which loads only when you save.
+- The workbench reads at most 50,000 records of a kind; a file that holds more is said to be
+  read in part, by the type's name, and neither Save writes a file that would leave the rest
+  out. Like every download, the file goes to Downloads, as `Archisurance (1).xml` when
+  `Archisurance.xml` is already there.
+
+### Without the workbench, and on a smaller Nendo
+
+In Use, Concepts → Elements and Relationships show an *On views* column, a concept's page
+shows it under Details, and Views → Views shows a *Diagram objects* column (third in Elements
+and Views, so a Nendo that draws only three fields shows them too). They are calculated counts
+of the diagram objects that show a concept or that a view holds. Concepts → *Not on any view*
+and Views → *Empty views* list the zeros.
 
 On a Nendo that cannot draw the controls in its own row, the workbench draws them above the
-tree, with Edit, Commit and Discard, so edits waiting on a view are never stranded. The row it
-declares to Nendo is kept within Nendo's 16 KiB: with many specializations, New's
-specialization entries lose their detail lines, then their number, and the specialization
-filter its options, until it fits (W-213).
+tree, with Edit, Commit and Discard, so waiting edits are never stranded. The row it declares
+to Nendo is kept within Nendo's 16 KiB: with many specializations, New's specialization
+entries lose their detail lines, then their number, and the specialization filter its
+options, until it fits.
 
 A diagram item whose Bendpoints or Legend options are not readable JSON, after an edit on its
 record page or by an agent, is drawn without them; the status line says so when the workbench
-starts, and the validator lists each one under Model integrity, opening it on its view (W-213).
-Waiting edits found again in this browser on another view than the one they were made on say
-which view that was. A rename in the tree starts from the stored name, never from the label
-the tree shows a relationship by.
+starts, and the validator lists each one under Model integrity, opening it on its view.
 
 ## Files
 
 - `model.js`: every rule, and every change as the record writes it makes. No DOM, so
   `tools/archi/model.test.mjs` tests it over Archisurance.
 - `view.js`, `view.css`, `index.html`: the tree, the middle and the properties.
-- `canvas.js`: the drawing, the editor, the validator, the Analysis and the Visualiser. Built by `tools/archi/build-canvas.mjs` from
-  `tools/archi/canvas` (the mirror of the records as archi-online's model and its inverse, the
-  camera, and the editor's mount) with archi-online's renderer, geometry, router, ViewEditor,
-  Palette, operations, validator, Analysis and VisualiserCanvas, its `.archimate` parser and serializer, with fflate for
-  Archi's archives (`tools/archi/canvas/io.ts`), at a pinned commit, and React. Every id archi-online makes in it is
-  a record ID, `ar-id-…`. Do not edit it; rebuild it. A
-  rebuild from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the
-  licences of what it includes.
-- `editor.css`: archi-online's own rules for its editor, palette, menus and Visualiser, with its
-  colour variables mapped onto Nendo's tokens.
-- `vendor/elkjs/`: the ELK worker that layouts run in (W-115), elkjs 0.11.1 unchanged, with its
+- `canvas.js`: the drawing, the editor, the validator, the Analysis and the Visualiser. Built
+  by `tools/archi/build-canvas.mjs` from `tools/archi/canvas` (the mirror of the records as
+  archi-online's model and its inverse, the camera, and the editor's mount) with
+  archi-online's renderer, geometry, router, ViewEditor, Palette, operations, validator,
+  Analysis and VisualiserCanvas, its `.archimate` parser and serializer, with fflate for
+  Archi's archives (`tools/archi/canvas/io.ts`), at a pinned commit, and React. Every id
+  archi-online makes in it is a record ID, `ar-id-…`. Do not edit it; rebuild it. A rebuild
+  from the same sources is byte for byte the same. `THIRD-PARTY.txt` carries the licences of
+  what it includes.
+- `editor.css`: archi-online's own rules for its editor, palette, menus and Visualiser, with
+  its colour variables mapped onto Nendo's tokens.
+- `vendor/elkjs/`: the ELK worker that layouts run in, elkjs 0.11.1 unchanged, with its
   licence and hashes. `canvas.js` builds archi-online's layouts against
   `tools/archi/canvas/elk.ts`, which starts this worker, rather than loading ELK on the page.
 - `kit/nendo-view-kit.js`: the view kit, byte for byte (`tools/view-kit/kit.test.mjs`).
 
+`node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into
+the open Archi.nendo.
+
 ## Checked by
 
-`tools/Review-ArchiWorkbench.ps1`, in the production gate: the model tests, the canvas test
-(every Archisurance object's bounds and every connection's route against archi-online's own
-geometry of its own parse, `tools/archi/archisurance-geometry.json`), the validation test
-(each of archi-online's example models and the cases of its validation tests, turned into
-records as an import writes them and validated through the mirror, against what archi-online
-reports: `tools/archi/validation-parity.json`, from `make-validation-fixture.mjs`), then the package
-framed by the fixture broker over Archisurance (`tools/archi/archisurance.json`) in Edge,
-driven with real keys and clicks, with record writes and batches offered. The io test checks
-the `.archimate` mapping both ways over Archisurance, value for value, and the versions each
-batch names; the lane saves Archisurance from Nendo's row and opens the saved file into a new
-model, by a drop and through the dialog's file input, and compares every record.
-`node tools/archi/verify-archimate-io.mjs`, on request, opens and saves Archisurance and
-archi-online's phase fixtures and compares archi-online's semantics of each save with the
-original's, images aside, and has Desktop Archi open and save each one again.
-`node tools/archi/verify-exchange-io.mjs`, on request, opens archi-online's two Exchange
-fixtures and Desktop Archi's own Exchange export of Archisurance as the workbench does, and
-each equals archi-online's reading of it. The workbench's Exchange XML of Archisurance
-validates against Archi 5.9's schemas; Desktop Archi imports it as archi-online does, apart
-from four defaults the two importers fill in differently on Desktop's own export too; and
-read back it loses only what archi-online's own export of Archisurance loses. The io test
-validates the export with libxml2 on every run, and the lane saves it from Nendo's row and
-reads a dropped Exchange file in the browser.
-`node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into
-the open Archi.nendo. The lane also exports every Archisurance view from the Export menu:
-the SVG's crop against archi-online's geometry, every element's name as text, the canvas
-font, PNG at 1×, 2× and 4× of the SVG's size, the transparent background, and Copy as picture
-with focus in Nendo's page, its picture opaque on the white page even with Transparent
-background in files chosen. In the editor it nests a box in Organisation Tree View through
-the dialog and commits the relationship chosen, and runs Arrange on boxes selected with real
-clicks: what each commit holds is what archi-online's own operation makes of the same records
-and selection, and what each command means is checked on the boxes themselves (Align left:
-the anchor's x, on boxes of three widths; Match size; equal gaps; Send to back first);
-duplicate and paste as copy make a new element, paste as reference none. The Appearance
-toggle shows the tabs; a fill, a gradient, a line width, a font and a label expression set on
-Board commit to its record, the font as Archi's own string, the view draws the label, and the
-workbench started again shows each in the tabs. Picking Strategy for Organisation Tree View in
-its properties ghosts, at once and at 0.4, exactly the boxes and drawn lines archi-online's rules
-name for the stored records, in the editor and outside it, and greys those types in the palette
-at 0.35; None clears both. `node tools/archi/verify-viewpoints.mjs`, on request, compares the bundled table
-with Desktop Archi 5.9's own `viewpoints.xml`: 25 viewpoints by id, name and order, and 1,525
-viewpoint and element type pairs. `verify-archimate-io.mjs` also checks that
-every label expression in archi-online's fixtures reads as archi-online reads it after the
-trip through the records.
-`tools/archi/automation.test.mjs` (W-115) runs archi-online's nesting, Generate View For and
-layout on Archisurance's records with the vendored ELK worker, and checks that the writes each
-makes, read back, are the model archi-online left: a move within a parent offers nothing; a
-nesting offers only the default types (Specialization child to parent) and its line is hidden
-until nested connections are turned off; configured reverse types run child to parent; a box
-made from the palette inside another is four creates in one Undo step; a box taken out gets the
-line its nesting stood for; a generated view holds the element and those related to it without
-overlaps, as creates only; and a layout writes only places and bends, without overlaps. The
-lane lays Organisation Tree View out from the Lay out menu and commits exactly archi-online's
-layout of the same records, every box and bend, as one batch of moves after an Undo and Redo;
-shows the automatic relationships dialog with Archi's defaults and draws the line of the
-nesting above once nested connections are off; and generates a view for Board while editing,
-equal box for box to archi-online's, saved as one batch of creates, opened in the editor, and
-taken away by Undo as one batch of deletes.
+`tools/Review-ArchiWorkbench.ps1`, in the production gate, runs:
 
-Undo and Redo of what the file saved (W-112) are measured in the same lane, on Archisurance:
-nine gestures in the tree -- a rename, three documentation changes, two property lists, a new
-element, a move and a delete with its relationships, lines and boxes -- undone one revision each
-until every record holds exactly what it held before them, then redone until every record holds
-what it held after them; a commit of the editor's edits undone and redone; and an undo of a
-record somebody else changed meanwhile refused with *Something it would put back has changed or
-been deleted since. Nothing was changed.* and no write. The lane's broker keeps deletion history
-as Nendo does, so a create of a deleted record ID is refused there as in a file; the W-112
-workbench, which made a deleted record again itself, is refused by it with *This record ID is
-retained in deletion history and cannot be reused.* The Engine's own tests
-(`RecordWritesUndoTests`) walk a batch back and forward, a chain of gestures on one record, and
-the refusals.
+- **Node tests** in `tools/archi/`: `model.test.mjs`; `canvas.test.mjs` (every Archisurance
+  object's bounds and connection's route against archi-online's geometry of its own parse,
+  `archisurance-geometry.json`, and unreadable Bendpoints and Legend options); the validation
+  test (archi-online's example models and validation cases, turned into records as an import
+  writes them, against `validation-parity.json` from `make-validation-fixture.mjs`);
+  `io.test.mjs` (the `.archimate` mapping both ways over Archisurance, the versions each batch
+  names, refusals before any write, Sketch and Canvas views, and the Exchange export validated
+  with libxml2); `automation.test.mjs` (nesting, Generate View For and layout with the
+  vendored ELK worker, each read back as the model archi-online left); `manage.test.mjs` (each
+  model tool's writes read back, then undone and redone to the byte); and `view.test.mjs`
+  (the shipped `view.js`: undo bounds, the 16 KiB row, F2, the 50,000-record read, kept
+  edits and the layout bound).
+- **The browser lane**: the package framed by the fixture broker over Archisurance
+  (`tools/archi/archisurance.json`) in Edge, driven with real keys and clicks, with record
+  writes and batches offered. It saves and reopens `.archimate` and Exchange files by a drop
+  and through the dialog, and compares every record; refuses cut-short files, a relationship
+  to nothing, and leaves out Sketch and Canvas views; exports every Archisurance view and
+  checks the crop, text, font, scales, transparency and Copy as picture; nests, arranges,
+  lays out and generates views and checks each commit against archi-online's own operation;
+  commits Appearance changes and reads them back; checks viewpoint ghosting at 0.4 and the
+  palette at 0.35; undoes and redoes nine tree gestures and an editor commit to the exact
+  records, and refuses an undo of a record changed elsewhere; runs each model tool, including
+  a replace over 200 places refused with nothing written; and measures the rename box's
+  contrast (at least 4.5) and the Properties Manager in both themes. The broker keeps deletion
+  history as Nendo does, so a create of a deleted record ID is refused there as in a file.
 
-The model tools (W-119) are measured twice. `tools/archi/manage.test.mjs` runs each on
-Archisurance with two specializations and properties on an element, a view, a folder, a top-level
-folder, a group and the model, as the workbench runs it: the mirror, archi-online's operation, `writesFor`, a file that answers `records.batch` as
-Nendo does, and the records read back, which must be the model archi-online made, then undone and
-redone to the byte. A new specialization is one create naming its type's version; a rename one
-update; one in use removed is the concept's update before the delete. A key renamed is one update
-of each property that has it and nothing else; one deleted in the middle of a list takes only
-those; a replace sets one field a row it changes, on the model, a top-level folder and a group
-too, and refuses a row changed since its preview; a property copied with its element is a new
-record of the copy. The lane, in Edge, saves a specialization from Tools, has the manager refuse
-a second of the same name, makes an element of it from New, finds the tooltip and the filter,
-places one from the editor's palette and commits it with it; renames the key `owner` on two
-elements as one batch, undone and redone; replaces *Claim* with *Case* in 10 of 11 places as one
-batch of one field a place, undone and redone; has a replace of 345 places refused with
-nothing written; and measures the Properties Manager on Nendo's surface in Nendo's ink in both
-themes. Falsified by leaving properties and then specializations out of `writesFor`
-(*The model read back is not the model archi-online made.*), and by saving the tools' changes
-without the 200-write bound (*A replace over 200 writes was not refused: the view says "Replace ^
-with x  in 345 places."*).
+The Engine's `RecordWritesUndoTests` walk a batch back and forward, a chain of gestures on one
+record, and the refusals.
 
-The broad review's findings (W-213) are measured in the same lane. `io.test.mjs` finds a
-relationship to an element nobody makes and one ArchiMate does not allow before any write, names
-Sketch and Canvas views in the Left out line, leaves out a view reference to a Sketch view rather
-than refusing the file, and plans the importer's model properties against
-the file's own Model record. `canvas.test.mjs` reads a model with a connection's Bendpoints and
-a note's Legend options that are not JSON, draws both without them, names both, and saves it.
-`view.test.mjs` runs the shipped `view.js`: Undo names nothing older after a delete of more than
-200 writes, and a delete refused after its first batch says it was done in part; the row keeps
-within 16 KiB with 63 specializations of 80 characters, editing or not, and keeps Edit, Commit,
-Discard and Undo, and the own row has Edit, Commit and Discard; F2 on a relationship starts from
-its stored name; a type read past 50,000 records is said by its name and Save refused; kept edits
-name the view they were made on until an edit is made on another; and a layout over 200 writes is
-taken back, naming its own writes apart from those already waiting. The browser lane drops an
-.archimate and an Exchange file cut short (the refusal quotes the parser's line and column), a
-file with a Sketch and a Canvas view and a reference to the Sketch, and one with a
-relationship to nothing on the Open dialog, and double-clicks a box in the editor in both themes,
-measuring the rename box's text against its background (contrast at least 4.5).
+On request, outside the gate:
+
+- `node tools/archi/verify-archimate-io.mjs` opens and saves Archisurance and archi-online's
+  phase fixtures, compares archi-online's semantics of each save with the original's, images
+  aside, checks every label expression after the trip through the records, and has Desktop
+  Archi open and save each one again.
+- `node tools/archi/verify-exchange-io.mjs` opens archi-online's two Exchange fixtures and
+  Desktop Archi's own Exchange export of Archisurance as the workbench does, and each equals
+  archi-online's reading of it.
+- `node tools/archi/verify-viewpoints.mjs` compares the bundled table with Desktop Archi 5.9's
+  `viewpoints.xml`: 25 viewpoints by id, name and order, and 1,525 viewpoint and element type
+  pairs.

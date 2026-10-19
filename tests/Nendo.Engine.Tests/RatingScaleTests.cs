@@ -3,8 +3,8 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A rating is an Integer field drawn on a closed scale, ADR-0004 2026-09-14 amendment,
-/// slice S2. The scale is carried by the existing field operation: stored in its own
+/// A rating is an Integer field drawn on a closed scale (ADR-0004).
+/// The scale is carried by the existing field operation: stored in its own
 /// protected table at the end of the layout ladder, read back wherever the field already
 /// flows, refused by name when it cannot be drawn, and never a bound on what may be
 /// written — a number outside it is a data issue the reader states.

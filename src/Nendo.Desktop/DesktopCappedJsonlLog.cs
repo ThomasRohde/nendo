@@ -21,7 +21,7 @@ internal sealed class DesktopCappedJsonlLog<T>(string root, string stem, int max
     /// Under the device-state lock for this log, across every Nendo on this computer: one failure
     /// can reach every window at once (a browser process they share exits), and each one read,
     /// appended and moved its copy over the others', so one line survived and the losers' stages
-    /// were left behind (R2SP-06). The stage goes whatever happens, and the move waits out a reader.
+    /// were left behind. The stage goes whatever happens, and the move waits out a reader.
     /// The lock is required: going ahead without it after a second, as a convenience document may,
     /// is how lines were still lost while several windows wrote at once on a busy disk. A line that
     /// cannot have the lock within its wait is not written, and the call says so.
@@ -56,7 +56,7 @@ internal sealed class DesktopCappedJsonlLog<T>(string root, string stem, int max
             if (!File.Exists(LogPath)) return [];
             var entries = new List<T>();
             // Shared for delete, as every device-state reader is, so a window reading the log never
-            // blocks another's replacement of it (R2SP-07).
+            // blocks another's replacement of it.
             using var stream = new FileStream(LogPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
             using var reader = new StreamReader(stream, new UTF8Encoding(false));
             while (reader.ReadLine() is { } line)

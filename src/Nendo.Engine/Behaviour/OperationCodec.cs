@@ -14,7 +14,7 @@ namespace Nendo.Engine;
 /// Round-tripping through canonical JSON rather than keeping the objects in memory
 /// means a workspace somebody edited is parsed and re-validated like anything else
 /// rather than trusted because it came off disk. A plan does not outlive its file
-/// session: the workspace is removed when the file closes (ECO-13).
+/// session: the workspace is removed when the file closes.
 /// </para>
 /// </summary>
 internal static class NendoOperationCodec

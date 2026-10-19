@@ -7,7 +7,7 @@ import {
   generatedViewModel, geometry, layoutModel, setAutomaticRelationshipSetting, toRecords, useElkWorkerFactory, validRelationshipTypes, writesFor,
 } from '../../extensions/archi/canvas.js';
 
-// W-115: Archi's automation in the workbench is archi-online's own code. What these tests hold is
+// Archi's automation in the workbench is archi-online's own code. What these tests hold is
 // that each comes through Nendo's write path whole: the writes taken from the model the operation
 // leaves, applied to the records and read back, are that model; and that each does what
 // archi-online's own tests say it does, on Archisurance's records.

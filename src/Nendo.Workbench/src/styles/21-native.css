@@ -1,4 +1,4 @@
-/* G · Mica with tabs (adopted 2026-10-03): the window as a Windows 11 app.
+/* Mica with tabs: the window as a Windows 11 app.
    Slice 21 of styles.css; it loads after every slice but the agent conversation's (22) and
    restates the shell the slices above draw, so a rule for the shell belongs here.
 
@@ -37,7 +37,7 @@
   --radius-control: 4px;
   --radius-panel: 8px;
   --radius-shell: 8px;
-  /* Three more, each for one family of surfaces the owner chose on its own canvas: a chip or
+  /* Three more, each for one family of surfaces: a chip or
      an icon inside a card (6px), the agent tabs and the conversation's cards (10px), and the
      message box with the @ menu over it (12px). mica-direction.md lists them. */
   --radius-small: 6px;
@@ -109,9 +109,9 @@ body {
 .brand .file-menu summary .outline-icon { width: 14px; height: 14px; }
 .brand #file-icon { display: none; }
 
-/* The menu opens just under the title bar, so it may run to the window's foot. The old cap
-   left 110px of a 900px window unused and put Close file behind the menu's own scrollbar
-   (UIT-17). */
+/* The menu opens just under the title bar, so it may run to the window's foot. A lower cap
+   would leave 110px of a 900px window unused and put Close file behind the menu's own
+   scrollbar. */
 .brand .file-menu-panel {
   top: calc(100% + 2px);
   right: auto;
@@ -239,7 +239,7 @@ body {
 .rail .nav-item .kbd-hint { margin-left: auto; }
 
 /* The list of places scrolls, so it clips sideways, and a ring drawn outside a full-width item
-   lost its sides (CSS-12). It sits inside the item, as the tabs' does. */
+   lost its sides. It sits inside the item, as the tabs' does. */
 .rail .nav-item:focus-visible,
 .nav-place:focus-visible { outline-offset: -2px; }
 
@@ -264,7 +264,7 @@ body {
 
 .tab-strip[hidden] { display: none; }
 
-/* The tabs scroll once they reach their narrowest; New tab stays after them (UIS-01). */
+/* The tabs scroll once they reach their narrowest; New tab stays after them. */
 .tab-list {
   display: flex;
   flex: 0 1 auto;
@@ -318,7 +318,7 @@ body {
 
 .tab-main .outline-icon { flex: 0 0 16px; width: 16px; height: 16px; }
 
-/* A tab being dragged, and one held past the window's edge, which letting go moves to a window of its own (W-277). */
+/* A tab being dragged, and one held past the window's edge, which letting go moves to a window of its own. */
 .tab.is-dragging { cursor: grabbing; }
 .tab.is-leaving { opacity: 0.55; outline: 2px dashed var(--cobalt); outline-offset: -2px; }
 
@@ -574,7 +574,7 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 /* A narrow window keeps the navigation as one bar across the top, which is then the title bar;
    tabs, the file's places and the section headings wait for a wider window. This holds at every
    height: a short window once kept a 56px side column here, and the bar squeezed into it showed
-   blank buttons (CSS-01). */
+   blank buttons. */
 @media (max-width: 840px) {
   .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .tab-strip { display: none; }
@@ -596,14 +596,14 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
     /* Sideways only: a wheel or a scrollbar never moves the bar up and down. */
     overflow-y: hidden;
     /* Once the bar is wider than the window it scrolls, and its thin scrollbar is the one sign
-       that Agent and Help are past the edge (CSS-19). */
+       that Agent and Help are past the edge. */
     scrollbar-width: thin;
   }
 
   /* As tall as its File menu, so the bar's scrollbar never leaves it taller than the bar. */
   .brand { flex: none; height: auto; margin: 0; }
   /* The bar scrolls sideways, and a scrolling box clips what hangs below it: the menu stood 2px
-     tall under its button (UIS-02). */
+     tall under its button. */
   .brand .file-menu-panel {
     position: fixed;
     top: calc(var(--title-bar-height, 48px) + 2px);
@@ -668,7 +668,7 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 
 /* A record type whose name suggests no icon: its letters on a tile in one of the choice tones
    (type-icons.ts). The tone tints the tile and colours the letters, leaning to the ink far enough
-   to read at 4.5:1 on the rail, a selected row, a tab and the address field (UIS-13). */
+   to read at 4.5:1 on the rail, a selected row, a tab and the address field. */
 .type-tile {
   --tile: var(--tone-grey);
   display: inline-grid;
@@ -696,8 +696,8 @@ html:root .workspace-identity h1 { font-size: 14px; font-weight: 600; }
 .type-tile[data-tone="violet"] { --tile: var(--tone-violet); }
 
 /* Windows contrast themes (forced colors) draw every fill as Canvas and drop every box-shadow,
-   so a state drawn only with a fill, an inset shadow or a coloured pill could not be seen there
-   (CSS-04). Each gets a mark forced colors keeps. Selected and pressed are a Highlight bar under
+   so a state drawn only with a fill, an inset shadow or a coloured pill cannot be seen there.
+   Each gets a mark forced colors keeps. Selected and pressed are a Highlight bar under
    the control or a Highlight fill, which focus never draws, so the focus ring (an outline, from
    the rules for :focus-visible) still shows on a selected control and is still the only ring.
    The selectors match the ones that draw the state, so they win. */

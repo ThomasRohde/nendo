@@ -31,7 +31,7 @@ const byOrder = (field: string) => (a: NendoRecord, b: NendoRecord) =>
 
 /**
  * Bendpoints and Legend options are long text that holds JSON, which a person can edit on a
- * diagram item's record page and an agent can write (ABS-07). One value that does not read must
+ * diagram item's record page and an agent can write. One value that does not read must
  * not stop the whole workbench: a connection whose bendpoints do not read is drawn straight, a
  * note whose legend does not read is drawn as a plain note, and unreadableValues names each, so
  * the status line and the validator can send the person to the record.
@@ -69,7 +69,7 @@ export function buildMirror(sets: RecordSets): ModelState {
   const of = (entityId: string) => all.filter(record => record.entityId === entityId);
   const typeKey = new Map(of('ar.type').map(record => [record.recordId, text(record.values['ar.type.key'])]));
   // A property keeps the ID of its record beside archi-online's key and value, so a change the
-  // properties manager or find and replace makes names the record it changes (records.ts, W-119).
+  // properties manager or find and replace makes names the record it changes (records.ts).
   const propertiesOf = new Map<string, { key: string; value: string; recordId: string }[]>();
   for (const property of of('ar.property').sort(byOrder('ar.property.order'))) {
     for (const field of ['concept', 'view', 'folder', 'item', 'model']) {
@@ -112,7 +112,7 @@ export function buildMirror(sets: RecordSets): ModelState {
     if (entry.parentId !== null) delete entry.folderType;
   }
 
-  // A folder's concepts and views in their order there (W-120); one without an order comes after,
+  // A folder's concepts and views in their order there; one without an order comes after,
   // as it came: a concept the workbench made has none.
   for (const concept of of('ar.concept').sort(inOrder('ar.concept.order'))) {
     const values = concept.values;

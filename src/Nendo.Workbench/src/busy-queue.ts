@@ -1,7 +1,7 @@
 import { state, type OutcomeNotice } from './app-state';
 
 /**
- * A move pressed while an action is still running, made when it ends (WCS-16).
+ * A move pressed while an action is still running, made when it ends.
  *
  * The window runs one action at a time, so a press on the rail, Back or Forward or a tab while a
  * save or a read is in flight was dropped without a word: a grid cell saved by the click that
@@ -22,7 +22,7 @@ export function deferWhileBusy(move: () => void): boolean {
 
 /**
  * Presses that are never dropped: the switches that turn custom views off, which are how a person
- * gets out of a view that misbehaves (WXS-04). Each is held while an action runs and made when it
+ * gets out of a view that misbehaves. Each is held while an action runs and made when it
  * ends, however that action ended and whatever was pressed since; held as a move, a view's own
  * failing move said an alert first and the switch was dropped.
  */

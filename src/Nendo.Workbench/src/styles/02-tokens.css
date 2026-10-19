@@ -1,7 +1,7 @@
 /* The colours, tones and surfaces both themes are built from.
    Slice 02 of styles.css; see that file for why the order matters.
 
-   Mica with tabs (docs/design/mica-direction.md, adopted 2026-10-03): Windows 11 neutrals,
+   Mica with tabs (docs/design/mica-direction.md): Windows 11 neutrals,
    1px hairlines, and one accent, the Windows blue, for focus, selection and the primary
    action. The names predate it -- `--cobalt` and `--violet` are that accent whatever hue they
    carry -- and stay, because custom views are handed these exact tokens (extension-model.ts,
@@ -40,7 +40,7 @@
   --tone-blue: #2f63d6;
   --tone-violet: #7446d4;
   --tone-grey: #677080;
-  /* A file's look (W-089): the colours its icon's badge is drawn in on the taskbar, in the
+  /* A file's look: the colours its icon's badge is drawn in on the taskbar, in the
      notification area and on notifications. A raster icon cannot follow the theme, so these
      are the light choice tones in both themes, and DesktopFileIcon draws the same values. */
   --look-red: #c93a3a;

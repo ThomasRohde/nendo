@@ -65,7 +65,7 @@ test('marks fall on whole words in the original text, accents folded', () => {
   assert.deepEqual(textRanges(text, []), []);
 });
 
-test('GDN-08: Find pages past 500 hits, and a search cut short leaves local matching standing', async () => {
+test('Find pages past 500 hits, and a search cut short leaves local matching standing', async () => {
   const many = count => ({
     has: name => name === 'records.search',
     records: {

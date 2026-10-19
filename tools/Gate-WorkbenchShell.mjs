@@ -1,6 +1,6 @@
 async page => {
-  // The Workbench's shell, Use screens and Agent page against the browser preview host (W-206).
-  // Each check measures one finding of the broad review of 2026-10-10 (FIXES.md) by what a person
+  // The Workbench's shell, Use screens and Agent page against the browser preview host.
+  // Each check measures one rule by what a person
   // would meet: where focus is, what is open, what is on screen. The Vite dev server serves the
   // page, so a probe can import the shell's own module (the same instance the page runs) for the
   // redraw hold. A failure names the checks that passed before it.
@@ -23,7 +23,7 @@ async page => {
   // The lazy table is scrolled with the wheel, a little back and then on, until `done` holds.
   // AG Grid can drop a scroll that lands while it is still syncing its own, and writing the same
   // scrollTop again fires no event, so a check that only set scrollTop could wait forever on a
-  // grid that never asked for the next block (W-235).
+  // grid that never asked for the next block.
   const wheelGrid = async (deltaY, done, arg, what, timeout = 10000) => {
     const box = await page.locator('#record-grid .ag-grid-viewport').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -77,7 +77,7 @@ async page => {
     try { await open(fixture, width, height); await body(); checks.push(name); } catch (error) { failures.push(`${name}: ${error?.message ?? error}`); }
   };
 
-  for (const theme of ['light', 'dark']) await check(`W-233 lazy grid ${theme}`, 'idea', async () => {
+  for (const theme of ['light', 'dark']) await check(`lazy grid ${theme}`, 'idea', async () => {
     await page.evaluate(async theme => {
       const { client } = await import('/src/client.ts');
       const { applyTheme } = await import('/src/shell.ts');
@@ -94,8 +94,8 @@ async page => {
     }, theme);
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-id="lazy-00000"]') !== null, null, 'the first lazy row', 10000);
-    assert(await page.evaluate(() => window.__lazyCalls.length <= 2), 'W-233: opening fetched beyond the first viewport.');
-    assert(await page.locator('[data-page-next]').count() === 0, 'W-233: the table still needs its pager.');
+    assert(await page.evaluate(() => window.__lazyCalls.length <= 2), 'opening fetched beyond the first viewport.');
+    assert(await page.locator('[data-page-next]').count() === 0, 'the table still needs its pager.');
     const grid = await page.locator('#record-grid').elementHandle();
     for (let index = 1; index < 10; index++) {
       await wheelGrid(100000, index => window.__lazyCalls.some(call => call.start >= index * 100), index, `a request for lazy block ${index}`);
@@ -105,11 +105,11 @@ async page => {
     const counts = await page.evaluate(async () => ({ ...(await import('/src/view-data.ts')).dataGridReadDiagnostics(),
       dom: document.querySelectorAll('#record-grid .ag-row').length }));
     assert(counts.cachedRecords > 0 && counts.cachedRecords <= 500 && counts.blocks > 0 && counts.blocks <= 5 && counts.dom > 0 && counts.dom < 200,
-      `W-233: cache grew with visited rows: ${JSON.stringify(counts)}.`);
-    assert(await grid.evaluate(element => element.isConnected), 'W-233: loading replaced the grid.');
+      `cache grew with visited rows: ${JSON.stringify(counts)}.`);
+    assert(await grid.evaluate(element => element.isConnected), 'loading replaced the grid.');
     await wheelGrid(-100000, () => document.querySelector('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]')?.textContent?.length > 0,
       null, 'evicted first block to reload');
-    assert(await page.evaluate(() => window.__lazyCalls.filter(call => call.start === 0).length >= 2), 'W-233: evicted block did not reload.');
+    assert(await page.evaluate(() => window.__lazyCalls.filter(call => call.start === 0).length >= 2), 'evicted block did not reload.');
     const copiedCell = page.locator('.ag-row[row-id="lazy-00000"] .ag-cell[col-id="field.idea.title"]');
     const copiedText = await copiedCell.textContent();
     await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true,
@@ -123,16 +123,16 @@ async page => {
     await page.click('details.grid-columns summary');
     const hide = '[data-column-visible="field.idea.title"]';
     await page.locator(hide).uncheck();
-    assert(await page.locator('.ag-header-cell[col-id="field.idea.title"]').count() === 0, 'W-233: hiding the column left it visible.');
+    assert(await page.locator('.ag-header-cell[col-id="field.idea.title"]').count() === 0, 'hiding the column left it visible.');
     await page.locator(hide).check();
     await page.locator('[data-column-pin="field.idea.title"]').selectOption('left');
-    assert(await page.locator('.ag-header .ag-grid-pinned-left-cells .ag-header-cell[col-id="field.idea.title"]').count() === 1, 'W-233: pin left did not move the column.');
+    assert(await page.locator('.ag-header .ag-grid-pinned-left-cells .ag-header-cell[col-id="field.idea.title"]').count() === 1, 'pin left did not move the column.');
     await page.click('[data-grid-reset]');
     await page.click('details.grid-columns summary');
     const colors = await page.evaluate(() => { const root = getComputedStyle(document.documentElement); const box = document.querySelector('#record-grid').getBoundingClientRect();
       return { surface: root.getPropertyValue('--surface').trim(), width: box.width, height: box.height }; });
-    assert(colors.width > 300 && colors.height > 200, `W-233: grid lost its viewport: ${JSON.stringify(colors)}.`);
-    assert(theme === 'light' ? colors.surface === '#ffffff' : colors.surface === '#2d2e30', `W-233: wrong theme tokens: ${JSON.stringify(colors)}.`);
+    assert(colors.width > 300 && colors.height > 200, `grid lost its viewport: ${JSON.stringify(colors)}.`);
+    assert(theme === 'light' ? colors.surface === '#ffffff' : colors.surface === '#2d2e30', `wrong theme tokens: ${JSON.stringify(colors)}.`);
     await page.setViewportSize({ width: 600, height: 800 });
     const toolbarFits = await page.evaluate(() => {
       const toolbar = document.querySelector('.data-toolbar').getBoundingClientRect();
@@ -140,15 +140,15 @@ async page => {
         const box = control.getBoundingClientRect(); return box.left >= toolbar.left && box.right <= toolbar.right;
       });
     });
-    assert(toolbarFits, 'W-233: table actions overflow the narrow toolbar.');
+    assert(toolbarFits, 'table actions overflow the narrow toolbar.');
     await page.evaluate(async () => { (await import('/src/view-data.ts')).markDataGridChanged(999999); });
-    assert(/Refresh/.test(await page.locator('[data-grid-load-status]').textContent()), 'W-233: stale data did not offer an explicit refresh.');
-    assert(await grid.evaluate(element => element.isConnected), 'W-233: a stale notification replaced the reading position.');
+    assert(/Refresh/.test(await page.locator('[data-grid-load-status]').textContent()), 'stale data did not offer an explicit refresh.');
+    assert(await grid.evaluate(element => element.isConnected), 'a stale notification replaced the reading position.');
   });
 
-  // A record's long text is one document (W-242): its box is as tall as its text, with no
+  // A record's long text is one document: its box is as tall as its text, with no
   // scrollbar or grip of its own, the field one under another, and Not set in the heading row.
-  for (const theme of ['light', 'dark']) await check(`W-242 long text as a document ${theme}`, 'idea', async () => {
+  for (const theme of ['light', 'dark']) await check(`long text as a document ${theme}`, 'idea', async () => {
     await page.evaluate(async theme => (await import('/src/shell.ts')).applyTheme(theme, false), theme);
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-index="0"] .record-open-cell') !== null, null, 'the first row');
@@ -171,53 +171,53 @@ async page => {
         unsetTop: unset.getBoundingClientRect().top, boxTop: box.getBoundingClientRect().top };
     }, notes);
     assert(measured.scroll <= measured.client + 1 && measured.client > 150,
-      `W-242: the long text box does not grow with its text: ${JSON.stringify(measured)}.`);
-    assert(measured.resize === 'none' && measured.overflowY === 'hidden', `W-242: the long text box keeps a grip or a scrollbar: ${JSON.stringify(measured)}.`);
-    assert(measured.sheet > 0 && measured.width >= measured.sheet * 0.8, `W-242: the long text is not one column across the sheet: ${JSON.stringify(measured)}.`);
-    assert(measured.unsetTop < measured.boxTop, `W-242: Not set is not in the field's heading row: ${JSON.stringify(measured)}.`);
+      `the long text box does not grow with its text: ${JSON.stringify(measured)}.`);
+    assert(measured.resize === 'none' && measured.overflowY === 'hidden', `the long text box keeps a grip or a scrollbar: ${JSON.stringify(measured)}.`);
+    assert(measured.sheet > 0 && measured.width >= measured.sheet * 0.8, `the long text is not one column across the sheet: ${JSON.stringify(measured)}.`);
+    assert(measured.unsetTop < measured.boxTop, `Not set is not in the field's heading row: ${JSON.stringify(measured)}.`);
     const surface = await page.evaluate(() => getComputedStyle(document.querySelector('.record-sheet-document')).backgroundColor);
-    assert(surface === (theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(45, 46, 48)'), `W-242: the sheet is not on the theme's surface: ${surface}.`);
+    assert(surface === (theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(45, 46, 48)'), `the sheet is not on the theme's surface: ${surface}.`);
   });
 
-  // "Save or discard your changes" names a discard the record page can be seen to offer (W-243):
+  // "Save or discard your changes" names a discard the record page can be seen to offer:
   // Discard changes appears once something is typed, puts the stored text back and frees Back.
-  await check('W-243 discard changes on the record page', 'idea', async () => {
+  await check('discard changes on the record page', 'idea', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-index="0"] .record-open-cell') !== null, null, 'the first row');
     await page.click('.ag-row[row-index="0"] .record-open-cell');
     const notes = 'textarea[name="field.idea.notes"]';
     await until(selector => document.querySelector(selector) !== null, notes, 'the record page');
     const stored = await page.inputValue(notes);
-    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes is offered before anything was typed.');
+    assert(!(await page.isVisible('#discard-changes')), 'Discard changes is offered before anything was typed.');
     await page.fill(notes, `${stored} and a sentence nobody wants`);
-    assert(await page.isVisible('#discard-changes'), 'W-243: no visible Discard changes while the record holds unsaved typing.');
+    assert(await page.isVisible('#discard-changes'), 'no visible Discard changes while the record holds unsaved typing.');
     await page.click('#nav-back');
     await until(() => /Save or discard/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'the refusal to go back');
     await page.click('#discard-changes');
     await until(([selector, text]) => document.querySelector(selector)?.value === text, [notes, stored], 'the stored text to come back');
-    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes stays after discarding.');
+    assert(!(await page.isVisible('#discard-changes')), 'Discard changes stays after discarding.');
     await page.click('#nav-back');
     await until(() => document.querySelector('textarea[name="field.idea.notes"]') === null, null, 'Back to leave the record page after discarding');
   });
 
-  await check('W-243 discard changes on a Use record', 'idea', async () => {
+  await check('discard changes on a Use record', 'idea', async () => {
     await openRecord();
     const control = await page.evaluate(() => {
       const found = document.querySelector('.record-inspector #record-form :is(textarea, input[type="text"])');
       return found === null ? null : `.record-inspector #record-form [name="${found.getAttribute('name')}"]`;
     });
-    assert(control !== null, 'W-243: the Use record has no text control to type in.');
+    assert(control !== null, 'the Use record has no text control to type in.');
     const stored = await page.inputValue(control);
-    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes is offered on a Use record before anything was typed.');
+    assert(!(await page.isVisible('#discard-changes')), 'Discard changes is offered on a Use record before anything was typed.');
     await page.fill(control, `${stored} and more`);
-    assert(await page.isVisible('#discard-changes'), 'W-243: no visible Discard changes on a Use record holding unsaved typing.');
+    assert(await page.isVisible('#discard-changes'), 'no visible Discard changes on a Use record holding unsaved typing.');
     await page.click('#discard-changes');
     await until(([selector, text]) => document.querySelector(selector)?.value === text, [control, stored], 'the Use record to show its stored text again');
-    assert(await page.locator('.record-inspector').count() === 1, 'W-243: discarding closed the Use record.');
-    assert(!(await page.isVisible('#discard-changes')), 'W-243: Discard changes stays on a Use record after discarding.');
+    assert(await page.locator('.record-inspector').count() === 1, 'discarding closed the Use record.');
+    assert(!(await page.isVisible('#discard-changes')), 'Discard changes stays on a Use record after discarding.');
   });
 
-  await check('W-233 deep edit and keyboard', 'idea', async () => {
+  await check('deep edit and keyboard', 'idea', async () => {
     await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');
       const template = client.session.records.find(record => record.entityId === 'entity.idea');
@@ -239,7 +239,7 @@ async page => {
     };
     await until(deepRow, null, 'a loaded record of the sixth block in view', 10000).catch(() => {});
     const target = await page.evaluate(deepRow);
-    assert(target, 'W-233: the deep edit never reached the sixth block.');
+    assert(target, 'the deep edit never reached the sixth block.');
     const cell = `.ag-row[row-id="${target}"] .ag-cell[col-id="field.idea.title"]`;
     await page.locator(cell).dblclick();
     await page.keyboard.press('Control+a');
@@ -254,15 +254,15 @@ async page => {
     await until(id => document.activeElement?.closest('.ag-row')?.getAttribute('row-id') === id, continued, 'Enter to continue on the next record');
     await page.keyboard.press('ArrowDown');
     const next = await page.evaluate(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-id'));
-    assert(next !== continued && next?.startsWith('lazy-'), 'W-233: ArrowDown lost the loaded record focus.');
+    assert(next !== continued && next?.startsWith('lazy-'), 'ArrowDown lost the loaded record focus.');
     await page.keyboard.press('Enter');
     await page.keyboard.type('cancel me');
     await page.keyboard.press('Escape');
     await page.keyboard.press('Tab');
-    assert(await page.evaluate(() => !document.activeElement?.closest('.ag-cell')), 'W-233: Tab outside editing trapped focus in the grid.');
+    assert(await page.evaluate(() => !document.activeElement?.closest('.ag-cell')), 'Tab outside editing trapped focus in the grid.');
   });
 
-  for (const key of ['Enter', 'Tab']) await check(`W-233 ${key} unloaded keyboard boundary`, 'idea', async () => {
+  for (const key of ['Enter', 'Tab']) await check(`${key} unloaded keyboard boundary`, 'idea', async () => {
     await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');
       const template = client.session.records.find(record => record.entityId === 'entity.idea');
@@ -287,7 +287,7 @@ async page => {
       await page.click('details.grid-columns summary');
       const visible = await page.locator('.ag-header-cell:not([col-id="openRecord"])').evaluateAll(cells => cells.map(cell => cell.getAttribute('col-id')));
       assert(visible.length === 1 && visible[0] === 'field.idea.title',
-        `W-233: the Tab fixture did not leave exactly one data column visible: ${JSON.stringify(visible)}.`);
+        `the Tab fixture did not leave exactly one data column visible: ${JSON.stringify(visible)}.`);
     }
     await wheelGrid(100000, () => window.__lazyReleases.length > 0, null, 'a blocked second block');
     await page.locator('.ag-row[row-id="lazy-00099"] .ag-cell[col-id="field.idea.title"]').dblclick();
@@ -300,7 +300,7 @@ async page => {
     await page.evaluate(() => { window.__lazyReleased = true; window.__lazyReleases.splice(0).forEach(release => release()); });
     try { await until(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-id') === 'lazy-00100', null, 'Enter focus after the missing block arrives', 8000); }
     catch (error) { throw Error(`${error.message} ${JSON.stringify(await page.evaluate(async () => ({ ...(await import('/src/view-data.ts')).dataGridReadDiagnostics(), active: document.activeElement?.outerHTML?.slice(0, 250), status: document.querySelector('[data-grid-load-status]')?.textContent })))}`); }
-    assert(await page.evaluate(() => document.activeElement?.getAttribute('col-id')) === 'field.idea.title', 'W-233: continuation changed fields.');
+    assert(await page.evaluate(() => document.activeElement?.getAttribute('col-id')) === 'field.idea.title', 'continuation changed fields.');
     if (key === 'Tab') {
       await page.click('details.grid-columns summary');
       await page.click('[data-grid-reset]');
@@ -308,7 +308,7 @@ async page => {
     }
   });
 
-  await check('W-233 column layout survives refused device storage', 'idea', async () => {
+  await check('column layout survives refused device storage', 'idea', async () => {
     await page.evaluate(() => {
       const set = Storage.prototype.setItem;
       Storage.prototype.setItem = function (key, value) { if (key.startsWith('nendo.studioLayout.')) throw Error('storage refused'); return set.call(this, key, value); };
@@ -323,48 +323,48 @@ async page => {
     await page.keyboard.press('F5');
     await until(async () => document.querySelector('#studio-content')?.getAttribute('aria-busy') === 'false', null, 'refresh after layout changes');
     await page.waitForTimeout(250);
-    assert(!await oldGrid.evaluate(element => element.isConnected), 'W-233: the layout check did not rebuild the table.');
+    assert(!await oldGrid.evaluate(element => element.isConnected), 'the layout check did not rebuild the table.');
     // A queued toggle may arrive after disposal. It must not read the old grid API.
     await oldColumns.evaluate(element => element.dispatchEvent(new Event('toggle')));
-    assert(await page.locator('.ag-header-cell[col-id="field.idea.title"]').count() === 0, 'W-233: a refused storage write lost the session column layout.');
+    assert(await page.locator('.ag-header-cell[col-id="field.idea.title"]').count() === 0, 'a refused storage write lost the session column layout.');
     await page.click('details.grid-columns summary');
     await page.click('[data-grid-reset]');
   });
 
-  // UIS-21: a button's glyph is not part of its name in Ctrl K.
-  await check('UIS-21 palette label', 'decision', async () => {
+  // A button's glyph is not part of its name in Ctrl K.
+  await check('palette label', 'decision', async () => {
   await page.keyboard.press('Control+k');
   await until(() => document.querySelector('#command-palette')?.open === true, null, 'the palette');
   const addLabel = await page.evaluate(() => [...document.querySelectorAll('#command-palette-list li')].map(item => item.textContent.trim()).find(text => /Add Decision/.test(text)) ?? null);
-  assert(addLabel !== null && !addLabel.includes('+Add'), `UIS-21: Ctrl K lists the Add command as ${JSON.stringify(addLabel)}.`);
+  assert(addLabel !== null && !addLabel.includes('+Add'), `Ctrl K lists the Add command as ${JSON.stringify(addLabel)}.`);
   await page.keyboard.press('Escape');
   await until(() => document.querySelector('#command-palette')?.open !== true, null, 'the palette to close');
   });
 
-  // UIS-04: Escape in the Filter menu or the View picker closes that menu and leaves the open record alone.
-  await check('UIS-04 Escape stays in its menu', 'decision', async () => {
+  // Escape in the Filter menu or the View picker closes that menu and leaves the open record alone.
+  await check('Escape stays in its menu', 'decision', async () => {
   await openRecord();
   await page.click('[data-testid="quick-filter"] > summary');
   await until(() => document.querySelector('[data-testid="quick-filter"]')?.open === true, null, 'the Filter menu');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
   let after = await page.evaluate(() => ({ filter: document.querySelector('[data-testid="quick-filter"]')?.open ?? null, inspector: document.querySelector('.record-inspector') !== null }));
-  assert(after.filter === false && after.inspector, `UIS-04: Escape in the Filter menu left ${JSON.stringify(after)}; the menu should close and the record stay open.`);
+  assert(after.filter === false && after.inspector, `Escape in the Filter menu left ${JSON.stringify(after)}; the menu should close and the record stay open.`);
   await page.click('#place-pickers details.surface-picker > summary');
   await until(() => document.querySelector('#place-pickers details.surface-picker')?.open === true, null, 'the View picker');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
   after = await page.evaluate(() => ({ picker: document.querySelector('#place-pickers details.surface-picker')?.open ?? null, inspector: document.querySelector('.record-inspector') !== null }));
-  assert(after.picker === false && after.inspector, `UIS-04: Escape in the View picker left ${JSON.stringify(after)}; the picker should close and the record stay open.`);
+  assert(after.picker === false && after.inspector, `Escape in the View picker left ${JSON.stringify(after)}; the picker should close and the record stay open.`);
   });
 
-  // UIS-03: an open breadcrumb picker holds the automatic redraws, as a menu in the page does.
-  await check('UIS-03 breadcrumb picker holds redraws', 'decision', async () => {
+  // An open breadcrumb picker holds the automatic redraws, as a menu in the page does.
+  await check('breadcrumb picker holds redraws', 'decision', async () => {
   await page.click('#place-pickers details.surface-picker > summary');
   await until(() => document.querySelector('#place-pickers details.surface-picker')?.open === true, null, 'the View picker');
   await quiet();
   const held = await shell(() => import('/src/draft-guard.ts').then(module => module.holdingThePage()));
-  assert(held === true, 'UIS-03: the page is not held while the View picker is open, so an automatic redraw closes it under the pointer.');
+  assert(held === true, 'the page is not held while the View picker is open, so an automatic redraw closes it under the pointer.');
   await page.keyboard.press('Escape');
   // Focus left on the record-type list after a pick is not a hand on the page: holding for it kept
   // every read waiting for as long as the list kept focus.
@@ -372,12 +372,12 @@ async page => {
   if (typeList) {
     await quiet();
     const heldByFocus = await shell(() => import('/src/draft-guard.ts').then(module => module.holdingThePage()));
-    assert(heldByFocus === false, 'UIS-03: focus resting on the record-type list holds every automatic read.');
+    assert(heldByFocus === false, 'focus resting on the record-type list holds every automatic read.');
   }
   });
 
-  // UIS-15: Alt+F with the navigation folded opens a File menu that is there.
-  await check('UIS-15 Alt+F with the rail folded', 'decision', async () => {
+  // Alt+F with the navigation folded opens a File menu that is there.
+  await check('Alt+F with the rail folded', 'decision', async () => {
   await page.click('#rail-toggle');
   await until(() => document.documentElement.dataset.rail === 'collapsed', null, 'the folded rail');
   await page.keyboard.press('Alt+f');
@@ -387,13 +387,13 @@ async page => {
     const box = element?.getBoundingClientRect();
     return { inMenu: element?.closest('#file-actions') != null, visible: box !== undefined && box.width > 0 && box.height > 0, name: element?.textContent?.trim() ?? null };
   });
-  assert(file.inMenu && file.visible, `UIS-15: Alt+F with the rail folded left focus on ${JSON.stringify(file)}.`);
+  assert(file.inMenu && file.visible, `Alt+F with the rail folded left focus on ${JSON.stringify(file)}.`);
   await page.keyboard.press('Escape');
   // Alt+F unfolded the rail and kept that, so the next page starts unfolded as before.
   });
 
-  // UIK-07: an arrow key in a Filter select looks; Enter applies, and focus comes back to Filter.
-  await check('UIK-07 Filter keys', 'idea', async () => {
+  // An arrow key in a Filter select looks; Enter applies, and focus comes back to Filter.
+  await check('Filter keys', 'idea', async () => {
     await page.click('[data-testid="quick-filter"] > summary');
     await until(() => document.querySelector('[data-quick-filter]') !== null, null, 'a Filter select');
     await page.focus('[data-quick-filter]');
@@ -402,12 +402,12 @@ async page => {
     await page.waitForTimeout(600);
     const looked = await page.evaluate(() => ({ open: document.querySelector('[data-testid="quick-filter"]')?.open ?? null,
       focused: document.activeElement?.matches?.('[data-quick-filter]') ?? false, value: document.activeElement?.value ?? null }));
-    assert(looked.open === true && looked.focused, `UIK-07: one ArrowDown in a Filter select left ${JSON.stringify(looked)}; the menu should stay open with focus on the select.`);
-    assert(looked.value !== before, 'UIK-07: ArrowDown did not move the select; the check measures nothing.');
+    assert(looked.open === true && looked.focused, `one ArrowDown in a Filter select left ${JSON.stringify(looked)}; the menu should stay open with focus on the select.`);
+    assert(looked.value !== before, 'ArrowDown did not move the select; the check measures nothing.');
     await page.keyboard.press('Escape');
     await page.waitForTimeout(600);
     const backedOut = await page.evaluate(() => ({ pill: document.querySelector('[data-quick-filter-clear]') !== null, open: document.querySelector('[data-testid="quick-filter"]')?.open ?? null }));
-    assert(!backedOut.pill && backedOut.open === false, `UIK-07: Escape after looking with ArrowDown left ${JSON.stringify(backedOut)}; nothing should be applied.`);
+    assert(!backedOut.pill && backedOut.open === false, `Escape after looking with ArrowDown left ${JSON.stringify(backedOut)}; nothing should be applied.`);
     await page.click('[data-testid="quick-filter"] > summary');
     await until(() => document.querySelector('[data-quick-filter]') !== null, null, 'a Filter select again');
     await page.focus('[data-quick-filter]');
@@ -417,9 +417,9 @@ async page => {
     await until(() => document.activeElement?.matches?.('[data-testid="quick-filter"] > summary') === true, null, 'focus back on Filter', 4000);
   });
 
-  // UIK-04 and UIS-11: a record opened from the keyboard takes focus to its named inspector; it is
+  // A record opened from the keyboard takes focus to its named inspector; it is
   // marked in the list; Escape hands focus back to its row.
-  await check('UIK-04 UIS-11 record focus and mark', 'decision', async () => {
+  await check('record focus and mark', 'decision', async () => {
     const id = await page.evaluate(() => document.querySelector('.record-row > button').dataset.recordId);
     const title = await page.evaluate(() => document.querySelector('.record-row > button strong').textContent.trim());
     await page.focus('.record-row > button');
@@ -432,24 +432,24 @@ async page => {
         current: row?.getAttribute('aria-current') ?? null, fill: row === null ? null : getComputedStyle(row).backgroundColor };
     }, id);
     const problems = [];
-    if (opened.focus !== 'inspector-heading') problems.push(`UIK-04: opening a record left focus on ${opened.focus || 'body'}.`);
-    if (!opened.heading.includes(title)) problems.push(`UIS-11: the inspector is headed ${JSON.stringify(opened.heading)}, not by its record ${JSON.stringify(title)}.`);
-    if (opened.current !== 'true' || opened.fill === 'rgba(0, 0, 0, 0)') problems.push(`UIS-11: the open record's row is not marked: ${JSON.stringify({ current: opened.current, fill: opened.fill })}.`);
+    if (opened.focus !== 'inspector-heading') problems.push(`opening a record left focus on ${opened.focus || 'body'}.`);
+    if (!opened.heading.includes(title)) problems.push(`the inspector is headed ${JSON.stringify(opened.heading)}, not by its record ${JSON.stringify(title)}.`);
+    if (opened.current !== 'true' || opened.fill === 'rgba(0, 0, 0, 0)') problems.push(`the open record's row is not marked: ${JSON.stringify({ current: opened.current, fill: opened.fill })}.`);
     assert(problems.length === 0, problems.join(' '));
     await page.waitForTimeout(2500);
     // A chase that lands (related rows, a tile) redraws the screen; the inspector keeps the keyboard.
     await shell(() => import('/src/shell.ts').then(module => module.rerender()));
     await page.waitForTimeout(100);
     const later = await page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName || null);
-    assert(later === 'inspector-heading', `UIK-04: after a redraw of the open record's screen, focus is on ${later}.`);
+    assert(later === 'inspector-heading', `after a redraw of the open record's screen, focus is on ${later}.`);
     await page.keyboard.press('Escape');
     await until(() => document.querySelector('.record-inspector') === null, null, 'the inspector to close');
     const back = await page.evaluate(() => document.activeElement?.dataset?.recordId ?? null);
-    assert(back === id, `UIK-04: Escape from the inspector left focus on ${back ?? 'body'}, not on the record's row.`);
+    assert(back === id, `Escape from the inspector left focus on ${back ?? 'body'}, not on the record's row.`);
   });
 
-  // UIS-05: no control Tab reaches in the inspector sits under its sticky header or Save bar.
-  await check('UIS-05 focus not obscured', 'decision', async () => {
+  // No control Tab reaches in the inspector sits under its sticky header or Save bar.
+  await check('focus not obscured', 'decision', async () => {
     await openRecord();
     await page.focus('#close-inspector');
     const hidden = [];
@@ -473,41 +473,41 @@ async page => {
       if (!measure.inside) break;
       if (measure.covered > 1) hidden.push(`${measure.name} ${Math.round(measure.covered)}/${Math.round(measure.height)}px`);
     }
-    assert(hidden.length === 0, `UIS-05: focus moved to controls under the sticky header or Save bar: ${hidden.join(', ')}.`);
+    assert(hidden.length === 0, `focus moved to controls under the sticky header or Save bar: ${hidden.join(', ')}.`);
   }, 1024, 768);
 
-  // UIS-10: a stored value reads at the body size, not at its label's.
-  await check('UIS-10 value size', 'decision', async () => {
+  // A stored value reads at the body size, not at its label's.
+  await check('value size', 'decision', async () => {
     await openRecord();
     const style = await page.evaluate(() => { const input = document.querySelector('.record-form label input[type="text"], .record-form label select');
       const computed = getComputedStyle(input); return { size: computed.fontSize, weight: computed.fontWeight }; });
-    assert(style.size === '14px' && style.weight === '400', `UIS-10: a record value is drawn at ${style.size}, weight ${style.weight}.`);
+    assert(style.size === '14px' && style.weight === '400', `a record value is drawn at ${style.size}, weight ${style.weight}.`);
   });
 
-  // UIS-12: each optional field's Not set and each reference's Choose names its field.
-  await check('UIS-12 controls named by field', 'decision', async () => {
+  // Each optional field's Not set and each reference's Choose names its field.
+  await check('controls named by field', 'decision', async () => {
     await openRecord();
     const names = await page.evaluate(() => ({
       unset: [...document.querySelectorAll('.record-inspector [data-null-field]')].map(input => input.getAttribute('aria-label') ?? input.closest('label')?.textContent?.trim() ?? ''),
       choose: [...document.querySelectorAll('.record-inspector .reference-choose')].map(button => button.getAttribute('aria-label') ?? button.textContent.trim()),
     }));
     const all = [...names.unset, ...names.choose];
-    assert(all.length > 0, 'UIS-12: the record has no optional field or reference; the check measures nothing.');
-    assert(new Set(all).size === all.length && !all.includes('Not set') && !all.includes('Choose record'), `UIS-12: controls share a name without their field: ${JSON.stringify(names)}.`);
+    assert(all.length > 0, 'the record has no optional field or reference; the check measures nothing.');
+    assert(new Set(all).size === all.length && !all.includes('Not set') && !all.includes('Choose record'), `controls share a name without their field: ${JSON.stringify(names)}.`);
   });
 
-  // UIS-14: the formatted text above a Markdown field follows its source as it is typed.
-  await check('UIS-14 live Markdown', 'decision', async () => {
+  // The formatted text above a Markdown field follows its source as it is typed.
+  await check('live Markdown', 'decision', async () => {
     await openRecord();
     const has = await page.evaluate(() => document.querySelector('.record-inspector .markdown-field details.markdown-source') !== null);
-    assert(has, 'UIS-14: the record has no Markdown field; the check measures nothing.');
+    assert(has, 'the record has no Markdown field; the check measures nothing.');
     await page.evaluate(() => { document.querySelector('.record-inspector .markdown-field details.markdown-source').open = true; });
     await page.focus('.record-inspector .markdown-field textarea');
     await page.keyboard.press('Control+a');
     await page.keyboard.type('## Reasons for the change');
     await page.waitForTimeout(500);
     const shown = await page.evaluate(() => document.querySelector('.record-inspector .markdown-field .markdown-body')?.textContent?.trim() ?? null);
-    assert(shown !== null && shown.includes('Reasons for the change'), `UIS-14: the formatted text shows ${JSON.stringify(shown)} while its source says "## Reasons for the change".`);
+    assert(shown !== null && shown.includes('Reasons for the change'), `the formatted text shows ${JSON.stringify(shown)} while its source says "## Reasons for the change".`);
   });
 
   // The Markdown field's editor (Tiptap, 2026-10-16), typed into with the keyboard in both themes:
@@ -565,14 +565,14 @@ async page => {
       `The editor does not fit the record page in ${theme}: ${JSON.stringify(box)}.`);
   });
 
-  // UIS-20: the view's name in the breadcrumb says itself in full when it is cut.
-  await check('UIS-20 view name title', 'decision', async () => {
+  // The view's name in the breadcrumb says itself in full when it is cut.
+  await check('view name title', 'decision', async () => {
     const name = await page.evaluate(() => { const strong = document.querySelector('#place-pickers .surface-picker summary strong'); return { text: strong?.textContent ?? null, title: strong?.title ?? null }; });
-    assert(name.text !== null && name.title === name.text, `UIS-20: the View picker's name carries no title: ${JSON.stringify(name)}.`);
+    assert(name.text !== null && name.title === name.text, `the View picker's name carries no title: ${JSON.stringify(name)}.`);
   });
 
-  // UIS-01: past the tabs' narrowest, the tab on screen and New tab stay inside the window.
-  await check('UIS-01 tab strip overflow', 'decision', async () => {
+  // Past the tabs' narrowest, the tab on screen and New tab stay inside the window.
+  await check('tab strip overflow', 'decision', async () => {
     for (let index = 0; index < 11; index++) {
       await page.click('#tab-new');
       await page.waitForTimeout(120);
@@ -585,13 +585,13 @@ async page => {
       return { tabs: document.querySelectorAll('#tab-strip .tab').length, width: innerWidth, room: [Math.round(room.left), Math.round(room.right)],
         active: active && [Math.round(active.left), Math.round(active.right)], plus: plus && [Math.round(plus.left), Math.round(plus.right)] };
     });
-    assert(strip.tabs >= 12, `UIS-01: only ${strip.tabs} tabs opened; the check measures nothing.`);
+    assert(strip.tabs >= 12, `only ${strip.tabs} tabs opened; the check measures nothing.`);
     assert(strip.active && strip.active[0] >= strip.room[0] - 1 && strip.active[1] <= Math.min(strip.room[1], strip.width) + 1 && strip.plus && strip.plus[1] <= strip.width,
-      `UIS-01: with ${strip.tabs} tabs at ${strip.width}px the active tab is at ${JSON.stringify(strip.active)} and New tab at ${JSON.stringify(strip.plus)}.`);
+      `with ${strip.tabs} tabs at ${strip.width}px the active tab is at ${JSON.stringify(strip.active)} and New tab at ${JSON.stringify(strip.plus)}.`);
   }, 1024, 768);
 
-  // UIK-11: the tab list holds only tabs, and one of them is the Tab stop.
-  await check('UIK-11 tab list holds only tabs', 'decision', async () => {
+  // The tab list holds only tabs, and one of them is the Tab stop.
+  await check('tab list holds only tabs', 'decision', async () => {
     await page.click('#tab-new');
     await page.waitForTimeout(200);
     const roles = await page.evaluate(() => {
@@ -603,11 +603,11 @@ async page => {
         newTabInside: list.querySelector('#tab-new') !== null };
     });
     assert(roles.list && !roles.newTabInside && roles.exposed.length === 0 && roles.stops.length === 1 && roles.stops[0] === 'tab',
-      `UIK-11: the tab list exposes ${JSON.stringify(roles)}; it should hold only tabs, one of them a Tab stop.`);
+      `the tab list exposes ${JSON.stringify(roles)}; it should hold only tabs, one of them a Tab stop.`);
   });
 
-  // UIS-02: in a narrow window the File menu opens whole, not clipped to the top bar.
-  await check('UIS-02 narrow File menu', 'decision', async () => {
+  // In a narrow window the File menu opens whole, not clipped to the top bar.
+  await check('narrow File menu', 'decision', async () => {
     await page.click('#file-menu > summary');
     await page.waitForTimeout(300);
     const panel = await page.evaluate(() => {
@@ -616,11 +616,11 @@ async page => {
       const probe = document.elementFromPoint(box.left + box.width / 2, Math.min(box.top + 120, box.bottom - 4));
       return { height: Math.round(box.height), hit: probe !== null && probe.closest('#file-menu') !== null };
     });
-    assert(panel !== null && panel.height > 200 && panel.hit, `UIS-02: at 800px the File menu shows ${JSON.stringify(panel)}; it should open whole and take the pointer.`);
+    assert(panel !== null && panel.height > 200 && panel.hit, `at 800px the File menu shows ${JSON.stringify(panel)}; it should open whole and take the pointer.`);
   }, 800, 700);
 
-  // UIK-08: in a narrow window, where no tab is on screen, Ctrl W closes nothing.
-  await check('UIK-08 narrow tab keys', 'decision', async () => {
+  // In a narrow window, where no tab is on screen, Ctrl W closes nothing.
+  await check('narrow tab keys', 'decision', async () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.click('#tab-new');
     await page.waitForTimeout(200);
@@ -630,26 +630,26 @@ async page => {
     await page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', code: 'KeyW', ctrlKey: true, bubbles: true, cancelable: true })));
     await page.waitForTimeout(300);
     const after = await page.evaluate(() => document.querySelectorAll('#tab-strip .tab').length);
-    assert(before === 2 && after === before, `UIK-08: with the tabs hidden, Ctrl W took the tabs from ${before} to ${after}.`);
+    assert(before === 2 && after === before, `with the tabs hidden, Ctrl W took the tabs from ${before} to ${after}.`);
   }, 1440, 900);
 
-  // UIK-14: Tab leaves the Data grid instead of walking every cell.
-  await check('UIK-14 grid Tab leaves', 'decision', async () => {
+  // Tab leaves the Data grid instead of walking every cell.
+  await check('grid Tab leaves', 'decision', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-cell') !== null, null, 'the Data grid', 8000);
     // A real press, so the grid itself holds the focused cell.
     await page.locator('.ag-row .ag-cell:not(.record-open-cell)').first().click();
     await page.waitForTimeout(150);
     const inGrid = await page.evaluate(() => document.activeElement?.closest('.ag-root-wrapper') !== null);
-    assert(inGrid, 'UIK-14: the click did not focus a grid cell; the check measures nothing.');
+    assert(inGrid, 'the click did not focus a grid cell; the check measures nothing.');
     await page.keyboard.press('Tab');
     await page.waitForTimeout(150);
     const left = await page.evaluate(() => document.activeElement?.closest('.ag-root-wrapper') === null);
-    assert(left, 'UIK-14: one Tab from a grid cell stayed in the grid.');
+    assert(left, 'one Tab from a grid cell stayed in the grid.');
   });
 
-  // UIK-01: an unchanged status is not drawn again; a selection and an open dialog are left alone.
-  await check('UIK-01 Agent page poll', 'idea', async () => {
+  // An unchanged status is not drawn again; a selection and an open dialog are left alone.
+  await check('Agent page poll', 'idea', async () => {
     await agentPage('connect');
     await page.evaluate(() => {
       window.__rebuilds = 0;
@@ -674,22 +674,22 @@ async page => {
     await page.waitForTimeout(300);
     const focus = await page.evaluate(() => document.activeElement?.dataset?.agentMode ?? document.activeElement?.tagName ?? null);
     if (focus !== 'unattended') problems.push(`cancelling the Unattended dialog after 4 s left focus on ${focus}`);
-    assert(problems.length === 0, `UIK-01: ${problems.join('; ')}.`);
+    assert(problems.length === 0, `${problems.join('; ')}.`);
   });
 
-  // UIK-02: a copy that failed keeps the command to run by hand.
-  await check('UIK-02 failed copy stays', 'idea', async () => {
+  // A copy that failed keeps the command to run by hand.
+  await check('failed copy stays', 'idea', async () => {
     await agentPage('launch');
     await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('refused')); });
     await page.locator('[data-copy-agent]').first().click();
     await until(() => document.querySelector('.copy-hint.is-failed code') !== null, null, 'the failed copy hint');
     await page.waitForTimeout(9000);
     const kept = await page.evaluate(() => document.querySelector('.copy-hint.is-failed code')?.textContent ?? null);
-    assert(kept !== null && kept !== '', 'UIK-02: the command shown after a failed copy was gone 9 s later.');
+    assert(kept !== null && kept !== '', 'the command shown after a failed copy was gone 9 s later.');
   });
 
-  // UIK-04, the review: it takes focus; Escape hands focus back to Review changes; Accept to the outcome.
-  await check('UIK-04 agent proposal review focus', 'idea', async () => {
+  // The review: it takes focus; Escape hands focus back to Review changes; Accept to the outcome.
+  await check('agent proposal review focus', 'idea', async () => {
     await agentPage('activity');
     await until(() => document.querySelector('[data-review-agent-proposal]') !== null, null, 'a waiting proposal');
     const id = await page.evaluate(() => document.querySelector('[data-review-agent-proposal]').dataset.reviewAgentProposal);
@@ -703,21 +703,21 @@ async page => {
     await until(() => document.querySelector('.agent-proposal-page') === null, null, 'the Agent page again');
     const back = await page.evaluate(() => document.activeElement?.dataset?.reviewAgentProposal ?? document.activeElement?.tagName ?? null);
     if (back !== id) problems.push(`Escape from the review left focus on ${back}`);
-    assert(problems.length === 0, `UIK-04: ${problems.join('; ')}.`);
+    assert(problems.length === 0, `${problems.join('; ')}.`);
   });
 
-  // UIK-03, UIK-12, UIK-05, UIK-10: the conversation keeps the keyboard and the log holds still.
-  await check('UIK-03 UIK-05 UIK-10 UIK-12 conversation keys', 'idea', async () => {
+  // The conversation keeps the keyboard and the log holds still.
+  await check('conversation keys', 'idea', async () => {
     await launch();
     const problems = [];
     const active = () => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName || null);
-    if (await active() !== 'agent-prompt') problems.push(`UIK-03: after Launch focus is on ${await active()}`);
+    if (await active() !== 'agent-prompt') problems.push(`after Launch focus is on ${await active()}`);
     const box = await page.evaluate(() => { const box = document.getElementById('agent-prompt'); return { popup: box.getAttribute('aria-haspopup'), expanded: box.getAttribute('aria-expanded') }; });
-    if (box.popup !== 'listbox' || box.expanded !== null) problems.push(`UIK-10: the message box says ${JSON.stringify(box)}`);
+    if (box.popup !== 'listbox' || box.expanded !== null) problems.push(`the message box says ${JSON.stringify(box)}`);
     await page.locator('#agent-prompt').fill('@');
     await until(() => document.querySelector('#chat-mention:not([hidden]) [data-choice]') !== null, null, 'the @ menu');
     await page.waitForTimeout(200);
-    if (!(await said()).some(line => /choices?;/.test(line))) problems.push('UIK-10: opening the @ list was not said');
+    if (!(await said()).some(line => /choices?;/.test(line))) problems.push('opening the @ list was not said');
     await page.locator('#agent-prompt').fill('');
     await page.locator('#agent-prompt').press('Escape');
     await page.evaluate(() => {
@@ -732,18 +732,18 @@ async page => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(600);
     const emptyAdds = await page.evaluate(() => window.__emptyAdds);
-    if (emptyAdds > 0) problems.push(`UIK-05: changing an option wrote the empty conversation into the log again ${emptyAdds} times`);
+    if (emptyAdds > 0) problems.push(`changing an option wrote the empty conversation into the log again ${emptyAdds} times`);
     await page.locator('#agent-prompt').fill('Add a record type for requests');
     await page.focus('#send-prompt');
     await page.keyboard.press('Enter');
     await until(() => document.getElementById('stop-agent')?.hidden === false, null, 'the agent to work');
     await page.waitForTimeout(100);
     const afterSend = await active();
-    if (afterSend !== 'stop-agent' && afterSend !== 'agent-prompt') problems.push(`UIK-03: after Send focus is on ${afterSend}`);
+    if (afterSend !== 'stop-agent' && afterSend !== 'agent-prompt') problems.push(`after Send focus is on ${afterSend}`);
     await page.locator('#agent-prompt').fill('and some authors');
     await page.locator('#agent-prompt').press('Enter');
     await page.waitForTimeout(200);
-    if (!(await said()).some(line => line.includes('is working'))) problems.push('UIK-12: Enter while the agent works said nothing');
+    if (!(await said()).some(line => line.includes('is working'))) problems.push('Enter while the agent works said nothing');
     await page.locator('#agent-prompt').fill('');
     await until(() => document.querySelector('[data-answer-entry][data-option-id="allow"]') !== null, null, 'the permission request', 8000);
     await page.focus('[data-answer-entry][data-option-id="allow"]');
@@ -751,9 +751,9 @@ async page => {
     await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-agent') !== null, null, 'the reply', 8000);
     await page.waitForTimeout(200);
     const afterAnswer = await active();
-    if (afterAnswer !== 'agent-prompt') problems.push(`UIK-03: after answering Allow focus is on ${afterAnswer}`);
+    if (afterAnswer !== 'agent-prompt') problems.push(`after answering Allow focus is on ${afterAnswer}`);
     const adds = await page.evaluate(() => window.__agentAdds);
-    if (adds > 1) problems.push(`UIK-05: the streamed reply was added to the log ${adds} times`);
+    if (adds > 1) problems.push(`the streamed reply was added to the log ${adds} times`);
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
@@ -804,8 +804,8 @@ async page => {
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
-  // UIK-06 and UIK-09: an arrow key in an option looks and keeps More open; the focused option says so.
-  await check('UIK-06 UIK-09 agent options', 'idea', async () => {
+  // An arrow key in an option looks and keeps More open; the focused option says so.
+  await check('agent options', 'idea', async () => {
     await launch();
     const problems = [];
     await page.focus('#agent-prompt');
@@ -813,7 +813,7 @@ async page => {
     await page.keyboard.press('Tab');
     const ring = await page.evaluate(() => { const element = document.activeElement; if (!(element instanceof HTMLSelectElement)) return null;
       const style = getComputedStyle(element); return { style: style.outlineStyle, width: style.outlineWidth }; });
-    if (ring === null || ring.style !== 'solid' || parseFloat(ring.width) < 2) problems.push(`UIK-09: a focused composer option shows ${JSON.stringify(ring)}`);
+    if (ring === null || ring.style !== 'solid' || parseFloat(ring.width) < 2) problems.push(`a focused composer option shows ${JSON.stringify(ring)}`);
     await page.click('.chat-more summary');
     await until(() => document.querySelector('details.chat-more')?.open === true, null, 'More');
     await page.focus('.chat-more-panel select');
@@ -822,30 +822,30 @@ async page => {
     await page.keyboard.press(await page.evaluate(() => document.activeElement.selectedIndex === 0 ? 'ArrowDown' : 'ArrowUp'));
     await page.waitForTimeout(400);
     const moved = await page.evaluate(before => document.activeElement?.value !== before, valueBefore);
-    if (!moved) problems.push('UIK-06: the arrow key did not move the option; the check measures nothing');
+    if (!moved) problems.push('the arrow key did not move the option; the check measures nothing');
     const looked = await page.evaluate(() => ({ open: document.querySelector('details.chat-more')?.open ?? null, focused: document.activeElement?.matches?.('.chat-more-panel select') ?? false }));
     const spoke = (await said()).slice(before);
-    if (!looked.open || !looked.focused || spoke.length > 0) problems.push(`UIK-06: one ArrowUp in More left ${JSON.stringify(looked)} and said ${JSON.stringify(spoke)}`);
+    if (!looked.open || !looked.focused || spoke.length > 0) problems.push(`one ArrowUp in More left ${JSON.stringify(looked)} and said ${JSON.stringify(spoke)}`);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(500);
     const afterEscape = (await said()).slice(before);
     const valueAfter = await page.evaluate(() => document.querySelector('.chat-more-panel select')?.value ?? null);
-    if (afterEscape.length > 0 || valueAfter !== valueBefore) problems.push(`UIK-06: Escape after looking chose the option: said ${JSON.stringify(afterEscape)}, value ${valueAfter}`);
+    if (afterEscape.length > 0 || valueAfter !== valueBefore) problems.push(`Escape after looking chose the option: said ${JSON.stringify(afterEscape)}, value ${valueAfter}`);
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
-  // UIK-15: focus on Open conversation comes back to the copy on screen after a redraw.
-  await check('UIK-15 Open conversation focus', 'idea', async () => {
+  // Focus on Open conversation comes back to the copy on screen after a redraw.
+  await check('Open conversation focus', 'idea', async () => {
     await launch();
     await agentPage('launch');
     await page.focus('#agent-panel-launch [data-open-agent-chat]');
     await shell(() => import('/src/shell.ts').then(module => module.rerender()));
     await page.waitForTimeout(200);
     const focus = await page.evaluate(() => ({ open: document.activeElement?.dataset?.openAgentChat !== undefined, visible: document.activeElement?.closest('.agent-panel:not([hidden])') != null }));
-    assert(focus.open && focus.visible, `UIK-15: after a redraw focus was ${JSON.stringify(focus)}, not the Launch tile's Open conversation.`);
+    assert(focus.open && focus.visible, `after a redraw focus was ${JSON.stringify(focus)}, not the Launch tile's Open conversation.`);
   });
 
-  // W-207. The record's text fields, and a host request from the page's own client.
+  // The record's text fields, and a host request from the page's own client.
   const textInputs = () => page.evaluate(() => [...document.querySelectorAll('#record-form label > input[type="text"]')].map(input => input.name));
   const request = (method, payload) => page.evaluate(([method, payload]) => import('/src/client.ts').then(module => module.client.request(method, payload)), [method, payload]);
   const save = () => page.click('#record-form button[type="submit"]');
@@ -857,8 +857,8 @@ async page => {
     await page.waitForTimeout(800);
   };
 
-  // WDV-08: a save refused over a newer version keeps the typing on the new version, and the next save writes it.
-  await check('WDV-08 save over a newer version', 'decision', async () => {
+  // A save refused over a newer version keeps the typing on the new version, and the next save writes it.
+  await check('save over a newer version', 'decision', async () => {
     await openRecord();
     const id = await page.evaluate(() => document.querySelector('.record-row > button[aria-current="true"], .record-row > button').dataset.recordId);
     const [typed, other] = await textInputs();
@@ -869,25 +869,25 @@ async page => {
     await save();
     await until(() => /changed while you edited/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'the conflict message', 6000);
     const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, typed);
-    assert(kept === 'My typing', `WDV-08: after the conflict the field shows ${JSON.stringify(kept)}, not the typing.`);
+    assert(kept === 'My typing', `after the conflict the field shows ${JSON.stringify(kept)}, not the typing.`);
     await save();
     await page.waitForTimeout(800);
     const stored = (await request('data.queryRecords', { entityId: 'entity.decision', recordId: id, limit: 1 })).items[0].values;
-    assert(stored[typed] === 'My typing' && stored[other] === 'Changed underneath', `WDV-08: the second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
+    assert(stored[typed] === 'My typing' && stored[other] === 'Changed underneath', `the second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
   });
 
-  // WDV-10: a value that does not parse is reported with its field's name.
-  await check('WDV-10 parse error names its field', 'tree', async () => {
+  // A value that does not parse is reported with its field's name.
+  await check('parse error names its field', 'tree', async () => {
     await openRecord();
     await page.fill('#record-form input[name="field.capability.order"]', '1,000');
     await save();
     await page.waitForTimeout(400);
     const said = await message();
-    assert(/^Order:/.test(said), `WDV-10: an unparseable Order says ${JSON.stringify(said)}.`);
+    assert(/^Order:/.test(said), `an unparseable Order says ${JSON.stringify(said)}.`);
   });
 
-  // WDV-12: typing and taking it back is not a change, so a card still moves.
-  await check('WDV-12 board drag after reverted typing', 'idea', async () => {
+  // Typing and taking it back is not a change, so a card still moves.
+  await check('board drag after reverted typing', 'idea', async () => {
     await pickView('board');
     const cards = await page.evaluate(() => [...document.querySelectorAll('.board-column .record-card')].length);
     assert(cards >= 2, 'the board has fewer than two cards; the check measures nothing');
@@ -912,12 +912,12 @@ async page => {
     await page.mouse.up();
     await page.waitForTimeout(500);
     const said = await message();
-    assert(!/Save or discard your changes before moving a card/.test(said), `WDV-12: a drag after typing taken back was refused: ${said}`);
+    assert(!/Save or discard your changes before moving a card/.test(said), `a drag after typing taken back was refused: ${said}`);
     const moved = await page.evaluate(id => document.querySelector(`.board-column .record-card[data-record-id="${CSS.escape(id)}"]`)?.closest('.board-column')?.dataset.group ?? null, movedId);
-    assert(moved !== null && moved !== movedFrom, `WDV-12: the drag did not move the card (still in ${moved}); the check measures nothing.`);
+    assert(moved !== null && moved !== movedFrom, `the drag did not move the card (still in ${moved}); the check measures nothing.`);
   });
 
-  // UIS-12, the reference half: the tree fixture has a reference field, Part of.
+  // The reference half: the tree fixture has a reference field, Part of.
   // The planner's By initiative board said "Reading the Initiatives records this board's columns
   // come from…" for good (2026-10-15): a reference board's columns were read only beside a pending
   // tile, and that board has none. This one has none either.
@@ -947,9 +947,9 @@ async page => {
     assert(left === null || !/Activate completed/.test(left), `The command's outcome followed the person to another screen: ${JSON.stringify(left)}.`);
   });
 
-  // W-250: a view's batch may ask for Undo in Nendo's notice. Billable's New invoice opened the invoice
+  // A view's batch may ask for Undo in Nendo's notice. Billable's New invoice opened the invoice
   // it made, and its own Undo went with the view; the offer has to follow the person to that screen.
-  await check('W-250 a view\'s Undo offer follows the person', 'tree', async () => {
+  await check('a view\'s Undo offer follows the person', 'tree', async () => {
     await pickView('All capabilities');
     await shell(async () => {
       window.__undone = 0;
@@ -965,14 +965,14 @@ async page => {
     assert(await page.evaluate(() => window.__undone) === 1, 'Undo did not run exactly once.');
   });
 
-  await check('UIS-12 reference controls named by field', 'tree', async () => {
+  await check('reference controls named by field', 'tree', async () => {
     await openRecord();
     const name = await page.evaluate(() => document.querySelector('.record-inspector .reference-choose')?.getAttribute('aria-label') ?? null);
-    assert(name !== null && name.includes('Part of'), `UIS-12: the reference's Choose button is named ${JSON.stringify(name)}.`);
+    assert(name !== null && name.includes('Part of'), `the reference's Choose button is named ${JSON.stringify(name)}.`);
   });
 
-  // WDV-08 in Studio's record sheet, which is drawn outside the Use renderer: the typing stays.
-  await check('WDV-08 Studio sheet over a newer version', 'decision', async () => {
+  // A save over a newer version in Studio's record sheet, which is drawn outside the Use renderer: the typing stays.
+  await check('Studio sheet over a newer version', 'decision', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.record-open-button') !== null, null, 'the Data grid', 8000);
     const id = await page.evaluate(() => document.querySelector('.ag-row[row-index="0"]')?.getAttribute('row-id') ?? null);
@@ -988,15 +988,15 @@ async page => {
     await save();
     await until(() => /changed while you edited/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'the conflict message', 6000);
     const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, typed);
-    assert(kept === 'Typed in the sheet', `WDV-08: in Studio's sheet the typing became ${JSON.stringify(kept)} after the conflict.`);
+    assert(kept === 'Typed in the sheet', `in Studio's sheet the typing became ${JSON.stringify(kept)} after the conflict.`);
     await save();
     await page.waitForTimeout(800);
     const stored = (await request('data.queryRecords', { entityId: 'entity.decision', recordId: current.recordId, limit: 1 })).items[0].values;
-    assert(stored[typed] === 'Typed in the sheet' && stored[other] === 'Changed under the sheet', `WDV-08: the sheet's second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
+    assert(stored[typed] === 'Typed in the sheet' && stored[other] === 'Changed under the sheet', `the sheet's second save left ${JSON.stringify({ [typed]: stored[typed], [other]: stored[other] })}; ${await message()}`);
   });
 
-  // UX-01: Health is refused while a record holds unsaved typing, by the rail and by Ctrl 6.
-  await check('UX-01 Health keeps unsaved typing', 'decision', async () => {
+  // Health is refused while a record holds unsaved typing, by the rail and by Ctrl 6.
+  await check('Health keeps unsaved typing', 'decision', async () => {
     await openRecord();
     const [name] = await textInputs();
     assert(name, 'the record has no text field; the check measures nothing');
@@ -1006,16 +1006,16 @@ async page => {
     const said = await message();
     const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, name);
     assert(/Save or discard your changes before opening Health/.test(said) && kept === 'Unsaved typing',
-      `UX-01: Health from the rail left ${JSON.stringify(kept)} in the field and said ${JSON.stringify(said)}.`);
+      `Health from the rail left ${JSON.stringify(kept)} in the field and said ${JSON.stringify(said)}.`);
     await page.locator(`#record-form input[name="${name}"]`).focus();
     await page.keyboard.press('Control+6');
     await page.waitForTimeout(500);
     const after = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, name);
-    assert(after === 'Unsaved typing', `UX-01: Ctrl 6 left ${JSON.stringify(after)} in the field.`);
+    assert(after === 'Unsaved typing', `Ctrl 6 left ${JSON.stringify(after)} in the field.`);
   });
 
-  // UX-12: Escape, or the close button, asks before unsaved typing goes, and Cancel keeps it.
-  await check('UX-12 closing asks before discarding', 'decision', async () => {
+  // Escape, or the close button, asks before unsaved typing goes, and Cancel keeps it.
+  await check('closing asks before discarding', 'decision', async () => {
     await openRecord();
     const [name] = await textInputs();
     const input = page.locator(`#record-form input[name="${name}"]`);
@@ -1024,19 +1024,19 @@ async page => {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     const asked = await page.evaluate(() => document.querySelector('dialog[open] h2')?.textContent ?? null);
-    assert(asked === 'Discard your changes?', `UX-12: Escape with unsaved typing ${asked === null ? 'closed the record without asking' : `asked ${JSON.stringify(asked)}`}.`);
+    assert(asked === 'Discard your changes?', `Escape with unsaved typing ${asked === null ? 'closed the record without asking' : `asked ${JSON.stringify(asked)}`}.`);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(300);
     const kept = await page.evaluate(name => document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null, name);
-    assert(kept === 'Two paragraphs of notes', `UX-12: Cancel did not keep the typing: ${JSON.stringify(kept)}.`);
+    assert(kept === 'Two paragraphs of notes', `Cancel did not keep the typing: ${JSON.stringify(kept)}.`);
     await page.click('#close-inspector');
     await until(() => document.querySelector('dialog[open] [data-confirm]') !== null, null, 'the discard question');
     await page.click('dialog[open] [data-confirm]');
     await until(() => document.querySelector('.record-inspector') === null, null, 'the record to close after Discard');
   });
 
-  // UX-02: a cell edit the host refuses shows the stored value again, beside the reason.
-  await check('UX-02 refused grid edit', 'tree', async () => {
+  // A cell edit the host refuses shows the stored value again, beside the reason.
+  await check('refused grid edit', 'tree', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-cell[col-id="field.capability.order"]') !== null, null, 'the Order column', 8000);
     const cell = '.ag-row[row-index="0"] .ag-cell[col-id="field.capability.order"]';
@@ -1049,13 +1049,13 @@ async page => {
     await page.waitForTimeout(1200);
     const after = (await page.locator(cell).textContent()).trim();
     const said = await message();
-    assert(said !== '', 'UX-02: the host did not refuse the edit; the check measures nothing.');
-    assert(after === before, `UX-02: after the refusal (${said}) the cell shows ${JSON.stringify(after)}, not the stored ${JSON.stringify(before)}.`);
+    assert(said !== '', 'the host did not refuse the edit; the check measures nothing.');
+    assert(after === before, `after the refusal (${said}) the cell shows ${JSON.stringify(after)}, not the stored ${JSON.stringify(before)}.`);
   });
 
-  // UX-03 and UX-04: Enter continues to the next row (W-233), keeping the field and horizontal position,
+  // Enter continues to the next row, keeping the field and horizontal position,
   // and says it saved where it can be seen.
-  await check('UX-03 UX-04 grid save keeps its place', 'idea', async () => {
+  await check('grid save keeps its place', 'idea', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-index="1"] .ag-cell') !== null, null, 'the Data grid', 8000);
     const viewport = '#record-grid .ag-grid-viewport';
@@ -1084,18 +1084,18 @@ async page => {
     await until(() => /saved/.test(document.querySelector('.message-slot:not([hidden])')?.textContent ?? ''), null, 'a visible saved message', 6000);
     await page.waitForTimeout(400);
     const where = await page.evaluate(() => { const cell = document.activeElement?.closest('.ag-cell'); return cell ? `${cell.closest('.ag-row')?.getAttribute('row-index')}:${cell.getAttribute('col-id')}` : document.activeElement?.tagName ?? 'none'; });
-    assert(where === `1:${target}`, `UX-03: after the save the focus is on ${where}, not the next row of the same field.`);
+    assert(where === `1:${target}`, `after the save the focus is on ${where}, not the next row of the same field.`);
     const scrollAfter = await page.evaluate(selector => document.querySelector(selector).scrollLeft, viewport);
     const scrollDiagnostics = await page.evaluate(async () => (await import('/src/view-data.ts')).dataGridReadDiagnostics());
-    assert(Math.abs(scrollAfter - scrollBefore) <= 2, `UX-03: the columns scrolled from ${scrollBefore} to ${scrollAfter} px. Click ${scrollAtClick}, editor ${scrollAtEditor}, target ${target}. ${JSON.stringify(scrollDiagnostics)}`);
+    assert(Math.abs(scrollAfter - scrollBefore) <= 2, `the columns scrolled from ${scrollBefore} to ${scrollAfter} px. Click ${scrollAtClick}, editor ${scrollAtEditor}, target ${target}. ${JSON.stringify(scrollDiagnostics)}`);
     await page.keyboard.press('ArrowUp');
     await page.waitForTimeout(150);
     const down = await page.evaluate(() => document.activeElement?.closest('.ag-row')?.getAttribute('row-index') ?? null);
-    assert(down === '0', `UX-03: ArrowUp after the save went to row ${down}.`);
+    assert(down === '0', `ArrowUp after the save went to row ${down}.`);
   }, 900, 800);
 
-  // UX-24 and UX-04: rejecting an agent's proposal asks first, and the outcome is on screen.
-  await check('UX-24 UX-04 reject asks and says so', 'idea', async () => {
+  // Rejecting an agent's proposal asks first, and the outcome is on screen.
+  await check('reject asks and says so', 'idea', async () => {
     await agentPage('activity');
     await until(() => document.querySelector('[data-review-agent-proposal]') !== null, null, 'a waiting proposal');
     await page.click('[data-review-agent-proposal]');
@@ -1103,43 +1103,43 @@ async page => {
     await page.click('#reject-agent-proposal');
     await page.waitForTimeout(300);
     const asked = await page.evaluate(() => document.querySelector('dialog[open] h2')?.textContent ?? null);
-    assert(asked === 'Reject this proposal?', `UX-24: Reject ${asked === null ? 'discarded the proposal without asking' : `asked ${JSON.stringify(asked)}`}.`);
+    assert(asked === 'Reject this proposal?', `Reject ${asked === null ? 'discarded the proposal without asking' : `asked ${JSON.stringify(asked)}`}.`);
     await page.click('dialog[open] [data-cancel]');
     await page.waitForTimeout(300);
-    assert(await page.evaluate(() => document.querySelector('.agent-proposal-page') !== null), 'UX-24: Cancel left the review.');
+    assert(await page.evaluate(() => document.querySelector('.agent-proposal-page') !== null), 'Cancel left the review.');
     await page.click('#reject-agent-proposal');
     await until(() => document.querySelector('dialog[open] [data-confirm]') !== null, null, 'the question again');
     await page.click('dialog[open] [data-confirm]');
     await until(() => document.querySelector('.agent-proposal-page') === null, null, 'the Agent page after Reject', 6000);
     await page.waitForTimeout(300);
     const said = await message();
-    assert(said !== '', 'UX-04: after Reject nothing on screen says what happened.');
+    assert(said !== '', 'after Reject nothing on screen says what happened.');
   });
 
-  // UX-14 and UX-10: the Agent page speaks of edit access and the file, not leases and workspaces.
-  await check('UX-14 UX-10 Agent page words', 'idea', async () => {
+  // The Agent page speaks of edit access and the file, not leases and workspaces.
+  await check('Agent page words', 'idea', async () => {
     await agentPage('activity');
     const activity = await page.evaluate(() => document.querySelector('#studio-content').innerText);
     await page.click('[data-agent-tab="connect"]');
     await page.waitForTimeout(300);
     const text = activity + ' ' + await page.evaluate(() => document.querySelector('#studio-content').innerText);
     const found = ['\\blease\\b', '\\bworkspace\\b', '\\bsurfaces?\\b', '\\bHarden\\b'].filter(word => new RegExp(word, 'i').test(text));
-    assert(found.length === 0, `UX-14: the Agent page still says ${found.join(', ')}.`);
+    assert(found.length === 0, `the Agent page still says ${found.join(', ')}.`);
   });
 
-  // UX-10: one word for screens, in the rail, the Use picker and the Screens page.
-  await check('UX-10 one word for screens', 'decision', async () => {
+  // One word for screens, in the rail, the Use picker and the Screens page.
+  await check('one word for screens', 'decision', async () => {
     const picker = await page.evaluate(() => document.querySelector('.surface-picker-label')?.textContent ?? null);
     await page.click('#nav-surfaces');
     await page.waitForTimeout(600);
     const rail = await page.evaluate(() => document.querySelector('#nav-surfaces')?.innerText ?? '');
     const pageText = await page.evaluate(() => document.querySelector('#studio-content').innerText);
     assert(picker === 'Screen' && /Screens/.test(rail) && !/\bsurfaces?\b/i.test(pageText),
-      `UX-10: the picker says ${JSON.stringify(picker)}, the rail ${JSON.stringify(rail)}${/\bsurfaces?\b/i.test(pageText) ? ', and the page still says surface' : ''}.`);
+      `the picker says ${JSON.stringify(picker)}, the rail ${JSON.stringify(rail)}${/\bsurfaces?\b/i.test(pageText) ? ', and the page still says surface' : ''}.`);
   });
 
-  // UX-18: ticking Not set empties its box, and unticking brings the text back.
-  await check('UX-18 Not set empties its box', 'decision', async () => {
+  // Ticking Not set empties its box, and unticking brings the text back.
+  await check('Not set empties its box', 'decision', async () => {
     await openRecord();
     const name = await page.evaluate(() => [...document.querySelectorAll('#record-form [data-null-field]')].map(box => box.dataset.nullField)
       .find(field => { const control = document.querySelector(`#record-form [name="${CSS.escape(field)}"]`); return control instanceof HTMLInputElement && control.type === 'text' && control.offsetParent !== null; }) ?? null);
@@ -1148,28 +1148,28 @@ async page => {
     await page.fill(box, 'Try it on Friday');
     await page.check(`#record-form [data-null-field="${name}"]`);
     const ticked = await page.evaluate(box => document.querySelector(box).value, box);
-    assert(ticked === '', `UX-18: with Not set ticked the box still shows ${JSON.stringify(ticked)}, which a save throws away.`);
+    assert(ticked === '', `with Not set ticked the box still shows ${JSON.stringify(ticked)}, which a save throws away.`);
     await page.uncheck(`#record-form [data-null-field="${name}"]`);
     const back = await page.evaluate(box => document.querySelector(box).value, box);
-    assert(back === 'Try it on Friday', `UX-18: unticking Not set left ${JSON.stringify(back)} in the box.`);
+    assert(back === 'Try it on Friday', `unticking Not set left ${JSON.stringify(back)} in the box.`);
   });
 
-  // UX-20: with no file open, nothing in the rail is the current page.
-  await check('UX-20 no current page without a file', 'decision', async () => {
+  // With no file open, nothing in the rail is the current page.
+  await check('no current page without a file', 'decision', async () => {
     await page.click('#file-menu > summary');
     await page.click('[data-file-action="file.close"]');
     await until(() => document.querySelector('[data-testid="no-file-state"]') !== null, null, 'the start screen', 6000);
     const current = await page.evaluate(() => [...document.querySelectorAll('[aria-current="page"]')].map(element => element.id || element.tagName));
-    assert(current.length === 0, `UX-20: with no file open ${current.join(', ')} is marked as the current page.`);
+    assert(current.length === 0, `with no file open ${current.join(', ')} is marked as the current page.`);
     // Help draws with no file, so it is the current page then (the review's catch).
     await page.click('#nav-help');
     await page.waitForTimeout(400);
     const help = await page.evaluate(() => document.querySelector('#nav-help')?.getAttribute('aria-current'));
-    assert(help === 'page', `UX-20: Help with no file open is not marked as the current page (${help}).`);
+    assert(help === 'page', `Help with no file open is not marked as the current page (${help}).`);
   });
 
-  // UX-08, the Reference half: Studio's filter takes a reference by choosing its record.
-  await check('UX-08 reference filter by its record', 'tree', async () => {
+  // The Reference half: Studio's filter takes a reference by choosing its record.
+  await check('reference filter by its record', 'tree', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('[data-layout="table"]') !== null, null, 'the layout switch', 8000);
     await page.click('[data-layout="table"]');
@@ -1178,7 +1178,7 @@ async page => {
     await page.waitForTimeout(200);
     const shown = await page.evaluate(() => ({ box: !document.querySelector('#studio-query input[name="value"]').closest('label').hidden,
       picker: document.querySelector('[data-query-reference] .reference-choose') !== null }));
-    assert(shown.picker && !shown.box, `UX-08: a Reference filter offers ${shown.box ? 'a box for a record ID' : 'nothing'} rather than a record picker.`);
+    assert(shown.picker && !shown.box, `a Reference filter offers ${shown.box ? 'a box for a record ID' : 'nothing'} rather than a record picker.`);
     await page.click('[data-query-reference] .reference-choose');
     await until(() => document.querySelector('[data-query-reference] .reference-result') !== null, null, 'records to choose from', 6000);
     const picked = await page.evaluate(() => { const button = document.querySelector('[data-query-reference] .reference-result'); const text = button.textContent; button.click(); return text; });
@@ -1186,25 +1186,25 @@ async page => {
     await page.click('#studio-query button[type="submit"]');
     await until(() => /Part of/.test(document.querySelector('#studio-query .query-status')?.textContent ?? ''), null, 'the filter to apply', 6000);
     const status = await page.evaluate(() => document.querySelector('#studio-query .query-status').textContent);
-    assert(status.includes(label) && !status.includes(id), `UX-08: the filter status reads ${JSON.stringify(status)}, not the record's label.`);
+    assert(status.includes(label) && !status.includes(id), `the filter status reads ${JSON.stringify(status)}, not the record's label.`);
   });
 
-  // UX-04: a delete says what it deleted and offers History, where Undo brings it back.
-  await check('UX-04 delete offers History', 'decision', async () => {
+  // A delete says what it deleted and offers History, where Undo brings it back.
+  await check('delete offers History', 'decision', async () => {
     await openRecord();
     await page.click('#delete-record');
     await until(() => document.querySelector('dialog[open] [data-confirm]') !== null, null, 'the delete question');
     await page.click('dialog[open] [data-confirm]');
     await until(() => document.querySelector('#outcome-action') !== null, null, 'the delete outcome and its action', 6000);
     const said = await message();
-    assert(/History can bring it back/.test(said), `UX-04: the delete said ${JSON.stringify(said)}.`);
+    assert(/History can bring it back/.test(said), `the delete said ${JSON.stringify(said)}.`);
     await page.click('#outcome-action');
     await until(() => document.querySelector('.history-entry') !== null, null, 'History', 6000);
     const first = await page.evaluate(() => document.querySelector('.history-entry h3')?.textContent ?? '');
-    assert(/Delete/.test(first), `UX-04: Open History showed ${JSON.stringify(first)} first, not the delete.`);
+    assert(/Delete/.test(first), `Open History showed ${JSON.stringify(first)} first, not the delete.`);
   });
 
-  // --- W-215: CSS tokens, contrast themes and narrow windows (FIXES.md CSS-01 to CSS-20) ---------
+  // --- CSS tokens, contrast themes and narrow windows ---------
   // Each measures what the eye would check: a box, a computed style, a contrast ratio.
 
   // A new window size, waited for until the page has laid itself out at it.
@@ -1239,9 +1239,9 @@ async page => {
     return hits;
   }, right);
 
-  // CSS-01: a narrow, short window keeps the navigation as the bar across the top, every item
+  // A narrow, short window keeps the navigation as the bar across the top, every item
   // readable, and nothing under Windows' buttons.
-  await check('CSS-01 narrow short window', 'decision', async () => {
+  await check('narrow short window', 'decision', async () => {
     await captionButtons();
     for (const [width, height] of [[800, 560], [683, 480]]) {
       await resized(width, height);
@@ -1257,10 +1257,10 @@ async page => {
       });
       const wrong = bar.items.filter(item => item.width < 24 || !item.shown || item.top < bar.rail[1] - 0.5 || item.bottom > bar.rail[1] + bar.rail[3] + 0.5);
       assert(bar.rail[2] >= width - 160 && bar.rail[3] <= 49 && bar.rail[0] === 0,
-        `CSS-01: at ${width}x${height} the navigation is a ${bar.rail[2]}x${bar.rail[3]} box at ${bar.rail[0]},${bar.rail[1]}, not the bar across the top.`);
-      assert(wrong.length === 0, `CSS-01: at ${width}x${height} these navigation items are blank or squeezed: ${wrong.map(item => `${item.id} ${item.width}px${item.shown ? '' : ' no icon or label'}`).join(', ')}.`);
+        `at ${width}x${height} the navigation is a ${bar.rail[2]}x${bar.rail[3]} box at ${bar.rail[0]},${bar.rail[1]}, not the bar across the top.`);
+      assert(wrong.length === 0, `at ${width}x${height} these navigation items are blank or squeezed: ${wrong.map(item => `${item.id} ${item.width}px${item.shown ? '' : ' no icon or label'}`).join(', ')}.`);
       const hidden = await underCaption();
-      assert(hidden.length === 0, `CSS-01: at ${width}x${height} Windows' Minimise, Maximise and Close sit over ${hidden.join(', ')}.`);
+      assert(hidden.length === 0, `at ${width}x${height} Windows' Minimise, Maximise and Close sit over ${hidden.join(', ')}.`);
     }
     // A wide window with no file open has no tabs, so the address row is the top of the window.
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -1268,11 +1268,11 @@ async page => {
     await page.click('[data-file-action="file.close"]');
     await until(() => document.querySelector('[data-testid="no-file-state"]') !== null, null, 'the start screen', 6000);
     const wide = await underCaption();
-    assert(wide.length === 0, `CSS-01: in a wide window with no file open Windows' buttons sit over ${wide.join(', ')}.`);
+    assert(wide.length === 0, `in a wide window with no file open Windows' buttons sit over ${wide.join(', ')}.`);
   }, 1440, 900);
 
-  // CSS-01: the narrow bar keeps the hairline between it and the layer, which has no border there.
-  await check('CSS-01 narrow bar hairline', 'decision', async () => {
+  // The narrow bar keeps the hairline between it and the layer, which has no border there.
+  await check('narrow bar hairline', 'decision', async () => {
     const line = await page.evaluate(() => {
       const rail = document.querySelector('.rail');
       const style = getComputedStyle(rail);
@@ -1286,35 +1286,35 @@ async page => {
         joins: Math.abs(rail.getBoundingClientRect().bottom - layer.top) <= 0.5, layerTop: getComputedStyle(document.querySelector('.workspace-layer')).borderTopStyle };
     });
     assert(line.width === '1px' && line.style === 'solid' && line.colour === line.line && line.joins,
-      `CSS-01: at 800px the bar across the top meets the layer with no hairline: ${JSON.stringify(line)}.`);
+      `at 800px the bar across the top meets the layer with no hairline: ${JSON.stringify(line)}.`);
   }, 800, 700);
 
-  // CSS-19: a top bar wider than the window shows that it scrolls, and nothing it scrolls slides
+  // A top bar wider than the window shows that it scrolls, and nothing it scrolls slides
   // under Windows' buttons.
-  await check('CSS-19 narrow top bar scrolls visibly', 'decision', async () => {
+  await check('narrow top bar scrolls visibly', 'decision', async () => {
     const bar = await page.evaluate(() => {
       const rail = document.querySelector('.rail');
       const inView = (id) => { const box = document.getElementById(id).getBoundingClientRect(); return box.right <= innerWidth && box.left >= 0; };
       return { overflows: rail.scrollWidth > rail.clientWidth + 1, scrollbar: getComputedStyle(rail).scrollbarWidth, agent: inView('nav-agent'), help: inView('nav-help'),
         overflowY: getComputedStyle(rail).overflowY, brand: Math.round(document.querySelector('.brand').getBoundingClientRect().height), room: rail.clientHeight };
     });
-    assert(bar.overflowY === 'hidden' && bar.brand <= bar.room, `CSS-19: the top bar can scroll up and down: overflow-y ${bar.overflowY}, its brand ${bar.brand}px in ${bar.room}px.`);
-    assert(bar.overflows, 'CSS-19: at 400px the top bar fits the window; the check measures nothing.');
+    assert(bar.overflowY === 'hidden' && bar.brand <= bar.room, `the top bar can scroll up and down: overflow-y ${bar.overflowY}, its brand ${bar.brand}px in ${bar.room}px.`);
+    assert(bar.overflows, 'at 400px the top bar fits the window; the check measures nothing.');
     assert((bar.agent && bar.help) || bar.scrollbar !== 'none',
-      `CSS-19: at 400px Agent and Help are past the window's edge (${JSON.stringify(bar)}) and the bar hides its scrollbar, so nothing shows it scrolls.`);
+      `at 400px Agent and Help are past the window's edge (${JSON.stringify(bar)}) and the bar hides its scrollbar, so nothing shows it scrolls.`);
     await captionButtons();
     await resized(585, 700);
     const hidden = await underCaption();
-    assert(hidden.length === 0, `CSS-19: at 585px with the bar scrolled to its start, Windows' buttons sit over ${hidden.join(', ')}.`);
+    assert(hidden.length === 0, `at 585px with the bar scrolled to its start, Windows' buttons sit over ${hidden.join(', ')}.`);
   }, 400, 700);
 
-  // CSS-02 and CSS-07: Health's recovery panels stack in a narrow window, and their headings are
+  // Health's recovery panels stack in a narrow window, and their headings are
   // the card size, spanning the compact action grid.
   const health = async () => {
     await page.click('#nav-health');
     await until(() => document.querySelector('.recovery-layout .recovery-action-list > h2') !== null, null, 'Health', 6000);
   };
-  await check('CSS-02 recovery layout stacks', 'decision', async () => {
+  await check('recovery layout stacks', 'decision', async () => {
     await health();
     for (const width of [700, 400]) {
       await resized(width, 800);
@@ -1324,14 +1324,14 @@ async page => {
           findings: Math.round(document.querySelector('.recovery-findings').getBoundingClientRect().width), grid: Math.round(grid.getBoundingClientRect().width) };
       });
       assert(layout.tracks === 1 && layout.findings >= layout.grid - 1,
-        `CSS-02: at ${width}px the recovery layout keeps columns ${layout.columns}, so File status is ${layout.findings}px of ${layout.grid}px.`);
+        `at ${width}px the recovery layout keeps columns ${layout.columns}, so File status is ${layout.findings}px of ${layout.grid}px.`);
     }
   }, 1440, 900);
 
-  await check('CSS-07 recovery headings', 'decision', async () => {
+  await check('recovery headings', 'decision', async () => {
     await health();
     const sizes = await page.evaluate(() => [...document.querySelectorAll('.recovery-findings > h2, .recovery-action-list > h2')].map(heading => getComputedStyle(heading).fontSize));
-    assert(sizes.length === 2 && sizes.every(size => size === '14.7px'), `CSS-07: Health's card headings are ${sizes.join(' and ')}, not the 1.05rem (14.7px) of a card heading.`);
+    assert(sizes.length === 2 && sizes.every(size => size === '14.7px'), `Health's card headings are ${sizes.join(' and ')}, not the 1.05rem (14.7px) of a card heading.`);
     await resized(800, 560);
     const compact = await page.evaluate(() => {
       const list = document.querySelector('.recovery-action-list');
@@ -1343,11 +1343,11 @@ async page => {
         width: Math.round(heading.getBoundingClientRect().width), inner: Math.round(inner), below: first.getBoundingClientRect().top >= heading.getBoundingClientRect().bottom - 0.5 };
     });
     assert(compact.columns === 2 && compact.end === '-1' && compact.width >= compact.inner - 1 && compact.below,
-      `CSS-07: in the compact action grid the Recovery actions heading is ${JSON.stringify(compact)}; it should span the grid with the actions under it.`);
+      `in the compact action grid the Recovery actions heading is ${JSON.stringify(compact)}; it should span the grid with the actions under it.`);
   }, 1440, 900);
 
-  // CSS-03: the agent and health pills stay on the status line in a narrow window.
-  await check('CSS-03 status pills in a narrow window', 'decision', async () => {
+  // The agent and health pills stay on the status line in a narrow window.
+  await check('status pills in a narrow window', 'decision', async () => {
     const pills = await page.evaluate(() => {
       const bar = document.querySelector('#session-status').getBoundingClientRect();
       return ['agent-working', 'session-health'].map(id => {
@@ -1358,12 +1358,12 @@ async page => {
       });
     });
     const lost = pills.filter(pill => pill.display === 'none' || !pill.inside);
-    assert(lost.length === 0, `CSS-03: at 800px ${lost.map(pill => `#${pill.id} is ${pill.display === 'none' ? 'display: none' : 'outside the status line'}`).join(', ')}.`);
+    assert(lost.length === 0, `at 800px ${lost.map(pill => `#${pill.id} is ${pill.display === 'none' ? 'display: none' : 'outside the status line'}`).join(', ')}.`);
   }, 800, 700);
 
-  // CSS-03: at 400px the status line holds both pills, as dots that keep their words for a screen
+  // At 400px the status line holds both pills, as dots that keep their words for a screen
   // reader, and still ends inside the window.
-  await check('CSS-03 status line at 400px', 'decision', async () => {
+  await check('status line at 400px', 'decision', async () => {
     const line = await page.evaluate(() => {
       const agent = document.getElementById('agent-working');
       agent.hidden = false;
@@ -1377,8 +1377,8 @@ async page => {
         .map(item => ({ item: item.id || item.className, right: Math.round(item.getBoundingClientRect().right) })).filter(item => item.right > innerWidth + 0.5);
       return { past, scrolls: bar.scrollWidth > bar.clientWidth + 1, pills: [agent, health].map(pill => ({ id: pill.id, display: getComputedStyle(pill).display, words: pill.querySelector('.status-pill-text').textContent })) };
     });
-    assert(line.pills.every(pill => pill.display !== 'none' && pill.words.length > 0), `CSS-03: at 400px the status pills are ${JSON.stringify(line.pills)}.`);
-    assert(line.past.length === 0 && !line.scrolls, `CSS-03: at 400px with both pills showing the status line runs past the window: ${line.past.map(item => `${item.item} ends at ${item.right}px`).join(', ')}${line.scrolls ? '; it scrolls' : ''}.`);
+    assert(line.pills.every(pill => pill.display !== 'none' && pill.words.length > 0), `at 400px the status pills are ${JSON.stringify(line.pills)}.`);
+    assert(line.past.length === 0 && !line.scrolls, `at 400px with both pills showing the status line runs past the window: ${line.past.map(item => `${item.item} ends at ${item.right}px`).join(', ')}${line.scrolls ? '; it scrolls' : ''}.`);
   }, 400, 700);
 
   // The status pill's words in every state and theme. The warning rule once painted the text span
@@ -1467,11 +1467,11 @@ async page => {
     assert(after.hidden && after.kept === null, `Closing the message left it: ${JSON.stringify(after)}`);
   }, 1600, 900);
 
-  // W-283: a notice floats over the bottom right of the layer and never moves the page. It sat in
-  // the page between the toolbar and the content, so every notice pushed the board down by its
-  // height (owner, 2026-10-17). A success goes by itself unless the pointer holds it, a second one
+  // A notice floats over the bottom right of the layer and never moves the page: in the page
+  // between the toolbar and the content, every notice would push the board down by its height.
+  // A success goes by itself unless the pointer holds it, a second one
   // stacks above the first, three at most, and an alert waits to be dealt with.
-  await check('W-283 notices float over the page', 'tree', async () => {
+  await check('notices float over the page', 'tree', async () => {
     const shellCall = (name, ...args) => page.evaluate(async ([name, args]) => { (await import('/src/shell.ts'))[name](...args); }, [name, args]);
     const pageTop = () => page.evaluate(() => document.querySelector('.use-surface, .use-layout').getBoundingClientRect().top);
     const shown = () => page.evaluate(() => [...document.querySelectorAll('#notice-stack .notice:not([hidden]) .notice-text')].map(text => text.textContent));
@@ -1509,9 +1509,9 @@ async page => {
     assert(JSON.stringify(await shown()) === '["Refused."]', `An alert went by itself: ${JSON.stringify(await shown())}`);
   });
 
-  // W-283: a notice never covers the page's own action shelf. A refusal sat over the record form's
-  // Save until it was closed, and the next save could not be pressed (WDV-08, 2026-10-17).
-  await check('W-283 notices never cover Save', 'decision', async () => {
+  // A notice never covers the page's own action shelf: a refusal over the record form's Save
+  // would keep the next save from being pressed until it was closed.
+  await check('notices never cover Save', 'decision', async () => {
     await openRecord();
     await page.evaluate(async () => (await import('/src/shell.ts')).showError('The record changed while you edited it, and this sentence is long enough to take two lines.'));
     await page.waitForTimeout(300);
@@ -1523,8 +1523,8 @@ async page => {
     assert(free.visible && free.pressable, `A notice covers the form's Save: ${JSON.stringify(free)}`);
   });
 
-  // CSS-05: the address row is one row at every width.
-  await check('CSS-05 address row one row', 'decision', async () => {
+  // The address row is one row at every width.
+  await check('address row one row', 'decision', async () => {
     for (const width of [600, 400]) {
       await resized(width, 800);
       const row = await page.evaluate(() => {
@@ -1532,18 +1532,18 @@ async page => {
         const box = header.getBoundingClientRect();
         return { height: Math.round(box.height), direction: getComputedStyle(header).flexDirection };
       });
-      assert(row.height <= 52 && row.direction === 'row', `CSS-05: at ${width}px the address row is ${row.height}px tall, laid out as a ${row.direction}.`);
+      assert(row.height <= 52 && row.direction === 'row', `at ${width}px the address row is ${row.height}px tall, laid out as a ${row.direction}.`);
     }
   }, 600, 800);
 
-  // CSS-08: the status line ends on the window's bottom edge in a short wide window.
-  await check('CSS-08 status line at the bottom', 'decision', async () => {
+  // The status line ends on the window's bottom edge in a short wide window.
+  await check('status line at the bottom', 'decision', async () => {
     const edge = await page.evaluate(() => ({ bottom: document.querySelector('#session-status').getBoundingClientRect().bottom, height: innerHeight }));
-    assert(Math.abs(edge.bottom - edge.height) <= 0.5, `CSS-08: at 1280x700 the status line ends at ${edge.bottom}px of ${edge.height}px.`);
+    assert(Math.abs(edge.bottom - edge.height) <= 0.5, `at 1280x700 the status line ends at ${edge.bottom}px of ${edge.height}px.`);
   }, 1280, 700);
 
-  // CSS-12: a focus ring in the navigation is whole, not cut by the list's clip.
-  await check('CSS-12 navigation focus ring whole', 'decision', async () => {
+  // A focus ring in the navigation is whole, not cut by the list's clip.
+  await check('navigation focus ring whole', 'decision', async () => {
     const rings = [];
     for (const selector of ['#nav-use', '.nav-place']) {
       await page.focus(selector);
@@ -1562,13 +1562,13 @@ async page => {
           clip: clip && [Math.round(clip.left), Math.round(clip.right)], inside: clip === null || (ring.left >= clip.left - 0.5 && ring.right <= clip.right + 0.5) };
       }, selector));
     }
-    assert(rings.every(ring => ring.visible && ring.style !== 'none'), `CSS-12: the navigation shows no focus ring to measure: ${JSON.stringify(rings)}.`);
+    assert(rings.every(ring => ring.visible && ring.style !== 'none'), `the navigation shows no focus ring to measure: ${JSON.stringify(rings)}.`);
     const cut = rings.filter(ring => !ring.inside);
-    assert(cut.length === 0, `CSS-12: the focus ring's sides are cut off by the navigation's clip: ${cut.map(ring => `${ring.selector} ring ${ring.ring} clip ${ring.clip}`).join('; ')}.`);
+    assert(cut.length === 0, `the focus ring's sides are cut off by the navigation's clip: ${cut.map(ring => `${ring.selector} ring ${ring.ring} clip ${ring.clip}`).join('; ')}.`);
   }, 1440, 900);
 
-  // CSS-13: Structure's field rows stay inside their card at the widths that overflowed.
-  await check('CSS-13 field rows inside their card', 'decision', async () => {
+  // Structure's field rows stay inside their card at the widths that overflowed.
+  await check('field rows inside their card', 'decision', async () => {
     await page.click('#nav-structure');
     await until(() => document.querySelector('.definition-card .field-row:not(.field-row-head)') !== null, null, 'Structure', 6000);
     for (const width of [960, 900, 680]) {
@@ -1584,12 +1584,12 @@ async page => {
         }
         return { card: [Math.round(card.left), Math.round(card.right)], over: over.slice(0, 4), paneScroll: pane.scrollWidth > pane.clientWidth + 1 };
       });
-      assert(fit.over.length === 0 && !fit.paneScroll, `CSS-13: at ${width}px the field rows overflow their card ${fit.card}: ${fit.over.join('; ')}${fit.paneScroll ? '; the page scrolls sideways' : ''}.`);
+      assert(fit.over.length === 0 && !fit.paneScroll, `at ${width}px the field rows overflow their card ${fit.card}: ${fit.over.join('; ')}${fit.paneScroll ? '; the page scrolls sideways' : ''}.`);
     }
   }, 1440, 900);
 
-  // CSS-14: the command box's Ctrl K sits in the middle of its key cap.
-  await check('CSS-14 Ctrl K key cap centred', 'decision', async () => {
+  // The command box's Ctrl K sits in the middle of its key cap.
+  await check('Ctrl K key cap centred', 'decision', async () => {
     const cap = await page.evaluate(() => {
       const kbd = document.querySelector('.palette-trigger kbd');
       const style = getComputedStyle(kbd);
@@ -1599,14 +1599,14 @@ async page => {
       const box = kbd.getBoundingClientRect();
       return { display: style.display, top: +(text.top - box.top - parseFloat(style.borderTopWidth)).toFixed(1), bottom: +(box.bottom - parseFloat(style.borderBottomWidth) - text.bottom).toFixed(1) };
     });
-    assert(Math.abs(cap.top - cap.bottom) <= 1, `CSS-14: Ctrl K in the command box sits ${cap.top}px from the cap's top and ${cap.bottom}px from its bottom (display ${cap.display}).`);
+    assert(Math.abs(cap.top - cap.bottom) <= 1, `Ctrl K in the command box sits ${cap.top}px from the cap's top and ${cap.bottom}px from its bottom (display ${cap.display}).`);
   }, 1280, 800);
 
-  // CSS-15: the @ menu stays inside the pane above the message box in a short wide window. The
+  // The @ menu stays inside the pane above the message box in a short wide window. The
   // preview file offers only a few choices, so the menu is filled to the length a real file's
   // reaches (about 18 with no query) before it is measured.
   // It opens in a tall window, which then shrinks, so the room is measured again while it is open.
-  await check('CSS-15 @ menu inside the pane', 'idea', async () => {
+  await check('@ menu inside the pane', 'idea', async () => {
     await launch();
     await page.locator('#agent-prompt').fill('@');
     await until(() => document.querySelector('#chat-mention:not([hidden]) [data-choice]') !== null, null, 'the @ menu');
@@ -1621,12 +1621,12 @@ async page => {
       const composer = list.offsetParent.getBoundingClientRect();
       return { top: Math.round(box.top), pane: Math.round(pane.top), height: Math.round(box.height), content: list.scrollHeight, room: Math.round(composer.top - pane.top), head: head ? Math.round(head.top) : null };
     });
-    assert(menu.content > menu.room, `CSS-15: the @ menu's ${menu.content}px fit the ${menu.room}px above the box; the check measures nothing.`);
-    assert(menu.top >= menu.pane - 0.5 && (menu.head === null || menu.head >= menu.pane), `CSS-15: at 1024x560 the @ menu's top is ${menu.top}px, above the pane's ${menu.pane}px, so ${menu.pane - menu.top}px of it is clipped (${JSON.stringify(menu)}).`);
+    assert(menu.content > menu.room, `the @ menu's ${menu.content}px fit the ${menu.room}px above the box; the check measures nothing.`);
+    assert(menu.top >= menu.pane - 0.5 && (menu.head === null || menu.head >= menu.pane), `at 1024x560 the @ menu's top is ${menu.top}px, above the pane's ${menu.pane}px, so ${menu.pane - menu.top}px of it is clipped (${JSON.stringify(menu)}).`);
   }, 1440, 900);
 
-  // CSS-20: Studio, Agent and Help are in navigation landmarks, and no generic box is named.
-  await check('CSS-20 navigation landmarks', 'decision', async () => {
+  // Studio, Agent and Help are in navigation landmarks, and no generic box is named.
+  await check('navigation landmarks', 'decision', async () => {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Accessibility.enable');
     const { root } = await cdp.send('DOM.getDocument', { depth: 0 });
@@ -1645,15 +1645,15 @@ async page => {
       if (node.role === 'generic' && node.name !== '') problems.push(`${selector} is a generic box named "${node.name}"`);
     }
     await cdp.detach();
-    assert(problems.length === 0, `CSS-20: ${problems.join('; ')}.`);
+    assert(problems.length === 0, `${problems.join('; ')}.`);
   }, 1440, 900);
 
-  // CSS-04: under a Windows contrast theme every selected, pressed or focused state still differs
+  // Under a Windows contrast theme every selected, pressed or focused state still differs
   // from its plain twin, and selection and focus differ from each other: focus on a selected
   // control still shows, and a selected row is not mistaken for the focused one. Forced colors
   // makes fills Canvas and drops shadows, so this compares what survives: the outline, the
   // borders and the fill (the control's own and its ::before's) as forced colors computes them.
-  await check('CSS-04 states under forced colors', 'decision', async () => {
+  await check('states under forced colors', 'decision', async () => {
     await page.emulateMedia({ forcedColors: 'active' });
     try {
       await page.reload();
@@ -1728,16 +1728,16 @@ async page => {
         host.remove();
         return { forced, notVisible, pairs };
       });
-      assert(states.forced && states.notVisible.length === 0, `CSS-04: forced colors ${states.forced ? 'is' : 'is not'} active, and focus is not focus-visible on ${states.notVisible.join(', ') || 'nothing'}; the check measures nothing.`);
+      assert(states.forced && states.notVisible.length === 0, `forced colors ${states.forced ? 'is' : 'is not'} active, and focus is not focus-visible on ${states.notVisible.join(', ') || 'nothing'}; the check measures nothing.`);
       const same = states.pairs.filter(state => state.on === state.off);
-      assert(same.length === 0, `CSS-04: under forced colors these states look the same: ${same.map(state => `${state.name} (${state.on})`).join('; ')}.`);
+      assert(same.length === 0, `under forced colors these states look the same: ${same.map(state => `${state.name} (${state.on})`).join('; ')}.`);
     } finally {
       await page.emulateMedia({ forcedColors: 'none' });
     }
   }, 1440, 900);
 
-  // CSS-09, CSS-10 and CSS-11: colours in both themes, as the page computes them.
-  await check('CSS-09 CSS-10 CSS-11 theme colours', 'decision', async () => {
+  // Colours in both themes, as the page computes them.
+  await check('theme colours', 'decision', async () => {
     const problems = [];
     for (const theme of ['light', 'dark']) {
       await page.click(`[data-theme-option="${theme}"]`);
@@ -1766,15 +1766,15 @@ async page => {
         return { knob: knob && knob.map(Math.round), track: track && track.map(Math.round), ratio: knob && track ? +contrast(knob, track).toFixed(2) : 0,
           shadows: shadows.map(colour => colour && colour.slice(0, 3).map(value => +(value / 255).toFixed(2))), failed, danger };
       });
-      if (measured.ratio < 3) problems.push(`CSS-09: in ${theme} the on switch's knob ${measured.knob} on its track ${measured.track} is ${measured.ratio}:1, below 3:1`);
+      if (measured.ratio < 3) problems.push(`in ${theme} the on switch's knob ${measured.knob} on its track ${measured.track} is ${measured.ratio}:1, below 3:1`);
       if (theme === 'dark' && (measured.shadows.length === 0 || measured.shadows.some(colour => colour === null || colour.some(value => value >= 0.2))))
-        problems.push(`CSS-10: in dark a card's shadow is drawn in ${JSON.stringify(measured.shadows)}, a light glow rather than a shadow`);
-      if (measured.failed !== measured.danger) problems.push(`CSS-11: in ${theme} a failed total is ${measured.failed}, not the danger colour ${measured.danger}`);
+        problems.push(`in dark a card's shadow is drawn in ${JSON.stringify(measured.shadows)}, a light glow rather than a shadow`);
+      if (measured.failed !== measured.danger) problems.push(`in ${theme} a failed total is ${measured.failed}, not the danger colour ${measured.danger}`);
     }
     assert(problems.length === 0, problems.join('; ') + '.');
   }, 1440, 900);
 
-  // --- Studio as the person sees it: the broad review's W-225 findings -------------------------
+  // --- Studio as the person sees it -------------------------
 
   const appView = () => page.evaluate(() => import('/src/app-state.ts').then(module => module.state.view));
   const prepareField = async (name) => {
@@ -1786,34 +1786,34 @@ async page => {
     await until(() => document.querySelector('#accept-proposal')?.disabled === false, null, 'the field proposal', 6000);
   };
 
-  // UIT-02: accepting a field added on Structure stays on Structure, and a sentence on the page says so.
-  await check('UIT-02 accept stays on Structure', 'idea', async () => {
+  // Accepting a field added on Structure stays on Structure, and a sentence on the page says so.
+  await check('accept stays on Structure', 'idea', async () => {
     await prepareField('Effort points');
     await page.click('#accept-proposal');
     await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'the review to close', 6000);
     await page.waitForTimeout(300);
     const view = await appView();
     const said = await message();
-    assert(view === 'structure', `UIT-02: accepting a field added on Structure landed on ${view}, not Structure.`);
-    assert(said.includes('Add Effort points field accepted.') || said.includes('accepted.'), `UIT-02: nothing on the page says the field was accepted (message slot: ${JSON.stringify(said)}).`);
+    assert(view === 'structure', `accepting a field added on Structure landed on ${view}, not Structure.`);
+    assert(said.includes('Add Effort points field accepted.') || said.includes('accepted.'), `nothing on the page says the field was accepted (message slot: ${JSON.stringify(said)}).`);
   });
 
-  // UIT-10: the review's Back discards a Studio proposal: the host no longer holds it, and the page says so.
-  await check('UIT-10 Back discards the proposal', 'idea', async () => {
+  // The review's Back discards a Studio proposal: the host no longer holds it, and the page says so.
+  await check('Back discards the proposal', 'idea', async () => {
     await prepareField('Back test');
     const proposalId = await page.evaluate(() => import('/src/app-state.ts').then(module => module.state.proposal?.proposalId ?? null));
-    assert(proposalId !== null, 'UIT-10: no proposal was prepared to go back from.');
+    assert(proposalId !== null, 'no proposal was prepared to go back from.');
     await page.click('#close-proposal');
     await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'Back to leave the review', 6000);
     await page.waitForTimeout(300);
     const held = await request('proposal.get', { proposalId });
-    assert(held === null || held?.proposalId !== proposalId, `UIT-10: after Back the host still holds ${proposalId}, which nothing in Studio reaches.`);
+    assert(held === null || held?.proposalId !== proposalId, `after Back the host still holds ${proposalId}, which nothing in Studio reaches.`);
     const said = await message();
-    assert(said.includes('discarded'), `UIT-10: Back says nothing about the proposal it left (message slot: ${JSON.stringify(said)}).`);
+    assert(said.includes('discarded'), `Back says nothing about the proposal it left (message slot: ${JSON.stringify(said)}).`);
   });
 
-  // UIT-10 with the review's Escape: leaving by Escape rejects nothing, and the trail's Back returns to the review.
-  await check('UIT-10 Escape leaves the proposal waiting', 'idea', async () => {
+  // The review's Escape: leaving by Escape rejects nothing, and the trail's Back returns to the review.
+  await check('Escape leaves the proposal waiting', 'idea', async () => {
     await prepareField('Escape test');
     const proposalId = await page.evaluate(() => import('/src/app-state.ts').then(module => module.state.proposal?.proposalId ?? null));
     await page.evaluate(() => document.querySelector('.proposal-changes h3')?.setAttribute('tabindex', '-1'));
@@ -1822,15 +1822,15 @@ async page => {
     await until(() => document.querySelector('[data-testid="proposal-review"]') === null, null, 'Escape to leave the review', 6000);
     await page.waitForTimeout(300);
     const held = await request('proposal.get', { proposalId });
-    assert(held?.proposalId === proposalId, `UIT-10: Escape rejected ${proposalId}; a stray key cost the person the proposal.`);
+    assert(held?.proposalId === proposalId, `Escape rejected ${proposalId}; a stray key cost the person the proposal.`);
     await page.keyboard.press('Alt+ArrowLeft');
     await until(() => document.querySelector('[data-testid="proposal-review"]') !== null, null, 'the trail’s Back to reopen the review', 6000);
     const label = await page.evaluate(() => document.querySelector('#close-proposal')?.textContent);
-    assert(label === 'Discard', `UIT-10: the button that rejects the proposal reads "${label}".`);
+    assert(label === 'Discard', `the button that rejects the proposal reads "${label}".`);
   });
 
-  // W-062 with UIT-02: a screen the Add view form made is accepted onto Use, where the outcome says it is open.
-  await check('W-062 Add view lands on Use', 'idea', async () => {
+  // A screen the Add view form made is accepted onto Use, where the outcome says it is open.
+  await check('Add view lands on Use', 'idea', async () => {
     await page.click('#nav-surfaces');
     await until(() => document.querySelector('[data-view-add]') !== null, null, 'the Custom views panel', 6000);
     await page.click('[data-view-add]');
@@ -1843,12 +1843,12 @@ async page => {
     await page.waitForTimeout(300);
     const view = await appView();
     const said = await message();
-    assert(view === 'use' && said.includes('open now'), `W-062: accepting an added screen landed on ${view}, saying ${JSON.stringify(said)}.`);
+    assert(view === 'use' && said.includes('open now'), `accepting an added screen landed on ${view}, saying ${JSON.stringify(said)}.`);
   });
 
-  // W-229 (from the W-230 review): an Add view preview the host refuses keeps the form, which the
+  // An Add view preview the host refuses keeps the form, which the
   // person corrects and previews again; the form was cleared before the answer and did nothing.
-  await check('W-229 refused Add view previews again', 'idea', async () => {
+  await check('refused Add view previews again', 'idea', async () => {
     await page.click('#nav-surfaces');
     await until(() => document.querySelector('[data-view-add]') !== null, null, 'the Custom views panel', 6000);
     await page.click('[data-view-add]');
@@ -1869,42 +1869,42 @@ async page => {
     await page.locator('#add-view-title').fill('Refused once');
     await page.click('#add-view-form button[type="submit"]');
     await until(() => (document.querySelector('.message-slot:not([hidden])')?.textContent ?? '').includes('The probe refused this view.'), null, 'the refusal', 6000);
-    assert(await appView() !== 'proposal', 'W-229: a refused Add view opened a review; the check measures nothing.');
+    assert(await appView() !== 'proposal', 'a refused Add view opened a review; the check measures nothing.');
     await page.locator('#add-view-title').fill('Corrected');
     await page.click('#add-view-form button[type="submit"]');
     try {
       await until(() => document.querySelector('#accept-proposal') !== null, null, 'the corrected Add view proposal', 6000);
     } catch {
-      throw Error(`W-229: after a refused preview the Add view form did nothing; the page is ${await appView()}, saying ${JSON.stringify(await message())}.`);
+      throw Error(`after a refused preview the Add view form did nothing; the page is ${await appView()}, saying ${JSON.stringify(await message())}.`);
     }
   });
 
-  // UIT-03: a custom view whose package the file lacks does not read Healthy on Surfaces.
-  await check('UIT-03 Surfaces names a missing package', 'idea', async () => {
+  // A custom view whose package the file lacks does not read Healthy on Surfaces.
+  await check('Surfaces names a missing package', 'idea', async () => {
     await page.click('#nav-surfaces');
     await until(() => document.querySelector('.surface-card') !== null, null, 'Surfaces', 6000);
     const links = await page.evaluate(() => {
       const card = [...document.querySelectorAll('.surface-card')].find(candidate => candidate.querySelector('h3')?.textContent === 'Links');
       return card ? { chip: card.querySelector('.health-chip')?.textContent.trim(), note: card.querySelector('.surface-warning')?.textContent ?? null } : null;
     });
-    assert(links !== null, 'UIT-03: the preview file has no Links card to measure.');
-    assert(links.chip !== 'Healthy' && links.chip === 'Missing package' && links.note !== null, `UIT-03: the Links view, whose package the file lacks, reads ${JSON.stringify(links)}.`);
+    assert(links !== null, 'the preview file has no Links card to measure.');
+    assert(links.chip !== 'Healthy' && links.chip === 'Missing package' && links.note !== null, `the Links view, whose package the file lacks, reads ${JSON.stringify(links)}.`);
   });
 
-  // UIT-11: a Help topic's location line has no separator hanging after it.
-  await check('UIT-11 Help location has no slash', 'idea', async () => {
+  // A Help topic's location line has no separator hanging after it.
+  await check('Help location has no slash', 'idea', async () => {
     await page.click('#nav-help');
     await until(() => document.querySelector('.help-article h2') !== null, null, 'Help', 6000);
     const line = await page.evaluate(() => {
       const element = document.querySelector('.help-article > p:first-child');
       return element ? { text: element.textContent, after: getComputedStyle(element, '::after').content } : null;
     });
-    assert(line !== null, 'UIT-11: the Help article has no location line to measure.');
-    assert(line.after === 'none' || line.after === 'normal', `UIT-11: the Help location line "${line.text}" ends in ${line.after}, a separator with nothing after it.`);
+    assert(line !== null, 'the Help article has no location line to measure.');
+    assert(line.after === 'none' || line.after === 'normal', `the Help location line "${line.text}" ends in ${line.after}, a separator with nothing after it.`);
   });
 
-  // UIT-12: Show as Markdown is drawn as an action, the colour of Make required beside it.
-  await check('UIT-12 Show as Markdown is an action', 'idea', async () => {
+  // Show as Markdown is drawn as an action, the colour of Make required beside it.
+  await check('Show as Markdown is an action', 'idea', async () => {
     await page.click('#nav-structure');
     await until(() => document.querySelector('[data-presentation-field]') !== null, null, 'a Show as Markdown action', 6000);
     const colours = await page.evaluate(() => {
@@ -1914,12 +1914,12 @@ async page => {
       const style = getComputedStyle(button);
       return { markdown: style.color, required: getComputedStyle(required).color, align: getComputedStyle(button.parentElement).justifyItems };
     });
-    assert(colours.markdown === colours.required, `UIT-12: Show as Markdown is ${colours.markdown}, its row's Make required ${colours.required}.`);
+    assert(colours.markdown === colours.required, `Show as Markdown is ${colours.markdown}, its row's Make required ${colours.required}.`);
   }, 1024, 768);
 
-  // W-232: Structure offers Label by… on a bound reference, lists the target's other active text
+  // Structure offers Label by… on a bound reference, lists the target's other active text
   // fields, and the proposal it sends is one schema.setReferenceLabel naming the chosen field.
-  await check('W-232 Label by proposes the label', 'tree', async () => {
+  await check('Label by proposes the label', 'tree', async () => {
     const button = '[data-reference-label="field.capability.parent"]';
     await page.click('#nav-structure');
     await until((selector) => document.querySelector(selector) !== null, button, 'Label by… on Part of', 6000);
@@ -1927,8 +1927,8 @@ async page => {
       const element = document.querySelector(selector);
       return { disabled: element.disabled, text: element.textContent, target: element.parentElement.querySelector('.reference-target')?.textContent ?? '' };
     }, button);
-    assert(!offered.disabled && offered.text === 'Label by…', `W-232: Part of offers ${JSON.stringify(offered.text)}${offered.disabled ? ', disabled' : ''}, not Label by….`);
-    assert(offered.target === 'Capability by Name', `W-232: Part of says ${JSON.stringify(offered.target)}, not which record type and field it shows.`);
+    assert(!offered.disabled && offered.text === 'Label by…', `Part of offers ${JSON.stringify(offered.text)}${offered.disabled ? ', disabled' : ''}, not Label by….`);
+    assert(offered.target === 'Capability by Name', `Part of says ${JSON.stringify(offered.target)}, not which record type and field it shows.`);
     await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');
       const request = client.request.bind(client);
@@ -1942,22 +1942,22 @@ async page => {
     await until(() => document.querySelector('#reference-label-form select') !== null, null, 'the Label by form', 6000);
     const options = await page.evaluate(() => [...document.querySelectorAll('#reference-label-form option')].map(option => option.value));
     assert(!options.includes('field.capability.name') && options.includes('field.capability.code') && !options.includes('field.capability.order'),
-      `W-232: Label by lists ${JSON.stringify(options)}: the current label or a field that is not text is offered, or a text field is missing.`);
+      `Label by lists ${JSON.stringify(options)}: the current label or a field that is not text is offered, or a text field is missing.`);
     await page.selectOption('#reference-label-form select', 'field.capability.code');
     await page.click('#reference-label-form button[type="submit"]');
     await until(() => document.querySelector('#accept-proposal') !== null, null, 'the label proposal', 6000);
     const sent = await page.evaluate(() => window.__sentProposals);
     const revision = await page.evaluate(() => import('/src/app-state.ts').then(module => module.state.session.manifest?.definitionRevision ?? null));
     const operations = sent.flatMap(proposal => proposal.mutations.flatMap(mutation => mutation.operations));
-    assert(operations.length === 1, `W-232: Label by sent ${operations.length} operations: ${JSON.stringify(operations)}.`);
+    assert(operations.length === 1, `Label by sent ${operations.length} operations: ${JSON.stringify(operations)}.`);
     const [operation] = operations;
     const expected = { entityId: 'entity.capability', fieldId: 'field.capability.parent', labelFieldId: 'field.capability.code', expectedDefinitionRevision: revision };
     assert(operation.operationType === 'schema.setReferenceLabel' && JSON.stringify(operation.payload) === JSON.stringify(expected),
-      `W-232: Label by proposed ${operation.operationType} ${JSON.stringify(operation.payload)}, not schema.setReferenceLabel ${JSON.stringify(expected)}.`);
+      `Label by proposed ${operation.operationType} ${JSON.stringify(operation.payload)}, not schema.setReferenceLabel ${JSON.stringify(expected)}.`);
   });
 
-  // W-232: Label by… is disabled, saying why, when the target has no other active text field.
-  await check('W-232 Label by disabled without another text field', 'tree', async () => {
+  // Label by… is disabled, saying why, when the target has no other active text field.
+  await check('Label by disabled without another text field', 'tree', async () => {
     const button = '[data-reference-label="field.capability.parent"]';
     await page.click('#nav-structure');
     await until((selector) => document.querySelector(selector) !== null, button, 'Label by… on Part of', 6000);
@@ -1974,14 +1974,14 @@ async page => {
       const element = document.querySelector(selector);
       return element === null ? null : { disabled: element.disabled, title: element.getAttribute('title') ?? '' };
     }, button);
-    assert(offered !== null, 'W-232: Part of lost its Label by… when the other fields retired.');
-    assert(offered.disabled, 'W-232: Label by… is offered on Part of though Capability has no other active text field to show it by.');
+    assert(offered !== null, 'Part of lost its Label by… when the other fields retired.');
+    assert(offered.disabled, 'Label by… is offered on Part of though Capability has no other active text field to show it by.');
     assert(offered.title === 'Capability has no other active text field to show its records by.',
-      `W-232: a disabled Label by… says ${JSON.stringify(offered.title)}, not why.`);
+      `a disabled Label by… says ${JSON.stringify(offered.title)}, not why.`);
   });
 
-  // UIT-13: the Make required form's action bar stays inside its card.
-  await check('UIT-13 Make required bar inside the card', 'idea', async () => {
+  // The Make required form's action bar stays inside its card.
+  await check('Make required bar inside the card', 'idea', async () => {
     await page.click('#nav-structure');
     await until(() => document.querySelector('[data-require-field]:not(:disabled)') !== null, null, 'Make required', 6000);
     await page.click('[data-require-field]:not(:disabled)');
@@ -1993,11 +1993,11 @@ async page => {
       return { card: [Math.round(card.left), Math.round(card.right)], bar: [Math.round(bar.left), Math.round(bar.right)], inset: Math.round(card.right - button.right) };
     });
     assert(fit.bar[0] >= fit.card[0] - 0.5 && fit.bar[1] <= fit.card[1] + 0.5 && fit.inset >= 8,
-      `UIT-13: the action bar spans ${fit.bar} across a card of ${fit.card}, and Preview sits ${fit.inset}px from the card's edge.`);
+      `the action bar spans ${fit.bar} across a card of ${fit.card}, and Preview sits ${fit.inset}px from the card's edge.`);
   }, 1024, 768);
 
-  // UIT-14: opening Add view… brings its form into view before focusing its first field.
-  await check('UIT-14 Add view form in view', 'idea', async () => {
+  // Opening Add view… brings its form into view before focusing its first field.
+  await check('Add view form in view', 'idea', async () => {
     await page.click('#nav-surfaces');
     await until(() => document.querySelector('[data-view-add]') !== null, null, 'the Custom views panel', 6000);
     await page.focus('[data-view-add]');
@@ -2010,11 +2010,11 @@ async page => {
       return { field: [Math.round(box.top), Math.round(box.bottom)], pane: [Math.round(pane.top), Math.round(pane.bottom)] };
     });
     assert(where.field[0] >= where.pane[0] - 0.5 && where.field[1] <= where.pane[1] + 0.5,
-      `UIT-14: at 800x700 focus is on the Add view title at ${where.field}, outside the pane's visible ${where.pane}.`);
+      `at 800x700 focus is on the Add view title at ${where.field}, outside the pane's visible ${where.pane}.`);
   }, 800, 700);
 
-  // UIT-17: the File menu shows Close file without scrolling at 1440x900.
-  await check('UIT-17 File menu shows Close file', 'idea', async () => {
+  // The File menu shows Close file without scrolling at 1440x900.
+  await check('File menu shows Close file', 'idea', async () => {
     await page.click('#file-menu > summary');
     await page.waitForTimeout(300);
     const menu = await page.evaluate(() => {
@@ -2024,13 +2024,13 @@ async page => {
       const box = panel.getBoundingClientRect();
       return { last: last.textContent.trim().slice(0, 30), lastBottom: Math.round(last.getBoundingClientRect().bottom), panelBottom: Math.round(box.bottom), scroll: panel.scrollHeight, client: panel.clientHeight };
     });
-    assert(menu.scroll <= menu.client + 1 && menu.lastBottom <= menu.panelBottom, `UIT-17: at 1440x900 the File menu's last item "${menu.last}" ends at ${menu.lastBottom} below the panel's ${menu.panelBottom} (${menu.scroll}px of content in ${menu.client}).`);
+    assert(menu.scroll <= menu.client + 1 && menu.lastBottom <= menu.panelBottom, `at 1440x900 the File menu's last item "${menu.last}" ends at ${menu.lastBottom} below the panel's ${menu.panelBottom} (${menu.scroll}px of content in ${menu.client}).`);
   }, 1440, 900);
 
-  // UIT-19: a calculated field is listed under Structure's Calculated group, and the field it reads
+  // A calculated field is listed under Structure's Calculated group, and the field it reads
   // says why it cannot be retired. The preview file carries no calculation, so one is added to the
   // page's own session first.
-  await check('UIT-19 Structure lists calculated fields', 'idea', async () => {
+  await check('Structure lists calculated fields', 'idea', async () => {
     await page.click('#nav-structure');
     await until(() => document.querySelector('.definition-card .field-row:not(.field-row-head)') !== null, null, 'Structure', 6000);
     const read = await page.evaluate(async () => {
@@ -2052,13 +2052,13 @@ async page => {
         right: row ? Math.round(row.getBoundingClientRect().right) : null, card: Math.round(card.right), scroll: row ? row.scrollWidth > row.clientWidth + 1 : null,
         retireDisabled: retire?.disabled ?? null, readBy: retire?.closest('.field-identity')?.querySelector('.field-read-by')?.textContent ?? null };
     }, read);
-    assert(seen.group && seen.formula !== null, `UIT-19: Structure leaves out the record type's calculated field: ${JSON.stringify(seen)}.`);
-    assert(seen.count.includes('1 calculated'), `UIT-19: the heading counts "${seen.count}", not the calculated field apart.`);
-    assert(seen.right <= seen.card + 0.5 && seen.scroll === false, `UIT-19: the calculated row ends at ${seen.right}, past its card's ${seen.card}, or scrolls sideways.`);
-    assert(seen.retireDisabled === true && seen.readBy?.includes('Effort per day reads this field'), `UIT-19: the field the calculation reads still offers Retire, or does not say why not: ${JSON.stringify(seen)}.`);
+    assert(seen.group && seen.formula !== null, `Structure leaves out the record type's calculated field: ${JSON.stringify(seen)}.`);
+    assert(seen.count.includes('1 calculated'), `the heading counts "${seen.count}", not the calculated field apart.`);
+    assert(seen.right <= seen.card + 0.5 && seen.scroll === false, `the calculated row ends at ${seen.right}, past its card's ${seen.card}, or scrolls sideways.`);
+    assert(seen.retireDisabled === true && seen.readBy?.includes('Effort per day reads this field'), `the field the calculation reads still offers Retire, or does not say why not: ${JSON.stringify(seen)}.`);
   }, 900, 800);
 
-  // W-224. The broad review's Workbench state findings that a person meets on screen.
+  // Workbench state rules that a person meets on screen.
   const pretendPending = (extra = {}) => page.evaluate(async (extra) => {
     const { client } = await import('/src/client.ts');
     window.__w224 = { discarded: 0 };
@@ -2068,32 +2068,32 @@ async page => {
     (await import('/src/shell.ts')).rerender();
   }, extra);
 
-  // WCS-14 and WCS-22: an unconfirmed save is said in the status bar, which is on every screen, and
+  // An unconfirmed save is said in the status bar, which is on every screen, and
   // a save the person stopped that did not land can be discarded from its notice.
-  await check('WCS-14 WCS-22 unconfirmed save pill and discard', 'decision', async () => {
+  await check('unconfirmed save pill and discard', 'decision', async () => {
     await pretendPending({ discardable: true });
     const pill = await page.evaluate(() => { const element = document.querySelector('#session-health'); return { text: element.textContent.trim(), hidden: element.hidden, shown: element.getClientRects().length > 0 }; });
-    assert(pill.text.includes('Save unconfirmed') && !pill.hidden && pill.shown, `WCS-14: the status pill for an unconfirmed save is ${JSON.stringify(pill)}; it should say so where it is seen.`);
+    assert(pill.text.includes('Save unconfirmed') && !pill.hidden && pill.shown, `the status pill for an unconfirmed save is ${JSON.stringify(pill)}; it should say so where it is seen.`);
     // A chrome refresh without a render, as a view declaring its place makes, keeps it.
     const refreshed = await page.evaluate(async () => { (await import('/src/shell.ts')).refreshChrome(); const element = document.querySelector('#session-health'); return { text: element.textContent.trim(), shown: !element.hidden && element.getClientRects().length > 0 }; });
-    assert(refreshed.shown && refreshed.text.includes('Save unconfirmed'), `WCS-14: after a chrome refresh the status pill is ${JSON.stringify(refreshed)}.`);
+    assert(refreshed.shown && refreshed.text.includes('Save unconfirmed'), `after a chrome refresh the status pill is ${JSON.stringify(refreshed)}.`);
     const notice = await page.evaluate(() => ({ text: document.querySelector('#pending-save-notice')?.textContent ?? '', discard: document.querySelector('#discard-pending-save')?.disabled ?? null }));
-    assert(notice.discard === false, `WCS-22: a stopped save offers no enabled Discard this unsent change: ${JSON.stringify(notice)}.`);
-    assert(/Decisions\.nendo/.test(notice.text), `WCS-03: the notice does not name the file the save was made in: ${notice.text}`);
+    assert(notice.discard === false, `a stopped save offers no enabled Discard this unsent change: ${JSON.stringify(notice)}.`);
+    assert(/Decisions\.nendo/.test(notice.text), `the notice does not name the file the save was made in: ${notice.text}`);
     await page.click('#discard-pending-save');
     await until(() => document.querySelector('#pending-save-notice') === null, null, 'the notice to go once discarded');
     const after = await page.evaluate(() => ({ discarded: window.__w224.discarded, said: document.querySelector('.message-slot:not([hidden])')?.textContent ?? '' }));
-    assert(after.discarded === 1 && /discarded/i.test(after.said), `WCS-22: discarding left ${JSON.stringify(after)}.`);
+    assert(after.discarded === 1 && /discarded/i.test(after.said), `discarding left ${JSON.stringify(after)}.`);
   });
 
-  // WCS-20: Revoke edit access stays pressable while a save is unconfirmed or in flight; it is how a
+  // Revoke edit access stays pressable while a save is unconfirmed or in flight; it is how a
   // person ends the agent write their save is queued behind.
-  await check('WCS-20 Revoke edit access while a save waits', 'idea', async () => {
+  await check('Revoke edit access while a save waits', 'idea', async () => {
     await agentPage('activity');
     await page.evaluate(async () => { const { state } = await import('/src/app-state.ts'); state.agentStatus = { ...state.agentStatus, editingOwner: 'Agent' }; });
     await pretendPending();
     const swept = await page.evaluate(() => document.querySelector('#revoke-agent')?.disabled ?? null);
-    assert(swept === false, `WCS-20: with a save unconfirmed, Revoke edit access is ${swept === null ? 'missing' : 'disabled'}.`);
+    assert(swept === false, `with a save unconfirmed, Revoke edit access is ${swept === null ? 'missing' : 'disabled'}.`);
     // While a save is in flight it is pressable, and pressing it reaches the host.
     const pressed = await page.evaluate(async () => {
       const shell = await import('/src/shell.ts');
@@ -2112,12 +2112,12 @@ async page => {
       client.request = request;
       return { disabled, sent };
     });
-    assert(pressed.disabled === false, 'WCS-20: while a save is in flight, Revoke edit access is disabled.');
-    assert(pressed.sent.includes('agent.revokeEditing'), `WCS-20: Revoke edit access pressed during a save sent nothing to the host: ${JSON.stringify(pressed.sent)}.`);
+    assert(pressed.disabled === false, 'while a save is in flight, Revoke edit access is disabled.');
+    assert(pressed.sent.includes('agent.revokeEditing'), `Revoke edit access pressed during a save sent nothing to the host: ${JSON.stringify(pressed.sent)}.`);
   });
 
-  // WCS-15: the palette lists no record hits for text that has since changed, and Enter runs none.
-  await check('WCS-15 palette drops hits for earlier text', 'decision', async () => {
+  // The palette lists no record hits for text that has since changed, and Enter runs none.
+  await check('palette drops hits for earlier text', 'decision', async () => {
     const word = await page.evaluate(() => (document.querySelector('.record-row > button')?.textContent ?? '').trim().split(/\s+/)[0].toLowerCase());
     assert(word.length >= 3, `no record title to search for (${JSON.stringify(word)}); the check measures nothing`);
     await page.keyboard.press('Control+k');
@@ -2129,13 +2129,13 @@ async page => {
     await page.keyboard.press('Enter');
     await page.waitForTimeout(300);
     const after = await page.evaluate(async () => ({ open: document.querySelector('#command-palette')?.open === true, record: (await import('/src/app-state.ts')).state.selectedRecordId }));
-    assert(stale === 0, `WCS-15: ${stale} record hit(s) for "${word}" stayed listed after the text changed.`);
-    assert(after.open && after.record === null, `WCS-15: Enter on the changed text ran a hit for the earlier text: ${JSON.stringify(after)}.`);
+    assert(stale === 0, `${stale} record hit(s) for "${word}" stayed listed after the text changed.`);
+    assert(after.open && after.record === null, `Enter on the changed text ran a hit for the earlier text: ${JSON.stringify(after)}.`);
     await page.keyboard.press('Escape');
   });
 
-  // WCS-17: Ctrl+click on a route with unsaved typing makes no tab; the route says why it stays.
-  await check('WCS-17 Ctrl+click with unsaved typing', 'decision', async () => {
+  // Ctrl+click on a route with unsaved typing makes no tab; the route says why it stays.
+  await check('Ctrl+click with unsaved typing', 'decision', async () => {
     await openRecord();
     const [typed] = await textInputs();
     assert(typed, 'the record has no text field; the check measures nothing');
@@ -2144,12 +2144,12 @@ async page => {
     await page.click('#nav-history', { modifiers: ['Control'] });
     await page.waitForTimeout(400);
     const after = await page.evaluate(() => document.querySelectorAll('#tab-strip .tab').length);
-    assert(after === before, `WCS-17: a refused Ctrl+click left ${after} tabs where there were ${before}.`);
-    assert(/Save or discard/.test(await message()), `WCS-17: the refusal was not said: ${await message()}`);
+    assert(after === before, `a refused Ctrl+click left ${after} tabs where there were ${before}.`);
+    assert(/Save or discard/.test(await message()), `the refusal was not said: ${await message()}`);
   }, 1440, 900);
 
-  // WCS-06: a window key pressed while a Data cell is being edited saves the cell before it moves.
-  await check('WCS-06 window key saves the open cell', 'idea', async () => {
+  // A window key pressed while a Data cell is being edited saves the cell before it moves.
+  await check('window key saves the open cell', 'idea', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
     const target = await page.evaluate(() => [...document.querySelectorAll('.ag-row[row-index="0"] .ag-cell[col-id]')]
@@ -2164,16 +2164,16 @@ async page => {
     await page.keyboard.press('Control+1');
     await until(() => document.querySelector('#nav-use')?.classList.contains('is-selected') === true, null, 'Use after Ctrl 1', 6000);
     await page.click('#nav-data');
-    // The lazy grid (W-233) draws a row's cells before their values: an empty cell is one not
+    // The lazy grid draws a row's cells before their values: an empty cell is one not
     // filled yet, which failed this check one run in three (2026-10-16), not one that lost text.
     await until(selector => (document.querySelector(selector)?.textContent ?? '').trim() !== '', cell, 'the Data grid again, filled', 8000)
       .catch(() => {});
     const text = (await page.locator(cell).textContent()).trim();
-    assert(text.endsWith('w224'), `WCS-06: after Ctrl 1 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
+    assert(text.endsWith('w224'), `after Ctrl 1 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
   }, 1440, 900);
 
-  // WCS-24: Restart query outlasts a redraw, and goes once a read at a later change replaced the results.
-  await check('WCS-24 Restart query survives a redraw', 'decision', async () => {
+  // Restart query outlasts a redraw, and goes once a read at a later change replaced the results.
+  await check('Restart query survives a redraw', 'decision', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
     const kept = await page.evaluate(async () => {
@@ -2183,18 +2183,18 @@ async page => {
       (await import('/src/shell.ts')).rerender();
       return document.querySelector('.message-slot:not([hidden]) #outcome-action')?.textContent ?? null;
     });
-    assert(kept === 'Restart query', `WCS-24: after a redraw the earlier-query notice offers ${JSON.stringify(kept)}, not Restart query.`);
+    assert(kept === 'Restart query', `after a redraw the earlier-query notice offers ${JSON.stringify(kept)}, not Restart query.`);
     const later = await page.evaluate(async () => {
       const { state } = await import('/src/app-state.ts');
       state.session = { ...state.session, manifest: { ...state.session.manifest, changeSequence: state.session.manifest.changeSequence + 1 } };
       (await import('/src/shell.ts')).rerender();
       return document.querySelector('.message-slot:not([hidden])')?.textContent ?? '';
     });
-    assert(!/earlier query/.test(later), `WCS-24: a redraw at a later change still says the results are from the earlier query: ${later}`);
+    assert(!/earlier query/.test(later), `a redraw at a later change still says the results are from the earlier query: ${later}`);
   });
 
-  // WST-01: a Help article keeps its place across a redraw, and reading it holds the automatic redraws.
-  await check('WST-01 Help article keeps its place', 'idea', async () => {
+  // A Help article keeps its place across a redraw, and reading it holds the automatic redraws.
+  await check('Help article keeps its place', 'idea', async () => {
     await page.click('#nav-help');
     await until(() => document.querySelector('.help-article h2') !== null, null, 'Help', 6000);
     const topic = await page.evaluate(() => {
@@ -2211,13 +2211,13 @@ async page => {
     await page.evaluate(() => { document.querySelector('.help-article').scrollTop = 300; });
     await page.waitForTimeout(100);
     const held = await shell(() => import('/src/shell.ts').then(module => module.interactionInProgress()));
-    assert(held === true, 'WST-01: scrolling a Help article is not seen as reading, so an automatic redraw goes ahead under it.');
+    assert(held === true, 'scrolling a Help article is not seen as reading, so an automatic redraw goes ahead under it.');
     const top = await page.evaluate(async () => { (await import('/src/shell.ts')).rerender(); return document.querySelector('.help-article').scrollTop; });
-    assert(Math.abs(top - 300) <= 2, `WST-01: a redraw moved the Help article from 300 px to ${top} px.`);
+    assert(Math.abs(top - 300) <= 2, `a redraw moved the Help article from 300 px to ${top} px.`);
   }, 1200, 700);
 
-  // WCS-08: F5 and Ctrl R are Refresh view, not a reload; with unsaved typing they refuse and keep it.
-  await check('WCS-08 F5 is Refresh view', 'decision', async () => {
+  // F5 and Ctrl R are Refresh view, not a reload; with unsaved typing they refuse and keep it.
+  await check('F5 is Refresh view', 'decision', async () => {
     await page.evaluate(() => { window.__w224Marker = true; window.__w224Keys = []; window.addEventListener('keydown', event => { if (event.key === 'F5' || event.key === 'r') window.__w224Keys.push(event.defaultPrevented); }); });
     await openRecord();
     const [typed] = await textInputs();
@@ -2228,13 +2228,13 @@ async page => {
     await page.keyboard.press('Control+r');
     await page.waitForTimeout(300);
     const after = await page.evaluate(name => ({ marker: window.__w224Marker === true, keys: window.__w224Keys, value: document.querySelector(`#record-form input[name="${name}"]`)?.value ?? null }), typed);
-    assert(after.marker && after.keys.length === 2 && after.keys.every(Boolean), `WCS-08: F5 or Ctrl R was left to the browser, which reloads the window: ${JSON.stringify(after)}.`);
-    assert(after.value === 'Kept through F5', `WCS-08: the typing did not survive F5: ${JSON.stringify(after.value)}.`);
-    assert(/refreshing the view/.test(await message()), `WCS-08: F5 with unsaved typing said ${JSON.stringify(await message())}.`);
+    assert(after.marker && after.keys.length === 2 && after.keys.every(Boolean), `F5 or Ctrl R was left to the browser, which reloads the window: ${JSON.stringify(after)}.`);
+    assert(after.value === 'Kept through F5', `the typing did not survive F5: ${JSON.stringify(after.value)}.`);
+    assert(/refreshing the view/.test(await message()), `F5 with unsaved typing said ${JSON.stringify(await message())}.`);
   });
 
-  // WCS-08 with WCS-06: F5 while a Data cell is being edited saves the cell before the refresh redraws.
-  await check('WCS-08 F5 saves the open cell', 'idea', async () => {
+  // F5 while a Data cell is being edited saves the cell before the refresh redraws.
+  await check('F5 saves the open cell', 'idea', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
     const target = await page.evaluate(() => [...document.querySelectorAll('.ag-row[row-index="0"] .ag-cell[col-id]')]
@@ -2250,10 +2250,10 @@ async page => {
     await page.waitForTimeout(1500);
     await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null && document.querySelector('.ag-cell input, .ag-cell textarea') === null, null, 'the grid after the refresh', 6000);
     const text = (await page.locator(cell).textContent()).trim();
-    assert(text.endsWith('f5'), `WCS-08: after F5 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
+    assert(text.endsWith('f5'), `after F5 from an open cell, the cell reads ${JSON.stringify(text)}; the typing was not saved.`);
   }, 1440, 900);
 
-  // WCS-16: a navigation place, Help and Agent pressed while an action runs are made when it ends.
+  // A navigation place, Help and Agent pressed while an action runs are made when it ends.
   const pressDuringAction = (selector) => page.evaluate(async (selector) => {
     const { state } = await import('/src/app-state.ts');
     const shell = await import('/src/shell.ts');
@@ -2266,28 +2266,28 @@ async page => {
     return during;
   }, selector);
   for (const [name, selector, view] of [['a navigation place', '.nav-place:not(.is-selected)', null], ['Help', '#nav-help', 'help'], ['Agent', '#nav-agent', 'agent']]) {
-    await check(`WCS-16 ${name} pressed during an action`, 'idea', async () => {
+    await check(`${name} pressed during an action`, 'idea', async () => {
       await page.click('#nav-data');
       await until(() => document.querySelector('.ag-row[row-index="0"] .ag-cell') !== null, null, 'the Data grid', 8000);
       assert(await page.evaluate(selector => document.querySelector(selector) !== null, selector), `no ${name} to press; the check measures nothing`);
       const during = await pressDuringAction(selector);
-      assert(during === 'data', `WCS-16: ${name} moved while an action ran (${during}).`);
+      assert(during === 'data', `${name} moved while an action ran (${during}).`);
       await page.waitForTimeout(800);
       const after = await page.evaluate(async () => (await import('/src/app-state.ts')).state.view);
-      assert(view === null ? after === 'use' : after === view, `WCS-16: ${name} pressed during an action was dropped; the view is ${after}.`);
+      assert(view === null ? after === 'use' : after === view, `${name} pressed during an action was dropped; the view is ${after}.`);
     });
   }
 
-  // WCS-03: a save made under another file name offers both ways out, and editing is not locked for good.
-  await check('WCS-03 save made in another file', 'decision', async () => {
+  // A save made under another file name offers both ways out, and editing is not locked for good.
+  await check('save made in another file', 'decision', async () => {
     await pretendPending({ fileName: 'Decisions (original).nendo', madeElsewhere: true });
     const offered = await page.evaluate(() => ({ send: document.querySelector('#send-pending-here')?.disabled ?? null, discard: document.querySelector('#discard-pending-save')?.disabled ?? null,
       retry: document.querySelector('#retry-pending-save') !== null, text: document.querySelector('#pending-save-notice')?.textContent ?? '' }));
-    assert(offered.send === false && offered.discard === false, `WCS-03: a save made in another file offers no way out: ${JSON.stringify(offered)}.`);
-    assert(!offered.retry, 'WCS-03: the notice still offers Check or retry, which refuses in a file of another name.');
+    assert(offered.send === false && offered.discard === false, `a save made in another file offers no way out: ${JSON.stringify(offered)}.`);
+    assert(!offered.retry, 'the notice still offers Check or retry, which refuses in a file of another name.');
   });
 
-  // --- W-230: Studio flows and proposal review (FIXES.md WSP-01 to WSP-25) ----------------------
+  // --- Studio flows and proposal review ----------------------
 
   // A write through the page's own write path, so the session and its reads follow it.
   const studioWrite = (method, payload) => page.evaluate(async ([method, payload]) => {
@@ -2297,28 +2297,28 @@ async page => {
   const ideaRecords = () => page.evaluate(() => import('/src/app-state.ts').then(({ state }) =>
     state.session.records.filter(record => record.entityId === 'entity.idea').map(record => ({ recordId: record.recordId, recordVersion: record.recordVersion }))));
 
-  // WSP-02: Make required on a choice field starts each record on a placeholder, and an untouched preview is refused.
-  await check('WSP-02 Make required asks for every choice', 'idea', async () => {
+  // Make required on a choice field starts each record on a placeholder, and an untouched preview is refused.
+  await check('Make required asks for every choice', 'idea', async () => {
     const [first] = await ideaRecords();
-    assert(first !== undefined, 'WSP-02: the preview file has no record to empty.');
+    assert(first !== undefined, 'the preview file has no record to empty.');
     assert(await studioWrite('data.setField', { entityId: 'entity.idea', recordId: first.recordId, fieldId: 'field.idea.energy', expectedRecordVersion: first.recordVersion, value: null }) === 'saved',
-      'WSP-02: emptying a record’s Energy did not save.');
+      'emptying a record’s Energy did not save.');
     await page.click('#nav-structure');
     await until(() => document.querySelector('[data-require-field="field.idea.energy"]:not(:disabled)') !== null, null, 'Make Energy required', 6000);
     await page.click('[data-require-field="field.idea.energy"]');
     await until(() => document.querySelector('#preview-requirement') !== null, null, 'the Make required form', 6000);
     const selects = await page.evaluate(() => [...document.querySelectorAll('.backfill-record select')].map(select => ({ value: select.value, disabled: select.selectedOptions[0]?.disabled ?? null })));
-    assert(selects.length > 0, 'WSP-02: the Make required form lists no record to fill; the check measures nothing.');
-    assert(selects.every(select => select.value === '' && select.disabled === true), `WSP-02: the form starts each record on a choice nobody made: ${JSON.stringify(selects)}.`);
+    assert(selects.length > 0, 'the Make required form lists no record to fill; the check measures nothing.');
+    assert(selects.every(select => select.value === '' && select.disabled === true), `the form starts each record on a choice nobody made: ${JSON.stringify(selects)}.`);
     await page.click('#preview-requirement');
     await page.waitForTimeout(400);
     const view = await appView();
     const said = await message();
-    assert(view !== 'proposal' && said.includes('Fill every missing value before previewing.'), `WSP-02: an untouched form previewed (${view}, ${JSON.stringify(said)}).`);
+    assert(view !== 'proposal' && said.includes('Fill every missing value before previewing.'), `an untouched form previewed (${view}, ${JSON.stringify(said)}).`);
   });
 
-  // WSP-01: a search typed into a record's picker and abandoned does not count as clearing that record.
-  await check('WSP-01 abandoned search maps nothing', 'idea', async () => {
+  // A search typed into a record's picker and abandoned does not count as clearing that record.
+  await check('abandoned search maps nothing', 'idea', async () => {
     await page.click('#nav-structure');
     await until(() => document.querySelector('#add-field')?.disabled === false, null, 'Structure', 6000);
     await page.evaluate(async () => {
@@ -2345,33 +2345,33 @@ async page => {
     const view = await appView();
     const said = await message();
     assert(view !== 'proposal' && said.includes('Choose a target or explicitly clear every record before previewing.'),
-      `WSP-01: a record whose search was typed and abandoned was converted as cleared (${view}, ${JSON.stringify(said)}).`);
+      `a record whose search was typed and abandoned was converted as cleared (${view}, ${JSON.stringify(said)}).`);
   });
 
-  // WSP-16: View changes stays open across a redraw, and opens though the file moved since History was read.
-  await check('WSP-16 View changes survives a redraw', 'idea', async () => {
+  // View changes stays open across a redraw, and opens though the file moved since History was read.
+  await check('View changes survives a redraw', 'idea', async () => {
     const records = (await ideaRecords()).slice(0, 2);
     for (const [index, record] of records.entries())
       assert(await studioWrite('data.setField', { entityId: 'entity.idea', recordId: record.recordId, fieldId: 'field.idea.nextAction', expectedRecordVersion: record.recordVersion, value: `Step ${index}` }) === 'saved',
-        'WSP-16: a seed edit did not save.');
+        'a seed edit did not save.');
     await page.click('#nav-history');
     await until(() => document.querySelectorAll('[data-history-detail]').length > 1, null, 'two History entries', 6000);
     await page.click('[data-history-detail] >> nth=0');
     await until(() => document.querySelector('[data-operation-detail] .operation-details') !== null, null, 'the first entry’s changes', 6000);
     await page.evaluate(() => import('/src/shell.ts').then(shell => shell.rerender()));
     const kept = await page.evaluate(() => document.querySelectorAll('[data-operation-detail] .operation-details').length);
-    assert(kept === 1, `WSP-16: a redraw closed the changes the person opened (${kept} open).`);
+    assert(kept === 1, `a redraw closed the changes the person opened (${kept} open).`);
     // The file moved and the page has not caught up: the revision's operations are the same.
     await page.evaluate(() => import('/src/app-state.ts').then(({ state }) => { state.session.manifest.changeSequence -= 1; }));
     await page.click('[data-history-detail] >> nth=1');
     await page.waitForTimeout(500);
     const opened = await page.evaluate(() => document.querySelectorAll('[data-operation-detail] .operation-details').length);
     const said = await message();
-    assert(opened === 2 && !said.includes('The file changed'), `WSP-16: View changes was refused while the file moved (${opened} open, ${JSON.stringify(said)}).`);
+    assert(opened === 2 && !said.includes('The file changed'), `View changes was refused while the file moved (${opened} open, ${JSON.stringify(said)}).`);
   });
 
-  // WSP-18: a header rename the host refuses puts the header back, and says why.
-  await check('WSP-18 refused header rename puts the header back', 'idea', async () => {
+  // A header rename the host refuses puts the header back, and says why.
+  await check('refused header rename puts the header back', 'idea', async () => {
     await page.click('#nav-data');
     await until(() => document.querySelector('.studio-header-rename') !== null, null, 'a column header with Rename', 8000);
     await page.evaluate(async () => {
@@ -2391,10 +2391,10 @@ async page => {
       client.request = window.__w230Request;
       return { box: document.querySelector('.studio-header-input') !== null, said: document.querySelector('.message-slot:not([hidden])')?.textContent ?? '' };
     });
-    assert(!after.box && after.said.includes('The host did not answer.'), `WSP-18: after a refused rename the header is ${after.box ? 'still a box Escape no longer puts back' : 'back'}, saying ${JSON.stringify(after.said)}.`);
+    assert(!after.box && after.said.includes('The host did not answer.'), `after a refused rename the header is ${after.box ? 'still a box Escape no longer puts back' : 'back'}, saying ${JSON.stringify(after.said)}.`);
   });
 
-  // W-229: custom views that run. The preview host serves no view origin, so the page is told it
+  // Custom views that run. The preview host serves no view origin, so the page is told it
   // is Nendo Desktop and the Board glance package's origin is answered here with a small view of
   // our own that speaks the port protocol directly: a real cross-origin frame, connected by the
   // page's own broker, whose requests and pings the checks drive.
@@ -2451,9 +2451,9 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     return viewFrame('.studio-content');
   };
 
-  // WXS-04: the switch that turns views off, pressed while a view's own move of the page runs, is
+  // The switch that turns views off, pressed while a view's own move of the page runs, is
   // made when the move ends; it was dropped.
-  await check('WXS-04 view switch during a view’s move', 'idea', async () => {
+  await check('view switch during a view’s move', 'idea', async () => {
     const run = await page.evaluate(async () => {
       const { state } = await import('/src/app-state.ts');
       const { openScreenFromView } = await import('/src/extension-ui.ts');
@@ -2468,13 +2468,13 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       for (let wait = 0; wait < 60 && state.session.extensions?.run !== false; wait += 1) await new Promise(resolve => setTimeout(resolve, 50));
       return { busy, run: state.session.extensions?.run ?? null };
     });
-    assert(run.busy, 'WXS-04: the view’s move held no action, so the check measures nothing.');
-    assert(run.run === false, `WXS-04: turning views off while a view’s move ran was dropped; views still run (${JSON.stringify(run)}).`);
+    assert(run.busy, 'the view’s move held no action, so the check measures nothing.');
+    assert(run.run === false, `turning views off while a view’s move ran was dropped; views still run (${JSON.stringify(run)}).`);
   });
 
-  // WXS-04 again: the move ends in failure, which says an alert before the held press is made; an
+  // The view switch again: the move ends in failure, which says an alert before the held press is made; an
   // ordinary held move is dropped then, and the switch was one.
-  await check('WXS-04 view switch during a view’s failing move', 'idea', async () => {
+  await check('view switch during a view’s failing move', 'idea', async () => {
     const run = await page.evaluate(async () => {
       const { state } = await import('/src/app-state.ts');
       const { openRecordFromView } = await import('/src/extension-ui.ts');
@@ -2490,13 +2490,13 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       for (let wait = 0; wait < 60 && state.session.extensions?.run !== false; wait += 1) await new Promise(resolve => setTimeout(resolve, 50));
       return { busy, opened: opened.opened, alert, run: state.session.extensions?.run ?? null };
     });
-    assert(run.busy && run.opened === false && run.alert === 'alert', `WXS-04: the view’s move did not fail with an alert while it held the action, so the check measures nothing (${JSON.stringify(run)}).`);
-    assert(run.run === false, `WXS-04: turning views off during a view’s failing move was dropped; views still run (${JSON.stringify(run)}).`);
+    assert(run.busy && run.opened === false && run.alert === 'alert', `the view’s move did not fail with an alert while it held the action, so the check measures nothing (${JSON.stringify(run)}).`);
+    assert(run.run === false, `turning views off during a view’s failing move was dropped; views still run (${JSON.stringify(run)}).`);
   });
 
-  // WXS-17: views come on while the page is held by unsaved typing; the panel's frame starts in a
+  // Views come on while the page is held by unsaved typing; the panel's frame starts in a
   // stage that no longer holds the 'Custom views are off' notice.
-  await check('WXS-17 off notice gone when views come on held', 'idea', async () => {
+  await check('off notice gone when views come on held', 'idea', async () => {
     await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');
       const { state } = await import('/src/app-state.ts');
@@ -2519,19 +2519,19 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       const stage = document.querySelector('.record-inspector [data-view-mount] [data-view-stage]');
       return { held, notice: stage?.querySelector('[data-view-notice]')?.textContent ?? null, isNotice: stage?.classList.contains('is-notice') ?? null };
     });
-    assert(after.held, 'WXS-17: the page was not held, so the check measures nothing.');
+    assert(after.held, 'the page was not held, so the check measures nothing.');
     await until(() => document.querySelector('.record-inspector [data-view-mount] [data-view-stage] iframe.view-frame') !== null, null, 'the panel’s frame to start', 6000);
     const started = await page.evaluate(() => {
       const stage = document.querySelector('.record-inspector [data-view-mount] [data-view-stage]');
       return { notice: stage?.querySelector('[data-view-notice]')?.textContent ?? null, isNotice: stage?.classList.contains('is-notice') ?? null };
     });
     assert(after.notice === null && after.isNotice === false && started.notice === null && started.isNotice === false,
-      `WXS-17: the panel started its view beside the stale notice: ${JSON.stringify({ after, started })}.`);
+      `the panel started its view beside the stale notice: ${JSON.stringify({ after, started })}.`);
   });
 
-  // WXS-06: a view that asks to open a record on its own, while the person types in a record
+  // A view that asks to open a record on its own, while the person types in a record
   // form, is refused without taking the person's focus.
-  await check('WXS-06 a view’s move keeps the person’s field', 'idea', async () => {
+  await check('a view’s move keeps the person’s field', 'idea', async () => {
     await runViews();
     await rerenderPage();
     await openRecord();
@@ -2543,16 +2543,16 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     const target = await frame.evaluate(() => ({ entityId: window.__context.entityId, recordId: window.__context.recordId }));
     const answer = await frame.evaluate(target => window.__ask('ui.openRecord', target), target);
     const after = await focus();
-    assert(answer?.ok === false && answer.e.code === 'not-allowed', `WXS-06: the view’s open over unsaved typing was answered ${JSON.stringify(answer)}.`);
-    assert(after === before, `WXS-06: the refusal moved focus from ${before} to ${after}.`);
+    assert(answer?.ok === false && answer.e.code === 'not-allowed', `the view’s open over unsaved typing was answered ${JSON.stringify(answer)}.`);
+    assert(after === before, `the refusal moved focus from ${before} to ${after}.`);
   });
 
-  // WXS-07: a view held while the person reviews its own proposal neither draws a menu over the
+  // A view held while the person reviews its own proposal neither draws a menu over the
   // review nor moves the person out of it.
-  await check('WXS-07 a parked view stays out of the review', 'idea', async () => {
+  await check('a parked view stays out of the review', 'idea', async () => {
     await runViews();
     const frame = await glanceScreen();
-    // A command Nendo just sent the view lets a menu answer it without the frame's focus (WXS-08).
+    // A command Nendo just sent the view lets a menu answer it without the frame's focus.
     // The view declares Add first; a redraw that lands between the two can take the declaration
     // with it, so it is declared again, at most three times, before the check gives up.
     let added = false;
@@ -2562,9 +2562,9 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       declared = await frame.evaluate(() => window.__ask('ui.setToolbar', { items: [], add: 'probe-add' }));
       added = declared?.ok === true && await page.evaluate(async () => { const command = (await import('/src/view-frames.ts')).viewAddCommand(); command?.(); return command !== null; });
     }
-    assert(added, `WXS-07: the probe view’s Add was not taken, so the check measures nothing (toolbar answer ${JSON.stringify(declared)}).`);
+    assert(added, `the probe view’s Add was not taken, so the check measures nothing (toolbar answer ${JSON.stringify(declared)}).`);
     const prepared = await frame.evaluate(() => window.__ask('proposals.prepare', { title: 'Probe look', operations: [{ operationType: 'application.setLook', payload: { tone: null, letter: 'Q' } }] }));
-    assert(prepared?.ok === true && prepared.r.opened === true, `WXS-07: the probe view’s proposal did not open: ${JSON.stringify(prepared)}.`);
+    assert(prepared?.ok === true && prepared.r.opened === true, `the probe view’s proposal did not open: ${JSON.stringify(prepared)}.`);
     await until(() => document.querySelector('[data-testid="proposal-review"]') !== null, null, 'the review of the view’s proposal');
     const menuId = await frame.evaluate(() => window.__send('ui.showMenu', { items: [{ id: 'probe', label: 'Probe item' }], x: 4, y: 4 }));
     // Settled when the view hears its answer, or when a menu is drawn, which waits for the person.
@@ -2582,17 +2582,17 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       return window.__answers[id] ?? null;
     });
     const view = await page.evaluate(async () => (await import('/src/app-state.ts')).state.view);
-    assert(!menu && menuAnswer?.ok === true && menuAnswer.r === null, `WXS-07: a parked view drew its menu over the review (menu ${menu}, answer ${JSON.stringify(menuAnswer)}).`);
-    assert(moved?.ok === false && moved.e.code === 'not-allowed' && view === 'proposal', `WXS-07: a parked view’s move was answered ${JSON.stringify(moved)} and the page is ${view}.`);
+    assert(!menu && menuAnswer?.ok === true && menuAnswer.r === null, `a parked view drew its menu over the review (menu ${menu}, answer ${JSON.stringify(menuAnswer)}).`);
+    assert(moved?.ok === false && moved.e.code === 'not-allowed' && view === 'proposal', `a parked view’s move was answered ${JSON.stringify(moved)} and the page is ${view}.`);
   });
 
-  // WXS-05: a view that hangs while it has focus hands the keyboard to the overlay's Stop.
-  await check('WXS-05 a hung view’s overlay takes focus', 'idea', async () => {
+  // A view that hangs while it has focus hands the keyboard to the overlay's Stop.
+  await check('a hung view’s overlay takes focus', 'idea', async () => {
     await runViews();
     const frame = await glanceScreen();
     await page.evaluate(() => document.querySelector('.studio-content iframe.view-frame').focus());
     const before = await focus();
-    assert(before.startsWith('iframe'), `WXS-05: the view’s frame did not take focus (${before}), so the check measures nothing.`);
+    assert(before.startsWith('iframe'), `the view’s frame did not take focus (${before}), so the check measures nothing.`);
     const hungAt = Date.now();
     await frame.evaluate(() => { window.__hang = true; });
     try {
@@ -2602,14 +2602,14 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       throw Error(`${error.message} After ${Date.now() - hungAt} ms the view reads ${JSON.stringify(seen)}.`);
     }
     const after = await page.evaluate(() => document.activeElement?.hasAttribute('data-view-stop') ?? false);
-    assert(after, `WXS-05: the not-responding overlay left focus on ${await focus()}, where no key reaches Stop.`);
+    assert(after, `the not-responding overlay left focus on ${await focus()}, where no key reaches Stop.`);
   });
 
-  // WST-10: a window in dark mode is dark before the bundle has run. Last, since it changes the colour scheme.
-  // W-001: a picture dropped on About this file landed on the dialog's padding, outside the
+  // A window in dark mode is dark before the bundle has run. Last, since it changes the colour scheme.
+  // A picture dropped on About this file landed on the dialog's padding, outside the
   // narrow zone that listened, and nothing happened. The whole dialog takes it now, and accepts
   // the drag on dragenter as the drag-and-drop model asks of a target.
-  await check('W-001 About this file takes a picture dropped anywhere on it', 'idea', async () => {
+  await check('About this file takes a picture dropped anywhere on it', 'idea', async () => {
     const outcome = await page.evaluate(async () => {
       const { client } = await import('/src/client.ts');
       window.__iconEmbeds = [];
@@ -2631,7 +2631,7 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
       return { enter: fire('dragenter'), over: fire('dragover'), drop: fire('drop') };
     });
     assert(outcome.enter && outcome.over && outcome.drop,
-      `W-001: About this file let a file drag on its own padding fall through: ${JSON.stringify(outcome)}.`);
+      `About this file let a file drag on its own padding fall through: ${JSON.stringify(outcome)}.`);
     await until(() => window.__iconEmbeds.length === 1, null, 'the dropped picture sent to the host', 5000);
     const sent = await page.evaluate(() => {
       const bytes = Uint8Array.from(atob(window.__iconEmbeds[0].base64), character => character.charCodeAt(0));
@@ -2640,10 +2640,10 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
         review: document.querySelector('[data-look-review]').disabled };
     });
     assert(sent.width === 256 && sent.height === 256 && sent.name === 'wide.png' && sent.review === false,
-      `W-001: the dropped picture did not become a 256-pixel square ready to review: ${JSON.stringify(sent)}.`);
+      `the dropped picture did not become a 256-pixel square ready to review: ${JSON.stringify(sent)}.`);
   });
 
-  await check('WST-10 dark window paints dark first', 'decision', async () => {
+  await check('dark window paints dark first', 'decision', async () => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.evaluate(() => { try { localStorage.removeItem('nendo.appearance'); } catch { /* none kept */ } });
     await page.addInitScript(() => {
@@ -2655,7 +2655,7 @@ window.__ask = (m, p, wait = 3000) => new Promise((resolve) => {
     await open('decision');
     const first = await page.evaluate(() => window.__w224FirstTheme ?? null);
     await page.emulateMedia({ colorScheme: null });
-    assert(first !== null && first.theme === 'dark', `WST-10: in dark mode the page's first frame is themed ${JSON.stringify(first)}, before the module had run.`);
+    assert(first !== null && first.theme === 'dark', `in dark mode the page's first frame is themed ${JSON.stringify(first)}, before the module had run.`);
   });
 
   assert(checks.length + failures.length > 0, 'No browser checks matched the requested filter.');

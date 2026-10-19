@@ -99,7 +99,7 @@
 }
 
 /* A field's row needs about 650px. The card decides, not the window: beside the 280px rail a
-   window of 841-985px left the card narrower than its rows (CSS-13). Below that the row is two
+   window of 841-985px left the card narrower than its rows. Below that the row is two
    columns, and the column heads go. */
 .field-list {
   display: grid;
@@ -510,7 +510,7 @@
 .surface-picker-options button[aria-pressed="true"] { background: var(--cobalt-soft); color: var(--cobalt); }
 .use-toolbar > .toolbar-group { flex-wrap: wrap; }
 
-/* Filter on a list, board or matrix (W-172): one select per choice or reference field. */
+/* Filter on a list, board or matrix: one select per choice or reference field. */
 .quick-filter { position: relative; }
 .quick-filter summary { list-style: none; display: inline-flex; align-items: center; cursor: pointer; }
 .quick-filter summary::-webkit-details-marker { display: none; }
@@ -610,7 +610,7 @@
   border-bottom: 0;
 }
 
-/* A file is a block of its own, and a disclosure that starts folded (W-098): its summary
+/* A file is a block of its own, and a disclosure that starts folded: its summary
    row says the name, the change, the sizes and the line counts; its lines open below. */
 .proposal-changes .package-change {
   display: block;
@@ -683,7 +683,7 @@
   white-space: pre;
 }
 
-/* A direction control or invisible character, drawn as its code point (WMX-01). */
+/* A direction control or invisible character, drawn as its code point. */
 .hidden-char {
   padding: 0 2px;
   border: 1px solid var(--warning);

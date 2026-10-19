@@ -5,7 +5,7 @@ namespace Nendo.Desktop;
 
 /// <summary>
 /// A package of one file that this device runs from a folder while somebody develops it
-/// (ADR-0013 Phase 4). Device preference like the switches: never in the file, so a copy of
+/// (ADR-0013). Device preference like the switches: never in the file, so a copy of
 /// the file, or the file on another device, runs the reviewed package it carries.
 /// </summary>
 internal sealed record DesktopDevelopmentLink(string ApplicationId, string PackageId, string Folder);
@@ -14,7 +14,7 @@ internal sealed record DesktopDevelopmentLink(string ApplicationId, string Packa
 /// This device's switches for custom views: whether any run at all, and which files' views are
 /// off. Device preference, never application data, so a file cannot turn its own views back on
 /// and a received file cannot turn off anyone else's. Both default to on: a view that is shown runs.
-/// It also holds the development links (ADR-0013 Phase 4), for the same reason.
+/// It also holds the development links (ADR-0013), for the same reason.
 /// </summary>
 internal sealed class DesktopExtensionSettingsStore : IDisposable
 {

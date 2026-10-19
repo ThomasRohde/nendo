@@ -149,7 +149,7 @@ export async function loadRankedMaxima(nodes: SurfaceNodePlan[]): Promise<void> 
 }
 
 /**
- * The one crossed read behind a matrix (ADR-0004, 2026-09-17 amendment, S6).
+ * The one crossed read behind a matrix (ADR-0004).
  *
  * A grid costs one read whatever its size, which is the whole reason a cell can state an
  * exact number over everything the surface covers while the cards inside it are the
@@ -229,7 +229,7 @@ export async function loadRanges(scoped: ScopedTile[]): Promise<void> {
     await mapBounded(ranges, summaryReadConcurrency, async (range) => {
       try {
         // Both ends from one revision, or neither: a low from before a write and a high from
-        // after it can draw a range that is inverted or never existed (R-009).
+        // after it can draw a range that is inverted or never existed.
         const pair = await sameRevision(aggregate(range.reads.min), aggregate(range.reads.max));
         if (!current()) return;
         if (pair === null) { summaryCounts.delete(range.minKey); summaryCounts.delete(range.maxKey); return; }
@@ -254,7 +254,7 @@ export async function loadRanges(scoped: ScopedTile[]): Promise<void> {
 export const sameRevisionAttempts = 3;
 
 /**
- * Two reads that are drawn as one answer, both from the same revision of the file (R-009).
+ * Two reads that are drawn as one answer, both from the same revision of the file.
  *
  * Each read answers with the change sequence it was read at, and a write can commit between
  * the two: a ring once divided a count of 10 read before a write by a total of 1 read after
@@ -366,7 +366,7 @@ export async function drillInto(plan: ApplicationPlan, scoped: ScopedChart, grou
   const field = plan.entity.fields.find((candidate) => candidate.semanticId === groupByFieldId);
   const bucket = scoped.node.kind === 'activityGrid' ? 'day'
     : typeof scoped.node.properties.bucket === 'string' ? scoped.node.properties.bucket : 'month';
-  // The range the bars were read under, so an edge bucket drills into the days it counted (ESQ-08).
+  // The range the bars were read under, so an edge bucket drills into the days it counted.
   const known = chartStates.get(chartKey(scoped.node, scoped.scope));
   const range = known?.state === 'ready' && known.bucketed !== undefined ? known.bucketed : null;
   const filters: DrillFilter[] = group === null
@@ -375,7 +375,7 @@ export async function drillInto(plan: ApplicationPlan, scoped: ScopedChart, grou
       ? bucketDrillFilters(scoped.node, bucket, group.key, range)
       : [drillFilter(scoped.node, field, group.key)].filter((filter): filter is DrillFilter => filter !== null);
   if (filters.length === 0) return;
-  // A reference's group is named by the record it points at, which only the read knows (W-249).
+  // A reference's group is named by the record it points at, which only the read knows.
   const named = known?.state === 'ready' ? known.grouped?.groups.find((candidate) => candidate.key === (group?.key ?? null))?.label : undefined;
   drills.set(plan.entity.semanticId, { listId: list.semanticId, label: drillLabel(scoped.node, field, group?.key ?? null, names, range, named), filters });
   await reopenDrilledList(plan, list);

@@ -17,7 +17,7 @@ public sealed class DesktopAgentSettingsTests
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
 
         Assert.IsFalse(store.LeaseExpiry);
-        // The suite lets the system pick its ports (TST-04); without that the port is kept.
+        // The suite lets the system pick its ports; without that the port is kept.
         Assert.IsFalse(DesktopRuntimeConfiguration.ResolveAgentPortsBySystem(_ => null));
         Assert.AreEqual(!DesktopRuntimeConfiguration.AgentPortsBySystem, store.FixedPort);
         Assert.AreEqual(NendoLocalMcpHostOptions.StandardPort, store.Port);
@@ -120,7 +120,7 @@ public sealed class DesktopAgentSettingsTests
     }
 
     /// <summary>
-    /// R2SP-02. The settings are the device's and every file is a window of its own. Each window
+    /// The settings are the device's and every file is a window of its own. Each window
     /// read them once, so a lease expiry chosen in one never reached a listener another window
     /// started later, nor what that window's Agent page showed.
     /// </summary>
@@ -147,7 +147,7 @@ public sealed class DesktopAgentSettingsTests
     }
 
     /// <summary>
-    /// R2SP-02, after review. A read that fails says nothing about the device's settings: the
+    /// A read that fails says nothing about the device's settings: the
     /// window keeps what it last read rather than falling back to the defaults, which would turn
     /// a chosen lease expiry off and move the port.
     /// </summary>
@@ -172,7 +172,7 @@ public sealed class DesktopAgentSettingsTests
     }
 
     /// <summary>
-    /// R2SP-02. Reading the device's settings again keeps a choice this window could not save:
+    /// Reading the device's settings again keeps a choice this window could not save:
     /// it is still this session's, and the rest follows the device.
     /// </summary>
     [TestMethod]

@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-148: one proposal in full by ID, without a lease, with live state; an accept result
+/// One proposal in full by ID, without a lease, with live state; an accept result
 /// lists the revisions it committed.
 /// </summary>
 [TestClass]
@@ -61,8 +61,8 @@ public sealed class ProposalDetailResourceTests
             await ProtocolResourceTests.ReadTextAsync(reader, $"nendo://application/proposal/{second.ProposalId}"));
         Assert.AreEqual(NendoProposalState.Stale, stale.State);
 
-        // The accepted one reads active, with the title and diff it validated with (F-261):
-        // until 2026-10-04 it was NENDO_PROPOSAL_NOT_FOUND, against the contract's promise.
+        // The accepted one reads active, with the title and diff it validated with,
+        // as the contract promises, not NENDO_PROPOSAL_NOT_FOUND.
         var active = ProtocolResourceTests.Deserialize<NendoAgentProposalPreview>(
             await ProtocolResourceTests.ReadTextAsync(reader, $"nendo://application/proposal/{first.ProposalId}"));
         Assert.AreEqual(NendoProposalState.Active, active.State);

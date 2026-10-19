@@ -18,13 +18,13 @@ internal static class DesktopRecoveryPresentation
     /// Whether Inspect file again is offered: a file is open and is not healthy. A healthy file
     /// that only waits for its automatic actions to be approved has editing off too, and offering
     /// the action there closed it, ended agent access and reopened it read-only, where the
-    /// approval could no longer be given (R2SMA-06).
+    /// approval could no longer be given.
     /// </summary>
     internal static bool CanReinspect(DesktopSessionView view) => view.FileName is not null && view.Health != "normal";
 
     /// <summary>
     /// Whether Restore and Upgrade are offered. A file marked read-only in File Explorer is
-    /// inspected, exported and backed up, never replaced (R2SMA-10, owner 2026-10-13).
+    /// inspected, exported and backed up, never replaced.
     /// </summary>
     internal static bool CanReplace(DesktopSessionView view) =>
         view.Capabilities.Backup && !view.Findings.Any(finding => finding.Code == "file-read-only");
@@ -32,7 +32,7 @@ internal static class DesktopRecoveryPresentation
     /// <summary>
     /// What a native file action, or the open a launch asked for, says when it fails: the
     /// refusal's own words where it has them. A launch's open said one fixed sentence whatever
-    /// had refused it, so a file in a synced folder never said so (DSH-01).
+    /// had refused it, so a file in a synced folder never said so.
     /// </summary>
     internal static string FailureMessage(Exception exception) => exception switch
     {

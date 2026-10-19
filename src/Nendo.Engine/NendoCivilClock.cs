@@ -2,7 +2,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// The person's civil day as the Engine reads it: a command step's today and a chart range's
-/// end (R2LAT-06).
+/// end.
 /// <para>
 /// .NET keeps the machine's time zone for the life of the process unless told to forget it,
 /// while the Workbench's clock follows Windows at once. Nendo stays open in the tray, so after

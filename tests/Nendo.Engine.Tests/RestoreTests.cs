@@ -272,7 +272,7 @@ public sealed class RestoreTests
         var plan = await source.PrepareRestoreAsync(backup, "restore");
         byte[]? racingBytes = null;
         // The one moment the session holds no handle on the file: its own are closed for the
-        // exclusive rename handle, which is taken before any recovery record exists (W-221 review).
+        // exclusive rename handle, which is taken before any recovery record exists.
         // A change there is refused with nothing moved and no record to review.
         source.RestoreCheckpoint = value =>
         {

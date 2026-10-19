@@ -3,8 +3,8 @@ import type { FieldPlan, SurfaceNodePlan } from './host-types';
 import { clauseFilters, type QueryFilter } from './record-window';
 
 /**
- * A person narrowing a list, board or matrix by one value of one field (W-172, ADR-0004
- * 2026-10-05). Nothing here is declared or stored: the fields come from the schema, and the
+ * A person narrowing a list, board or matrix by one value of one field
+ * (ADR-0004). Nothing here is declared or stored: the fields come from the schema, and the
  * pick is renderer state for the file session, one per screen.
  */
 export interface QuickFilter {
@@ -54,7 +54,7 @@ export function quickFilterClause(filter: QuickFilter): QueryFilter {
 /**
  * What a select's option carries: the empty value for Any, `none` for Not set, and `v:` before
  * a stored value. Every stored value is prefixed, so no choice ID or record ID, whatever it
- * spells, can be read as Any or Not set (review R-012).
+ * spells, can be read as Any or Not set.
  */
 export const notSetValue = 'none';
 export const optionValue = (value: string): string => `v:${value}`;

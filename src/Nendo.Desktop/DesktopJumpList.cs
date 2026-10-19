@@ -190,7 +190,7 @@ internal static class DesktopJumpList
     }
 
     /// <summary>
-    /// The icon a row shows: the file's own, as this device last drew it (W-001), or the document
+    /// The icon a row shows: the file's own, as this device last drew it, or the document
     /// icon for a file it never drew. A row the person pinned keeps the icon it had when pinned:
     /// the shell owns the Pinned category.
     /// </summary>

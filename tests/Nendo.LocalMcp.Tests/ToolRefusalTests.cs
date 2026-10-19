@@ -7,7 +7,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-083. Measured on 2026-09-27 against the installed host: a missing required argument
+/// Measured on 2026-09-27 against the installed host: a missing required argument
 /// was answered "An error occurred invoking 'nendo.data.set_field'." and nothing else; an
 /// unknown key was refused without its name, and an unknown key inside a record was dropped
 /// without a word; a tool served one level up was "Unknown tool", so the level codes Help
@@ -53,14 +53,14 @@ public sealed class ToolRefusalTests
 
         var cases = new (string Tool, Dictionary<string, object?> Arguments, string[] Sentences)[]
         {
-            // F-171: a missing required argument had no sentence and no code.
+            // A missing required argument had no sentence and no code.
             ("nendo.data.set_field", Owned([.. SetField(1).Where(pair => pair.Item1 != "idempotencyKey")]),
                 ["NENDO_INVALID_REQUEST: nendo.data.set_field was not called.", "It requires idempotencyKey."]),
-            // F-172: an unknown key named neither itself nor what is accepted.
+            // An unknown key named neither itself nor what is accepted.
             ("nendo.data.set_field", Owned([.. SetField(1), ("expectedRecordVerison", 1)]),
                 ["It does not take 'expectedRecordVerison'; it takes applicationHandle, leaseId, entityId, recordId, " +
                  "fieldId, expectedRecordVersion, value and idempotencyKey, and optionally expectedTargetRecordVersion."]),
-            // F-172: an unknown key inside a record was dropped, and the write went ahead without it.
+            // An unknown key inside a record was dropped, and the write went ahead without it.
             ("nendo.data.create_records", Owned(("entityId", entity), ("idempotencyKey", "nested-record"), ("records", new object[]
                 {
                     new Dictionary<string, object?> { ["recordId"] = "idea-new", ["values"] = new { }, ["expectedTargetVersionz"] = new { } },

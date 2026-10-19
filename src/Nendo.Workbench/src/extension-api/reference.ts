@@ -1,5 +1,5 @@
 /**
- * The view API as an agent reads it before it writes a custom view's code (W-094). The api
+ * The view API as an agent reads it before it writes a custom view's code. The api
  * build writes it beside api.js as dist/_nendo/view-api.json, and the local MCP serves that
  * file at nendo://application/view-api, to be read only by an agent writing a view.
  *

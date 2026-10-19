@@ -5,9 +5,9 @@ import { overflowMenu, viewToolbarMarkup } from './view-toolbar-markup';
 import type { CommandValue, MenuItem, ToolbarItem, ToolbarMenu, ViewToolbar } from './view-toolbar-model';
 
 /**
- * A custom view's toolbar on the page (ADR-0013, 2026-09-28; W-090): drawn from what the view
+ * A custom view's toolbar on the page (ADR-0013): drawn from what the view
  * declared, in the Workbench's own markup, and wired so that a press becomes the view's
- * `command`. On a screen it shares the Use toolbar's row with Nendo's Add (W-092), or where a
+ * `command`. On a screen it shares the Use toolbar's row with Nendo's Add, or where a
  * page has no such row it is a strip above the frame; on a record page it sits in the panel's
  * header, beside the view's title. Like the Development strip it is outside the frame,
  * so the view cannot reach it, and it is drawn again on every redraw from the mount's copy.
@@ -46,7 +46,7 @@ function counterpart(scope: ParentNode, element: Element): HTMLElement | null {
   return scope.querySelector<HTMLElement>(selector);
 }
 
-/** The Use toolbar's place for a screen's controls, beside Add (W-092), when the page has one. */
+/** The Use toolbar's place for a screen's controls, beside Add, when the page has one. */
 function rowSlot(placeholder: HTMLElement): HTMLElement | null {
   return placeholder.closest('.use-page')?.querySelector<HTMLElement>(':scope > .use-toolbar > [data-view-toolbar-slot]') ?? null;
 }
@@ -72,7 +72,7 @@ function slot(placeholder: HTMLElement, placement: ToolbarHost['placement']): { 
  * away when the view declares none.
  */
 export function drawViewToolbar(placeholder: HTMLElement, host: ToolbarHost): void {
-  // A view of the file has no record type to add to: Nendo's Add is there only for the view's own (W-106).
+  // A view of the file has no record type to add to: Nendo's Add is there only for the view's own.
   const fileViewAdd = host.placement === 'screen' ? placeholder.closest('.use-page')?.querySelector<HTMLButtonElement>('[data-file-view-add]') : null;
   if (fileViewAdd !== null && fileViewAdd !== undefined) fileViewAdd.hidden = (host.toolbar?.add ?? null) === null;
   const scope = stripScope(placeholder, host.placement);
@@ -117,7 +117,7 @@ export function drawViewToolbar(placeholder: HTMLElement, host: ToolbarHost): vo
 }
 
 /**
- * The Use toolbar's row keeps to one line beside Add (W-115): when the view's controls do not
+ * The Use toolbar's row keeps to one line beside Add: when the view's controls do not
  * fit, the last ones go into More, from the end, and come back as the row widens. The search box
  * stays. The owner saw a full row wrap to three lines with Add pushed off the window's edge.
  */

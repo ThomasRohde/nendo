@@ -7,7 +7,7 @@ const bundle = await build({ configFile: false, logLevel: 'error',
   build: { ssr: 'src/file-look.ts', write: false, rollupOptions: { output: { codeSplitting: false } } } });
 const look = await import('data:text/javascript;base64,' + Buffer.from(bundle.output.find(item => item.type === 'chunk').code).toString('base64'));
 
-// W-089. The About page shows a file's icon, the badge the taskbar, the notification area and
+// The About page shows a file's icon, the badge the taskbar, the notification area and
 // every notification carry, and lets the person choose its colour and letter by proposal.
 const byDefault = { tone: 'amber', letter: 'N', toneChosen: false, letterChosen: false, defaultTone: 'amber', defaultLetter: 'N' };
 const chosen = { tone: 'violet', letter: 'P', toneChosen: true, letterChosen: true, defaultTone: 'amber', defaultLetter: 'N' };
@@ -73,7 +73,7 @@ test('every class the look markup emits has a rule, and every tone has a colour 
   }
 });
 
-// W-001. A file may carry its own picture, drawn instead of the badge wherever the look is.
+// A file may carry its own picture, drawn instead of the badge wherever the look is.
 const sha = 'ab'.repeat(32);
 const withPicture = { ...chosen, icon: `media:${sha}` };
 const origin = 'https://media-0123456789abcdef.example';

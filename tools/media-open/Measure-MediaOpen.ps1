@@ -1,4 +1,4 @@
-# Measures a cold open with and without 2 GiB of embedded pictures (W-264, ADR-0031 point 7).
+# Measures a cold open with and without 2 GiB of embedded pictures (ADR-0031 point 7).
 # Builds the two fixtures under artifacts/media-open/ unless they exist, then runs each file and
 # mode on a fresh unbuffered copy (robocopy /J), alternating, and prints the medians. Run it from
 # the repository root through the PowerShell tool, with nothing else building.

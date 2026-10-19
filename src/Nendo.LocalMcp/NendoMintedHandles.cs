@@ -6,7 +6,7 @@ namespace Nendo.LocalMcp;
 /// <summary>
 /// The application handles this process's hosts have granted, so a surface that draws an
 /// agent's own text can hide a handle by its value wherever it appears: in prose, a table or on
-/// its own, not only after a key it recognises (DAE-05). A handle is a capability (ADR-0009);
+/// its own, not only after a key it recognises. A handle is a capability (ADR-0009);
 /// whoever reads it may write as the agent.
 /// </summary>
 public static class NendoMintedHandles

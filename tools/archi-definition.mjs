@@ -1,6 +1,6 @@
 // The shape of Archi.nendo: the ArchiMate 3.2 metamodel as record types, its screens, and the
 // records every Archi file starts with. tools/Build-Archi.mjs sends them; this file only says
-// what they are. docs/design/archi-in-nendo.md gives the reason for each choice (W-100, W-107).
+// what they are. docs/design/archi-in-nendo.md gives the reason for each choice.
 //
 // A change set carries at most 128 operations and a mutation 16, so the record types arrive in
 // two stages: the model, then the diagrams, which reference it. A field a record needs is added
@@ -285,7 +285,7 @@ export const STAGES = {
     mutations: () => inMutations('Screens for concepts, views and folders', screenOperations().first),
   },
 
-  // W-117: how far the validator's checks reach without code. Unused elements and relationships
+  // How far the validator's checks reach without code. Unused elements and relationships
   // and empty views are counts of diagram objects, which a calculation keeps and a list shows; a
   // screen cannot filter on a calculated field (NUI214), so "unused" is a column to sort by eye,
   // and the validator in the workbench lists them. The other five checks need ArchiMate's tables.
@@ -333,7 +333,7 @@ export const STAGES = {
     ]),
   },
 
-  // F-222: a list filters on a calculated field (host 1.40.0), so the validator's unused
+  // A list filters on a calculated field (host 1.40.0), so the validator's unused
   // concepts and empty views are screens of their own, readable without the workbench. Placed
   // after every other root; siblings on one position read in order of node ID.
   unused: {
@@ -358,7 +358,7 @@ export const STAGES = {
     ]),
   },
 
-  // What a new Archi model keeps (ADR-0022, W-130): ArchiMate's concept types are the
+  // What a new Archi model keeps (ADR-0022): ArchiMate's concept types are the
   // application's, so a new file keeps them; the nine top-level folders are marked one by one
   // when they are seeded. Everything else is a model's work and is left out, the Model record
   // too: the workbench starts an empty one in a file that has none.
@@ -372,7 +372,7 @@ export const STAGES = {
     ]),
   },
 
-  // W-120: Archi keeps a folder's elements, relationships and views in the order its file holds
+  // Archi keeps a folder's elements, relationships and views in the order its file holds
   // them, and archi-online's semantics compare that order. Folders had one; concepts and views get
   // theirs, so a model opened and saved again keeps it.
   order: {
@@ -385,7 +385,7 @@ export const STAGES = {
     ]),
   },
 
-  // W-105 (ADR-0026): ArchiMate's relationship table as records, so the file refuses an invalid
+  // ArchiMate's relationship table as records (ADR-0026), so the file refuses an invalid
   // relationship on every path, not only in the view. The rows are seeded after the stages, and
   // the rule that reads them is declared once they are there (LINK_RULE_STAGE).
   rules: {
@@ -556,14 +556,14 @@ export const NEW_FILE_LABEL = 'Archi model';
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';
 
-/** The workbench's screen: a view of the file (W-106), which the file opens on. */
+/** The workbench's screen: a view of the file, which the file opens on. */
 export const WORKBENCH_SCREEN = 'ar.screen.workbench';
 
 /**
- * The Archi workbench as a screen of the file itself (W-106): listed beside the record types, and
- * the screen Archi.nendo opens on. It goes in the same proposal as the package it runs. Until
- * W-106 it was a screen of the View record type (W-109), `ar.screen.archi`; a file that has that
- * one has it removed in the same proposal, so the workbench is listed once.
+ * The Archi workbench as a screen of the file itself: listed beside the record types, and
+ * the screen Archi.nendo opens on. It goes in the same proposal as the package it runs. A file that
+ * still has the older screen of the View record type, `ar.screen.archi`, has it removed in the
+ * same proposal, so the workbench is listed once.
  */
 export function workbenchView({ replacing = false } = {}) {
   return [
@@ -595,7 +595,7 @@ export const TYPES = CONCEPT_TYPES.map(type => ({
 export const MODEL = { recordId: 'ar.model.r.model', values: { 'ar.model.name': 'New model' } };
 
 /**
- * ArchiMate's relationship table as records (W-105): one per source type, target type and
+ * ArchiMate's relationship table as records: one per source type, target type and
  * relationship type it allows. The table's Relationship stands for any relationship used as an
  * end, so its rows are spelled out for each of the eleven relationship types, which is what a
  * Concept's Type holds. 12,829 rows, kept in a new file as the concept types are.

@@ -175,7 +175,7 @@ test('a reconnect fails what was waiting with disconnected, and later requests u
   assert.equal(first.inbox.filter((message) => message.t === 'req').length, 1, 'A request after the reconnect went to the old port.');
 });
 
-// R-002: a reference assignment needs the target's version, so the client must send it.
+// A reference assignment needs the target's version, so the client must send it.
 test('create and update send the reference targets’ versions a view passes, and the record ID create still takes alone', async (t) => {
   const view = frame();
   const workbench = connect(view, { ...baseContext, methods: [...baseContext.methods, 'records.create', 'records.update'] }, t);
@@ -318,8 +318,8 @@ test('loadGraph gives nodes, the edges between them, the fields the view names, 
   assert.deepEqual(plain(queries.find((query) => query.entityId === 'link').filters[0]), { fieldId: 'kind', operator: 'isNotNull' });
 });
 
-// R-003: a view's authored `today` on a DateTime field went out as a bare date, which the
-// host refuses for a DateTime comparison; it has to be the instant the day begins, with a zone.
+// A view's authored `today` on a DateTime field is the instant the day begins, with a zone: the
+// host refuses a bare date for a DateTime comparison.
 test('a view’s authored today is a date on a Date field and a zoned instant on a DateTime field', async (t) => {
   const view = frame();
   const context = {
@@ -344,7 +344,7 @@ test('a view’s authored today is a date on a Date field and a zoned instant on
   assert.equal(instant.value.slice(0, 10), date.value, 'The instant and the date name different days.');
 });
 
-// --- A view's controls in Nendo's own chrome (ADR-0013, 2026-09-28; W-090) ------------------
+// --- A view's controls in Nendo's own chrome (ADR-0013) -------------------------------------
 
 /** A view's window that also keeps its key listeners, capture first, as a browser runs them. */
 function frameWithKeys() {
@@ -481,9 +481,9 @@ function frameWithTimers(windowOf = (parent) => ({ parent })) {
 
 const stateContext = { ...baseContext, methods: [...baseContext.methods, 'state.set', 'state.delete', 'state.get'] };
 
-// WXS-03: a write with an expectedVersion was merged with a later write to its key while it
-// waited; only the later one was sent, and the conditional caller heard it had been kept.
-test('WXS-03: a conditional state write is sent and answered on its own, never merged with another write to its key', async (t) => {
+// A write with an expectedVersion is never merged with a later write to its key while it waits:
+// merged, only the later one would be sent, and the conditional caller would hear it had been kept.
+test('a conditional state write is sent and answered on its own, never merged with another write to its key', async (t) => {
   const view = frameWithTimers();
   const workbench = connect(view, stateContext, t);
   const nendo = view.window.nendo;
@@ -511,10 +511,10 @@ test('WXS-03: a conditional state write is sent and answered on its own, never m
   assert.equal(workbench.inbox.filter((message) => message.m === 'state.set').length, 3);
 });
 
-// WXS-09: the client spaced its state writes when they left their own lane, but they could then
-// wait behind eight reads in flight and reach the broker in the same millisecond, where the
+// State writes are spaced as they reach the broker, not only as they leave their own lane: behind
+// eight reads in flight they could otherwise arrive in the same millisecond, where the
 // third of a second is refused as busy.
-test('WXS-09: state writes reach the Workbench spaced, even when they waited behind eight reads in flight', async (t) => {
+test('state writes reach the Workbench spaced, even when they waited behind eight reads in flight', async (t) => {
   const view = frameWithTimers();
   const workbench = connect(view, stateContext, t);
   const reached = [];
@@ -537,9 +537,9 @@ test('WXS-09: state writes reach the Workbench spaced, even when they waited beh
   assert.ok(gaps.every((gap) => gap >= 500), `State writes reached the Workbench ${JSON.stringify(gaps)} ms apart; the broker refuses a third within a second.`);
 });
 
-// WXS-16: any window.nendo was taken for a first copy of the script, and an element with
-// id="nendo" is window.nendo through the window's named access, so the view never connected.
-test('WXS-16: an element named nendo does not stop the view from connecting; a second copy of the script still does nothing', async () => {
+// Only the script's own window.nendo marks a first copy: an element with id="nendo" is
+// window.nendo through the window's named access, and must not stop the view connecting.
+test('an element named nendo does not stop the view from connecting; a second copy of the script still does nothing', async () => {
   const element = { tagName: 'MAIN', id: 'nendo' };
   const named = frameWithTimers((parent) => Object.assign(Object.create({ nendo: element }), { parent }));
   assert.equal(named.sent.length, 1, 'The view said no hello when the page held an element called nendo.');
@@ -553,7 +553,7 @@ test('WXS-16: an element named nendo does not stop the view from connecting; a s
   assert.match(String(taken.errors[0]?.message ?? taken.errors[0]), /window\.nendo is already something else/, 'Nothing said why the view never connected.');
 });
 
-// W-251: an error the view's code throws and does not catch reaches the Workbench, which reports
+// An error the view's code throws and does not catch reaches the Workbench, which reports
 // it for the agent that wrote the view; only the sentence travels, cut to its bound.
 test('an uncaught error or rejection in the view is handed to the Workbench, cut to its bound', async (t) => {
   const handlers = {};

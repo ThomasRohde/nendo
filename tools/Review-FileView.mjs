@@ -1,4 +1,4 @@
-// W-106: a file that opens on its own view, in a real Nendo against an isolated profile built by
+// A file that opens on its own view, in a real Nendo against an isolated profile built by
 // DesktopExtensionViewJourneyTests. The file holds a record list of Tasks and an extensionView
 // that says opensFile. Measured over the browser's debugging port: the screen the file opens on,
 // the view running in it with the context a view of the file gets, the Showing picker's choices,
@@ -94,7 +94,7 @@ try {
   check('G38 the view is handed a screen of the file about Tasks, and reads records: ' + JSON.stringify(context));
 
   // G40: the breadcrumb names the view, and only it, after the view declares its place, which
-  // refreshes Nendo's header between two draws (W-127). The owner saw "Use · Concepts / Use ·
+  // refreshes Nendo's header between two draws. The owner saw "Use · Concepts / Use ·
   // Archi": the eyebrow came back beside the pickers, naming the first record type.
   const header = () => evaluate(`(() => {
     const shown = element => element !== null && !element.hidden && getComputedStyle(element).display !== 'none' && !element.classList.contains('visually-hidden');
@@ -112,8 +112,8 @@ try {
 
   // G41: a view saving an XML file with no click inside it, as Save as Exchange XML from Nendo's
   // row does, saves it whole, without WebView2's downloads panel. That panel asked whether the file
-  // "can harm your device", and after Keep the browser process spun and Nendo's window went white
-  // (F-237). Measured: the file, its bytes, every target the browser has, and the page answering.
+  // "can harm your device", and after Keep the browser process spun and Nendo's window went white.
+  // Measured: the file, its bytes, every target the browser has, and the page answering.
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
   const downloads = path.join(output, 'downloads');
@@ -137,7 +137,7 @@ try {
   check('G41 a view saves an XML file with no click in it, and Nendo says so: ' + JSON.stringify({ file: file.name, bytes: file.bytes, panels: panels.length, answers, notice }));
 
   // G42: a view's row as full as the Archi workbench's while editing, in a window 1,100 pixels wide.
-  // The owner saw it wrap to three lines with Nendo's Add pushed off the window's edge (W-115).
+  // The owner saw it wrap to three lines with Nendo's Add pushed off the window's edge.
   // Measured: Add whole inside the window, the row one line, and what does not fit in Nendo's
   // More menu, from which a choice reaches the view; at 2,600 pixels everything is in the row.
   assert(await evaluateIn(frame, `probe.crowd()`, 15000) === 'declared', 'The probe could not declare its crowded row.');

@@ -40,7 +40,7 @@ export function groupHelpTopics(topics: readonly HelpTopic[]): Array<{ category:
 /**
  * Everything a search may match: title, category, summary, headings, paragraphs, steps and terms,
  * folded as helpQuery folds what was typed. The fold is the locale-independent one record search
- * uses (W-217): toLocaleLowerCase under a Turkish display language turns the I of 'Import' into a
+ * uses: toLocaleLowerCase under a Turkish display language turns the I of 'Import' into a
  * dotless 'ı' that no typed 'import' matches.
  */
 export function helpSearchText(topic: HelpTopic): string {
@@ -155,7 +155,7 @@ const applicationHelp: HelpProvider = ({ entities, applications, fileName, picke
       ...(entity.derivedFields ?? []).map(field => `${field.displayName}: calculated, shown but never typed in.`),
     ] },
     ...(applications ?? []).filter(app => app.entity.semanticId === entity.entityId).map(app => ({ heading: 'Screens and actions', paragraphs: [
-      // In the picker's own name, and only for a type the picker offers (WSP-23).
+      // In the picker's own name, and only for a type the picker offers.
       placeIds === undefined || placeIds.includes(entity.entityId)
         ? `Open Use and select ${entity.displayName} in ${pickerLabel ?? 'Record type'}. ${[rootTitle(app, 'recordForm'), rootTitle(app, 'recordList'), rootTitle(app, 'boardSurface')].filter(Boolean).map(title => `“${title}”`).join(', ') || 'Select a record to use its configured action.'}`
         : `Use does not list ${entity.displayName} on its own, because it has no screen of its own. Its records open from Studio → Data, or from a record that links to them.`,

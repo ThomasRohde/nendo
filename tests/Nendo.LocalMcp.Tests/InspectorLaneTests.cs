@@ -5,7 +5,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-158: the reference MCP Inspector's own view of the tool list, against the host's. Opt-in
+/// The reference MCP Inspector's own view of the tool list, against the host's. Opt-in
 /// through NENDO_RUN_INSPECTOR=1 (Test-Production.ps1 -Inspector), because the package is not
 /// part of the build; a run without it says Inconclusive, and a run with it and no package
 /// fails by name.

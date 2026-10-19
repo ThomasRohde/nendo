@@ -4,7 +4,7 @@ import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/fold-state.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
 const {foldSection,foldStorageKey,rememberFold,rememberedFolds,sectionIsOpen} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
-// A fold the person makes is kept for the device (W-053). The storage helpers take the
+// A fold the person makes is kept for the device. The storage helpers take the
 // storage and the application ID as arguments, so they are driven here with a fake; what
 // sectionIsOpen does with the open file's ID reads the shared state, which this bundle
 // owns a private copy of, so that branch is the gate's reopen phase.

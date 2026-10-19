@@ -49,7 +49,7 @@ public sealed class DesktopShellStoreTests
     }
 
     /// <summary>
-    /// DSH-09: each window kept the fields it read at startup and wrote all of them back, so a
+    /// Each window kept the fields it read at startup and wrote all of them back, so a
     /// tray toggle in an older window put back the 'Record failures' another window switched off.
     /// </summary>
     [TestMethod]
@@ -74,7 +74,7 @@ public sealed class DesktopShellStoreTests
         Assert.AreEqual("exit", new DesktopShellStore(workspace.FileHistoryRoot).CloseAction);
     }
 
-    /// <summary>DSH-09, after review: a refresh that reads the document takes back the notice an unreadable one left.</summary>
+    /// <summary>A refresh that reads the document takes back the notice an unreadable one left.</summary>
     [TestMethod]
     public async Task ARefreshThatReadsTheDocumentClearsTheEarlierReadFailure()
     {

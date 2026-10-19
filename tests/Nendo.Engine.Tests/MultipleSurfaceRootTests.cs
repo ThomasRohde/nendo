@@ -3,11 +3,10 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Several lists and boards on one record type, ADR-0004's 2026-09-12
-/// vocabulary-widening amendment. An Open and a Closed list with different
-/// columns, filters and orderings is ordinary; as two roots it used to refuse,
-/// and the compiled plan carried one surface per kind, so nothing downstream
-/// could address the second.
+/// Several lists and boards on one record type (ADR-0004). An Open and a Closed
+/// list with different columns, filters and orderings is ordinary, so two roots
+/// of a kind compile, and the compiled plan carries each surface so anything
+/// downstream can address the second.
 /// </summary>
 [TestClass]
 public sealed class MultipleSurfaceRootTests

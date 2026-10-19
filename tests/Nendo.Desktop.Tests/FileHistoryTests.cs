@@ -234,7 +234,7 @@ public sealed class FileHistoryTests
     }
 
     /// <summary>
-    /// R2SP-09. A file another window holds reads as unreadable whenever that window writes,
+    /// A file another window holds reads as unreadable whenever that window writes,
     /// because every write leaves a journal beside it. The start screen listed it as
     /// unavailable, with its button greyed out, and the taskbar's Recent list, which every
     /// window shares, was published without it. One that a live Nendo holds is open there.

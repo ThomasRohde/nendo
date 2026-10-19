@@ -7,7 +7,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-154: the host declares the Skills extension and serves one skill whose manifest
+/// The host declares the Skills extension and serves one skill whose manifest
 /// digests and sizes are the bytes resources/read serves.
 /// </summary>
 [TestClass]

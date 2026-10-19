@@ -1,7 +1,7 @@
 import type { WindowTitleBar } from './host-types';
 
 /**
- * What the page claims of the window's title bar (W-093), as pure arithmetic over the boxes the
+ * What the page claims of the window's title bar, as pure arithmetic over the boxes the
  * page measured, so a suite can hold it without a window. title-bar.ts does the measuring.
  */
 

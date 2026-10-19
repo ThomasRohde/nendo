@@ -77,7 +77,7 @@ public sealed partial class MainPage
         try
         {
             // Without records: the panel sets a few states from the file name, capabilities,
-            // findings and tables, and the full read put every record on the UI thread (DSH-12).
+            // findings and tables, and the full read put every record on the UI thread.
             var view = await _session.GetDefinitionViewAsync();
             if (_unloaded) return;
             RecoverySession.Text = DesktopRecoveryPresentation.Describe(view);
@@ -112,7 +112,7 @@ public sealed partial class MainPage
         RecoveryActivity.IsOpen = false;
         try
         {
-            // The session's own generation, not a full read of the file to learn it (DSH-12).
+            // The session's own generation, not a full read of the file to learn it.
             using var binding = _session.BindFileRequest(_session.CurrentFileSessionId);
             await action();
         }
@@ -163,7 +163,7 @@ public sealed partial class MainPage
 
     /// <summary>
     /// The file chosen is the one open here: nothing to do. It used to be closed and opened
-    /// again, ending agent access and discarding pending proposals for no change (DSH-06).
+    /// again, ending agent access and discarding pending proposals for no change.
     /// </summary>
     private bool AlreadyOpenHere(string path)
     {
@@ -242,7 +242,7 @@ public sealed partial class MainPage
         {
             var open = () => (Task)_session.OpenAssessedAsync(assessment.AssessmentId, readOnly, replaceCurrent: _session.HasFile);
             // A launch racing another Nendo that is opening the same file meets that open's guard
-            // before it says who it is (R2SP-01). An open from inside a window asked the owner first.
+            // before it says who it is. An open from inside a window asked the owner first.
             if (readOnly || !_openingForLaunch) await open();
             else if (await DesktopStartupOpen.OpenOrHandOffAsync(open, assessment.FilePath, cancellationToken: _pageLifetime.Token))
                 _handedOffAtLaunch = true;
@@ -436,7 +436,7 @@ public sealed partial class MainPage
             entity = (NendoEntitySnapshot)selector.SelectedItem;
         }
         // A table over the row or byte limit is written in parts, each starting after the last
-        // record the part before it wrote (R2SMA-13).
+        // record the part before it wrote.
         string? after = null;
         for (var part = 1; ; part++)
         {
@@ -479,7 +479,7 @@ public sealed partial class MainPage
         };
         AutomationProperties.SetAutomationId(dialog, "file.confirmation");
         // The dialog lives in a popup and takes the page's theme as it opens. It follows the page
-        // while open, so a Windows theme switch under System does not leave it in the old one (R2SMA-14).
+        // while open, so a Windows theme switch under System does not leave it in the old one.
         void FollowTheme(FrameworkElement page, object _) => dialog.RequestedTheme = page.ActualTheme;
         dialog.Opened += (_, _) => { dialog.RequestedTheme = ActualTheme; ActualThemeChanged += FollowTheme; };
         dialog.Closed += (_, _) => ActualThemeChanged -= FollowTheme;

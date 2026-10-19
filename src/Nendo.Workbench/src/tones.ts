@@ -1,5 +1,5 @@
 /**
- * Choice tones, ADR-0004 2026-09-14 amendment. An option's colour is a closed named
+ * Choice tones (ADR-0004). An option's colour is a closed named
  * hue stored in the file; the colours behind each name live in the theme tokens
  * (`--tone-<name>`), so Light and Dark own their own values and a file never carries
  * a hex value. Where an option has no tone the renderer keeps its previous habit: a
@@ -41,7 +41,7 @@ export function choiceStyle(field: TonedField | undefined, value: unknown): stri
   if (tone !== null) return `--status-color: var(--tone-${tone})`;
   const text = typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
   // A derived hue can be any colour, a pale yellow among them, so its chip text leans further to
-  // the ink than a named tone's to reach 4.5:1 in both themes (UIS-06).
+  // the ink than a named tone's to reach 4.5:1 in both themes.
   return text === '' ? '' : `--status-color: hsl(${derivedHue(text)} 58% 49%); --chip-share: ${derivedChipShare.light}%; --chip-share-dark: ${derivedChipShare.dark}%`;
 }
 

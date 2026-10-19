@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 
-// ADR-0019 stage 6: the outline surface in Use. The model rules -- where a drop lands, what a
+// ADR-0019: the outline surface in Use. The model rules -- where a drop lands, what a
 // tree with no order field can do, which rows start open and what the device remembers -- and
 // the real markup function over a stored outline state.
 const root = fileURLToPath(new URL('..', import.meta.url));

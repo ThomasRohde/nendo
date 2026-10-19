@@ -11,7 +11,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// A field as every snapshot shows it, the writable session's and an inspection's alike. The
     /// inspection built its own and left out Unique and Sequence, so a read-only or recovery
-    /// session said no field was unique or numbered (ESC-04).
+    /// session said no field was unique or numbered.
     /// </summary>
     internal static NendoFieldSnapshot FieldSnapshot(FieldMapping field) => new(
         field.FieldId, field.DisplayName, field.StorageKind, field.Required, field.Presentation, field.Options)
@@ -279,8 +279,8 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// A text presentation stored on a field that is not Text, which schema.addField accepted
-    /// before ESM-10, is read as no presentation: the field draws its own input again and can
+    /// A text presentation stored on a field that is not Text, which an older schema.addField
+    /// accepted, is read as no presentation: the field draws its own input again and can
     /// be made unique, and the stored row is left as it was.
     /// </summary>
     private static string? StoredPresentation(string presentation, NendoStorageKind kind) =>

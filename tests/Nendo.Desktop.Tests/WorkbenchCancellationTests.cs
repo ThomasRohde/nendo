@@ -4,7 +4,7 @@ using Nendo.LocalMcp;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Stage S7 of ADR-0008: work off the UI thread, and a stop that actually stops.
+/// ADR-0008: work off the UI thread, and a stop that actually stops.
 /// <para>
 /// A bounded calculation is real arithmetic inside an ordinary read. Awaiting it
 /// does not move it: a call started on the UI thread finishes its arithmetic there
@@ -53,7 +53,7 @@ public sealed class WorkbenchCancellationTests
     }
 
     /// <summary>
-    /// DSH-04: a method missing from the off-UI list ran on the UI thread, and the heaviest ones
+    /// A method missing from the off-UI list ran on the UI thread, and the heaviest ones
     /// were missing — a history fold, a search-index build, a batch write and its undo. Every
     /// method the handler answers is now in exactly one of the two lists, so a new one is placed.
     /// </summary>

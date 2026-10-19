@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [switch] $SkipRestore,
-    # W-158: the opt-in lanes. -Inspector runs the reference Inspector's tools/list against a
+    # The opt-in lanes. -Inspector runs the reference Inspector's tools/list against a
     # host (needs @modelcontextprotocol/inspector where npx finds it); -Soak renews a lease
     # under expiry and fills the proposal cap twice. Without them those tests report
     # Inconclusive, never a pass.
@@ -123,14 +123,14 @@ try {
     Invoke-Checked 'dotnet' @('build', 'Nendo.slnx', '--no-restore', '--nologo') '.NET build'
     if ($Inspector) { $env:NENDO_RUN_INSPECTOR = '1' }
     if ($Soak) { $env:NENDO_RUN_SOAK = '1' }
-    # One suite at a time (TST-02). Run together, the three suites' parallel methods each start
-    # hosts, children and files at once, and a fresh MCP host's first answer queued behind them
-    # past its client's bound: "Initialization timed out" on 2026-10-05, 2026-10-10 and
-    # 2026-10-12, never with a suite alone. Each suite still runs its own methods in parallel.
+    # One suite at a time. Run together, the three suites' parallel methods each start
+    # hosts, children and files at once, and a fresh MCP host's first answer queues behind them
+    # past its client's bound ("Initialization timed out"), which a suite alone never does.
+    # Each suite still runs its own methods in parallel.
     # A failing suite does not stop the next, so one run still reports all three.
     # Each suite's TRX goes under artifacts/test-results and is kept only when the suite failed.
-    # Without a results directory every run wrote one into tests/<suite>/TestResults, which
-    # nothing read or removed: 467 MB from 285 runs (BL-05).
+    # Without a results directory every run would write one into tests/<suite>/TestResults,
+    # which nothing reads or removes, so it would grow by hundreds of megabytes.
     $failedSuites = @()
     $testResults = Join-Path $repoRoot "artifacts/test-results/$([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss'))"
     foreach ($suite in @('Nendo.Engine.Tests', 'Nendo.LocalMcp.Tests', 'Nendo.Desktop.Tests')) {
@@ -245,10 +245,10 @@ try {
         }
     }
     Write-Host "OK       evaluator, approval and notifications stay outside the adapters ($($mcpAdapterFiles.Count) local MCP source files)"
-    # The adapter still cannot reach grant storage or the Engine's authority interface --
-    # the three names above are unchanged. What it may now do, at one access level, is ask
+    # The adapter cannot reach grant storage or the Engine's authority interface --
+    # the three names above. What it may do, at one access level, is ask
     # its host to record the consent the person would have given
-    # (ADR-0009, 2026-09-22 amendment). That ask is a delegate the host supplies, and this
+    # (ADR-0009, proposals and consent). That ask is a delegate the host supplies, and this
     # check is what keeps it one delegate rather than a capability that spread: the type is
     # declared in one file, bound to the mode in one more, and used only where the level is
     # already required.
@@ -385,8 +385,8 @@ try {
     $helpAgentsPath = Join-Path $workbenchRoot 'src\help-agents.ts'
     $helpAgentsSource = [IO.File]::ReadAllText($helpAgentsPath)
     $declaredUriTemplates = @(
-        # Every scheme: the two skill:// resources (W-154) are part of the surface, and a count
-        # that saw only nendo:// failed the gate at 21 of 23 once they existed (F-262).
+        # Every scheme: the skill:// resources are part of the surface, and a count that saw
+        # only nendo:// would miss them.
         [regex]::Matches($localMcpSource, 'UriTemplate\s*=\s*"([a-z]+://[^"]+)"') |
             ForEach-Object { $_.Groups[1].Value } |
             Sort-Object -Unique
@@ -412,8 +412,8 @@ try {
 
     # The Workbench asks with its own <dialog>. The browser's are on for custom views, which
     # may call them, but in the Workbench they would be a second, foreign kind of question --
-    # and while they were off, the fifth access level shipped with a control that silently did
-    # nothing (F-120). This check is what stops the browser's being reached for again.
+    # and wherever they are off, a control that calls one silently does nothing. This check
+    # is what stops the browser's being reached for.
     # Tried on a Windows path first: '[\/]' is a class of one slash in .NET, and the
     # exclusion written that way never matched the backslash paths Get-ChildItem returns.
     $bundledOutput = '[\\/](?:node_modules|dist)[\\/]'

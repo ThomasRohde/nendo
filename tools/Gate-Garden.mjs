@@ -30,7 +30,7 @@ async page => {
   // marks it current last. window.garden.note changes before any of that, while the page still
   // shows the note before it, and a click made then could land on a page that moved or on the
   // note left behind; on a cold first run the reads are slow and the lane timed out after
-  // "wikilink navigation and places" (W-218).
+  // "wikilink navigation and places".
   const noteShown = id => frame.waitForFunction(id => window.garden.note?.recordId === id
     && document.querySelector(`#tree .row[aria-current=true][data-id="${id}"]`) !== null, id);
   const localToday = () => { const d = new Date(), pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
@@ -620,7 +620,7 @@ async page => {
   assert(k1 > k0 * 1.2, `The wheel must zoom in: ${k0} to ${k1}.`);
   // A click opens the note, exactly once. Fit first: zooming at the edge can carry it out of sight.
   await command('fit');
-  // Fit runs a transition: wait until it has moved the drawing and the drawing has come to rest (GDN-20).
+  // Fit runs a transition: wait until it has moved the drawing and the drawing has come to rest.
   await frame.waitForFunction(k => {
     const s = window.gardenGraph.state();
     const key = [s.k, s.x, s.y, ...Object.values(s.positions).flat()].map(v => v.toFixed(1)).join();
@@ -802,7 +802,7 @@ async page => {
   await page.screenshot({ path: '__OUTPUT__/narrow.png', fullPage: true });
   checks.push('narrow layout');
 
-  // 14. A save on its way (review R-005): what is typed meanwhile stays a draft, a second Save
+  // 14. A save on its way: what is typed meanwhile stays a draft, a second Save
   // writes nothing more, a note gone to meanwhile is not replaced, and a note read late never lands.
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -967,7 +967,7 @@ async page => {
   assert(lastWins.note === 'gd.note.start-here' && lastWins.editor === 'REVIEW newer B typed while saving', `The note gone to last must win over a slower read: ${JSON.stringify(lastWins)}.`);
   checks.push('last note opened wins');
 
-  // 15. A save Nendo never answered (review R-011): saying so, and sending it again, keeps it once.
+  // 15. A save Nendo never answered: saying so, and sending it again, keeps it once.
   await command('new');
   await frame.evaluate(() => { const t = document.getElementById('title'); t.value = 'Unanswered seed'; t.dispatchEvent(new Event('input', { bubbles: true })); });
   await type('Kept once, whatever the wire did.');
@@ -983,7 +983,7 @@ async page => {
   assert((await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered seed').length === 1, 'An unanswered create saved again must make one note.');
   checks.push('unanswered save kept once');
 
-  // 16. Drafts outlast the view (review R-001): two dirty notes, the frame started again, both back.
+  // 16. Drafts outlast the view: two dirty notes, the frame started again, both back.
   await frame.locator('#tree .row[data-id="gd.note.start-here"]').click();
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here');
   await type('REVIEW unsaved D');
@@ -1011,7 +1011,7 @@ async page => {
   // reading view, and in Edit on the layer behind the editor, laid out as the editor lays out its
   // text; and with no index the view still finds the note in the bodies it holds.
   // The fixture starts again, so the drafts written over the last one's notes go too: a draft is
-  // never let go by opening its note again (G-002).
+  // never let go by opening its note again.
   await page.evaluate(() => window.broker.offerSearch(true));
   await freshStart(fixture);
   await frame.waitForFunction(() => window.garden?.ready === true, null, { timeout: 15000 });
@@ -1092,7 +1092,7 @@ async page => {
   assert(cleared.marks.text === 0 && cleared.marks.editor === 0 && !cleared.highlight, `An empty Find must clear every mark: ${JSON.stringify(cleared)}.`);
   checks.push('find searches the index and marks the words in the note, and the bodies without one');
 
-  // 20. The Overview (W-179): the garden's front page is led by its graph, not by lists of text. The
+  // 20. The Overview: the garden's front page is led by its graph, not by lists of text. The
   // graph is the largest thing on the page and draws every note; the stages pick notes out on it;
   // the notes are cards with their first line; a note picked there opens in the Garden view.
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -1102,7 +1102,7 @@ async page => {
   frame = await mounted();
   await frame.waitForFunction(() => window.gardenHome?.ready === true, { timeout: 15000 })
     .catch(async () => { throw Error(`The Overview must start on gd.home: ${JSON.stringify(await frame.evaluate(() => ({ home: !!window.gardenHome, garden: !!window.garden, shown: !document.getElementById('home')?.hidden })))}.`); });
-  // The layout settles and then frames itself: measure once neither the layout nor the frame moves (GDN-20).
+  // The layout settles and then frames itself: measure once neither the layout nor the frame moves.
   await frame.waitForFunction(() => {
     const s = window.gardenHome.graphState();
     const key = [s.k, s.x, s.y, ...Object.values(s.positions).flat()].map(v => v.toFixed(1)).join();
@@ -1222,7 +1222,7 @@ async page => {
   await page.setViewportSize({ width: 1440, height: 900 });
   checks.push('overview in Light and Dark and at a narrow width');
 
-  // 21. The Agenda (W-184), a screen of the tasks in the Garden package: the open tasks by when they
+  // 21. The Agenda, a screen of the tasks in the Garden package: the open tasks by when they
   // are due, each with its box and its note. A tick on a body task writes - [x] into the note's line
   // and the task in one batch; Undo takes both back; the note's name opens it in the Garden view.
   const dayFrom = days => { const d = new Date(); d.setDate(d.getDate() + days); const pad = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
@@ -1319,7 +1319,7 @@ async page => {
   await page.setViewportSize({ width: 1440, height: 900 });
   checks.push('agenda: groups by due date, a real tick into the note and its Undo, a Manual tick, the note opened in the Garden view, Light and Dark');
 
-  // 22. Tend (W-184), a screen of the notes: seeds and growing notes untended for the span chosen, the
+  // 22. Tend, a screen of the notes: seeds and growing notes untended for the span chosen, the
   // longest first, and the notes not written yet. Its buttons write what the commands do, Undo takes
   // them back, and a span is kept.
   const tendFixture = JSON.parse(JSON.stringify(fixture));
@@ -1393,8 +1393,8 @@ async page => {
   await page.setViewportSize({ width: 1440, height: 900 });
   checks.push('tend: untended seeds and growing notes by span, notes not written yet, Mark growing and its Undo, Tended today, Light and Dark');
 
-  // 23. The review of 2026-10-08 (GARDEN.md, G-001 to G-015): each finding measured where the person
-  // meets it. A failure names the finding.
+  // 23. Drafts, saves, search, tags, tasks and the keyboard, each measured where the person
+  // meets them.
   await page.setViewportSize({ width: 1440, height: 900 });
   const workspaceAgain = async (options = {}) => {
     await page.evaluate(() => window.broker.pushTheme('light'));
@@ -1412,7 +1412,7 @@ async page => {
   // Something that makes the view read its note again, and the moment after that read.
   // The read is the note and then its links, tags and tasks, four queries the view draws from in
   // one go; a fixed 300 ms after the note was asked for passed on a quiet machine and not on a
-  // busy one, where Save then ran before the read was in (W-218).
+  // busy one, where Save then ran before the read was in.
   const reread = async act => {
     const before = await requests('records.get');
     await act();
@@ -1427,7 +1427,7 @@ async page => {
   const savedNow = () => frame.waitForFunction(() => window.garden.saving === false && window.garden.dirty === false, null, { timeout: 5000 });
   const openRow = async id => { await frame.locator(`#tree .row[data-id="${id}"]`).click(); await frame.waitForFunction(id => window.garden.note?.recordId === id, id, { timeout: 5000 }); await page.waitForTimeout(200); };
 
-  // G-002: reading the open note again (its row, a link to itself, a command on it, a change
+  // Reading the open note again (its row, a link to itself, a command on it, a change
   // elsewhere that leaves its text alone) keeps what is being written over it.
   await workspaceAgain();
   await command('mode', 'edit');
@@ -1436,34 +1436,34 @@ async page => {
   await type(overSame);
   await reread(() => frame.locator('#tree .row[data-id="gd.note.start-here"]').click());
   let over = await draftNow();
-  assert(over.editor === overSame && over.dirty && !over.external, `G-002: activating the open note's row must keep its unsaved text: ${JSON.stringify(over)}.`);
+  assert(over.editor === overSame && over.dirty && !over.external, `activating the open note's row must keep its unsaved text: ${JSON.stringify(over)}.`);
   await command('mode', 'view');
   await frame.waitForFunction(() => window.garden.mode === 'read');
   await reread(() => frame.locator('#reading-body a.wikilink[data-id="gd.note.start-here"]').click());
   over = await draftNow();
-  assert(over.editor === overSame && over.dirty && !over.external, `G-002: a link to the open note must keep its unsaved text: ${JSON.stringify(over)}.`);
+  assert(over.editor === overSame && over.dirty && !over.external, `a link to the open note must keep its unsaved text: ${JSON.stringify(over)}.`);
   const stagedBefore = (await state()).version;
   await reread(() => command('evergreen'));
   await frame.waitForFunction(v => window.garden.note?.version > v, stagedBefore, { timeout: 3000 });
   over = await draftNow();
-  assert(over.editor === overSame && over.dirty && !over.external, `G-002: a command on the open note must keep its unsaved text, and its stage changed under it must not block it: ${JSON.stringify(over)}.`);
+  assert(over.editor === overSame && over.dirty && !over.external, `a command on the open note must keep its unsaved text, and its stage changed under it must not block it: ${JSON.stringify(over)}.`);
   await reread(() => page.evaluate(() => { window.broker.touch('gd.note', 'gd.note.start-here'); window.broker.pushChanges(); }));
   over = await draftNow();
-  assert(over.editor === overSame && over.dirty && !over.external, `G-002: a change elsewhere that leaves the text alone must not block the draft: ${JSON.stringify(over)}.`);
+  assert(over.editor === overSame && over.dirty && !over.external, `a change elsewhere that leaves the text alone must not block the draft: ${JSON.stringify(over)}.`);
   await command('save');
-  await savedNow().catch(async () => { throw Error(`G-002: the draft must save over the version it moved onto: ${JSON.stringify(await draftNow())}.`); });
-  assert(await storedBody('gd.note.start-here') === overSame, 'G-002: what was written is what is stored.');
+  await savedNow().catch(async () => { throw Error(`the draft must save over the version it moved onto: ${JSON.stringify(await draftNow())}.`); });
+  assert(await storedBody('gd.note.start-here') === overSame, 'what was written is what is stored.');
   // A change elsewhere to the text: the person chooses, Keep mine saves over it.
   await type('MINE, over theirs');
   await reread(() => page.evaluate(() => { const r = window.broker.record('gd.note', 'gd.note.start-here'); r.version += 1; r.values['gd.note.body'] = 'THEIRS'; window.broker.put('gd.note', r); window.broker.pushChanges(); }));
-  assert((await state()).external && await frame.locator('#status button[data-external="keep"]').count() === 1, 'G-002: a change elsewhere to the text must offer Keep mine.');
+  assert((await state()).external && await frame.locator('#status button[data-external="keep"]').count() === 1, 'a change elsewhere to the text must offer Keep mine.');
   await frame.locator('#status button[data-external="keep"]').click();
   await command('save');
   await savedNow();
-  assert(await storedBody('gd.note.start-here') === 'MINE, over theirs', 'G-002: Keep mine saves the draft over the change.');
-  checks.push('G-002 the open note read again keeps its draft');
+  assert(await storedBody('gd.note.start-here') === 'MINE, over theirs', 'Keep mine saves the draft over the change.');
+  checks.push('the open note read again keeps its draft');
 
-  // G-003: a second New note, or Today, never writes over a new note not saved yet: it waits in the
+  // A second New note, or Today, never writes over a new note not saved yet: it waits in the
   // tree, and Today goes back to today's note while it is unsaved; both outlast a restart.
   await command('new');
   await setTitle('Unsaved new');
@@ -1471,22 +1471,22 @@ async page => {
   await command('new');
   await page.waitForTimeout(200);
   const second = { ...(await draftNow()), rows: await unsavedRows() };
-  assert(second.title === '' && second.editor === '' && second.rows.includes('Unsaved new'), `G-003: a second New note must start empty and keep the first in the tree: ${JSON.stringify(second)}.`);
+  assert(second.title === '' && second.editor === '' && second.rows.includes('Unsaved new'), `a second New note must start empty and keep the first in the tree: ${JSON.stringify(second)}.`);
   await command('daily');
   await frame.waitForFunction(day => document.getElementById('title').value === day, localToday(), { timeout: 3000 });
   await type('UNSAVED DAILY');
   await frame.locator('#tree .row.unsaved', { hasText: 'Unsaved new' }).click();
   await frame.waitForFunction(() => document.getElementById('title').value === 'Unsaved new', null, { timeout: 3000 });
-  assert(await editorText() === 'UNSAVED NEW BODY', 'G-003: the first new note comes back as it was written.');
+  assert(await editorText() === 'UNSAVED NEW BODY', 'the first new note comes back as it was written.');
   await command('daily');
   await frame.waitForFunction(() => document.getElementById('editor').value === 'UNSAVED DAILY', null, { timeout: 3000 })
-    .catch(async () => { throw Error(`G-003: Today must go back to today's unsaved note: ${JSON.stringify(await draftNow())}.`); });
+    .catch(async () => { throw Error(`Today must go back to today's unsaved note: ${JSON.stringify(await draftNow())}.`); });
   await restart();
   const afterRestart = await unsavedRows();
-  assert(afterRestart.includes('Unsaved new') && afterRestart.includes(localToday()), `G-003: both unsaved new notes outlast a restart: ${JSON.stringify(afterRestart)}.`);
-  checks.push('G-003 New note and Today never write over an unsaved new note');
+  assert(afterRestart.includes('Unsaved new') && afterRestart.includes(localToday()), `both unsaved new notes outlast a restart: ${JSON.stringify(afterRestart)}.`);
+  checks.push('New note and Today never write over an unsaved new note');
 
-  // G-008: a save kept but never answered is one note, not two, after the view starts again; and an
+  // A save kept but never answered is one note, not two, after the view starts again; and an
   // existing note's lost answer leaves no stale draft.
   await command('new');
   await setTitle('Unanswered new');
@@ -1497,13 +1497,13 @@ async page => {
   await page.waitForTimeout(300);
   await restart();
   const lostNew = { notes: (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered new').length, rows: await unsavedRows(), unanswered: await frame.evaluate(() => window.garden.unanswered) };
-  assert(lostNew.notes === 1 && !lostNew.rows.includes('Unanswered new') && lostNew.unanswered === null, `G-008: a new note kept but unanswered must be one note after a restart, its draft spent: ${JSON.stringify(lostNew)}.`);
+  assert(lostNew.notes === 1 && !lostNew.rows.includes('Unanswered new') && lostNew.unanswered === null, `a new note kept but unanswered must be one note after a restart, its draft spent: ${JSON.stringify(lostNew)}.`);
   const unansweredNote = (await records('gd.note')).find(n => n.values['gd.note.title'] === 'Unanswered new');
   await openRow(unansweredNote.recordId);
   await type('Kept once, across a restart. And more.');
   await command('save');
   await savedNow();
-  assert((await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered new').length === 1, 'G-008: saving the note again writes the same note.');
+  assert((await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered new').length === 1, 'saving the note again writes the same note.');
   await openRow('gd.note.daily-notes');
   await type('Daily notes, answered late.');
   await page.evaluate(() => window.broker.drop('records.batch', { code: 'host-timeout', message: 'The Desktop host did not respond.' }));
@@ -1514,50 +1514,50 @@ async page => {
   await openRow('gd.note.daily-notes');
   const lostOld = await draftNow();
   assert(lostOld.editor === 'Daily notes, answered late.' && !lostOld.dirty && !lostOld.external && lostOld.problem === null,
-    `G-008: an existing note whose save was kept unanswered must read as saved after a restart, not as changed elsewhere: ${JSON.stringify(lostOld)}.`);
-  checks.push('G-008 an unanswered save is kept once across a restart');
+    `an existing note whose save was kept unanswered must read as saved after a restart, not as changed elsewhere: ${JSON.stringify(lostOld)}.`);
+  checks.push('an unanswered save is kept once across a restart');
 
-  // G-001: drafts this device cannot keep are named, each a way back to save it: one past the count,
+  // Drafts this device cannot keep are named, each a way back to save it: one past the count,
   // and every one when the storage refuses.
   await workspaceAgain({ drafts: Array.from({ length: 50 }, (_, i) => ({ id: `new:ghost${i}`, title: `Ghost ${i}`, body: 'boo', version: null, hash: null, values: {}, at: 1000 + i })) });
   await openRow('gd.note.how-links-work');
   await type('One draft more than this device keeps.');
   await frame.waitForFunction(() => !document.getElementById('drafts-warning').hidden, null, { timeout: 3000 })
-    .catch(() => { throw Error('G-001: a draft past the count must be named, not let go in silence.'); });
+    .catch(() => { throw Error('a draft past the count must be named, not let go in silence.'); });
   const warned = await frame.evaluate(() => ({ text: document.getElementById('drafts-warning').textContent, buttons: [...document.querySelectorAll('#drafts-warning button[data-draft]')].map(b => [b.dataset.draft, b.textContent]) }));
-  assert(JSON.stringify(warned.buttons) === JSON.stringify([['new:ghost0', 'Ghost 0']]) && /lost if Garden closes/.test(warned.text), `G-001: the draft past the count must be named with a way to it: ${JSON.stringify(warned)}.`);
+  assert(JSON.stringify(warned.buttons) === JSON.stringify([['new:ghost0', 'Ghost 0']]) && /lost if Garden closes/.test(warned.text), `the draft past the count must be named with a way to it: ${JSON.stringify(warned)}.`);
   await frame.locator('#drafts-warning button[data-draft="new:ghost0"]').click();
   await frame.waitForFunction(() => document.getElementById('title').value === 'Ghost 0' && window.garden.note === null, null, { timeout: 3000 });
   await frame.evaluate(() => { window.reviewSetItem = Storage.prototype.setItem; Storage.prototype.setItem = function (key, value) { if (String(key).startsWith('garden.drafts')) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError'); return window.reviewSetItem.call(this, key, value); }; });
   await type('Typed while this device keeps nothing.');
   await frame.waitForFunction(() => /not keeping drafts/.test(document.getElementById('drafts-warning').textContent), null, { timeout: 3000 })
-    .catch(async () => { throw Error(`G-001: storage that refuses must be said: ${await frame.evaluate(() => document.getElementById('drafts-warning').textContent)}.`); });
+    .catch(async () => { throw Error(`storage that refuses must be said: ${await frame.evaluate(() => document.getElementById('drafts-warning').textContent)}.`); });
   const refusedAll = await frame.evaluate(() => document.querySelectorAll('#drafts-warning button[data-draft]').length);
   await frame.evaluate(() => { Storage.prototype.setItem = window.reviewSetItem; });
-  assert(refusedAll === 51, `G-001: with storage refusing, every unsaved draft is named: ${refusedAll}.`);
-  checks.push('G-001 drafts this device cannot keep are named, with a way to each');
+  assert(refusedAll === 51, `with storage refusing, every unsaved draft is named: ${refusedAll}.`);
+  checks.push('drafts this device cannot keep are named, with a way to each');
 
-  // G-005: a search that finds nothing says so, and Clear Find brings the notes back.
+  // A search that finds nothing says so, and Clear Find brings the notes back.
   await workspaceAgain();
   await command('find', 'NO_NOTE_HAS_THIS_TEXT_123');
   await frame.waitForFunction(() => !document.getElementById('tree-none').hidden, null, { timeout: 3000 })
-    .catch(() => { throw Error('G-005: a search with no match must say so.'); });
+    .catch(() => { throw Error('a search with no match must say so.'); });
   const noMatch = await frame.evaluate(() => ({ text: document.getElementById('tree-none').textContent, onboarding: !document.getElementById('tree-empty').hidden, rows: document.querySelectorAll('#tree .row').length }));
-  assert(noMatch.rows === 0 && /No note matches “NO_NOTE_HAS_THIS_TEXT_123”/.test(noMatch.text) && !noMatch.onboarding, `G-005: no match is not an empty garden: ${JSON.stringify(noMatch)}.`);
+  assert(noMatch.rows === 0 && /No note matches “NO_NOTE_HAS_THIS_TEXT_123”/.test(noMatch.text) && !noMatch.onboarding, `no match is not an empty garden: ${JSON.stringify(noMatch)}.`);
   await frame.locator('#tree-none-clear').click();
   await frame.waitForFunction(n => document.querySelectorAll('#tree .row').length === n && document.getElementById('tree-none').hidden, seedNotes, { timeout: 3000 });
   await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'find')?.value === '', null, { timeout: 2000 })
-    .catch(() => { throw Error('G-005: Clear Find must clear Nendo\'s search box too.'); });
-  checks.push('G-005 a search with no match says so and clears');
+    .catch(() => { throw Error('Clear Find must clear Nendo\'s search box too.'); });
+  checks.push('a search with no match says so and clears');
 
-  // G-004: #café and #cafe are two tags, saved in one batch; a tag deleted elsewhere is made again under an ID of its own.
+  // #café and #cafe are two tags, saved in one batch; a tag deleted elsewhere is made again under an ID of its own.
   await openRow('gd.note.how-links-work');
   const linksBody = await editorText();
   await type(`${linksBody}\n\nCoffee notes #café #cafe #日本`);
   await command('save');
-  await savedNow().catch(async () => { throw Error(`G-004: distinct tags with one slug must save: ${JSON.stringify(await draftNow())}.`); });
+  await savedNow().catch(async () => { throw Error(`distinct tags with one slug must save: ${JSON.stringify(await draftNow())}.`); });
   const madeTags = (await records('gd.tag')).filter(t => ['café', 'cafe', '日本'].includes(t.values[F.tagName]));
-  assert(madeTags.length === 3 && new Set(madeTags.map(t => t.recordId)).size === 3, `G-004: three tags, three IDs: ${JSON.stringify(madeTags.map(t => t.recordId))}.`);
+  assert(madeTags.length === 3 && new Set(madeTags.map(t => t.recordId)).size === 3, `three tags, three IDs: ${JSON.stringify(madeTags.map(t => t.recordId))}.`);
   const cafeId = madeTags.find(t => t.values[F.tagName] === 'cafe').recordId;
   await reread(() => frame.evaluate(async cafeId => {
     const cafe = (await window.nendo.records.queryAll({ entityId: 'gd.tag' }, { max: 100 })).find(t => t.recordId === cafeId);
@@ -1566,33 +1566,33 @@ async page => {
   }, cafeId));
   await type(`${linksBody}\n\nCoffee notes #café #cafe #日本, again`);
   await command('save');
-  await savedNow().catch(async () => { throw Error(`G-004: a tag deleted and written again must save: ${JSON.stringify(await draftNow())}.`); });
+  await savedNow().catch(async () => { throw Error(`a tag deleted and written again must save: ${JSON.stringify(await draftNow())}.`); });
   const cafeAgain = (await records('gd.tag')).find(t => t.values[F.tagName] === 'cafe');
-  assert(cafeAgain && cafeAgain.recordId !== cafeId, `G-004: the tag made again takes a new ID: ${JSON.stringify(cafeAgain)}.`);
-  checks.push('G-004 tags with one slug, and a tag made again, save');
+  assert(cafeAgain && cafeAgain.recordId !== cafeId, `the tag made again takes a new ID: ${JSON.stringify(cafeAgain)}.`);
+  checks.push('tags with one slug, and a tag made again, save');
 
-  // G-010: a related read that fails is said, and Save writes nothing until it can read them all; then the rows are the same rows.
+  // A related read that fails is said, and Save writes nothing until it can read them all; then the rows are the same rows.
   const rowsOf = async id => ({ noteTags: (await records('gd.noteTag')).filter(r => r.values[F.noteTagNote] === id).map(r => r.recordId).sort(),
     tasks: (await records('gd.task')).filter(r => r.values[F.taskNote] === id).map(r => r.recordId).sort() });
   const tagsAndTasks = await rowsOf('gd.note.tags-and-tasks');
   await page.evaluate(() => window.broker.fail('records.query', { code: 'host-timeout', message: 'Review: a related read refused.' }, 1));
   await frame.locator('#tree .row[data-id="gd.note.tags-and-tasks"]').click();
   await frame.waitForFunction(() => /could not be read/.test(window.garden.problem ?? '') && !!document.querySelector('#problem button[data-retry]'), null, { timeout: 5000 })
-    .catch(async () => { throw Error(`G-010: a related read that fails must be said, with Retry: ${await frame.evaluate(() => window.garden.problem)}.`); });
+    .catch(async () => { throw Error(`a related read that fails must be said, with Retry: ${await frame.evaluate(() => window.garden.problem)}.`); });
   await type(`${await editorText()}\n\nOne harmless sentence more.`);
   const refusedBatches = await requests('records.batch');
   await page.evaluate(() => window.broker.fail('records.query', { code: 'host-timeout', message: 'Review: a related read refused.' }, 1));
   await command('save');
   await frame.waitForFunction(() => window.garden.saving === false && /Nothing was saved/.test(window.garden.problem ?? ''), null, { timeout: 5000 })
-    .catch(async () => { throw Error(`G-010: a save that could not read the note's rows must say nothing was saved, and send nothing: ${JSON.stringify({ problem: (await state()).problem, batches: await requests('records.batch') - refusedBatches })}.`); });
-  assert(await requests('records.batch') === refusedBatches, 'G-010: a save that could not read the note\'s rows must send no batch.');
+    .catch(async () => { throw Error(`a save that could not read the note's rows must say nothing was saved, and send nothing: ${JSON.stringify({ problem: (await state()).problem, batches: await requests('records.batch') - refusedBatches })}.`); });
+  assert(await requests('records.batch') === refusedBatches, 'a save that could not read the note\'s rows must send no batch.');
   await command('save');
   await savedNow();
   const afterRetry = await rowsOf('gd.note.tags-and-tasks');
-  assert(JSON.stringify(afterRetry) === JSON.stringify(tagsAndTasks), `G-010: the note's rows must be the same rows after the save: ${JSON.stringify({ before: tagsAndTasks, after: afterRetry })}.`);
-  checks.push('G-010 a failed related read never duplicates rows');
+  assert(JSON.stringify(afterRetry) === JSON.stringify(tagsAndTasks), `the note's rows must be the same rows after the save: ${JSON.stringify({ before: tagsAndTasks, after: afterRetry })}.`);
+  checks.push('a failed related read never duplicates rows');
 
-  // G-011 and G-013: two lines that say the same task are two tasks, each ticked on its own; a task
+  // Two lines that say the same task are two tasks, each ticked on its own; a task
   // reworded in place keeps its record and its due date.
   await openRow('gd.note.daily-notes');
   await type('Twice:\n- [ ] Repeat\n- [ ] Repeat');
@@ -1600,11 +1600,11 @@ async page => {
   await savedNow();
   await command('mode', 'view');
   await frame.waitForFunction(() => window.garden.mode === 'read' && window.garden.taskStrip.total === 2, null, { timeout: 3000 })
-    .catch(async () => { throw Error(`G-011: two Repeat lines must be two tasks in the strip: ${JSON.stringify(await frame.evaluate(() => window.garden.taskStrip))}.`); });
+    .catch(async () => { throw Error(`two Repeat lines must be two tasks in the strip: ${JSON.stringify(await frame.evaluate(() => window.garden.taskStrip))}.`); });
   await frame.locator('#reading-body input[type=checkbox][data-line="2"]').click();
   await frame.waitForFunction(() => window.garden.taskStrip.done === 1 && window.garden.dirty === false && window.garden.saving === false, null, { timeout: 5000 });
   const repeats = (await records('gd.task')).filter(t => t.values[F.taskNote] === 'gd.note.daily-notes' && t.values[F.taskTitle] === 'Repeat');
-  assert(repeats.length === 2 && repeats.filter(t => t.values[F.taskDone]).length === 1 && new Set(repeats.map(t => t.values['gd.task.key'])).size === 2, `G-011: two task records with their own keys, the second done: ${JSON.stringify(repeats.map(t => t.values))}.`);
+  assert(repeats.length === 2 && repeats.filter(t => t.values[F.taskDone]).length === 1 && new Set(repeats.map(t => t.values['gd.task.key'])).size === 2, `two task records with their own keys, the second done: ${JSON.stringify(repeats.map(t => t.values))}.`);
   const firstRepeat = repeats.find(t => !t.values[F.taskDone]);
   await reread(() => page.evaluate(id => { const r = window.broker.record('gd.task', id); r.version += 1; r.values['gd.task.due'] = '2026-10-09'; window.broker.put('gd.task', r); window.broker.pushChanges(); }, firstRepeat.recordId));
   await type('Twice:\n- [ ] Repeat with far more words now\n- [x] Repeat');
@@ -1612,17 +1612,17 @@ async page => {
   await savedNow();
   const reworded = (await records('gd.task')).find(t => t.recordId === firstRepeat.recordId);
   assert(reworded && reworded.values[F.taskTitle] === 'Repeat with far more words now' && reworded.values['gd.task.due'] === '2026-10-09',
-    `G-013: a task reworded in place keeps its record and due date: ${JSON.stringify(reworded)}.`);
-  checks.push('G-011 repeated task lines are tasks of their own; G-013 a reworded task keeps its due date');
+    `a task reworded in place keeps its record and due date: ${JSON.stringify(reworded)}.`);
+  checks.push('repeated task lines are tasks of their own; a reworded task keeps its due date');
 
-  // G-012: a garden that could not be read says so, with Retry, never as an empty garden; a refresh
+  // A garden that could not be read says so, with Retry, never as an empty garden; a refresh
   // that fails holds Save back until Retry reads it.
   await freshStart(fixture, { failFirst: 'Review: initial index unavailable' });
   await frame.waitForFunction(() => /could not be read/.test(window.garden?.problem ?? ''), null, { timeout: 15000 })
-    .catch(() => { throw Error('G-012: a garden that could not be read must say so.'); });
+    .catch(() => { throw Error('a garden that could not be read must say so.'); });
   const unread = await frame.evaluate(() => ({ ready: window.garden.ready, retry: !!document.querySelector('#problem button[data-retry]'), shown: !document.getElementById('problem').hidden,
     pick: !document.getElementById('empty').hidden, onboarding: !document.getElementById('tree-empty').hidden }));
-  assert(!unread.ready && unread.retry && unread.shown && !unread.pick && !unread.onboarding, `G-012: no empty garden, an error with Retry: ${JSON.stringify(unread)}.`);
+  assert(!unread.ready && unread.retry && unread.shown && !unread.pick && !unread.onboarding, `no empty garden, an error with Retry: ${JSON.stringify(unread)}.`);
   await frame.locator('#problem button[data-retry]').click();
   await frame.waitForFunction(() => window.garden.ready && window.garden.note?.recordId === 'gd.note.start-here' && document.getElementById('problem').hidden, null, { timeout: 5000 });
   await type('Typed while the garden cannot be read.');
@@ -1631,33 +1631,33 @@ async page => {
   const heldBack = await requests('records.batch');
   await command('save');
   await page.waitForTimeout(300);
-  assert(await requests('records.batch') === heldBack && /Nothing was saved/.test((await state()).problem ?? ''), 'G-012: Save must wait while the garden could not be read.');
+  assert(await requests('records.batch') === heldBack && /Nothing was saved/.test((await state()).problem ?? ''), 'Save must wait while the garden could not be read.');
   await frame.locator('#problem button[data-retry]').click();
   await frame.waitForFunction(() => window.garden.indexCurrent === true, null, { timeout: 5000 });
   await command('save');
   await savedNow();
-  checks.push('G-012 a garden that could not be read says so, with Retry');
+  checks.push('a garden that could not be read says so, with Retry');
 
-  // G-007: following a link from the keyboard puts the keyboard on the new note's title, and Back on the link again.
+  // Following a link from the keyboard puts the keyboard on the new note's title, and Back on the link again.
   await workspaceAgain();
   const followed = await frame.evaluate(() => document.querySelector('#reading-body a.wikilink[data-id]').dataset.id);
   await frame.locator(`#reading-body a.wikilink[data-id="${followed}"]`).first().focus();
   await page.keyboard.press('Enter');
   await frame.waitForFunction(id => window.garden.note?.recordId === id, followed, { timeout: 5000 });
   await frame.waitForFunction(() => document.activeElement?.id === 'reading-title', null, { timeout: 2000 })
-    .catch(async () => { throw Error(`G-007: the keyboard must land on the opened note's title: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
+    .catch(async () => { throw Error(`the keyboard must land on the opened note's title: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
   await page.evaluate(() => window.broker.pushPlace({ noteId: 'gd.note.start-here' }));
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here', null, { timeout: 5000 });
   await frame.waitForFunction(id => document.activeElement?.matches?.(`#reading-body a.wikilink[data-id="${id}"]`), followed, { timeout: 2000 })
-    .catch(async () => { throw Error(`G-007: Back must put the keyboard on the link followed: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
-  checks.push('G-007 following a link and Back keep the keyboard');
+    .catch(async () => { throw Error(`Back must put the keyboard on the link followed: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
+  checks.push('following a link and Back keep the keyboard');
 
-  // G-006, G-007, G-009 and G-012 on the Agenda: a note's tasks in its own order; Space keeps the
+  // The Agenda: a note's tasks in its own order; Space keeps the
   // keyboard on the box; Undo pressed while a tick travels takes nothing back and spends nothing;
   // a first read that fails says so, with Retry.
   await freshStart(agendaFixture, { context: agendaContext, failFirst: 'Review: tasks unavailable' });
   await frame.waitForFunction(() => !!document.querySelector('#agenda-problem button[data-retry]') && document.getElementById('agenda-summary').textContent === '', null, { timeout: 15000 })
-    .catch(() => { throw Error('G-012: an Agenda that could not be read must say so, with Retry, and no summary.'); });
+    .catch(() => { throw Error('an Agenda that could not be read must say so, with Retry, and no summary.'); });
   await frame.locator('#agenda-problem button[data-retry]').click();
   await frame.waitForFunction(() => window.gardenAgenda?.ready === true && document.getElementById('agenda-problem').hidden, null, { timeout: 5000 });
   const water = frame.locator('.agenda-task[data-id="gd.task.w184-water"] input.box');
@@ -1667,7 +1667,7 @@ async page => {
   await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, tickBatches, { timeout: 3000 });
   await frame.waitForFunction(() => document.querySelector('.agenda-task[data-id="gd.task.w184-water"]')?.classList.contains('done'), null, { timeout: 3000 });
   await frame.waitForFunction(() => document.activeElement?.matches?.('.agenda-task[data-id="gd.task.w184-water"] input.box'), null, { timeout: 2000 })
-    .catch(async () => { throw Error(`G-007: Space on a box must keep the keyboard on it: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
+    .catch(async () => { throw Error(`Space on a box must keep the keyboard on it: ${await frame.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))}.`); });
   await page.evaluate(() => window.broker.hold('records.batch', 1200));
   const undosBeforeHeld = await requests('records.undo');
   await frame.locator('.agenda-task[data-id="gd.task.w184-bulbs"] input.box').click();
@@ -1675,8 +1675,8 @@ async page => {
   await page.keyboard.press('Control+z');
   await frame.evaluate(() => document.querySelector('#agenda-status [data-undo]')?.click());
   await frame.waitForFunction(() => window.gardenAgenda.steps.length === 2, null, { timeout: 5000 })
-    .catch(async () => { throw Error(`G-009: an Undo pressed while a tick travels must spend nothing: ${await frame.evaluate(() => window.gardenAgenda.steps.length)} steps.`); });
-  assert(await requests('records.undo') === undosBeforeHeld, 'G-009: an Undo pressed while a tick travels must take nothing back.');
+    .catch(async () => { throw Error(`an Undo pressed while a tick travels must spend nothing: ${await frame.evaluate(() => window.gardenAgenda.steps.length)} steps.`); });
+  assert(await requests('records.undo') === undosBeforeHeld, 'an Undo pressed while a tick travels must take nothing back.');
   // Each Undo is waited for until it has been answered, not only until it has left the history.
   const undoNext = async label => {
     await frame.locator('#agenda-status [data-undo]').click();
@@ -1685,18 +1685,18 @@ async page => {
   await undoNext('Tick Order bulbs');
   await undoNext('Tick Water the beds');
   const undone = (await records('gd.task')).filter(t => ['gd.task.w184-water', 'gd.task.w184-bulbs'].includes(t.recordId)).map(t => t.values[F.taskDone]);
-  assert(JSON.stringify(undone) === JSON.stringify([false, false]), `G-009: both ticks are taken back, the first too: ${JSON.stringify(undone)}.`);
-  // G-006: a note's tasks in the order its body says them. Undated, Start here's two tasks share a
+  assert(JSON.stringify(undone) === JSON.stringify([false, false]), `both ticks are taken back, the first too: ${JSON.stringify(undone)}.`);
+  // A note's tasks in the order its body says them. Undated, Start here's two tasks share a
   // group; its body says "Plant your first note" before "Link it to this one", which sorts first by its words.
   await page.evaluate(({ fixture, agendaContext }) => { window.broker.setFixture({ ...fixture, context: agendaContext }); window.broker.remount(); }, { fixture, agendaContext });
   await page.waitForTimeout(300);
   frame = await mounted();
   await frame.waitForFunction(() => window.gardenAgenda?.ready === true, null, { timeout: 15000 });
   const bodyOrder = await frame.evaluate(() => window.gardenAgenda.groups.flatMap(g => g.tasks).filter(t => t.note === 'Start here').map(t => t.text));
-  assert(JSON.stringify(bodyOrder) === JSON.stringify(['Plant your first note with **New note**', 'Link it to this one']), `G-006: a note's tasks must keep its body's order: ${JSON.stringify(bodyOrder)}.`);
-  checks.push('G-006 G-007 G-009 G-012 the Agenda keeps each note’s order and the keyboard, spends no Undo while busy, and says when it could not read');
+  assert(JSON.stringify(bodyOrder) === JSON.stringify(['Plant your first note with **New note**', 'Link it to this one']), `a note's tasks must keep its body's order: ${JSON.stringify(bodyOrder)}.`);
+  checks.push('the Agenda keeps each note’s order and the keyboard, spends no Undo while busy, and says when it could not read');
 
-  // G-014: the Overview counts every pin and every tag in use past the first few, and Show all lists the rest.
+  // The Overview counts every pin and every tag in use past the first few, and Show all lists the rest.
   const overviewFixture = JSON.parse(JSON.stringify(fixture));
   const pinBase = overviewFixture.records['gd.note'].find(n => n.recordId === 'gd.note.how-links-work');
   for (let i = 0; i < 7; i++) overviewFixture.records['gd.note'].push({ ...JSON.parse(JSON.stringify(pinBase)), recordId: `gd.note.pin-${i}`,
@@ -1720,14 +1720,14 @@ async page => {
   const homeFolded = await homeParts();
   assert(pinsInAll === 9 && tagsInUse > 12 && homeFolded.pinned === 8 && homeFolded.pinnedCount === '9' && homeFolded.pinnedMore === 'Show all 9 pinned notes'
     && homeFolded.tags === 12 && homeFolded.tagsCount === String(tagsInUse) && homeFolded.tagsMore === `Show all ${tagsInUse} tags`,
-    `G-014: past eight pins and twelve tags, the headings must count them all and offer Show all: ${JSON.stringify({ pinsInAll, tagsInUse, homeFolded })}.`);
+    `past eight pins and twelve tags, the headings must count them all and offer Show all: ${JSON.stringify({ pinsInAll, tagsInUse, homeFolded })}.`);
   await frame.locator('#home-pinned-more').click();
   await frame.locator('#home-tags-more').click();
   const homeUnfolded = await homeParts();
-  assert(homeUnfolded.pinned === 9 && homeUnfolded.tags === tagsInUse && homeUnfolded.pinnedMore === 'Show fewer' && homeUnfolded.tagsMore === 'Show fewer', `G-014: Show all must list every pin and tag: ${JSON.stringify(homeUnfolded)}.`);
-  checks.push('G-014 the Overview counts every pin and tag, and shows them all');
+  assert(homeUnfolded.pinned === 9 && homeUnfolded.tags === tagsInUse && homeUnfolded.pinnedMore === 'Show fewer' && homeUnfolded.tagsMore === 'Show fewer', `Show all must list every pin and tag: ${JSON.stringify(homeUnfolded)}.`);
+  checks.push('the Overview counts every pin and tag, and shows them all');
 
-  // G-015: on a garden as dense as the owner's (108 notes, about 1,300 links between them) at Fit,
+  // On a garden as dense as the owner's (108 notes, about 1,300 links between them) at Fit,
   // every name shown reads at 12 px or more and none is drawn over another: on the Overview over
   // three layouts in each theme, and on the Graph screen in each theme.
   const realFixture = JSON.parse(JSON.stringify(fixture));
@@ -1752,16 +1752,16 @@ async page => {
         const names = await labelLayout(host);
         measuredNames.push({ which, theme, layout, k: +at.k.toFixed(2), shown: names.shown, smallest: names.smallest, overlaps: names.overlaps.length });
         assert(names.shown >= 5 && names.smallest >= 11.9 && names.overlaps.length === 0,
-          `G-015: on ${which} in ${theme}, layout ${layout}, the names shown must read at 12 px or more and never overprint: ${JSON.stringify({ k: at.k, ...names, overlaps: names.overlaps.slice(0, 6) })}.`);
+          `on ${which} in ${theme}, layout ${layout}, the names shown must read at 12 px or more and never overprint: ${JSON.stringify({ k: at.k, ...names, overlaps: names.overlaps.slice(0, 6) })}.`);
       }
     }
   }
   settle.names = measuredNames;
   await page.evaluate(() => window.broker.pushTheme('light'));
-  checks.push('G-015 names on a dense graph read at 12 px and never overprint');
+  checks.push('names on a dense graph read at 12 px and never overprint');
 
-  // 24. The broad review of 2026-10-13 (W-226, GDN-01 to GDN-20): each finding measured where the
-  // person meets it. A failure names the finding.
+  // 24. The graph's wheel, the tree's roles, keys, links, saves, drafts and Tend, each measured
+  // where the person meets them.
   await page.setViewportSize({ width: 1440, height: 900 });
   // A drawing at rest: its frame and every note where they were a poll ago.
   const steadyDrawing = selector => frame.waitForFunction(selector => {
@@ -1796,7 +1796,7 @@ async page => {
   const sameZoom = (a, b) => Math.abs(zoomOf(a) - zoomOf(b)) < 0.01;
   const scrolledFrom = top => frame.waitForFunction(top => Math.round(document.querySelector('[data-gate-scroller]').scrollTop) !== top, top, { timeout: 2000 }).catch(() => undefined);
 
-  // GDN-02: the wheel over a note's local graph scrolls the page and leaves the drawing as it was;
+  // The wheel over a note's local graph scrolls the page and leaves the drawing as it was;
   // Ctrl and the wheel still zoom it. The same over the Overview's graph.
   await workspaceAgain();
   await frame.locator('#connections > summary').click();
@@ -1808,10 +1808,10 @@ async page => {
   await scrolledFrom(localBefore.top);
   const localAfter = await drawingAt('#local-graph');
   assert(localAfter.top !== localBefore.top && sameZoom(localAfter.transform, localBefore.transform),
-    `GDN-02: the wheel over a note's local graph must scroll the page and leave the drawing as it was: ${JSON.stringify({ before: localBefore, after: localAfter })}.`);
+    `the wheel over a note's local graph must scroll the page and leave the drawing as it was: ${JSON.stringify({ before: localBefore, after: localAfter })}.`);
   await wheelOver('#local-graph', -240, { ctrl: true });
   await frame.waitForFunction(was => document.querySelector('#local-graph g.viewport').getAttribute('transform') !== was, localAfter.transform, { timeout: 2000 }).catch(() => undefined);
-  assert(!sameZoom((await drawingAt('#local-graph')).transform, localAfter.transform), 'GDN-02: Ctrl and the wheel must still zoom the local graph.');
+  assert(!sameZoom((await drawingAt('#local-graph')).transform, localAfter.transform), 'Ctrl and the wheel must still zoom the local graph.');
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.evaluate(({ fixture, homeContext }) => { window.broker.offerScreens(true); window.broker.setFixture({ ...fixture, context: homeContext }); window.broker.remount(); }, { fixture, homeContext });
   await page.waitForTimeout(300);
@@ -1824,10 +1824,10 @@ async page => {
   await scrolledFrom(heroBefore.top);
   const heroAfter = await drawingAt('#home-graph');
   assert(heroAfter.top > heroBefore.top && sameZoom(heroAfter.transform, heroBefore.transform),
-    `GDN-02: the wheel over the Overview's graph must scroll the page down and leave the drawing as it was: ${JSON.stringify({ before: heroBefore, after: heroAfter })}.`);
+    `the wheel over the Overview's graph must scroll the page down and leave the drawing as it was: ${JSON.stringify({ before: heroBefore, after: heroAfter })}.`);
   await page.setViewportSize({ width: 1440, height: 900 });
 
-  // GDN-12: the row the keyboard is on is the treeitem, with its level and whether it is unfolded.
+  // The row the keyboard is on is the treeitem, with its level and whether it is unfolded.
   await workspaceAgain();
   const focusedItem = () => frame.evaluate(() => {
     const e = document.activeElement, owned = e?.getAttribute('aria-owns');
@@ -1837,28 +1837,28 @@ async page => {
   await frame.locator('#tree .row[data-id="gd.note.start-here"]').focus();
   const unfoldedItem = await focusedItem();
   assert(unfoldedItem.role === 'treeitem' && unfoldedItem.level === '1' && unfoldedItem.expanded === 'true' && unfoldedItem.owns === 'group' && unfoldedItem.id === 'gd.note.start-here',
-    `GDN-12: the tree row the keyboard is on must be the treeitem, with its level, its unfolded state and the group it owns: ${JSON.stringify(unfoldedItem)}.`);
+    `the tree row the keyboard is on must be the treeitem, with its level, its unfolded state and the group it owns: ${JSON.stringify(unfoldedItem)}.`);
   await page.keyboard.press('ArrowLeft');
   await frame.waitForFunction(() => document.activeElement?.getAttribute('aria-expanded') === 'false', null, { timeout: 2000 }).catch(() => undefined);
   const foldedItem = await focusedItem();
   const byRole = await frame.getByRole('treeitem', { expanded: false, level: 1 }).and(frame.locator('[data-id="gd.note.start-here"]')).evaluateAll(found => found.map(e => e === document.activeElement));
   assert(foldedItem.role === 'treeitem' && foldedItem.expanded === 'false' && JSON.stringify(byRole) === '[true]',
-    `GDN-12: folded, the treeitem the keyboard is on must say it is collapsed: ${JSON.stringify({ foldedItem, byRole })}.`);
+    `folded, the treeitem the keyboard is on must say it is collapsed: ${JSON.stringify({ foldedItem, byRole })}.`);
   await page.keyboard.press('ArrowRight');
 
-  // GDN-09: Ctrl E is declared in Nendo's row, so the Workbench runs it wherever the focus is.
+  // Ctrl E is declared in Nendo's row, so the Workbench runs it wherever the focus is.
   await page.waitForFunction(() => { const walk = items => items.flatMap(i => [i, ...walk(i.items ?? [])]); return walk(window.broker.toolbars.at(-1).items).some(i => i.keys === 'Ctrl+E'); }, null, { timeout: 2000 }).catch(() => undefined);
   const keyed = await page.evaluate(() => { const walk = items => items.flatMap(i => [i, ...walk(i.items ?? [])]); return walk(window.broker.toolbars.at(-1).items).find(i => i.keys === 'Ctrl+E') ?? null; });
-  assert(keyed && !keyed.disabled, `GDN-09: Nendo's row must declare Ctrl+E, so the key switches View and Edit when the focus is outside the frame: ${JSON.stringify(keyed)}.`);
-  assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'GDN-09: Nendo must accept the row that declares Ctrl+E.');
+  assert(keyed && !keyed.disabled, `Nendo's row must declare Ctrl+E, so the key switches View and Edit when the focus is outside the frame: ${JSON.stringify(keyed)}.`);
+  assert((await page.evaluate(() => window.broker.chromeRefusals)).length === 0, 'Nendo must accept the row that declares Ctrl+E.');
   for (const wanted of ['edit', 'read']) {
     const now = await page.evaluate(() => { const walk = items => items.flatMap(i => [i, ...walk(i.items ?? [])]); return walk(window.broker.toolbars.at(-1).items).find(i => i.keys === 'Ctrl+E'); });
     await command(now.id, now.kind === 'toggle' ? !now.pressed : null);
     await frame.waitForFunction(wanted => window.garden.mode === wanted, wanted, { timeout: 2000 })
-      .catch(async () => { throw Error(`GDN-09: the declared Ctrl+E must switch to ${wanted}: ${await frame.evaluate(() => window.garden.mode)}.`); });
+      .catch(async () => { throw Error(`the declared Ctrl+E must switch to ${wanted}: ${await frame.evaluate(() => window.garden.mode)}.`); });
   }
 
-  // GDN-13: the [[ suggestions point a screen reader at the one Enter inserts; a wikilink the
+  // The [[ suggestions point a screen reader at the one Enter inserts; a wikilink the
   // keyboard reaches previews its note, and Esc puts the preview away.
   await command('mode', 'edit');
   await frame.waitForFunction(() => window.garden.mode === 'edit');
@@ -1872,9 +1872,9 @@ async page => {
   await page.keyboard.press('ArrowDown');
   const secondPick = await pointedAt();
   assert(firstPick.at && firstPick.at === firstPick.selected && secondPick.at === secondPick.selected && secondPick.at !== firstPick.at && firstPick.controls === 'autocomplete' && firstPick.autocomplete === 'list',
-    `GDN-13: the editor must point a screen reader at the suggestion Enter inserts, and follow ArrowDown: ${JSON.stringify({ firstPick, secondPick })}.`);
+    `the editor must point a screen reader at the suggestion Enter inserts, and follow ArrowDown: ${JSON.stringify({ firstPick, secondPick })}.`);
   await page.keyboard.press('Escape');
-  assert(!(await frame.evaluate(() => document.getElementById('editor').hasAttribute('aria-activedescendant'))), 'GDN-13: a closed list leaves the editor pointing at nothing.');
+  assert(!(await frame.evaluate(() => document.getElementById('editor').hasAttribute('aria-activedescendant'))), 'a closed list leaves the editor pointing at nothing.');
   await command('mode', 'view');
   await frame.waitForFunction(() => window.garden.mode === 'read');
   await frame.locator('#reading-title').focus();
@@ -1883,15 +1883,15 @@ async page => {
     await page.keyboard.press('Tab');
     tabbed = await frame.evaluate(() => document.activeElement?.matches?.('#reading-body a.wikilink[data-id]') ? document.activeElement.dataset.id : null);
   }
-  assert(tabbed, 'GDN-13: Tab must reach a wikilink in the page.');
+  assert(tabbed, 'Tab must reach a wikilink in the page.');
   await frame.waitForFunction(() => !document.getElementById('hover-card').hidden, null, { timeout: 2000 }).catch(() => undefined);
   const keyCard = await frame.evaluate(() => ({ shown: !document.getElementById('hover-card').hidden, title: document.getElementById('hover-title').textContent }));
   const tabbedTitle = fixture.records['gd.note'].find(n => n.recordId === tabbed)?.values['gd.note.title'];
-  assert(keyCard.shown && keyCard.title === tabbedTitle, `GDN-13: a wikilink reached with the keyboard must preview its note, as the pointer does: ${JSON.stringify({ tabbed, keyCard })}.`);
+  assert(keyCard.shown && keyCard.title === tabbedTitle, `a wikilink reached with the keyboard must preview its note, as the pointer does: ${JSON.stringify({ tabbed, keyCard })}.`);
   await page.keyboard.press('Escape');
-  assert(await frame.locator('#hover-card').isHidden(), 'GDN-13: Esc must put the preview away.');
+  assert(await frame.locator('#hover-card').isHidden(), 'Esc must put the preview away.');
 
-  // GDN-14: a save that links to a note changed elsewhere since the garden was read is kept at once.
+  // A save that links to a note changed elsewhere since the garden was read is kept at once.
   await workspaceAgain();
   const linkedFromStart = new Set(fixture.records['gd.link'].filter(l => l.values[F.from] === 'gd.note.start-here').map(l => l.values[F.to]));
   const staleTarget = fixture.records['gd.note'].find(n => n.recordId !== 'gd.note.start-here' && !linkedFromStart.has(n.recordId));
@@ -1906,9 +1906,9 @@ async page => {
   const staleSave = { ...(await state()), batches: (await requests('records.batch')) - staleBatches,
     linked: (await records('gd.link')).some(l => l.values[F.from] === 'gd.note.start-here' && l.values[F.to] === staleTarget.recordId) };
   assert(staleSave.problem === null && !staleSave.dirty && staleSave.linked && staleSave.batches === 1,
-    `GDN-14: a save linking to a note changed elsewhere since the garden was read must be kept at once, not refused over the target's old version: ${JSON.stringify(staleSave)}.`);
+    `a save linking to a note changed elsewhere since the garden was read must be kept at once, not refused over the target's old version: ${JSON.stringify(staleSave)}.`);
 
-  // GDN-06: two ticks while reading, the second while the first is on its way: both are saved.
+  // Two ticks while reading, the second while the first is on its way: both are saved.
   await workspaceAgain();
   await openRow('gd.note.tags-and-tasks');
   const readingBoxes = frame.locator('#reading-body input[type=checkbox][data-line]');
@@ -1922,9 +1922,9 @@ async page => {
   const savedTicks = (await storedBody('gd.note.tags-and-tasks')).split('\n').filter(line => /^- \[[ x]\] /.test(line));
   const twoTicks = { saved: savedTicks, batches: (await requests('records.batch')) - twoTickBatches, dirty: (await state()).dirty, status: await frame.locator('#status').textContent() };
   assert(JSON.stringify(savedTicks) === JSON.stringify(['- [x] Give one task a due date on its record page', '- [ ] Read this note']) && twoTicks.batches === 2 && !twoTicks.dirty,
-    `GDN-06: a second tick while the first is being saved must be saved too, as ticks are: ${JSON.stringify(twoTicks)}.`);
+    `a second tick while the first is being saved must be saved too, as ticks are: ${JSON.stringify(twoTicks)}.`);
 
-  // GDN-10: a save Nendo never answered, and the view started again on a clean note: Save is
+  // A save Nendo never answered, and the view started again on a clean note: Save is
   // offered, and sends the same save again.
   await workspaceAgain();
   await command('new');
@@ -1939,26 +1939,26 @@ async page => {
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here' && !window.garden.dirty && window.garden.unanswered !== null, null, { timeout: 5000 });
   await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'save')?.disabled === false, null, { timeout: 2000 }).catch(() => undefined);
   const offeredSave = await page.evaluate(() => window.broker.toolbars.at(-1).items.find(i => i.id === 'save'));
-  assert(offeredSave && offeredSave.disabled === false, `GDN-10: with a save Nendo never answered, Save must be offered though the note open is clean: ${JSON.stringify(offeredSave)}.`);
+  assert(offeredSave && offeredSave.disabled === false, `with a save Nendo never answered, Save must be offered though the note open is clean: ${JSON.stringify(offeredSave)}.`);
   const resendAt = await requests('records.batch');
   await command('save');
   await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, resendAt, { timeout: 5000 });
   await frame.waitForFunction(() => window.garden.saving === false && window.garden.unanswered === null, null, { timeout: 5000 });
   const resent = { key: await page.evaluate(() => window.broker.requests.filter(r => r.m === 'records.batch').at(-1).p.writeKey), lostKey,
     notes: (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Unanswered over a clean note').length };
-  assert(resent.key === lostKey && resent.notes === 1, `GDN-10: Save must send the unanswered save again, under its key, and plant it once: ${JSON.stringify(resent)}.`);
+  assert(resent.key === lostKey && resent.notes === 1, `Save must send the unanswered save again, under its key, and plant it once: ${JSON.stringify(resent)}.`);
 
-  // GDN-17: Today, when its template cannot be read, says so with Retry; Retry starts it.
+  // Today, when its template cannot be read, says so with Retry; Retry starts it.
   await workspaceAgain();
   await page.evaluate(() => window.broker.fail('records.get', { code: 'host-timeout', message: 'Review: the template is unavailable.' }, 1));
   await command('daily');
   await frame.waitForFunction(() => /template could not be read/.test(window.garden.problem ?? ''), null, { timeout: 3000 })
-    .catch(async () => { throw Error(`GDN-17: Today must say when its template could not be read, with Retry, not stay silent: ${JSON.stringify(await frame.evaluate(() => ({ problem: window.garden.problem, note: window.garden.note?.recordId ?? null, newKey: window.garden.newKey })))}.`); });
+    .catch(async () => { throw Error(`Today must say when its template could not be read, with Retry, not stay silent: ${JSON.stringify(await frame.evaluate(() => ({ problem: window.garden.problem, note: window.garden.note?.recordId ?? null, newKey: window.garden.newKey })))}.`); });
   await frame.locator('#problem button[data-retry]').click();
   await frame.waitForFunction(today => window.garden.note === null && window.garden.draft?.title === today && window.garden.problem === null, localToday(), { timeout: 3000 })
-    .catch(async () => { throw Error(`GDN-17: Retry must start today's note: ${JSON.stringify(await frame.evaluate(() => ({ problem: window.garden.problem, title: window.garden.draft?.title ?? null })))}.`); });
+    .catch(async () => { throw Error(`Retry must start today's note: ${JSON.stringify(await frame.evaluate(() => ({ problem: window.garden.problem, title: window.garden.draft?.title ?? null })))}.`); });
 
-  // GDN-17: a save answered while typing went on, whose read-back fails, leaves the newer text a
+  // A save answered while typing went on, whose read-back fails, leaves the newer text a
   // draft over the saved note: the next Save writes that note, never a second one.
   await workspaceAgain();
   await command('new');
@@ -1978,9 +1978,9 @@ async page => {
   await frame.waitForFunction(() => window.garden.saving === false, null, { timeout: 5000 });
   const readBackNotes = (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Read back lost');
   assert(lostRead.note !== null && lostRead.newKey === null && lostRead.dirty && readBackNotes.length === 1 && readBackNotes[0].values[F.body] === 'First words. And more.',
-    `GDN-17: when the read-back after a save fails, the newer text must stay a draft over the saved note, and Save write that note once: ${JSON.stringify({ lostRead, notes: readBackNotes.map(n => [n.recordId, n.values[F.body]]) })}.`);
+    `when the read-back after a save fails, the newer text must stay a draft over the saved note, and Save write that note once: ${JSON.stringify({ lostRead, notes: readBackNotes.map(n => [n.recordId, n.values[F.body]]) })}.`);
 
-  // GDN-01: a draft whose note goes waits as a new note, marked in the tree, with its text: after
+  // A draft whose note goes waits as a new note, marked in the tree, with its text: after
   // Undo of the save that planted it, and after the view starts again on a file without it.
   await workspaceAgain();
   await command('mode', 'edit');
@@ -1991,7 +1991,7 @@ async page => {
   await page.waitForFunction(n => window.broker.requests.filter(r => r.m === 'records.batch').length > n, plantAt, { timeout: 5000 });
   await savedNow();
   const plantedSeed = (await records('gd.note')).find(n => n.values['gd.note.title'] === 'Brand new idea');
-  assert(plantedSeed, 'GDN-01: the save must plant the seed.');
+  assert(plantedSeed, 'the save must plant the seed.');
   await openRow(plantedSeed.recordId);
   await type('A paragraph written in the seed, not saved.');
   await openRow('gd.note.start-here');
@@ -2002,7 +2002,7 @@ async page => {
   await frame.waitForFunction(() => document.querySelectorAll('#tree .row.unsaved').length > 0, null, { timeout: 3000 }).catch(() => undefined);
   const afterUndo = await strandedDrafts();
   assert(afterUndo.rows.includes('Brand new idea') && afterUndo.kept.some(d => d.id.startsWith('new:') && d.body === 'A paragraph written in the seed, not saved.'),
-    `GDN-01: a draft whose note Undo took away must wait as a new note, marked in the tree, with its text: ${JSON.stringify(afterUndo)}.`);
+    `a draft whose note Undo took away must wait as a new note, marked in the tree, with its text: ${JSON.stringify(afterUndo)}.`);
   // Redo brings the seed back, and the draft is the seed's again: marked on its row, opened over it,
   // and saved into it, never planted as a second note.
   await command('redo');
@@ -2010,14 +2010,14 @@ async page => {
   await frame.waitForFunction(id => !!document.querySelector(`#tree .row.draft[data-id="${id}"]`), plantedSeed.recordId, { timeout: 3000 }).catch(() => undefined);
   const afterRedo = { ...(await strandedDrafts()), marked: await frame.locator(`#tree .row.draft[data-id="${plantedSeed.recordId}"]`).count() };
   assert(!afterRedo.rows.includes('Brand new idea') && afterRedo.marked === 1 && afterRedo.kept.some(d => d.id === plantedSeed.recordId && d.body === 'A paragraph written in the seed, not saved.'),
-    `GDN-01: after Redo the draft must be the seed's again, not a second unsaved note: ${JSON.stringify(afterRedo)}.`);
+    `after Redo the draft must be the seed's again, not a second unsaved note: ${JSON.stringify(afterRedo)}.`);
   await openRow(plantedSeed.recordId);
   const overSeed = await draftNow();
-  assert(overSeed.editor === 'A paragraph written in the seed, not saved.' && overSeed.dirty && !overSeed.external, `GDN-01: the seed opens with its draft over it: ${JSON.stringify(overSeed)}.`);
+  assert(overSeed.editor === 'A paragraph written in the seed, not saved.' && overSeed.dirty && !overSeed.external, `the seed opens with its draft over it: ${JSON.stringify(overSeed)}.`);
   await command('save');
   await savedNow();
   const seedsNow = (await records('gd.note')).filter(n => n.values['gd.note.title'] === 'Brand new idea');
-  assert(seedsNow.length === 1 && seedsNow[0].values[F.body] === 'A paragraph written in the seed, not saved.', `GDN-01: saving the draft after Redo writes the seed, and plants nothing: ${JSON.stringify(seedsNow.map(n => n.recordId))}.`);
+  assert(seedsNow.length === 1 && seedsNow[0].values[F.body] === 'A paragraph written in the seed, not saved.', `saving the draft after Redo writes the seed, and plants nothing: ${JSON.stringify(seedsNow.map(n => n.recordId))}.`);
   await openRow('gd.note.start-here');
   await openRow('gd.note.daily-notes');
   await type('Typed over Daily notes, which goes elsewhere.');
@@ -2027,9 +2027,9 @@ async page => {
   await frame.waitForFunction(() => window.garden.note?.recordId === 'gd.note.start-here', null, { timeout: 5000 });
   const goneAtStart = { ...(await strandedDrafts()), status: await frame.locator('#status').textContent() };
   assert(goneAtStart.rows.includes('Daily notes') && goneAtStart.kept.some(d => d.id.startsWith('new:') && d.body === 'Typed over Daily notes, which goes elsewhere.') && /the tree marks/.test(goneAtStart.status),
-    `GDN-01: a draft whose note is gone when the view starts again must be the unsaved row the status line promises: ${JSON.stringify(goneAtStart)}.`);
+    `a draft whose note is gone when the view starts again must be the unsaved row the status line promises: ${JSON.stringify(goneAtStart)}.`);
 
-  // GDN-11: Tended today, pressed from the keyboard, keeps the keyboard in Tend.
+  // Tended today, pressed from the keyboard, keeps the keyboard in Tend.
   await page.evaluate(({ tendFixture, tendContext }) => { window.broker.setFixture({ ...tendFixture, context: tendContext }); window.broker.remount(); }, { tendFixture, tendContext });
   await page.waitForTimeout(300);
   frame = await mounted();
@@ -2038,8 +2038,8 @@ async page => {
   await page.keyboard.press('Enter');
   await frame.waitForFunction(() => !document.querySelector('.tend-note[data-id="gd.note.daily-notes"]'), null, { timeout: 3000 });
   const tendFocus = await frame.evaluate(() => { const e = document.activeElement; return { tag: e?.tagName, inTend: !!e && e !== document.body && !!e.closest?.('#tend'), row: e?.closest?.('.tend-note')?.dataset.id ?? null, text: (e?.textContent ?? '').slice(0, 60) }; });
-  assert(tendFocus.inTend, `GDN-11: after Tended today the keyboard must stay in Tend, on the row that took its place or the summary, not fall to the page: ${JSON.stringify(tendFocus)}.`);
-  checks.push('W-226 GDN-01 GDN-02 GDN-06 GDN-09 GDN-10 GDN-11 GDN-12 GDN-13 GDN-14 GDN-17 measured where the person meets them');
+  assert(tendFocus.inTend, `after Tended today the keyboard must stay in Tend, on the row that took its place or the summary, not fall to the page: ${JSON.stringify(tendFocus)}.`);
+  checks.push('wheel, tree, keys, links, saves, drafts and Tend measured where the person meets them');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, colours, diagramColours, narrow, settle, checks, errors };

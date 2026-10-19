@@ -5,8 +5,8 @@ namespace Nendo.LocalMcp.Tests;
 /// <summary>
 /// A reduced contract version 3 CRM: three related record types, a record page
 /// with a section, two related lists and an exact rollup tile, a filtered list,
-/// a board and a two-step command. Modelled on the application the 2026-09-11
-/// blackbox review built through MCP alone, which no fixture here could express —
+/// a board and a two-step command. Modelled on an application built
+/// through MCP alone, which no fixture here could express —
 /// <see cref="ReadingQueueAuthoringFixture"/> is contract version 1, and the
 /// version 1 and 2 shapes are exactly the ones that hid the surfaces-resource and
 /// preview-summary defects.

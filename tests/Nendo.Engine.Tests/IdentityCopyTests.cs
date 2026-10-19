@@ -39,8 +39,8 @@ public sealed class IdentityCopyTests
         Assert.AreEqual(result.Manifest, copied.Manifest);
         // A copy carries the requirement its content needs: an empty application
         // only the lifecycle host, the Idea Garden the composable host, and the
-        // Decision Log — which carries a timeline since S3, a gallery since S2 and
-        // a front page since S4 — the rung of the newest shape it holds.
+        // Decision Log — which carries a timeline, a gallery and a front page — the
+        // rung of the newest shape it holds.
         Assert.AreEqual(
             application switch
             {

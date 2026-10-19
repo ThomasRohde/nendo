@@ -31,7 +31,7 @@ test('checkbox tasks keep a key from their text that survives ticking and reorde
   const ticked = parse('- [x] Water   the seeds').tasks[0];
   assert.equal(ticked.key, open[0].key, 'the key ignores the box and the spacing');
   assert.equal(ticked.done, true);
-  // Two lines that say the same task are two tasks (G-011), the second keyed -2, a case-only variant too.
+  // Two lines that say the same task are two tasks, the second keyed -2, a case-only variant too.
   const twice = parse('- [ ] Repeat\n## Later\n- [x] Repeat\n- [ ] repeat').tasks;
   assert.deepEqual(twice.map(t => [t.key, t.done, t.line]), [[twice[0].key, false, 0], [`${twice[0].key}-2`, true, 2], [`${twice[0].key}-3`, false, 3]]);
   assert.equal(new Set(twice.map(t => t.key)).size, 3);
@@ -58,7 +58,7 @@ test('an excerpt keeps the match inside a window of the width asked for', () => 
   assert.equal(excerptAround('  short  ', 2, 200), 'short');
 });
 
-test('GDN-03: a title in any script keeps a readable slug of its own, and a record ID stays a-z', () => {
+test('a title in any script keeps a readable slug of its own, and a record ID stays a-z', () => {
   const titles = ['Заметки о саде', '庭のメモ', 'Σημειώσεις', 'ملاحظات', 'Smørrebrød'];
   const slugs = titles.map(slugify);
   assert.deepEqual(slugs, ['заметки-о-саде', '庭のメモ', 'σημειωσεισ', 'ملاحظات', 'smørrebrød'],

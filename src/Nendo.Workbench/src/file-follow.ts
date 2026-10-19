@@ -65,7 +65,7 @@ export interface FileFollowParts {
 export const followRetryCeilingMs = 30_000;
 
 /**
- * Catch the view up with the file, and keep asking until it has (WCS-07).
+ * Catch the view up with the file, and keep asking until it has.
  *
  * Behind is measured against what the screen was drawn from, not against the session snapshot: a
  * pass adopts the newer snapshot before it rebuilds, so one that failed after that left the screen

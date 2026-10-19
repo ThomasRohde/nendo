@@ -183,7 +183,7 @@ public sealed record NendoAgentProposalSummary(
     /// <summary>
     /// The change set that validated into this proposal: what preview, reject and accept take.
     /// Without it an agent reconnecting to its predecessor's work could see the proposal and
-    /// not name it (W-143).
+    /// not name it.
     /// </summary>
     public string? ChangeSetId { get; init; }
 
@@ -241,7 +241,7 @@ public sealed class NendoAgentProposalStore
     /// </summary>
     public event Action<int>? ProposalAdded;
 
-    /// <summary>The queue changed: a proposal joined it, or left it by promotion or rejection (W-151). Raised outside the lock; a handler must not wait on this store.</summary>
+    /// <summary>The queue changed: a proposal joined it, or left it by promotion or rejection. Raised outside the lock; a handler must not wait on this store.</summary>
     public event Action? ProposalsChanged;
 
     internal void Add(
@@ -263,7 +263,7 @@ public sealed class NendoAgentProposalStore
         // Raised outside the lock: a handler that blocked here would hold every other
         // caller of this store behind whatever it was doing. And never able to fail the
         // validate that raised it: a throwing handler used to refuse the agent's call with
-        // the draft already frozen and the proposal already queued (F-182).
+        // the draft already frozen and the proposal already queued.
         if (ProposalAdded is { } added)
         {
             try
@@ -316,8 +316,8 @@ public sealed class NendoAgentProposalStore
                 value.ChangeSetId == changeSetId &&
                 value.HostRunId == hostRunId &&
                 value.ApplicationHandle == applicationHandle);
-            // The caller's own proposal carries its change set and owner, as the resource read does
-            // (MAA-13): the fields say "null for a proposal another client prepared".
+            // The caller's own proposal carries its change set and owner, as the resource read does:
+            // the fields say "null for a proposal another client prepared".
             return entry is null ? null : ProjectPreview(entry.Preview) with
             {
                 ChangeSetId = entry.ChangeSetId,
@@ -379,7 +379,7 @@ public sealed class NendoAgentProposalStore
         }
     }
 
-    /// <summary>The full preview of a proposal this adapter queued, with its change set and owner, or null when it holds none by that ID (W-148).</summary>
+    /// <summary>The full preview of a proposal this adapter queued, with its change set and owner, or null when it holds none by that ID.</summary>
     internal NendoAgentProposalPreview? TryGet(string proposalId)
     {
         lock (_gate)
@@ -568,7 +568,7 @@ public sealed class NendoAgentProposalStore
 
     /// <summary>
     /// Keeps an accepted proposal's preview so nendo://application/proposal/{id} can still
-    /// say what was accepted, with its title and diff, as the contract promises (F-261).
+    /// say what was accepted, with its title and diff, as the contract promises.
     /// The Engine keeps only the receipt. Bounded: the oldest is forgotten past the cap.
     /// </summary>
     private void Keep(string proposalId)
@@ -603,7 +603,7 @@ public sealed class NendoAgentProposalStore
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(application);
-        // Only the file's identity is compared; every record was read for it on each promote and reject (PERF-07).
+        // Only the file's identity is compared; every record was read for it on each promote and reject.
         var snapshot = await application.GetDefinitionSnapshotAsync(cancellationToken);
         lock (_gate)
         {
@@ -667,7 +667,7 @@ public sealed class NendoAgentProposalStore
         // file rather than to a record type. Left out here, a proposal that adds one
         // is reviewed as adding no screen at all: the diff names it and this summary
         // did not, which is the two of them disagreeing about the same change set.
-        // A file-scoped custom view is the same case (MAA-16): it belongs to the file, the compiler
+        // A file-scoped custom view is the same case: it belongs to the file, the compiler
         // keeps it apart from the applications, and a proposal adding one read as adding no screen.
         var surfaces = applications.SelectMany(app => SurfacesOf(app, applications, preview))
             .Concat(preview.PreviewOverview is null
@@ -758,12 +758,12 @@ public sealed class NendoAgentProposalStore
                     if (name is null) return null;
                     // The renderer checks the ceiling against every record of the target type, before
                     // any filter, and draws no column past it; the preview's plan holds a bounded
-                    // sample of the records, so the whole count comes from the clone (W-227 review).
+                    // sample of the records, so the whole count comes from the clone.
                     var total = preview.PreviewRecordCounts.TryGetValue(reference.TargetEntityId, out var counted)
                         ? counted
                         : target?.Records.Count ?? 0;
                     // "per {name} record" reads the same whether the person named the type
-                    // Account or Initiatives; "per Initiatives, 6 of them" did not (W-044).
+                    // Account or Initiatives; "per Initiatives, 6 of them" did not.
                     if (total == 0) return $"one column per {name} record, and there are none yet, so it would draw nothing";
                     if (total > MaximumReferenceColumns)
                         return $"one column per {name} record, {total} of them, more than the {MaximumReferenceColumns} a board " +
@@ -810,7 +810,7 @@ public sealed class NendoAgentProposalStore
     /// The lanes a surface can draw on one field, by the renderer's own rule (surface-model.ts
     /// reachableGroups): a filterClause of the surface on that field with ne removes its value and
     /// with eq keeps only its value. Any other operator says nothing definite, so every lane stays.
-    /// The shape counted every option, so a grid narrowed by "stage ne Lost" previewed a row too many (MAA-06).
+    /// The shape counted every option, so a grid narrowed by "stage ne Lost" previewed a row too many.
     /// </summary>
     private static IReadOnlyList<string> Reachable(NendoSurfaceNodePlan node, string fieldId, IEnumerable<string> groups)
     {

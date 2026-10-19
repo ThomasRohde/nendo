@@ -1,7 +1,6 @@
 # Drives a launched agent's conversation tab in the built Workbench, against the browser preview
-# host's scripted agent, and measures what the ACP review of 2026-10-10 found wrong in it: the
-# level shown after a change on the Agent page (ACP-12), keyboard focus on a fold (ACP-05), where
-# More opens (ACP-04), what New session keeps (ACP-02) and which tab owns the conversation (ACP-06).
+# host's scripted agent, and measures the level shown after a change on the Agent page, keyboard
+# focus on a fold, where More opens, what New session keeps and which tab owns the conversation.
 #
 # What it does NOT cover: a real agent program, the Desktop host or WebView2. Those are the
 # Desktop tests (DesktopLaunchedAgentTests) and the owner's installed app.

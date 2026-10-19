@@ -61,7 +61,7 @@ internal sealed class ValidatedExpression
     /// <summary>
     /// Whether the definition declared that its result may be empty. The declaration
     /// decides what an empty input does to the formula: stop it with an empty result,
-    /// or stop it with <c>calculation-missing-input</c> (ADR-0008, 2026-09-20 amendment).
+    /// or stop it with <c>calculation-missing-input</c> (ADR-0008).
     /// Null where nothing was declared -- a trigger condition, an action's assignment --
     /// and there an empty operand is the error it always was, and an empty ending is
     /// allowed: a condition that ends empty selects nothing, an assignment clears.
@@ -73,7 +73,7 @@ internal sealed class ValidatedExpression
     /// <summary>
     /// The choices the analyzer typed decimal because one outcome is a whole number and the
     /// other a decimal, by node. Evaluation widens the whole-number outcome of each, so the
-    /// operator around the choice computes in the decimal its type promises (R2AAV-02).
+    /// operator around the choice computes in the decimal its type promises.
     /// </summary>
     internal IReadOnlySet<LogicalExpression> WidenedChoices { get; }
 
@@ -139,7 +139,7 @@ internal sealed class NendoExpressionAdapter
         {
             // Every refusal names the formula it is about. An action of six assignments with
             // one unclosed parenthesis was refused with "This formula could not be read" and
-            // nothing said which assignment (EBH-15).
+            // nothing said which assignment.
             throw new NendoValidationException($"{OwnerOf(formula.FormulaId)}: {exception.Message}");
         }
 
@@ -164,7 +164,7 @@ internal sealed class NendoExpressionAdapter
 
     /// <summary>
     /// The parser's own reason and position, as "Parenthesis not closed at line 1, character
-    /// 13". The parser reports both, and the refusal used to drop them (EBH-15).
+    /// 13". The parser reports both, and the refusal keeps them.
     /// </summary>
     private static string ParseProblem(Exception? failure, string source)
     {
@@ -176,7 +176,7 @@ internal sealed class NendoExpressionAdapter
             var reason = match.Groups["reason"].Value.Trim();
             var located = $"This formula could not be read: {reason} at line {match.Groups["line"].Value}, character {match.Groups["column"].Value}. Check its syntax.";
             // The parser reads a choice inside a choice only in parentheses, in either outcome,
-            // and an ordinary grading chain cost an agent a round trip per guess (R2AAV-04). It
+            // and an ordinary grading chain cost an agent a round trip per guess. It
             // reports that as an invalid token, at the second question mark for an outcome after
             // the colon and at the first for one before it, so the position cannot tell; the
             // reason can, and an unclosed parenthesis or any other slip gets no such hint.
@@ -307,7 +307,7 @@ internal sealed class NendoExpressionAdapter
         catch (NendoCalculationException exception)
             when (exception.Code == NendoCalculationCodes.MissingInput && expression.ResultNullable == true)
         {
-            // The declaration decides (ADR-0008, 2026-09-20 amendment): an empty input
+            // The declaration decides (ADR-0008): an empty input
             // that stops a formula declared to allow an empty result is that empty
             // result, not an error. A formula declared always to answer keeps the error,
             // and every other code -- a refusal by name, a zero divisor -- is what it is.

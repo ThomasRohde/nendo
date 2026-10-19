@@ -3,7 +3,7 @@ using System.Net;
 namespace Nendo.LocalMcp;
 
 // No bearer: the loopback perimeter, exact Host/Origin matching, the per-run generation and closed admission
-// are the whole transport boundary (ADR-0009, 2026-09-13 amendment).
+// are the whole transport boundary (ADR-0009).
 internal sealed class NendoHostAuthority(
     string hostRunId,
     AgentAccessMode mode,
@@ -17,7 +17,7 @@ internal sealed class NendoHostAuthority(
 
     /// <summary>
     /// Why a closed endpoint refuses, and where the current one is shown: the one sentence the
-    /// perimeter, the tool path and the resource path all give (MHS-10).
+    /// perimeter, the tool path and the resource path all give.
     /// </summary>
     internal const string ClosedMessage =
         "This agent endpoint is closed: the file was closed, switched or entered recovery, or agent access " +

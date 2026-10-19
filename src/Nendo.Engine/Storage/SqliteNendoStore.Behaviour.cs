@@ -77,7 +77,7 @@ internal sealed partial class SqliteNendoStore
 
     /// <summary>
     /// Every stored behaviour definition's display name by its ID, for a review line that names
-    /// an action or a definition rather than prettifying its ID (ESM-19).
+    /// an action or a definition rather than prettifying its ID.
     /// </summary>
     internal async Task<IReadOnlyDictionary<string, string>> GetBehaviourNamesAsync(CancellationToken cancellationToken) =>
         (await ReadBehaviourDefinitionsAsync(null, cancellationToken))
@@ -182,7 +182,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// A function's declared result is its published signature: what describe, the review and an
     /// agent read. A formula of another kind installed, and its callers were typed by the formula,
-    /// so a calculation that trusted the signature was blamed for the function (R2AAV-01). Checked
+    /// so a calculation that trusted the signature was blamed for the function. Checked
     /// at installation, never on the read path every open and save compiles, so a file that
     /// already holds such a function keeps its calculations; a definition installed now that
     /// calls one is refused too, naming the function to correct.
@@ -219,11 +219,11 @@ internal sealed partial class SqliteNendoStore
 
         // A name a formula reads is held to the formula grammar's own identifier when a
         // definition is installed or changed. Putting back a definition History recorded is
-        // not authoring, so an undo in a file written before this rule still lands (EBH-16).
+        // not authoring, so an undo in a file written before this rule still lands.
         // Every install rule added since behaviour shipped is skipped the same way: the
-        // traversal's nullability (EBH-07), relevant fields (EBH-08), the duplicate calculation
-        // (EBH-06) and the action pair's binding start, result fit and required fields (EBH-03,
-        // EBH-04). The rules every definition has always met still apply.
+        // traversal's nullability, relevant fields, the duplicate calculation and the action
+        // pair's binding start, result fit and required fields. The rules every definition has
+        // always met still apply.
         if (!_replayingRecordedOperations) NendoBehaviourValidation.RequireFormulaNames(definition);
 
         await RequireBehaviourBindingsResolveAsync(definition, transaction, cancellationToken);
@@ -238,7 +238,7 @@ internal sealed partial class SqliteNendoStore
         // A record type's fields are named by ID. Two calculations of one field on one record
         // type installed, and then every read that built the type's calculated fields by ID
         // threw a duplicate-key exception: each record query over the type, and every custom
-        // screen over it (EBH-06). The same ID on two record types is two fields and is kept.
+        // screen over it. The same ID on two record types is two fields and is kept.
         // Checked here, at install, and not in the graph every open compiles: a file that
         // already holds such a pair keeps the narrower failure of that one record type rather
         // than losing every calculation it has.
@@ -401,7 +401,7 @@ internal sealed partial class SqliteNendoStore
     /// Refuses a relevant field a trigger can never see change. An update raises a trigger only
     /// when one of its relevant fields is among the stored fields that moved, so a misspelled ID,
     /// or a calculated field, which is never stored and so never moves, installed a trigger that
-    /// never ran on an update and said nothing (EBH-08).
+    /// never ran on an update and said nothing.
     /// </summary>
     private async Task RequireRelevantFieldsResolveAsync(
         NendoTriggerDefinition trigger,
@@ -479,7 +479,7 @@ internal sealed partial class SqliteNendoStore
                     var reference = RequireReferenceField(entity, binding.ReferenceFieldId!, binding.RelatedEntityId!);
                     // An unset reference reads as empty whatever the binding declares, and an empty
                     // value a binding promised stopped the formula before IsEmpty could give a
-                    // default: every record without the reference showed an error (EBH-07).
+                    // default: every record without the reference showed an error.
                     if (!reference.Required && !binding.Nullable && !_replayingRecordedOperations)
                         throw new NendoValidationException(
                             $"'{binding.ReferenceFieldId}' is optional, so a record may point nowhere and the formula must accept an empty value " +
@@ -535,7 +535,7 @@ internal sealed partial class SqliteNendoStore
     /// events raise it. So the pair is the smallest thing that can be checked, and until
     /// this ran nothing checked it — a step that bound the event record while writing a
     /// field of the referenced one installed cleanly and failed at the next save, which is
-    /// the mistake the published example warns about (F-003).
+    /// the mistake the published example warns about.
     /// <para>
     /// This resolves each step exactly as the planner's <c>TargetEntityId</c> does at run
     /// time, and refuses the same shapes the planner would fail on. Where the planner has
@@ -619,7 +619,7 @@ internal sealed partial class SqliteNendoStore
     /// record that raised the event for a create step. The planner reads a binding's table by
     /// that record's ID, so a binding that starts anywhere else read the wrong table: every
     /// save that ran it was refused with "no longer there", or a record of another type that
-    /// happened to share the ID was read in its place (EBH-03).
+    /// happened to share the ID was read in its place.
     /// </summary>
     private static void RequireAssignmentBindingsStart(
         NendoTriggerDefinition trigger,
@@ -660,7 +660,7 @@ internal sealed partial class SqliteNendoStore
     /// or a true/false into a text-like field, text or a date into a number or a true/false, a
     /// number into a true/false, and a decimal into a whole number unless the formula rounds to
     /// 0 digits. Text may still fill a date, timestamp, UUID or choice field: that is checked
-    /// per value when the step runs, because well-formed text is accepted (EBH-04).
+    /// per value when the step runs, because well-formed text is accepted.
     /// </summary>
     private static void RequireAssignmentFits(
         NendoActionDefinition action,
@@ -690,7 +690,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// Refuses a create step that leaves a required field of its new record empty. The create
     /// would be refused on every save that runs it; a field a sequence numbers is filled by the
-    /// host and needs nothing from the step (EBH-04).
+    /// host and needs nothing from the step.
     /// </summary>
     private static void RequireCreateCoversRequiredFields(NendoActionDefinition action, NendoActionStep step, EntityMapping entity)
     {
@@ -784,7 +784,7 @@ internal sealed partial class SqliteNendoStore
     /// <summary>
     /// The stored field an aggregate reads from each member. A field it cannot find may be a
     /// calculated one, which an author names by its calculation instead: the refusal says so,
-    /// where it once said only that the field was not there (2026-10-10).
+    /// rather than only that the field is not there.
     /// </summary>
     private static void RequireMemberField(EntityMapping entity, string fieldId, NendoBehaviourScalar expected, string role)
     {

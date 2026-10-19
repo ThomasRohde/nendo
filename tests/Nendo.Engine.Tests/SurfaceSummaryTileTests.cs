@@ -3,8 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Summary tiles on a list and a board, ADR-0004's 2026-09-12 vocabulary-widening
-/// amendment. A tile states one exact number over the records the surface shows —
+/// Summary tiles on a list and a board (ADR-0004). A tile states one exact number over the records the surface shows —
 /// not over the page in view — and `scope` group narrows it to one board column.
 /// The restriction on `scope` is contextual: the parent decides, so a flat kind
 /// table cannot enforce it and the compiler is given the parent explicitly.

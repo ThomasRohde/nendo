@@ -7,7 +7,7 @@ namespace Nendo.Desktop;
 /// <summary>
 /// Something in the open file the person pointed at with @ when writing to the agent: the address
 /// that reads it through Nendo, what it is called, and a short description the Workbench wrote of
-/// it, with its IDs (W-200). The person chose it, and the agent could read all of it through the
+/// it, with its IDs. The person chose it, and the agent could read all of it through the
 /// file's address at the level it works at; it travels with the message so the agent need not go
 /// looking for what the person already had in front of them.
 /// </summary>

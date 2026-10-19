@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A section can be folded away, ADR-0004 2026-09-20 amendment. Only one thing is
+/// A section can be folded away (ADR-0004). Only one thing is
 /// authored -- how the section starts, <c>opens</c> -- so these tests are about that
 /// property: where it is accepted, what it may say, the rung it moves a file to, and
 /// what the vocabulary tells an agent about it. The fold itself is renderer behaviour

@@ -66,8 +66,8 @@ internal sealed partial class SqliteNendoStore
     }
 
     /// <summary>
-    /// Points a bound reference at another label field of its target (ADR-0003, 2026-10-14 note,
-    /// W-232). The label must be what schema.configureReference would accept, an active Text field
+    /// Points a bound reference at another label field of its target (ADR-0003).
+    /// The label must be what schema.configureReference would accept, an active Text field
     /// of the target, and no record changes: the stored value is the target record ID.
     /// </summary>
     private async Task<OperationEvidence> ExecuteSetReferenceLabelAsync(SetReferenceLabelOperation operation,
@@ -197,7 +197,7 @@ internal sealed partial class SqliteNendoStore
             throw new NendoPreconditionException("reference-unbound", "Choose the target record type and label through a reviewed definition proposal first.");
         if (value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
             throw new NendoValidationException("A reference requires a target record ID.");
-        // Each refusal names the field and the record it points at (R2AP-07): an agent's or a
+        // Each refusal names the field and the record it points at: an agent's or a
         // view's batch of a hundred writes, or one update setting two references, could not tell
         // from the form's words which write or field they meant. A record ID is a stable ID, and
         // RecordId carries it so the Workbench names the target by its label for the person.

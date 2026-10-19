@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-089. There was one agent port for the device, and the first file to switch access on
+/// There was one agent port for the device, and the first file to switch access on
 /// took it; every other file listened on a temporary port that changed each run, so an agent
 /// registered as "nendo" reached whichever file had opened first and a second file could not
 /// be registered at all.
@@ -100,7 +100,7 @@ public sealed class DesktopAgentPortStoreTests
     }
 
     /// <summary>
-    /// R2SP-03. Files of one application -- a new file made with File, New file, or a Duplicate --
+    /// Files of one application -- a new file made with File, New file, or a Duplicate --
     /// shared one kept port: the second was handed the first's, could not bind it while the first
     /// listened, and a port chosen for either moved the other's as well.
     /// </summary>
@@ -125,7 +125,7 @@ public sealed class DesktopAgentPortStoreTests
     }
 
     /// <summary>
-    /// R2SP-03. A list kept before the instance was part of the key holds one port per
+    /// A list kept before the instance was part of the key holds one port per
     /// application. The first file of it to ask keeps that port; another is given its own.
     /// </summary>
     [TestMethod]
@@ -143,7 +143,7 @@ public sealed class DesktopAgentPortStoreTests
     }
 
     /// <summary>
-    /// R2SP-03, after review. The older entry goes to the file it was evidently kept for, not to
+    /// The older entry goes to the file it was evidently kept for, not to
     /// whichever file of the application asks first: the one the access-level list of the same era
     /// names, or else the one whose name the port was kept under.
     /// </summary>
@@ -177,7 +177,7 @@ public sealed class DesktopAgentPortStoreTests
     }
 
     /// <summary>
-    /// R2SP-03, through two windows: a new file of the application, open beside the file it was
+    /// A new file of the application, open beside the file it was
     /// made from, is told a port of its own and listens on it.
     /// </summary>
     [TestMethod]

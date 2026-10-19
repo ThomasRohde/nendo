@@ -30,7 +30,7 @@ internal sealed partial class DesktopSessionController
         // Every step belongs to the file session the fold began in: a Workbench request carries
         // its own, and a fold called without one is bound to the session open now. A close or a
         // replacement between the steps then refuses the rest as stale, rather than the backup
-        // and the fold acting on the next file (W-216 review).
+        // and the fold acting on the next file.
         using var bound = _fileRequest.Value is null ? BindFileRequest(_fileSessionId) : null;
         var path = _currentPath ?? throw new NendoPreconditionException("history-fold-unavailable", "No file is open.");
         RequireWritableLocation(path);
@@ -52,7 +52,7 @@ internal sealed partial class DesktopSessionController
         QueryAsync(service => service.ReadMediaUsageAsync(cancellationToken), cancellationToken);
 
     /// <summary>
-    /// Removes the open file's unused pictures (ADR-0031 point 8, W-273): first a backup beside the
+    /// Removes the open file's unused pictures (ADR-0031 point 8): first a backup beside the
     /// file, named for the day, which keeps every picture; then the removal and the compaction,
     /// which only a backup of the file as it stands allows. Asked for on History.
     /// </summary>
@@ -80,7 +80,7 @@ internal sealed partial class DesktopSessionController
     /// <para>
     /// Nothing in History can be asked about a second path, so a file whose location the person
     /// accepted for writable use had its fold refused for the backup beside it, whatever they
-    /// chose (DSH-20). The backup is covered by that acceptance: this one path, for this request
+    /// chose. The backup is covered by that acceptance: this one path, for this request
     /// alone, and only when the file's own location was accepted. An accepted location is still
     /// no grant for any other output.
     /// </para>
@@ -138,7 +138,7 @@ internal sealed partial class DesktopSessionController
             // Healthy is the test, not editable: a healthy file waiting for its automatic actions to
             // be approved has editing off as well, and reinspecting it closed it, ended agent access,
             // discarded waiting proposals and reopened it read-only, where approval could not be
-            // given (R2SMA-06).
+            // given.
             if (_coordinator?.Health == NendoSessionHealth.Normal)
                 throw new NendoPreconditionException("inspection-not-required",
                     "This file passed the checks required for editing, so it does not need inspecting again. Reopening it would only make it read-only.");

@@ -7,7 +7,7 @@ import {
   findReplacePreview, findReplaceApply,
 } from '../../extensions/archi/canvas.js';
 
-// W-119: Archi's Specializations Manager, Properties Manager and Find and Replace are archi-online's
+// Archi's Specializations Manager, Properties Manager and Find and Replace are archi-online's
 // own operations on the mirror; what reaches the file is writesFor's difference. Each is run here
 // as the workbench runs it, against a file that answers records.batch as Nendo does, and read back:
 // the model read back must be the model archi-online made, and Undo must put the file back.

@@ -150,7 +150,7 @@ test('a selector label falls back to the kind and disambiguates a shared title',
  assert.equal(kindLabel('timelineSurface'),'Timeline');
  assert.equal(kindLabel('gallerySurface'),'Gallery');
  // Two lists may legitimately share a title; two buttons reading "Deals" name
- // nothing. They are told apart by kind, then by order, never by a stored ID (UX-13).
+ // nothing. They are told apart by kind, then by order, never by a stored ID.
  const a=node('list.a','recordList',{title:'Deals'});
  const b=node('list.b','recordList',{title:'Deals'});
  assert.equal(surfaceLabel(a,[a,b]),'Deals (1 of 2)');
@@ -179,9 +179,9 @@ test('the open tab falls back to the first section when the remembered one is go
  assert.deepEqual(tabSections(node('page.tabs','tabGroup',{},[binding('name')])),[]);
 });
 
-// W-134. The agent review page and the proposal preview each kept a copy of this table, and
-// the review's had fallen four kinds behind: a matrix, a ranking or a custom view showed
-// under its raw kind id. The table that names every kind lives here, and nowhere else.
+// The table that names every surface kind lives here, and nowhere else: a copy kept by the
+// agent review page or the proposal preview falls behind, and a kind it misses shows under its
+// raw kind id.
 test('one table names surface kinds, and it names the kinds the copies had missed',()=>{
  assert.equal(kindLabel('matrixSurface'),'Matrix');
  assert.equal(kindLabel('rankedList'),'Ranking');

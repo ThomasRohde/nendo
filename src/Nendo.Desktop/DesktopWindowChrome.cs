@@ -12,7 +12,7 @@ internal static class DesktopWorkbenchNavigation
     /// Only the Workbench's own latest navigation failing is. The host cancels every other
     /// top-level navigation, and the browser reports a cancelled or superseded one as a failure:
     /// a link dragged onto the window, or a file dropped while a dialog was open, tore down a
-    /// healthy view (DSH-02). Those carry another navigation's ID, which is all that tells them
+    /// healthy view. Those carry another navigation's ID, which is all that tells them
     /// apart. The Workbench's own latest navigation failing, cancelled included, is fatal
     /// whatever its status, or the window would be left on a blank view.
     /// </para>
@@ -27,7 +27,7 @@ internal static class DesktopWorkbenchNavigation
     /// F12 for DevTools. WebView2 handles them before the page sees them (the order its
     /// AcceleratorKeyPressed documentation gives: the host's event, then the browser's own
     /// handling, then the page), so the page cannot stop F5 dropping an open form's typing, and
-    /// WinUI's WebView2 offers no controller to filter them one by one (DSH-15). Off in a shipped
+    /// WinUI's WebView2 offers no controller to filter them one by one. Off in a shipped
     /// build; on in a Debug build, where F12 on the Workbench is the developer's way into it.
     /// </summary>
     internal static bool BrowserAcceleratorKeys =>
@@ -44,7 +44,7 @@ internal static class DesktopShellSafety
     /// <summary>
     /// Posts to the Workbench's browser, which may have gone between the check and the post.
     /// A response landing after the browser process died threw out of the async message handler
-    /// and ended the process, instead of the recovery panel this path exists to show (DSH-03).
+    /// and ended the process, instead of the recovery panel this path exists to show.
     /// </summary>
     internal static bool TryPost(Action post)
     {
@@ -62,7 +62,7 @@ internal static class DesktopShellSafety
     /// <summary>
     /// Gives the window its icon. A missing or unreadable icon file is a missing convenience:
     /// called unguarded from the window's constructor, it ended the launch before any window or
-    /// recovery panel existed (DSH-23).
+    /// recovery panel existed.
     /// </summary>
     internal static bool TrySetIcon(Action<string> setIcon, string path)
     {
@@ -81,7 +81,7 @@ internal static class DesktopShellSafety
     /// Ends the session on the way out, and returns what went wrong rather than throwing it. The
     /// close handler is async void and runs after the window has asked the application to exit,
     /// so a cleanup failure there (a discovery entry another reader held, say) reported a crash
-    /// for a normal exit (DSH-19). The file's data is not at stake by then: every commit is
+    /// for a normal exit. The file's data is not at stake by then: every commit is
     /// already durable, and what failed is tidying up after it.
     /// </summary>
     internal static async Task<Exception?> ShutdownAsync(Func<Task> shutdown)
@@ -114,7 +114,7 @@ internal interface IDesktopTaskbarButton
 /// An agent's work shows only once it has lasted <see cref="AgentDelay"/>, the wait the status
 /// bar's pill and the busy bar already make, because a fast read must not flash an indicator.
 /// The taskbar showed every call at once, so a client polling the file every minute flashed the
-/// button's progress each time (R2SP-13).
+/// button's progress each time.
 /// </para>
 /// </summary>
 /// <param name="schedule">
@@ -161,7 +161,7 @@ internal sealed class DesktopTaskbarActivity(IDesktopTaskbarButton? button, Acti
     /// <summary>
     /// The taskbar button is new and bare: the window was hidden and shown again, or Explorer
     /// restarted. Its progress is put back with it, not only its badge, or an agent still at
-    /// work showed nothing until its next call (DSH-13). The caller puts the badge back.
+    /// work showed nothing until its next call. The caller puts the badge back.
     /// </summary>
     internal void ButtonRecreated()
     {
@@ -174,8 +174,8 @@ internal sealed class DesktopTaskbarActivity(IDesktopTaskbarButton? button, Acti
 /// Windows ending the session: a shutdown, a restart for an update, a sign-out.
 /// <para>
 /// None of these closes the window, so the only orderly exit, the close handler, never ran and
-/// a Nendo resident in the notification area was ended with agent requests still admitted
-/// (DSH-07). The window that hears it is the tray's own top-level window. Agreeing to end is
+/// a Nendo resident in the notification area was ended with agent requests still admitted.
+/// The window that hears it is the tray's own top-level window. Agreeing to end is
 /// immediate; the session is ended when Windows says it is ending, within a bound, because
 /// Windows ends the process soon after that message is answered whether or not it is done.
 /// </para>
@@ -221,7 +221,7 @@ internal static class DesktopSessionEnd
 /// <summary>
 /// The open a launch asked for: a double-click, the Jump List, Explorer's New, a new file's own
 /// window. It meets the questions a picked or dropped file meets, rather than ending on the
-/// recovery panel with a fixed sentence (DSH-01).
+/// recovery panel with a fixed sentence.
 /// </summary>
 internal static class DesktopStartupOpen
 {
@@ -263,8 +263,8 @@ internal static class DesktopStartupOpen
     /// write-owner sidecar that names it. A second launch while the first was still opening the
     /// file -- a double-click repeated while nothing showed yet -- found no sidecar, which is
     /// written only once the open has inspected the file, and then met that open's lease: it ended
-    /// beside the healthy window on a refusal, first the recovery panel, since DSH-01 the
-    /// read-only offer (R2SP-01). The owner is now looked for again, briefly, while it has not yet
+    /// beside the healthy window on a refusal, first the recovery panel, later the
+    /// read-only offer. The owner is now looked for again, briefly, while it has not yet
     /// said who it is; one that has, and does not answer, is not waited for, as before. A refusal
     /// that names nobody (<see cref="MayBeHandedOff"/>) is thrown at once, and so is the refusal
     /// when <paramref name="cancellationToken"/> ends the wait.

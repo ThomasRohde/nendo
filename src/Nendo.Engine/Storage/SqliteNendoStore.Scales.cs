@@ -5,7 +5,7 @@ namespace Nendo.Engine.Storage;
 internal sealed partial class SqliteNendoStore
 {
     /// <summary>
-    /// The closed scale a rating field is drawn on, ADR-0004 2026-09-14 amendment (S2).
+    /// The closed scale a rating field is drawn on, ADR-0004.
     /// Its own table rather than two columns on <c>__nendo_field</c>, for the reason the
     /// tone table gives: the protected layout is a fingerprint of verbatim DDL, so a fresh
     /// file and an older one that gains a scale must end with byte-identical schema text,

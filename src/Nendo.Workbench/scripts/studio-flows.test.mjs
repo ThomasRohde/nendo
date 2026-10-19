@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'vite';
 import { bundleOf } from './bundle-of.mjs';
 
-// The broad review of 2026-10-10 on Studio's authoring flows (W-230): proposals that came out
-// other than the person meant, reviews that misdescribed them, and History's Undo. Each test runs
+// Studio's authoring flows: proposals that come out as the person meant, reviews that describe
+// them as they are, and History's Undo. Each test runs
 // the function the page draws or acts with; where the defect is in a page's wiring, the module is
 // bundled with only the host, the page boundary and the dialog standing in.
 const markup = await bundleOf('src/record-markup.ts');
@@ -91,7 +91,7 @@ const compensated = { mutation: { blockedConditions: [] }, session: null };
 
 // ---------------------------------------------------------------------------------------------
 
-test('WSP-02: a Make required form starts every empty choice on a placeholder the required check refuses', () => {
+test('a Make required form starts every empty choice on a placeholder the required check refuses', () => {
   const control = markup.backfillControlMarkup(status);
   assert.match(control, /<select name="task\.status" required><option value="" selected disabled>Choose…<\/option>/,
     `a required choice with no value starts on its first option, which the preview then writes for every record: ${control}`);
@@ -102,14 +102,14 @@ test('WSP-02: a Make required form starts every empty choice on a placeholder th
   assert.doesNotMatch(view, /fieldControlMarkup\(plan, null\)/, 'the Make required form still draws a choice that picks its first option');
 });
 
-test('WSP-08: a rating made required is chosen on its scale, not typed as free text', () => {
+test('a rating made required is chosen on its scale, not typed as free text', () => {
   assert.deepEqual(markup.backfillPlan(score).scale, { min: 1, max: 5 }, 'the backfill plan drops the rating’s scale');
   const control = markup.backfillControlMarkup(score);
   assert.match(control, /<fieldset class="rating-field">/, `a rating’s backfill control is a free text box: ${control}`);
   assert.doesNotMatch(control, /type="text"/);
 });
 
-test('WSP-10: an emptied Lowest or Highest box is refused, not read as 0', () => {
+test('an emptied Lowest or Highest box is refused, not read as 0', () => {
   for (const bounds of [{ min: '', max: '5' }, { min: '1', max: '' }, { min: '  ', max: '5' }])
     assert.throws(() => studio.fieldProposal('task', 'Mood', 'rating', '', undefined, bounds), /Enter whole numbers for the lowest and highest values/,
       `a rating with bounds ${JSON.stringify(bounds)} is proposed`);
@@ -118,7 +118,7 @@ test('WSP-10: an emptied Lowest or Highest box is refused, not read as 0', () =>
   assert.match(source('view-structure.ts'), /bound\.required = rating;/, 'the scale’s boxes are not required while a rating is chosen');
 });
 
-test('WSP-20: a rename names the field, its record type and the old name, and a fill batch says it only fills', () => {
+test('a rename names the field, its record type and the old name, and a fill batch says it only fills', () => {
   const rename = studio.renameSchemaProposal('task', 'task.owner', ' Lead ', 2, { current: 'Owner', typeName: 'Task' });
   assert.equal(rename.title, 'Rename Owner on Task to Lead');
   assert.equal(rename.mutations[0].description, 'Rename Owner on Task to Lead');
@@ -132,7 +132,7 @@ test('WSP-20: a rename names the field, its record type and the old name, and a 
   assert.match(source('view-data.ts'), /renameSchemaProposal\(entity\.entityId, fieldId, name, revision, \{ current, typeName: entity\.displayName \}\)/);
 });
 
-test('WSP-21: each record of a reference conversion is headed by its label, its ID beside it', () => {
+test('each record of a reference conversion is headed by its label, its ID beside it', () => {
   const record = { recordId: '6f1c0d4e-1b2a-4c3d-9e8f-001122334455', values: { 'task.title': 'Ship the release', 'task.owner': 'acme' } };
   const legacy = field('task.owner', 'Owner', { storageKind: 'reference', presentation: null, reference: { targetEntityId: 'person', labelFieldId: 'person.name' } });
   const form = structure.conversionRecordMarkup(task, legacy, record);
@@ -142,7 +142,7 @@ test('WSP-21: each record of a reference conversion is headed by its label, its 
   assert.match(source('view-structure.ts'), /conversionRecordMarkup\(entity, boundField, record\)/, 'the conversion form does not draw its records through conversionRecordMarkup');
 });
 
-test('WSP-05: Undo asks before a multi-record batch, a definition or a package, naming the change; one record’s edit is one press', () => {
+test('Undo asks before a multi-record batch, a definition or a package, naming the change; one record’s edit is one press', () => {
   const batch = revision('r-import', 'Import CSV', 'Data', 3);
   const creates = [operation('data.createRecord', 'a'), operation('data.createRecord', 'b'), operation('data.createRecord', 'c')];
   const asked = history.undoQuestion(batch, creates, false);
@@ -163,7 +163,7 @@ test('WSP-05: Undo asks before a multi-record batch, a definition or a package, 
   assert.match(code.bodyHtml, /runs wherever its view is shown/);
 });
 
-test('WSP-05: History’s Undo on a batch opens the question, and Cancel sends nothing', async () => {
+test('History’s Undo on a batch opens the question, and Cancel sends nothing', async () => {
   openFile();
   page.state.view = 'history';
   page.state.history = [revision('r-import', 'Import CSV', 'Data', 3), revision('r-edit', 'Edit Task', 'Data', 1)];
@@ -181,8 +181,7 @@ test('WSP-05: History’s Undo on a batch opens the question, and Cancel sends n
   assert.equal(host.calls.filter((call) => call.method === 'history.compensate').length, 1);
 });
 
-// The independent review of the WSP-05 fix (2026-10-14).
-test('WSP-05 review: the question counts only what it read, and says a package undo where it could read nothing', () => {
+test('the question counts only what it read, and says a package undo where it could read nothing', () => {
   const long = history.undoQuestion(revision('r-long', 'Edit Task', 'Data', 60), Array.from({ length: 50 }, () => operation('data.setField', 'a')), true);
   assert.doesNotMatch(long.bodyHtml, /more than/, `a single-record revision past the first page reads as more than it is: ${long.bodyHtml}`);
   assert.match(long.bodyHtml, /across at least 1 record\./);
@@ -194,7 +193,7 @@ test('WSP-05 review: the question counts only what it read, and says a package u
   assert.match(history.undoQuestion(revision('r-look', 'Give the file a look', 'Definition', 1), [{ operationType: 'application.setLook', canonicalJson: '{}' }], false).bodyHtml, /look or purpose/);
 });
 
-test('WSP-05 review: a second press while the question is open is refused and said, and an undo turned away as busy says so', async () => {
+test('a second press while the question is open is refused and said, and an undo turned away as busy says so', async () => {
   openFile();
   page.state.view = 'history';
   page.state.history = [revision('r-import', 'Import CSV', 'Data', 3)];
@@ -218,14 +217,14 @@ test('WSP-05 review: a second press while the question is open is refused and sa
   assert.deepEqual(host.errors.slice(1), ['Wait for the current action to finish, then try again. Nothing was undone.'], 'a confirmed undo turned away as busy said nothing');
 });
 
-test('WSP-25 review: the Look dialog stays open until the review opens, and says a refusal itself', () => {
+test('the Look dialog stays open until the review opens, and says a refusal itself', () => {
   const view = source('file-actions.ts');
   assert.match(view, /\.then\(opened => \{\s*if \(opened\) \{ dialog\.close\(\); return; \}/, 'the Look dialog closes before it knows whether the review opened');
   assert.doesNotMatch(view, /dialog\.close\(\);\s*void prepareApplication/, 'the Look dialog still closes before the change is prepared');
   assert.match(view, /said\.textContent = state\.lastOutcome\?\.message/, 'a refusal is said behind the dialog, not in it');
 });
 
-test('WSP-18: a Studio change pressed while another action runs says so, and the header rename settles only once the review opens', async () => {
+test('a Studio change pressed while another action runs says so, and the header rename settles only once the review opens', async () => {
   openFile();
   page.state.actionInFlight = true;
   const opened = await page.prepareApplication({ actionLabel: 'Rename', applicationName: 'Task', proposalPayload: { proposalId: 'proposal-x' } }, 'data');
@@ -238,7 +237,7 @@ test('WSP-18: a Studio change pressed while another action runs says so, and the
   assert.doesNotMatch(header, /settled = true;\s*onRename\(name\);/, 'the header still settles before onRename runs');
 });
 
-test('WSP-19: a change the host refuses on its copy is rejected there and said in the form, which stays', async () => {
+test('a change the host refuses on its copy is rejected there and said in the form, which stays', async () => {
   openFile();
   const invalid = { proposalId: 'proposal-bad', state: 'invalid', title: 'Add Status field', diagnostics: [{ code: 'label-conflict', severity: 'error', message: 'A field named Status already exists.', hint: 'Choose another name.' }],
     semanticDiff: [], previewApplications: [], operationCount: 1 };
@@ -256,7 +255,7 @@ test('WSP-19: a change the host refuses on its copy is rejected there and said i
   assert.equal(page.state.view, 'proposal');
 });
 
-test('WSP-22: Make required does not draw its form over a page the person moved to while it read', async () => {
+test('Make required does not draw its form over a page the person moved to while it read', async () => {
   openFile();
   let release;
   host.reply = () => new Promise((resolve) => { release = resolve; });
@@ -276,7 +275,7 @@ test('WSP-22: Make required does not draw its form over a page the person moved 
   assert.match(page.content.innerHTML, /<h3>One<\/h3>/);
 });
 
-test('WSP-11: completing the recipe reads the records without a Status from the file, not from the session', async () => {
+test('completing the recipe reads the records without a Status from the file, not from the session', async () => {
   const session = { hasFile: true, uiNodes: [], records: [], entities: [{ entityId: 'entity.idea', displayName: 'Idea', fields: [] }] };
   const recipe = recipes.ideaGardenRecipe(session);
   assert.equal(recipe.actionLabel, 'Complete Idea Garden');
@@ -290,7 +289,7 @@ test('WSP-11: completing the recipe reads the records without a Status from the 
       if (!fieldIds.includes(filter.fieldId)) throw new Error('The filter field does not belong to this record type.');
     return { ...pages[String(query.cursor)], changeSequence: 1 };
   };
-  // The finding's own case: the type exists without Status, which the recipe adds.
+  // The case that matters: the type exists without Status, which the recipe adds.
   const withoutStatus = await recipe.prepare(host([]));
   assert.ok(withoutStatus.mutations.some((mutation) => mutation.description === 'Place existing Ideas in the Idea group'),
     'existing records of a type the recipe adds Status to are left Ungrouped');
@@ -307,7 +306,7 @@ test('WSP-11: completing the recipe reads the records without a Status from the 
   assert.match(source('actions.ts'), /recipe\.prepare === undefined \? recipe\.proposalPayload/, 'prepareApplication does not let a recipe read the file');
 });
 
-test('WSP-14: Health says Approval needed while editing waits on approval, in the status pill’s words', () => {
+test('Health says Approval needed while editing waits on approval, in the status pill’s words', () => {
   const trust = { requiresApproval: true, isApproved: false };
   const waiting = format.healthStatus({ health: 'normal', capabilities: { mutate: false }, behaviourTrust: trust, fileName: 'F.nendo' });
   assert.equal(waiting.label, 'Approval needed', `Health reads "${waiting.label}" while the pill says Approval needed`);
@@ -318,7 +317,7 @@ test('WSP-14: Health says Approval needed while editing waits on approval, in th
   assert.match(source('main.ts'), /const awaitingApproval = approvalNeeded\(state\.session\);/, 'the status pill does not use the same condition');
 });
 
-test('WSP-23: help names Use’s picker as the screen does, and does not send the person to a type it leaves out', () => {
+test('help names Use’s picker as the screen does, and does not send the person to a type it leaves out', () => {
   const join = { entityId: 'link', displayName: 'Link', fields: [], retired: false };
   const entity = { entityId: 'task', displayName: 'Task', fields: [], retired: false };
   const plan = (id) => ({ entity: { semanticId: id }, surfaces: [] });
@@ -333,7 +332,7 @@ test('WSP-23: help names Use’s picker as the screen does, and does not send th
   assert.match(source('view-help.ts'), /pickerLabel: showingLabel\(\), placeIds: placePlans\(\)\.map\(plan => plan\.entity\.semanticId\)/);
 });
 
-test('WSP-25: Review change stays off while the letter box holds a refused letter, whatever colour is picked', () => {
+test('Review change stays off while the letter box holds a refused letter, whatever colour is picked', () => {
   const current = { tone: 'amber', letter: 'N', toneChosen: false, letterChosen: false, defaultTone: 'amber', defaultLetter: 'N' };
   const teal = look.chosenLook(current, 'teal', 'N');
   assert.equal(look.lookReviewable(current, teal, 'N'), true);
@@ -342,7 +341,7 @@ test('WSP-25: Review change stays off while the letter box holds a refused lette
   assert.match(source('file-actions.ts'), /review\.disabled = !lookReviewable\(look, proposed\(\), letterInput\.value\);/, 'the dialog’s redraw ignores the letter box');
 });
 
-test('WSP-09: a filter status reads a number by its digits, typed or stored', () => {
+test('a filter status reads a number by its digits, typed or stored', () => {
   const nameOf = (id) => ({ count: 'Count' })[id] ?? id;
   const query = { sortFieldId: null, descending: false, fieldId: 'count', operator: 'gt', text: '5', filters: [{ fieldId: 'count', operator: 'gt', value: { $nendoNumber: '5' } }] };
   assert.equal(columns.queryStatusText(query, nameOf), 'Only where Count is greater than 5 · across every record of this type');
@@ -350,7 +349,7 @@ test('WSP-09: a filter status reads a number by its digits, typed or stored', ()
     'a stored number with no typed text reads [object Object]');
 });
 
-test('WSP-19: the refusal says the host’s own words', () => {
+test('the refusal says the host’s own words', () => {
   assert.equal(proposalMarkup.proposalRefusal({ diagnostics: [] }), 'The file refused this change. Nothing in the file changed.');
   assert.equal(proposalMarkup.proposalRefusal({ diagnostics: [{ message: 'No.', hint: '' }] }), 'No. Nothing in the file changed.');
 });

@@ -35,7 +35,7 @@ public sealed record NendoBehaviourLimits
     public int AstDepth { get; init; } = 24;
 
     /// <summary>
-    /// Depth of the definition graph, revalidated even on a warm cache. 16 since W-247: an
+    /// Depth of the definition graph, revalidated even on a warm cache. 16, because an
     /// invoice's line, subtotal, discount, taxable, tax, total, balance, outstanding and client
     /// are nine, and 8 refused them. Each level is one more calculation on the same budget.
     /// </summary>
@@ -62,7 +62,7 @@ public sealed record NendoBehaviourLimits
 
     /// <summary>
     /// Function calls, counted once across nested evaluation and action chains: per record on a
-    /// read, a related record's calculation having its own (W-247), and per named record in a save.
+    /// read, a related record's calculation having its own, and per named record in a save.
     /// </summary>
     public int FunctionCalls { get; init; } = 64;
 
@@ -75,11 +75,11 @@ public sealed record NendoBehaviourLimits
     /// <summary>
     /// Related rows read, as a SQL LIMIT and a charge per row: per record on a read, a related
     /// record's calculation having its own, and per named record in a save; no one aggregate reads
-    /// more than this (W-247).
+    /// more than this.
     /// </summary>
     public int RelatedRows { get; init; } = 256;
 
-    /// <summary>Generated non-no-op changes, per record a save names (W-247).</summary>
+    /// <summary>Generated non-no-op changes, per record a save names.</summary>
     public int GeneratedChanges { get; init; } = 64;
 
     /// <summary>

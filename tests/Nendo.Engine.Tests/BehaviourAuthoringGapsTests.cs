@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// ADR-0008, 2026-10-10 amendment: what an agent building a studio manager in a new file could
+/// ADR-0008: what an agent building a studio manager in a new file could
 /// not express (workspace/Agent.nendo). A created record could not point back at the record that
 /// caused it, a formula could not ask whether a value was there, a total could not add up a
 /// calculated field, and the shapes of an action, a trigger and a calculation had to be learnt

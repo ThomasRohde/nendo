@@ -95,7 +95,7 @@ internal sealed partial class SqliteNendoStore
                     fold is null
                         ? "The selected history revision does not exist."
                         // The checkpoint's own date, as its text gives it: UTC and the Gregorian
-                        // year whatever the regional format (R2LAT-08).
+                        // year whatever the regional format.
                         : string.Create(CultureInfo.InvariantCulture,
                             $"The selected history revision is not in this file. Its older history was folded on {fold.FoldedAt.ToUniversalTime():yyyy-MM-dd}; a folded change cannot be undone here. The full history is in the backup {fold.BackupLabel}."));
             }
@@ -156,7 +156,7 @@ internal sealed partial class SqliteNendoStore
         if (replayedRevision is not null)
         {
             // A retry of an undo that has itself been undone since would answer with a state the
-            // file no longer has; it is refused instead, so the caller reads the records again (R2RM-03).
+            // file no longer has; it is refused instead, so the caller reads the records again.
             await using var undone = Command("SELECT EXISTS(SELECT 1 FROM __nendo_revision WHERE compensation_of_revision_id = @revisionId);", null);
             undone.Parameters.AddWithValue("@revisionId", replayedRevision);
             if (Convert.ToInt64(await undone.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) != 0)
@@ -238,7 +238,7 @@ internal sealed partial class SqliteNendoStore
         var original = operations[0];
         // Every definition inverse but a package's expects the definition as the revision left
         // it, so only the latest definition change is undone. Refused here in words a person can
-        // act on, not by the inverse's agent-facing "Use expectedDefinitionRevision" (R2RM-02).
+        // act on, not by the inverse's agent-facing "Use expectedDefinitionRevision".
         if (!exactReplay && lane == NendoRevisionLane.Definition.ToString() && !IsExtensionOperation(original.Type))
             await RequireDefinitionAsLeftAsync(definitionAfter, cancellationToken);
         if (original.Type == "ui.removeNode")
@@ -304,7 +304,7 @@ internal sealed partial class SqliteNendoStore
     /// agent alike: the undo of a change is "Undo X", the undo of an undo is "Redo X", and the
     /// undo of a redo is "Undo X" again, matching History's Undo button. History named every link
     /// "Compensate ...", so a redo read "Compensate Compensate X", and an agent's redo was named
-    /// "Undo X", the same as the undo it reversed (R2RM-08).
+    /// "Undo X", the same as the undo it reversed.
     /// </summary>
     internal static string CompensationName(string description, bool isCompensation)
     {
@@ -375,7 +375,7 @@ internal sealed partial class SqliteNendoStore
         // only within its record type, so every record here is keyed by both, and a
         // reference's target by the type the reference points at. Keyed by ID alone, a task
         // '1' moved off project '1' was taken for that project, and a clean undo was refused
-        // as a conflict (EBH-12).
+        // as a conflict.
         var versions = new Dictionary<(string Entity, string Record), long>();
         var deleted = new HashSet<(string Entity, string Record)>();
         foreach (var operation in versioned)
@@ -434,7 +434,7 @@ internal sealed partial class SqliteNendoStore
                 // A target the revision also wrote -- a parent whose count the deletion's automatic
                 // action updated, or one a batch edited after the delete -- is at the version the
                 // planned inverses leave it when the restore runs, as for a reference put back
-                // below. Recorded at the delete, it refused every such undo (ESS-02).
+                // below. Recorded at the delete, it refused every such undo.
                 var planned = new SortedDictionary<string, long>(StringComparer.Ordinal);
                 if (evidence.RootElement.TryGetProperty("targetVersions", out var recordedTargets) &&
                     evidence.RootElement.TryGetProperty("values", out var held))
@@ -484,7 +484,7 @@ internal sealed partial class SqliteNendoStore
             // the field is active again -- the Reactivate form fills it and reactivates it in one
             // proposal -- putting the value back is an ordinary edit, and a backfill refused it as
             // field-not-retired. A required field cannot take its empty value back, and says so
-            // rather than failing on the null (R2RM-04).
+            // rather than failing on the null.
             var backfilled = operation.Type == "data.backfillRetiredField" ? fieldOf(entityId, fieldId) : null;
             if (backfilled is { Retired: false, Required: true } && previous.ValueKind == JsonValueKind.Null)
                 throw new NendoCompensationNotSupportedException(
@@ -602,8 +602,8 @@ internal sealed partial class SqliteNendoStore
     /// A definition change is reversed only while the definition still stands as that revision
     /// left it. A screen operation carries no expected revision of its own, so the revision's is
     /// compared here: going back over later edits could bring back a field a later revision
-    /// retired, and every custom screen with it (ESM-04). Every other definition inverse expects
-    /// the revision it left, and refused a later one with agent-facing text (R2RM-02).
+    /// retired, and every custom screen with it. Every other definition inverse expects
+    /// the revision it left, and refused a later one with agent-facing text.
     /// </summary>
     private async Task RequireDefinitionAsLeftAsync(long definitionAfter, CancellationToken cancellationToken)
     {
@@ -614,7 +614,7 @@ internal sealed partial class SqliteNendoStore
                 $"(it is at revision {current}; this change left it at {definitionAfter}). Make the change you want in a new proposal instead.");
     }
 
-    /// <summary>A node added on its own goes again, while nothing in the definition has changed since (ESM-12).</summary>
+    /// <summary>A node added on its own goes again, while nothing in the definition has changed since.</summary>
     private async Task<RemoveUiNodeOperation> CreateAddUiNodeInverseAsync(string canonicalJson, string idempotencyKey, bool exactReplay,
         long definitionAfter, CancellationToken cancellationToken)
     {
@@ -625,7 +625,7 @@ internal sealed partial class SqliteNendoStore
             payload.GetProperty("surfaceId").GetString()!, payload.GetProperty("nodeId").GetString()!);
     }
 
-    /// <summary>A move goes back to the parent and position its evidence retained (ESM-12).</summary>
+    /// <summary>A move goes back to the parent and position its evidence retained.</summary>
     private async Task<MoveUiNodeOperation> CreateMoveUiNodeInverseAsync(string canonicalJson, string evidenceJson, string idempotencyKey,
         bool exactReplay, long definitionAfter, CancellationToken cancellationToken)
     {
@@ -693,7 +693,7 @@ internal sealed partial class SqliteNendoStore
             }
         }
         var operationId = NendoCanonical.DeterministicId("operation", "studio.p2.compensation", idempotencyKey, 0);
-        // The first value a property ever took is undone by clearing it again (ESM-11).
+        // The first value a property ever took is undone by clearing it again.
         if (!evidence.RootElement.GetProperty("previousValuePresent").GetBoolean())
             return new RemoveUiPropertyOperation(operationId, surfaceId, nodeId, propertyName);
         var previousJson = evidence.RootElement.GetProperty("previousValueJson").GetString()

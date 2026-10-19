@@ -1,4 +1,4 @@
-// Writes extensions/manuscript/hyphenation.mjs from plain TeX's hyphen.tex (W-293): the patterns
+// Writes extensions/manuscript/hyphenation.mjs from plain TeX's hyphen.tex: the patterns
 // LaTeX's default English loads, which the paper's LaTeX reference hyphenates with, so the
 // preview breaks a word where TeX does. hyph-utf8's en-us (ushyphmax) is a different set.
 //   node tools/manus/plain-hyphen.mjs <path to hyphen.tex from any TeX distribution>

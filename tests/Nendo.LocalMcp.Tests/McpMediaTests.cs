@@ -6,7 +6,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// Pictures for agents (ADR-0031 point 12, W-269): a picture sent in chunks, each inside one
+/// Pictures for agents (ADR-0031 point 12): a picture sent in chunks, each inside one
 /// request, embedded on the final chunk with its field set in the same revision; a picture that
 /// never commits leaves nothing; the picture is read back as an image; refusals keep their words.
 /// </summary>

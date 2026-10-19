@@ -37,7 +37,7 @@ internal sealed record AgentTranscriptEntry(
 /// <summary>
 /// What a reader is told: the state, and the entries that changed after its revision.
 /// <c>FirstOrder</c> is the order of the oldest entry still kept: a reader drops every entry
-/// before it, so a tab open from the start holds what a tab opened now would (ACP-03).
+/// before it, so a tab open from the start holds what a tab opened now would.
 /// </summary>
 internal sealed record AgentConversationSnapshot(
     string State,
@@ -110,7 +110,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
 
     /// <summary>
     /// The conversation ended, for whatever reason: a refusal at the handshake as much as the
-    /// person's End. Whoever runs the program ends it then too (ACP-01).
+    /// person's End. Whoever runs the program ends it then too.
     /// </summary>
     internal Task Ended => _ended.Task;
 
@@ -148,7 +148,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var stated = initialized.ValueKind == JsonValueKind.Object && initialized.TryGetProperty("protocolVersion", out var v) ? v : default;
             if (WholeNumber(stated) != ProtocolVersion)
             {
-                // A version as text is a program that speaks something else: MCP's versions are dates (DAE-03).
+                // A version as text is a program that speaks something else: MCP's versions are dates.
                 End(stated.ValueKind == JsonValueKind.String
                     ? $"{_agentName} answered with protocol version \"{AcpConnection.Bounded(stated.GetString()!, 40)}\", which is not ACP; Nendo speaks ACP version {ProtocolVersion}. A program that speaks MCP rather than ACP cannot be launched here."
                     : $"{_agentName} speaks ACP version {WholeNumber(stated) ?? 0}; Nendo speaks version {ProtocolVersion}.");
@@ -183,12 +183,12 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         catch (Exception exception)
         {
             // Anything else ends the conversation with a sentence, rather than leaving it at
-            // Starting with nothing said and the next launch refused (DAE-03).
+            // Starting with nothing said and the next launch refused.
             End($"{_agentName} could not be started: {exception.Message}");
         }
     }
 
-    /// <summary>A whole number the agent sent, or null when it sent another kind (text, null) or none (DAE-03).</summary>
+    /// <summary>A whole number the agent sent, or null when it sent another kind (text, null) or none.</summary>
     internal static int? WholeNumber(JsonElement value) =>
         value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number) ? number : null;
 
@@ -246,7 +246,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         {
             if (_state != "signIn") throw new Nendo.Engine.NendoPreconditionException("agent-not-signing-in", "The agent is not waiting to sign in.");
             // A second press while the first sign-in runs sent a second authenticate and opened a
-            // second session over the first (DAE-10).
+            // second session over the first.
             if (_signingIn)
                 throw new Nendo.Engine.NendoPreconditionException("agent-signing-in", $"{_agentName} is already signing in. Finish it in the window it opened, or wait.");
             if (!_signIn.Any(method => method.Id == methodId))
@@ -463,13 +463,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         long revision;
         // What the agent sent is read whole before anything enters the transcript: a value of an
         // unexpected kind once threw after the entry was added, leaving a question with no
-        // answers that kept the tab at Waiting for you (DAE-03).
+        // answers that kept the tab at Waiting for you.
         var isCall = call.ValueKind == JsonValueKind.Object;
         var title = isCall ? Text(call, "title", 500) : null;
         var toolKind = isCall ? Text(call, "kind", 40) : null;
         var input = isCall ? RawInput(call) : null;
         // What the operation would do, as the agent supplied it: a diff, its output so far,
-        // the places it touches. The person decides with it in front of them (ACP-11).
+        // the places it touches. The person decides with it in front of them.
         var details = isCall ? CallDetails(call) : string.Empty;
         var toolName = isCall ? MetaToolName(call) : null;
         lock (_sync)
@@ -531,7 +531,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         lock (_sync)
         {
             if (_state == "ended") return;
-            // An update for another session than the one open (an earlier one) is not drawn here (DAE-10).
+            // An update for another session than the one open (an earlier one) is not drawn here.
             if (session is not null && _sessionId is not null && !string.Equals(session, _sessionId, StringComparison.Ordinal)) return;
             switch (kind)
             {
@@ -767,9 +767,9 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     /// <summary>
     /// Hide every application handle. Applied wherever the agent's text enters the transcript, and
     /// again to each entry as it is read, so a handle split across streamed chunks is hidden once
-    /// the chunks meet (ACP-08). A handle this process's host granted is hidden by its value too,
-    /// however the agent words it: "Your applicationHandle is …", a table row, the bare value
-    /// (DAE-05). The key pattern still covers a value cut off mid-stream.
+    /// the chunks meet. A handle this process's host granted is hidden by its value too,
+    /// however the agent words it: "Your applicationHandle is …", a table row, the bare value.
+    /// The key pattern still covers a value cut off mid-stream.
     /// </summary>
     internal static string Redact(string text) =>
         Nendo.LocalMcp.NendoMintedHandles.Hide(Handle.Replace(text, "$1(hidden)"), "(hidden)");

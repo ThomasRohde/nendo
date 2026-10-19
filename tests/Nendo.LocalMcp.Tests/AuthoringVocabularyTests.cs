@@ -7,7 +7,7 @@ namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
 /// What two GitHub Copilot CLI agents had to guess while building an app from the authoring
-/// vocabulary (2026-10-08): what a surfaceId is, where a field's uniqueness is declared, and
+/// vocabulary: what a surfaceId is, where a field's uniqueness is declared, and
 /// how to read the vocabulary without taking all sixty kilobytes of it at once.
 /// </summary>
 [TestClass]

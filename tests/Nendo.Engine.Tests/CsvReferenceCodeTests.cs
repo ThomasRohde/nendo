@@ -3,7 +3,7 @@ using System.Text;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-075: a CSV names a parent by its code, as a spreadsheet does, and the import resolves
+/// A CSV names a parent by its code, as a spreadsheet does, and the import resolves
 /// the code, writes parents first, and refuses a code that names nothing or two things by
 /// its row. Measured through the person's importer: batches prepared, accepted, promoted.
 /// </summary>
@@ -145,7 +145,7 @@ public sealed class CsvReferenceCodeTests
     }
 
     /// <summary>
-    /// ESQ-01: a row without a code (a sequence fills it) names nothing, and an empty or null
+    /// A row without a code (a sequence fills it) names nothing, and an empty or null
     /// parent is the top level, so a tree with an uncoded leaf is put parents first rather than
     /// refused as a cycle, under both profiles.
     /// </summary>
@@ -171,7 +171,7 @@ public sealed class CsvReferenceCodeTests
         }
     }
 
-    /// <summary>ESQ-14: History names the rows of the file a reordered batch holds, not its positions.</summary>
+    /// <summary>History names the rows of the file a reordered batch holds, not its positions.</summary>
     [TestMethod]
     public async Task AReorderedBatchIsDescribedByTheRowsItHolds()
     {
@@ -186,7 +186,7 @@ public sealed class CsvReferenceCodeTests
         Assert.AreEqual("Import CSV rows 2–4", NendoApplicationService.CsvBatchDescription([2, 3, 4]));
     }
 
-    /// <summary>ESQ-01: a Nendo-profile code with an escaped leading backslash names its own row.</summary>
+    /// <summary>A Nendo-profile code with an escaped leading backslash names its own row.</summary>
     [TestMethod]
     public async Task ACodeWithALeadingBackslashNamesItsOwnRowUnderTheNendoProfile()
     {

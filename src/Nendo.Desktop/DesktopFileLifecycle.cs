@@ -44,7 +44,7 @@ internal sealed partial class DesktopSessionController
     /// The Workbench's recent list. Outside the request gate, for the reason
     /// <see cref="GetShellRecentFilesAsync"/> gives: each entry is opened to read who it says it
     /// is, and one on a disconnected share held the gate, and every read queued behind it, for
-    /// as long as the share took to answer (DSH-21). Nothing here needs the gate: the history
+    /// as long as the share took to answer. Nothing here needs the gate: the history
     /// file is replaced whole and the notice is one field.
     /// </summary>
     internal async Task<DesktopRecentFiles> GetRecentFilesAsync(CancellationToken cancellationToken = default)
@@ -85,8 +85,7 @@ internal sealed partial class DesktopSessionController
 
     /// <summary>
     /// Whether <paramref name="path"/> is the file open in this window. Choosing it again is not
-    /// a reason to close it and open it again, which discarded pending proposals for no change
-    /// (DSH-06).
+    /// a reason to close it and open it again, which discarded pending proposals for no change.
     /// </summary>
     internal bool IsOpenFile(string path) =>
         _currentPath is { } current && string.Equals(current, Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase);
@@ -94,7 +93,7 @@ internal sealed partial class DesktopSessionController
     /// <summary>
     /// Inspects a file somebody chose, ahead of the questions about it. Allowed while another
     /// file is open: it reads only the candidate, so the open file is closed only once the
-    /// person has answered them (DSH-06). Not for the open file itself.
+    /// person has answered them. Not for the open file itself.
     /// </summary>
     internal async Task<DesktopFileOpenAssessment> AssessOpenAsync(string path, CancellationToken cancellationToken = default)
     {
@@ -175,7 +174,7 @@ internal sealed partial class DesktopSessionController
     {
         // Where it was remembered, without observing it: the assessment that follows observes
         // it once, and doing it here as well was a second full inspection before the dialog
-        // appeared, only to learn the path (DSH-22).
+        // appeared, only to learn the path.
         try { return await _fileHistory.PathOfAsync(recentId, cancellationToken); }
         catch (Exception exception) when (exception is NendoException or IOException or UnauthorizedAccessException)
         {
@@ -220,7 +219,7 @@ internal sealed partial class DesktopSessionController
         QueryAsync(service => service.CreateRecoveryExportAsync(planId, confirmPartial, cancellationToken), cancellationToken);
 
     /// <summary>
-    /// What an observation may do about a save a crash left unfinished (ADR-0012, 2026-10-13): roll
+    /// What an observation may do about a save a crash left unfinished (ADR-0012): roll
     /// it back only for a file the person opened themselves, outside a folder that may be synced,
     /// where a journal could have come from another computer.
     /// </summary>
@@ -249,7 +248,7 @@ internal sealed partial class DesktopSessionController
 
     /// <param name="restoreAgent">
     /// False where a restore or a replacement reopens the file: those are recovery acts, and a
-    /// recovery open begins at Off (ADR-0009, 2026-09-29).
+    /// recovery open begins at Off (ADR-0009).
     /// </param>
     private async Task<DesktopSessionView> OpenCandidateCoreAsync(OpenCandidate candidate, bool readOnly, CancellationToken cancellationToken,
         bool restoreAgent = true)
@@ -305,7 +304,7 @@ internal sealed partial class DesktopSessionController
             DesktopStartupTiming.Mark("session.history.remember.end");
             _detachedRecovery = null;
             _recoveryPath = null;
-            // The level this device remembers for this file comes back with it (ADR-0009, W-126).
+            // The level this device remembers for this file comes back with it (ADR-0009).
             if (restoreAgent) await RestoreAgentModeAsync(writable, cancellationToken);
             AnnounceFileSession();
             return view;

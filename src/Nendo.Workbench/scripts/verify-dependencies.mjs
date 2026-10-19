@@ -9,7 +9,7 @@ const lockText = await readFile(new URL('../package-lock.json', import.meta.url)
 
 const productionDependencies = Object.keys(manifest.dependencies ?? {});
 // AG Grid for Studio's grids (ADR-0015); Tiptap and the Markdown reader it uses for the Markdown
-// field's editor (ADR-0017's amendment of 2026-10-16), each pinned to an exact version.
+// field's editor (ADR-0017), each pinned to an exact version.
 const expectedDependencies = ['@tiptap/core', '@tiptap/extension-image', '@tiptap/extension-table', '@tiptap/markdown', '@tiptap/pm', '@tiptap/starter-kit', 'ag-grid-community', 'marked'];
 
 if (JSON.stringify(productionDependencies) !== JSON.stringify(expectedDependencies)) {
@@ -30,7 +30,7 @@ for (const token of forbiddenTokens) {
   }
 }
 
-// Every licence the bundle owes, in the notices the build writes beside it (WST-02).
+// Every licence the bundle owes, in the notices the build writes beside it.
 const workbenchRoot = fileURLToPath(new URL('..', import.meta.url));
 const missing = missingNotices(workbenchRoot, thirdPartyNotices(workbenchRoot));
 if (missing.length > 0) {

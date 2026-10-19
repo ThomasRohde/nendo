@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// W-198 (F-134's second half): a reopen that meets a handle still on the file waits it out and
+/// A reopen that meets a handle still on the file waits it out and
 /// names the holder, and a holder that never lets go still fails. Reproduced deterministically by
 /// holding the file with a handle that does not share reading, as a dying child's or a scanner's
 /// can, rather than by racing a real child.
@@ -20,7 +20,7 @@ public sealed class LingeringHandleTests
         // Let go once a refusal has named the holder, or after ten seconds, inside the wait's 15.
         // A fixed 600 ms could free the file before a slow first open met it, and Restart Manager
         // under load sometimes answers "nobody" on one look and names the holder on the next: the
-        // full Engine run failed on the first line alone, 2 runs in 15 under load (W-218).
+        // full Engine run failed on the first line alone, 2 runs in 15 under load.
         var release = Task.Run(async () =>
         {
             await Task.WhenAny(named.Task, Task.Delay(TimeSpan.FromSeconds(10)));

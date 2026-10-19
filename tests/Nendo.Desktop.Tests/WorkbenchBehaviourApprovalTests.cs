@@ -3,7 +3,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Stage S7: the shell's route to approving a file's automatic actions.
+/// The shell's route to approving a file's automatic actions.
 /// <para>
 /// The Engine refuses unapproved edits on its own; these cases are about the part a
 /// person touches — that the shell says what the file will do, that saying yes is
@@ -41,7 +41,7 @@ public sealed class WorkbenchBehaviourApprovalTests
     }
 
     /// <summary>
-    /// DSH-17: the shell state the tray menu, tooltip and every bridge response read on the UI
+    /// The shell state the tray menu, tooltip and every bridge response read on the UI
     /// thread asked the approval store, which takes its own lock, and an approval holds that lock
     /// while it waits up to five seconds for the device-state lock another Nendo may hold.
     /// </summary>

@@ -279,7 +279,7 @@ internal sealed partial class SqliteNendoStore
     {
         using var transaction = _connection.BeginTransaction(deferred: true);
         // Like every read of the active file, it fixes a snapshot and checks the change token first,
-        // so an outside commit taints the session rather than being shown as Nendo's (ESC-08).
+        // so an outside commit taints the session rather than being shown as Nendo's.
         _ = await ReadAuthoritySnapshotAsync(transaction, ct);
         var plan = await PlanNewFileAsync(transaction, ct);
         var label = await ReadNewFileLabelAsync(transaction, ct);

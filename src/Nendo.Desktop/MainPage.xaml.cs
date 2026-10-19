@@ -14,7 +14,7 @@ public sealed partial class MainPage : Page
     private readonly DesktopSessionController _session;
 
     /// <summary>
-    /// A tab window's page (W-277): it shows the session of the main window's page, which owns and
+    /// A tab window's page: it shows the session of the main window's page, which owns and
     /// ends it, and it opens no file of its own.
     /// </summary>
     private readonly bool _sharesSession;
@@ -245,7 +245,7 @@ public sealed partial class MainPage : Page
             core.Settings.IsWebMessageEnabled = true;
             core.Settings.IsZoomControlEnabled = false;
             // F5 and Ctrl+R reloaded the Workbench and dropped an open form's typing without a
-            // word; Ctrl+P and Ctrl+F opened the browser's print and find over the app (DSH-15).
+            // word; Ctrl+P and Ctrl+F opened the browser's print and find over the app.
             // Off in a shipped build, where the keys still reach the page, so its own shortcuts
             // and a view's declared keys keep working; on in a Debug build for F12 (see
             // BrowserAcceleratorKeys). DevTools stay enabled and open from Inspect on a view's menu.
@@ -292,8 +292,8 @@ public sealed partial class MainPage : Page
         CoreWebView2 sender,
         CoreWebView2NavigationCompletedEventArgs args)
     {
-        // A navigation the host cancelled, or one another superseded, is not the view failing
-        // (DSH-02): only the Workbench's own navigation failing is.
+        // A navigation the host cancelled, or one another superseded, is not the view failing:
+        // only the Workbench's own navigation failing is.
         if (!DesktopWorkbenchNavigation.IsFatal(args.NavigationId, _workbenchNavigationId, args.IsSuccess))
         {
             if (args.IsSuccess && args.NavigationId == _workbenchNavigationId)
@@ -336,7 +336,7 @@ public sealed partial class MainPage : Page
             return;
         var name = kind.ToString();
         // Now, not when recovery runs: a response already queued would otherwise be posted to
-        // the browser that has gone before the recovery panel replaces it (DSH-03).
+        // the browser that has gone before the recovery panel replaces it.
         _workbenchGeneration = checked(_workbenchGeneration + 1);
         DispatcherQueue.TryEnqueue(
             () => ShowRecovery($"The app view stopped ({name}).", name));
@@ -371,7 +371,7 @@ public sealed partial class MainPage : Page
                 // A native picker runs a nested window loop. Resolve the current
                 // CoreWebView2 wrapper after it returns instead of reusing the
                 // event sender wrapper captured before the dialog opened. The browser
-                // may have gone in between, as PostWorkbenchEvent knows (DSH-03).
+                // may have gone in between, as PostWorkbenchEvent knows.
                 DesktopShellSafety.TryPost(() => view.CoreWebView2?.PostWebMessageAsJson(responseJson));
             }
             // Every open, create, close and replacement answers through here, so the
@@ -481,9 +481,9 @@ public sealed partial class MainPage : Page
         RendererFailed?.Invoke(
             kind ?? "unspecified",
             (int)Math.Max(0, (DateTimeOffset.UtcNow - _viewStartedUtc).TotalSeconds));
-        // Loaded here, not in the markup. Once the TitleBar control's icon was gone (W-093), a picture
+        // Loaded here, not in the markup. Once the TitleBar control's icon was gone, a picture
         // in the collapsed panel was the first this window loaded, and loading it at startup brought
-        // the process down inside XAML with E_UNEXPECTED (F-202).
+        // the process down inside XAML with E_UNEXPECTED.
         RecoveryMark.Source ??= new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri("ms-appx:///Assets/NendoMark.png"));
         RecoveryReason.Text = reason;
         RecoverySession.Text = "Checking the file session…";
@@ -534,7 +534,7 @@ public sealed partial class MainPage : Page
             // A launch is a request somebody made, like a picked or a dropped file, and meets
             // the same questions: a folder that may be synced, another known file with this
             // one's instance, a file that opens only read-only. It ended on the recovery panel
-            // with a fixed sentence instead (DSH-01). A question answered with Cancel leaves
+            // with a fixed sentence instead. A question answered with Cancel leaves
             // the window open on no file.
             using var binding = _session.BindFileRequest(_session.CurrentFileSessionId);
             switch (_startupRequest.Mode)
@@ -555,7 +555,7 @@ public sealed partial class MainPage : Page
                     break;
             }
             // Handed to the Nendo that was opening it at the same time: this window was only ever
-            // for that file, and goes (R2SP-01).
+            // for that file, and goes.
             if (_handedOffAtLaunch)
             {
                 App.CurrentWindow?.RequestExit();

@@ -19,7 +19,7 @@ internal static class IdeaGardenDefinition
         string proposalId)
     {
         // Said first: on a file this proposal already set up, the field check below refused the
-        // Title it had created itself instead (ESM-26).
+        // Title it had created itself instead.
         if (snapshot.UiNodes.Count != 0)
         {
             throw new NendoPreconditionException(

@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// A choice option's colour, ADR-0004 2026-09-14 amendment, slice S0. A tone is a
+/// A choice option's colour (ADR-0004). A tone is a
 /// closed named hue carried by the existing choice-metadata operation: stored in its
 /// own protected table at the end of the layout ladder, read back wherever the option
 /// already flows, reversed by compensation, and refused by name outside the set.

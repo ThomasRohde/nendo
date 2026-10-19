@@ -127,7 +127,7 @@ public sealed class DesktopNotificationTriggerTests
     }
 
     /// <summary>
-    /// DSH-08: the latches outlived the file session they were set in. Nothing reset them when a
+    /// The latches outlived the file session they were set in. Nothing reset them when a
     /// file was reopened, closed or replaced, so a second loss of write authority, or the approval
     /// reminder for the next file in the same window, was never said.
     /// </summary>

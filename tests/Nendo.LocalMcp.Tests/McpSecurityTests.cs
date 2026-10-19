@@ -56,7 +56,7 @@ public sealed class McpSecurityTests
     }
 
     /// <summary>
-    /// TST-09: a body with no Content-Length (chunked) is bounded while it is read, not after.
+    /// A body with no Content-Length (chunked) is bounded while it is read, not after.
     /// The header check above never sees it; the count inside the read loop is the only bound,
     /// and no test sent such a body. The stream here is far larger than the cap and says nothing
     /// of its length: it is refused as too large, as its own request's error, never dispatched, and read only as far as the
@@ -124,7 +124,7 @@ public sealed class McpSecurityTests
     }
 
     /// <summary>
-    /// F-175: "The request host is invalid" left a client configured with localhost with
+    /// "The request host is invalid" left a client configured with localhost with
     /// nothing to change, and a body one level too deep read the same as one that was not
     /// JSON. Each perimeter refusal now says what to send instead.
     /// </summary>

@@ -1,10 +1,9 @@
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// W-001 follow-up. The taskbar menu showed the same document icon on every file, so the icon a
-/// file carries stopped at its window. Each row now shows the icon this device last drew for that
-/// file. A picture dropped on About this file from Explorer reached nothing either, because
-/// the browser and the grid that holds it took no drop.
+/// Each row of the taskbar menu shows the icon this device last drew for that file, so the icon a
+/// file carries reaches past its window. A picture dropped on About this file from Explorer
+/// arrives, because the browser and the grid that holds it take drops.
 /// </summary>
 [TestClass]
 public sealed class DesktopFileIconMenuTests

@@ -36,7 +36,7 @@ test('the open tasks fall into Overdue, Today, This week, Later and No date, soo
   assert.deepEqual([now.noteId, now.noteTitle, now.manual, now.due], ['gd.note.beds', 'Beds', true, TODAY]);
 });
 
-test('within a note the tasks keep the order its body says them; the ones added by hand come after (G-006)', () => {
+test('within a note the tasks keep the order its body says them; the ones added by hand come after', () => {
   const body = ['# Tutorial: your first file', '- [ ] Create an empty file', '- [ ] Add a record type', '- [ ] Add an optional field', '- [x] Read the welcome'].join('\n');
   const keys = Object.fromEntries(parse(body).tasks.map(t => [t.text, t.key]));
   const notes = [note('gd.note.tutorial', 'Tutorial: your first file', body)];

@@ -8,7 +8,7 @@ namespace Nendo.Desktop;
 internal static partial class WorkbenchMethods
 {
     /// <summary>
-    /// The person's picture actions on a media field (ADR-0031, W-266). Each reads a file, the
+    /// The person's picture actions on a media field (ADR-0031). Each reads a file, the
     /// clipboard or the web on the host, so no picture crosses the bridge and no page names a path
     /// it may read: a picked file comes from the native picker, a dropped one from WebView2's own
     /// file object, and only the person's press starts a download.
@@ -20,7 +20,7 @@ internal static partial class WorkbenchMethods
     internal const string MediaReveal = "media.reveal";
 
     /// <summary>
-    /// What a custom view reads and writes of pictures (ADR-0031 point 12, W-270): a picture's
+    /// What a custom view reads and writes of pictures (ADR-0031 point 12): a picture's
     /// description and page address, a window of an embedded picture's bytes, and a picture it
     /// holds, staged in chunks and committed in its package's name. No view reads a local file
     /// or the web through these: describe names a link's page address, which shows it and no more.
@@ -32,13 +32,13 @@ internal static partial class WorkbenchMethods
 
     /// <summary>
     /// What the file's pictures weigh and how much nothing names; and removing those, behind a
-    /// backup beside the file, then compacting it (ADR-0031 point 8, W-273). Started on History.
+    /// backup beside the file, then compacting it (ADR-0031 point 8). Started on History.
     /// </summary>
     internal const string MediaUsage = "media.usage";
     internal const string MediaRemoveUnused = "media.removeUnused";
 
     /// <summary>
-    /// A picture for the file's own icon (W-001), embedded so About this file can propose it. The
+    /// A picture for the file's own icon, embedded so About this file can propose it. The
     /// page has already drawn what the person dropped or picked into a square PNG, small enough for
     /// one message, so this carries the PNG and never a path; the Engine checks it can be an icon.
     /// </summary>

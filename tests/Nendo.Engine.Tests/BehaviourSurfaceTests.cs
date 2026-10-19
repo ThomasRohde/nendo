@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Stage S7 of ADR-0008: a calculated field on a custom surface. Studio is not the
+/// ADR-0008: a calculated field on a custom surface. Studio is not the
 /// only place a calculation may be read — obligation P1 requires Studio, a custom
 /// surface and MCP to agree — so a binding must resolve one, and every place that
 /// would make the database sort, filter, group or write by one must refuse instead.
@@ -118,7 +118,7 @@ public sealed class BehaviourSurfaceTests
     }
 
     /// <summary>
-    /// F-222: a list sorted by, and filtered on, a calculated field. Archi could show how many
+    /// A list sorted by, and filtered on, a calculated field. Archi could show how many
     /// diagram objects show each concept but could not list the unused ones. The host works out
     /// the records a query could match first, so every page, its continuation and the list's
     /// count agree on one set and one order.
@@ -177,7 +177,7 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("filter-contains", "project-surface", "project-filter", "operator", "contains"),
             new SetUiPropertyOperation("filter-text", "project-surface", "project-filter", "value", "1"),
         ]));
-        // contains is no filter operator at all, so that is the one thing said (ESM-22).
+        // contains is no filter operator at all, so that is the one thing said.
         var compiled = await service.CompileSemanticUiAsync();
         Assert.IsFalse(compiled.IsValid);
         Assert.IsNotNull(compiled.Diagnostics.SingleOrDefault(d => d.Code == "NUI273" && d.PropertyPath == "operator"));
@@ -185,7 +185,7 @@ public sealed class BehaviourSurfaceTests
             "A calculated field was also refused for an operator the vocabulary does not have.");
     }
 
-    /// <summary>F-222's bound: a calculated filter reads every record it could match, so past the ceiling it refuses.</summary>
+    /// <summary>The bound on a calculated filter: it reads every record it could match, so past the ceiling it refuses.</summary>
     [TestMethod]
     public async Task ACalculatedFilterPastItsBoundIsRefusedRatherThanReadSlowly()
     {
@@ -205,7 +205,7 @@ public sealed class BehaviourSurfaceTests
             new NendoRecordFilter("name", "eq", JsonSerializer.SerializeToElement("Project"))] });
         Assert.IsEmpty(narrowed.Items, "p1 has two tasks, so no project named Project has none.");
 
-        // A total of a calculated number stands on the same bounded read (W-249), and a stored
+        // A total of a calculated number stands on the same bounded read, and a stored
         // filter brings it back within the bound the same way.
         var total = new NendoRecordAggregateQuery("projects", "sum", "taskCount");
         Assert.AreEqual("calculated-query-too-wide",
@@ -228,7 +228,7 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("filter-field", "project-surface", "project-filter", "fieldId", "taskCount"),
             new SetUiPropertyOperation("filter-operator", "project-surface", "project-filter", "operator", "isNotNull"),
         ]);
-        // A filter on a calculated field compiles since F-222; the rest below still refuse.
+        // A filter on a calculated field compiles; the rest below still refuse.
         AssertValid(await service.CompileSemanticUiAsync());
 
         await coordinator.ApplyAsync(new("test", "drop-filter", "test", "Remove the filter",
@@ -238,7 +238,7 @@ public sealed class BehaviourSurfaceTests
             new SetUiPropertyOperation("tile-aggregate", "project-surface", "project-tile", "aggregate", "sum"),
             new SetUiPropertyOperation("tile-field", "project-surface", "project-tile", "fieldId", "taskCount"),
         ]));
-        // A total of a calculated number compiles since W-249, and needs the host that reads it.
+        // A total of a calculated number compiles, and needs the host that reads it.
         AssertValid(await service.CompileSemanticUiAsync());
         Assert.AreEqual(NendoFormat.CalculatedTotalsMinimumHostVersion, (await service.GetSnapshotAsync()).Manifest.MinimumHostVersion);
         await coordinator.ApplyAsync(new("test", "drop-tile", "test", "Remove the tile",
@@ -289,7 +289,7 @@ public sealed class BehaviourSurfaceTests
         await coordinator.ApplyAsync(new("test", "drop-timeline", "test", "Remove the timeline",
             [new RemoveUiNodeOperation("timeline-remove", "project-surface", "project-timeline")]));
 
-        // A gallery's card order is a list's order, so since F-222 it sorts by a calculated
+        // A gallery's card order is a list's order, so it sorts by a calculated
         // field as a list does. Its title and accent are display roles refused by their own
         // codes, which the gallery's own tests cover.
         await coordinator.ApplyAsync(new("test", "gallery", "test", "Order cards by the calculation", [
@@ -394,7 +394,7 @@ public sealed class BehaviourSurfaceTests
         Assert.IsFalse(await PreviousValuePresentAsync(workspace.FilePath, created.RevisionId),
             "A created UI property recorded a prior value that never existed.");
 
-        // History offers it, and its undo clears the property with ui.removeProperty (ESM-11)
+        // History offers it, and its undo clears the property with ui.removeProperty
         // rather than feeding the absent prior value to JsonDocument.Parse.
         var history = await service.QueryHistoryAsync(new(1));
         Assert.AreEqual(created.RevisionId, history.Items[0].RevisionId);

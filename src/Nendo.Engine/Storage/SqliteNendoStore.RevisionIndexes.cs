@@ -6,7 +6,7 @@ namespace Nendo.Engine.Storage;
 internal sealed partial class SqliteNendoStore
 {
     /// <summary>
-    /// Three indexes on the history tables (ADR-0021, 2026-10-13 note; PERF-01, PERF-04), added by a
+    /// Three indexes on the history tables (ADR-0021), added by a
     /// file's first fold and by a new file's fold. The fold deletes revisions, and every deleted
     /// revision cascades into <c>__nendo_idempotency</c> by its revision, which without an index is a
     /// scan of the whole table per revision: minutes for a file grown by single edits. The two

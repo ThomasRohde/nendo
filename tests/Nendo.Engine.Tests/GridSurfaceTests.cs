@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The two grid kinds, ADR-0004 2026-09-17 amendment, slice S6.
+/// The two grid kinds (ADR-0004).
 /// <para>
 /// A matrix crosses two closed groupings and states one exact number in every cell; a
 /// ranking states the few records at the top of one stored number. What is asserted here

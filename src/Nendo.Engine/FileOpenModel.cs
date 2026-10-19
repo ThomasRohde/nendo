@@ -11,8 +11,8 @@ public enum NendoOpenClassification
 public sealed record NendoOpenFinding(string Code, string Message);
 
 /// <summary>
-/// What an inspection that finds a save a crash left unfinished may do about it (ADR-0012,
-/// 2026-10-13). SQLite cannot tell this file's journal from one a copy of it left, so the host
+/// What an inspection that finds a save a crash left unfinished may do about it (ADR-0012).
+/// SQLite cannot tell this file's journal from one a copy of it left, so the host
 /// says when the person opened the file themselves, and whether it lies in a folder that may be
 /// synced; everything else refuses the file untouched.
 /// </summary>

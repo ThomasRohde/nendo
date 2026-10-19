@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// Views that propose (ADR-0013 Phase 3, W-069): a custom view prepares a definition change in
+/// Views that propose (ADR-0013): a custom view prepares a definition change in
 /// its package's name through the same path as the Workbench's own proposals. The host keeps
 /// the view's actor as the proposal's origin, lets one proposal per package wait at a time,
 /// shows a view only its own package's proposals, and never lets it promote or reject. What
@@ -110,7 +110,7 @@ public sealed class DesktopExtensionProposalTests
 
     /// <summary>
     /// A view cannot read the definition revision, so it sends the operations that take one
-    /// without it, as Clay did (W-241, F-299). The host fills it in, as MCP does for an agent,
+    /// without it, as Clay did. The host fills it in, as MCP does for an agent,
     /// on the view's path and on the Workbench's own; it used to pass them through, and the
     /// Engine refused the whole proposal: "expectedDefinitionRevision requires an integer".
     /// </summary>

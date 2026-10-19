@@ -4,7 +4,7 @@ import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/outline-model.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
 const {TOP,emptyOutline,findNode,moveTarget,movePayload,visibleRows} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
-// ADR-0019 stage 5: Studio's outline of a declared hierarchy, as data.
+// ADR-0019: Studio's outline of a declared hierarchy, as data.
 const node=(recordId,parentRecordId,childCount=0,recordVersion=1)=>({record:{recordId,recordVersion,values:{}},parentRecordId,depth:1,childCount});
 const outline=()=>{
   const state=emptyOutline('areas',7);

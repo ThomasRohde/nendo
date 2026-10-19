@@ -20,7 +20,7 @@ public sealed class OutputSchemaContractTests
     /// <summary>
     /// The one tool that advertises no output schema: its result is a resource's own text, which
     /// has no schema to declare, and a schema would invite a client to read structuredContent in
-    /// place of it (2026-10-09). Every other tool must advertise one.
+    /// place of it. Every other tool must advertise one.
     /// </summary>
     internal const string TextOnlyTool = "nendo.read.resource";
 
@@ -132,7 +132,7 @@ public sealed class OutputSchemaContractTests
             validated.State,
             JsonSerializer.Serialize(validated.Diagnostics, NendoMcpJson.Options));
         await CallAsync("nendo.change_set.preview", new(scoped));
-        // W-157: the same operations validated again at the current revision, a new proposal.
+        // The same operations validated again at the current revision, a new proposal.
         var revalidated = Result<NendoAgentProposalPreview>(
             await CallAsync("nendo.change_set.revalidate", new(scoped) { ["idempotencyKey"] = "contract-revalidate" }));
         Assert.AreEqual(NendoProposalState.Previewable, revalidated.State);
@@ -234,7 +234,7 @@ public sealed class OutputSchemaContractTests
             ["value"] = JsonSerializer.SerializeToElement("Negotiation"),
             ["idempotencyKey"] = "contract-set",
         });
-        // W-147: a multi-field edit and a cross-type batch, each one revision.
+        // A multi-field edit and a cross-type batch, each one revision.
         var updated = Result<NendoDataApplyResult>(await CallAsync("nendo.data.update_record", new(owned)
         {
             ["entityId"] = CrmAuthoringFixture.AccountEntityId,
@@ -279,7 +279,7 @@ public sealed class OutputSchemaContractTests
             ["idempotencyKey"] = "contract-keep",
         }));
         Assert.IsNull(marked.RecordVersion);
-        // A picture an agent holds, embedded in one chunk (ADR-0031, W-269).
+        // A picture an agent holds, embedded in one chunk (ADR-0031).
         var picture = Result<NendoMediaPutResult>(await CallAsync("nendo.data.put_media", new(owned)
         {
             ["idempotencyKey"] = "contract-picture",
@@ -351,7 +351,7 @@ public sealed class OutputSchemaContractTests
         var repeated = Result<NendoMcpIntegrityCheck>(await CallAsync("nendo.health.verify_integrity"));
         Assert.IsFalse(repeated.Rescanned, repeated.Message);
 
-        // W-153: a write of this session, undone as one compensation revision.
+        // A write of this session, undone as one compensation revision.
         var renamed = Result<NendoDataApplyResult>(await CallAsync("nendo.data.set_field", new(owned)
         {
             ["entityId"] = CrmAuthoringFixture.AccountEntityId,
@@ -382,7 +382,7 @@ public sealed class OutputSchemaContractTests
     /// text in place of the structure. Both must say the same thing: the text is the structure's
     /// JSON. <c>nendo.read.resource</c> once put the resource in the text and only its address and
     /// media type in the structure, and Claude Code, which reads the structure, saw every resource
-    /// as empty (2026-10-09).
+    /// as empty.
     /// </summary>
     private static void AssertOneMeaning(ModelContextProtocol.Protocol.CallToolResult result, string name)
     {

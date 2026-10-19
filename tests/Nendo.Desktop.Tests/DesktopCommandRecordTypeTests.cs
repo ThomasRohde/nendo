@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.Desktop.Tests;
 
 /// <summary>
-/// R2AP-08: a command runs on its own record type's record. The bridge's data.executeCommand
+/// A command runs on its own record type's record. The bridge's data.executeCommand
 /// carries the record type the caller names, and the session refuses a command of another type
 /// before anything is written. Held through the controller and the protocol handler only, with
 /// no window.

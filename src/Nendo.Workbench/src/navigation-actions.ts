@@ -25,7 +25,7 @@ import { windowIsCurrent } from './record-window';
  * The trail itself is in `navigation-trail.ts` and knows nothing about the session. This
  * module is the other half: reading the place somebody is in, and putting one back. It is
  * shaped like `related-actions.ts` and imports the same set, because restoring a place is
- * what W-033 already built for one record, with more fields set.
+ * what a related row's one step back does for one record, with more fields set.
  */
 
 /** Where the person is now, in enough detail to come back to it. */
@@ -155,7 +155,7 @@ async function travel(direction: 'back' | 'forward'): Promise<void> {
   const way = direction === 'back' ? 'the way back' : 'the way forward';
   const target = direction === 'back' ? navigationTrail.peekBack() : navigationTrail.peekForward();
   if (target === null) return;
-  // A press while a save or a read runs is made when it ends, rather than dropped (WCS-16).
+  // A press while a save or a read runs is made when it ends, rather than dropped.
   if (deferWhileBusy(() => { void travel(direction); })) return;
   // Both directions redraw, and a redraw discards a form's drafts, so both decline while
   // there is unsaved typing — in the words the related row's own back already uses.
@@ -188,7 +188,7 @@ async function travel(direction: 'back' | 'forward'): Promise<void> {
  * Switching tabs swaps the whole trail, so the place to show is the new trail's current one.
  * It is checked and read exactly as a step back is. A place that has gone, or whose record
  * cannot be read, leaves the screen as it is and answers false, so the caller puts the tab and
- * its trail back too (tab-set.ts, review R-002).
+ * its trail back too (tab-set.ts).
  */
 export async function revisitCurrent(): Promise<boolean> {
   const target = navigationTrail.current();
@@ -196,7 +196,7 @@ export async function revisitCurrent(): Promise<boolean> {
   const gone = whyPlaceIsGone(target);
   if (gone !== null) { showError(gone); return false; }
   // Where the screen is now, captured before anything moves: a tab that cannot be shown puts its
-  // tab and trail back, and the screen has to come back with them (WCS-10).
+  // tab and trail back, and the screen has to come back with them.
   const leaving = placeNow({ eyebrow: '', title: '' });
   if (!(await readPlaceRecord(target))) return false;
   return settleRestoring(target.recordId !== null && !focusedRecords.has(target.recordId) ? { ...target, recordId: null } : target, undefined, leaving);
@@ -240,7 +240,7 @@ async function settleRestoring(target: Place, step: () => void = () => undefined
     failure = messageFor(error);
     // settle() puts the new place's view, record type, filters and record into the state before
     // it reads, so a read that failed left the old tab selected over the new tab's screen, and the
-    // next draw recorded that screen into the old tab's trail (WCS-10). The place that was on
+    // next draw recorded that screen into the old tab's trail. The place that was on
     // screen goes back first; its own read failing still leaves its state, which the draw follows.
     if (undo !== undefined) {
       try { await settle(undo); } catch { /* The state is the old place's; the redraw below draws it. */ }
@@ -278,7 +278,7 @@ async function settle(place: Place): Promise<void> {
   // the property of whichever review is open rather than of the screen.
   if (place.proposalReturnView !== null) state.proposalReturnView = place.proposalReturnView;
   // Before the redraw: a view on the place is handed its place as the redraw wires it, or as
-  // it starts if it has to start again (W-127).
+  // it starts if it has to start again.
   restoreViewPlaces(viewAnchor(place), place.viewPlaces);
   leaveRecordContext();
   const entityId = place.applicationEntityId;
@@ -291,7 +291,7 @@ async function settle(place: Place): Promise<void> {
   // Every tab of this record type, not only the ones the place carries: a tab opened
   // since must close again, or going back to a page shows a section the page did not
   // have open when it was left.
-  // The place's own Filter pick and Studio query, before anything is read under them (R-003).
+  // The place's own Filter pick and Studio query, before anything is read under them.
   if (place.surfaceId !== null && place.quickFilter !== undefined) {
     if (place.quickFilter === null) quickFilters.delete(place.surfaceId);
     else quickFilters.set(place.surfaceId, structuredClone(place.quickFilter));

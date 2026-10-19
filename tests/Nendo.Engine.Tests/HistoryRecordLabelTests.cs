@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// UX-07 (W-210): History names the record each record operation acts on, by its label, even
+/// History names the record each record operation acts on, by its label, even
 /// once the record is deleted, so three deletes of one type no longer read the same.
 /// </summary>
 [TestClass]

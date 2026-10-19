@@ -1,4 +1,4 @@
-// W-116: the viewpoint table the workbench draws by is Archi's. canvas.js carries archi-online's
+// The viewpoint table the workbench draws by is Archi's. canvas.js carries archi-online's
 // port of Archi's viewpoints (src/model/data/viewpoints.ts); this compares it with the
 // viewpoints.xml that Desktop Archi 5.9 itself ships, independently of that port: every viewpoint's
 // id, name and place, and for each of the 61 element types Archi.nendo knows (archi-definition.mjs),

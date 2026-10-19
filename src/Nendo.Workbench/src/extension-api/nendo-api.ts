@@ -202,7 +202,7 @@ function install(host: Window & { nendo?: unknown }): void {
   // Taken twice, the second copy would answer a second connect and strand the first's calls.
   // The first copy is known by its own property and its apiVersion: an element with id or name
   // "nendo" is window.nendo too, through the window's named access, and taken for a first copy
-  // it left the view never connecting and nendo.ready undefined, with nothing said (WXS-16).
+  // it left the view never connecting and nendo.ready undefined, with nothing said.
   // Named access is not an own property of the window, so the API defined below shadows it.
   const existing = Object.prototype.hasOwnProperty.call(host, 'nendo') ? host.nendo : undefined;
   if (typeof existing === 'object' && existing !== null && (existing as { apiVersion?: unknown }).apiVersion !== undefined) return;
@@ -312,7 +312,7 @@ function install(host: Window & { nendo?: unknown }): void {
     pump();
   });
   /**
-   * An error the view's own code throws and does not catch goes to the Workbench (W-251), which
+   * An error the view's own code throws and does not catch goes to the Workbench, which
    * keeps the open file's last few for the agent that wrote the view; the view still sees it
    * in its own console. Only the sentence travels, cut to a bound, never the stack.
    */
@@ -334,7 +334,7 @@ function install(host: Window & { nendo?: unknown }): void {
   else refuse(new NendoError('not-framed', 'This page is a Nendo view. It runs inside Nendo, on a screen or a record page that shows it.'));
 
   /**
-   * Keys (W-090). A key pressed in a cross-origin frame never reaches the Workbench, so Nendo's
+   * Keys. A key pressed in a cross-origin frame never reaches the Workbench, so Nendo's
    * own keys would do nothing while a view had focus. Pressed here, one of Nendo's is handed to
    * the Workbench before the view sees it, as it is Nendo's; Alt and an arrow are not taken
    * from a field, where they move within it, as the Workbench leaves them there too. A key the
@@ -413,12 +413,12 @@ function install(host: Window & { nendo?: unknown }): void {
   // State writes wait their turn in a lane of their own, in the order they were made, one every
   // stateWriteSpacingMs after the last one actually reached the Workbench. Spaced when they left
   // this lane, they could still wait together behind eight reads in flight and reach the
-  // broker in the same millisecond, where the third was refused as busy (WXS-09).
+  // broker in the same millisecond, where the third was refused as busy.
   //
   // A key written again while its write waits replaces the value, and every caller of that key
   // hears the one answer, but only when neither write is conditional. A write with an
   // expectedVersion is sent alone and answered alone: merged with a later write, its condition
-  // was dropped and its caller told the other write's answer (WXS-03).
+  // was dropped and its caller told the other write's answer.
   const stateQueue: Array<{ id: string; conditional: boolean; method: string; params: Record<string, unknown>; waiters: Waiting[] }> = [];
   let stateTimer: ReturnType<typeof setTimeout> | null = null;
   let stateSending = false;
@@ -456,7 +456,7 @@ function install(host: Window & { nendo?: unknown }): void {
   }
 
   /**
-   * The view's controls in Nendo's own chrome (W-090). A declaration replaces the last, so one
+   * The view's controls in Nendo's own chrome. A declaration replaces the last, so one
    * made while another waits its turn replaces it, and every caller hears the answer to the
    * one sent: at most one every toolbarSpacingMs, so a view that declares its zoom on every
    * wheel tick costs ten redraws of the strip a second, not sixty.
@@ -530,7 +530,7 @@ function install(host: Window & { nendo?: unknown }): void {
           : { entityId: options.record.entityId, recordId: options.record.recordId, version: options.record.version, fieldId: options.fieldId };
         // A request crosses as JSON, which has no bytes and holds at most 256 KiB, so the picture
         // goes as base64 in parts the broker stages in the package's name, and a last call commits
-        // them. Until 2026-10-18 the bytes went as they were and arrived as {}, refused every time.
+        // them. Bytes sent as they are would arrive as {} and be refused every time.
         const uploadKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
           ? crypto.randomUUID() : `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
         for (let offset = 0; offset < bytes.length; offset += extensionLimits.mediaPartBytes) {
@@ -567,7 +567,7 @@ function install(host: Window & { nendo?: unknown }): void {
         call<ViewSearchPage>('records.search', { ...options, text }),
       treeAll,
       /**
-       * Writes, as the person's own edit makes them (ADR-0013 Phase 3). Each is checked against the
+       * Writes, as the person's own edit makes them (ADR-0013). Each is checked against the
        * record's version and refused if somebody changed it since; each is in History under this
        * view's package, and undone there. Each answers the record as it now stands. A write that
        * sets a reference passes the target's version in targetVersions. create's third argument is
@@ -587,7 +587,7 @@ function install(host: Window & { nendo?: unknown }): void {
       delete: (record: RecordAt): Promise<null> =>
         call<null>('records.delete', { entityId: record.entityId, recordId: record.recordId, version: record.version }),
       /**
-       * Several writes as one revision (W-102): all commit or none do, and History shows one
+       * Several writes as one revision: all commit or none do, and History shows one
        * entry, named by options.label. A record appears at most once. A reference to a record
        * created or updated earlier in the batch needs no target version: Nendo checks it against
        * the version that write leaves. Answers each record's new version, in the order written,
@@ -595,7 +595,7 @@ function install(host: Window & { nendo?: unknown }): void {
        * batch: sent again with the same key and the same writes, after a timeout or a reconnect
        * left its outcome unknown, it is kept once and answers as it did; with other writes it is
        * refused. Without a key a batch sent again is a new batch. options.offerUndo asks Nendo to
-       * offer Undo in its own notice (W-250), which stays while the person moves on, the record
+       * offer Undo in its own notice, which stays while the person moves on, the record
        * the view opens next included, until the next notice; the answer says undoOffered.
        */
       batch: (writes: BatchWrite[], options?: BatchOptions): Promise<BatchAnswer> =>
@@ -640,7 +640,7 @@ function install(host: Window & { nendo?: unknown }): void {
     proposals: Object.freeze({
       /**
        * Prepares a definition change in this view's package's name and opens it in Nendo's review
-       * (ADR-0013 Phase 3). The person accepts or rejects it; a view never can. One proposal of a
+       * (ADR-0013). The person accepts or rejects it; a view never can. One proposal of a
        * package waits at a time. Answers { proposalId, title, state, diagnostics, opened }.
        */
       prepare: (title: string, operations: unknown[]): Promise<ProposalAnswer> => call<ProposalAnswer>('proposals.prepare', { title, operations }),
@@ -651,7 +651,7 @@ function install(host: Window & { nendo?: unknown }): void {
     }),
     state: Object.freeze({
       /**
-       * What this view keeps with the file (ADR-0013 Phase 3): a copy of the file carries it,
+       * What this view keeps with the file (ADR-0013): a copy of the file carries it,
        * History names the package on each change, and the person can undo one there. Values
        * are JSON of at most 64 KiB. `{ scope: 'package' }` shares a value across the package's
        * views. Writes to one key are coalesced and sent at most twice a second; a write with an
@@ -685,7 +685,7 @@ function install(host: Window & { nendo?: unknown }): void {
       /** One of Nendo's menus at a point in the view, or at a mouse event: the pick as { id, value }, or null. */
       showMenu,
       /**
-       * Where this view is, for Back and Forward (W-127): JSON of at most 4 KiB, and a label
+       * Where this view is, for Back and Forward: JSON of at most 4 KiB, and a label
        * the Back button shows. A new place is a step; `{ replace: true }` corrects the step the
        * person is on, for a selection or the place the view starts at. Declaring the place it
        * already has does nothing. Back and Forward hand a place back as the event `place`, and

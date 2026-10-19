@@ -70,7 +70,7 @@ public sealed class AuthoringRecoveryTests
     }
 
     /// <summary>
-    /// W-010: two unrelated mistakes cost one validation, not two. Each diagnostic names
+    /// Two unrelated mistakes cost one validation, not two. Each diagnostic names
     /// the operation it is about, and the draft stays open to amend, as it did when the
     /// first mistake was the only one said.
     /// </summary>

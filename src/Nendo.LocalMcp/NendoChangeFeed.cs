@@ -5,14 +5,14 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp;
 
 /// <summary>
-/// The three facts worth pushing instead of polling (W-151): a commit moved the manifest,
+/// The three facts worth pushing instead of polling: a commit moved the manifest,
 /// the proposal queue changed, and the file is closing. Each open <c>subscriptions/listen</c>
 /// stream holds one <see cref="Listener"/>; the Engine's commit event, the proposal store
 /// and the host's close each signal a URI, and the stream's handler sends
 /// <c>resources/updated</c> for the ones its client asked for.
 /// <para>
-/// A stream may also ask for one record type's records, <c>nendo://application/entity/{entityId}/records</c>
-/// (W-171). It is told when a commit changes a record of that type, or changes the definition,
+/// A stream may also ask for one record type's records, <c>nendo://application/entity/{entityId}/records</c>.
+/// It is told when a commit changes a record of that type, or changes the definition,
 /// and the notification's <c>_meta</c> names the records under <see cref="ChangesMetaKey"/>, so
 /// a client waiting on a button's request reads that record instead of paging the type.
 /// </para>
@@ -112,7 +112,7 @@ internal sealed class NendoChangeFeed
 
     /// <summary>
     /// The most changes one stream holds unsent. A client that keeps its stream open and stops
-    /// reading held a queue that grew with every commit for the connection's life (MTD-18). Past
+    /// reading held a queue that grew with every commit for the connection's life. Past
     /// this the stream takes one last entry, <see cref="Change.Overflowed"/>, and ends: the client
     /// is then told that every resource it subscribed to changed, so it reads them again rather
     /// than missing a change it was never told it had missed, and it subscribes again.

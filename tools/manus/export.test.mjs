@@ -119,7 +119,7 @@ test('paper layout: AASTeX two columns, front matter centred, abstract and refer
   assert.doesNotMatch(xml, /<w:b w:val="false"\/>/, 'a run switches bold off, which overrides a bold heading style');
   const paragraph = asFormatted(xml, styles);
   assert.match(paragraph('[Authors]'), /<w:jc w:val="center"\/>/);
-  // AASTeX's measures (W-293): the abstract 444 TeX points wide, every paragraph indented 9 points,
+  // AASTeX's measures: the abstract 444 TeX points wide, every paragraph indented 9 points,
   // the first after a heading too, on lines exactly 12.5 TeX points apart.
   assert.match(paragraph('We describe it.'), /<w:ind w:left="677" w:right="700" w:firstLine="179"/, 'the abstract is 444pt wide, as AASTeX sets it, every paragraph indented 9pt');
   assert.match(paragraph('First.'), /w:firstLine="180"/, 'an article indents the first paragraph after a heading too');

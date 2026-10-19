@@ -1,5 +1,5 @@
 /**
- * The keys of a drillable activity grid (WDV-16). Every day was its own Tab stop, up to 366 of
+ * The keys of a drillable activity grid. Every day was its own Tab stop, up to 366 of
  * them before the records below. The grid is one Tab stop: the arrow keys move by day and by week,
  * Home and End go to its first and last day, and Enter or Space drills, as a button does. The day
  * last moved to keeps the Tab stop, so Tab into the grid comes back to it.

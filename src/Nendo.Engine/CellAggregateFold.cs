@@ -4,7 +4,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// One streamed fold of a grid: a bucket per cell of two crossed closed groupings
-/// (ADR-0004, 2026-09-17 amendment, S6). Every cell key is produced from the cross
+/// (ADR-0004). Every cell key is produced from the cross
 /// product of the two option sets before a single row is read, each axis carrying
 /// its own unset lane, so a cell with nothing in it is a cell rather than a gap the
 /// data left behind.

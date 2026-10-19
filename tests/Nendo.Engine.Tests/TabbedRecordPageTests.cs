@@ -3,8 +3,7 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// Named tabs on a record page, ADR-0004's 2026-09-12 vocabulary-widening
-/// amendment. A <c>tabGroup</c> contains sections and nothing else, so a tab is
+/// Named tabs on a record page (ADR-0004). A <c>tabGroup</c> contains sections and nothing else, so a tab is
 /// always a titled section: tabs organise named record information rather than
 /// becoming a general layout API.
 /// </summary>

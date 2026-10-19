@@ -5,15 +5,15 @@ using System.Text.Json;
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The broad review's findings on queries, CSV, numbers, dates and locales (W-217): each test
-/// holds one defect the review found, and names it.
+/// Queries, CSV, numbers, dates and locales: each test holds one defect and the rule that
+/// keeps it out.
 /// </summary>
 [TestClass]
 public sealed class QueryCsvLocaleReviewTests
 {
     private static NendoCsvDocument Parse(string text) => NendoCsvProfile.Parse(Encoding.UTF8.GetBytes(text));
 
-    /// <summary>ESQ-13: a blank line is not a row, in a one-column file or a wider one.</summary>
+    /// <summary>A blank line is not a row, in a one-column file or a wider one.</summary>
     [TestMethod]
     public void ABlankLineIsNotARow()
     {
@@ -26,7 +26,7 @@ public sealed class QueryCsvLocaleReviewTests
         Assert.HasCount(2, Parse("Name\nAnna\n\"\"\n").Rows, "A quoted empty cell was dropped as a blank line.");
     }
 
-    /// <summary>ESQ-07: a spreadsheet's empty trailing columns are dropped; a bad header names its column.</summary>
+    /// <summary>A spreadsheet's empty trailing columns are dropped; a bad header names its column.</summary>
     [TestMethod]
     public void EmptyTrailingColumnsAreDroppedAndAHeaderRefusalNamesItsColumn()
     {
@@ -40,7 +40,7 @@ public sealed class QueryCsvLocaleReviewTests
         StringAssert.Contains(blank.Message, "CSV column 2 has no header", "The blank-header refusal does not name the column.");
     }
 
-    /// <summary>ESQ-12: a value refusal names the form its kind expects and the value it got.</summary>
+    /// <summary>A value refusal names the form its kind expects and the value it got.</summary>
     [TestMethod]
     [DataRow(NendoStorageKind.Boolean, "TRUE", "expects true or false")]
     [DataRow(NendoStorageKind.Date, "10-10-2026", "expects a date as yyyy-MM-dd")]
@@ -57,7 +57,7 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// R2LAT-11: an export file starts with UTF-8's byte-order mark, so a spreadsheet opened on it
+    /// An export file starts with UTF-8's byte-order mark, so a spreadsheet opened on it
     /// reads æ, ø and å, and the importer reads the file back to the same rows.
     /// </summary>
     [TestMethod]
@@ -82,7 +82,7 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// ESQ-11: an Engine step that reads a whole set reads it from one change. A commit between
+    /// An Engine step that reads a whole set reads it from one change. A commit between
     /// two pages makes the next page's cursor stale; the read starts again rather than failing
     /// a move or an import with a paging message the person never asked for.
     /// </summary>
@@ -115,8 +115,8 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// ESQ-16: a sort by a single choice reads in its options' configured order and a sort by a
-    /// reference by its target's label, page by page. ESQ-17: a UUID filter matches the value in
+    /// A sort by a single choice reads in its options' configured order and a sort by a
+    /// reference by its target's label, page by page. A UUID filter matches the value in
     /// either case. Both on the writable path and on the read-only one.
     /// </summary>
     [TestMethod]
@@ -179,7 +179,7 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// ESQ-10: a file opened read-only refuses the aggregates the file refuses, for the same
+    /// A file opened read-only refuses the aggregates the file refuses, for the same
     /// reason: a field it does not have, a kind that cannot be folded, a bucket field that is not
     /// a Date, and a whole-number sum past what a whole number holds.
     /// </summary>
@@ -232,7 +232,7 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// R2LAT-08: the fold's own texts read the same under any regional format: a Thai one, whose
+    /// The fold's own texts read the same under any regional format: a Thai one, whose
     /// calendar counts the Buddhist era, with a group separator after every digit.
     /// </summary>
     [TestMethod]
@@ -275,7 +275,7 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// R2LAT-06: the Engine reads the machine's time zone again from Windows within a minute, so a
+    /// The Engine reads the machine's time zone again from Windows within a minute, so a
     /// zone changed under a running Nendo moves the Engine's today as it moves the Workbench's,
     /// and a chart range is resolved against the zone as it is now.
     /// </summary>
@@ -320,7 +320,7 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// R2LAT-02, the part that is not a limitation: a term made only of letters outside the Basic
+    /// A term made only of letters outside the Basic
     /// Multilingual Plane is a term, not dropped as punctuation.
     /// </summary>
     [TestMethod]
@@ -332,9 +332,9 @@ public sealed class QueryCsvLocaleReviewTests
     }
 
     /// <summary>
-    /// ESQ-11 (review), at the call sites: the CSV code resolver reads through the whole read, so
+    /// At the call sites: the CSV code resolver reads through the whole read, so
     /// a commit between its pages starts the read again rather than failing the import. A move's
-    /// sibling scan did too until 2026-10-16 (ADR-0019 amendment); it is one statement now, so no
+    /// sibling scan is one statement (ADR-0019), so no
     /// commit can fall between its pages, and the move still lands with the hook in place.
     /// </summary>
     [TestMethod]

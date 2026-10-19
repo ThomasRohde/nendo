@@ -210,7 +210,7 @@ public sealed record AddFieldOperation : NendoOperation
         }
         // A single line or long text drawn over a number, a yes/no or a date replaced its input with
         // a text box, and setFieldPresentation changes only Text fields, so nothing could correct it
-        // afterwards (ESM-10).
+        // afterwards.
         if (Presentation is "singleLine" or "longText" or NendoMedia.Presentation && StorageKind != NendoStorageKind.Text)
         {
             throw new ArgumentException($"The {Presentation} presentation requires Text storage.", nameof(Presentation));
@@ -219,8 +219,8 @@ public sealed record AddFieldOperation : NendoOperation
     }
 
     /// <summary>
-    /// A rating is a whole number drawn on a closed scale, ADR-0004 2026-09-14 amendment
-    /// (S2). Both bounds are required, because dots nobody bounded cannot be drawn, and the
+    /// A rating is a whole number drawn on a closed scale, ADR-0004.
+    /// Both bounds are required, because dots nobody bounded cannot be drawn, and the
     /// span is at most ten values: a scale a person cannot count at a glance is a number,
     /// which the Integer presentation already shows. The bounds are refused on every other
     /// presentation the way options are refused off a single choice, so a field carrying one
@@ -352,9 +352,9 @@ public sealed record SetUiPropertyOperation : NendoOperation
 }
 
 /// <summary>
-/// Clears one property of a screen node (ADR-0004, 2026-10-13 amendment): the property is gone,
+/// Clears one property of a screen node (ADR-0004): the property is gone,
 /// not set to null, so an optional property once given can be taken away again and the first
-/// value a property ever took can be undone (ESM-11).
+/// value a property ever took can be undone.
 /// </summary>
 public sealed record RemoveUiPropertyOperation : NendoOperation
 {
@@ -571,7 +571,7 @@ public sealed record NendoMutation(
     /// The words the replay digest reads in place of <see cref="Description"/>, when the
     /// description is built from names a person can change. A form save is told apart from
     /// another by its operations, and its description names the record type as it is called
-    /// now (ESQ-15); an exact retry after a rename, or across the host that first named it, must
+    /// now; an exact retry after a rename, or across the host that first named it, must
     /// still be the same write. Null digests the description itself.
     /// </summary>
     internal string? DigestDescription { get; init; }

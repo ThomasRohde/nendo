@@ -7,7 +7,7 @@ namespace Nendo.Desktop;
 internal static partial class WorkbenchMethods
 {
     /// <summary>
-    /// Open a tab in a window of its own (W-277, ADR-0002 2026-10-16). The page hands over the tab's
+    /// Open a tab in a window of its own (ADR-0002). The page hands over the tab's
     /// trail as an opaque string, which the host never reads, and whether the window opens at the
     /// pointer (the tab was let go outside the window) or beside this one (the command).
     /// </summary>

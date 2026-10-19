@@ -1,7 +1,7 @@
 namespace Nendo.Engine.Tests;
 
 /// <summary>
-/// The progress ring, ADR-0004 2026-09-14 amendment, slice S1: the records matching
+/// The progress ring (ADR-0004): the records matching
 /// its own clauses over everything its scope covers. It is drawn from two exact
 /// counts, and a ring that narrows nothing is refused rather than always full.
 /// </summary>

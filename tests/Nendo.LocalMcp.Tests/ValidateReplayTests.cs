@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// W-142: an exact retry of validate replays its verdict only while the draft still holds
+/// An exact retry of validate replays its verdict only while the draft still holds
 /// what that verdict was about. Amend already forgot the replays; add_operations did not,
 /// so validate (invalid), add the fix, validate again under the same key answered with the
 /// old diagnostics and never compiled the fix.

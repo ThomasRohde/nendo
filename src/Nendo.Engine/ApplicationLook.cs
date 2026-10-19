@@ -5,7 +5,7 @@ namespace Nendo.Engine;
 
 /// <summary>
 /// The look a file chose for itself: one of the choice tones and one letter, each of which
-/// may be left to the default, and a picture drawn in their place (W-001). Null parts are not
+/// may be left to the default, and a picture drawn in their place. Null parts are not
 /// chosen; a file that chose none carries no look at all.
 /// </summary>
 public sealed record NendoApplicationLook(string? Tone, string? Letter, string? Icon = null);
@@ -22,7 +22,7 @@ public sealed record NendoResolvedLook(
 
 /// <summary>
 /// How a file is told apart from the others open beside it: a tone and a letter, drawn as a
-/// badge on the Nendo mark wherever the file has an icon (W-089).
+/// badge on the Nendo mark wherever the file has an icon.
 /// <para>
 /// Every file has one without anybody choosing it. The tone comes from the application ID,
 /// so a copy keeps its original's and a Fork, which is a new application, gets its own; the
@@ -162,7 +162,7 @@ public sealed record SetApplicationLookOperation : NendoOperation
 
 /// <summary>
 /// Gives the file a picture as its icon, drawn instead of the tone and letter, or takes it away
-/// (ADR-0004, 2026-10-19 amendment, W-001).
+/// (ADR-0004).
 /// <para>
 /// The picture is embedded content the file already holds (<see cref="PutMediaOperation"/>), a
 /// square PNG within <see cref="NendoLook.IconRefusal"/>'s bounds. Null takes the picture away,

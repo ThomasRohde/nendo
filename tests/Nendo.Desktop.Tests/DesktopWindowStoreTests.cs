@@ -44,7 +44,7 @@ public sealed class DesktopWindowStoreTests
     }
 
     /// <summary>
-    /// W-089. One window.json for the device meant every Nendo window opened on the same
+    /// One window.json for the device meant every Nendo window opened on the same
     /// rectangle, so a second file landed exactly on top of the first.
     /// </summary>
     [TestMethod]

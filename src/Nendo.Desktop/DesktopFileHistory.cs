@@ -34,7 +34,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
     /// <summary>
     /// A file another window holds reads as unreadable whenever that window writes: every write
     /// leaves a journal beside it until it commits. It was listed as unavailable, the button
-    /// greyed out, and left off the taskbar's Recent list that every window shares (R2SP-09).
+    /// greyed out, and left off the taskbar's Recent list that every window shares.
     /// An unreadable file that a live Nendo holds is in use there, and opening it hands it over.
     /// </summary>
     private readonly Func<string, bool> _heldElsewhere = heldElsewhere ?? (path => DesktopWindowHandoff.OwnerOf(path) is not null);
@@ -51,7 +51,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
     /// <summary>
     /// The person's recent files, or an isolated profile's when NENDO_DEVICE_STATE_ROOT names
     /// one, in the same file-history folder MainPage composes for it. It ignored the variable,
-    /// so a test controller that named no history wrote into the person's list (TST-16).
+    /// so a test controller that named no history wrote into the person's list.
     /// </summary>
     internal static string DefaultRoot => DesktopRuntimeConfiguration.DeviceStateRoot is { } profile
         ? Path.Combine(profile, "file-history")
@@ -64,7 +64,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
     /// <param name="openObservation">
     /// The observation that file was opened with. An entry naming it is confirmed from this
     /// rather than observed again: the session holds the file, and a write in progress makes it
-    /// look unreadable. A copy assessed while its original is open meets this (DSH-06).
+    /// look unreadable. A copy assessed while its original is open meets this.
     /// </param>
     internal async Task<DesktopFileAdmission> CheckAsync(NendoFileObservation candidate, CancellationToken cancellationToken,
         string? openPath = null, NendoFileObservation? openObservation = null)
@@ -91,7 +91,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
     /// <param name="openPath">The file open in this window.</param>
     /// <param name="openObservation">
     /// The observation it was opened with. Its entry is confirmed from this, as the taskbar
-    /// list's is, rather than opened again: the list is read outside the request gate (DSH-21),
+    /// list's is, rather than opened again: the list is read outside the request gate,
     /// so it can land in the middle of a write, when the open file reads as unavailable while its
     /// journal exists, and a read of it holds a lock the commit has to wait out.
     /// </param>
@@ -227,7 +227,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
                 stream.Flush(flushToDisk: true);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            // Another window reading the list holds it open for the moment of its read (R2SP-07).
+            // Another window reading the list holds it open for the moment of its read.
             DesktopStateFile.MoveOver(stage, StatePath);
             stage = null;
             return true;
@@ -248,7 +248,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
 
     /// <summary>
     /// For each application ID in the list, the instance opened most recently: the file whose
-    /// views keep their storage when the view origin's key changed (ADR-0013, 2026-10-13). Empty
+    /// views keep their storage when the view origin's key changed (ADR-0013). Empty
     /// for an absent, empty or unusable list; null when the list exists but cannot be read now, so
     /// nothing is settled on a passing failure.
     /// </summary>

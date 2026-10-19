@@ -4,7 +4,7 @@ using Nendo.Engine;
 namespace Nendo.LocalMcp.Tests;
 
 /// <summary>
-/// Stage S8 of ADR-0008: an external agent authors calculations and an automatic
+/// ADR-0008: an external agent authors calculations and an automatic
 /// action through ordinary discovery and ordinary proposals, and reads the results
 /// back exactly.
 /// <para>
@@ -54,7 +54,7 @@ public sealed class BehaviourAuthoringProtocolTests
         Assert.AreEqual(NendoBehaviourLimits.Default.GeneratedChanges, behaviour.Limits.GeneratedChanges);
 
         CollectionAssert.Contains(behaviour.Operators.ToArray(), "?:");
-        // How the operators bind is published with them, so a nested choice is not learnt by refusal (R2AAV-04).
+        // How the operators bind is published with them, so a nested choice is not learnt by refusal.
         StringAssert.Contains(behaviour.Note, "Operators bind tightest first");
         StringAssert.Contains(behaviour.Note, "a ? x : (b ? y : z)");
         CollectionAssert.Contains(behaviour.Scalars.ToArray(), "Decimal");
@@ -68,7 +68,7 @@ public sealed class BehaviourAuthoringProtocolTests
         // guessed three spellings and abandoned the calculation.
         var shapes = behaviour.Bindings.Where(binding => binding.Kind == "RelatedAggregate").ToArray();
         CollectionAssert.AreEquivalent(new[] { "Count", "FilteredCount", "Sum" }, shapes.Select(shape => shape.Aggregate).ToArray());
-        // A sum or filtered count names a stored member field or a calculated one (2026-10-10).
+        // A sum or filtered count names a stored member field or a calculated one.
         CollectionAssert.IsSubsetOf(new[] { "valueFieldId", "valueCalculationId" }, shapes.Single(shape => shape.Aggregate == "Sum").OptionalFields.ToArray());
         CollectionAssert.IsSubsetOf(new[] { "predicateFieldId", "predicateCalculationId" },
             shapes.Single(shape => shape.Aggregate == "FilteredCount").OptionalFields.ToArray());
@@ -198,7 +198,7 @@ public sealed class BehaviourAuthoringProtocolTests
                                         bindings = new[]
                                         {
                                             // A set step's bindings start from the record it writes:
-                                            // the project, not the task (EBH-03).
+                                            // the project, not the task.
                                             new
                                             {
                                                 bindingId = "title", kind = "SameRecordField", entityId = "projects",
@@ -243,7 +243,7 @@ public sealed class BehaviourAuthoringProtocolTests
         Assert.IsFalse(schema.Fields.Any(field => field.FieldId is "completion" or "taskCount"),
             "A calculated field must never arrive as a stored one.");
         Assert.AreEqual("count", schema.DerivedFields.Single(field => field.FieldId == "taskCount").Expression);
-        // And what each reads, which is what keeps a field or a record type from being retired (UIT-19).
+        // And what each reads, which is what keeps a field or a record type from being retired.
         var counting = schema.DerivedFields.Single(field => field.FieldId == "taskCount");
         CollectionAssert.AreEqual(new[] { "project" }, counting.ReadsFieldIds.ToArray(), "The schema read does not say which fields a calculation reads.");
         CollectionAssert.AreEqual(new[] { "projects", "tasks" }, counting.ReadsEntityIds.ToArray(), "The schema read does not say which record types a calculation reads.");
@@ -519,7 +519,7 @@ public sealed class BehaviourAuthoringProtocolTests
     }
 
     /// <summary>
-    /// The independent review of W-209: an action that could never run is refused at install as
+    /// An action that could never run is refused at install as
     /// action-target-mismatch, and the refusal names the binding or field and the remedy. A
     /// proposal's diagnostic always carried it, but on a tool error's path the code was withheld
     /// as "The semantic precondition was not met.", which tells an agent nothing to change.
@@ -590,7 +590,7 @@ public sealed class BehaviourAuthoringProtocolTests
     }
 
     /// <summary>
-    /// EBH-01: a trigger condition that cannot be worked out skips its action and lets the
+    /// A trigger condition that cannot be worked out skips its action and lets the
     /// write commit. The write result said nothing about it, so an agent learned of the skip
     /// only by noticing a stale value later. It is on the wire now, beside alsoChanged.
     /// </summary>
@@ -843,7 +843,7 @@ public sealed class BehaviourAuthoringProtocolTests
     /// to — the project — which is the rule the published example states. With
     /// <paramref name="failsWhenItRuns"/> its formula divides by zero, which installs and
     /// fails on the first save that fires it. Binding the task instead used to be that
-    /// example; install refuses it now (EBH-03).
+    /// example; install refuses it now.
     /// </summary>
     private static async Task InstallTriggerAsync(LocalMcpTestWorkspace workspace, bool failsWhenItRuns = false)
     {

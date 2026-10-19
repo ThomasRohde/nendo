@@ -1,11 +1,11 @@
-// W-277 (ADR-0002, 2026-10-16): a tab moved to a window of its own, in a real Nendo against an
+// A tab moved to a window of its own (ADR-0002), in a real Nendo against an
 // isolated profile built by DesktopExtensionViewJourneyTests. Measured over the browser's debugging
 // port: the second window's page, its file session and place, the tab gone from the main window,
 // the file actions a tab window refuses, a write in one window reaching the other, the theme in
 // both, the tab window closing while the file and the process stay, and Exit ending the process
 // while a tab window is open. That a tab window closes
 // when its file changes needs a native confirmation pressed, which no lane can do: it was observed
-// with a real keyboard on 2026-10-16 (W-277). The move is made by the
+// with a real keyboard on 2026-10-16. The move is made by the
 // command palette's Move tab to new window; a drag out of the strip ends in the same call, and a
 // real pointer drag needs the foreground, which a gate lane cannot hold.
 const [port, processId, output] = process.argv.slice(2);
