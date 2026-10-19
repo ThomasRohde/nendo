@@ -12,9 +12,8 @@ owner's data and are ignored.
 | `Archi.nendo` | An ArchiMate 3.2 model with the [Archi workbench](../extensions/archi/README.md) in the file. Built by `tools/Build-Archi.mjs`. | Yes |
 | `Swarm.nendo` | The [Swarm](../extensions/swarm/README.md) behaviour playground: creature behaviours edited with bpmn-js, a habitat, and experiments that replay. Built by `tools/Build-Swarm.mjs`. | Yes |
 | `Garden.nendo` | [Garden](../docs/design/garden.md), a garden of Markdown notes whose `[[links]]`, `#tags` and `- [ ]` tasks are records, with the [Garden view](../extensions/garden/README.md) (reading first, a living d3 graph) and its own agent skill in the file. Built by `tools/Build-Garden.mjs`. | Yes |
-| `Manus.nendo` | The file the [manuscript workbench](../docs/design/manuscript.md) was built in, with the [Manuscript view](../extensions/manuscript/README.md) in the file: built by `tools/Build-Manus.mjs` and kept with its history. | Not yet: the owner's call |
-| `Manuscript.nendo` | A new file of the Manuscript app (File > New manuscript, ADR-0022): the owner's paper in progress, *Malleable Software in One File: Nendo as a Case Study*, with real screenshots. | **No** — ignored, the owner's working file |
-| `Milo.nendo` | The owner's copy of Manus.nendo holding the picture book *Milo and the Paper Boat*. | Not yet: the owner's call |
+| `Manuscript.nendo` | A new file of the Manuscript app (File > New manuscript, ADR-0022): the owner's paper in progress, *Malleable Software in One File: Nendo as a Case Study*, with real screenshots. | Yes |
+| `Milo.nendo` | A Manuscript file holding the owner's picture book *Milo and the Paper Boat*. | Yes |
 | `Herbarium.nendo` | The pictures reference file ([ADR-0031](../docs/decisions/0031-media-in-user-data.md)): seven plants whose pictures come from all three places, four stored in the file, two linked from the `Herbarium pictures` folder beside it, and one from the web, with a gallery whose cards are covered by them and a Markdown note that shows a picture. Built by `tools/Build-Herbarium.ps1`. | Yes, with its folder |
 
 ## Rules
@@ -27,10 +26,9 @@ owner's data and are ignored.
 
 ## What is in git, and what is not
 
-The planner and `Manuscript.nendo` are **git-ignored**. Each changes on every write, and
-git would store the whole SQLite database each time. They are the owner's live data,
-kept here beside the files they belong with and out of `artifacts/`, and the owner keeps
-copies of them. `git clean -xdf` would delete them with every other ignored file, so do
+The planner is **git-ignored**. It changes on every write, and git would store the whole
+SQLite database each time. It is the owner's live data, kept here beside the files it
+belongs with and out of `artifacts/`, and the owner keeps copies of it. `git clean -xdf` would delete them with every other ignored file, so do
 not run one here without looking.
 
 The demo files are tracked. They change only when somebody rebuilds them, and they are

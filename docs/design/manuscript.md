@@ -3,8 +3,8 @@
 A manuscript written as one quiet continuous page and kept paragraph by paragraph, built as a
 Nendo application: a `.nendo` file with record types, a declared hierarchy, link records, screens
 and a custom view, `extensions/manuscript/`, that carries Tiptap (ADR-0013). It needs no host
-change. `workspace/Manus.nendo` is the file the application is built in; `workspace/Manuscript.nendo`
-is a new file of it (ADR-0022) holding the owner's paper. What the view does, key by key, is in the
+change. `tools/Build-Manus.mjs` builds it into an empty file; `workspace/Manuscript.nendo` holds
+the owner's paper and `workspace/Milo.nendo` a picture book. What the view does, key by key, is in the
 package's [README](../../extensions/manuscript/README.md).
 
 The aim: long-form writing that feels like one continuous document while every paragraph is
