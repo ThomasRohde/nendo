@@ -26,9 +26,9 @@ public sealed class ActivityAndFailureTests
             AgentAccessMode.DataMutation,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
-        var entity = NendoApplicationService.IdeaEntityId;
+        var entity = IdeaGarden.IdeaEntityId;
         var record = (await workspace.Service.GetSnapshotAsync()).Records.First(item => item.EntityId == entity);
-        var title = NendoApplicationService.IdeaTitleFieldId;
+        var title = IdeaGarden.IdeaTitleFieldId;
 
         async Task<NendoAgentActivity> OneEntryAsync(Func<Task> call)
         {
@@ -93,7 +93,7 @@ public sealed class ActivityAndFailureTests
         var grant = (await client.CallToolAsync("nendo.lease.acquire")).StructuredContent!.Value
             .Deserialize<NendoLeaseGrant>(NendoMcpJson.Options)!;
         var snapshot = await workspace.Service.GetSnapshotAsync();
-        var template = snapshot.Records.First(item => item.EntityId == NendoApplicationService.IdeaEntityId);
+        var template = snapshot.Records.First(item => item.EntityId == IdeaGarden.IdeaEntityId);
         var records = Enumerable.Range(0, 60).Select(index => new Dictionary<string, object?>
         {
             ["recordId"] = $"imported-{index:00}",
@@ -104,7 +104,7 @@ public sealed class ActivityAndFailureTests
         {
             ["applicationHandle"] = grant.ApplicationHandle,
             ["leaseId"] = grant.LeaseId,
-            ["entityId"] = NendoApplicationService.IdeaEntityId,
+            ["entityId"] = IdeaGarden.IdeaEntityId,
             ["format"] = "json",
             ["records"] = records,
             ["idempotencyKey"] = "attributed-import",
@@ -133,7 +133,7 @@ public sealed class ActivityAndFailureTests
         {
             ["applicationHandle"] = next.ApplicationHandle,
             ["leaseId"] = next.LeaseId,
-            ["entityId"] = NendoApplicationService.IdeaEntityId,
+            ["entityId"] = IdeaGarden.IdeaEntityId,
             ["format"] = "json",
             ["records"] = records,
             ["idempotencyKey"] = "attributed-import",

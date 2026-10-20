@@ -115,8 +115,8 @@ public sealed class LegacyUpgradeTests
         {
             var authority = await store.GetAuthoritySnapshotAsync(CancellationToken.None);
             var mutation = new NendoMutation("upgrade-tests", "denied", "test", "No implicit upgrade",
-                [new SetFieldOperation("operation-denied", NendoApplicationService.IdeaEntityId, "idea-1",
-                    NendoApplicationService.IdeaTitleFieldId, 1, "Must not be stored")]);
+                [new SetFieldOperation("operation-denied", IdeaGarden.IdeaEntityId, "idea-1",
+                    IdeaGarden.IdeaTitleFieldId, 1, "Must not be stored")]);
             await Assert.ThrowsExactlyAsync<NendoRecoveryRequiredException>(() => store.ApplyAsync(mutation, authority, CancellationToken.None));
         }
         var after = await SqliteNendoStore.InspectAsync(workspace.FilePath, CancellationToken.None);

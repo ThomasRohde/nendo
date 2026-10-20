@@ -92,7 +92,7 @@ public sealed class AuthoringRecoveryTests
         await AddAsync(client, scoped, "Rename two things that are not there",
             [
                 Operation("schema.renameEntity", new { entityId = "ghosts", displayName = "Ghosts" }),
-                Operation("schema.renameField", new { entityId = NendoApplicationService.IdeaEntityId, fieldId = "missing", displayName = "Missing" }),
+                Operation("schema.renameField", new { entityId = IdeaGarden.IdeaEntityId, fieldId = "missing", displayName = "Missing" }),
             ], "two-add");
 
         var failed = Result<NendoAgentProposalPreview>(await client.CallToolAsync("nendo.change_set.validate",
@@ -107,7 +107,7 @@ public sealed class AuthoringRecoveryTests
         {
             ["dropFromMutationOrdinal"] = 0,
             ["mutations"] = new[] { new NendoAgentMutationInput("Rename the record type",
-                [Operation("schema.renameEntity", new { entityId = NendoApplicationService.IdeaEntityId, displayName = "Sparks" })]) },
+                [Operation("schema.renameEntity", new { entityId = IdeaGarden.IdeaEntityId, displayName = "Sparks" })]) },
             ["idempotencyKey"] = "two-amend",
         });
         var validated = Result<NendoAgentProposalPreview>(await client.CallToolAsync("nendo.change_set.validate",
@@ -294,13 +294,13 @@ public sealed class AuthoringRecoveryTests
         var scoped = new Dictionary<string, object?>(owned) { ["changeSetId"] = begun.ChangeSetId };
         var revision = (await workspace.Service.GetSnapshotAsync()).Manifest.DefinitionRevision;
         await AddAsync(client, scoped, "Rename the record type",
-            [Operation("schema.renameEntity", new { entityId = NendoApplicationService.IdeaEntityId, displayName = "Sparks", expectedDefinitionRevision = revision })], "stale-add");
+            [Operation("schema.renameEntity", new { entityId = IdeaGarden.IdeaEntityId, displayName = "Sparks", expectedDefinitionRevision = revision })], "stale-add");
 
         // The person renames it first, through the host.
         var theirs = await workspace.Service.PrepareProposalAsync(new NendoProposalRequest(
             $"proposal-{Guid.NewGuid():N}", "Theirs first", "test",
             new([new("test", "theirs", "test", "Theirs first",
-                [new RenameEntityOperation("theirs-rename", NendoApplicationService.IdeaEntityId, "Notions", revision)])])));
+                [new RenameEntityOperation("theirs-rename", IdeaGarden.IdeaEntityId, "Notions", revision)])])));
         Assert.IsTrue((await workspace.Service.PromoteProposalAsync(theirs.ProposalId)).Applied);
 
         var stale = await client.CallToolAsync("nendo.change_set.validate",
@@ -314,7 +314,7 @@ public sealed class AuthoringRecoveryTests
         {
             ["dropFromMutationOrdinal"] = 0,
             ["mutations"] = new[] { new NendoAgentMutationInput("Rename it again",
-                [Operation("schema.renameEntity", new { entityId = NendoApplicationService.IdeaEntityId, displayName = "Sparks" })]) },
+                [Operation("schema.renameEntity", new { entityId = IdeaGarden.IdeaEntityId, displayName = "Sparks" })]) },
             ["idempotencyKey"] = "stale-amend",
         });
         Assert.AreNotEqual(true, amended.IsError, JsonSerializer.Serialize(amended));

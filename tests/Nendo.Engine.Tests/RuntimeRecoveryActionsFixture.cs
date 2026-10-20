@@ -17,7 +17,7 @@ public static class RuntimeRecoveryActionsFixture
         var unknown = Path.Combine(root, "unknown.nendo");
         await using (var owner = await NendoWriteCoordinator.OpenAsync(unknown, "owned-recovery-fixture"))
             await new NendoApplicationService(owner).SetFieldAsync(new(
-                NendoApplicationService.IdeaEntityId, "idea-1", "field.idea.notes", 1,
+                IdeaGarden.IdeaEntityId, "idea-1", "field.idea.notes", 1,
                 "Private unsupported fixture value", new("owned-fixture", "notes", "test")));
         await ChangeAsync(unknown, "UPDATE __nendo_field SET storage_kind = 'FutureScalar' WHERE field_id = 'field.idea.notes';");
         await ChangeAsync(Path.Combine(root, "broken.nendo"),

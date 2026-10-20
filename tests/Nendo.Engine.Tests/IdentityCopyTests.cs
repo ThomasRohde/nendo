@@ -255,7 +255,7 @@ public sealed class IdentityCopyTests
         var service = new NendoApplicationService(copy);
         await service.CreateIdeaSchemaAsync("schema");
         await copy.ApplyAsync(new("test", "semantic", "test", "Add presented field",
-            [new AddFieldOperation("field-add", NendoApplicationService.IdeaEntityId, "field.extra", "Extra", "extra", NendoStorageKind.Text, false, "longText")]));
+            [new AddFieldOperation("field-add", IdeaGarden.IdeaEntityId, "field.extra", "Extra", "extra", NendoStorageKind.Text, false, "longText")]));
         Assert.AreEqual(NendoFormat.LifecycleMinimumHostVersion, (await copy.GetSnapshotAsync()).Manifest.MinimumHostVersion);
         var proposal = await service.PrepareIdeaGardenProposalAsync();
         Assert.IsTrue((await service.PromoteProposalAsync(proposal.ProposalId)).Applied);

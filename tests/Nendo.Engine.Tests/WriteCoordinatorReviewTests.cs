@@ -89,7 +89,7 @@ public sealed class WriteCoordinatorReviewTests
         var proposalId = $"proposal-{Guid.NewGuid():N}";
         // A refused rename reaches the diagnosis; an accepted one reaches the last write.
         var change = new NendoChangeSet([new NendoMutation("test", "rename", "test", "Rename",
-            [new RenameEntityOperation("rename", NendoApplicationService.IdeaEntityId, "Ideas", where == "diagnosis" ? revision + 7 : revision)])]);
+            [new RenameEntityOperation("rename", IdeaGarden.IdeaEntityId, "Ideas", where == "diagnosis" ? revision + 7 : revision)])]);
         if (where == "diagnosis") coordinator.BeforeRefusalDiagnosis = () => throw new OperationCanceledException();
         else coordinator.BeforeProposalPersist = () => throw new OperationCanceledException();
 

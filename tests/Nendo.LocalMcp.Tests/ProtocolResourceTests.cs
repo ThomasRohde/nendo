@@ -30,7 +30,7 @@ public sealed class ProtocolResourceTests
         var invalidLimit = await Assert.ThrowsExactlyAsync<McpProtocolException>(() =>
             ReadTextAsync(
                 client,
-                $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records?limit=101"));
+                $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records?limit=101"));
         StringAssert.Contains(invalidLimit.Message, "NENDO_INVALID_LIMIT");
     }
 
@@ -186,7 +186,7 @@ public sealed class ProtocolResourceTests
                 "nendo.application",
                 describe.RootElement.GetProperty("manifest").GetProperty("formatIdentifier").GetString());
             Assert.IsTrue(describe.RootElement.GetProperty("entities").EnumerateArray()
-                .Any(entity => entity.GetProperty("entityId").GetString() == NendoApplicationService.IdeaEntityId));
+                .Any(entity => entity.GetProperty("entityId").GetString() == IdeaGarden.IdeaEntityId));
             Assert.AreEqual("valid", describe.RootElement.GetProperty("surfaces").GetProperty("state").GetString());
         }
 
@@ -201,10 +201,10 @@ public sealed class ProtocolResourceTests
         var entitiesText = await ReadTextAsync(client, "nendo://application/entities");
         var schemaText = await ReadTextAsync(
             client,
-            $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/schema");
+            $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/schema");
         var firstRecordsText = await ReadTextAsync(
             client,
-            $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records?limit=1");
+            $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records?limit=1");
         var surfacesText = await ReadTextAsync(client, "nendo://application/surfaces");
         var historyText = await ReadTextAsync(client, "nendo://application/history?limit=100");
         var healthText = await ReadTextAsync(client, "nendo://application/health");
@@ -218,8 +218,8 @@ public sealed class ProtocolResourceTests
         var health = Deserialize<NendoMcpHealth>(healthText);
 
         Assert.AreEqual("nendo.application", manifest.FormatIdentifier);
-        Assert.IsTrue(entities.Any(entity => entity.EntityId == NendoApplicationService.IdeaEntityId));
-        Assert.IsTrue(schema.Fields.Any(field => field.FieldId == NendoApplicationService.IdeaTitleFieldId));
+        Assert.IsTrue(entities.Any(entity => entity.EntityId == IdeaGarden.IdeaEntityId));
+        Assert.IsTrue(schema.Fields.Any(field => field.FieldId == IdeaGarden.IdeaTitleFieldId));
         Assert.HasCount(1, firstPage.Items);
         Assert.IsNotNull(firstPage.NextCursor);
         Assert.IsTrue(surfaces.IsValid);
@@ -239,7 +239,7 @@ public sealed class ProtocolResourceTests
 
         var secondPageText = await ReadTextAsync(
             client,
-            $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records" +
+            $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records" +
             $"?cursor={Uri.EscapeDataString(firstPage.NextCursor)}&limit=1");
         var secondPage = Deserialize<NendoMcpPage<NendoMcpRecord>>(secondPageText);
         Assert.HasCount(1, secondPage.Items);
@@ -249,7 +249,7 @@ public sealed class ProtocolResourceTests
             (firstPage.NextCursor[^1] == 'a' ? 'b' : 'a');
         var error = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ReadTextAsync(
             client,
-            $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records" +
+            $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records" +
             $"?cursor={Uri.EscapeDataString(tampered)}&limit=1"));
         StringAssert.Contains(error.Message, "NENDO_INVALID_CURSOR");
 

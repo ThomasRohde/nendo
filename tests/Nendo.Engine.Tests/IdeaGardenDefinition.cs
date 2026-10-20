@@ -1,4 +1,6 @@
-namespace Nendo.Engine;
+using Nendo.Engine;
+
+namespace Nendo.Engine.Tests;
 
 internal static class IdeaGardenDefinition
 {
@@ -28,18 +30,18 @@ internal static class IdeaGardenDefinition
         }
         var definition = new List<NendoOperation>();
         var entity = snapshot.Entities.SingleOrDefault(value =>
-            value.EntityId == NendoApplicationService.IdeaEntityId);
+            value.EntityId == IdeaGarden.IdeaEntityId);
         if (entity is null)
         {
             definition.Add(new CreateEntityOperation(
                 OperationId(proposalId, definition.Count),
-                NendoApplicationService.IdeaEntityId,
+                IdeaGarden.IdeaEntityId,
                 "Idea",
                 "idea"));
             definition.Add(new AddFieldOperation(
                 OperationId(proposalId, definition.Count),
-                NendoApplicationService.IdeaEntityId,
-                NendoApplicationService.IdeaTitleFieldId,
+                IdeaGarden.IdeaEntityId,
+                IdeaGarden.IdeaTitleFieldId,
                 "Title",
                 "title",
                 NendoStorageKind.Text,
@@ -50,7 +52,7 @@ internal static class IdeaGardenDefinition
         {
             ValidateExistingField(
                 entity,
-                NendoApplicationService.IdeaTitleFieldId,
+                IdeaGarden.IdeaTitleFieldId,
                 "Title",
                 NendoStorageKind.Text,
                 required: true,
@@ -62,7 +64,7 @@ internal static class IdeaGardenDefinition
             entity,
             definition,
             proposalId,
-            NendoApplicationService.IdeaNotesFieldId,
+            IdeaGarden.IdeaNotesFieldId,
             "Notes",
             "notes",
             NendoStorageKind.Text,
@@ -72,27 +74,27 @@ internal static class IdeaGardenDefinition
             entity,
             definition,
             proposalId,
-            NendoApplicationService.IdeaStatusFieldId,
+            IdeaGarden.IdeaStatusFieldId,
             "Status",
             "status",
             NendoStorageKind.Text,
             "singleChoice",
-            NendoApplicationService.IdeaStatusOptions);
+            IdeaGarden.IdeaStatusOptions);
         AddFieldIfMissing(
             entity,
             definition,
             proposalId,
-            NendoApplicationService.IdeaEnergyFieldId,
+            IdeaGarden.IdeaEnergyFieldId,
             "Energy",
             "energy",
             NendoStorageKind.Text,
             "singleChoice",
-            NendoApplicationService.IdeaEnergyOptions);
+            IdeaGarden.IdeaEnergyOptions);
         AddFieldIfMissing(
             entity,
             definition,
             proposalId,
-            NendoApplicationService.IdeaCreatedDateFieldId,
+            IdeaGarden.IdeaCreatedDateFieldId,
             "Created date",
             "created_date",
             NendoStorageKind.Date,
@@ -102,7 +104,7 @@ internal static class IdeaGardenDefinition
             entity,
             definition,
             proposalId,
-            NendoApplicationService.IdeaNextActionFieldId,
+            IdeaGarden.IdeaNextActionFieldId,
             "Next action",
             "next_action",
             NendoStorageKind.Text,
@@ -121,15 +123,15 @@ internal static class IdeaGardenDefinition
                 definition.AsReadOnly()),
         };
         var backfill = snapshot.Records
-            .Where(record => record.EntityId == NendoApplicationService.IdeaEntityId &&
-                             (!record.Values.TryGetValue(NendoApplicationService.IdeaStatusFieldId, out var value) ||
+            .Where(record => record.EntityId == IdeaGarden.IdeaEntityId &&
+                             (!record.Values.TryGetValue(IdeaGarden.IdeaStatusFieldId, out var value) ||
                               value.ValueKind == System.Text.Json.JsonValueKind.Null))
             .OrderBy(record => record.RecordId, StringComparer.Ordinal)
             .Select((record, index) => (NendoOperation)new SetFieldOperation(
                 OperationId(proposalId, definition.Count + index),
-                NendoApplicationService.IdeaEntityId,
+                IdeaGarden.IdeaEntityId,
                 record.RecordId,
-                NendoApplicationService.IdeaStatusFieldId,
+                IdeaGarden.IdeaStatusFieldId,
                 record.RecordVersion,
                 "Idea"))
             .ToArray();
@@ -176,12 +178,12 @@ internal static class IdeaGardenDefinition
             FormRootId,
             "form",
             [
-                NendoApplicationService.IdeaTitleFieldId,
-                NendoApplicationService.IdeaNotesFieldId,
-                NendoApplicationService.IdeaStatusFieldId,
-                NendoApplicationService.IdeaEnergyFieldId,
-                NendoApplicationService.IdeaCreatedDateFieldId,
-                NendoApplicationService.IdeaNextActionFieldId,
+                IdeaGarden.IdeaTitleFieldId,
+                IdeaGarden.IdeaNotesFieldId,
+                IdeaGarden.IdeaStatusFieldId,
+                IdeaGarden.IdeaEnergyFieldId,
+                IdeaGarden.IdeaCreatedDateFieldId,
+                IdeaGarden.IdeaNextActionFieldId,
             ]);
 
         AddRoot(
@@ -198,10 +200,10 @@ internal static class IdeaGardenDefinition
             ListRootId,
             "list",
             [
-                NendoApplicationService.IdeaTitleFieldId,
-                NendoApplicationService.IdeaStatusFieldId,
-                NendoApplicationService.IdeaEnergyFieldId,
-                NendoApplicationService.IdeaNextActionFieldId,
+                IdeaGarden.IdeaTitleFieldId,
+                IdeaGarden.IdeaStatusFieldId,
+                IdeaGarden.IdeaEnergyFieldId,
+                IdeaGarden.IdeaNextActionFieldId,
             ]);
 
         AddRoot(
@@ -217,12 +219,12 @@ internal static class IdeaGardenDefinition
             BoardSurfaceId,
             BoardRootId,
             "groupByFieldId",
-            NendoApplicationService.IdeaStatusFieldId);
+            IdeaGarden.IdeaStatusFieldId);
         var cardFields = new[]
         {
-            NendoApplicationService.IdeaTitleFieldId,
-            NendoApplicationService.IdeaEnergyFieldId,
-            NendoApplicationService.IdeaNextActionFieldId,
+            IdeaGarden.IdeaTitleFieldId,
+            IdeaGarden.IdeaEnergyFieldId,
+            IdeaGarden.IdeaNextActionFieldId,
         };
         AddBindings(
             operations,
@@ -240,7 +242,7 @@ internal static class IdeaGardenDefinition
             "recordCommand",
             0));
         AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingCommandId, "definitionVersion", ContractVersion);
-        AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingCommandId, "entityId", NendoApplicationService.IdeaEntityId);
+        AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingCommandId, "entityId", IdeaGarden.IdeaEntityId);
         AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingCommandId, "label", "Move to Trying");
         operations.Add(new AddUiNodeOperation(
             OperationId(proposalId, operations.Count),
@@ -249,7 +251,7 @@ internal static class IdeaGardenDefinition
             MoveToTryingCommandId,
             "commandStep",
             0));
-        AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingStepId, "fieldId", NendoApplicationService.IdeaStatusFieldId);
+        AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingStepId, "fieldId", IdeaGarden.IdeaStatusFieldId);
         AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingStepId, "valueKind", "literal");
         AddProperty(operations, proposalId, CommandSurfaceId, MoveToTryingStepId, "value", "Trying");
     }
@@ -270,7 +272,7 @@ internal static class IdeaGardenDefinition
             kind,
             0));
         AddProperty(operations, proposalId, surfaceId, nodeId, "definitionVersion", ContractVersion);
-        AddProperty(operations, proposalId, surfaceId, nodeId, "entityId", NendoApplicationService.IdeaEntityId);
+        AddProperty(operations, proposalId, surfaceId, nodeId, "entityId", IdeaGarden.IdeaEntityId);
         AddProperty(operations, proposalId, surfaceId, nodeId, "title", title);
     }
 
@@ -336,7 +338,7 @@ internal static class IdeaGardenDefinition
         }
         operations.Add(new AddFieldOperation(
             OperationId(proposalId, operations.Count),
-            NendoApplicationService.IdeaEntityId,
+            IdeaGarden.IdeaEntityId,
             fieldId,
             displayName,
             physicalName,
@@ -358,7 +360,7 @@ internal static class IdeaGardenDefinition
         var field = entity.Fields.SingleOrDefault(value => value.FieldId == fieldId)
             ?? throw new NendoPreconditionException("field-not-found", $"Required field {displayName} is missing.");
         // The Title this proposal creates is single-line; an older file's has no presentation.
-        var acceptedPresentation = fieldId == NendoApplicationService.IdeaTitleFieldId &&
+        var acceptedPresentation = fieldId == IdeaGarden.IdeaTitleFieldId &&
                                    field.Presentation is null or "singleLine" && presentation is null;
         if (field.DisplayName != displayName || field.StorageKind != storageKind ||
             field.Required != required ||

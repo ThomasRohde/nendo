@@ -37,7 +37,7 @@ public sealed class ReplacementResolutionTests
         await using var opened = await workspace.OpenAsync();
         var snapshot = await opened.GetSnapshotAsync();
         Assert.AreEqual(selected.Manifest, snapshot.Manifest);
-        Assert.AreEqual(expectedTitle, snapshot.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual(expectedTitle, snapshot.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.IsFalse((await NendoWriteCoordinator.InspectReplacementRecoveryAsync(workspace.FilePath)).HasPendingReplacement);
     }
 

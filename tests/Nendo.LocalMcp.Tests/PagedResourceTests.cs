@@ -15,7 +15,7 @@ public sealed class PagedResourceTests
         await using var host = await NendoLocalMcpHost.StartAsync(workspace.Service, AgentAccessMode.ReadOnly,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
-        var recordsUri = $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records";
+        var recordsUri = $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records";
         var first = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRecord>>(
             await ProtocolResourceTests.ReadTextAsync(client, $"{recordsUri}?limit=1"));
         var history = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRevision>>(
@@ -87,7 +87,7 @@ public sealed class PagedResourceTests
         await using var host = await NendoLocalMcpHost.StartAsync(workspace.Service, AgentAccessMode.ReadOnly,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
-        var recordsUri = $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records";
+        var recordsUri = $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records";
         foreach (var limit in new[] { "abc", "1.5", "2147483648", "", "-1", "0", "101" })
         {
             foreach (var uri in new[] { $"nendo://application/history?limit={limit}", $"{recordsUri}?limit={limit}" })

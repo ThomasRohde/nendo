@@ -33,7 +33,7 @@ public sealed class EvidenceLaneTests
         var grantA = await CallAsync<NendoLeaseGrant>(a, "nendo.lease.acquire", new() { ["idempotencyKey"] = "a-acquire" });
         var sessionA = Session(grantA);
         var pageA = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRecord>>(
-            await ProtocolResourceTests.ReadTextAsync(a, $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records?limit=1"));
+            await ProtocolResourceTests.ReadTextAsync(a, $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records?limit=1"));
         var proposalA = await ValidateAsync(a, sessionA, "tasks", "a");
         var held = await b.CallToolAsync("nendo.lease.acquire", new Dictionary<string, object?> { ["idempotencyKey"] = "b-acquire" });
         StringAssert.Contains(Text(held), "NENDO_LEASE_HELD", StringComparison.Ordinal);
@@ -54,7 +54,7 @@ public sealed class EvidenceLaneTests
         Assert.AreEqual(grantA.Owner, resumed.Owner);
         var sessionA2 = Session(resumed);
         var staleCursor = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(
-            a, $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records?cursor={Uri.EscapeDataString(pageA.NextCursor!)}&limit=1"));
+            a, $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records?cursor={Uri.EscapeDataString(pageA.NextCursor!)}&limit=1"));
         StringAssert.Contains(staleCursor.Message, "NENDO_STALE_CURSOR", StringComparison.Ordinal);
         var listed = ProtocolResourceTests.Deserialize<IReadOnlyList<NendoAgentProposalSummary>>(await ProtocolResourceTests.ReadTextAsync(a, "nendo://application/proposals"));
         var mine = listed.Single(entry => entry.ProposalId == proposalA.ProposalId);

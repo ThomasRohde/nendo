@@ -20,7 +20,7 @@ public sealed class WorkbenchPagedReadTests
         Assert.IsEmpty(((DesktopSessionView)metadata.Result!).Records);
         Assert.HasCount(120, (await session.GetViewAsync()).Records, "Native and compatibility full inspection stays explicit.");
         var first = (NendoPage<NendoRecordSnapshot>)(await SendAsync(WorkbenchMethods.DataQueryRecords,
-            new { entityId = NendoApplicationService.IdeaEntityId, limit = 50 })).Result!;
+            new { entityId = IdeaGarden.IdeaEntityId, limit = 50 })).Result!;
         Assert.HasCount(50, first.Items);
         Assert.IsNotNull(first.NextCursor);
         var history = (NendoPage<NendoRevisionSummary>)(await SendAsync(WorkbenchMethods.HistoryQuery, new { limit = 50 })).Result!;
@@ -28,7 +28,7 @@ public sealed class WorkbenchPagedReadTests
         Assert.IsLessThan(64 * 1024, JsonSerializer.SerializeToUtf8Bytes(history).Length);
         var receipt = await SendAsync(WorkbenchMethods.DataSetField, new
         {
-            entityId = NendoApplicationService.IdeaEntityId, recordId = "record-000", fieldId = NendoApplicationService.IdeaTitleFieldId,
+            entityId = IdeaGarden.IdeaEntityId, recordId = "record-000", fieldId = IdeaGarden.IdeaTitleFieldId,
             expectedRecordVersion = 1, value = "Saved in a bounded view", idempotencyKey = "bounded-edit",
         });
         var outcome = (DesktopMutationView)receipt.Result!;
@@ -37,13 +37,13 @@ public sealed class WorkbenchPagedReadTests
         Assert.AreEqual(first.ChangeSequence + 1, outcome.Mutation.ChangeSequence);
         Assert.IsLessThan(32 * 1024, WorkbenchProtocolHandler.Serialize(receipt).Length);
         var stale = await handler.HandleAsync(Request(WorkbenchMethods.DataQueryRecords,
-            new { entityId = NendoApplicationService.IdeaEntityId, limit = 50, cursor = first.NextCursor }));
+            new { entityId = IdeaGarden.IdeaEntityId, limit = 50, cursor = first.NextCursor }));
         Assert.AreEqual("stale-cursor", stale.Error!.Code);
         var verified = (NendoStorageHealthSnapshot)(await SendAsync(WorkbenchMethods.HealthVerify)).Result!;
         Assert.AreEqual(outcome.Mutation.ChangeSequence, verified.IntegrityChangeSequence);
         var refreshed = (NendoPage<NendoRecordSnapshot>)(await SendAsync(WorkbenchMethods.DataQueryRecords,
-            new { entityId = NendoApplicationService.IdeaEntityId, limit = 50 })).Result!;
-        Assert.AreEqual("Saved in a bounded view", refreshed.Items[0].Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+            new { entityId = IdeaGarden.IdeaEntityId, limit = 50 })).Result!;
+        Assert.AreEqual("Saved in a bounded view", refreshed.Items[0].Values[IdeaGarden.IdeaTitleFieldId].GetString());
 
         string Request(string method, object? payload = null) => JsonSerializer.Serialize(new
         { protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = Guid.NewGuid().ToString("N"), method, fileSessionId = initial.FileSessionId,

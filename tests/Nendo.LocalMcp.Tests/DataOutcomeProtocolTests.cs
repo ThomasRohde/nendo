@@ -60,8 +60,8 @@ public sealed class DataOutcomeProtocolTests
         var before = (await workspace.Service.GetSnapshotAsync()).Manifest.ChangeSequence;
         var arguments = new Dictionary<string, object?>
         {
-            ["applicationHandle"] = grant.GetProperty("applicationHandle").GetString(), ["leaseId"] = grant.GetProperty("leaseId").GetString(), ["entityId"] = NendoApplicationService.IdeaEntityId,
-            ["recordId"] = "idea-001", ["fieldId"] = NendoApplicationService.IdeaNotesFieldId,
+            ["applicationHandle"] = grant.GetProperty("applicationHandle").GetString(), ["leaseId"] = grant.GetProperty("leaseId").GetString(), ["entityId"] = IdeaGarden.IdeaEntityId,
+            ["recordId"] = "idea-001", ["fieldId"] = IdeaGarden.IdeaNotesFieldId,
             ["expectedRecordVersion"] = 1, ["value"] = "One retried effect", ["idempotencyKey"] = "precommit-fault",
         };
         var coordinator = Coordinator(workspace.Service);
@@ -106,8 +106,8 @@ public sealed class DataOutcomeProtocolTests
             oldLease = grant.GetProperty("leaseId").GetString()!;
             var arguments = new Dictionary<string, object?>
             {
-                ["applicationHandle"] = grant.GetProperty("applicationHandle").GetString(), ["leaseId"] = oldLease, ["entityId"] = NendoApplicationService.IdeaEntityId,
-                ["recordId"] = "idea-001", ["fieldId"] = NendoApplicationService.IdeaNotesFieldId,
+                ["applicationHandle"] = grant.GetProperty("applicationHandle").GetString(), ["leaseId"] = oldLease, ["entityId"] = IdeaGarden.IdeaEntityId,
+                ["recordId"] = "idea-001", ["fieldId"] = IdeaGarden.IdeaNotesFieldId,
                 ["expectedRecordVersion"] = 1, ["value"] = "Saved despite lost response", ["idempotencyKey"] = "lost-reply",
             };
             if (cancelHttp)

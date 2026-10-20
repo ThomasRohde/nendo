@@ -79,7 +79,7 @@ public sealed class SemanticMetadataTests
             new[] { "Idea", "Exploring", "Trying", "Paused", "Done" },
             status.Options.ToArray());
         var record = snapshot.Records.Single();
-        Assert.AreEqual("Keep me", record.Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Keep me", record.Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.AreEqual(JsonValueKind.Null, record.Values["field.idea.status"].ValueKind);
         Assert.AreEqual(JsonValueKind.Null, record.Values["field.idea.notes"].ValueKind);
 

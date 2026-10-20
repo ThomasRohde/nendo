@@ -94,6 +94,13 @@ public sealed partial class NendoApplicationService
     public Task<NendoSessionSnapshot> GetDefinitionSnapshotAsync(CancellationToken cancellationToken = default) =>
         _coordinator.GetDefinitionSnapshotAsync(cancellationToken);
 
+    /// <summary>
+    /// Applies a typed mutation as given, definition operations included, without a proposal.
+    /// Test fixtures only: every product caller goes through a named service method or a proposal.
+    /// </summary>
+    internal Task<NendoApplyResult> ApplyMutationAsync(NendoMutation mutation, CancellationToken cancellationToken = default) =>
+        _coordinator.ApplyAsync(mutation, cancellationToken);
+
     public Task<NendoStorageHealthSnapshot> VerifyIntegrityAsync(CancellationToken cancellationToken = default) =>
         _coordinator.VerifyIntegrityAsync(cancellationToken);
 
@@ -760,7 +767,7 @@ public sealed partial class NendoApplicationService
         return _coordinator.CompensateRevisionAsync(revisionId, idempotencyKey, cancellationToken);
     }
 
-    private static void RequireKey(string value)
+    internal static void RequireKey(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.Length > 200)
         {

@@ -30,11 +30,11 @@ public sealed class SearchResourceTests
         CollectionAssert.AreEquivalent(new[] { "idea-001", "idea-002", "idea-003" }, all.Items.Select(hit => hit.RecordId).ToArray());
         var hit = all.Items.Single(item => item.RecordId == "idea-002");
         Assert.AreEqual("Idea 02", hit.Label);
-        var notes = hit.Fields.Single(field => field.FieldId == NendoApplicationService.IdeaNotesFieldId);
+        var notes = hit.Fields.Single(field => field.FieldId == IdeaGarden.IdeaNotesFieldId);
         Assert.AreEqual("Fixture", notes.Snippet.Substring(notes.Ranges[0].Start, notes.Ranges[0].Length));
 
         var narrowed = Read(await ProtocolResourceTests.ReadTextAsync(client,
-            $"nendo://application/search?q={Uri.EscapeDataString("step 02")}&entity={NendoApplicationService.IdeaEntityId}&field={NendoApplicationService.IdeaNextActionFieldId}"));
+            $"nendo://application/search?q={Uri.EscapeDataString("step 02")}&entity={IdeaGarden.IdeaEntityId}&field={IdeaGarden.IdeaNextActionFieldId}"));
         Assert.AreEqual("idea-002", narrowed.Items.Single().RecordId);
 
         var first = Read(await ProtocolResourceTests.ReadTextAsync(client, "nendo://application/search?q=fixture&limit=2"));

@@ -52,12 +52,12 @@ public sealed class DesktopOutcomeTests
         }
         else
         {
-            var saved = await session.CreateRecordAsync(NendoApplicationService.IdeaEntityId, "record",
-                new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "One effect" }, "receipt-key");
+            var saved = await session.CreateRecordAsync(IdeaGarden.IdeaEntityId, "record",
+                new Dictionary<string, object?> { [IdeaGarden.IdeaTitleFieldId] = "One effect" }, "receipt-key");
             if (kind == "compensation")
             {
-                var edit = await session.SetFieldAsync(NendoApplicationService.IdeaEntityId, "record",
-                    NendoApplicationService.IdeaTitleFieldId, 1, "Reversible edit", "edit-for-compensation");
+                var edit = await session.SetFieldAsync(IdeaGarden.IdeaEntityId, "record",
+                    IdeaGarden.IdeaTitleFieldId, 1, "Reversible edit", "edit-for-compensation");
                 saved = await session.CompensateRevisionAsync(edit.Mutation.RevisionId, "receipt-key");
             }
             receiptId = saved.Mutation.RevisionId;
@@ -111,8 +111,8 @@ public sealed class DesktopOutcomeTests
         }
         else
         {
-            var saved = await session.CreateRecordAsync(NendoApplicationService.IdeaEntityId, "receipt-record",
-                new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Saved once" },
+            var saved = await session.CreateRecordAsync(IdeaGarden.IdeaEntityId, "receipt-record",
+                new Dictionary<string, object?> { [IdeaGarden.IdeaTitleFieldId] = "Saved once" },
                 "receipt-create", cancellation.Token);
             revisionId = saved.Mutation.RevisionId;
             Assert.IsNull(saved.Session);
@@ -128,8 +128,8 @@ public sealed class DesktopOutcomeTests
         }
         else
         {
-            var repeated = await session.CreateRecordAsync(NendoApplicationService.IdeaEntityId, "receipt-record",
-                new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Saved once" },
+            var repeated = await session.CreateRecordAsync(IdeaGarden.IdeaEntityId, "receipt-record",
+                new Dictionary<string, object?> { [IdeaGarden.IdeaTitleFieldId] = "Saved once" },
                 "receipt-create");
             Assert.AreEqual(revisionId, repeated.Mutation.RevisionId);
         }

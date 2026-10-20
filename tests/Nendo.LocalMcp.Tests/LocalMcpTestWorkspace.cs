@@ -78,16 +78,16 @@ internal sealed class LocalMcpTestWorkspace : IAsyncDisposable
         for (var index = 1; index <= recordCount; index++)
         {
             await Service.CreateRecordAsync(new NendoCreateRecordRequest(
-                NendoApplicationService.IdeaEntityId,
+                IdeaGarden.IdeaEntityId,
                 $"idea-{index:D3}",
                 new Dictionary<string, object?>
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = $"Idea {index:D2}",
-                    [NendoApplicationService.IdeaNotesFieldId] = $"Fixture note {index:D2}",
-                    [NendoApplicationService.IdeaStatusFieldId] = index == 3 ? "Trying" : "Idea",
-                    [NendoApplicationService.IdeaEnergyFieldId] = "Medium",
-                    [NendoApplicationService.IdeaCreatedDateFieldId] = $"2026-09-{index:D2}",
-                    [NendoApplicationService.IdeaNextActionFieldId] = $"Try step {index:D2}",
+                    [IdeaGarden.IdeaTitleFieldId] = $"Idea {index:D2}",
+                    [IdeaGarden.IdeaNotesFieldId] = $"Fixture note {index:D2}",
+                    [IdeaGarden.IdeaStatusFieldId] = index == 3 ? "Trying" : "Idea",
+                    [IdeaGarden.IdeaEnergyFieldId] = "Medium",
+                    [IdeaGarden.IdeaCreatedDateFieldId] = $"2026-09-{index:D2}",
+                    [IdeaGarden.IdeaNextActionFieldId] = $"Try step {index:D2}",
                 },
                 new NendoRequestContext("test.p3", $"create-idea-{index:D3}", "test")));
         }

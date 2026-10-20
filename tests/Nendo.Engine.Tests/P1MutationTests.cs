@@ -161,13 +161,13 @@ public sealed class P1MutationTests
     {
         Assert.HasCount(1, snapshot.Entities);
         var entity = snapshot.Entities[0];
-        Assert.AreEqual(NendoApplicationService.IdeaEntityId, entity.EntityId);
+        Assert.AreEqual(IdeaGarden.IdeaEntityId, entity.EntityId);
         Assert.AreEqual("Idea", entity.DisplayName);
         Assert.HasCount(1, entity.Fields);
-        Assert.AreEqual(NendoApplicationService.IdeaTitleFieldId, entity.Fields[0].FieldId);
+        Assert.AreEqual(IdeaGarden.IdeaTitleFieldId, entity.Fields[0].FieldId);
         Assert.IsTrue(entity.Fields[0].Required);
         var record = snapshot.Records.Single(value => value.RecordId == recordId);
         Assert.AreEqual(version, record.RecordVersion);
-        Assert.AreEqual(title, record.Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual(title, record.Values[IdeaGarden.IdeaTitleFieldId].GetString());
     }
 }

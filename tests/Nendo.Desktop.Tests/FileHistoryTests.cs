@@ -30,7 +30,7 @@ public sealed class FileHistoryTests
         Assert.DoesNotContain(JsonEncodedText.Encode(Path.GetDirectoryName(rawPath)!).ToString(), JsonSerializer.Serialize(conflict.Assessment));
         var readOnly = await session.OpenAssessedAsync(conflict.Assessment.AssessmentId, readOnly: true);
         Assert.AreEqual("readOnly", readOnly.Health);
-        Assert.AreEqual("Retained", readOnly.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Retained", readOnly.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.SetIdeaTitleAsync("idea-1", 1, "Denied", "edit"));
         await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.SetAgentModeAsync("inspect"));
         Assert.IsFalse((await session.GetAgentStatusAsync()).Available);

@@ -18,8 +18,8 @@ public sealed class RecoveryExportTests
         await service.CreateIdeaRecordAsync("record-1", "A, \"quoted\"\r\nidea", "record");
         var before = await HashAsync(workspace.FilePath);
         var destination = CsvPath(workspace);
-        var plan = await service.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export");
-        Assert.AreEqual(plan, await service.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export"));
+        var plan = await service.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, destination, "export");
+        Assert.AreEqual(plan, await service.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, destination, "export"));
         Assert.IsFalse(plan.IsPartial);
         Assert.AreEqual(1, plan.ExportedRecordCount);
         Assert.IsFalse(File.Exists(destination));
@@ -30,7 +30,7 @@ public sealed class RecoveryExportTests
         CollectionAssert.AreEqual(new byte[] { 0xEF, 0xBB, 0xBF }, bytes[..3]);
         Assert.AreEqual(bytes.Length, plan.ByteCount);
         var text = Encoding.UTF8.GetString(bytes[3..]);
-        Assert.StartsWith($"\"__nendo_record_id\",\"__nendo_record_version\",\"field/{NendoApplicationService.IdeaTitleFieldId}\"\r\n", text);
+        Assert.StartsWith($"\"__nendo_record_id\",\"__nendo_record_version\",\"field/{IdeaGarden.IdeaTitleFieldId}\"\r\n", text);
         Assert.Contains("\"record-1\",\"1\",\"A, \"\"quoted\"\"\r\nidea\"\r\n", text);
         CollectionAssert.AreEqual(before, await HashAsync(workspace.FilePath));
         Assert.IsFalse(Directory.EnumerateFiles(Path.GetDirectoryName(destination)!, ".nendo-export-*").Any());
@@ -54,7 +54,7 @@ public sealed class RecoveryExportTests
         await using var recovery = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
         Assert.IsFalse(recovery.Capabilities.Backup);
         Assert.IsTrue(recovery.Capabilities.Export);
-        var plan = await recovery.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, CsvPath(workspace), "export");
+        var plan = await recovery.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, CsvPath(workspace), "export");
         await recovery.CreateRecoveryExportAsync(plan.PlanId, false);
         Assert.Contains("Recover me", await File.ReadAllTextAsync(CsvPath(workspace)));
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
@@ -74,9 +74,9 @@ public sealed class RecoveryExportTests
         await ChangeAsync(workspace.FilePath, "UPDATE __nendo_field SET storage_kind = 'FutureScalar';");
         var before = await File.ReadAllBytesAsync(workspace.FilePath);
         await using var recovery = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
-        var plan = await recovery.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, CsvPath(workspace), "export");
+        var plan = await recovery.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, CsvPath(workspace), "export");
         Assert.IsTrue(plan.IsPartial);
-        CollectionAssert.AreEqual(new[] { NendoApplicationService.IdeaTitleFieldId }, plan.OmittedFieldIds.ToArray());
+        CollectionAssert.AreEqual(new[] { IdeaGarden.IdeaTitleFieldId }, plan.OmittedFieldIds.ToArray());
         var denied = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => recovery.CreateRecoveryExportAsync(plan.PlanId, false));
         Assert.AreEqual("partial-export-confirmation", denied.Code);
         Assert.IsFalse(File.Exists(CsvPath(workspace)));
@@ -132,11 +132,11 @@ public sealed class RecoveryExportTests
         if (scenario != "racing") await File.WriteAllTextAsync(destination, scenario == "empty" ? "" : "unrelated");
         if (scenario == "racing")
         {
-            var plan = await source.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export");
+            var plan = await source.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, destination, "export");
             source.BeforeRecoveryExportActivation = () => File.WriteAllText(destination, "racing bytes");
             await Assert.ThrowsExactlyAsync<IOException>(() => source.CreateRecoveryExportAsync(plan.PlanId, false));
         }
-        else await Assert.ThrowsExactlyAsync<IOException>(() => source.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export"));
+        else await Assert.ThrowsExactlyAsync<IOException>(() => source.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, destination, "export"));
         Assert.AreEqual(scenario == "empty" ? "" : scenario == "occupied" ? "unrelated" : "racing bytes", await File.ReadAllTextAsync(destination));
         Assert.IsFalse(Directory.EnumerateFiles(Path.GetDirectoryName(destination)!, ".nendo-export-*").Any());
     }
@@ -148,7 +148,7 @@ public sealed class RecoveryExportTests
         var source = await workspace.CreateAsync();
         await new NendoApplicationService(source).CreateIdeaSchemaAsync("schema");
         var destination = CsvPath(workspace);
-        var plan = await source.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export");
+        var plan = await source.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, destination, "export");
         using var cancellation = new CancellationTokenSource();
         source.DuringRecoveryExportWrite = cancellation.Cancel;
         await Assert.ThrowsAsync<OperationCanceledException>(() => source.CreateRecoveryExportAsync(plan.PlanId, false, cancellation.Token));
@@ -172,13 +172,13 @@ public sealed class RecoveryExportTests
         var service = new NendoApplicationService(source);
         await service.CreateIdeaSchemaAsync("schema");
         await service.CreateIdeaRecordAsync("record-1", "Before", "record");
-        var plan = await source.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, CsvPath(workspace), "export");
+        var plan = await source.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, CsvPath(workspace), "export");
         await service.SetIdeaTitleAsync("record-1", 1, "Changed", "edit");
         var stale = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => source.CreateRecoveryExportAsync(plan.PlanId, false));
         Assert.AreEqual("export-source-changed", stale.Code);
         Assert.IsFalse(File.Exists(CsvPath(workspace)));
         await ChangeAsync(workspace.FilePath, "UPDATE idea SET title = 'Outside';");
-        await Assert.ThrowsExactlyAsync<NendoRecoveryRequiredException>(() => source.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, CsvPath(workspace), "after-outside"));
+        await Assert.ThrowsExactlyAsync<NendoRecoveryRequiredException>(() => source.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, CsvPath(workspace), "after-outside"));
         Assert.IsFalse(source.Capabilities.Export);
         Assert.AreEqual(NendoSessionHealth.RecoveryRequired, source.Health);
     }

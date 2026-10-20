@@ -233,7 +233,7 @@ public sealed class InputSchemaContractTests
 
         var values = await RefusalAsync(client, "nendo.data.create_record", new(owned)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId,
+            ["entityId"] = IdeaGarden.IdeaEntityId,
             ["recordId"] = "shape-values",
             ["values"] = "not a map",
             ["idempotencyKey"] = "shape-values",
@@ -242,9 +242,9 @@ public sealed class InputSchemaContractTests
 
         var value = await RefusalAsync(client, "nendo.data.set_field", new(owned)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId,
+            ["entityId"] = IdeaGarden.IdeaEntityId,
             ["recordId"] = "any",
-            ["fieldId"] = NendoApplicationService.IdeaTitleFieldId,
+            ["fieldId"] = IdeaGarden.IdeaTitleFieldId,
             ["expectedRecordVersion"] = 1L,
             ["value"] = new Dictionary<string, object?> { ["not"] = "a scalar" },
             ["idempotencyKey"] = "shape-value",

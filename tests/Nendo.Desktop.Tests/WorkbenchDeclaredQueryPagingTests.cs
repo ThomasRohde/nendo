@@ -61,14 +61,14 @@ public sealed class WorkbenchDeclaredQueryPagingTests
         {
             var response = await handler.HandleAsync(Request(new
             {
-                entityId = NendoApplicationService.IdeaEntityId,
+                entityId = IdeaGarden.IdeaEntityId,
                 limit = 50,
                 cursor,
-                sortFieldId = NendoApplicationService.IdeaTitleFieldId,
+                sortFieldId = IdeaGarden.IdeaTitleFieldId,
                 descending = true,
                 filters = new[]
                 {
-                    new { fieldId = NendoApplicationService.IdeaTitleFieldId, @operator = "lt", value = Boundary },
+                    new { fieldId = IdeaGarden.IdeaTitleFieldId, @operator = "lt", value = Boundary },
                 },
             }));
             Assert.IsTrue(response.Ok, response.Error?.Message);
@@ -104,13 +104,13 @@ public sealed class WorkbenchDeclaredQueryPagingTests
         var handler = new WorkbenchProtocolHandler(session, _ => { });
         var filtered = await handler.HandleAsync(Request(new
         {
-            entityId = NendoApplicationService.IdeaEntityId,
+            entityId = IdeaGarden.IdeaEntityId,
             limit = 50,
-            sortFieldId = NendoApplicationService.IdeaTitleFieldId,
+            sortFieldId = IdeaGarden.IdeaTitleFieldId,
             descending = true,
             filters = new[]
             {
-                new { fieldId = NendoApplicationService.IdeaTitleFieldId, @operator = "lt", value = Boundary },
+                new { fieldId = IdeaGarden.IdeaTitleFieldId, @operator = "lt", value = Boundary },
             },
         }));
         Assert.IsTrue(filtered.Ok, filtered.Error?.Message);
@@ -119,7 +119,7 @@ public sealed class WorkbenchDeclaredQueryPagingTests
 
         var dropped = await handler.HandleAsync(Request(new
         {
-            entityId = NendoApplicationService.IdeaEntityId, limit = 50, cursor = page.NextCursor,
+            entityId = IdeaGarden.IdeaEntityId, limit = 50, cursor = page.NextCursor,
         }));
         Assert.IsFalse(dropped.Ok);
         Assert.AreEqual("invalid-cursor", dropped.Error!.Code,
@@ -128,14 +128,14 @@ public sealed class WorkbenchDeclaredQueryPagingTests
         // Only the declared order moving is equally a different query.
         var reordered = await handler.HandleAsync(Request(new
         {
-            entityId = NendoApplicationService.IdeaEntityId,
+            entityId = IdeaGarden.IdeaEntityId,
             limit = 50,
             cursor = page.NextCursor,
-            sortFieldId = NendoApplicationService.IdeaTitleFieldId,
+            sortFieldId = IdeaGarden.IdeaTitleFieldId,
             descending = false,
             filters = new[]
             {
-                new { fieldId = NendoApplicationService.IdeaTitleFieldId, @operator = "lt", value = Boundary },
+                new { fieldId = IdeaGarden.IdeaTitleFieldId, @operator = "lt", value = Boundary },
             },
         }));
         Assert.IsFalse(reordered.Ok);
@@ -153,7 +153,7 @@ public sealed class WorkbenchDeclaredQueryPagingTests
     }
 
     private static string Title(NendoRecordSnapshot record) =>
-        record.Values[NendoApplicationService.IdeaTitleFieldId].GetString()!;
+        record.Values[IdeaGarden.IdeaTitleFieldId].GetString()!;
 
     private static void AssertAllMatching(NendoPage<NendoRecordSnapshot> page)
     {

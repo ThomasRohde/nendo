@@ -34,8 +34,8 @@ public sealed class DiscoveryLifecycleTests
         }
         var rejected = await client.CallToolAsync("nendo.data.set_field", new Dictionary<string, object?>
         {
-            ["applicationHandle"] = lease.ApplicationHandle, ["leaseId"] = lease.LeaseId, ["entityId"] = NendoApplicationService.IdeaEntityId,
-            ["recordId"] = "idea-001", ["fieldId"] = NendoApplicationService.IdeaTitleFieldId,
+            ["applicationHandle"] = lease.ApplicationHandle, ["leaseId"] = lease.LeaseId, ["entityId"] = IdeaGarden.IdeaEntityId,
+            ["recordId"] = "idea-001", ["fieldId"] = IdeaGarden.IdeaTitleFieldId,
             ["expectedRecordVersion"] = 1, ["value"] = "Denied", ["idempotencyKey"] = "outside-edit",
         });
         Assert.IsTrue(rejected.IsError);

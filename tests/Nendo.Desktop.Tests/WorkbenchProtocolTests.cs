@@ -92,9 +92,9 @@ public sealed class WorkbenchProtocolTests
             WorkbenchMethods.DataCreateRecord,
             new
             {
-                entityId = NendoApplicationService.IdeaEntityId,
+                entityId = IdeaGarden.IdeaEntityId,
                 recordId = "idea-protocol",
-                values = new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Protocol idea" },
+                values = new Dictionary<string, object?> { [IdeaGarden.IdeaTitleFieldId] = "Protocol idea" },
                 idempotencyKey = "protocol-record",
             }));
         var edit = await handler.HandleAsync(await RequestAsync(session,
@@ -102,9 +102,9 @@ public sealed class WorkbenchProtocolTests
             WorkbenchMethods.DataSetField,
             new
             {
-                entityId = NendoApplicationService.IdeaEntityId,
+                entityId = IdeaGarden.IdeaEntityId,
                 recordId = "idea-protocol",
-                fieldId = NendoApplicationService.IdeaTitleFieldId,
+                fieldId = IdeaGarden.IdeaTitleFieldId,
                 expectedRecordVersion = 1,
                 value = "Edited through protocol",
                 idempotencyKey = "protocol-edit",
@@ -118,7 +118,7 @@ public sealed class WorkbenchProtocolTests
         Assert.AreEqual(2L, mutation.Session.Records[0].RecordVersion);
         Assert.AreEqual(
             "Edited through protocol",
-            mutation.Session.Records[0].Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+            mutation.Session.Records[0].Values[IdeaGarden.IdeaTitleFieldId].GetString());
         var json = WorkbenchProtocolHandler.Serialize(edit);
         Assert.DoesNotContain(workspace.FilePath, json, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("desktop-session.nendo", json, StringComparison.Ordinal);
@@ -167,9 +167,9 @@ public sealed class WorkbenchProtocolTests
         });
         var record = new
         {
-            entityId = NendoApplicationService.IdeaEntityId,
+            entityId = IdeaGarden.IdeaEntityId,
             recordId = "refused",
-            values = new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Never written" },
+            values = new Dictionary<string, object?> { [IdeaGarden.IdeaTitleFieldId] = "Never written" },
             idempotencyKey = "refused",
         };
 
@@ -293,16 +293,16 @@ public sealed class WorkbenchProtocolTests
             WorkbenchMethods.DataCreateRecord,
             new
             {
-                entityId = NendoApplicationService.IdeaEntityId,
+                entityId = IdeaGarden.IdeaEntityId,
                 recordId = "idea-p2-protocol",
                 values = new Dictionary<string, object?>
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = "Protocol garden",
-                    [NendoApplicationService.IdeaNotesFieldId] = "Complete record",
-                    [NendoApplicationService.IdeaStatusFieldId] = "Idea",
-                    [NendoApplicationService.IdeaEnergyFieldId] = "Medium",
-                    [NendoApplicationService.IdeaCreatedDateFieldId] = "2026-09-03",
-                    [NendoApplicationService.IdeaNextActionFieldId] = "Exercise the command",
+                    [IdeaGarden.IdeaTitleFieldId] = "Protocol garden",
+                    [IdeaGarden.IdeaNotesFieldId] = "Complete record",
+                    [IdeaGarden.IdeaStatusFieldId] = "Idea",
+                    [IdeaGarden.IdeaEnergyFieldId] = "Medium",
+                    [IdeaGarden.IdeaCreatedDateFieldId] = "2026-09-03",
+                    [IdeaGarden.IdeaNextActionFieldId] = "Exercise the command",
                 },
                 idempotencyKey = "p2-protocol-record",
             }));
@@ -325,7 +325,7 @@ public sealed class WorkbenchProtocolTests
         Assert.IsNotNull(commandView.Session);
         Assert.AreEqual(
             "Trying",
-            commandView.Session.Records.Single().Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+            commandView.Session.Records.Single().Values[IdeaGarden.IdeaStatusFieldId].GetString());
 
         var compilation = await handler.HandleAsync(await RequestAsync(session,
             "p2-compile",
@@ -349,7 +349,7 @@ public sealed class WorkbenchProtocolTests
         Assert.IsNotNull(compensatedView.Session);
         Assert.AreEqual(
             "Idea",
-            compensatedView.Session.Records.Single().Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+            compensatedView.Session.Records.Single().Values[IdeaGarden.IdeaStatusFieldId].GetString());
         Assert.DoesNotContain(workspace.FilePath, WorkbenchProtocolHandler.Serialize(compensated));
     }
 

@@ -133,7 +133,7 @@ public sealed class DesktopSessionControllerTests
             Assert.IsNotNull(edited.Session);
             Assert.AreEqual(3L, edited.Session.Manifest!.ChangeSequence);
             Assert.AreEqual("Reopened controller idea", edited.Session.Records[0]
-                .Values[NendoApplicationService.IdeaTitleFieldId]
+                .Values[IdeaGarden.IdeaTitleFieldId]
                 .GetString());
         }
 
@@ -195,7 +195,7 @@ public sealed class DesktopSessionControllerTests
         var history = await session.GetHistoryAsync();
         Assert.IsTrue(compilation.IsValid);
         Assert.AreEqual("Trying", compilation.App().Records.Single()
-            .Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+            .Values[IdeaGarden.IdeaStatusFieldId].GetString());
         Assert.AreEqual(command.Mutation.RevisionId, history[^1].RevisionId);
     }
 }

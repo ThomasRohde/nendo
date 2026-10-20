@@ -11,8 +11,8 @@ namespace Nendo.LocalMcp.Tests;
 [TestClass]
 public sealed class RecordQueryResourceTests
 {
-    private const string Records = $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records";
-    private const string Aggregate = $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/aggregate";
+    private const string Records = $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records";
+    private const string Aggregate = $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/aggregate";
 
     [TestMethod]
     public async Task OneRecordIsReadByIdAndAFilteredSortedPageReturnsOnlyWhatMatches()
@@ -27,20 +27,20 @@ public sealed class RecordQueryResourceTests
         Assert.AreEqual("idea-002", one.Items.Single().RecordId);
         Assert.IsNull(one.NextCursor);
 
-        var trying = await ReadAsync(client, $"{Records}?filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Trying\"}}]")}");
+        var trying = await ReadAsync(client, $"{Records}?filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Trying\"}}]")}");
         CollectionAssert.AreEqual(new[] { "idea-003" }, trying.Items.Select(record => record.RecordId).ToArray());
 
-        var ideas = await ReadAsync(client, $"{Records}?sort={NendoApplicationService.IdeaTitleFieldId}&desc=true&filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}");
+        var ideas = await ReadAsync(client, $"{Records}?sort={IdeaGarden.IdeaTitleFieldId}&desc=true&filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}");
         CollectionAssert.AreEqual(new[] { "idea-002", "idea-001" }, ideas.Items.Select(record => record.RecordId).ToArray());
 
         // The two vocabulary spellings the Engine does not use are mapped, not refused.
-        var early = await ReadAsync(client, $"{Records}?filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaCreatedDateFieldId}\",\"op\":\"lte\",\"value\":\"2026-09-02\"}}]")}");
+        var early = await ReadAsync(client, $"{Records}?filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaCreatedDateFieldId}\",\"op\":\"lte\",\"value\":\"2026-09-02\"}}]")}");
         Assert.HasCount(2, early.Items);
 
         // A filtered page keeps the revision-bound cursor: the second page continues the same query.
-        var first = await ReadAsync(client, $"{Records}?limit=1&filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}");
+        var first = await ReadAsync(client, $"{Records}?limit=1&filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}");
         Assert.IsNotNull(first.NextCursor);
-        var second = await ReadAsync(client, $"{Records}?cursor={Uri.EscapeDataString(first.NextCursor)}&limit=1&filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}");
+        var second = await ReadAsync(client, $"{Records}?cursor={Uri.EscapeDataString(first.NextCursor)}&limit=1&filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}");
         Assert.AreEqual("idea-002", second.Items.Single().RecordId);
     }
 
@@ -54,14 +54,14 @@ public sealed class RecordQueryResourceTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
         var operation = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(
-            client, $"{Records}?filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaStatusFieldId}\",\"op\":\"like\",\"value\":\"Idea\"}}]")}"));
+            client, $"{Records}?filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaStatusFieldId}\",\"op\":\"like\",\"value\":\"Idea\"}}]")}"));
         StringAssert.Contains(operation.Message, "NENDO_INVALID_REQUEST", StringComparison.Ordinal);
         StringAssert.Contains(operation.Message, "'like' is not one of eq, ne, lt, lte, gt, gte, contains, isNull, isNotNull, descendantOf", StringComparison.Ordinal);
 
         var field = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(
             client, $"{Records}?filter={Filter("[{\"fieldId\":\"field.idea.colour\",\"op\":\"eq\",\"value\":\"red\"}]")}"));
         StringAssert.Contains(field.Message, "The filter field 'field.idea.colour' is not a field of entity.idea; its fields are", StringComparison.Ordinal);
-        StringAssert.Contains(field.Message, NendoApplicationService.IdeaStatusFieldId, StringComparison.Ordinal);
+        StringAssert.Contains(field.Message, IdeaGarden.IdeaStatusFieldId, StringComparison.Ordinal);
 
         var sort = await Assert.ThrowsExactlyAsync<McpProtocolException>(() => ProtocolResourceTests.ReadTextAsync(
             client, $"{Records}?sort=field.idea.colour"));
@@ -83,11 +83,11 @@ public sealed class RecordQueryResourceTests
         Assert.AreEqual(3, count.ContributingRecords);
 
         var filtered = Read<NendoMcpAggregate>(await ProtocolResourceTests.ReadTextAsync(client,
-            $"{Aggregate}?aggregate=count&filter={Filter($"[{{\"fieldId\":\"{NendoApplicationService.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}"));
+            $"{Aggregate}?aggregate=count&filter={Filter($"[{{\"fieldId\":\"{IdeaGarden.IdeaStatusFieldId}\",\"op\":\"eq\",\"value\":\"Idea\"}}]")}"));
         Assert.AreEqual("2", filtered.Value);
 
         var grouped = Read<NendoMcpAggregate>(await ProtocolResourceTests.ReadTextAsync(client,
-            $"{Aggregate}?aggregate=count&groupBy={NendoApplicationService.IdeaStatusFieldId}"));
+            $"{Aggregate}?aggregate=count&groupBy={IdeaGarden.IdeaStatusFieldId}"));
         Assert.AreEqual("grouped", grouped.Shape);
         Assert.IsNotNull(grouped.Groups);
         Assert.AreEqual("2", grouped.Groups.Single(group => group.Key == "Idea").Value);
@@ -143,26 +143,26 @@ public sealed class RecordQueryResourceTests
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateIdeaGardenAsync(6);
         var projection = new NendoResourceProjection(workspace.Service, new NendoCursorCodec(new byte[32]));
-        var status = NendoApplicationService.IdeaStatusFieldId;
+        var status = IdeaGarden.IdeaStatusFieldId;
         var filter = "[" +
             $"{{\"fieldId\":\"{status}\",\"op\":\"eq\",\"value\":\"Idea\"}}," +
-            $"{{\"fieldId\":\"{NendoApplicationService.IdeaTitleFieldId}\",\"op\":\"isNotNull\"}}," +
-            $"{{\"fieldId\":\"{NendoApplicationService.IdeaCreatedDateFieldId}\",\"op\":\"lte\",\"value\":\"2026-09-05\"}}," +
+            $"{{\"fieldId\":\"{IdeaGarden.IdeaTitleFieldId}\",\"op\":\"isNotNull\"}}," +
+            $"{{\"fieldId\":\"{IdeaGarden.IdeaCreatedDateFieldId}\",\"op\":\"lte\",\"value\":\"2026-09-05\"}}," +
             $"{{\"fieldId\":\"{status}\",\"op\":\"ne\",\"value\":\"Trying\"}}]";
 
-        var page = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, null,
-            NendoApplicationService.IdeaTitleFieldId, "true", filter, null, CancellationToken.None);
+        var page = await projection.GetRecordsAsync(IdeaGarden.IdeaEntityId, null, 50, null,
+            IdeaGarden.IdeaTitleFieldId, "true", filter, null, CancellationToken.None);
         CollectionAssert.AreEqual(new[] { "idea-005", "idea-004", "idea-002", "idea-001" }, page.Items.Select(record => record.RecordId).ToArray());
         Assert.AreEqual(1, projection.DefinitionReads, "A sorted four-clause records read takes one definition snapshot.");
 
-        var grid = await projection.GetAggregateAsync(NendoApplicationService.IdeaEntityId, "count", null, null,
-            status, NendoApplicationService.IdeaEnergyFieldId, null, null, null, filter, CancellationToken.None);
+        var grid = await projection.GetAggregateAsync(IdeaGarden.IdeaEntityId, "count", null, null,
+            status, IdeaGarden.IdeaEnergyFieldId, null, null, null, filter, CancellationToken.None);
         Assert.AreEqual("cells", grid.Shape);
         Assert.AreEqual(4, grid.Cells!.Sum(cell => cell.ContributingRecords));
         Assert.AreEqual(2, projection.DefinitionReads, "A filtered grid aggregate takes one definition snapshot.");
 
         var unknown = await Assert.ThrowsExactlyAsync<NendoValidationException>(() => projection.GetRecordsAsync(
-            NendoApplicationService.IdeaEntityId, null, 50, null, "field.idea.colour", null, filter, null, CancellationToken.None));
+            IdeaGarden.IdeaEntityId, null, 50, null, "field.idea.colour", null, filter, null, CancellationToken.None));
         StringAssert.Contains(unknown.Message, "The sort field 'field.idea.colour' is not a field of entity.idea; its fields are", StringComparison.Ordinal);
         Assert.AreEqual(3, projection.DefinitionReads, "A refused field is named from the same one snapshot.");
     }
@@ -179,14 +179,14 @@ public sealed class RecordQueryResourceTests
         await using var workspace = new LocalMcpTestWorkspace();
         await workspace.CreateIdeaGardenAsync();
         var projection = new NendoResourceProjection(workspace.Service, new NendoCursorCodec(new byte[32]));
-        var count = await projection.GetAggregateAsync(NendoApplicationService.IdeaEntityId, "count", null, null, null, null, null, null, null, null, CancellationToken.None);
+        var count = await projection.GetAggregateAsync(IdeaGarden.IdeaEntityId, "count", null, null, null, null, null, null, null, null, CancellationToken.None);
         var commits = 0;
-        Func<Task> Commit() => () => workspace.Service.CreateRecordAsync(new(NendoApplicationService.IdeaEntityId, $"idea-late-{++commits}",
-            new Dictionary<string, object?> { [NendoApplicationService.IdeaTitleFieldId] = "Late", [NendoApplicationService.IdeaStatusFieldId] = "Idea" },
+        Func<Task> Commit() => () => workspace.Service.CreateRecordAsync(new(IdeaGarden.IdeaEntityId, $"idea-late-{++commits}",
+            new Dictionary<string, object?> { [IdeaGarden.IdeaTitleFieldId] = "Late", [IdeaGarden.IdeaStatusFieldId] = "Idea" },
             new("test", $"late-{commits}", "test")));
 
         projection.AfterRead = Once("records", Commit());
-        var records = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, CancellationToken.None);
+        var records = await projection.GetRecordsAsync(IdeaGarden.IdeaEntityId, null, 50, CancellationToken.None);
         Assert.AreEqual(count.ChangeSequence, records.ChangeSequence, "The page reports the revision the count also read.");
         Assert.HasCount(3, records.Items);
 
@@ -198,7 +198,7 @@ public sealed class RecordQueryResourceTests
         projection.AfterRead = null;
         var now = (await projection.GetManifestAsync(CancellationToken.None)).ChangeSequence;
         Assert.AreEqual(count.ChangeSequence + 2, now, "Both commits landed after their pages were read.");
-        var again = await projection.GetRecordsAsync(NendoApplicationService.IdeaEntityId, null, 50, CancellationToken.None);
+        var again = await projection.GetRecordsAsync(IdeaGarden.IdeaEntityId, null, 50, CancellationToken.None);
         Assert.AreEqual(now, again.ChangeSequence);
         Assert.HasCount(5, again.Items);
 

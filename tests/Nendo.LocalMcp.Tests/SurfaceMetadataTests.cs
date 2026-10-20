@@ -136,7 +136,7 @@ public sealed class SurfaceMetadataTests
             AgentAccessMode.ReadOnly,
             new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
-        var records = $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records";
+        var records = $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records";
 
         var expected = Ids(await ProtocolResourceTests.ReadTextAsync(client, $"{records}?limit=2"));
         Assert.HasCount(2, expected);

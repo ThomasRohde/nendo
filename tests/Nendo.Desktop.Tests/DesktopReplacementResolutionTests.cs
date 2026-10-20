@@ -25,7 +25,7 @@ public sealed class DesktopReplacementResolutionTests
         Assert.IsTrue(File.Exists(Receipt(workspace)));
         var result = await session.ResolveReplacementAsync(review.ReviewId, NendoReplacementResolutionChoice.KeepActive, true);
         Assert.IsTrue(result.Session.Capabilities.Mutate, result.Notice);
-        Assert.AreEqual(title, result.Session.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual(title, result.Session.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.AreNotEqual(before.FileSessionId, result.Session.FileSessionId);
         Assert.AreEqual("off", (await session.GetAgentStatusAsync()).Mode);
         Assert.IsFalse(File.Exists(Receipt(workspace)));
@@ -54,7 +54,7 @@ public sealed class DesktopReplacementResolutionTests
         Assert.AreEqual(before.FileSessionId, (await session.GetViewAsync()).FileSessionId);
         var result = await session.ResolveReplacementAsync(review.ReviewId, choice, true);
         Assert.IsTrue(result.Session.Capabilities.Mutate, result.Notice);
-        Assert.AreEqual(title, result.Session.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual(title, result.Session.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.IsTrue(File.Exists(Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, result.Resolution.AcknowledgedReceiptFileName)));
     }
 

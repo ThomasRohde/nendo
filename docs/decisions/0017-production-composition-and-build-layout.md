@@ -46,7 +46,9 @@ deliberately with its focused tests.
   revisions, proposals, semantic compilation, application services, the write
   coordinator, the file lifecycle and the internal SQLite implementation. All SQL and
   SQLite types stay under its internal `Storage/` area. There is no second provider
-  interface.
+  interface. It is not a supported external .NET API: its public types serve Desktop and
+  LocalMcp and change with them, without a compatibility promise. It knows no particular
+  application; the reference applications the tests build live in test support.
 - **Nendo.Desktop** is the WinUI 3 executable: application and window lifetime, file
   pickers and recent files, the native recovery surface, WebView2, theme and title-bar
   integration, the closed typed bridge, and starting and stopping local adapters. It

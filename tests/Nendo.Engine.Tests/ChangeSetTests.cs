@@ -83,16 +83,16 @@ public sealed class ChangeSetTests
         Assert.AreEqual(activeBefore.Manifest.InstanceId, cloned.Manifest.InstanceId);
 
         await clone.ApplyAsync(new NendoMutation("clone", "clone-edit", "test", "Preview only",
-            [new SetFieldOperation("clone-edit", NendoApplicationService.IdeaEntityId, "idea-1", NendoApplicationService.IdeaTitleFieldId, 1, "Preview only")]),
+            [new SetFieldOperation("clone-edit", IdeaGarden.IdeaEntityId, "idea-1", IdeaGarden.IdeaTitleFieldId, 1, "Preview only")]),
             await clone.GetAuthoritySnapshotAsync(CancellationToken.None), CancellationToken.None);
         Assert.AreEqual(
             "Preview only",
             (await clone.GetSessionSnapshotAsync("proposal-clone.nendo", NendoSessionHealth.Normal, CancellationToken.None)).Records.Single()
-                .Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+                .Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.AreEqual(
             "Active",
             (await service.GetSnapshotAsync()).Records.Single()
-                .Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+                .Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.AreEqual(activeBefore.Manifest.ChangeSequence, (await service.GetSnapshotAsync()).Manifest.ChangeSequence);
     }
 

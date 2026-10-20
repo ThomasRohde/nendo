@@ -292,7 +292,7 @@ public sealed class OperationGapReviewTests
         source.RecoveryExportByteLimit = 1000;
         var folder = Path.GetDirectoryName(workspace.FilePath)!;
         async Task<NendoRecoveryExportPlan> Part(int part, string? after) => await service.PrepareRecoveryExportAsync(
-            NendoApplicationService.IdeaEntityId, Path.Combine(folder, $"part-{part}-{Guid.NewGuid():N}.csv"), $"part-{part}-{Guid.NewGuid():N}", after);
+            IdeaGarden.IdeaEntityId, Path.Combine(folder, $"part-{part}-{Guid.NewGuid():N}.csv"), $"part-{part}-{Guid.NewGuid():N}", after);
 
         // No part can hold r1, so part 1 moves past it and writes r2 and r3; part 2 writes r4 alone.
         var first = await Part(1, null);
@@ -325,7 +325,7 @@ public sealed class OperationGapReviewTests
         var folder = Path.GetDirectoryName(workspace.FilePath)!;
         for (var part = 1; part <= 40; part++)
         {
-            var plan = await service.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId,
+            var plan = await service.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId,
                 Path.Combine(folder, $"part-{part}.csv"), $"export-{part}");
             await service.CreateRecoveryExportAsync(plan.PlanId, false);
         }

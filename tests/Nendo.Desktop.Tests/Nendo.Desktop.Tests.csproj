@@ -22,6 +22,8 @@
   <ItemGroup>
     <Compile Include="..\Nendo.Engine.Tests\CompiledPlanTestExtensions.cs" Link="CompiledPlanTestExtensions.cs" />
     <Compile Include="..\Nendo.Engine.Tests\TestRepository.cs" Link="TestRepository.cs" />
+    <Compile Include="..\Nendo.Engine.Tests\IdeaGarden.cs" Link="IdeaGarden.cs" />
+    <Compile Include="..\Nendo.Engine.Tests\IdeaGardenDefinition.cs" Link="IdeaGardenDefinition.cs" />
   </ItemGroup>
 
   <!-- The stand-in ACP agent the launched-agent tests start with Node (ADR-0030). -->

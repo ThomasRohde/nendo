@@ -13,22 +13,22 @@ public sealed class CompensationAndIdeaServiceTests
         Assert.IsTrue((await service.PromoteProposalAsync(proposal.ProposalId)).Applied);
 
         await service.CreateRecordAsync(new NendoCreateRecordRequest(
-            NendoApplicationService.IdeaEntityId,
+            IdeaGarden.IdeaEntityId,
             "idea-1",
             new Dictionary<string, object?>
             {
-                [NendoApplicationService.IdeaTitleFieldId] = "Offline bird fieldbook",
-                [NendoApplicationService.IdeaNotesFieldId] = "Log bird sightings offline.",
-                [NendoApplicationService.IdeaStatusFieldId] = "Idea",
-                [NendoApplicationService.IdeaEnergyFieldId] = "High",
-                [NendoApplicationService.IdeaCreatedDateFieldId] = "2026-09-03",
-                [NendoApplicationService.IdeaNextActionFieldId] = "Design the entry form",
+                [IdeaGarden.IdeaTitleFieldId] = "Offline bird fieldbook",
+                [IdeaGarden.IdeaNotesFieldId] = "Log bird sightings offline.",
+                [IdeaGarden.IdeaStatusFieldId] = "Idea",
+                [IdeaGarden.IdeaEnergyFieldId] = "High",
+                [IdeaGarden.IdeaCreatedDateFieldId] = "2026-09-03",
+                [IdeaGarden.IdeaNextActionFieldId] = "Design the entry form",
             },
             new NendoRequestContext("test.p2.5", "create-full", "test")));
         await service.SetFieldAsync(new NendoSetFieldRequest(
-            NendoApplicationService.IdeaEntityId,
+            IdeaGarden.IdeaEntityId,
             "idea-1",
-            NendoApplicationService.IdeaStatusFieldId,
+            IdeaGarden.IdeaStatusFieldId,
             1,
             "Exploring",
             new NendoRequestContext("test.p2.5", "explore", "test")));
@@ -40,18 +40,18 @@ public sealed class CompensationAndIdeaServiceTests
 
         var record = (await service.GetSnapshotAsync()).Records.Single();
         Assert.AreEqual(3L, record.RecordVersion);
-        Assert.AreEqual("Offline bird fieldbook", record.Values[NendoApplicationService.IdeaTitleFieldId].GetString());
-        Assert.AreEqual("Log bird sightings offline.", record.Values[NendoApplicationService.IdeaNotesFieldId].GetString());
-        Assert.AreEqual("Trying", record.Values[NendoApplicationService.IdeaStatusFieldId].GetString());
-        Assert.AreEqual("High", record.Values[NendoApplicationService.IdeaEnergyFieldId].GetString());
-        Assert.AreEqual("2026-09-03", record.Values[NendoApplicationService.IdeaCreatedDateFieldId].GetString());
-        Assert.AreEqual("Design the entry form", record.Values[NendoApplicationService.IdeaNextActionFieldId].GetString());
+        Assert.AreEqual("Offline bird fieldbook", record.Values[IdeaGarden.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Log bird sightings offline.", record.Values[IdeaGarden.IdeaNotesFieldId].GetString());
+        Assert.AreEqual("Trying", record.Values[IdeaGarden.IdeaStatusFieldId].GetString());
+        Assert.AreEqual("High", record.Values[IdeaGarden.IdeaEnergyFieldId].GetString());
+        Assert.AreEqual("2026-09-03", record.Values[IdeaGarden.IdeaCreatedDateFieldId].GetString());
+        Assert.AreEqual("Design the entry form", record.Values[IdeaGarden.IdeaNextActionFieldId].GetString());
 
         await Assert.ThrowsExactlyAsync<NendoValidationException>(() => service.SetFieldAsync(
             new NendoSetFieldRequest(
-                NendoApplicationService.IdeaEntityId,
+                IdeaGarden.IdeaEntityId,
                 "idea-1",
-                NendoApplicationService.IdeaEnergyFieldId,
+                IdeaGarden.IdeaEnergyFieldId,
                 3,
                 "Extreme",
                 new NendoRequestContext("test.p2.5", "invalid-energy", "test"))));
@@ -63,7 +63,7 @@ public sealed class CompensationAndIdeaServiceTests
         var reopenedService = new NendoApplicationService(reopened);
         var reopenedRecord = (await reopenedService.GetSnapshotAsync()).Records.Single();
         Assert.AreEqual(3L, reopenedRecord.RecordVersion);
-        Assert.AreEqual("Trying", reopenedRecord.Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+        Assert.AreEqual("Trying", reopenedRecord.Values[IdeaGarden.IdeaStatusFieldId].GetString());
         Assert.IsTrue((await reopenedService.CompileSemanticUiAsync()).IsValid);
     }
 
@@ -75,7 +75,7 @@ public sealed class CompensationAndIdeaServiceTests
         var edited = await service.SetIdeaFieldAsync(
             "idea-1",
             1,
-            NendoApplicationService.IdeaNextActionFieldId,
+            IdeaGarden.IdeaNextActionFieldId,
             "Continue",
             "edit-next");
 
@@ -85,7 +85,7 @@ public sealed class CompensationAndIdeaServiceTests
 
         var record = (await service.GetSnapshotAsync()).Records.Single();
         Assert.AreEqual(3L, record.RecordVersion);
-        Assert.AreEqual("Start", record.Values[NendoApplicationService.IdeaNextActionFieldId].GetString());
+        Assert.AreEqual("Start", record.Values[IdeaGarden.IdeaNextActionFieldId].GetString());
         var history = await service.GetHistoryAsync();
         var compensation = history.Single(revision => revision.RevisionId == compensated.RevisionId);
         Assert.AreEqual(edited.RevisionId, compensation.CompensationOfRevisionId);
@@ -152,13 +152,13 @@ public sealed class CompensationAndIdeaServiceTests
         var first = await service.SetIdeaFieldAsync(
             "idea-1",
             1,
-            NendoApplicationService.IdeaNextActionFieldId,
+            IdeaGarden.IdeaNextActionFieldId,
             "Continue",
             "first-next");
         await service.SetIdeaFieldAsync(
             "idea-1",
             2,
-            NendoApplicationService.IdeaNextActionFieldId,
+            IdeaGarden.IdeaNextActionFieldId,
             "Finish",
             "second-next");
 
@@ -167,7 +167,7 @@ public sealed class CompensationAndIdeaServiceTests
         Assert.AreEqual(
             "Finish",
             (await service.GetSnapshotAsync()).Records.Single()
-                .Values[NendoApplicationService.IdeaNextActionFieldId].GetString());
+                .Values[IdeaGarden.IdeaNextActionFieldId].GetString());
     }
 
     [TestMethod]
@@ -175,20 +175,20 @@ public sealed class CompensationAndIdeaServiceTests
     {
         await using var workspace = new EngineTestWorkspace();
         var (service, _) = await CreateIdeaGardenWithRecordAsync(workspace);
-        var edit = await service.SetFieldsAsync(new(NendoApplicationService.IdeaEntityId, "idea-1", 1,
+        var edit = await service.SetFieldsAsync(new(IdeaGarden.IdeaEntityId, "idea-1", 1,
             new Dictionary<string, object?>
             {
-                [NendoApplicationService.IdeaTitleFieldId] = "Changed",
-                [NendoApplicationService.IdeaNextActionFieldId] = "Continue",
+                [IdeaGarden.IdeaTitleFieldId] = "Changed",
+                [IdeaGarden.IdeaNextActionFieldId] = "Continue",
             }, new("form-tests", "edit", "test")));
-        await service.SetIdeaFieldAsync("idea-1", 3, NendoApplicationService.IdeaNextActionFieldId, "Later", "later");
+        await service.SetIdeaFieldAsync("idea-1", 3, IdeaGarden.IdeaNextActionFieldId, "Later", "later");
         var before = await service.GetSnapshotAsync();
         await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() =>
             service.CompensateRevisionAsync(edit.RevisionId, "stale-compensation"));
         var after = await service.GetSnapshotAsync();
         Assert.AreEqual(before.Manifest, after.Manifest);
-        Assert.AreEqual("Changed", after.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
-        Assert.AreEqual("Later", after.Records.Single().Values[NendoApplicationService.IdeaNextActionFieldId].GetString());
+        Assert.AreEqual("Changed", after.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Later", after.Records.Single().Values[IdeaGarden.IdeaNextActionFieldId].GetString());
         Assert.AreEqual(4L, after.Records.Single().RecordVersion);
     }
 

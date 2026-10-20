@@ -32,13 +32,13 @@ public sealed class FormSaveOutcomeTests
         var compensation = await session.CompensateRevisionAsync(receipt.RevisionId, "compensate-form");
         var restored = (await session.GetViewAsync()).Records.Single();
         Assert.AreEqual(5L, restored.RecordVersion);
-        Assert.AreEqual("Before", restored.Values[NendoApplicationService.IdeaTitleFieldId].GetString());
-        Assert.AreEqual("Original notes", restored.Values[NendoApplicationService.IdeaNotesFieldId].GetString());
-        await session.SetFieldAsync(NendoApplicationService.IdeaEntityId, "record", NendoApplicationService.IdeaTitleFieldId,
+        Assert.AreEqual("Before", restored.Values[IdeaGarden.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Original notes", restored.Values[IdeaGarden.IdeaNotesFieldId].GetString());
+        await session.SetFieldAsync(IdeaGarden.IdeaEntityId, "record", IdeaGarden.IdeaTitleFieldId,
             5, "Later", "later-edit");
         var repeated = await session.CompensateRevisionAsync(receipt.RevisionId, "compensate-form");
         Assert.AreEqual(compensation.Mutation with { IsIdempotentReplay = true }, repeated.Mutation);
-        Assert.AreEqual("Later", (await session.GetViewAsync()).Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Later", (await session.GetViewAsync()).Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
     }
 
     [TestMethod]
@@ -94,8 +94,8 @@ public sealed class FormSaveOutcomeTests
     {
         var values = new Dictionary<string, object?>
         {
-            [NendoApplicationService.IdeaNotesFieldId] = "Updated notes",
-            [NendoApplicationService.IdeaTitleFieldId] = title,
+            [IdeaGarden.IdeaNotesFieldId] = "Updated notes",
+            [IdeaGarden.IdeaTitleFieldId] = title,
         };
         return reverse ? values.Reverse().ToDictionary(pair => pair.Key, pair => pair.Value) : values;
     }
@@ -106,13 +106,13 @@ public sealed class FormSaveOutcomeTests
         await session.CreateIdeaSchemaAsync("schema");
         var definition = await session.PrepareIdeaGardenProposalAsync();
         await session.PromoteProposalAsync(definition.ProposalId);
-        await session.CreateRecordAsync(NendoApplicationService.IdeaEntityId, "record",
+        await session.CreateRecordAsync(IdeaGarden.IdeaEntityId, "record",
             new Dictionary<string, object?>
             {
-                [NendoApplicationService.IdeaTitleFieldId] = "Before",
-                [NendoApplicationService.IdeaNotesFieldId] = "Original notes",
-                [NendoApplicationService.IdeaStatusFieldId] = "Idea",
-                [NendoApplicationService.IdeaCreatedDateFieldId] = "2026-09-05",
+                [IdeaGarden.IdeaTitleFieldId] = "Before",
+                [IdeaGarden.IdeaNotesFieldId] = "Original notes",
+                [IdeaGarden.IdeaStatusFieldId] = "Idea",
+                [IdeaGarden.IdeaCreatedDateFieldId] = "2026-09-05",
             }, "create");
     }
 
@@ -124,7 +124,7 @@ public sealed class FormSaveOutcomeTests
         return await handler.HandleAsync(JsonSerializer.Serialize(new
         {
             protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = Guid.NewGuid().ToString("N"), method = "data.setFields", snapshot.FileSessionId,
-            payload = new { entityId = NendoApplicationService.IdeaEntityId, recordId = "record", values,
+            payload = new { entityId = IdeaGarden.IdeaEntityId, recordId = "record", values,
                 expectedRecordVersion = version, idempotencyKey = key },
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }

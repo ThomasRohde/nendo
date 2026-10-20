@@ -19,7 +19,7 @@ public sealed class ProposalLifecycleTests
         Assert.IsNotEmpty(preview.PreviewApplications);
         Assert.AreEqual("Idea board", preview.Root("boardSurface").Title());
         Assert.AreEqual("Idea", preview.PreviewApplications.Single().Records.Single()
-            .Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+            .Values[IdeaGarden.IdeaStatusFieldId].GetString());
         Assert.HasCount(1, preview.TouchedRecords);
         Assert.IsGreaterThan(40, preview.OperationCount);
         // The board is announced by the name it is being given, rather than by its kind
@@ -53,7 +53,7 @@ public sealed class ProposalLifecycleTests
         var active = await service.GetSnapshotAsync();
         Assert.HasCount(6, active.Entities.Single().Fields);
         Assert.HasCount(18, active.UiNodes);
-        Assert.AreEqual("Idea", active.Records.Single().Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+        Assert.AreEqual("Idea", active.Records.Single().Values[IdeaGarden.IdeaStatusFieldId].GetString());
         Assert.AreEqual((2L, 2L, 4L), (
             active.Manifest.DefinitionRevision,
             active.Manifest.DataRevision,
@@ -68,7 +68,7 @@ public sealed class ProposalLifecycleTests
         var reopenedService = new NendoApplicationService(reopened);
         Assert.AreEqual(digest, (await reopenedService.CompileSemanticUiAsync()).App().Digest);
         Assert.AreEqual("Idea", (await reopenedService.GetSnapshotAsync()).Records.Single()
-            .Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+            .Values[IdeaGarden.IdeaStatusFieldId].GetString());
     }
 
     [TestMethod]
@@ -177,7 +177,7 @@ public sealed class ProposalLifecycleTests
         Assert.AreEqual(
             "Changed during review",
             compiled.App().Records.Single(record => record.SemanticId == "idea-2")
-                .Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+                .Values[IdeaGarden.IdeaTitleFieldId].GetString());
     }
 
     [TestMethod]
@@ -195,9 +195,9 @@ public sealed class ProposalLifecycleTests
                 "Move the Idea to Paused",
                 [new SetFieldOperation(
                     "operation-pause",
-                    NendoApplicationService.IdeaEntityId,
+                    IdeaGarden.IdeaEntityId,
                     record.RecordId,
-                    NendoApplicationService.IdeaStatusFieldId,
+                    IdeaGarden.IdeaStatusFieldId,
                     record.RecordVersion,
                     "Paused")]),
         ]).Validate();
@@ -217,8 +217,8 @@ public sealed class ProposalLifecycleTests
         Assert.IsFalse(outcome.Applied);
         Assert.AreEqual(NendoProposalState.Stale, outcome.State);
         var active = (await service.GetSnapshotAsync()).Records.Single();
-        Assert.AreEqual("Idea", active.Values[NendoApplicationService.IdeaStatusFieldId].GetString());
-        Assert.AreEqual("Changed while reviewing", active.Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Idea", active.Values[IdeaGarden.IdeaStatusFieldId].GetString());
+        Assert.AreEqual("Changed while reviewing", active.Values[IdeaGarden.IdeaTitleFieldId].GetString());
     }
 
     [TestMethod]
@@ -284,7 +284,7 @@ public sealed class ProposalLifecycleTests
         await File.WriteAllTextAsync(Path.Combine(workspacePath, "proposal.nendo"), "occupied");
 
         var change = new NendoChangeSet([new NendoMutation("test", "rename", "test", "Rename",
-            [new RenameEntityOperation("rename", NendoApplicationService.IdeaEntityId, "Ideas", revision)])]);
+            [new RenameEntityOperation("rename", IdeaGarden.IdeaEntityId, "Ideas", revision)])]);
         await Assert.ThrowsExactlyAsync<IOException>(
             () => coordinator.BeginProposalAsync(proposalId, "Blocked", "test", change));
 
@@ -315,7 +315,7 @@ public sealed class ProposalLifecycleTests
             Path.Combine(occupied, "held"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
 
         var change = new NendoChangeSet([new NendoMutation("test", "rename", "test", "Rename",
-            [new RenameEntityOperation("rename", NendoApplicationService.IdeaEntityId, "Ideas", revision)])]);
+            [new RenameEntityOperation("rename", IdeaGarden.IdeaEntityId, "Ideas", revision)])]);
         Exception? surfaced = null;
         try
         {

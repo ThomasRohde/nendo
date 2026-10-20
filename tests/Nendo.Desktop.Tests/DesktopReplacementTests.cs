@@ -258,7 +258,7 @@ public sealed class DesktopReplacementTests
     }
 
     private static string PathIn(DesktopTestWorkspace workspace, string name) => Path.Combine(Path.GetDirectoryName(workspace.FilePath)!, name);
-    private static string? Title(DesktopSessionView view) => view.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString();
+    private static string? Title(DesktopSessionView view) => view.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString();
 
     private static async Task<byte[]> BytesAsync(string path)
     {

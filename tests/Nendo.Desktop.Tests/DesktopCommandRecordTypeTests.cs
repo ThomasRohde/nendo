@@ -37,17 +37,17 @@ public sealed class DesktopCommandRecordTypeTests
             "The command command.idea.moveToTrying runs on entity.idea records, and this call names a record of entity.dependency. Pass the record's own entityId.",
             refused.Error.Message);
         var record = (await session.GetViewAsync()).Records.Single();
-        Assert.AreEqual((version, "Exploring"), (record.RecordVersion, record.Values[NendoApplicationService.IdeaStatusFieldId].GetString()),
+        Assert.AreEqual((version, "Exploring"), (record.RecordVersion, record.Values[IdeaGarden.IdeaStatusFieldId].GetString()),
             "The refused command changed the record.");
 
         var ran = await handler.HandleAsync(await RequestAsync(session, "own-type", new
         {
-            commandId = "command.idea.moveToTrying", entityId = NendoApplicationService.IdeaEntityId, recordId = "idea-1",
+            commandId = "command.idea.moveToTrying", entityId = IdeaGarden.IdeaEntityId, recordId = "idea-1",
             expectedRecordVersion = version, idempotencyKey = "own-type",
         }));
         Assert.IsTrue(ran.Ok, ran.Error?.Message);
         Assert.AreEqual("Trying", ((DesktopMutationView)ran.Result!).Session!.Records.Single()
-            .Values[NendoApplicationService.IdeaStatusFieldId].GetString());
+            .Values[IdeaGarden.IdeaStatusFieldId].GetString());
     }
 
     private static async Task<string> RequestAsync(DesktopSessionController session, string requestId, object payload) =>

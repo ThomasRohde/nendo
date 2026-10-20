@@ -1,8 +1,9 @@
 using System.Text.Json;
+using Nendo.Engine;
 
-namespace Nendo.Engine;
+namespace Nendo.Engine.Tests;
 
-public sealed record NendoIdeaDraft(
+internal sealed record NendoIdeaDraft(
     string Title,
     string? Notes,
     string Status,
@@ -10,30 +11,37 @@ public sealed record NendoIdeaDraft(
     string CreatedDate,
     string? NextAction);
 
-public sealed partial class NendoApplicationService
+/// <summary>
+/// The Idea Garden reference application as test support: its identifiers, and the convenience
+/// writes that give a test a file with a schema, records or a waiting proposal. The Engine knows
+/// no application, so these go through its typed services like any other caller. Linked into the
+/// Desktop and LocalMcp test projects as well, so all three suites build Garden files one way.
+/// </summary>
+internal static class IdeaGarden
 {
-    public const string IdeaEntityId = "entity.idea";
-    public const string IdeaTitleFieldId = "field.idea.title";
-    public const string IdeaNotesFieldId = "field.idea.notes";
-    public const string IdeaStatusFieldId = "field.idea.status";
-    public const string IdeaEnergyFieldId = "field.idea.energy";
-    public const string IdeaCreatedDateFieldId = "field.idea.createdDate";
-    public const string IdeaNextActionFieldId = "field.idea.nextAction";
-    public const string DesktopIdempotencyScope = "desktop.p1";
+    internal const string IdeaEntityId = "entity.idea";
+    internal const string IdeaTitleFieldId = "field.idea.title";
+    internal const string IdeaNotesFieldId = "field.idea.notes";
+    internal const string IdeaStatusFieldId = "field.idea.status";
+    internal const string IdeaEnergyFieldId = "field.idea.energy";
+    internal const string IdeaCreatedDateFieldId = "field.idea.createdDate";
+    internal const string IdeaNextActionFieldId = "field.idea.nextAction";
+    internal const string DesktopIdempotencyScope = "desktop.p1";
 
-    public static IReadOnlyList<string> IdeaStatusOptions { get; } =
+    internal static IReadOnlyList<string> IdeaStatusOptions { get; } =
         Array.AsReadOnly(["Idea", "Exploring", "Trying", "Paused", "Done"]);
 
-    public static IReadOnlyList<string> IdeaEnergyOptions { get; } =
+    internal static IReadOnlyList<string> IdeaEnergyOptions { get; } =
         Array.AsReadOnly(["Low", "Medium", "High"]);
 
-    public async Task<NendoProposalPreview> PrepareIdeaGardenProposalAsync(
+    internal static async Task<NendoProposalPreview> PrepareIdeaGardenProposalAsync(
+        this NendoApplicationService service,
         CancellationToken cancellationToken = default)
     {
-        var snapshot = await _coordinator.GetSnapshotAsync(cancellationToken);
+        var snapshot = await service.GetSnapshotAsync(cancellationToken);
         var proposalId = $"proposal-{Guid.NewGuid():N}";
         var changeSet = IdeaGardenDefinition.CreateInitialChangeSet(snapshot, proposalId);
-        return await PrepareProposalAsync(
+        return await service.PrepareProposalAsync(
             new NendoProposalRequest(
                 proposalId,
                 "Idea form, list and board",
@@ -42,7 +50,8 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public async Task<NendoProposalPreview> PrepareBoardTitleProposalAsync(
+    internal static async Task<NendoProposalPreview> PrepareBoardTitleProposalAsync(
+        this NendoApplicationService service,
         string title,
         CancellationToken cancellationToken = default)
     {
@@ -51,7 +60,7 @@ public sealed partial class NendoApplicationService
         {
             throw new NendoValidationException("Board title must contain 1-120 characters.");
         }
-        var compilation = await CompileSemanticUiAsync(cancellationToken);
+        var compilation = await service.CompileSemanticUiAsync(cancellationToken);
         var board = compilation.Applications
             .SelectMany(plan => plan.Surfaces)
             .FirstOrDefault(node => node.Kind == "boardSurface" && node.SemanticId == IdeaGardenDefinition.BoardRootId);
@@ -70,7 +79,7 @@ public sealed partial class NendoApplicationService
                 "The Idea board already uses that title.");
         }
         var proposalId = $"proposal-{Guid.NewGuid():N}";
-        return await PrepareProposalAsync(
+        return await service.PrepareProposalAsync(
             new NendoProposalRequest(
                 proposalId,
                 $"Rename board to {normalized}",
@@ -79,12 +88,13 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public Task<NendoApplyResult> CreateIdeaSchemaAsync(
+    internal static Task<NendoApplyResult> CreateIdeaSchemaAsync(
+        this NendoApplicationService service,
         string idempotencyKey,
         CancellationToken cancellationToken = default)
     {
-        RequireKey(idempotencyKey);
-        return _coordinator.ApplyAsync(
+        NendoApplicationService.RequireKey(idempotencyKey);
+        return service.ApplyMutationAsync(
             new NendoMutation(
                 DesktopIdempotencyScope,
                 idempotencyKey,
@@ -108,15 +118,16 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public async Task<NendoApplyResult> CreateIdeaRecordAsync(
+    internal static async Task<NendoApplyResult> CreateIdeaRecordAsync(
+        this NendoApplicationService service,
         string recordId,
         string title,
         string idempotencyKey,
         CancellationToken cancellationToken = default)
     {
         RequireRecord(recordId, title);
-        RequireKey(idempotencyKey);
-        return await CreateRecordAsync(
+        NendoApplicationService.RequireKey(idempotencyKey);
+        return await service.CreateRecordAsync(
             new NendoCreateRecordRequest(
                 IdeaEntityId,
                 recordId,
@@ -128,7 +139,8 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public async Task<NendoApplyResult> CreateIdeaRecordAsync(
+    internal static async Task<NendoApplyResult> CreateIdeaRecordAsync(
+        this NendoApplicationService service,
         string recordId,
         NendoIdeaDraft draft,
         string idempotencyKey,
@@ -136,7 +148,7 @@ public sealed partial class NendoApplicationService
     {
         ArgumentNullException.ThrowIfNull(draft);
         RequireRecord(recordId, draft.Title);
-        RequireKey(idempotencyKey);
+        NendoApplicationService.RequireKey(idempotencyKey);
         if (!IdeaStatusOptions.Contains(draft.Status, StringComparer.Ordinal))
         {
             throw new NendoValidationException("Status must be Idea, Exploring, Trying, Paused or Done.");
@@ -154,7 +166,7 @@ public sealed partial class NendoApplicationService
         {
             throw new NendoValidationException("Created date must use yyyy-MM-dd.");
         }
-        return await CreateRecordAsync(
+        return await service.CreateRecordAsync(
             new NendoCreateRecordRequest(
                 IdeaEntityId,
                 recordId,
@@ -171,7 +183,8 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public async Task<NendoApplyResult> SetIdeaTitleAsync(
+    internal static async Task<NendoApplyResult> SetIdeaTitleAsync(
+        this NendoApplicationService service,
         string recordId,
         long expectedRecordVersion,
         string title,
@@ -179,8 +192,8 @@ public sealed partial class NendoApplicationService
         CancellationToken cancellationToken = default)
     {
         RequireRecord(recordId, title);
-        RequireKey(idempotencyKey);
-        return await SetFieldAsync(
+        NendoApplicationService.RequireKey(idempotencyKey);
+        return await service.SetFieldAsync(
             new NendoSetFieldRequest(
                 IdeaEntityId,
                 recordId,
@@ -191,7 +204,8 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public async Task<NendoApplyResult> SetIdeaFieldAsync(
+    internal static async Task<NendoApplyResult> SetIdeaFieldAsync(
+        this NendoApplicationService service,
         string recordId,
         long expectedRecordVersion,
         string fieldId,
@@ -217,8 +231,8 @@ public sealed partial class NendoApplicationService
         {
             throw new NendoValidationException("A record ID must contain 1-200 characters.");
         }
-        RequireKey(idempotencyKey);
-        return await SetFieldAsync(
+        NendoApplicationService.RequireKey(idempotencyKey);
+        return await service.SetFieldAsync(
             new NendoSetFieldRequest(
                 IdeaEntityId,
                 recordId,
@@ -229,15 +243,16 @@ public sealed partial class NendoApplicationService
             cancellationToken);
     }
 
-    public async Task<NendoApplyResult> ExecuteIdeaCommandAsync(
+    internal static async Task<NendoApplyResult> ExecuteIdeaCommandAsync(
+        this NendoApplicationService service,
         string commandId,
         string recordId,
         long expectedRecordVersion,
         string idempotencyKey,
         CancellationToken cancellationToken = default)
     {
-        RequireKey(idempotencyKey);
-        return await ExecuteCommandAsync(
+        NendoApplicationService.RequireKey(idempotencyKey);
+        return await service.ExecuteCommandAsync(
             new NendoExecuteCommandRequest(
                 commandId,
                 recordId,

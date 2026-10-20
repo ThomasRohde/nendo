@@ -15,7 +15,7 @@ public sealed class RuntimeRecoveryActionsFixtureTests
         var service = new NendoApplicationService(owner);
         await RuntimeRecoveryActionsFixture.SimulateOutsideEditAsync(workspace.FilePath);
         await Assert.ThrowsAsync<NendoRecoveryRequiredException>(() => service.SetFieldAsync(new(
-            NendoApplicationService.IdeaEntityId, "idea-1", NendoApplicationService.IdeaTitleFieldId, 1,
+            IdeaGarden.IdeaEntityId, "idea-1", IdeaGarden.IdeaTitleFieldId, 1,
             "Must not commit", new("runtime-fixture-test", "denied", "test"))));
         Assert.IsFalse(service.Capabilities.Mutate);
     }

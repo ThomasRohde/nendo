@@ -104,14 +104,14 @@ public sealed class AuthorityCacheTests
         var first = await service.CompileSemanticDefinitionAsync();
         Assert.IsTrue(first.IsValid);
         Assert.IsEmpty(first.App().Records);
-        await service.CreateRecordAsync(new(NendoApplicationService.IdeaEntityId, "idea-one", new Dictionary<string, object?>
+        await service.CreateRecordAsync(new(IdeaGarden.IdeaEntityId, "idea-one", new Dictionary<string, object?>
         {
-            [NendoApplicationService.IdeaTitleFieldId] = "Current title",
-            [NendoApplicationService.IdeaNotesFieldId] = "A note",
-            [NendoApplicationService.IdeaStatusFieldId] = "Idea",
-            [NendoApplicationService.IdeaEnergyFieldId] = "Medium",
-            [NendoApplicationService.IdeaCreatedDateFieldId] = "2026-09-05",
-            [NendoApplicationService.IdeaNextActionFieldId] = "Try",
+            [IdeaGarden.IdeaTitleFieldId] = "Current title",
+            [IdeaGarden.IdeaNotesFieldId] = "A note",
+            [IdeaGarden.IdeaStatusFieldId] = "Idea",
+            [IdeaGarden.IdeaEnergyFieldId] = "Medium",
+            [IdeaGarden.IdeaCreatedDateFieldId] = "2026-09-05",
+            [IdeaGarden.IdeaNextActionFieldId] = "Try",
         }, new("cache", "create-idea", "test")));
         var current = await service.CompileSemanticUiAsync();
         Assert.AreEqual(1L, service.DefinitionCompilationCount);

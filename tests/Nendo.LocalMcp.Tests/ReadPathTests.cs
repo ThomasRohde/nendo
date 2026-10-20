@@ -49,7 +49,7 @@ public sealed class ReadPathTests
         var records = ProtocolResourceTests.Deserialize<NendoMcpPage<NendoMcpRecord>>(
             await ProtocolResourceTests.ReadTextAsync(
                 client,
-                $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records?limit=100"));
+                $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records?limit=100"));
         Assert.IsNotEmpty(records.Items);
         Assert.IsNotEmpty(records.Items[0].Values);
         Assert.IsGreaterThan(0, records.Items[0].RecordVersion,

@@ -36,11 +36,11 @@ public sealed class DataMutationProtocolTests
         await Assert.ThrowsAsync<OperationCanceledException>(() => mutations.CreateRecordAsync(
             sessionId,
             lease.LeaseId,
-            NendoApplicationService.IdeaEntityId,
+            IdeaGarden.IdeaEntityId,
             "idea-cancelled",
             JsonSerializer.SerializeToElement(new Dictionary<string, object?>
             {
-                [NendoApplicationService.IdeaTitleFieldId] = "Must not commit",
+                [IdeaGarden.IdeaTitleFieldId] = "Must not commit",
             }),
             "cancelled-create",
             null,
@@ -209,11 +209,11 @@ public sealed class DataMutationProtocolTests
             new Dictionary<string, object?>
             {
                 ["applicationHandle"] = lease.ApplicationHandle, ["leaseId"] = lease.LeaseId,
-                ["entityId"] = NendoApplicationService.IdeaEntityId,
+                ["entityId"] = IdeaGarden.IdeaEntityId,
                 ["recordId"] = "record.invalid",
                 ["values"] = new Dictionary<string, object?>
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = new { nested = true },
+                    [IdeaGarden.IdeaTitleFieldId] = new { nested = true },
                 },
                 ["idempotencyKey"] = "invalid-nested-value",
             },
@@ -225,7 +225,7 @@ public sealed class DataMutationProtocolTests
             new Dictionary<string, object?>
             {
                 ["applicationHandle"] = lease.ApplicationHandle, ["leaseId"] = lease.LeaseId,
-                ["entityId"] = NendoApplicationService.IdeaEntityId,
+                ["entityId"] = IdeaGarden.IdeaEntityId,
                 ["recordId"] = "record.invalid",
                 ["values"] = new Dictionary<string, object?>(),
                 ["idempotencyKey"] = "unknown-authority-input",
@@ -256,29 +256,29 @@ public sealed class DataMutationProtocolTests
 
         var quoted = await RefusalAsync(client, "nendo.data.set_field", new Dictionary<string, object?>(owned)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId, ["recordId"] = "idea-001",
-            ["fieldId"] = NendoApplicationService.IdeaStatusFieldId, ["expectedRecordVersion"] = 1,
+            ["entityId"] = IdeaGarden.IdeaEntityId, ["recordId"] = "idea-001",
+            ["fieldId"] = IdeaGarden.IdeaStatusFieldId, ["expectedRecordVersion"] = 1,
             ["value"] = "\"Trying\"", ["idempotencyKey"] = "quoted-choice",
         });
         StringAssert.Contains(quoted, "NENDO_INVALID_REQUEST");
-        StringAssert.Contains(quoted, NendoApplicationService.IdeaStatusFieldId);
+        StringAssert.Contains(quoted, IdeaGarden.IdeaStatusFieldId);
         StringAssert.Contains(quoted, "Idea, Exploring, Trying");
         StringAssert.Contains(quoted, "received \"\\\"Trying\\\"\"");
 
         var missing = await RefusalAsync(client, "nendo.data.create_record", new Dictionary<string, object?>(owned)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId, ["recordId"] = "idea-untitled",
-            ["values"] = new Dictionary<string, object?> { [NendoApplicationService.IdeaStatusFieldId] = "Idea" },
+            ["entityId"] = IdeaGarden.IdeaEntityId, ["recordId"] = "idea-untitled",
+            ["values"] = new Dictionary<string, object?> { [IdeaGarden.IdeaStatusFieldId] = "Idea" },
             ["idempotencyKey"] = "missing-title",
         });
         StringAssert.Contains(missing, "Required field");
-        StringAssert.Contains(missing, NendoApplicationService.IdeaTitleFieldId);
+        StringAssert.Contains(missing, IdeaGarden.IdeaTitleFieldId);
 
         // The same field, the value itself: the ordinary edit the review believed impossible.
         var edited = Result<NendoDataApplyResult>(await client.CallToolAsync("nendo.data.set_field", new Dictionary<string, object?>(owned)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId, ["recordId"] = "idea-001",
-            ["fieldId"] = NendoApplicationService.IdeaStatusFieldId, ["expectedRecordVersion"] = 1,
+            ["entityId"] = IdeaGarden.IdeaEntityId, ["recordId"] = "idea-001",
+            ["fieldId"] = IdeaGarden.IdeaStatusFieldId, ["expectedRecordVersion"] = 1,
             ["value"] = "Trying", ["idempotencyKey"] = "plain-choice",
         }));
         Assert.AreEqual(2L, edited.RecordVersion);
@@ -336,18 +336,18 @@ public sealed class DataMutationProtocolTests
 
         await workspace.CreateIdeaGardenAsync(recordCount: 0);
         return new MutationFixture(
-            NendoApplicationService.IdeaEntityId,
+            IdeaGarden.IdeaEntityId,
             "idea-agent-created",
             new Dictionary<string, object?>
             {
-                [NendoApplicationService.IdeaTitleFieldId] = "Agent-created idea",
-                [NendoApplicationService.IdeaNotesFieldId] = "Created through generic data tools",
-                [NendoApplicationService.IdeaStatusFieldId] = "Idea",
-                [NendoApplicationService.IdeaEnergyFieldId] = "Medium",
-                [NendoApplicationService.IdeaCreatedDateFieldId] = "2026-09-03",
-                [NendoApplicationService.IdeaNextActionFieldId] = "Verify the result",
+                [IdeaGarden.IdeaTitleFieldId] = "Agent-created idea",
+                [IdeaGarden.IdeaNotesFieldId] = "Created through generic data tools",
+                [IdeaGarden.IdeaStatusFieldId] = "Idea",
+                [IdeaGarden.IdeaEnergyFieldId] = "Medium",
+                [IdeaGarden.IdeaCreatedDateFieldId] = "2026-09-03",
+                [IdeaGarden.IdeaNextActionFieldId] = "Verify the result",
             },
-            NendoApplicationService.IdeaTitleFieldId,
+            IdeaGarden.IdeaTitleFieldId,
             "Agent-edited idea",
             "command.idea.moveToTrying");
     }

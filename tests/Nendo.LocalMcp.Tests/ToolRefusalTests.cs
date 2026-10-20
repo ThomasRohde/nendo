@@ -29,7 +29,7 @@ public sealed class ToolRefusalTests
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
         var grant = (await client.CallToolAsync("nendo.lease.acquire")).StructuredContent!.Value
             .Deserialize<NendoLeaseGrant>(NendoMcpJson.Options)!;
-        var entity = NendoApplicationService.IdeaEntityId;
+        var entity = IdeaGarden.IdeaEntityId;
         Dictionary<string, object?> Owned(params (string Key, object? Value)[] values)
         {
             var arguments = new Dictionary<string, object?>

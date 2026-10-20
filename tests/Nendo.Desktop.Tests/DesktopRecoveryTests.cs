@@ -60,7 +60,7 @@ public sealed class DesktopRecoveryTests
         Assert.AreNotEqual(created.FileSessionId, inspected.FileSessionId);
         Assert.AreEqual("readOnly", inspected.Health);
         Assert.IsTrue(inspected.Capabilities.ReadData);
-        Assert.AreEqual("Outside", inspected.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Outside", inspected.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.AreEqual("readOnly", (await session.GetAgentStatusAsync()).State);
     }
 }

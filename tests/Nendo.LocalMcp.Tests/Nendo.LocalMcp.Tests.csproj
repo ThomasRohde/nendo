@@ -18,6 +18,8 @@
   <!-- Shared with the Engine tests rather than copied: one file, linked. -->
   <ItemGroup>
     <Compile Include="..\Nendo.Engine.Tests\TestRepository.cs" Link="TestRepository.cs" />
+    <Compile Include="..\Nendo.Engine.Tests\IdeaGarden.cs" Link="IdeaGarden.cs" />
+    <Compile Include="..\Nendo.Engine.Tests\IdeaGardenDefinition.cs" Link="IdeaGardenDefinition.cs" />
   </ItemGroup>
 
   <ItemGroup>

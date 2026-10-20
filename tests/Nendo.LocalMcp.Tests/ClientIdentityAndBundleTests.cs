@@ -55,13 +55,13 @@ public sealed class ClientIdentityAndBundleTests
         Assert.IsNotNull(whole.Surfaces);
         Assert.IsNotNull(whole.Entities);
 
-        var bundleText = await ProtocolResourceTests.ReadTextAsync(client, $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}");
+        var bundleText = await ProtocolResourceTests.ReadTextAsync(client, $"nendo://application/entity/{IdeaGarden.IdeaEntityId}");
         var bundle = ProtocolResourceTests.Deserialize<NendoMcpEntityBundle>(bundleText);
-        Assert.AreEqual(NendoApplicationService.IdeaEntityId, bundle.Schema.EntityId);
+        Assert.AreEqual(IdeaGarden.IdeaEntityId, bundle.Schema.EntityId);
         Assert.AreEqual(3, bundle.Schema.RecordCount);
-        Assert.IsTrue(bundle.Schema.Fields.Any(field => field.FieldId == NendoApplicationService.IdeaTitleFieldId));
+        Assert.IsTrue(bundle.Schema.Fields.Any(field => field.FieldId == IdeaGarden.IdeaTitleFieldId));
         Assert.IsNotEmpty(bundle.Surfaces, "The type's compiled screens belong in its bundle.");
-        Assert.IsTrue(bundle.Surfaces.All(surface => surface.EntityId is null || surface.EntityId == NendoApplicationService.IdeaEntityId));
+        Assert.IsTrue(bundle.Surfaces.All(surface => surface.EntityId is null || surface.EntityId == IdeaGarden.IdeaEntityId));
         Assert.IsTrue(bundle.SurfacesValid);
         Assert.IsLessThan(wholeText.Length / 2, bundleText.Length, $"The bundle is {bundleText.Length} characters against describe's {wholeText.Length}.");
 

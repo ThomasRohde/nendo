@@ -8,8 +8,6 @@ $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sourceRoot = Join-Path $repoRoot 'src'
 $allowed = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 @(
-    'src/Nendo.Engine/IdeaGardenCompatibility.cs',
-    'src/Nendo.Engine/IdeaGardenDefinition.cs',
     'src/Nendo.Workbench/src/application-recipes.ts',
     'src/Nendo.Workbench/src/idea-garden-recipe.ts',
     'src/Nendo.Workbench/src/preview-fixtures.ts'

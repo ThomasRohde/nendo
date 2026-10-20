@@ -142,7 +142,7 @@ public sealed class DesktopLocationTests
         using (session.BindFileRequest(view.FileSessionId!)) await session.AcknowledgeDestinationLocationAsync(destination);
         var handler = new WorkbenchProtocolHandler(session, _ => { }, async _ =>
         {
-            await session.PrepareRecoveryExportAsync(NendoApplicationService.IdeaEntityId, destination, "export");
+            await session.PrepareRecoveryExportAsync(IdeaGarden.IdeaEntityId, destination, "export");
             return new(await session.GetViewAsync(), null);
         });
         var response = await handler.HandleAsync(JsonSerializer.Serialize(new { protocolVersion = DesktopShellContract.BridgeProtocolVersion, requestId = "export", method = "file.export", fileSessionId = view.FileSessionId,

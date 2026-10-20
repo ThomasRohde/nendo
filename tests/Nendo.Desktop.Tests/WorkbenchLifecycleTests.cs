@@ -16,8 +16,8 @@ public sealed class WorkbenchLifecycleTests
         await session.CreateIdeaSchemaAsync("schema");
         await session.CreateIdeaRecordAsync("record", "Original", "record");
         var handler = Handler(session);
-        var payload = new { entityId = NendoApplicationService.IdeaEntityId, recordId = "record",
-            fieldId = NendoApplicationService.IdeaTitleFieldId, expectedRecordVersion = 1, value = "Changed", idempotencyKey = "edit" };
+        var payload = new { entityId = IdeaGarden.IdeaEntityId, recordId = "record",
+            fieldId = IdeaGarden.IdeaTitleFieldId, expectedRecordVersion = 1, value = "Changed", idempotencyKey = "edit" };
         var missing = await handler.HandleAsync(Request(WorkbenchMethods.DataSetField, null, payload));
         Assert.AreEqual("validation", missing.Error!.Code);
         var edited = await handler.HandleAsync(Request(WorkbenchMethods.DataSetField, original.FileSessionId, payload));

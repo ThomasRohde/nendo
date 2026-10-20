@@ -78,7 +78,8 @@ Public distribution, signing, ARM64, cloud sync and cross-platform support are
 ## Build
 
 Windows x64 only. `Nendo.Engine` is `net10.0` and builds anywhere, but the Desktop
-host is WinUI 3 with WebView2.
+host is WinUI 3 with WebView2. The Engine is Nendo's own core, not a supported .NET
+library: its public types change with the app.
 
 ### Prerequisites
 

@@ -23,13 +23,13 @@ public sealed class ToolOnlyClientTests
             workspace.Service, AgentAccessMode.ReadOnly, new NendoLocalMcpHostOptions(workspace.DiscoveryRoot));
         await using var client = await ProtocolResourceTests.ConnectAsync(host);
 
-        var records = $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}/records";
+        var records = $"nendo://application/entity/{IdeaGarden.IdeaEntityId}/records";
         foreach (var uri in new[]
                  {
                      "nendo://application/manifest",
                      "nendo://application/describe",
                      "nendo://application/vocabulary",
-                     $"nendo://application/entity/{NendoApplicationService.IdeaEntityId}",
+                     $"nendo://application/entity/{IdeaGarden.IdeaEntityId}",
                      records + "?limit=2",
                      "nendo://application/history?newestFirst=true&limit=3",
                      "skill://nendo-authoring/SKILL.md",
@@ -44,7 +44,7 @@ public sealed class ToolOnlyClientTests
         }
 
         // A query in another order is the same read, as it is for resources/read.
-        var fields = $"fields={NendoApplicationService.IdeaTitleFieldId}";
+        var fields = $"fields={IdeaGarden.IdeaTitleFieldId}";
         Assert.AreEqual(
             await ProtocolResourceTests.ReadTextAsync(client, $"{records}?limit=2&{fields}"),
             Text(await ReadAsync(client, $"{records}?{fields}&limit=2")));

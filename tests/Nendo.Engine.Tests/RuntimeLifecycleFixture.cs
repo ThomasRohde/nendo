@@ -16,17 +16,17 @@ public static class RuntimeLifecycleFixture
             var proposal = await service.PrepareIdeaGardenProposalAsync();
             if (!(await service.PromoteProposalAsync(proposal.ProposalId)).Applied)
                 throw new InvalidOperationException("Fixture promotion failed.");
-            await service.CreateRecordAsync(new(NendoApplicationService.IdeaEntityId, "idea-1",
+            await service.CreateRecordAsync(new(IdeaGarden.IdeaEntityId, "idea-1",
                 new Dictionary<string, object?>
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = "A garden worth keeping",
-                    [NendoApplicationService.IdeaStatusFieldId] = "Idea",
+                    [IdeaGarden.IdeaTitleFieldId] = "A garden worth keeping",
+                    [IdeaGarden.IdeaStatusFieldId] = "Idea",
                 }, new("owned-runtime", "create-first", "test")));
-            await service.CreateRecordAsync(new(NendoApplicationService.IdeaEntityId, "idea-2",
+            await service.CreateRecordAsync(new(IdeaGarden.IdeaEntityId, "idea-2",
                 new Dictionary<string, object?>
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = "Another durable idea",
-                    [NendoApplicationService.IdeaStatusFieldId] = "Idea",
+                    [IdeaGarden.IdeaTitleFieldId] = "Another durable idea",
+                    [IdeaGarden.IdeaStatusFieldId] = "Idea",
                 }, new("owned-runtime", "create-second", "test")));
             await service.SetIdeaTitleAsync("idea-2", 1, "An edited durable idea", "edit-second");
         }

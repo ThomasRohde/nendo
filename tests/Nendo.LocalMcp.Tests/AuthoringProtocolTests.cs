@@ -269,20 +269,20 @@ public sealed class AuthoringProtocolTests
             "data.createRecord",
             JsonSerializer.SerializeToElement(new
             {
-                entityId = NendoApplicationService.IdeaEntityId,
+                entityId = IdeaGarden.IdeaEntityId,
                 recordId,
                 values = new Dictionary<string, object?>
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = "Initial title",
+                    [IdeaGarden.IdeaTitleFieldId] = "Initial title",
                 },
             }));
         var edit = new NendoAgentOperationInput(
             "data.setField",
             JsonSerializer.SerializeToElement(new
             {
-                entityId = NendoApplicationService.IdeaEntityId,
+                entityId = IdeaGarden.IdeaEntityId,
                 recordId,
-                fieldId = NendoApplicationService.IdeaTitleFieldId,
+                fieldId = IdeaGarden.IdeaTitleFieldId,
                 expectedRecordVersion = 1,
                 value = "Edited title",
             }));
@@ -316,7 +316,7 @@ public sealed class AuthoringProtocolTests
         Assert.IsTrue((await proposals.PromoteAsync(workspace.Service, preview.ProposalId)).Applied);
         var created = (await workspace.Service.GetSnapshotAsync()).Records.Single(record => record.RecordId == recordId);
         Assert.AreEqual(2, created.RecordVersion);
-        Assert.AreEqual("Edited title", created.Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Edited title", created.Values[IdeaGarden.IdeaTitleFieldId].GetString());
     }
 
     [TestMethod]

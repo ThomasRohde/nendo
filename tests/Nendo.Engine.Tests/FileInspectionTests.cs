@@ -53,10 +53,10 @@ public sealed class FileInspectionTests
             Assert.AreEqual(snapshot.Manifest, (await read.GetSnapshotAsync()).Manifest);
             Assert.AreEqual(JsonSerializer.Serialize(history), JsonSerializer.Serialize(await read.GetHistoryAsync()));
             Assert.AreEqual(plan.Digest, (await read.CompileSemanticUiAsync()).App().Digest);
-            Assert.AreEqual("Keep this record", (await read.GetSnapshotAsync()).Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+            Assert.AreEqual("Keep this record", (await read.GetSnapshotAsync()).Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.CreateIdeaRecordAsync("idea-2", "Denied", "denied-create"));
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.SetFieldAsync(new(
-                NendoApplicationService.IdeaEntityId, "idea-1", NendoApplicationService.IdeaTitleFieldId, 1, "Denied", new("test", "denied-edit", "test"))));
+                IdeaGarden.IdeaEntityId, "idea-1", IdeaGarden.IdeaTitleFieldId, 1, "Denied", new("test", "denied-edit", "test"))));
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.ExecuteCommandAsync(new(
                 plan.Surfaces.Single(node => node.Kind == "recordCommand").SemanticId, "idea-1", 1, new("test", "denied-command", "test"))));
             await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => read.PrepareBoardTitleProposalAsync("Denied"));
@@ -123,7 +123,7 @@ public sealed class FileInspectionTests
         Assert.IsFalse(reader.Capabilities.CustomSurfaces);
         Assert.IsFalse(reader.Capabilities.AgentAccess);
         Assert.IsFalse((await new NendoApplicationService(reader).CompileSemanticUiAsync()).IsValid);
-        Assert.AreEqual("Data survives a broken view", (await reader.GetSnapshotAsync()).Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Data survives a broken view", (await reader.GetSnapshotAsync()).Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         await Assert.ThrowsExactlyAsync<NendoFileOpenException>(() => workspace.OpenAsync());
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
     }
@@ -150,7 +150,7 @@ public sealed class FileInspectionTests
         var snapshot = await reader.GetSnapshotAsync();
         Assert.AreEqual(NendoStorageKind.Unsupported, snapshot.Entities.Single().Fields.Single().StorageKind);
         Assert.AreEqual(kindName, snapshot.Entities.Single().Fields.Single().UnsupportedStorageKind);
-        Assert.AreEqual("Unknown but readable", snapshot.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Unknown but readable", snapshot.Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
         Assert.ThrowsExactly<ArgumentException>(() => new AddFieldOperation("op", "entity", "field", "Field", "field", NendoStorageKind.Unsupported, false));
     }
@@ -276,7 +276,7 @@ public sealed class FileInspectionTests
         Assert.IsTrue(reader.Inspection.Findings.Any(finding => finding.Code == code));
         Assert.IsFalse(reader.Capabilities.Mutate);
         Assert.IsFalse(reader.Capabilities.Backup);
-        Assert.AreEqual("Preserved", (await reader.GetSnapshotAsync()).Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Preserved", (await reader.GetSnapshotAsync()).Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         await Assert.ThrowsExactlyAsync<NendoFileOpenException>(() => workspace.OpenAsync());
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
     }
@@ -361,9 +361,9 @@ public sealed class FileInspectionTests
         await service.CreateIdeaRecordAsync("idea-1", "Observed", "record");
         await using var reader = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
         await service.SetIdeaTitleAsync("idea-1", 1, "Later", "edit");
-        Assert.AreEqual("Observed", (await reader.GetSnapshotAsync()).Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Observed", (await reader.GetSnapshotAsync()).Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         await using var refreshed = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
-        Assert.AreEqual("Later", (await refreshed.GetSnapshotAsync()).Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
+        Assert.AreEqual("Later", (await refreshed.GetSnapshotAsync()).Records.Single().Values[IdeaGarden.IdeaTitleFieldId].GetString());
         Assert.IsFalse(refreshed.Capabilities.Mutate);
     }
 
@@ -418,10 +418,10 @@ public sealed class FileInspectionTests
         var proposalId = "proposal-" + Guid.NewGuid().ToString("N");
         await reopened.BeginProposalAsync(proposalId, "Written over the ceiling", "test", new([
             new NendoMutation("test", "proposal-over", "test", "Written over the ceiling", [
-                new CreateRecordOperation("over-record", NendoApplicationService.IdeaEntityId, "idea-3",
+                new CreateRecordOperation("over-record", IdeaGarden.IdeaEntityId, "idea-3",
                     new Dictionary<string, object?>(StringComparer.Ordinal)
                     {
-                        [NendoApplicationService.IdeaTitleFieldId] = "Written over the ceiling",
+                        [IdeaGarden.IdeaTitleFieldId] = "Written over the ceiling",
                     }),
             ]),
         ]));
@@ -461,10 +461,10 @@ public sealed class FileInspectionTests
         var text = new string('x', 1_306);
         var operations = Enumerable.Range(0, 128)
             .Select(index => (NendoOperation)new CreateRecordOperation(
-                $"bulk-{index}", NendoApplicationService.IdeaEntityId, $"bulk-idea-{index}",
+                $"bulk-{index}", IdeaGarden.IdeaEntityId, $"bulk-idea-{index}",
                 new Dictionary<string, object?>(StringComparer.Ordinal)
                 {
-                    [NendoApplicationService.IdeaTitleFieldId] = text,
+                    [IdeaGarden.IdeaTitleFieldId] = text,
                 }))
             .ToArray();
 

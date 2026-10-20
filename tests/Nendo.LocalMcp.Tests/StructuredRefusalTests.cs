@@ -28,9 +28,9 @@ public sealed class StructuredRefusalTests
         // A precondition the Engine refuses.
         var stale = await client.CallToolAsync("nendo.data.set_field", new Dictionary<string, object?>(session)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId,
+            ["entityId"] = IdeaGarden.IdeaEntityId,
             ["recordId"] = "idea-001",
-            ["fieldId"] = NendoApplicationService.IdeaTitleFieldId,
+            ["fieldId"] = IdeaGarden.IdeaTitleFieldId,
             ["expectedRecordVersion"] = 9L,
             ["value"] = JsonSerializer.SerializeToElement("Later"),
             ["idempotencyKey"] = "stale-write",

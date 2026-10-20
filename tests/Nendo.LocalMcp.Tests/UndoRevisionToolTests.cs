@@ -30,8 +30,8 @@ public sealed class UndoRevisionToolTests
 
         var written = await CallAsync<NendoDataApplyResult>(client, "nendo.data.set_field", new(session)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId, ["recordId"] = "idea-001",
-            ["fieldId"] = NendoApplicationService.IdeaTitleFieldId, ["expectedRecordVersion"] = 1L,
+            ["entityId"] = IdeaGarden.IdeaEntityId, ["recordId"] = "idea-001",
+            ["fieldId"] = IdeaGarden.IdeaTitleFieldId, ["expectedRecordVersion"] = 1L,
             ["value"] = JsonSerializer.SerializeToElement("Changed"), ["idempotencyKey"] = "own-write",
         });
         var before = (await workspace.Service.GetHistoryAsync()).Count;
@@ -40,8 +40,8 @@ public sealed class UndoRevisionToolTests
             ["revisionId"] = written.RevisionId, ["idempotencyKey"] = "undo-own-write", ["label"] = "Take it back",
         });
         Assert.AreEqual(("entity.idea", "idea-001", (long?)3), (undone.Records.Single().EntityId, undone.Records.Single().RecordId, undone.Records.Single().RecordVersion));
-        var record = (await workspace.Service.QueryRecordsAsync(new(NendoApplicationService.IdeaEntityId, 1) { RecordId = "idea-001" })).Items.Single();
-        Assert.AreEqual("Idea 01", record.Values[NendoApplicationService.IdeaTitleFieldId].GetString(), "The undo did not put the value back.");
+        var record = (await workspace.Service.QueryRecordsAsync(new(IdeaGarden.IdeaEntityId, 1) { RecordId = "idea-001" })).Items.Single();
+        Assert.AreEqual("Idea 01", record.Values[IdeaGarden.IdeaTitleFieldId].GetString(), "The undo did not put the value back.");
         Assert.AreEqual(3L, record.RecordVersion);
         var history = await workspace.Service.GetHistoryAsync();
         Assert.HasCount(before + 1, history, "An undo is one linked revision, and the write it reverses stays.");
@@ -67,7 +67,7 @@ public sealed class UndoRevisionToolTests
 
         // The person's own write is not the agent's to undo.
         var theirs = await workspace.Service.SetFieldAsync(new NendoSetFieldRequest(
-            NendoApplicationService.IdeaEntityId, "idea-002", NendoApplicationService.IdeaTitleFieldId, 1, "Theirs", new("workbench", "their-write", "workbench")));
+            IdeaGarden.IdeaEntityId, "idea-002", IdeaGarden.IdeaTitleFieldId, 1, "Theirs", new("workbench", "their-write", "workbench")));
         var foreign = await client.CallToolAsync("nendo.data.undo_revision", new Dictionary<string, object?>(session)
         {
             ["revisionId"] = theirs.RevisionId, ["idempotencyKey"] = "undo-theirs",
@@ -95,19 +95,19 @@ public sealed class UndoRevisionToolTests
         // The undo of a create deletes the record it made, and that undo can be undone (redo).
         var created = await CallAsync<NendoDataApplyResult>(client, "nendo.data.create_record", new(session)
         {
-            ["entityId"] = NendoApplicationService.IdeaEntityId, ["recordId"] = "idea-new",
+            ["entityId"] = IdeaGarden.IdeaEntityId, ["recordId"] = "idea-new",
             ["values"] = JsonSerializer.SerializeToElement(new Dictionary<string, object?>
             {
-                [NendoApplicationService.IdeaTitleFieldId] = "New", [NendoApplicationService.IdeaStatusFieldId] = "Idea", [NendoApplicationService.IdeaEnergyFieldId] = "Low",
+                [IdeaGarden.IdeaTitleFieldId] = "New", [IdeaGarden.IdeaStatusFieldId] = "Idea", [IdeaGarden.IdeaEnergyFieldId] = "Low",
             }),
             ["idempotencyKey"] = "create-new",
         });
         var removed = await CallAsync<NendoDataWritesResult>(client, "nendo.data.undo_revision", new(session) { ["revisionId"] = created.RevisionId, ["idempotencyKey"] = "undo-create" });
         Assert.IsNull(removed.Records.Single().RecordVersion, "A deleted record has no version.");
-        Assert.IsEmpty((await workspace.Service.QueryRecordsAsync(new(NendoApplicationService.IdeaEntityId, 1) { RecordId = "idea-new" })).Items);
+        Assert.IsEmpty((await workspace.Service.QueryRecordsAsync(new(IdeaGarden.IdeaEntityId, 1) { RecordId = "idea-new" })).Items);
         var redone = await CallAsync<NendoDataWritesResult>(client, "nendo.data.undo_revision", new(session) { ["revisionId"] = removed.RevisionId, ["idempotencyKey"] = "redo-create" });
         Assert.IsNotNull(redone.Records.Single().RecordVersion);
-        Assert.HasCount(1, (await workspace.Service.QueryRecordsAsync(new(NendoApplicationService.IdeaEntityId, 1) { RecordId = "idea-new" })).Items);
+        Assert.HasCount(1, (await workspace.Service.QueryRecordsAsync(new(IdeaGarden.IdeaEntityId, 1) { RecordId = "idea-new" })).Items);
     }
 
     /// <summary>

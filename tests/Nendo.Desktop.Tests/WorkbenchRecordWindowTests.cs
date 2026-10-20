@@ -16,7 +16,7 @@ public sealed class WorkbenchRecordWindowTests
         await session.CreateIdeaSchemaAsync("schema");
         for (var i = 0; i < 4; i++) await session.CreateIdeaRecordAsync($"r-{i}", $"Title {i}", $"seed-{i}");
         var handler = new WorkbenchProtocolHandler(session, _ => { });
-        var query = new NendoRecordQuery(NendoApplicationService.IdeaEntityId) { SortFieldId = NendoApplicationService.IdeaTitleFieldId, Descending = true };
+        var query = new NendoRecordQuery(IdeaGarden.IdeaEntityId) { SortFieldId = IdeaGarden.IdeaTitleFieldId, Descending = true };
         var response = await handler.HandleAsync(Request(new(query, 2, 2)));
         Assert.IsTrue(response.Ok, response.Error?.Message);
         var block = (NendoRecordWindow)response.Result!;
