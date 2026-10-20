@@ -7,7 +7,7 @@
     <!-- One product version for the whole tree. Every assembly carries it, and
          NendoProduct reads it back at runtime so the status bar, the MCP server
          handshake and the installer registration cannot drift from each other. -->
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
   </PropertyGroup>
 </Project>
