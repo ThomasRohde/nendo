@@ -152,19 +152,6 @@ internal sealed partial class DesktopSessionController
         finally { _gate.Release(); }
     }
 
-    internal async Task<DesktopSessionView> OpenRecentAsync(string recentId, bool readOnly = false, CancellationToken cancellationToken = default)
-    {
-        await EnterRequestGateAsync(cancellationToken);
-        try
-        {
-            EnsureAvailableForOpen();
-            var resolved = await _fileHistory.ResolveAsync(recentId, cancellationToken, InterruptedWriteFor);
-            var candidate = await PrepareOpenCoreAsync(resolved.Path, cancellationToken, resolved.Observation);
-            return await OpenCandidateCoreAsync(candidate, readOnly, cancellationToken);
-        }
-        finally { _gate.Release(); }
-    }
-
     /// <summary>
     /// Where a recent file is, without opening it: asked first, so a file another window has
     /// open can be handed to that window. Null for an entry that no longer resolves, which the

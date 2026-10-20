@@ -129,7 +129,11 @@ public sealed class FileInspectionTests
     }
 
     [TestMethod]
-    public async Task UnknownScalarKindRetainsItsNameAndValuesInRestrictedInspection()
+    [DataRow("FutureScalar")]
+    [DataRow("text")]
+    [DataRow("0")]
+    [DataRow("Unsupported")]
+    public async Task UnknownScalarKindRetainsItsNameAndValuesInRestrictedInspection(string kindName)
     {
         await using var workspace = new EngineTestWorkspace();
         var original = await workspace.CreateAsync();
@@ -137,7 +141,7 @@ public sealed class FileInspectionTests
         await service.CreateIdeaSchemaAsync("schema");
         await service.CreateIdeaRecordAsync("idea-1", "Unknown but readable", "record");
         await CloseAsync(workspace, original);
-        await ChangeFixtureAsync(workspace.FilePath, "UPDATE __nendo_field SET storage_kind = 'FutureScalar';");
+        await ChangeFixtureAsync(workspace.FilePath, "UPDATE __nendo_field SET storage_kind = @value;", kindName);
         var before = await File.ReadAllBytesAsync(workspace.FilePath);
 
         await using var reader = await NendoWriteCoordinator.OpenReadOnlyAsync(workspace.FilePath);
@@ -145,7 +149,7 @@ public sealed class FileInspectionTests
         Assert.IsTrue(reader.Inspection.Findings.Any(finding => finding.Code == "unsupported-field-semantics"));
         var snapshot = await reader.GetSnapshotAsync();
         Assert.AreEqual(NendoStorageKind.Unsupported, snapshot.Entities.Single().Fields.Single().StorageKind);
-        Assert.AreEqual("FutureScalar", snapshot.Entities.Single().Fields.Single().UnsupportedStorageKind);
+        Assert.AreEqual(kindName, snapshot.Entities.Single().Fields.Single().UnsupportedStorageKind);
         Assert.AreEqual("Unknown but readable", snapshot.Records.Single().Values[NendoApplicationService.IdeaTitleFieldId].GetString());
         CollectionAssert.AreEqual(before, await File.ReadAllBytesAsync(workspace.FilePath));
         Assert.ThrowsExactly<ArgumentException>(() => new AddFieldOperation("op", "entity", "field", "Field", "field", NendoStorageKind.Unsupported, false));

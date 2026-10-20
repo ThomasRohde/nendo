@@ -346,11 +346,6 @@ export function wireOpenInNewTab(rail: HTMLElement): void {
   });
 }
 
-/** How many tabs the window holds. */
-export function tabCount(): number {
-  return set.tabs.length;
-}
-
 /**
  * Whether a tab can move to a window of its own: in the Desktop host, with a file open,
  * the tabs on screen and more than one of them. A window keeps its last tab.

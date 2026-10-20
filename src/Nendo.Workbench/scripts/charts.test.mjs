@@ -11,6 +11,21 @@ const stage={semanticId:'stage',displayName:'Stage',storageKind:'text',presentat
 const flag={semanticId:'flag',displayName:'Flag',storageKind:3,presentation:null,options:[],choices:[]};
 const fieldName=(id)=>({stage:'Stage',flag:'Flag',amount:'Amount'})[id]??id;
 
+test('Boolean chart labels and drill filters accept both wire kinds without coercing text fields',()=>{
+ const grouped=node('flags','breakdownChart',{groupByFieldId:'flag'});
+ for (const storageKind of [3,'boolean','Boolean']) {
+  const field={...flag,storageKind};
+  assert.equal(groupLabel(field,'true'),'Yes');
+  assert.equal(groupLabel(field,'false'),'No');
+  for (const key of ['false','true'])
+   assert.deepEqual(drillFilter(grouped,field,key),{fieldId:'flag',operator:'eq',value:key==='true'});
+ }
+ for (const field of [{...flag,storageKind:0},{...flag,storageKind:'text'},{...flag,storageKind:undefined},undefined]) {
+  assert.equal(groupLabel(field,'false'),'false');
+  assert.deepEqual(drillFilter(grouped,field,'false'),{fieldId:'flag',operator:'eq',value:'false'});
+ }
+});
+
 const chart=node('chart','breakdownChart',{groupByFieldId:'stage',aggregate:'sum',fieldId:'amount'},[clause('chart-open','flag','eq',true)]);
 const ringNode=node('ring','progressTile',{title:'Done'},[clause('ring-done','stage','eq','done')]);
 const list=node('list','recordList',{title:'Items'},[clause('list-recent','amount','gt',0),chart,ringNode]);

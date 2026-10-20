@@ -1,4 +1,5 @@
 import type { ApplicationPlan, FieldPlan, SurfaceNodePlan } from './host';
+import { isBooleanField } from './host-types';
 
 // Pure plan-shape resolution shared by the Use renderer. Surfaces are an ordered
 // node tree; there are no fixed slots to read instead.
@@ -271,20 +272,12 @@ function axisOptions(fields: readonly FieldPlan[], fieldId: string): readonly st
   const field = fields.find((candidate) => candidate.semanticId === fieldId);
   if (field === undefined) return [];
   const options = field.options ?? [];
-  return options.length > 0 ? options : isBooleanFieldPlan(field) ? ['false', 'true'] : [];
-}
-
-function isBooleanFieldPlan(field: FieldPlan): boolean {
-  return field.storageKind === 3 || String(field.storageKind).toLowerCase() === 'boolean';
+  return options.length > 0 ? options : isBooleanField(field) ? ['false', 'true'] : [];
 }
 
 /** The first board of the plan, for callers that have no selection of their own. */
 export function boardView(plan: ApplicationPlan): BoardView | null {
   return boardViewOf(surfaceRoot(plan, 'boardSurface'), plan.entity.fields);
-}
-
-export function hasListSurface(plan: ApplicationPlan): boolean {
-  return surfaceRoot(plan, 'recordList') !== null;
 }
 
 /**
@@ -369,15 +362,6 @@ export function kindLabel(kind: string): string {
     case 'recordCommand': return 'Action';
     default: return kind;
   }
-}
-
-/** The title of the first titled root, used to name the Use view. */
-export function surfaceTitle(plan: ApplicationPlan): string | null {
-  for (const node of plan.surfaces) {
-    const title = node.properties.title ?? node.properties.label;
-    if (typeof title === 'string' && title.length > 0) return title;
-  }
-  return null;
 }
 
 // The record page is a detail surface when the application declares one, and the

@@ -33,6 +33,10 @@ A formula is not a scalar: no formula DTO crosses this boundary.
   validation. Plain exact JSON numbers are also accepted. Arrays and arbitrary
   objects are invalid scalar values. Malformed envelopes, overflow and rounding are
   rejected.
+- Both adapters compile the same transport decoder from
+  `src/Shared/NumericEnvelopeJson.cs`. Desktop retains its outgoing encoding;
+  MCP translates malformed envelopes to its validation error. The Engine does
+  not reference transport envelopes.
 - **Decimal storage** uses a textual `nendo.decimal:` prefix inside the ordinary
   relational NUMERIC column, so SQLite affinity cannot round the coefficient to
   binary floating point. Only the storage adapter encodes and decodes the prefix.

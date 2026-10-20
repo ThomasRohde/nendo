@@ -3,7 +3,7 @@ import test from 'node:test';
 import { build } from 'vite';
 import { readdirSync, readFileSync } from 'node:fs';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/surface-model.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {accumulatesPages,activeTabSection,boardView,boardViewOf,hasListSurface,kindLabel,nodeFieldIds,resolveSurface,surfaceById,surfaceLabel,surfaceRoot,tabSections,treeCommands,useSurfaces} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
+const {accumulatesPages,activeTabSection,boardView,boardViewOf,kindLabel,matrixViewOf,nodeFieldIds,resolveSurface,surfaceById,surfaceLabel,surfaceRoot,tabSections,treeCommands,useSurfaces} = await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const node=(semanticId,kind,properties,children=[])=>({semanticId,automationTarget:semanticId,kind,properties,children});
 const binding=(fieldId)=>node(`bind.${fieldId}`,'fieldBinding',{fieldId});
@@ -32,14 +32,27 @@ test('a board resolves from the surface tree with its ordered columns',()=>{
  assert.deepEqual(board.cardFieldIds,['name','stage']);
  // options is the ordered authority for columns; choices only labels them.
  assert.deepEqual(board.groups,['open','won']);
- assert.equal(hasListSurface(composable),true);
+ assert.equal(surfaceRoot(composable,'recordList').semanticId,'list.deal');
 });
 
 test('an application with no board resolves to none',()=>{
  const formOnly={...composable,surfaces:[node('form.deal','recordForm',{title:'Deal'},[binding('name')])]};
  assert.equal(boardView(formOnly),null);
- assert.equal(hasListSurface(formOnly),false);
+ assert.equal(surfaceRoot(formOnly,'recordList'),null);
  assert.equal(surfaceRoot(formOnly,'recordForm').semanticId,'form.deal');
+});
+
+test('matrix lanes recognise both Boolean wire kinds and keep their clause values',()=>{
+ const matrix=node('matrix','matrixSurface',{rowByFieldId:'flag',columnByFieldId:'stage'},[]);
+ for (const storageKind of [3,'boolean','Boolean']) {
+  const fields=[...entity.fields,{semanticId:'flag',storageKind,options:[]}];
+  assert.deepEqual(matrixViewOf(matrix,fields).rows,['false','true']);
+  const filtered={...matrix,children:[node('only','filterClause',{fieldId:'flag',operator:'eq',value:false})]};
+  assert.deepEqual(matrixViewOf(filtered,fields).rows,['false']);
+ }
+ for (const storageKind of [0,'text',undefined])
+  assert.deepEqual(matrixViewOf(matrix,[{semanticId:'flag',storageKind,options:[]}]).rows,[]);
+ assert.deepEqual(matrixViewOf(matrix,[]).rows,[]);
 });
 
 // A board whose group field is missing cannot be grouped. Rendering it with no

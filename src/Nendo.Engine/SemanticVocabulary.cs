@@ -643,13 +643,6 @@ public static class NendoSemanticVocabulary
             ["avg"] = "The mean of exact decimals is not generally an exact decimal, and this host does not put a rounded number on a record page. Use sum with count.",
         };
 
-    internal static string QueryOperatorFor(string contractOperator) => contractOperator switch
-    {
-        "lte" => "le",
-        "gte" => "ge",
-        _ => contractOperator,
-    };
-
     /// <summary>
     /// How sibling <c>filterClause</c> children combine, published rather than
     /// left to be inferred. An author who declared two clauses intending AND had

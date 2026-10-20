@@ -1,5 +1,5 @@
 import type { FieldPlan, RecordPlan, SurfaceNodePlan } from './host';
-import { nodeText as property } from './host-types';
+import { isBooleanField, nodeText as property } from './host-types';
 import { clauseFilters, type QueryFilter } from './record-window';
 import { declaredScope, tileEntityId, tileFilters, tileKey, tileScopeLabel, type TileScope } from './summary-tiles';
 import { choiceStyle } from './tones';
@@ -392,12 +392,6 @@ export interface GroupedResult {
   groups: Array<{ key: string | null; valueLexeme: string | null; contributingRecords: number; label?: string | null }>;
   unrecognised: number;
   changeSequence: number;
-}
-
-/** Whether a field stores a Boolean; the bridge spells the kind as text or as its enum index. */
-export function isBooleanField(field: FieldPlan | undefined): boolean {
-  if (field === undefined) return false;
-  return field.storageKind === 3 || String(field.storageKind).toLowerCase() === 'boolean';
 }
 
 /** Whether a field stores a reference; the bridge spells the kind as text or as its enum index. */

@@ -21,6 +21,7 @@ custom-view frames (an origin, and a renderer, per package per file)
 | `src/Nendo.Desktop` | Thin WinUI 3 host: file lifecycle, native dialogs, recovery, window and appearance policy, the notification area and Windows notifications, the Workbench bridge, serving custom views from the open file, and the launched agent's ACP client. |
 | `src/Nendo.Workbench` | Local web UI in a WebView2: Studio, custom surfaces, the custom-view frames and their broker, Help (guides, how Nendo works, and an agent reference the production gate ties to the MCP surface). Vite builds it and the view API; the host bundles both. |
 | `src/Nendo.LocalMcp` | MCP adapter over the same application services. Not an authority model. |
+| `src/Shared` | Not a project: source both adapters compile in as linked files, today the numeric-envelope decoder. The Engine never compiles it. |
 
 No UI or MCP adapter receives SQL, a SQLite handle, physical identifiers, the database
 path, arbitrary filesystem/network/process capability, or a generic host invocation.
@@ -29,7 +30,8 @@ table ([ADR-0005](decisions/0005-host-application-services-and-write-coordinator
 [ADR-0017](decisions/0017-production-composition-and-build-layout.md)).
 
 `Test-Production.ps1` fails the build if `Microsoft.Data.Sqlite`, a SQLite connection
-type or `SQLitePCL` appears in Desktop or LocalMcp; if any project under `src/` or
+type or `SQLitePCL` appears in Desktop, LocalMcp or the `src/Shared` source they compile
+in; if the Engine compiles `src/Shared`; if any project under `src/` or
 `tests/` references `prototypes/`; if `src/Nendo.ExtensionHost` exists; if the Desktop
 registers a catch-all `"*"` resource filter; or if a package source under `extensions/`
 names `chrome.webview`.

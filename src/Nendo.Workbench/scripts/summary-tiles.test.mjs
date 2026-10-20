@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/summary-tiles.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {declaredScope,groupScopedTiles,groupTileScope,isSettledSummaryFailure,pageScopedTiles,surfaceScopedTiles,tileEntityId,tileFilters,tileKey,tileRead,tileScopeLabel,tileTitle,tileIsReadable} =
+const {declaredScope,groupScopedTiles,groupTileScope,isSettledSummaryFailure,pageScopedTiles,surfaceScopedTiles,tileEntityId,tileFilters,tileKey,tileRead,tileScopeLabel,tileTitle} =
  await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 const windowBundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/record-window.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
 const {mapBounded} = await import('data:text/javascript;base64,'+Buffer.from(windowBundle.output.find(item=>item.type==='chunk').code).toString('base64'));
@@ -97,7 +97,6 @@ test('a read names the record type, the aggregate and the field, and count reads
  // A relation missing its binding cannot be composed, and is stated rather than skipped.
  const broken={kind:'relation',recordId:'deal-1',relation:node('rel','relatedList',{targetEntityId:'note'})};
  assert.equal(tileRead(tile('t',{aggregate:'count'}),broken,'deal'),null);
- assert.equal(tileIsReadable(tile('t',{aggregate:'count'}),broken,'deal'),false);
 });
 
 test('a tile key separates every scope it can be read under',()=>{

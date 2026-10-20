@@ -935,6 +935,12 @@ export function nodeText(node: SurfaceNodePlan, key: string): string | null {
   return typeof node.properties[key] === 'string' ? (node.properties[key] as string) : null;
 }
 
+/** Whether a field stores a Boolean; the bridge spells the kind as text or as its enum index. */
+export function isBooleanField(field: FieldPlan | undefined): boolean {
+  if (field === undefined) return false;
+  return field.storageKind === 3 || String(field.storageKind).toLowerCase() === 'boolean';
+}
+
 /** The session of a window with no file open. */
 export function emptySession(): DesktopSessionView {
   return {

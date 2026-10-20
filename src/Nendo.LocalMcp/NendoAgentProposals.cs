@@ -291,15 +291,6 @@ public sealed class NendoAgentProposalStore
         }
     }
 
-    internal NendoAgentProposalPreview GetOwned(
-        string changeSetId,
-        string hostRunId,
-        string applicationHandle) =>
-        TryGetOwned(changeSetId, hostRunId, applicationHandle)
-            ?? throw new NendoAgentAuthoringException(
-                "CHANGE_SET_NOT_FOUND",
-                "The change set is not owned by this agent session.");
-
     /// <summary>
     /// The validated proposal a change set became, when this session owns one. A
     /// change set leaves the draft table the moment it validates, so an agent that

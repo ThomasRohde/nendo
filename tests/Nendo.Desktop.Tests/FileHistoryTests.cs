@@ -41,7 +41,8 @@ public sealed class FileHistoryTests
         await session.CloseAsync();
         Assert.AreEqual("normal", (await session.OpenAsync(forkPath)).Health);
         await session.CloseAsync();
-        Assert.AreEqual(readOnly.Manifest, (await session.OpenRecentAsync(conflict.Assessment.KnownOriginalRecentId)).Manifest);
+        var originalAssessment = await session.AssessRecentAsync(conflict.Assessment.KnownOriginalRecentId);
+        Assert.AreEqual(readOnly.Manifest, (await session.OpenAssessedAsync(originalAssessment.AssessmentId, false)).Manifest);
         await session.CloseAsync();
         CollectionAssert.AreEqual(sourceBytes, await File.ReadAllBytesAsync(workspace.FilePath));
         CollectionAssert.AreEqual(sourceBytes, await File.ReadAllBytesAsync(rawPath));
@@ -83,7 +84,7 @@ public sealed class FileHistoryTests
         await using (var replacement = await NendoWriteCoordinator.CreateAsync(workspace.FilePath, "replacement")) { }
         var replacementBytes = await File.ReadAllBytesAsync(workspace.FilePath);
         Assert.AreEqual("changed", (await session.GetRecentFilesAsync()).Files.Single().State);
-        var error = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.OpenRecentAsync(recent.Id));
+        var error = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.AssessRecentAsync(recent.Id));
         Assert.AreEqual("recent-file-changed", error.Code);
         Assert.IsFalse(session.HasFile);
         Assert.IsFalse(File.Exists(workspace.FilePath + ".write-owner"));

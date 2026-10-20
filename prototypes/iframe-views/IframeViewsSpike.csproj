@@ -18,8 +18,8 @@
     <DefineConstants>$(DefineConstants);PROBE_NESTED_FRAMECREATED</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The version Nendo.Desktop resolves transitively from Microsoft.WindowsAppSDK 1.8,
-         not the central 1.0.3719.77 that Nendo.ExtensionHost uses. -->
+    <!-- The version Nendo.Desktop resolves transitively from Microsoft.WindowsAppSDK 1.8.
+         There is no central version to inherit, so the spike names its own. -->
     <PackageReference Include="Microsoft.Web.WebView2" VersionOverride="$(SpikeWebView2Version)" />
   </ItemGroup>
   <ItemGroup>

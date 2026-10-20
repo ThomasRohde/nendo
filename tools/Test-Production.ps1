@@ -166,8 +166,9 @@ try {
     }
     Write-Host 'OK       the Debug Desktop output carries the Workbench this gate built'
 
+    # src\Shared is source both adapters compile in, so it is adapter code for this check.
     $adapterFiles = @(
-        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.LocalMcp')) {
+        foreach ($adapterRoot in @('src\Nendo.Desktop', 'src\Nendo.LocalMcp', 'src\Shared')) {
             Get-ChildItem -LiteralPath (Join-Path $repoRoot $adapterRoot) -Recurse -File |
                 Where-Object {
                     $_.Extension -in @('.cs', '.csproj', '.xaml') -and
@@ -183,6 +184,12 @@ try {
         }
     }
     Write-Host "OK       Desktop and local MCP storage boundary ($($adapterFiles.Count) source files)"
+    # The transport envelopes in src\Shared stay out of the Engine (docs/contracts/scalars.md).
+    $engineProject = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\Nendo.Engine\Nendo.Engine.csproj'))
+    if ($engineProject -match '(?i)\.\.[\\/]Shared[\\/]') {
+        throw 'src/Nendo.Engine/Nendo.Engine.csproj compiles adapter source from src/Shared; transport envelopes stay in the adapters.'
+    }
+    Write-Host 'OK       the Engine compiles no shared adapter source'
 
     # ADR-0013. Custom views run as frames of the Workbench's own browser, served from the open
     # file. The contained helper is gone, and a filter that answered every address would stop

@@ -92,7 +92,8 @@ public sealed class DesktopLocationTests
         Assert.IsNotNull(readOnly.LocationWarning);
         await session.CloseAsync();
         var recent = (await session.GetRecentFilesAsync()).Files.Single();
-        denied = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.OpenRecentAsync(recent.Id));
+        assessment = await session.AssessRecentAsync(recent.Id);
+        denied = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => session.OpenAssessedAsync(assessment.AssessmentId, false));
         Assert.AreEqual("unsupported-sync-location", denied.Code);
         using (session.BindFileRequest((await session.GetViewAsync()).FileSessionId!))
         {

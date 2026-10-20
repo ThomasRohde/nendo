@@ -54,6 +54,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\NumericEnvelopeJson.cs" Link="Transport\NumericEnvelopeJson.cs" />
     <ProjectReference Include="..\Nendo.Engine\Nendo.Engine.csproj" />
     <ProjectReference Include="..\Nendo.LocalMcp\Nendo.LocalMcp.csproj" />
   </ItemGroup>

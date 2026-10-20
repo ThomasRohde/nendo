@@ -214,55 +214,11 @@ internal sealed partial class SqliteNendoStore
             }
         }
 
-        var hasPresentation = await ColumnExistsAsync(
-            "__nendo_field",
-            "presentation",
-            transaction,
-            cancellationToken);
-        var hasOptions = await ColumnExistsAsync(
-            "__nendo_field",
-            "options_json",
-            transaction,
-            cancellationToken);
-        var fieldSql = $"""
-            SELECT field_id, entity_id, display_name, physical_column_name, storage_kind, required,
-                   {(hasPresentation ? "presentation" : "NULL")},
-                   {(hasOptions ? "options_json" : "'[]'")}
-            FROM __nendo_field
-            ORDER BY entity_id, rowid;
-            """;
-        var fields = new List<FieldMapping>();
-        await using (var command = Command(fieldSql, transaction))
-        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
-        {
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var kindName = reader.GetString(4);
-                var knownKind = Enum.TryParse<NendoStorageKind>(kindName, ignoreCase: false, out var kind) &&
-                    Enum.IsDefined(kind) && kind != NendoStorageKind.Unsupported && kind.ToString() == kindName;
-                fields.Add(new FieldMapping(
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetString(3),
-                    knownKind ? kind : NendoStorageKind.Unsupported,
-                    reader.GetInt64(5) == 1,
-                    reader.IsDBNull(6) ? null : StoredPresentation(reader.GetString(6), knownKind ? kind : NendoStorageKind.Unsupported),
-                    ParseOptions(reader.GetString(7))) { UnsupportedStorageKind = knownKind ? null : kindName });
-            }
-        }
-
-        await PopulateReferencesAsync(fields, transaction, cancellationToken);
-        await PopulateChoicesAsync(fields, transaction, cancellationToken);
-        await PopulateRatingScalesAsync(fields, transaction, cancellationToken);
-        await PopulateFieldRulesAsync(fields, transaction, cancellationToken);
-        await PopulateFieldSequencesAsync(fields, transaction, cancellationToken);
-        var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
+        var fields = await ReadFieldMappingsAsync(null, preserveUnknownKinds: true, transaction, cancellationToken);
         var retiredEntities = await RetiredIdsAsync("entity", transaction, cancellationToken);
         var hierarchies = await ReadHierarchiesAsync(transaction, cancellationToken);
         var keptTypes = await ReadKeptTypesAsync(transaction, cancellationToken);
         var linkRules = await ReadLinkRulesAsync(transaction, cancellationToken);
-        for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
         return entities
             .Select(entity => new EntityMapping(
                 entity.Id,

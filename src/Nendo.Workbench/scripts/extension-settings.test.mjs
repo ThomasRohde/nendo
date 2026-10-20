@@ -115,15 +115,18 @@ const lifecycle = await import('data:text/javascript;base64,' + Buffer.from(fram
 
 test('R30-014: Off retires even a frame held for proposal review and removes its toolbar', () => {
   const stage = { style: {}, classList: { contains: () => false, remove() {} }, querySelector: () => null, prepend: frame => frames.mounts.push(frame) };
-  const placeholder = { isConnected: true, dataset: { viewId: 'view.glance', viewPlacement: 'screen', viewPackage: 'org.example.glance' },
+  const placeholder = { isConnected: true, dataset: { viewId: 'view.glance', viewPlacement: 'screen', viewPackage: 'org.example.glance', viewTitle: 'Glance <b> "quoted"' },
     querySelector: selector => selector === '[data-view-stage]' ? stage : null };
   globalThis.window = { addEventListener() {}, setTimeout: callback => frames.timers.push(callback) };
   globalThis.MutationObserver = class { observe() {} };
-  globalThis.document = { createElement: () => ({ isConnected: true, src: '', setAttribute(key, value) { this[key] = value; }, addEventListener() {}, remove() {} }) };
+  const attributes = [];
+  globalThis.document = { createElement: () => ({ isConnected: true, src: '', setAttribute(key, value) { attributes.push([key, value]); this[key] = value; }, addEventListener() {}, remove() {} }) };
   lifecycle.state.session = { ...lifecycle.state.session, fileSessionId: 'file-1', extensions: {
     run: true, packages: [{ packageId: 'org.example.glance', origin: 'https://org-example-glance.example', entryPoint: 'index.html' }] } };
   lifecycle.installViewFrames(); lifecycle.wireViewFrames({ querySelectorAll: () => [placeholder] });
   assert.equal(frames.mounts.length, 1, 'The fixture did not start a production frame.');
+  assert.deepEqual(attributes.map(([key]) => key), ['name', 'title', 'sandbox', 'allow', 'loading', 'src']);
+  assert.equal(frames.mounts[0].title, 'Glance <b> "quoted"', 'The live frame must set the literal title as an attribute.');
   const mount = [...frames.deps.mounts()][0];
   frames.deps.ui.setToolbar(mount, { items: [{ id: 'one', kind: 'button', label: 'One' }], add: null });
   assert.equal(frames.deps.ui.openProposal(mount, {}).opened, true);

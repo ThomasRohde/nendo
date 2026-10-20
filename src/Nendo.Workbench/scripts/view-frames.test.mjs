@@ -40,10 +40,10 @@ test('a view frame is sandboxed without top navigation, named by its mount, and 
   assert.equal(attributes.title, 'Glance <b>');
   // The source is set last, once the sandbox is on the element.
   assert.equal(markup.frameAttributes({ mountId, origin, entryPoint: 'index.html', title: 'x' }).at(-1)[0], 'src');
-  const drawn = markup.frameMarkup({ mountId, origin, entryPoint: 'my view/start page.html', title: 'Glance <b>' });
-  assert.match(drawn, /src="https:\/\/org-example-glance-3f2a9c01be\.example\/my%20view\/start%20page\.html"/);
-  assert.match(drawn, /title="Glance &lt;b&gt;"/);
-  assert.doesNotMatch(drawn, /allow-top-navigation/);
+  const encoded = Object.fromEntries(markup.frameAttributes({ mountId, origin, entryPoint: 'my view/start page.html', title: 'Glance <b>' }));
+  assert.equal(encoded.src, `${origin}/my%20view/start%20page.html`);
+  // The live renderer sets attributes on an element; its title is literal text.
+  assert.equal(encoded.title, 'Glance <b>');
 });
 
 test('only an origin under .example is ever framed', () => {

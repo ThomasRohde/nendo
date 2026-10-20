@@ -9,6 +9,34 @@ namespace Nendo.Engine.Tests;
 public sealed class StorageReviewTests
 {
     [TestMethod]
+    public async Task BulkFieldMappingsUseOneQueryAndPreserveEntityAndFieldOrder()
+    {
+        await using var workspace = new EngineTestWorkspace();
+        var coordinator = await workspace.CreateAsync();
+        await coordinator.ApplyAsync(new("mapping", "schema", "test", "Two record types", [
+            new CreateEntityOperation("create-z", "z", "Z", "z"),
+            new AddFieldOperation("z-second", "z", "z.second", "Second", "second", NendoStorageKind.Text, false),
+            new AddFieldOperation("z-first", "z", "z.first", "First", "first", NendoStorageKind.Integer, false),
+            new CreateEntityOperation("create-a", "a", "A", "a"),
+            new AddFieldOperation("a-second", "a", "a.second", "Second", "second", NendoStorageKind.Boolean, false),
+            new AddFieldOperation("a-first", "a", "a.first", "First", "first", NendoStorageKind.Text, true)
+        ]));
+        await coordinator.DisposeAsync();
+        workspace.Forget(coordinator);
+        await using var store = await Storage.SqliteNendoStore.OpenAsync(workspace.FilePath, CancellationToken.None);
+        var before = store.FieldMappingReadCount;
+        var snapshot = await store.GetSessionSnapshotAsync("fixture.nendo", NendoSessionHealth.Normal,
+            CancellationToken.None, includeRecords: false);
+        Assert.AreEqual(before + 1, store.FieldMappingReadCount,
+            "A bulk mapping must issue one field SELECT, not one per entity.");
+        CollectionAssert.AreEqual(new[] { "a", "z" }, snapshot.Entities.Select(entity => entity.EntityId).ToArray());
+        foreach (var entity in snapshot.Entities)
+            CollectionAssert.AreEqual(new[] { $"{entity.EntityId}.second", $"{entity.EntityId}.first" },
+                entity.Fields.Select(field => field.FieldId).ToArray(),
+                "Fields retain declaration order, not alphabetical order.");
+    }
+
+    [TestMethod]
     [DataRow("ui.addNode", """{"surfaceId":"s","nodeId":"n","parentNodeId":null,"kind":"section","position":"1"}""", "position")]
     [DataRow("data.setField", """{"entityId":"e","recordId":"r","fieldId":"f","value":"x","expectedRecordVersion":null}""", "expectedRecordVersion")]
     [DataRow("schema.renameEntity", """{"entityId":"e","displayName":"E","expectedDefinitionRevision":"3"}""", "expectedDefinitionRevision")]

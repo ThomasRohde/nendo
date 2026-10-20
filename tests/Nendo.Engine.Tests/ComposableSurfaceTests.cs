@@ -231,17 +231,6 @@ public sealed class ComposableSurfaceTests
         Assert.IsTrue(compiled.IsValid, string.Join("; ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
     }
 
-    [TestMethod]
-    public void ContractOperatorsMapOntoTheRecordQueryComparisons()
-    {
-        // The durable contract keeps lte and gte; the record query spells the same
-        // comparisons le and ge. Every other operator passes through unchanged.
-        Assert.AreEqual("le", NendoSemanticVocabulary.QueryOperatorFor("lte"));
-        Assert.AreEqual("ge", NendoSemanticVocabulary.QueryOperatorFor("gte"));
-        foreach (var op in new[] { "eq", "ne", "lt", "gt", "isNull", "isNotNull" })
-            Assert.AreEqual(op, NendoSemanticVocabulary.QueryOperatorFor(op));
-    }
-
     private static NendoSessionSnapshot FilteredSource(string scenario)
     {
         var retired = scenario == "retiredFilterField";

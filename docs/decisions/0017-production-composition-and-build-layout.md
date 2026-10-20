@@ -28,6 +28,7 @@ src/
   Nendo.Desktop/
   Nendo.LocalMcp/
   Nendo.Workbench/
+  Shared/
 tests/
   Nendo.Engine.Tests/
   Nendo.Desktop.Tests/
@@ -56,6 +57,10 @@ deliberately with its focused tests.
   load ([ADR-0013](0013-custom-views-with-code-in-the-file.md)).
 - **Nendo.LocalMcp** is an official-SDK adapter over Engine application services. It owns
   no SQLite and no authority of its own. Desktop starts and stops it.
+- **src/Shared** is not a project. It holds transport source that Desktop and LocalMcp
+  both compile in as linked files, so the two adapters cannot drift: today the
+  numeric-envelope decoder. It follows the adapters' rules, and the Engine never compiles
+  it.
 
 ```text
 Workbench --typed bridge--> Desktop --typed calls--> Engine --internal--> SQLite

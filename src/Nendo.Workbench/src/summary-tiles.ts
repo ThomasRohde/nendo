@@ -199,11 +199,6 @@ export function tileScopeLabel(scope: TileScope): string {
 }
 
 /**
- * A tile whose declared ordering or query cannot be composed is not silently
- * skipped; the caller states it. Exported so the renderer and the preview agree
- * on what unreadable means.
- */
-/**
  * A host code that says the number itself cannot be given, not that the read went
  * wrong: a total past what the host holds exactly, or a stored value it will not
  * aggregate lossily. Retrying recomputes the same refusal, so a tile that carries
@@ -211,8 +206,4 @@ export function tileScopeLabel(scope: TileScope): string {
  */
 export function isSettledSummaryFailure(code: string): boolean {
   return code === 'aggregate-not-representable' || code === 'aggregate-not-exact';
-}
-
-export function tileIsReadable(tile: SurfaceNodePlan, scope: TileScope, surfaceEntityId: string | null): boolean {
-  return tileRead(tile, scope, surfaceEntityId) !== null;
 }

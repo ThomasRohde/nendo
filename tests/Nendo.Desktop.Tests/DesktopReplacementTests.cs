@@ -124,7 +124,8 @@ public sealed class DesktopReplacementTests
         Assert.IsNotNull(result.Notice);
         Assert.IsFalse(result.Session.Capabilities.Mutate);
         await session.CloseAsync();
-        Assert.AreEqual("normal", (await session.OpenRecentAsync(originalRecent)).Health);
+        var originalAssessment = await session.AssessRecentAsync(originalRecent);
+        Assert.AreEqual("normal", (await session.OpenAssessedAsync(originalAssessment.AssessmentId, false)).Health);
         CollectionAssert.AreEqual(originalBytes, await BytesAsync(workspace.FilePath));
     }
 

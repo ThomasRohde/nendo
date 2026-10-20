@@ -7,7 +7,7 @@ import { byteSize } from './package-diff-markup';
 /**
  * How a custom view sits on a page (ADR-0013), as markup and nothing else: its placeholder,
  * what the placeholder says when the view cannot run, the overlay over a view that stopped,
- * and the frame itself. view-frames.ts puts these on screen and runs them; keeping the
+ * and the frame's attributes. view-frames.ts puts these on screen and runs them; keeping the
  * markup here lets scripts/view-frames.test.mjs read exactly what the page draws.
  */
 
@@ -69,11 +69,6 @@ export function frameAttributes(frame: FrameSpec): Array<[string, string]> {
     ['loading', 'lazy'],
     ['src', frameSource(frame.origin, frame.entryPoint)],
   ];
-}
-
-/** The frame as markup, for the guard that reads it; the page builds the same element in code. */
-export function frameMarkup(frame: FrameSpec): string {
-  return `<iframe ${frameAttributes(frame).map(([name, value]) => `${name}="${escapeAttribute(value)}"`).join(' ')}></iframe>`;
 }
 
 export function viewTitle(node: SurfaceNodePlan): string {

@@ -720,51 +720,7 @@ internal sealed partial class SqliteNendoStore
             physicalTableName = reader.GetString(2);
         }
 
-        var hasPresentation = await ColumnExistsAsync(
-            "__nendo_field",
-            "presentation",
-            transaction,
-            cancellationToken);
-        var hasOptions = await ColumnExistsAsync(
-            "__nendo_field",
-            "options_json",
-            transaction,
-            cancellationToken);
-        var fieldSql = $"""
-            SELECT field_id, entity_id, display_name, physical_column_name, storage_kind, required,
-                   {(hasPresentation ? "presentation" : "NULL")},
-                   {(hasOptions ? "options_json" : "'[]'")}
-            FROM __nendo_field
-            WHERE entity_id = @entityId
-            ORDER BY rowid;
-            """;
-        var fields = new List<FieldMapping>();
-        await using (var command = Command(fieldSql, transaction))
-        {
-            command.Parameters.AddWithValue("@entityId", entityId);
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var kind = Enum.Parse<NendoStorageKind>(reader.GetString(4), ignoreCase: false);
-                fields.Add(new FieldMapping(
-                    reader.GetString(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    reader.GetString(3),
-                    kind,
-                    reader.GetInt64(5) == 1,
-                    // As the snapshot reads it, so a write never refuses what a read offered.
-                    reader.IsDBNull(6) ? null : StoredPresentation(reader.GetString(6), kind),
-                    ParseOptions(reader.GetString(7))));
-            }
-        }
-        await PopulateReferencesAsync(fields, transaction, cancellationToken);
-        await PopulateChoicesAsync(fields, transaction, cancellationToken);
-        await PopulateRatingScalesAsync(fields, transaction, cancellationToken);
-        await PopulateFieldRulesAsync(fields, transaction, cancellationToken);
-        await PopulateFieldSequencesAsync(fields, transaction, cancellationToken);
-        var retiredFields = await RetiredIdsAsync("field", transaction, cancellationToken);
-        for (var index = 0; index < fields.Count; index++) fields[index] = fields[index] with { Retired = retiredFields.Contains(fields[index].FieldId) };
+        var fields = await ReadFieldMappingsAsync(entityId, preserveUnknownKinds: false, transaction, cancellationToken);
         return new EntityMapping(entityId, displayName, physicalTableName, fields)
         {
             Retired = (await RetiredIdsAsync("entity", transaction, cancellationToken)).Contains(entityId),

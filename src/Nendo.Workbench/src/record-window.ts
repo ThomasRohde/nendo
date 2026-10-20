@@ -70,11 +70,6 @@ export function emptyWindowQuery(): WindowQuery {
   return { filters: [] };
 }
 
-/** A window declares something when it narrows or orders the records it shows. */
-export function hasWindowQuery(query: WindowQuery): boolean {
-  return query.filters.length > 0 || query.sortFieldId !== undefined;
-}
-
 export interface ReadWindow<TPage> {
   page: TPage;
   cursors: Array<string | null>;

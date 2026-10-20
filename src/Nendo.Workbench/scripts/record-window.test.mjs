@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { build } from 'vite';
 const bundle = await build({configFile:false,logLevel:'error',build:{ssr:'src/record-window.ts',write:false,rollupOptions:{output:{codeSplitting:false}}}});
-const {cacheKey,clauseFilters,declaredQuery,emptyWindowQuery,hasWindowQuery,pageTarget,queryOperatorFor,resolveClauseValue,resolvePeriodClause,useFieldKinds,windowRequest} =
+const {cacheKey,clauseFilters,declaredQuery,emptyWindowQuery,pageTarget,resolveClauseValue,resolvePeriodClause,useFieldKinds,windowRequest} =
  await import('data:text/javascript;base64,'+Buffer.from(bundle.output.find(item=>item.type==='chunk').code).toString('base64'));
 
 const node=(semanticId,kind,properties,children=[])=>({semanticId,automationTarget:semanticId,kind,properties,children});
@@ -26,9 +26,14 @@ test('a declared query reads the ordered clauses and the declared ordering',()=>
  ]);
  assert.equal(query.sortFieldId,'name');
  assert.equal(query.descending,true);
- assert.equal(hasWindowQuery(query),true);
- assert.equal(queryOperatorFor('lte'),'le');
- assert.equal(queryOperatorFor('eq'),'eq');
+});
+
+test('declared comparisons reach the record request in the query vocabulary',()=>{
+ for (const [contract,query] of [['lte','le'],['gte','ge'],['eq','eq'],['ne','ne'],['lt','lt'],['gt','gt'],['isNull','isNull'],['isNotNull','isNotNull']]) {
+  const value=contract.startsWith('is')?undefined:7;
+  const request=windowRequest('deal',declaredQuery(node('l','recordList',{},[clause('value',contract,value)])));
+  assert.deepEqual(request.filters,[value===undefined?{fieldId:'value',operator:query}:{fieldId:'value',operator:query,value}],contract);
+ }
 });
 
 // A presence check takes no value, and the absence must be an absent key rather
@@ -44,10 +49,11 @@ test('a presence clause carries no value key at all',()=>{
 test('a root that declares nothing owns the explicit empty query',()=>{
  const plain=declaredQuery(node('l','recordList',{},[node('b','fieldBinding',{fieldId:'name'})]));
  assert.deepEqual(plain,{filters:[],sortFieldId:undefined,descending:undefined});
- assert.equal(hasWindowQuery(plain),false);
  assert.deepEqual(emptyWindowQuery(),{filters:[]});
  // Ordering alone is a query: the cursor scope includes the sort.
- assert.equal(hasWindowQuery(declaredQuery(node('l','recordList',{orderByFieldId:'name'}))),true);
+ const ordered=windowRequest('deal',declaredQuery(node('l','recordList',{orderByFieldId:'name'})));
+ assert.deepEqual(ordered.filters,[]);
+ assert.equal(ordered.sortFieldId,'name');
 });
 
 test('a malformed clause is dropped rather than sent as a partial predicate',()=>{

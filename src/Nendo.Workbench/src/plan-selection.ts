@@ -1,4 +1,5 @@
 import { calculationsOf } from './calculated-fields';
+import { overviewOf } from './overview-model';
 import { sectionIsOpen } from './fold-state';
 import { selectedEntity } from './studio';
 import { applicationRecipeFor, type ApplicationRecipe } from './application-recipes';
@@ -53,7 +54,7 @@ export function placePlans(current: string | null = null): ApplicationPlan[] {
  * type, and Use offers it beside the types rather than among one type's surfaces.
  */
 export function overviewPlan(): OverviewPlan | null {
-  return state.compilation?.isValid ? state.compilation.overview ?? null : null;
+  return overviewOf(state.compilation);
 }
 export function activePlan(): ApplicationPlan | null {
   const plans = applicationPlans();
