@@ -1106,6 +1106,31 @@ async page => {
     && !panels.escaped.shown && panels.escaped.pressed === false && panels.escaped.focusInEditor, `Side panel: ${JSON.stringify(panels)}`);
   checks.push('side panel opens and closes');
 
+  // Notes counts and lists this manuscript's notes, not the file's, and each goes to its passage
+  // (owner, 2026-10-20: the count was every note in the file, and the panel, filtered to the
+  // caret's paragraph, showed none of them and offered no way to reach one).
+  await page.evaluate(() => window.broker.put('mn.note', { entityId: 'mn.note', recordId: 'n-other', version: 1,
+    values: { 'mn.note.block': 'b-fn-2', 'mn.note.kind': 'Comment', 'mn.note.text': 'In the other manuscript.', 'mn.note.done': false } }));
+  await page.evaluate(() => window.broker.pushChanges());
+  await frame.waitForFunction(() => window.manuscript.notes.some(n => n.recordId === 'n-other'), null, { timeout: 5000 });
+  await select('b-0413', 'tide', 'table');
+  await page.evaluate(() => window.broker.command('notes'));
+  await frame.waitForFunction(() => document.querySelector('#drawer .drawer-title')?.textContent === 'Notes', null, { timeout: 3000 });
+  const allNotes = (await records('mn.note')).length;
+  const notesLabel = (await page.evaluate(() => window.broker.toolbars.at(-1))).items.find(i => i.id === 'notes')?.label;
+  const noteCards = await frame.evaluate(() => [...document.querySelectorAll('#drawer .card[data-id]')].map(c => ({ id: c.dataset.id, passage: c.querySelector('.passage')?.textContent ?? null })));
+  assert(notesLabel === `Notes ${allNotes - 1}` && noteCards.length === allNotes - 1 && !noteCards.some(n => n.id === 'n-other'),
+    `Notes must count and list this manuscript's notes only (${allNotes} in the file, one in another manuscript): ${JSON.stringify({ notesLabel, noteCards })}`);
+  const pencil = noteCards.find(n => n.id === 'n-1');
+  assert(pencil?.passage?.startsWith('On the 9th of November 1953'), `A note must show the passage it is on: ${JSON.stringify(noteCards)}`);
+  await frame.locator('#drawer .card[data-id="n-1"] .passage').click();
+  await frame.waitForFunction(() => window.manuscriptSheet.where()?.id === 'b-0415', null, { timeout: 3000 }).catch(() => {});
+  const reached = await frame.evaluate(() => ({ at: window.manuscriptSheet.where()?.id, cards: document.querySelectorAll('#drawer .card[data-id]').length }));
+  assert(reached.at === 'b-0415' && reached.cards === noteCards.length, `A note's passage must take the caret there and keep the list: ${JSON.stringify(reached)}`);
+  await page.evaluate(() => window.broker.command('notes'));
+  await frame.waitForFunction(() => document.getElementById('drawer').hidden, null, { timeout: 3000 });
+  checks.push('notes counted and listed for this manuscript, each going to its passage');
+
   // Light and Dark, and a narrow frame.
   const colours = {};
   for (const mode of ['light', 'dark']) {

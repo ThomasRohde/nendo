@@ -89,7 +89,7 @@ The last group on the bar acts on the whole paragraph:
 
 A paragraph keeps its notes and links wherever it goes. Move it, or cut it and paste it somewhere else in the manuscript, and they go with it; cut it without pasting and it waits under **Cuttings**. Join two paragraphs with **Backspace** and the second one's notes and links go to the first. **Ctrl** **Z** after Manuscript has saved brings a deleted paragraph back with its notes.
 
-A paragraph with notes or links shows how many of each in the right margin, a note icon for notes and a link icon for links; choose them to open its notes, or what it is linked to, beside the page. **Notes** and **Related** in the toolbar show them in full; **Edit** on a note changes its words and its kind.
+A paragraph with notes or links shows how many of each in the right margin, a note icon for notes and a link icon for links; choose them to open its notes, or what it is linked to, beside the page. **Notes** in the toolbar counts the notes in this manuscript and lists them all in reading order, each under the passage it is on: choose the passage to go to it. **Related** shows what the paragraph the caret is in is linked to. **Edit** on a note changes its words and its kind.
 
 **Cuttings** in the toolbar lists what you kept out of the manuscript. **Put back** sets a cutting after the paragraph the caret is in, with its notes and links; **Delete**, pressed twice, removes it for good.
 

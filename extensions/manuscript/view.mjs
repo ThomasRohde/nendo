@@ -19,7 +19,7 @@ const state = {
   status: 'Reading the file…', savedAt: null, problem: null, external: false, readOnly: false, chrome: false,
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
   hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null, footnotes: new Map(), footnoteTexts: new Map(), footnotesOn: false,
-  linkSeen: false, linksView: 'review', threadContext: new Set(), profilesOn: false, profiles: [], setupLayout: null,
+  linkSeen: false, linksView: 'review', notesOf: null, threadContext: new Set(), profilesOn: false, profiles: [], setupLayout: null,
 };
 window.manuscript = state;   // for the browser lane
 
@@ -449,7 +449,7 @@ async function addNote(kind, text) {
   const id = state.selected;
   if (!block(id)) return;
   await send([{ op: 'create', entityId: NOTE, recordId: `n-${freshId().slice(2)}`, values: { [F.noteBlock]: id, [F.noteKind]: kind, [F.noteText]: text, [F.noteDone]: false }, refs: { [F.noteBlock]: id } }], 'Add a note');
-  closePopover(); state.drawer = 'notes'; render(); declare();
+  closePopover(); state.drawer = 'notes'; state.notesOf = id; render(); declare();
 }
 
 async function addLink(kind, target) {
@@ -1138,6 +1138,15 @@ function refusalText(error) {
   return `Not saved: ${message} Your text is still on the page.`;
 }
 
+/** Whether a block is part of the open manuscript: in its sheet, its Cuttings or a footnote of either. */
+function inManuscript(id) {
+  for (let at = id, steps = 0; at != null && steps <= 66; at = block(at)?.parent ?? null, steps++) if (at === state.root) return true;
+  return false;
+}
+
+/** The open manuscript's notes; the file may hold other manuscripts, and theirs are not counted. */
+function manuscriptNotes() { return state.root === null ? [] : state.notes.filter(n => inManuscript(n.values[F.noteBlock])); }
+
 function counts() {
   const notes = new Map(), links = new Map();
   for (const n of state.notes) { const b = n.values[F.noteBlock]; notes.set(b, (notes.get(b) ?? 0) + 1); }
@@ -1202,7 +1211,7 @@ function declare() {
     { kind: 'spacer' },
     ...(state.mode !== 'write' ? [] : [
       { kind: 'toggle', id: 'outline', label: 'Outline', icon: 'list', pressed: state.drawer === 'outline' },
-      { kind: 'toggle', id: 'notes', label: `Notes ${state.notes.length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
+      { kind: 'toggle', id: 'notes', label: `Notes ${manuscriptNotes().length || ''}`.trim(), icon: 'edit', pressed: state.drawer === 'notes' },
       { kind: 'toggle', id: 'related', label: 'Related', icon: 'link', pressed: state.drawer === 'related' },
       ...(state.profilesOn ? [{ kind: 'toggle', id: 'pagesetup', label: 'Page setup', icon: 'layout', pressed: state.drawer === 'pagesetup' }] : []),
       { kind: 'toggle', id: 'links', label: `Links${state.links.some(l => l.values[F.linkReview] === REVIEW.needsReview) ? ` ${state.links.filter(l => l.values[F.linkReview] === REVIEW.needsReview).length}` : ''}`, icon: 'chain', pressed: state.drawer === 'links' },
@@ -1280,6 +1289,7 @@ function command({ id, value }) {
   if (id === 'style') { sheet.setStyle(value); return; }
   if (id === 'role') { sheet.setRole(value === 'none' ? null : value); return; }
   if (id === 'find') { if (state.drawer === 'find') closeDrawer(); else openFind(false); return; }
+  if (id === 'notes') state.notesOf = null;
   if (id === 'outline' || id === 'notes' || id === 'related' || id === 'cuttings' || id === 'links' || id === 'pagesetup') { state.drawer = state.drawer === id ? null : id; render(); declare(); return; }
   if (id === 'font' || id === 'size' || id === 'width' || id === 'pictures') { state.appearance = { ...state.appearance, [id]: value }; applyAppearance(); previewZoom(); declare(); }
 }
@@ -1537,7 +1547,7 @@ function placeOverlays() {
     const said = [nc ? `${nc} note${nc === 1 ? '' : 's'}` : '', lc ? `${lc} link${lc === 1 ? '' : 's'}` : ''].filter(Boolean).join(' and ');
     marks.push(el('button', { type: 'button', class: `mark${id === state.selected ? ' on' : ''}`, style: `top:${top + 6}px`, 'data-id': id, 'data-notes': String(nc), 'data-links': String(lc),
       'aria-label': `${said} on this paragraph: show ${nc ? 'its notes' : 'what it is linked to'}`, title: `${said}: show ${nc ? 'them' : 'it'}`,
-      on: { mousedown: e => e.preventDefault(), click: () => { sheet.focusBlock(id); state.selected = id; state.drawer = nc ? 'notes' : 'related'; render(); declare(); } } },
+      on: { mousedown: e => e.preventDefault(), click: () => { sheet.focusBlock(id); state.selected = id; state.notesOf = nc ? id : null; state.drawer = nc ? 'notes' : 'related'; render(); declare(); } } },
     nc ? [svg('note'), el('span', { text: String(nc) })] : null, lc ? [svg('link'), el('span', { text: String(lc) })] : null));
   }
   const where = sheet.where();
@@ -1867,15 +1877,28 @@ function renderDrawer() {
     }
   }
   if (state.drawer === 'notes') {
-    const here = state.selected && block(state.selected) ? state.selected : null;
-    const list = state.notes.filter(n => !here || n.values[F.noteBlock] === here);
-    body.push(el('p', { class: 'muted', text: here ? `On “${preview(here, 50)}”` : 'Every note in the manuscript' }));
+    // From the toolbar, every note of this manuscript in reading order, each under the passage it
+    // is on, which goes to it; from a paragraph's mark, that paragraph's notes.
+    const mine = manuscriptNotes();
+    const here = state.notesOf && block(state.notesOf) ? state.notesOf : null;
+    const at = new Map();
+    sheet.editor.state.doc.descendants((node, pos) => { if (node.attrs?.blockId && !at.has(node.attrs.blockId)) at.set(node.attrs.blockId, pos); });
+    const place = n => at.get(n.values[F.noteBlock]) ?? Infinity;
+    const list = here ? mine.filter(n => n.values[F.noteBlock] === here) : [...mine].sort((a, b) => place(a) - place(b));
+    body.push(here
+      ? el('div', { class: 'row' }, el('p', { class: 'muted', text: `On “${preview(here, 50)}”` }),
+        el('button', { type: 'button', class: 'quiet', text: `All notes (${mine.length})`, on: { click: () => { state.notesOf = null; render(); } } }))
+      : el('p', { class: 'muted', text: mine.length ? 'Every note in this manuscript, in reading order' : 'No notes in this manuscript yet. Select some text and choose Note.' }));
     for (const n of list) {
-      const done = n.values[F.noteDone] === true;
+      const done = n.values[F.noteDone] === true, on = n.values[F.noteBlock];
+      // A note on a footnote goes to the paragraph that cites it; one on a cutting has no place to go.
+      const go = at.has(on) ? on : at.has(block(on)?.parent) ? block(on).parent : null;
       if (state.editingNote === n.recordId) { body.push(noteEditor(n)); continue; }
       body.push(el('div', { class: 'card', 'data-id': n.recordId },
-        el('div', { class: 'row' }, el('span', { class: `chip ${String(n.values[F.noteKind]).toLowerCase()}`, text: n.values[F.noteKind] ?? 'Note' }),
-          el('button', { type: 'button', class: 'quiet', text: 'Go to', on: { click: () => sheet.focusBlock(n.values[F.noteBlock]) } })),
+        el('div', { class: 'row' }, el('span', { class: `chip ${String(n.values[F.noteKind]).toLowerCase()}`, text: n.values[F.noteKind] ?? 'Note' })),
+        here ? null : go
+          ? el('button', { type: 'button', class: 'passage', title: 'Go to this passage', on: { click: () => sheet.focusBlock(go) } }, preview(go, 120))
+          : el('p', { class: 'muted', text: `In Cuttings: ${preview(on, 100)}` }),
         el('p', { class: done ? 'done' : '', text: n.values[F.noteText] ?? '' }),
         el('div', { class: 'row' },
           el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: done, on: { change: e => setNoteDone(n, e.target.checked).catch(fail) } }), 'Done'),
@@ -1883,7 +1906,7 @@ function renderDrawer() {
             el('button', { type: 'button', class: 'quiet', text: 'Edit', on: { click: () => { state.editingNote = n.recordId; state.noteDraft = { text: n.values[F.noteText] ?? '', kind: n.values[F.noteKind] ?? NOTE_KINDS[0] }; render(); $('note-edit')?.focus(); } } }),
             el('button', { type: 'button', class: 'quiet', text: 'Delete', on: { click: () => deleteRecord(n, 'Delete a note').catch(fail) } })))));
     }
-    if (!list.length) body.push(el('p', { class: 'muted', text: here ? 'No notes on this paragraph. Select some text and choose Note.' : 'No notes yet.' }));
+    if (here && !list.length) body.push(el('p', { class: 'muted', text: 'No notes on this paragraph. Select some text and choose Note.' }));
   }
   if (state.drawer === 'related') {
     const here = state.selected && block(state.selected) ? state.selected : null;

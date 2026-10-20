@@ -56,7 +56,9 @@ alignment, and no Role control.
   the agent). A Format menu in Nendo's toolbar names every tool that applies at the caret:
   marks, lists and roles as checks, alignment and style as radios, the rest as items. The menu
   declares no keys, since the editor runs them and a declared key would run the tool twice.
-  The margin counts each paragraph's notes and links. Outline, Notes, Related, Cuttings, Find
+  The margin counts each paragraph's notes and links. Notes counts and lists the open
+  manuscript's notes in reading order, each under the passage it goes to; from a paragraph's
+  margin count it lists that paragraph's. Outline, Notes, Related, Cuttings, Find
   and the appearance (typeface, size, line length, kept per device) are in Nendo's toolbar.
 - Lists: a list item is a paragraph block with `mn.block.list` (Bulleted, Numbered) and
   `mn.block.level` (none for the outermost, 1 to 4 deeper); consecutive items make a list, as
