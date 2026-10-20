@@ -252,12 +252,10 @@ sidecars to Nendo — `.gitignore` already keeps every `-wal`, `-shm`, journal a
 write-owner file out of git. Use host-owned backup/copy flows for these files;
 `.nendo` storage is never edited directly by an agent.
 
-**The planner itself is git-ignored**, and so is
-`workspace/Manuscript.nendo`, the owner's paper in progress. Each changes on every
-write and git would store each version whole, so they are owner data that lives
-here and is backed up by the owner, not by this repository. The demo files are tracked, because they
-change only when somebody rebuilds them and they are worth having after a sweep
-of `artifacts/`. `tools/Test-BinaryAssets.ps1` opens every tracked one and checks
+**The planner itself is git-ignored.** It changes on every write and git would
+store each version whole, so it is owner data that lives here and is backed up by
+the owner, not by this repository. Every other `.nendo` file under `workspace/` is
+tracked, the owner's manuscripts included. `tools/Test-BinaryAssets.ps1` opens every tracked one and checks
 the SQLite header, the page multiple and Nendo's own application id, so a
 truncated or half-written copy is refused by name rather than committed. A demo
 file that is open in Nendo cannot be read: the lane names it as open, not corrupt,
