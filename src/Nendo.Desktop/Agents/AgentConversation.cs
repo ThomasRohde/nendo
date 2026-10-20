@@ -32,7 +32,8 @@ internal sealed record AgentTranscriptEntry(
     IReadOnlyList<AgentPermissionOptionView>? Options = null,
     string? Answer = null,
     IReadOnlyList<AgentPlanItemView>? Plan = null,
-    string? Origin = null);
+    string? Origin = null,
+    string? From = null);
 
 /// <summary>
 /// What a reader is told: the state, and the entries that changed after its revision.
@@ -51,7 +52,8 @@ internal sealed record AgentConversationSnapshot(
     IReadOnlyList<AgentOptionView> Options,
     long FirstOrder,
     bool SigningIn = false,
-    IReadOnlyList<AgentCommandView>? Commands = null);
+    IReadOnlyList<AgentCommandView>? Commands = null,
+    int Queued = 0);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -296,9 +298,16 @@ internal sealed partial class AgentConversation : IAsyncDisposable
 
     /// <summary>
     /// Send what the person typed, with anything in the file they pointed at. The turn runs on;
-    /// its end is told through <see cref="Changed"/>.
+    /// its end is told through <see cref="Changed"/>, and <see cref="ReadTurn"/> reads it back by
+    /// the ID answered here. <paramref name="from"/> names the custom view that sent the message
+    /// (ADR-0033), shown on the entry; null for the person's own.
+    /// <para>
+    /// ACP runs one turn at a time in a session. A view's message that arrives during a turn
+    /// waits, in order, and is sent when the turn before it ends; it enters the transcript then.
+    /// The person's own message is refused during a turn, as the tab offers Stop instead.
+    /// </para>
     /// </summary>
-    internal void Prompt(string text, IReadOnlyList<AgentPromptContext>? pointedAt = null)
+    internal string Prompt(string text, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? from = null)
     {
         var prompt = text.Trim();
         var context = pointedAt ?? [];
@@ -306,33 +315,62 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         if (prompt.Length > MaximumPromptCharacters)
             throw new Nendo.Engine.NendoValidationException($"A message is at most {MaximumPromptCharacters:N0} characters.");
         ValidateContext(context);
-        string sessionId;
-        bool embedded;
+        var sender = from is null ? null : AcpConnection.Bounded(from.Trim(), 120);
+        var message = new QueuedMessage(prompt, context, sender);
         long revision;
+        StartedTurn? started;
         lock (_sync)
         {
             if (_state != "ready" || _sessionId is null)
                 throw new Nendo.Engine.NendoPreconditionException("agent-not-ready", _state == "ended"
                     ? "This conversation has ended. Launch the agent again from the Agent page."
                     : "The agent is not ready for a message yet.");
-            if (_working)
+            if (_working && sender is null)
                 throw new Nendo.Engine.NendoPreconditionException("agent-working", "The agent is still working. Wait, or press Stop.");
-            sessionId = _sessionId;
-            embedded = _embeddedContext;
-            _working = true;
-            _openMessage = null;
-            var said = Add("you", prompt);
-            // The person's own entry names what they pointed at, so the thread shows it.
-            if (context.Count > 0) said.Title = string.Join(" · ", context.Select(item => item.Title.Trim()));
+            if (_working)
+            {
+                Enqueue(message);
+                started = null;
+            }
+            else started = StartTurnLocked(message);
             revision = Touch();
         }
         Raise(revision);
-        _ = Task.Run(() => RunTurnAsync(sessionId, PromptBlocks(prompt, context, embedded)));
+        if (started is { } run) _ = Task.Run(() => RunTurnAsync(run));
+        return message.Turn.Id;
     }
 
-    private async Task RunTurnAsync(string sessionId, object[] prompt)
+    /// <summary>A message on its way to the agent: its words, what it points at, the view that sent it, and its turn.</summary>
+    private sealed class QueuedMessage(string text, IReadOnlyList<AgentPromptContext> context, string? from)
     {
+        internal string Text { get; } = text;
+        internal IReadOnlyList<AgentPromptContext> Context { get; } = context;
+        internal string? From { get; } = from;
+        internal Turn Turn { get; set; } = null!;
+    }
+
+    /// <summary>A turn started: what <see cref="RunTurnAsync"/> sends, and the turn it reports to.</summary>
+    private sealed record StartedTurn(string SessionId, object[] Prompt, Turn Turn);
+
+    /// <summary>Add the message to the transcript and start its turn. Called under the lock, while no turn runs.</summary>
+    private StartedTurn StartTurnLocked(QueuedMessage message)
+    {
+        _working = true;
+        _openMessage = null;
+        var said = Add("you", message.Text);
+        // The person's own entry names what they pointed at, so the thread shows it.
+        if (message.Context.Count > 0) said.Title = string.Join(" · ", message.Context.Select(item => item.Title.Trim()));
+        said.From = message.From;
+        message.Turn = message.Turn is null ? BeginTurn(said) : StartQueuedTurn(message.Turn, said);
+        return new StartedTurn(_sessionId!, PromptBlocks(message.Text, message.Context, _embeddedContext), message.Turn);
+    }
+
+    private async Task RunTurnAsync(StartedTurn started)
+    {
+        var (sessionId, prompt, turn) = started;
         string? stopped = null;
+        // ACP's stop reason, for whoever reads the turn back; "ended" when the conversation ended first.
+        var stopReason = "ended";
         try
         {
             var result = await _connection.RequestAsync("session/prompt", new
@@ -342,6 +380,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             }, _ending.Token);
             var reason = result.ValueKind == JsonValueKind.Object && result.TryGetProperty("stopReason", out var r) && r.ValueKind == JsonValueKind.String
                 ? r.GetString() : null;
+            stopReason = reason is null ? "end_turn" : AcpConnection.Bounded(reason, 40);
             stopped = reason switch
             {
                 null or "end_turn" => null,
@@ -355,29 +394,42 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         catch (AcpRemoteException exception)
         {
             stopped = $"{_agentName} could not answer: {exception.Message}";
+            stopReason = "error";
         }
         catch (Exception exception) when (exception is AcpConnectionClosedException or OperationCanceledException) { }
         long revision;
+        StartedTurn? next = null;
         lock (_sync)
         {
             _working = false;
             _openMessage = null;
             if (stopped is not null && _state != "ended") Add("notice", stopped);
+            EndTurn(turn, stopReason);
+            // The next message waiting goes now, in the order it came.
+            if (_state == "ready" && _sessionId is not null && _queue.Count > 0) next = StartTurnLocked(_queue.Dequeue());
             revision = Touch();
         }
         Raise(revision);
+        if (next is not null) _ = Task.Run(() => RunTurnAsync(next));
     }
 
-    /// <summary>Stop the turn that is running. Any question the agent is waiting on is answered as cancelled.</summary>
+    /// <summary>
+    /// Stop the turn that is running, and drop every message still waiting: the person pressed Stop.
+    /// Any question the agent is waiting on is answered as cancelled.
+    /// </summary>
     internal async Task CancelTurnAsync()
     {
         string? sessionId;
         PendingPermission[] open;
+        long revision;
         lock (_sync)
         {
             sessionId = _working ? _sessionId : null;
             open = _permissions.Values.ToArray();
+            DropQueue("cancelled");
+            revision = Touch();
         }
+        Raise(revision);
         foreach (var permission in open) permission.Answer.TrySetResult(null);
         if (sessionId is null) return;
         try { await _connection.NotifyAsync("session/cancel", new { sessionId }); }
@@ -413,6 +465,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             _notice = Redact(AcpConnection.Bounded(notice));
             _openMessage = null;
             Add("notice", _notice);
+            DropQueue("ended");
             open = _permissions.Values.ToArray();
             revision = Touch();
         }
@@ -432,7 +485,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
             var firstOrder = _entries.Count == 0 ? _order + 1 : _entries[0].Order;
-            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands);
+            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands, _queue.Count);
         }
     }
 
@@ -801,13 +854,16 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         internal IReadOnlyList<AgentPlanItemView>? Plan { get; set; }
         internal string? Origin { get; set; }
 
+        /// <summary>The custom view that sent this message, by its title (ADR-0033); null for the person's own.</summary>
+        internal string? From { get; set; }
+
         /// <summary>The tool's name as the agent's metadata gives it, when it does. Not shown.</summary>
         internal string? ToolName { get; set; }
 
         /// <summary>The entry as the tab is sent it: every text the agent wrote passes the one redaction boundary.</summary>
         internal AgentTranscriptEntry View() =>
             new(Id, Order, Revision, Kind, Redact(Text.ToString()), Title is null ? null : Redact(Title), ToolKind, Status,
-                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin);
+                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin, From);
     }
 
     private sealed class PendingPermission(TaskCompletionSource<string?> answer)

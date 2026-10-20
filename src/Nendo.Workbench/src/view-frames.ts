@@ -21,6 +21,7 @@ import {
 } from './view-frame-markup';
 import { openHealth } from './view-health';
 import { importPackage, openCustomViews, saveDevelopment, setViewSwitch, stopDeveloping } from './view-packages';
+import { createAssistant } from './view-assistant';
 import { keepViewPlace, viewAnchor, viewPlaceKey, viewPlaceOf, viewPlacesAt } from './view-places';
 
 /**
@@ -133,6 +134,11 @@ export function installViewFrames(): void {
       key: (mount, keys) => keyFromView(mount as Mount, keys),
       setPlace: (mount, place) => setViewPlace(mount as Mount, place),
     },
+    // The person's launched agent (ADR-0033): Nendo's cards, the launch and the wait are there.
+    assistant: createAssistant(
+      (mount) => ({ title: (mount as Mount).spec.title, packageId: (mount as Mount).spec.packageId }),
+      (status) => broker?.assistant(status),
+    ),
     responsive: (mount, responsive) => {
       const view = mount as Mount;
       if (responsive && view.trouble === 'unresponsive') setTrouble(view, null);

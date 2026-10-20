@@ -25,6 +25,23 @@ const methodLines: Readonly<Record<string, MethodLine>> = {
     answer: '{purpose, changeSequence, entities, screens, commands}. An entity is {entityId, displayName, fields, hierarchy, linkRule}; a field {fieldId, displayName, storageKind, required, presentation, calculated, expression, choices, reference, scale}, where a choice is {id, displayName, retired, tone} and reference is {targetEntityId, labelFieldId}. hierarchy is {parentFieldId, orderFieldId} or null. linkRule is {sourceFieldId, targetFieldId, kindFieldId, sourceKindFieldId, targetKindFieldId, tableEntityId, tableSourceFieldId, tableTargetFieldId, tableKindFieldId} or null: a write that leaves a link whose kinds no record of tableEntityId holds is refused with link-not-allowed. A screen is {id, surfaceId, kind, title, entityId}; a command {id, entityId, label, steps}, each step {fieldId, valueKind, value}.',
     note: 'Retired record types and fields are left out. storageKind is text, integer, decimal, boolean, date, dateTime, uuid or reference.',
   },
+  'assistant.status': {
+    call: 'nendo.assistant.status()',
+    params: 'None.',
+    answer: '{state, name, working, access}: state is none, starting, signIn, ready or ended; name the agent\'s; working whether a turn runs; access the person\'s choice for views on this computer, never, ask or always.',
+    note: 'The agent\'s model, effort and mode are the person\'s, set on the Agent page; a view never sees or sets them.',
+  },
+  'assistant.ask': {
+    call: 'nendo.assistant.ask(text, {context?})',
+    params: `The message, 1 to ${extensionLimits.assistantCharacters.toLocaleString('en')} characters, and at most ${extensionLimits.assistantItems} context items {uri, title, text?}: one of the file\'s nendo:// addresses, a name of at most ${extensionLimits.assistantTitleCharacters} characters and a description of at most ${extensionLimits.assistantItemCharacters.toLocaleString('en')}.`,
+    answer: '{reply, stopReason} once the turn ends: the agent\'s message text of this turn only, and end_turn, cancelled, max_tokens, max_turn_requests, refusal, error, or ended when the conversation ended first.',
+    note: 'Nendo asks the person in its own card: to launch the agent when none runs, and, unless they chose Always, whether this view may message it, once per conversation. The message shows in the conversation with the view\'s title, and the agent\'s permission requests go to the person. The agent works through MCP at the person\'s level: results that matter are records it writes, which the view hears as changes. Refused with assistant-off, assistant-declined, assistant-unavailable or assistant-busy.',
+  },
+  'assistant.cancel': {
+    call: 'nendo.assistant.cancel()',
+    params: 'None.',
+    answer: 'null. The turn this view\'s message started stops; its ask answers with stopReason cancelled.',
+  },
   'media.describe': {
     call: 'nendo.media.describe(address)',
     params: 'A media field\'s value: media: and a SHA-256, an https: address, or a local path.',
@@ -340,6 +357,7 @@ export function viewApiReference() {
       changes: 'The file\'s change sequence, when anything commits to the file: at most one every 250 ms, carrying the latest. It is a nudge; the view decides what to read again.',
       place: 'The view\'s place as it declared it with ui.setPlace, or null for none: Back or Forward moved the person there. Show that place; declaring it again does nothing.',
       command: '{id, value, source}: the person pressed one of the view\'s controls. source is toolbar, menu, palette (Ctrl K), key or add. value is a toggle\'s or a check\'s new state, the option chosen, the text searched for, a radio item\'s value, or null for a button or a menu item.',
+      assistant: 'The launched agent\'s status, as assistant.status answers it, when it changes: it started, signed in, began or ended a turn, ended, or the person changed what views may do.',
       names: viewEventNames,
     },
     filters: {
@@ -420,6 +438,10 @@ export function viewApiReference() {
       'written-not-read': 'The write was kept, but reading the record back failed. Do not write it again; read the record.',
       'not-framed': 'The page was opened on its own, outside Nendo.',
       'unknown-event': 'nendo.on was given a name that is not an event.',
+      'assistant-off': 'The person chose Never for views on the Agent page. Do not ask again.',
+      'assistant-declined': 'The person said Not now in Nendo\'s card. Nendo refuses this package without a card until the conversation changes.',
+      'assistant-unavailable': 'No agent can run now: access is Off, the file is read-only, or none is installed. The message says which; Nendo showed the person the way.',
+      'assistant-busy': 'The agent is in the middle of a turn. Wait for status working false, then ask again.',
       failed: 'The answer could not be sent, or the failure had no code of its own.',
       other: 'Any other code is the host\'s own, such as validation or value-not-unique, with a message that names the remedy.',
     },
@@ -429,6 +451,7 @@ export function viewApiReference() {
       'navigate Nendo away or frame Nendo inside itself',
       'write under any name but its own package\'s',
       'accept or reject a proposal',
+      'read or set the agent\'s settings, answer its permission requests, or read the conversation beyond its own turn\'s reply',
     ],
   };
 }

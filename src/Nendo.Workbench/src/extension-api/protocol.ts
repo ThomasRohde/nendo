@@ -86,6 +86,18 @@ export const extensionLimits = {
    */
   placeBytes: 4 * 1024,
   placesPerSecond: 20,
+  /**
+   * A message to the launched agent (ADR-0033): at most this many characters, and at most
+   * `assistantItems` nendo:// items, each addressed in `assistantUriCharacters`, named in
+   * `assistantTitleCharacters` and described in `assistantItemCharacters`, all descriptions
+   * together in `assistantContextCharacters`. The composer's @ items have the same bounds.
+   */
+  assistantCharacters: 100_000,
+  assistantItems: 8,
+  assistantUriCharacters: 600,
+  assistantTitleCharacters: 120,
+  assistantItemCharacters: 8_000,
+  assistantContextCharacters: 32_000,
 } as const;
 
 /**
@@ -399,7 +411,29 @@ export interface HelloMessage { nendo: 'hello'; apiVersion: number }
 export interface ConnectMessage { nendo: 'connect'; apiVersion: number; context: ViewContext }
 
 /** Every event a view can hear; `nendo.on` refuses any other name. */
-export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command', 'place'] as const);
+export const viewEventNames = Object.freeze(['context', 'theme', 'changes', 'command', 'place', 'assistant'] as const);
+
+/**
+ * The launched agent as a view sees it (ADR-0033): its state, its name, whether a turn runs, and
+ * whether the person lets views message it on this computer. Nothing about its model or effort:
+ * those are the person's, set on the Agent page.
+ */
+export interface AssistantStatus {
+  state: 'none' | 'starting' | 'signIn' | 'ready' | 'ended';
+  name: string | null;
+  working: boolean;
+  access: 'never' | 'ask' | 'always';
+}
+
+/** Something in the file a message points the agent at: one of the file's nendo:// addresses, a name, a short description. */
+export interface AssistantItem { uri: string; title: string; text?: string }
+
+/**
+ * The end of a view's turn: the agent's message text of that turn only, and ACP's word for why
+ * it stopped (`end_turn`, `cancelled`, `max_tokens`, `max_turn_requests`, `refusal`), `error`, or
+ * `ended` when the conversation ended first.
+ */
+export interface AssistantReply { reply: string; stopReason: string }
 export type ViewEventName = typeof viewEventNames[number];
 
 /** Where a command came from: a control in the toolbar, a menu, Ctrl K, its key, or Nendo's Add. */

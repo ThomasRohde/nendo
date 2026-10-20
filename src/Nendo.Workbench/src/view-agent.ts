@@ -4,8 +4,10 @@ import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import { type ConnectionClient, connectionClients, connectionCommand, serverNameFor } from './client-help';
 import { activityLabel, agentModeLabel, counted, escapeAttribute, escapeHtml, formatDateTime, isAgentAccessMode, isProposalPreviewable, messageFor, proposalStateLabel, reversibilityLabel, shortId } from './format';
-import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview } from './host';
-import { agentLevelChanged, launchAgent, openAgentChat, saveAgentCommand, setAgentHidden, setAgentPageOpener } from './view-agent-chat';
+import { type AgentAccessMode, type AgentActivity, type AgentPreviewSummary, type AgentProposalPreview, type AgentProposalSummary, type AgentStatus, type DesktopPromotionView, type LaunchableAgents, type ProposalPreview, type ViewAgentAccess } from './host';
+import { agentChatNow, agentLevelChanged, followAgentChat, launchAgent, onAgentChatChanged, openAgentChat, saveAgentCommand, setAgentHidden, setAgentOption, setAgentPageOpener } from './view-agent-chat';
+import { installAgentOptionKeys, patchAgentOptions, wireAgentOptions } from './agent-options';
+import { assistantAccessChanged } from './view-assistant';
 import { type AgentTab, type CopyFeedback, agentTabs, agentTabsMarkup, copyButtonContent, copyHintMarkup, launchCopyText, launchTilesMarkup } from './agent-launch-model';
 import { announce, clearError, content, focusWithoutInteraction, requiredElement, rerender, setBusy, showError, showOutcome } from './shell';
 import { openTabOn } from './workspace-tabs';
@@ -104,6 +106,42 @@ async function copyToClipboard(key: string, text: string, focusSelector: string)
 const runningWords: Record<string, string> = { starting: 'Starting', signIn: 'Waiting for you to sign in', ready: 'Running' };
 
 /**
+ * The running agent's own options are set here and nowhere else (ADR-0033). The conversation
+ * keeps them; the box is patched as they change, and left alone while the person uses it.
+ */
+installAgentOptionKeys(() => agentChatNow().options);
+onAgentChatChanged(() => {
+  const box = content.querySelector<HTMLElement>('#agent-options');
+  if (box !== null) patchAgentOptions(box, agentChatNow().options, agentChatNow().state === 'ended');
+});
+
+const viewAccessChoices: Array<{ value: ViewAgentAccess; label: string; detail: string }> = [
+  { value: 'never', label: 'Never', detail: 'Views cannot message the agent.' },
+  { value: 'ask', label: 'Ask first', detail: 'A view asks you once each conversation before its first message.' },
+  { value: 'always', label: 'Always', detail: 'A view messages a running agent without asking. Launching still asks.' },
+];
+
+/**
+ * Whether custom views may message the agent (ADR-0033), kept on this computer, and the running
+ * agent's own settings. Every message a view sends shows in the conversation, marked with the view.
+ */
+function agentSettingsMarkup(running: { name: string } | null): string {
+  const access = launchable?.viewAccess ?? 'ask';
+  const chosen = viewAccessChoices.find((choice) => choice.value === access) ?? viewAccessChoices[1]!;
+  return `<section class="agent-settings" aria-label="Agent settings">
+      <div class="agent-setting-row">
+        <div><h3 id="view-access-heading">Views may message the agent</h3><p class="connection-note">${escapeHtml(chosen.detail)} Each message shows in the conversation with the view's name.</p></div>
+        <div class="theme-control layout-control view-access-control" role="group" aria-labelledby="view-access-heading">${viewAccessChoices.map((choice) =>
+          `<button type="button" data-view-access="${choice.value}" aria-pressed="${choice.value === access}">${escapeHtml(choice.label)}</button>`).join('')}</div>
+      </div>
+      ${running === null ? '' : `<div class="agent-setting-row">
+        <div><h3>${escapeHtml(running.name)}'s settings</h3><p class="connection-note">The agent's own model, effort and mode. Nendo passes on only what you pick.</p></div>
+        <div id="agent-options" class="chat-options agent-options" data-agent-options></div>
+      </div>`}
+    </section>`;
+}
+
+/**
  * The tab the Agent page shows, and whether Launch shows the agents
  * hidden on this computer. Page state, so the status poll's redraw keeps both; a new file starts
  * on Activity, where anything waiting for the person is.
@@ -143,7 +181,8 @@ function launchMarkup(): string {
   return `<p class="launch-intro">Start an agent you have installed, in a tab beside this file. It works at the level above and reaches this file only through Nendo. It is the program you would run in a terminal, with its own tools on this computer.</p>
     ${launchTilesMarkup(offer, { canLaunch: offer.canLaunch, running, showHidden: showHiddenAgents, copyFor: (id) => copyFor(`agent:${id}`) })}
     ${running === null ? '' : `<p class="connection-note">One agent runs at a time. Close ${escapeHtml(running.name)}'s tab to launch another.</p>`}
-    ${offer.canLaunch ? '' : `<p class="connection-note">${escapeHtml(offer.reason ?? 'An agent cannot be launched now.')}</p>`}`;
+    ${offer.canLaunch ? '' : `<p class="connection-note">${escapeHtml(offer.reason ?? 'An agent cannot be launched now.')}</p>`}
+    ${agentSettingsMarkup(running)}`;
 }
 
 /**
@@ -152,7 +191,7 @@ function launchMarkup(): string {
  * that had focus lost it each time, so a person moving with the keyboard was sent back to the
  * top of the document mid-step.
  */
-const focusKeys = ['agentTab', 'agentMode', 'launchAgent', 'copyAgent', 'agentHide', 'agentShow', 'connectionClient', 'agentSetting', 'reviewAgentProposal'] as const;
+const focusKeys = ['agentTab', 'agentMode', 'launchAgent', 'copyAgent', 'agentHide', 'agentShow', 'connectionClient', 'agentSetting', 'reviewAgentProposal', 'viewAccess', 'configId'] as const;
 
 function focusedControl(): string | null {
   const active = document.activeElement;
@@ -216,6 +255,9 @@ export function renderAgent(): void {
   const pendingCount = status.pendingProposals.length;
   const running = runningAgent();
   const refocus = focusedControl();
+  // The options box is carried over a redraw, wired once, so a list the person has open is not
+  // rebuilt by the status poll.
+  const keptOptions = content.querySelector<HTMLElement>('#agent-options');
   // Design A: the state, the level as one row, and three tabs. Anything that waits for
   // the person -- an outcome, automatic actions to approve -- stays above the tabs, and Activity,
   // where proposals wait, is the tab a file opens on.
@@ -326,6 +368,21 @@ export function renderAgent(): void {
     button.addEventListener('click', () => {
       void openAgentChat().catch((error: unknown) => showError(messageFor(error)));
     });
+  }
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-view-access]')) {
+    button.addEventListener('click', () => void chooseViewAccess(button.dataset.viewAccess as ViewAgentAccess));
+  }
+  const optionsSlot = content.querySelector<HTMLElement>('#agent-options');
+  if (optionsSlot !== null) {
+    let box = optionsSlot;
+    if (keptOptions !== null && keptOptions !== optionsSlot) { optionsSlot.replaceWith(keptOptions); box = keptOptions; }
+    if (box.dataset.wired !== 'yes') {
+      box.dataset.wired = 'yes';
+      wireAgentOptions(box, () => agentChatNow().options, (option, value, label) => setAgentOption(option.id, value, `${option.name}: ${label}.`));
+    }
+    patchAgentOptions(box, agentChatNow().options, agentChatNow().state === 'ended');
+    // A window that has not followed this conversation yet (opened since) reads it for its options.
+    if (!agentChatNow().exists) followAgentChat();
   }
   const command = content.querySelector<HTMLInputElement>('#agent-command');
   command?.addEventListener('change', () => {
@@ -548,6 +605,22 @@ async function setHiddenOnThisComputer(agentId: string, hide: boolean): Promise<
 }
 
 /** Copy what installs an agent, or moves it off a renamed package, for a terminal (ADR-0030). */
+/** Choose on this computer whether custom views may message the agent (ADR-0033). */
+async function chooseViewAccess(access: ViewAgentAccess): Promise<void> {
+  if (launchable?.viewAccess === access) return;
+  try {
+    launchable = await client.request<LaunchableAgents>('agentSession.setViewAccess', { access });
+    launchableAt = Date.now();
+    assistantAccessChanged(access);
+    rerender();
+    content.querySelector<HTMLButtonElement>(`[data-view-access="${access}"]`)?.focus();
+    const choice = viewAccessChoices.find((candidate) => candidate.value === access);
+    announce(`Views may message the agent: ${choice?.label ?? access}.`);
+  } catch (error) {
+    showError(messageFor(error));
+  }
+}
+
 async function copyAgentCommand(agentId: string): Promise<void> {
   const agent = launchable?.agents.find((candidate) => candidate.id === agentId);
   const command = agent === undefined ? null : launchCopyText(agent);

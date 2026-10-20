@@ -706,9 +706,15 @@ The Agent page can launch the person's own agent program over ACP
 - The Agent page has three tabs: Activity (the default), Launch and Connect. The chat tab
   merges message chunks, folds tool calls, thoughts and plans between messages into one
   line, says whether each tool went through Nendo, and redacts the application handle
-  from everything the agent writes. The composer offers only options the agent offered
-  (`AgentConversation.Options.cs`), its slash commands, and @ mentions of the file's own
-  things sent as `nendo://` resources.
+  from everything the agent writes. The composer offers its slash commands and @ mentions
+  of the file's own things sent as `nendo://` resources. The agent's own options
+  (`AgentConversation.Options.cs`) are set on the Agent page (`agent-options.ts`).
+- A custom view may message the conversation through `nendo.assistant`
+  ([ADR-0033](decisions/0033-a-view-messages-the-launched-agent.md)): `view-assistant.ts`
+  asks the person in Nendo's cards, launches the agent last launched when none runs, and
+  answers the view with its own turn's reply (`AgentConversation.Turns.cs`). A view's message
+  during a turn waits in the host, at most 8. Never, Ask or Always for views is kept in
+  `agent-launch.json`.
 - The conversation reaches the tab through the `agentSession.*` bridge methods and the
   `agentSessionChanged` nudge, keyed by `conversationId`. The transcript lives in host
   memory, at most 1,000 entries.

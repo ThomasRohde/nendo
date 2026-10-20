@@ -374,6 +374,67 @@
   font-size: 0.74rem;
 }
 
+/* A message a custom view sent (ADR-0033): the view's name over it, the bubble quieter. */
+.chat-you.is-from-view {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+}
+
+.chat-you-from {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 620;
+}
+
+/* The settings under Launch: what views may do, and the running agent's own options. */
+.agent-settings {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.agent-setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+
+.agent-setting-row h3 {
+  margin: 0 0 2px;
+  font-size: 0.9rem;
+}
+
+.agent-setting-row .connection-note {
+  margin: 0;
+  max-width: 64ch;
+}
+
+.agent-options {
+  position: relative;
+  flex: 0 1 auto;
+}
+
+/* On the Agent page, More opens up from the options, at their right edge: the settings close
+   the Launch card, so the room is above them. */
+.agent-options .chat-more-panel {
+  right: 0;
+  width: min(300px, calc(100vw - 32px));
+}
+
+/* The first line of a view's message, quoted in Nendo's card. */
+.assistant-card-message {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--line-strong);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
 .chat-agent {
   line-height: 1.6;
   overflow-wrap: anywhere;

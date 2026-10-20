@@ -43,6 +43,8 @@ const otherFamilies = ['agent-', 'aggregate-', 'backup-', 'copy-', 'csv-', 'expo
 // Single codes outside those families that the journal must not settle on, or that no
 // journaled write raises.
 const notSettled = new Set([
+  // A view's message to the launched agent (ADR-0033), refused while the person chose Never. No write.
+  'assistant-off',
   // Unsettled: a session that ended, or a host that could not answer, says nothing about
   // whether the request landed. The journal keeps the exact request and looks for its receipt.
   'stale-file-session', 'recovery-required', 'no-file-open', 'file-action-busy', 'file-actions-unavailable',

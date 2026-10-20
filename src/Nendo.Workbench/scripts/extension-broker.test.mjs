@@ -15,7 +15,7 @@ const origin = 'https://org-example-glance-3f2a9c01be.example';
 const hello = { nendo: 'hello', apiVersion: 1 };
 const context = { apiVersion: 1, viewId: 'view.glance', packageId: 'org.example.glance', readOnly: false, methods: ['records.count'], bindings: { fields: [], filters: [] } };
 
-function harness() {
+function harness(options = {}) {
   const posted = [];
   const frameWindow = { postMessage: (message, targetOrigin, transfer) => posted.push({ message, targetOrigin, transfer }) };
   const otherWindow = { postMessage: () => { throw new Error('A window this Workbench did not mount was answered.'); } };
@@ -54,6 +54,7 @@ function harness() {
     responsive: (_mount, responsive) => h.responsive.push(responsive),
     now: () => h.now,
     later: (callback, milliseconds) => h.timers.push({ at: h.now + milliseconds, callback }),
+    ...(options.assistant === undefined ? {} : { assistant: options.assistant }),
   });
   return h;
 }
@@ -230,7 +231,65 @@ test('R30-015: JSON state and places keep nested reserved names through write, r
   assert.deepEqual(event.d, { ...value, restored: true }, 'Place event lost reserved keys.');
 });
 
-test('the method table is closed: reads, the record writes, preparing a proposal, and no promote, reject, approve, file, session or agent method', () => {
+// ADR-0033: a view messages the person's launched agent. The broker rebuilds the message and
+// what it points at, refuses an address that is not the file's own before anything is asked, and
+// relays the turn's reply; the cards, the launch and the wait are the Workbench's.
+test('a view asks the launched agent only with a rebuilt message, and hears its status', async () => {
+  const bare = harness();
+  try {
+    const unconnected = connect(bare);
+    unconnected.send({ t: 'req', id: 1, m: 'assistant.ask', p: { text: 'hello' } });
+    assert.equal((await unconnected.next((message) => message.id === 1)).e.code, 'assistant-unavailable', 'A Workbench without an agent did not say so.');
+  } finally {
+    close(bare);
+  }
+
+  const asked = [];
+  const cancelled = [];
+  const status = { state: 'ready', name: 'Stand-in', working: false, access: 'ask' };
+  const h = harness({ assistant: {
+    status: async () => status,
+    ask: async (mount, message) => { asked.push({ mount, message }); return { reply: 'Done.', stopReason: 'end_turn' }; },
+    cancel: async (mount) => { cancelled.push(mount); },
+  } });
+  try {
+  const view = connect(h);
+  view.send({ t: 'req', id: 2, m: 'assistant.ask', p: {
+    text: 'Summarise', context: [{ uri: 'nendo://application/manifest', title: 'This file', text: 'All of it', extra: 'dropped' }], model: 'max',
+  } });
+  const answered = await view.next((message) => message.id === 2);
+  assert.equal(answered.ok, true, JSON.stringify(answered));
+  assert.deepEqual(answered.r, { reply: 'Done.', stopReason: 'end_turn' });
+  assert.equal(asked[0].mount, h.mount);
+  assert.deepEqual(asked[0].message, { text: 'Summarise', context: [{ uri: 'nendo://application/manifest', title: 'This file', text: 'All of it' }] },
+    'Something the view sent beside the message reached the Workbench.');
+
+  for (const [id, p, why] of [
+    [3, { text: '   ' }, 'an empty message'],
+    [4, { text: 'x', context: [{ uri: 'file:///C:/secret.txt', title: 'Secret' }] }, 'an address outside the file'],
+    [5, { text: 'x', context: [{ uri: 'nendo://a b', title: 'Spaced' }] }, 'an address with a space'],
+    [6, { text: 'x', context: Array.from({ length: 9 }, (_, index) => ({ uri: `nendo://item/${index}`, title: `Item ${index}` })) }, 'nine items'],
+    [7, { text: 'x', context: [{ uri: 'nendo://a', title: 'A', text: 'y'.repeat(8_001) }] }, 'a description past its bound'],
+  ]) {
+    view.send({ t: 'req', id, m: 'assistant.ask', p });
+    assert.equal((await view.next((message) => message.id === id)).e.code, 'invalid-params', `The broker let ${why} through.`);
+  }
+  assert.equal(asked.length, 1, 'A refused message reached the Workbench.');
+
+  view.send({ t: 'req', id: 8, m: 'assistant.status' });
+  assert.deepEqual((await view.next((message) => message.id === 8)).r, status);
+  view.send({ t: 'req', id: 9, m: 'assistant.cancel' });
+  assert.equal((await view.next((message) => message.id === 9)).ok, true);
+  assert.deepEqual(cancelled, [h.mount]);
+
+  h.broker.assistant({ ...status, working: true });
+  assert.deepEqual((await view.next((message) => message.n === 'assistant')).d, { ...status, working: true });
+  } finally {
+    close(h);
+  }
+});
+
+test('the method table is closed: reads, the record writes, preparing a proposal, a message to the launched agent, and no promote, reject, approve, file, session or agent method', () => {
   const expected = [
     ['schema.describe', null],
     ['records.query', 'data.queryRecords'],
@@ -273,6 +332,10 @@ test('the method table is closed: reads, the record writes, preparing a proposal
     ['ui.showMenu', null],
     // The view's place in Back and Forward: the Workbench keeps it and never reads it.
     ['ui.setPlace', null],
+    // The launched agent (ADR-0033): the Workbench's own cards, launch and wait; no agent.* method.
+    ['assistant.status', null],
+    ['assistant.ask', null],
+    ['assistant.cancel', null],
   ];
   const table = broker.brokerTable();
   assert.deepEqual(table.map(({ method, host }) => [method, host]), expected);

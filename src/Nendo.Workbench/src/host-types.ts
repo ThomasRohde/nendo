@@ -274,7 +274,14 @@ export interface LaunchableAgents {
   running: { agentId: string; name: string; state: LaunchedAgentState; working: boolean } | null;
   /** The agents hidden on this computer, by ID (`custom` for the person's own command). */
   hidden: string[];
+  /** The agent last launched on this computer, which a view's card offers (ADR-0033); absent from an older host. */
+  lastAgentId?: string | null;
+  /** Whether custom views may message the agent on this computer (ADR-0033); absent from an older host. */
+  viewAccess?: ViewAgentAccess;
 }
+
+/** Whether custom views may message the launched agent: never, after asking once per conversation, or always. */
+export type ViewAgentAccess = 'never' | 'ask' | 'always';
 
 export type LaunchedAgentState = 'none' | 'starting' | 'signIn' | 'ready' | 'ended';
 export type AgentEntryKind = 'you' | 'agent' | 'thought' | 'tool' | 'plan' | 'permission' | 'notice';
@@ -299,6 +306,8 @@ export interface AgentTranscriptEntry {
   plan: Array<{ text: string; status: string }> | null;
   /** For a tool or a permission request: `nendo` when it went through this file's MCP server, `agent` for the agent's own tool. */
   origin: 'nendo' | 'agent' | null;
+  /** For a message: the custom view that sent it, by its title (ADR-0033); null for the person's own. */
+  from?: string | null;
 }
 
 /**
@@ -349,6 +358,18 @@ export interface LaunchedAgentView {
   signingIn?: boolean;
   /** The agent's slash commands, as it last stated them; absent from an older host. */
   commands?: AgentCommand[];
+  /** The turn a prompt started, which `agentSession.turn` reads back; only on a prompt's answer. */
+  turnId?: string | null;
+  /** Views' messages waiting for the turn that runs (ADR-0033); absent from an older host. */
+  queued?: number;
+}
+
+/** A turn read back (ADR-0033): whether it ended, the agent's message text of that turn, and why it stopped. */
+export interface AgentTurn {
+  turnId: string;
+  done: boolean;
+  reply: string | null;
+  stopReason: string | null;
 }
 
 /**

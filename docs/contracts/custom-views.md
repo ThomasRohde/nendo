@@ -572,7 +572,7 @@ Everything after the handshake travels on the port.
 | View | `{t: 'req', id, m, p}` | A request. `id` is a safe integer the view chooses, `m` a method name, `p` its parameters, an object |
 | Workbench | `{t: 'res', id, ok: true, r}` | The answer to request `id` |
 | Workbench | `{t: 'res', id, ok: false, e: {code, message}}` | A refusal of request `id` |
-| Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme`, `changes`, `command` or `place`, with its data ([Events](#events)) |
+| Workbench | `{t: 'evt', n, d}` | An event: `context`, `theme`, `changes`, `command`, `place` or `assistant`, with its data ([Events](#events)) |
 | Workbench | `{t: 'ping', id}` | A heartbeat. The script answers `{t: 'pong', id}` |
 | View | `{t: 'ping', id}` | The broker answers `{t: 'pong', id}` |
 | View | `{t: 'key', keys}` | A key pressed inside the view that is one of Nendo's own, or one its toolbar declares, normalised (`Ctrl+K`). The Workbench runs it as if it had been pressed there, and nothing answers ([Nendo's toolbar, menus and keys](#nendos-toolbar-menus-and-keys)) |
@@ -628,10 +628,14 @@ nothing a view sends is used as a method name, a host payload or an identity.
 | `ui.setToolbar` | `items`, `add` | Nendo's toolbar for the view | null |
 | `ui.showMenu` | `items`, `x`, `y` | Nendo's menu at a point in the view | `{id, value}` of the item picked, or null |
 | `ui.setPlace` | `place`, `label`, `replace` | The view's place in Back and Forward | null |
+| `assistant.status` | none | The launched agent as the Workbench follows it ([ADR-0033](../decisions/0033-a-view-messages-the-launched-agent.md)) | `{state, name, working, access}` |
+| `assistant.ask` | `text` (1–100,000 characters), `context` (at most 8 `{uri, title, text}`: a `nendo://` address of at most 600 characters without white space, a name of 1–120, a description of at most 8,000, 32,000 in all) | Nendo's cards, then `agentSession.prompt` with the view's title as `from`, then `agentSession.turn` until it ends | `{reply, stopReason}` |
+| `assistant.cancel` | none | `agentSession.cancel` with this mount's own `turnId` | null |
 
 The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`,
 `agent.*`, `file.*`, `session.open*`, `appearance.set` or `history.compensate`, and
-never will: acceptance stays with the person. A view's reads carry no actor. They are
+never will: acceptance stays with the person. `assistant.*` reaches the launched agent only
+through the Workbench, which asks the person first ([The launched agent](#the-launched-agent)). A view's reads carry no actor. They are
 the Workbench's reads, under its file session.
 
 Numbers in the host's answers arrive as plain JSON numbers, which a JavaScript number
@@ -1093,6 +1097,7 @@ other than these five throws `unknown-event`.
 | `changes` | The file's change sequence | When anything commits to the open file: at most one every 250 ms to one view, carrying the latest sequence |
 | `command` | `{id, value, source}` | The person pressed one of the controls the view declared: in Nendo's toolbar, one of its menus, Ctrl K, by its key, or Nendo's Add. `source` is `toolbar`, `menu`, `palette`, `key` or `add` |
 | `place` | The view's place, or null | Back or Forward moved the person to a place of this view's that differs from the one it has |
+| `assistant` | `{state, name, working, access}` | The launched agent started, signed in, began or ended a turn, or ended, or the person changed what views may do |
 
 `nendo.changes.subscribe(listener)` is the same as `nendo.on('changes', listener)`. An
 event is a nudge: the view decides what to read again.
@@ -1147,11 +1152,35 @@ sentence.
 | `host-timeout` | Workbench | Nendo did not answer within 15 seconds. As `disconnected` |
 | `written-not-read` | Broker | The write was kept, but reading the record back failed. Read it; do not write it again |
 | `not-framed` | Script | The page was opened on its own, outside any frame, so nothing can connect it |
-| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes`, `command` or `place` |
+| `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes`, `command`, `place` or `assistant` |
 | `failed` | Broker | The answer could not be sent, or the failure had no code |
+| `assistant-off` | Workbench or host | The person chose Never for views on the Agent page |
+| `assistant-declined` | Workbench | The person said Not now in Nendo's card; refused without a card until the conversation changes |
+| `assistant-unavailable` | Broker or Workbench | No agent can run now (access Off, read-only, none installed), or this Workbench has none |
+| `assistant-busy` | Workbench | Too many messages already wait for the agent |
 
 A read the host refuses keeps the host's own code, for example `validation`,
 `stale-cursor`, `invalid-cursor` or `stale-file-session`.
+
+### The launched agent
+
+[ADR-0033](../decisions/0033-a-view-messages-the-launched-agent.md). A view may send the
+person's launched agent a message and hear its own turn's reply; the
+[launched agents contract](launched-agents.md#a-custom-views-messages) has the host's side.
+
+- **The broker** checks the message and rebuilds each item key by key; an address that is
+  not one of the file's `nendo://` addresses is `invalid-params` before anything is asked.
+- **The Workbench** (`view-assistant.ts`, deciding by `assistant-model.ts`) asks the person in
+  its own modal cards, one at a time, quoting the message's first line. At Never it refuses
+  at once. With no agent running it offers to launch the agent last launched on this
+  device, or the first installed and shown; launching counts as consent, and it waits up to
+  six minutes for the agent to start and sign in. At Ask it asks once per conversation
+  whether the view may message the agent. Not now holds for the package until the
+  conversation changes. Nothing is kept on the device.
+- **The host** sends the message marked with `from`, the view's title, or keeps it in order
+  while a turn runs, and answers the turn's reply once it ends.
+- A view never sees or sets the agent's model, effort or mode, never answers a permission
+  request, and never reads the transcript beyond its own turn's reply.
 
 ### The view API as a read
 

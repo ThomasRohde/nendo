@@ -98,6 +98,7 @@ const frameStubs = {
   './view-menu': 'export const closeViewMenu = () => {}; export const showViewMenu = () => {};',
   './view-toolbar': 'export const drawViewToolbar = (_element, host) => globalThis.extensionSettingsFrames.controls.push(host.toolbar); export const focusViewSearch = () => {};',
   './view-health': 'export const refreshHealth = () => {}; export const openHealth = () => {};',
+  './view-assistant': 'export const createAssistant = () => undefined;',
   './view-packages': 'export const importPackage = () => {}; export const openCustomViews = () => {}; export const saveDevelopment = () => {}; export const setViewSwitch = () => {}; export const stopDeveloping = () => {};',
 };
 const frameEntry = [

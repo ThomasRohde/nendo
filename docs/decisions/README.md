@@ -43,3 +43,4 @@ itself, by topic, and the affected [contract](../contracts/) and
 | [0030](0030-launch-the-persons-own-agent-over-acp.md) | Accepted | Launch the person's own agent over ACP, in a tab |
 | [0031](0031-media-in-user-data.md) | Accepted | Media in user data, embedded or linked |
 | [0032](0032-a-views-runtime-events-reach-its-agent.md) | Accepted | A custom view's runtime events reach its agent |
+| [0033](0033-a-view-messages-the-launched-agent.md) | Accepted | A custom view messages the launched agent |

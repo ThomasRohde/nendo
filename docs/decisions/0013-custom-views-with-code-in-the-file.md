@@ -160,7 +160,8 @@ growth of a commit carrying 4 MiB of new content.
   file.
 - The table holds none of `proposal.promote`, `proposal.reject`, `behaviour.*`, `agent.*`,
   `file.*`, `session.open*`, `appearance.set` or `history.compensate`. The production gate
-  pins it.
+  pins it. A view may message the person's launched agent through `assistant.*`, under
+  [ADR-0033](0033-a-view-messages-the-launched-agent.md).
 - At most 8 requests are in flight per frame, with a queue of 64, so a busy view does not
   starve a person's save.
 - A view that moves the page on its own, its frame not focused, does so at most once a

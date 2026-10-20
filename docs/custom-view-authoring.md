@@ -340,7 +340,7 @@ has the whole shape.
 
 ## Following the file
 
-`nendo.on(name, listener)` subscribes to one of five events and returns a function
+`nendo.on(name, listener)` subscribes to one of six events and returns a function
 that unsubscribes. Any other name is refused with `unknown-event`:
 
 | Event | Data | When |
@@ -350,6 +350,7 @@ that unsubscribes. Any other name is refused with `unknown-event`:
 | `theme` | `{mode, tokens}` | When the person switches between light and dark |
 | `place` | The place the view declared with `ui.setPlace`, or null | When Back or Forward moved the person to one of the view's places ([Back and Forward](#back-and-forward)) |
 | `command` | `{id, value, source}` | When the person pressed one of the controls the view declared ([Controls in Nendo's toolbar](#controls-in-nendos-toolbar)) |
+| `assistant` | `{state, name, working, access}` | When the person's launched agent starts, signs in, begins or ends a turn or ends, or the person changes what views may do ([Asking the person's agent](#asking-the-persons-agent)) |
 
 An event is a nudge, not data. Read again what your view shows, and collapse a burst
 into one read, as the first view does. `nendo.changes.subscribe(listener)` is the same
@@ -472,6 +473,36 @@ step. Declaring the place the view already has does nothing. Answer the `place` 
 showing the place, never with a new step. While the view is not on screen a declaration
 is refused `not-allowed`; declare again when it is shown. Ask `nendo.has('ui.setPlace')`
 first.
+
+## Asking the person's agent
+
+When the person has an agent launched from the Agent page, or can launch one, a view can
+send it a message and use the reply
+([ADR-0033](decisions/0033-a-view-messages-the-launched-agent.md)):
+
+```js
+if (nendo.has('assistant.ask')) {
+  const { reply, stopReason } = await nendo.assistant.ask('Summarise the notes tagged draft.', {
+    context: [{ uri: 'nendo://application/manifest', title: 'This file' }],
+  });
+}
+```
+
+- `ask` answers once the agent's turn ends: `reply` is the agent's message text of your
+  turn only, and `stopReason` is `end_turn`, `cancelled`, `max_tokens`,
+  `max_turn_requests`, `refusal`, `error`, or `ended` when the conversation ended first.
+- The agent runs one turn at a time. A message sent while it works waits, in order, and is
+  sent when the turn before it ends; at most 8 wait, 2 of them yours.
+- Nendo asks the person first, in its own card: to launch the agent when none runs, and,
+  unless they chose Always, whether your view may message it, once per conversation.
+- Your message shows in the conversation with your view's title. The agent's permission
+  requests go to the person, never to you.
+- The agent reaches the file over MCP at the person's access level. Results that matter
+  should be records it writes, which you hear as `changes`; the reply is text.
+- `nendo.assistant.status()` and the event `assistant` say `{state, name, working,
+  access}`. The agent's model, effort and mode are the person's, set on the Agent page.
+- `nendo.assistant.cancel()` stops your own turn: dropped while it waits, stopped while it
+  runs.
 
 ## Controls in Nendo's toolbar
 
@@ -740,7 +771,11 @@ A refused call rejects with a `nendo.NendoError`. Its `code` is stable, and its
 | `host-timeout` | Nendo did not answer in time. A write may have been kept, as with `disconnected` |
 | `written-not-read` | The write was kept, but reading the record back failed. Do not write it again; read the record |
 | `not-framed` | The page was opened on its own, not in Nendo |
-| `unknown-event` | `nendo.on` was given a name that is not one of its five events |
+| `unknown-event` | `nendo.on` was given a name that is not one of its six events |
+| `assistant-off` | The person chose Never for views on the Agent page. Do not ask again |
+| `assistant-declined` | The person said Not now in Nendo's card. Nendo refuses your package without a card until the conversation changes |
+| `assistant-unavailable` | No agent can run now: access is Off, the file is read-only, or none is installed. Nendo showed the person the way |
+| `assistant-busy` | Too many messages already wait for the agent. Ask again when it has answered some |
 | `stale-cursor`, `invalid-cursor` | The file changed between pages, or the cursor belongs to another query. Read again from the first page |
 | `failed` | The answer could not be sent, or the failure had no code of its own |
 

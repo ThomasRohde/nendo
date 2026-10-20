@@ -10,8 +10,8 @@ import type { AgentCommand, AgentOption, AgentTranscriptEntry, LaunchedAgentStat
  * the node lane.
  *
  * The tab is a reading column where the agent's steps fold
- * into one line, a permission request stands where the agent stopped, and the agent's own
- * options sit in the composer. Every word in an entry is the agent's or a tool's and is drawn as
+ * into one line and a permission request stands where the agent stopped. The agent's own
+ * options are set on the Agent page (ADR-0033). Every word in an entry is the agent's or a tool's and is drawn as
  * text; the agent's messages go through the Markdown subset, which escapes every character
  * before it adds a tag.
  */
@@ -38,12 +38,15 @@ export interface AgentChat {
   options: AgentOption[];
   /** The agent's slash commands, offered when a message starts with /. */
   commands: AgentCommand[];
+  /** Views' messages waiting for the turn that runs (ADR-0033). */
+  queued: number;
 }
 
 export function emptyChat(): AgentChat {
   return {
     key: '', conversationId: null, exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
     state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], signingIn: false, options: [], commands: [],
+    queued: 0,
   };
 }
 
@@ -76,6 +79,7 @@ export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: s
   chat.signingIn = view.signingIn === true;
   chat.options = view.options ?? [];
   chat.commands = view.commands ?? [];
+  chat.queued = view.queued ?? 0;
   chat.revision = Math.max(chat.revision, view.revision);
   const changed: string[] = [];
   for (const entry of view.entries) {
@@ -105,7 +109,7 @@ export function stateLabel(chat: AgentChat): string {
   switch (chat.state) {
     case 'starting': return 'Starting';
     case 'signIn': return 'Sign in needed';
-    case 'ready': return waitingForYou(chat) ? 'Waiting for you' : chat.working ? 'Working' : 'Ready';
+    case 'ready': return `${waitingForYou(chat) ? 'Waiting for you' : chat.working ? 'Working' : 'Ready'}${chat.queued > 0 ? ` · ${chat.queued} from views waiting` : ''}`;
     case 'ended': return 'Ended';
     default: return 'Not running';
   }
@@ -275,7 +279,9 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
   switch (item.type) {
     case 'you':
       // The host names what the person pointed at with @ in the entry's title.
-      return `<div class="chat-you" data-item="${key}">${escapeHtml(entry.text)}${entry.title === null || entry.title === ''
+      // A message a custom view sent says which (ADR-0033): the person sees everything sent in their name.
+      return `<div class="chat-you${entry.from ? ' is-from-view' : ''}" data-item="${key}">${entry.from
+        ? `<span class="chat-you-from">From ${escapeHtml(entry.from)}</span>` : ''}${escapeHtml(entry.text)}${entry.title === null || entry.title === ''
         ? '' : `<span class="chat-you-context">Pointed at ${escapeHtml(entry.title)}</span>`}</div>`;
     case 'agent':
       return `<div class="chat-agent markdown-body" data-item="${key}">${markdownMarkup(entry.text, { headingShift: 2 })}</div>`;

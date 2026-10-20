@@ -727,12 +727,14 @@ async page => {
         if (node.classList?.contains('chat-empty')) window.__emptyAdds++;
       } }).observe(document.getElementById('chat-thread'), { childList: true, subtree: true });
     });
-    await page.focus('#chat-options select');
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Enter');
+    // The agent's options are set on the Agent page (ADR-0033); one set while the conversation
+    // is on screen moves the conversation, which must not write its empty state again.
+    await shell(() => import('/src/view-agent-chat.ts').then(module => module.setAgentOption('model', 'haiku-4.5', 'Model: Haiku 4.5.')));
     await page.waitForTimeout(600);
     const emptyAdds = await page.evaluate(() => window.__emptyAdds);
     if (emptyAdds > 0) problems.push(`changing an option wrote the empty conversation into the log again ${emptyAdds} times`);
+    if (await page.evaluate(() => document.querySelector('[data-agent-chat] select, [data-agent-chat] .chat-more') !== null))
+      problems.push('the conversation still offers the agent\'s options, which are the Agent page\'s');
     await page.locator('#agent-prompt').fill('Add a record type for requests');
     await page.focus('#send-prompt');
     await page.keyboard.press('Enter');
@@ -804,16 +806,18 @@ async page => {
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
-  // An arrow key in an option looks and keeps More open; the focused option says so.
+  // The agent's options are on the Agent page's Launch card (ADR-0033). An arrow key in an
+  // option looks and keeps More open; the focused option says so.
   await check('agent options', 'idea', async () => {
     await launch();
+    await agentPage('launch');
+    await until(() => document.querySelector('#agent-options select') !== null, null, 'the agent\'s options on the Agent page');
     const problems = [];
-    await page.focus('#agent-prompt');
-    await page.keyboard.press('Tab');
+    await page.focus('[data-view-access="always"]');
     await page.keyboard.press('Tab');
     const ring = await page.evaluate(() => { const element = document.activeElement; if (!(element instanceof HTMLSelectElement)) return null;
       const style = getComputedStyle(element); return { style: style.outlineStyle, width: style.outlineWidth }; });
-    if (ring === null || ring.style !== 'solid' || parseFloat(ring.width) < 2) problems.push(`a focused composer option shows ${JSON.stringify(ring)}`);
+    if (ring === null || ring.style !== 'solid' || parseFloat(ring.width) < 2) problems.push(`a focused agent option shows ${JSON.stringify(ring)}`);
     await page.click('.chat-more summary');
     await until(() => document.querySelector('details.chat-more')?.open === true, null, 'More');
     await page.focus('.chat-more-panel select');
@@ -831,6 +835,49 @@ async page => {
     const afterEscape = (await said()).slice(before);
     const valueAfter = await page.evaluate(() => document.querySelector('.chat-more-panel select')?.value ?? null);
     if (afterEscape.length > 0 || valueAfter !== valueBefore) problems.push(`Escape after looking chose the option: said ${JSON.stringify(afterEscape)}, value ${valueAfter}`);
+    assert(problems.length === 0, problems.join('; ') + '.');
+  });
+
+  // ADR-0033: a custom view messages the launched agent through the real module the broker
+  // uses. Nendo's own card offers the launch, the message waits for the agent to be ready,
+  // the reply is the turn's own, two messages at once are answered in turn rather than one
+  // refused, and Never refuses without a card.
+  await check('a view messages the agent', 'idea', async () => {
+    await agentPage('activity');
+    await page.click('[data-agent-mode="shapeApp"]');
+    await until(() => document.querySelector('[data-agent-mode="shapeApp"]')?.getAttribute('aria-pressed') === 'true', null, 'Shape app');
+    const problems = [];
+    await page.evaluate(async () => {
+      const module = await import('/src/view-assistant.ts');
+      window.__assistant = module.createAssistant(() => ({ title: 'Lens', packageId: 'org.example.lens' }), () => {});
+      window.__answers = [];
+      window.__ask = (key, text) => window.__assistant.ask({ key }, { text, context: [] })
+        .then((answer) => window.__answers.push(answer), (error) => window.__answers.push({ error: error.code }));
+      window.__ask('first', 'Count the ideas');
+    });
+    await until(() => document.querySelector('dialog[open] [data-confirm]')?.textContent.startsWith('Launch') === true, null, 'the launch card');
+    const card = await page.evaluate(() => document.querySelector('dialog[open] blockquote')?.textContent ?? null);
+    if (card !== 'Count the ideas') problems.push(`the launch card quoted ${JSON.stringify(card)}`);
+    await page.click('dialog[open] [data-confirm]');
+    await until(() => window.__answers.length === 1, null, 'the reply', 8000);
+    const first = await page.evaluate(() => window.__answers[0]);
+    if (first.stopReason !== 'end_turn' || !String(first.reply).includes('Count the ideas')) problems.push(`the first reply was ${JSON.stringify(first)}`);
+    if (await page.evaluate(() => document.querySelector('dialog[open]') !== null)) problems.push('a second card asked after the launch, which is consent');
+    await page.evaluate(() => { window.__ask('one', 'One'); window.__ask('two', 'Two'); });
+    await until(() => window.__answers.length === 3, null, 'both replies', 10000);
+    const replies = await page.evaluate(() => window.__answers.slice(1));
+    if (!replies.every((answer, index) => String(answer.reply ?? '').includes(['"One"', '"Two"'][index])))
+      problems.push(`two messages at once were answered ${JSON.stringify(replies)}`);
+    const marked = await page.evaluate(() => import('/src/view-agent-chat.ts').then((module) =>
+      [...module.agentChatNow().entries.values()].filter((entry) => entry.kind === 'you').map((entry) => entry.from)));
+    if (marked.length !== 3 || marked.some((from) => from !== 'Lens')) problems.push(`the transcript marked the view's messages ${JSON.stringify(marked)}`);
+    await page.click('[data-agent-tab="launch"]');
+    await page.click('[data-view-access="never"]');
+    await until(() => document.querySelector('[data-view-access="never"]')?.getAttribute('aria-pressed') === 'true', null, 'Never');
+    await page.evaluate(() => window.__ask('never', 'Not allowed'));
+    await until(() => window.__answers.length === 4, null, 'the refusal');
+    const refused = await page.evaluate(() => ({ answer: window.__answers[3], card: document.querySelector('dialog[open]') !== null }));
+    if (refused.answer.error !== 'assistant-off' || refused.card) problems.push(`at Never a view's message got ${JSON.stringify(refused)}`);
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 

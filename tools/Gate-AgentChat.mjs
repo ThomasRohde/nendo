@@ -101,8 +101,13 @@ async page => {
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && document.querySelector('.chat-agent') !== null, null, 'the reply');
   checks.push('keyboard focus stays on a fold');
 
-  // More opens inside the content pane and the window at the widths the composer wraps at,
-  // in both themes, with its rightmost control in sight.
+  // The agent's options are on the Agent page (ADR-0033). More opens inside the content pane and
+  // the window at the widths the page wraps at, in both themes, with its rightmost control in sight.
+  await page.click('#chat-access');
+  await until(() => document.querySelector('[data-agent-mode]') !== null, null, 'the Agent page');
+  await page.click('[data-agent-tab="launch"]');
+  await until(() => document.querySelector('#agent-options .chat-more summary') !== null, null, 'the agent\'s options on the Launch card');
+  assert(await page.evaluate(() => document.querySelector('[data-agent-chat]') === null), 'the conversation was still on screen.');
   const more = [];
   for (const width of [1024, 900, 800, 760]) {
     for (const theme of ['light', 'dark']) {
@@ -131,6 +136,7 @@ async page => {
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => document.querySelector('[data-theme-option="light"]')?.click());
+  await goToTab(agent);
   checks.push('More opens in sight');
 
   // New session starts the composer again: what the old message pointed at goes, and the

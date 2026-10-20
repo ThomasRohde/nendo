@@ -203,8 +203,9 @@ internal static class DesktopAgentCatalog
 
 /// <summary>
 /// What a person chose about Launch on the Agent page, kept for this device only, never in a
-/// file (ADR-0030): the one command line they added, and the agents they hid. A computer at
-/// work may have only one agent its owner uses; the others' rows are noise there.
+/// file (ADR-0030): the one command line they added, the agents they hid, the agent they last
+/// launched, and whether custom views may message the agent (ADR-0033). A computer at work may
+/// have only one agent its owner uses; the others' rows are noise there.
 /// </summary>
 internal sealed class DesktopAgentLaunchStore(string root)
 {
@@ -212,10 +213,43 @@ internal sealed class DesktopAgentLaunchStore(string root)
     private readonly string _root = Path.GetFullPath(root);
     private string StatePath => Path.Combine(_root, "agent-launch.json");
 
+    /// <summary>Views may not message the agent.</summary>
+    internal const string ViewAccessNever = "never";
+
+    /// <summary>A view asks the person once per conversation. The default.</summary>
+    internal const string ViewAccessAsk = "ask";
+
+    /// <summary>A view messages a running agent without asking.</summary>
+    internal const string ViewAccessAlways = "always";
+
+    internal static bool IsViewAccess(string? value) => value is ViewAccessNever or ViewAccessAsk or ViewAccessAlways;
+
     internal string? CommandLine => Load().CommandLine;
 
     /// <summary>The agents this person hid, by ID, in the order they hid them.</summary>
     internal IReadOnlyList<string> Hidden => Load().Hidden;
+
+    /// <summary>The agent last launched on this device, which a view's card offers to launch.</summary>
+    internal string? LastAgentId => Load().LastAgentId;
+
+    /// <summary>Whether custom views may message the agent: never, ask or always.</summary>
+    internal string ViewAccess => Load().ViewAccess;
+
+    /// <summary>Remember the agent launched, for the next card that offers one.</summary>
+    internal void SetLastAgent(string agentId)
+    {
+        if (!DesktopAgentCatalog.CanHide(agentId)) return;
+        var current = Load();
+        if (current.LastAgentId == agentId) return;
+        Write(current with { LastAgentId = agentId });
+    }
+
+    /// <summary>Choose whether custom views may message the agent.</summary>
+    internal void SetViewAccess(string access)
+    {
+        if (!IsViewAccess(access)) throw new NendoValidationException("Choose never, ask or always.");
+        Write(Load() with { ViewAccess = access });
+    }
 
     /// <summary>Keep <paramref name="commandLine"/>, or forget the command with an empty one.</summary>
     internal void Save(string? commandLine)
@@ -247,7 +281,9 @@ internal sealed class DesktopAgentLaunchStore(string root)
             // An ID this build does not know is dropped rather than trusted: the file is this
             // device's, but an older or newer Nendo may have written it.
             var hidden = (document.Hidden ?? []).Where(DesktopAgentCatalog.CanHide).Distinct(StringComparer.Ordinal).ToList();
-            return new Choices(line, hidden);
+            var last = document.LastAgentId is { } id && DesktopAgentCatalog.CanHide(id) ? id : null;
+            var access = IsViewAccess(document.ViewAccess) ? document.ViewAccess! : ViewAccessAsk;
+            return new Choices(line, hidden, last, access);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -257,7 +293,7 @@ internal sealed class DesktopAgentLaunchStore(string root)
 
     private void Write(Choices choices)
     {
-        if (choices.CommandLine is null && choices.Hidden.Count == 0)
+        if (choices.CommandLine is null && choices.Hidden.Count == 0 && choices.LastAgentId is null && choices.ViewAccess == ViewAccessAsk)
         {
             try { File.Delete(StatePath); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
@@ -265,13 +301,14 @@ internal sealed class DesktopAgentLaunchStore(string root)
         }
         using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
         DesktopStateFile.Replace(_root, StatePath, "agent-launch",
-            stream => JsonSerializer.Serialize(stream, new StoredLaunch(1, choices.CommandLine, choices.Hidden.Count == 0 ? null : [.. choices.Hidden])));
+            stream => JsonSerializer.Serialize(stream, new StoredLaunch(1, choices.CommandLine, choices.Hidden.Count == 0 ? null : [.. choices.Hidden],
+                choices.LastAgentId, choices.ViewAccess == ViewAccessAsk ? null : choices.ViewAccess)));
     }
 
-    private sealed record Choices(string? CommandLine, IReadOnlyList<string> Hidden)
+    private sealed record Choices(string? CommandLine, IReadOnlyList<string> Hidden, string? LastAgentId = null, string ViewAccess = ViewAccessAsk)
     {
         internal static readonly Choices None = new(null, []);
     }
 
-    private sealed record StoredLaunch(int Version, string? CommandLine, string[]? Hidden = null);
+    private sealed record StoredLaunch(int Version, string? CommandLine, string[]? Hidden = null, string? LastAgentId = null, string? ViewAccess = null);
 }

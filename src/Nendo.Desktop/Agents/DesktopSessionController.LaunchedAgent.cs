@@ -25,7 +25,8 @@ internal sealed record DesktopLaunchedAgentSummary(string AgentId, string Name, 
 /// What the Agent page shows under Launch: whether a launch is possible now and why not, the
 /// agents it can offer, the person's own command, the agent already running, and the agents this
 /// person hid on this device (by ID, <c>custom</c> for their own command). A hidden agent is still
-/// listed, so the page can offer to show it again.
+/// listed, so the page can offer to show it again. <c>LastAgentId</c> is the agent last launched
+/// on this device and <c>ViewAccess</c> whether custom views may message the agent (ADR-0033).
 /// </summary>
 internal sealed record DesktopLaunchableAgents(
     bool CanLaunch,
@@ -33,7 +34,9 @@ internal sealed record DesktopLaunchableAgents(
     IReadOnlyList<DesktopLaunchableAgentView> Agents,
     string? CustomCommandLine,
     DesktopLaunchedAgentSummary? Running,
-    IReadOnlyList<string> Hidden);
+    IReadOnlyList<string> Hidden,
+    string? LastAgentId = null,
+    string ViewAccess = DesktopAgentLaunchStore.ViewAccessAsk);
 
 /// <summary>
 /// The conversation tab's read: which launch it is, who the agent is, the level it works at, the
@@ -60,7 +63,9 @@ internal sealed record DesktopLaunchedAgentView(
     IReadOnlyList<AgentOptionView> Options,
     long FirstOrder,
     bool SigningIn = false,
-    IReadOnlyList<AgentCommandView>? Commands = null)
+    IReadOnlyList<AgentCommandView>? Commands = null,
+    string? TurnId = null,
+    int Queued = 0)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
         new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0, false, []);
@@ -179,6 +184,28 @@ internal sealed partial class DesktopSessionController
         }
     }
 
+    /// <summary>Choose on this device whether custom views may message the agent (ADR-0033).</summary>
+    internal async Task<DesktopLaunchableAgents> SetAgentViewAccessAsync(string fileSessionId, string access, CancellationToken cancellationToken = default)
+    {
+        var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            RequireFileSession(fileSessionId);
+            try { AgentLaunch().SetViewAccess(access); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new NendoPreconditionException("agent-choice-not-saved", "That choice could not be kept on this computer.");
+            }
+            return DescribeLaunchableCore(catalog);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     /// <summary>
     /// Start <paramref name="agentId"/> for the open file, at the access level it is at now. The
     /// handshake runs on; the conversation tab reads how it went.
@@ -215,6 +242,9 @@ internal sealed partial class DesktopSessionController
                 if (ReferenceEquals(agent, _launched)) LaunchedAgentChanged?.Invoke(revision);
             };
             _launched = agent;
+            // Which agent a view's card offers next; a device that cannot keep it still launches.
+            try { AgentLaunch().SetLastAgent(command.Id); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
             return ReadLaunchedCore(agent, 0);
         }
         finally
@@ -234,12 +264,22 @@ internal sealed partial class DesktopSessionController
         return _launched is { } agent ? ReadLaunchedCore(agent, Math.Max(0, after)) : DesktopLaunchedAgentView.None(LevelName());
     }
 
-    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? conversationId = null)
+    /// <param name="from">
+    /// The custom view that sent the message, by its title (ADR-0033), or null for the person's
+    /// own. Refused while the person chose Never for views on this device.
+    /// </param>
+    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? conversationId = null, string? from = null)
     {
         var agent = RequireLaunched(fileSessionId, conversationId);
-        agent.Conversation.Prompt(text, pointedAt);
-        return ReadLaunchedCore(agent, after);
+        if (from is not null && AgentLaunch().ViewAccess == DesktopAgentLaunchStore.ViewAccessNever)
+            throw new NendoPreconditionException("assistant-off", "Views may not message the agent on this computer. Change it on the Agent page.");
+        var turnId = agent.Conversation.Prompt(text, pointedAt, from);
+        return ReadLaunchedCore(agent, after) with { TurnId = turnId };
     }
+
+    /// <summary>A turn of this conversation read back: whether it ended, its reply and why it stopped.</summary>
+    internal AgentTurnView ReadLaunchedAgentTurn(string fileSessionId, string turnId, string? conversationId = null) =>
+        RequireLaunched(fileSessionId, conversationId).Conversation.ReadTurn(turnId);
 
     internal DesktopLaunchedAgentView AnswerLaunchedAgent(string fileSessionId, string entryId, string? optionId, long after, string? conversationId = null)
     {
@@ -248,10 +288,15 @@ internal sealed partial class DesktopSessionController
         return ReadLaunchedCore(agent, after);
     }
 
-    internal async Task<DesktopLaunchedAgentView> CancelLaunchedAgentTurnAsync(string fileSessionId, long after, string? conversationId = null)
+    /// <param name="turnId">
+    /// A view's own turn to stop (ADR-0033): dropped if it still waits, cancelled if it runs. Null
+    /// for the person's Stop, which cancels the running turn and drops every waiting message.
+    /// </param>
+    internal async Task<DesktopLaunchedAgentView> CancelLaunchedAgentTurnAsync(string fileSessionId, long after, string? conversationId = null, string? turnId = null)
     {
         var agent = RequireLaunched(fileSessionId, conversationId);
-        await agent.Conversation.CancelTurnAsync();
+        if (turnId is null) await agent.Conversation.CancelTurnAsync();
+        else await agent.Conversation.CancelTurnAsync(turnId);
         return ReadLaunchedCore(agent, after);
     }
 
@@ -359,7 +404,8 @@ internal sealed partial class DesktopSessionController
         var running = _launched is { HasEnded: false } agent
             ? new DesktopLaunchedAgentSummary(agent.Command.Id, agent.Command.Name, agent.Conversation.State, agent.Conversation.Working)
             : null;
-        return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running, AgentLaunch().Hidden);
+        var choices = AgentLaunch();
+        return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running, choices.Hidden, choices.LastAgentId, choices.ViewAccess);
     }
 
     /// <summary>Why an agent cannot be launched now, or null when it can.</summary>
@@ -381,7 +427,8 @@ internal sealed partial class DesktopSessionController
         var snapshot = agent.Conversation.Read(after);
         return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
-            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn, snapshot.Commands ?? []);
+            snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn, snapshot.Commands ?? [],
+            Queued: snapshot.Queued);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

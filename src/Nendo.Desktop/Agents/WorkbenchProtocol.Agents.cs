@@ -23,11 +23,14 @@ internal static partial class WorkbenchMethods
     internal const string AgentSessionAuthenticate = "agentSession.authenticate";
     internal const string AgentSessionEnd = "agentSession.end";
     internal const string AgentSessionSetOption = "agentSession.setOption";
+    internal const string AgentSessionSetViewAccess = "agentSession.setViewAccess";
+    internal const string AgentSessionTurn = "agentSession.turn";
 
     internal static readonly IReadOnlySet<string> AgentSessionMethods = new HashSet<string>(StringComparer.Ordinal)
     {
         AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
         AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
+        AgentSessionSetViewAccess, AgentSessionTurn,
     };
 }
 
@@ -45,14 +48,19 @@ internal sealed partial class WorkbenchProtocolHandler
                 OptionalString(payload, "commandLine", DesktopAgentCatalog.MaximumCommandLineLength), cancellationToken),
             WorkbenchMethods.AgentSessionSetHidden => await _session.SetAgentHiddenAsync(fileSessionId,
                 RequiredString(payload, "agentId", 40), RequiredBoolean(payload, "hidden"), cancellationToken),
+            WorkbenchMethods.AgentSessionSetViewAccess => await _session.SetAgentViewAccessAsync(fileSessionId,
+                RequiredString(payload, "access", 20), cancellationToken),
             WorkbenchMethods.AgentSessionLaunch => await _session.LaunchAgentAsync(fileSessionId, RequiredString(payload, "agentId", 40), cancellationToken),
+            WorkbenchMethods.AgentSessionTurn => _session.ReadLaunchedAgentTurn(fileSessionId, RequiredString(payload, "turnId", 40), conversation),
             WorkbenchMethods.AgentSessionRead => _session.ReadLaunchedAgent(fileSessionId, after),
             WorkbenchMethods.AgentSessionPrompt => _session.PromptLaunchedAgent(fileSessionId,
                 OptionalString(payload, "text", AgentConversation.MaximumPromptCharacters)
-                    ?? throw new NendoValidationException("Type something for the agent first."), after, PointedAt(payload), conversation),
+                    ?? throw new NendoValidationException("Type something for the agent first."), after, PointedAt(payload), conversation,
+                OptionalString(payload, "from", 120)),
             WorkbenchMethods.AgentSessionAnswer => _session.AnswerLaunchedAgent(fileSessionId,
                 RequiredString(payload, "entryId", 40), OptionalString(payload, "optionId", 200), after, conversation),
-            WorkbenchMethods.AgentSessionCancel => await _session.CancelLaunchedAgentTurnAsync(fileSessionId, after, conversation),
+            WorkbenchMethods.AgentSessionCancel => await _session.CancelLaunchedAgentTurnAsync(fileSessionId, after, conversation,
+                OptionalString(payload, "turnId", 40)),
             WorkbenchMethods.AgentSessionAuthenticate => _session.AuthenticateLaunchedAgent(fileSessionId,
                 RequiredString(payload, "methodId", 200), after, conversation),
             WorkbenchMethods.AgentSessionEnd => await _session.EndLaunchedAgentAsync(fileSessionId, after, conversation),

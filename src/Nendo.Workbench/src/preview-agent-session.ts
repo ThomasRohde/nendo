@@ -1,11 +1,12 @@
-import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView } from './host-types';
+import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type AgentTurn, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
 
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
  * the Desktop host, answered by a short script, so the Agent page's Launch and the conversation
  * tab can be seen and measured without an agent program. Every prompt gets a plan, a read, a
  * permission request and, once it is answered, a reply in chunks. The prompt "parallel" gets two
- * steps at once, the first of which says what came back only once the request is answered.
+ * steps at once, the first of which says what came back only once the request is answered. A
+ * custom view's message (ADR-0033) gets a read and a reply, and its turn is read back whole.
  *
  * A step it scheduled belongs to the launch and the turn that scheduled it: Stop, End or another
  * launch drops it, and a launch is refused while an agent runs, as the Desktop host does. Old
@@ -29,6 +30,13 @@ export class PreviewAgentSession {
   private pendingStep: AgentTranscriptEntry | null = null;
   private customCommandLine: string | null = null;
   private hidden: string[] = [];
+  private lastAgentId: string | null = null;
+  private viewAccess: ViewAgentAccess = 'ask';
+  /** Turns started by a prompt, by ID: the order of the message, and how the turn stopped once it has. */
+  private turns = new Map<string, { promptOrder: number; stopReason: string | null }>();
+  private openTurn: string | null = null;
+  /** Views' messages waiting for the turn that runs, as the Desktop host keeps them. */
+  private queue: Array<{ turnId: string; text: string; from: string }> = [];
   // Slash commands as an ACP agent advertises them, trimmed.
   private commands: AgentCommand[] = [
     { name: 'review', description: 'Review the changes waiting in this file', hint: 'what to look at' },
@@ -80,12 +88,22 @@ export class PreviewAgentSession {
         if (payload.hidden === true) this.hidden.push(agentId);
         return this.list();
       }
+      case 'agentSession.setViewAccess': {
+        const access = String(payload.access ?? '');
+        if (access !== 'never' && access !== 'ask' && access !== 'always') throw new WorkbenchHostError('validation', 'Choose never, ask or always.');
+        this.viewAccess = access;
+        return this.list();
+      }
+      case 'agentSession.turn': return this.readTurn(String(payload.turnId ?? ''));
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''));
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
       case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0),
-        Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : []);
+        Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : [],
+        typeof payload.from === 'string' && payload.from !== '' ? payload.from : null);
       case 'agentSession.answer': return this.answer(String(payload.entryId ?? ''), payload.optionId == null ? null : String(payload.optionId), Number(payload.after ?? 0));
-      case 'agentSession.cancel': return this.cancel(Number(payload.after ?? 0));
+      case 'agentSession.cancel': return typeof payload.turnId === 'string'
+        ? this.cancelTurn(payload.turnId, Number(payload.after ?? 0))
+        : this.cancel(Number(payload.after ?? 0));
       case 'agentSession.end': return this.end('You ended the conversation.', Number(payload.after ?? 0));
       case 'agentSession.setOption': {
         const option = this.options.find((candidate) => candidate.id === payload.configId);
@@ -121,7 +139,56 @@ export class PreviewAgentSession {
       customCommandLine: this.customCommandLine,
       running,
       hidden: [...this.hidden],
+      lastAgentId: this.lastAgentId,
+      viewAccess: this.viewAccess,
     };
+  }
+
+  private readTurn(turnId: string): AgentTurn {
+    const turn = this.turns.get(turnId);
+    if (turn === undefined) throw new WorkbenchHostError('agent-turn-gone', "That message's turn is no longer kept. Read the conversation instead.");
+    const reply = turn.stopReason === null ? null
+      : this.entries.filter((entry) => entry.kind === 'agent' && entry.order > turn.promptOrder).map((entry) => entry.text).join('\n\n');
+    return { turnId, done: turn.stopReason !== null, reply, stopReason: turn.stopReason };
+  }
+
+  /** The turn running now ends, with ACP's word for why; the next view's message waiting starts. */
+  private endTurn(stopReason: string): void {
+    const turn = this.openTurn === null ? undefined : this.turns.get(this.openTurn);
+    if (turn !== undefined && turn.stopReason === null) turn.stopReason = stopReason;
+    this.openTurn = null;
+    const next = this.state === 'ready' ? this.queue.shift() : undefined;
+    if (next === undefined) return;
+    this.working = true;
+    const said = this.add({ kind: 'you', text: next.text, from: next.from });
+    this.turns.set(next.turnId, { promptOrder: said.order, stopReason: null });
+    this.openTurn = next.turnId;
+    this.viewTurn(next.text, 0);
+  }
+
+  /** Every view's message still waiting ends unsent. */
+  private dropQueue(stopReason: string): void {
+    for (const waiting of this.queue) this.turns.set(waiting.turnId, { promptOrder: Number.MAX_SAFE_INTEGER, stopReason });
+    this.queue = [];
+  }
+
+  /** A view stops its own turn: dropped while it waits, cancelled while it runs. */
+  private cancelTurn(turnId: string, after: number): LaunchedAgentView {
+    const index = this.queue.findIndex((waiting) => waiting.turnId === turnId);
+    if (index >= 0) {
+      this.queue.splice(index, 1);
+      this.turns.set(turnId, { promptOrder: Number.MAX_SAFE_INTEGER, stopReason: 'cancelled' });
+      this.touch();
+      return this.read(after);
+    }
+    if (this.openTurn !== turnId || !this.working) return this.read(after);
+    this.turn += 1;
+    this.working = false;
+    for (const entry of this.entries.filter((candidate) => candidate.kind === 'permission' && candidate.answer === null))
+      this.change(entry, { answer: 'Cancelled' });
+    this.add({ kind: 'notice', text: 'Stopped.' });
+    this.endTurn('cancelled');
+    return this.read(after);
   }
 
   private launch(agentId: string): LaunchedAgentView {
@@ -132,6 +199,9 @@ export class PreviewAgentSession {
     const agent = offer.agents.find((candidate) => candidate.id === agentId && candidate.found);
     if (agent === undefined) throw new WorkbenchHostError('agent-not-found', 'That agent is not installed on this computer.');
     this.agent = agent;
+    this.lastAgentId = agent.id;
+    this.turns = new Map();
+    this.openTurn = null;
     this.launches += 1;
     this.conversationId = `preview-${this.launches}`;
     this.entries = [];
@@ -147,20 +217,37 @@ export class PreviewAgentSession {
     return this.read(0);
   }
 
-  private sendPrompt(text: string, after: number, pointedAt: string[]): LaunchedAgentView {
-    if (this.state !== 'ready' || this.working) throw new WorkbenchHostError('agent-not-ready', 'The agent is not ready for a message yet.');
+  private sendPrompt(text: string, after: number, pointedAt: string[], from: string | null = null): LaunchedAgentView {
+    if (from !== null && this.viewAccess === 'never')
+      throw new WorkbenchHostError('assistant-off', 'Views may not message the agent on this computer. Change it on the Agent page.');
+    if (this.state !== 'ready') throw new WorkbenchHostError('agent-not-ready', 'The agent is not ready for a message yet.');
     if (text.trim() === '') throw new WorkbenchHostError('validation', 'Type something for the agent first.');
+    if (this.working && from !== null) {
+      if (this.queue.length >= 8 || this.queue.filter((waiting) => waiting.from === from).length >= 2)
+        throw new WorkbenchHostError('agent-working', 'Too many messages already wait for the agent.');
+      const turnId = `t${this.turns.size + 1}`;
+      this.turns.set(turnId, { promptOrder: Number.MAX_SAFE_INTEGER, stopReason: null });
+      this.queue.push({ turnId, text: text.trim(), from });
+      this.touch();
+      return { ...this.read(after), turnId };
+    }
+    if (this.working) throw new WorkbenchHostError('agent-working', 'The agent is still working. Wait, or press Stop.');
     this.working = true;
-    this.add({ kind: 'you', text: text.trim(), title: pointedAt.length === 0 ? null : pointedAt.join(' · ') });
-    if (text.trim() === 'parallel') return this.parallel(after);
+    const said = this.add({ kind: 'you', text: text.trim(), title: pointedAt.length === 0 ? null : pointedAt.join(' · '), from });
+    const turnId = `t${this.turns.size + 1}`;
+    this.turns.set(turnId, { promptOrder: said.order, stopReason: null });
+    this.openTurn = turnId;
+    if (from !== null) return { ...this.viewTurn(text.trim(), after), turnId };
+    if (text.trim() === 'parallel') return { ...this.parallel(after), turnId };
     if (text.trim().startsWith('/')) {
       const name = text.trim().slice(1).split(/\s/)[0];
       this.later(300, () => {
         this.add({ kind: 'agent', text: `Ran /${name}. (The preview agent only says so.)` });
         this.working = false;
+        this.endTurn('end_turn');
         this.touch();
       });
-      return this.read(after);
+      return { ...this.read(after), turnId };
     }
     const plan = this.add({ kind: 'plan', text: '', plan: [
       { text: 'Read the record types', status: 'in_progress' },
@@ -173,6 +260,18 @@ export class PreviewAgentSession {
       this.add({ kind: 'permission', text: '', title: 'Add operations to a change set', toolKind: 'edit', origin: 'nendo', input: '{"applicationHandle":"(hidden)","operations":[{"operationType":"schema.createEntity"}]}',
         options: [{ optionId: 'allow', name: 'Allow', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }] });
     });
+    return { ...this.read(after), turnId };
+  }
+
+  /** A custom view's message: one read of the file, then a reply in two chunks. */
+  private viewTurn(text: string, after: number): LaunchedAgentView {
+    this.later(300, () => this.add({ kind: 'tool', text: 'Two record types: Crew and Mission.', title: 'nendo-nendo-read-resource', toolKind: 'read', status: 'completed', input: '{"uri":"nendo://application/manifest"}', origin: 'nendo' }));
+    let message: AgentTranscriptEntry | null = null;
+    ['I read the file. ', `Here is my answer to "${text.slice(0, 80)}".`].forEach((chunk, index, words) => this.later(500 + 200 * index, () => {
+      if (message === null) message = this.add({ kind: 'agent', text: chunk });
+      else this.change(message, { text: message.text + chunk });
+      if (index === words.length - 1) { this.working = false; this.endTurn('end_turn'); this.touch(); }
+    }));
     return this.read(after);
   }
 
@@ -205,20 +304,22 @@ export class PreviewAgentSession {
     words.forEach((chunk, index) => this.later(300 * (index + 1), () => {
       if (message === null) message = this.add({ kind: 'agent', text: chunk });
       else this.change(message, { text: message.text + chunk });
-      if (index === words.length - 1) { this.working = false; this.touch(); }
+      if (index === words.length - 1) { this.working = false; this.endTurn('end_turn'); this.touch(); }
     }));
     return this.read(after);
   }
 
   private cancel(after: number): LaunchedAgentView {
     if (this.working) {
-      // The stopped turn's steps still to come are dropped with it.
+      // The stopped turn's steps still to come are dropped with it, and so is every view's message waiting.
+      this.dropQueue('cancelled');
       this.turn += 1;
       this.pendingStep = null;
       this.working = false;
       for (const entry of this.entries.filter((candidate) => candidate.kind === 'permission' && candidate.answer === null))
         this.change(entry, { answer: 'Cancelled' });
       this.add({ kind: 'notice', text: 'Stopped.' });
+      this.endTurn('cancelled');
     }
     return this.read(after);
   }
@@ -232,6 +333,8 @@ export class PreviewAgentSession {
       this.working = false;
       this.notice = notice;
       this.add({ kind: 'notice', text: notice });
+      this.dropQueue('ended');
+      this.endTurn('ended');
     }
     return this.read(after);
   }
@@ -258,6 +361,7 @@ export class PreviewAgentSession {
       commands: this.agent === null || this.state === 'starting' ? [] : structuredClone(this.commands),
       firstOrder: this.entries[0]?.order ?? this.order + 1,
       signingIn: false,
+      queued: this.queue.length,
     };
   }
 
@@ -265,7 +369,7 @@ export class PreviewAgentSession {
     this.order += 1;
     const entry: AgentTranscriptEntry = {
       id: `e${this.order}`, order: this.order, revision: this.revision + 1, title: null, toolKind: null, status: null,
-      input: null, options: null, answer: null, plan: null, origin: null, ...fields,
+      input: null, options: null, answer: null, plan: null, origin: null, from: null, ...fields,
     };
     this.entries.push(entry);
     this.touch();

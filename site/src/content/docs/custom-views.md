@@ -53,7 +53,8 @@ A view also needs a definition: a screen, a graph or a record-page panel that na
 | --- | --- |
 | Read every record in the file, with calculated fields and exact numbers | Reach Nendo's own page or the bridge to the desktop app |
 | Change records, run commands and propose changes, each in **History** under its package's name | Reach SQL, a file path, another file or a setting of this computer |
-| Hear every change to the file, and draw again | Use Nendo's agent connection |
+| Hear every change to the file, and draw again | Use Nendo's agent connection, or change the agent's settings |
+| Send a message to the agent you launched, if you let it, and use the reply | Answer the agent's permission requests, or read the conversation beyond its own reply |
 | Use the network, including programs on your own computer | Navigate Nendo away, or load Nendo inside itself |
 | Read and write the clipboard, read a file you choose or drop on it, and download files | Accept or reject a proposal |
 | Keep browser storage for itself, and small values in the file | Put markup of its own in Nendo's toolbar or menus |

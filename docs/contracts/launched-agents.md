@@ -4,7 +4,8 @@ This contract covers the agent a person launches from the Agent page: which prog
 host offers, the `agentSession.*` bridge methods, what the host tells the agent over the
 Agent Client Protocol (ACP), the conversation the tab reads, and what ends it.
 
-- **Decision:** [ADR-0030](../decisions/0030-launch-the-persons-own-agent-over-acp.md)
+- **Decision:** [ADR-0030](../decisions/0030-launch-the-persons-own-agent-over-acp.md),
+  [ADR-0033](../decisions/0033-a-view-messages-the-launched-agent.md) for a custom view's messages
 - **Code:** `src/Nendo.Desktop/Agents/`; in the Workbench, `agent-launch-model.ts`,
   `agent-chat-model.ts`, `agent-context-model.ts` and `view-agent-chat.ts`.
 
@@ -56,27 +57,30 @@ a `.cmd` of at most 16 KiB) starts a renamed package carries `renamedFrom` and
 ```text
 { canLaunch, reason,
   agents: [{ id, name, commandLine, found, package, installCommand, renamedFrom, updateCommand }],
-  customCommandLine, running, hidden }
+  customCommandLine, running, hidden, lastAgentId, viewAccess }
 ```
 
 `found` is whether the program is on `PATH`. The package fields are null for `custom`.
 `running` is `{ agentId, name, state, working }` for an agent that has not ended, else null.
 `hidden` lists the agents hidden on this device (`custom` included); a hidden agent is still
-in `agents` so it can be shown again (`host-types.ts`, `LaunchableAgents`). The command line
-and hidden IDs are kept only on this device, in `agent-launch.json` under the device state
-(at most 4,096 bytes, written under the device state lock); an unknown ID is dropped on read.
+in `agents` so it can be shown again (`host-types.ts`, `LaunchableAgents`). `lastAgentId` is
+the agent last launched on this device, which a view's card offers. `viewAccess` is whether
+custom views may message the agent: `never`, `ask` (the default) or `always`. The command line,
+hidden IDs, last agent and view access are kept only on this device, in `agent-launch.json` under
+the device state (at most 4,096 bytes, written under the device state lock); an unknown ID is
+dropped on read.
 
 ## The bridge methods
 
-Eleven methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
+Thirteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
 `fileSessionId`; a session no longer open is `stale-file-session`. All run off the UI thread
 (`WorkbenchMethods.OffUiThread`) and are dispatched after the actor check, so a request
 naming a custom view's `actor` is `actor-not-allowed`; the extension broker's method table
 names none of them.
 
-`list`, `setCommand`, `setHidden` and `launch` take the request gate, finding the agents
+`list`, `setCommand`, `setHidden`, `setViewAccess` and `launch` take the request gate, finding the agents
 first, since that reads nothing of the file: one `PATH` search at a time, shared by requests
-that arrive while it runs or within two seconds of its start. The other seven do not wait on
+that arrive while it runs or within two seconds of its start. The other eight do not wait on
 the gate and check `fileSessionId` themselves, so the tab keeps reading while an agent's own
 write holds the file. Each of those except `read` is `agent-not-launched` when no agent was
 launched for the file, and may name the `conversationId` the tab holds; one naming a
@@ -88,11 +92,13 @@ restart with every launch.
 | `agentSession.list` | none | The list above. |
 | `agentSession.setCommand` | `commandLine`, at most 1,000 characters; empty or absent forgets it | The list. `agent-command-not-saved` when the device could not keep it. |
 | `agentSession.setHidden` | `agentId` (at most 40), `hidden` | The list. An unknown ID is a validation refusal; `agent-choice-not-saved` when the device could not keep it. The file is not written. |
+| `agentSession.setViewAccess` | `access`: `never`, `ask` or `always` | The list. Anything else is a validation refusal; `agent-choice-not-saved` when the device could not keep it. |
 | `agentSession.launch` | `agentId` (at most 40) | The conversation at `starting`; the handshake runs on. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), or a validation refusal. |
 | `agentSession.read` | `after` | The conversation, or `exists: false`. |
-| `agentSession.prompt` | `text`, `after`, optional `context` | Below. `agent-not-ready` (starting, signing in or ended), `agent-working` (a turn is running). |
+| `agentSession.prompt` | `text`, `after`, optional `context`, optional `from` (a custom view's title, at most 120) | Below, with `turnId`. `agent-not-ready` (starting, signing in or ended); `agent-working` for the person's message during a turn, or a view's past the queue's bound; `assistant-off` for a view's message while views are Never. |
+| `agentSession.turn` | `turnId` (at most 40) | `{ turnId, done, reply, stopReason }`. `agent-turn-gone` once it is no longer kept. |
 | `agentSession.answer` | `entryId` (at most 40), `optionId` (at most 200), absent to cancel | `agent-question-gone` when the agent no longer waits; a validation refusal for an option not offered. |
-| `agentSession.cancel` | `after` | `session/cancel` for the running turn; every open permission request answered as cancelled. |
+| `agentSession.cancel` | `after`, optional `turnId` | Without `turnId`, the person's Stop: `session/cancel` for the running turn, every open permission request answered as cancelled, and every waiting message dropped. With `turnId`, a view's own turn: dropped while it waits, cancelled as Stop while it runs, nothing once ended. |
 | `agentSession.authenticate` | `methodId` (at most 200) | `agent-not-signing-in` unless the agent waits to sign in; `agent-signing-in` while a sign-in started here runs; a validation refusal for a way not offered. `signingIn` is true until it ends. |
 | `agentSession.setOption` | `configId` (at most 200), `value` (at most 300), `after` | `agent-not-ready`; a validation refusal for an option or value not offered; `agent-option-refused` when the agent refused or did not answer within 30 seconds. |
 | `agentSession.end` | `after` | Ends the agent and keeps the transcript. |
@@ -102,9 +108,10 @@ Every method except `list`, `setCommand` and `setHidden` answers with the conver
 ```text
 { exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
   notice, agentTitle, revision, entries, more, signInMethods, options, firstOrder,
-  signingIn, commands }
+  signingIn, commands, queued }
 ```
 
+`queued` is the number of views' messages waiting for the running turn.
 `conversationId` is new for each launch, null when none was launched. `state` is `none`,
 `starting`, `signIn`, `ready` or `ended`. `level` is the access level's display name now;
 `endpoint` the one MCP address the agent was given. `firstOrder` is the order of the oldest
@@ -185,6 +192,25 @@ with its address and its text as `text/markdown`; any other gets a `resource_lin
 followed by one text block with the descriptions, which `agent-context-model.ts` writes with
 the IDs the agent needs.
 
+## A custom view's messages
+
+A custom view reaches the conversation through the Workbench
+([ADR-0033](../decisions/0033-a-view-messages-the-launched-agent.md),
+[custom views](custom-views.md#the-method-table)), which asks the person in its own cards and
+sends the message with `from`, the view's title. The person's entry and the view's look alike
+in the transcript except that the view's carries `from`, which the tab shows above it.
+
+ACP runs one turn at a time in a session. A message with `from` that arrives while a turn runs
+waits in host memory, in order, and is sent when the turn before it ends; it enters the
+transcript then (`AgentConversation.Turns.cs`). At most 8 wait, at most 2 with the same `from`.
+Ending the conversation ends every waiting turn as `ended`.
+
+Each prompt starts a turn, named by `turnId`. A turn's `reply` is the agent's message entries
+after its own message, joined by a blank line, at most 100,000 characters, redacted like every
+other text. `stopReason` is ACP's (`end_turn`, `cancelled`, `max_tokens`, `max_turn_requests`,
+`refusal`), `error` when the agent answered the prompt with an error, or `ended` when the
+conversation ended first. The last 16 ended turns are kept, and every turn not ended.
+
 ## What the host tells the agent
 
 The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversation.cs`).
@@ -208,8 +234,9 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   answers it as cancelled, drawn as cancelled when the turn stopped. The card names the
   tool's kind (Read, Edit, Delete, Run) beside the agent's title.
 - The agent's own `select` config options (model, effort, mode or anything else; at most 16,
-  each with at most 300 values) are shown as stated and set with `session/set_config_option`
-  only when the person picks a value. An arrow key on a closed list only looks: Enter, a pick
+  each with at most 300 values) are shown on the Agent page as stated and set with
+  `session/set_config_option` only when the person picks a value there
+  (`agent-options.ts`). An arrow key on a closed list only looks: Enter, a pick
   from the open list or leaving the list sets it, and More stays open while stepping through.
   An agent that sends `modes` or `models` instead has them shown as Mode and Model and set
   with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`).
@@ -261,10 +288,11 @@ what Nendo grants, not for what the person's own program can do on this computer
 
 - [`DesktopLaunchedAgentTests`](../../tests/Nendo.Desktop.Tests/DesktopLaunchedAgentTests.cs)
   against a stand-in agent that records what it was told
-  (`tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`).
+  (`tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`), a view's turns and the queue
+  among them.
 - [`WorkbenchAgentSessionProtocolTests`](../../tests/Nendo.Desktop.Tests/WorkbenchAgentSessionProtocolTests.cs):
   the bridge methods, their refusals, off-UI-thread dispatch and device-only hiding.
-- The Workbench node tests `agent-chat.test.mjs`, `agent-context.test.mjs`,
+- The Workbench node tests `assistant-model.test.mjs`, `agent-chat.test.mjs`, `agent-context.test.mjs`,
   `agent-launch.test.mjs`, `navigation-trail.test.mjs` and `preview-agent-session.test.mjs`
   in `src/Nendo.Workbench/scripts/`.
 - [`tools/Review-AgentChat.ps1`](../../tools/Review-AgentChat.ps1), run by

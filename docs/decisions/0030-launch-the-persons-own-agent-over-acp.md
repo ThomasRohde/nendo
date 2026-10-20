@@ -6,6 +6,7 @@
 - **Confidence:** Medium
 - **Evidence:** The Agent Client Protocol at protocol version 1; `DesktopLaunchedAgentTests` against a stand-in ACP agent; the Workbench's agent node tests and shell lane
 - **Amends:** ADR-0014 (the Workbench gains a conversation tab; the rest stands)
+- **Amended by:** ADR-0033 (a custom view may send a message; the agent's settings are on the Agent page)
 - **Depends on:** ADR-0002, ADR-0009, ADR-0014
 - **Contract:** [launched agents](../contracts/launched-agents.md), [MCP interface](../contracts/mcp-interface.md)
 
@@ -56,13 +57,16 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
 - Agent text is untrusted: text and safe Markdown, no HTML, no script, no automatic navigation.
 - A permission request shows the agent's own options. The host never answers one itself and never
   picks an *always* option for the person, at any level.
-- The agent's ACP session options (model, effort, mode and the rest) are shown, and a value is
-  sent only when the person picks it. They are the agent's settings, not Nendo's access level.
+- The agent's ACP session options (model, effort, mode and the rest) are shown on the Agent page
+  while it runs, and a value is sent only when the person picks it there. They are the agent's
+  settings, not Nendo's access level. The tab and custom views have none.
 - **@** points the agent at what the person chooses (record types, fields, views, records found
   through the search index, waiting proposals, other tabs) as bounded nendo:// references the
   agent could already read at its level. **/** lists the agent's own slash commands; Nendo never
   runs or checks one.
 - A proposal the agent validates is reviewed on the Agent page as any other.
+- A custom view may send a message into the conversation, marked with its title
+  ([ADR-0033](0033-a-view-messages-the-launched-agent.md)).
 - The transcript lives in host memory from launch until the file closes or another agent is
   launched; never in the file or on the device.
 

@@ -3,6 +3,7 @@ import { blockedConditionsNotice } from './format';
 import { WorkbenchHostError, type BlockedCondition, type RecordSnapshot } from './host-types';
 import {
   apiVersion, extensionLimits, hostKeys, utf8Length,
+  type AssistantItem, type AssistantReply, type AssistantStatus,
   type ConnectMessage, type Json, type PortMessage, type SchemaDescription, type ViewCommand, type ViewContext, type ViewTheme,
 } from './extension-api/protocol';
 import { declaredKeys, readMenu, readToolbar, type CommandValue, type ViewMenuRequest, type ViewToolbar } from './view-toolbar-model';
@@ -84,6 +85,18 @@ export interface BrokerUi {
   setPlace(mount: BrokerMount, place: { value: Json; label: string | null; replace: boolean }): boolean | null;
 }
 
+/**
+ * The launched agent, as a view may reach it (ADR-0033). The Workbench asks the person in its own
+ * cards, launches, sends and waits; the broker only checks what the view sent.
+ */
+export interface BrokerAssistant {
+  status(): Promise<AssistantStatus>;
+  /** Send the view's message and answer its turn's reply once the turn ends. */
+  ask(mount: BrokerMount, message: { text: string; context: AssistantItem[] }): Promise<AssistantReply>;
+  /** Stop the turn this view's message started, if it still runs. */
+  cancel(mount: BrokerMount): Promise<void>;
+}
+
 /** One runtime event of a view, as the broker saw it. */
 export interface ViewEventReport {
   kind: 'loaded' | 'stopped' | 'error' | 'refused';
@@ -115,6 +128,8 @@ export interface BrokerDeps {
   context(mount: BrokerMount): ViewContext;
   describe(): SchemaDescription;
   ui: BrokerUi;
+  /** The launched agent; optional, so a host without one refuses `assistant.*` as unavailable. */
+  assistant?: BrokerAssistant;
   /** A view stopped answering its pings, or answered again. */
   responsive?(mount: BrokerMount, responsive: boolean): void;
   /** A view connected, or connected again after reloading itself. */
@@ -935,7 +950,48 @@ export const brokerMethods: Readonly<Record<string, MethodEntry>> = Object.freez
     connection.contextJson = JSON.stringify(deps.context(mount));
     return null;
   }),
+  // The person's launched agent (ADR-0033). The view sends a message and hears its own turn's
+  // reply; the person sees the message in the conversation and decides, in Nendo's own cards,
+  // whether the view may send it. The agent's settings are not the view's to read or set.
+  'assistant.status': local(({ deps }) => assistantOf(deps).status()),
+  'assistant.ask': local(({ mount, params, deps }) => {
+    const text = textParam(params, 'text', extensionLimits.assistantCharacters);
+    if (text.trim() === '') throw invalid('text must say something.');
+    return assistantOf(deps).ask(mount, { text, context: assistantItems(params) });
+  }),
+  'assistant.cancel': local(async ({ mount, deps }) => { await assistantOf(deps).cancel(mount); return null; }),
 });
+
+/** The Workbench's launched agent, or a refusal when this one has none. */
+function assistantOf(deps: BrokerDeps): BrokerAssistant {
+  if (deps.assistant === undefined) throw new WorkbenchHostError('assistant-unavailable', 'This Nendo cannot reach an agent from a view.');
+  return deps.assistant;
+}
+
+/**
+ * What a message points the agent at, rebuilt item by item: only the file's own nendo://
+ * addresses, each named, within the bounds the composer's @ items keep.
+ */
+function assistantItems(params: Params): AssistantItem[] {
+  const value = params.context;
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > extensionLimits.assistantItems)
+    throw invalid(`context must be a list of at most ${extensionLimits.assistantItems} items.`);
+  let total = 0;
+  return value.map((item: unknown) => {
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) throw invalid('Each context item is an object with uri, title and text.');
+    const source = item as Params;
+    const uri = textParam(source, 'uri', extensionLimits.assistantUriCharacters);
+    if (!uri.startsWith('nendo://') || /\s/.test(uri)) throw invalid('A context item points only at the file\'s own addresses, nendo://...');
+    const title = textParam(source, 'title', extensionLimits.assistantTitleCharacters);
+    if (title.trim() === '') throw invalid('A context item is named.');
+    const text = optionalText(source, 'text', extensionLimits.assistantItemCharacters) ?? '';
+    total += text.length;
+    if (total > extensionLimits.assistantContextCharacters)
+      throw invalid(`The context items' text is at most ${extensionLimits.assistantContextCharacters} characters in all.`);
+    return { uri, title, text };
+  });
+}
 
 /** Every method name, in table order: what a view's context lists and `nendo.has` answers. */
 export const brokerMethodNames: readonly string[] = Object.freeze(Object.keys(brokerMethods));
@@ -1005,6 +1061,8 @@ export interface ExtensionBroker {
    * it is not the one the view already has.
    */
   place(mount: BrokerMount, place: Json): void;
+  /** The launched agent's status changed: tell every connected view (ADR-0033). */
+  assistant(status: AssistantStatus): void;
   /** Ping the views that are due, and notice the ones that stopped answering. Called once a second. */
   tick(): void;
   connectionCount(): number;
@@ -1264,6 +1322,11 @@ export function createExtensionBroker(deps: BrokerDeps): ExtensionBroker {
       connection.placeJson = json;
       connection.contextJson = JSON.stringify(deps.context(mount));
       post(connection, { t: 'evt', n: 'place', d: place });
+    },
+
+    assistant(status) {
+      closeStale();
+      for (const connection of connections.values()) post(connection, { t: 'evt', n: 'assistant', d: status });
     },
 
     tick() {

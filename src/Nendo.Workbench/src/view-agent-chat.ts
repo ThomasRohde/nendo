@@ -3,8 +3,8 @@ import { client } from './client';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import type { AgentStatus, LaunchableAgents, LaunchedAgentView } from './host';
 import { icon } from './icons';
-import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, mergeChat, optionsMarkup, reviewHint, signInMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
-import { announce, content, rerender, showError } from './shell';
+import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, mergeChat, reviewHint, signInMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
+import { announce, content, rerender, showError, showKeptAlert } from './shell';
 import { drawTabs, onTabClosed, openTabOn, releaseOwnedPage, setTabStatus } from './workspace-tabs';
 import { clearPointedAt, composerNote, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 import { commandKey, commandsChanged, wireCommands } from './agent-command-menu';
@@ -15,9 +15,9 @@ import { keysLine } from './agent-command-model';
  *
  * The host sends a nudge whenever the conversation moves; this page reads only what changed
  * after the revision it holds and patches the thread item by item. It never redraws the
- * composer, and redraws the agent's options only when they changed and none is in use, because
- * a redraw of the whole page -- a write from the agent moves the file, and the file moving
- * redraws the screen -- would take the person's half-typed message or open list with it.
+ * composer, because a redraw of the whole page -- a write from the agent moves the file, and the
+ * file moving redraws the screen -- would take the person's half-typed message with it. The
+ * agent's own options are set on the Agent page, which draws them from this chat (ADR-0033).
  */
 
 const chat: AgentChat = emptyChat();
@@ -31,7 +31,6 @@ const expanded = new Set<string>();
 const drawn = new Map<string, string>();
 /** Each item's markup, built again only when something it draws changed. */
 const markup = createMarkupCache();
-let drawnOptions = '';
 /** The agent's commands as the menu last had them, so a read that did not change them leaves it alone. */
 let shownCommands = '';
 /** A launch or a message on its way: a second press waits for its answer. */
@@ -45,10 +44,52 @@ fileScopedClearable({
     expanded.clear();
     drawn.clear();
     markup.clear();
-    drawnOptions = '';
     resetMentions();
+    askedPermissions.clear();
+    toldSignIn = null;
   },
 });
+
+/**
+ * Who hears that the chat moved: the Agent page, which draws the agent's options, and the
+ * views that message the agent (ADR-0033). Told after every read is merged.
+ */
+const chatListeners = new Set<() => void>();
+export function onAgentChatChanged(listener: () => void): () => void {
+  chatListeners.add(listener);
+  return () => { chatListeners.delete(listener); };
+}
+
+/** The conversation as this window holds it, to read and never to change. */
+export function agentChatNow(): Readonly<AgentChat> {
+  return chat;
+}
+
+/**
+ * The permission requests already said in a notice, so each is said once; and the conversation
+ * a sign-in notice was said for. A person on another page, perhaps in the view that started the
+ * agent, would otherwise not know the agent waits for them.
+ */
+const askedPermissions = new Set<string>();
+let toldSignIn: string | null = null;
+
+function noteForOthers(): void {
+  for (const listener of chatListeners) {
+    try { listener(); } catch (error) { console.error(error); }
+  }
+  if (state.view === 'agentChat') return;
+  if (chat.state === 'signIn' && chat.conversationId !== null && toldSignIn !== chat.conversationId) {
+    toldSignIn = chat.conversationId;
+    showKeptAlert(`${chat.name} needs you to sign in.`, { label: 'Open conversation', run: openAgentChat });
+    return;
+  }
+  for (const entry of chat.entries.values()) {
+    if (entry.kind !== 'permission' || entry.answer !== null || askedPermissions.has(`${chat.key}|${entry.id}`)) continue;
+    askedPermissions.add(`${chat.key}|${entry.id}`);
+    showKeptAlert(`${chat.name} is asking for permission: ${entry.title ?? 'a tool call'}.`, { label: 'Open conversation', run: openAgentChat });
+    return;
+  }
+}
 
 /**
  * The conversation's tab says what the agent is doing: starting, working, thinking or
@@ -74,6 +115,11 @@ function noteActivity(): void {
 let openAgentPage: (review: boolean) => void = () => document.querySelector<HTMLButtonElement>('#nav-agent')?.click();
 export function setAgentPageOpener(open: (review: boolean) => void): void {
   openAgentPage = open;
+}
+
+/** Open the Agent page beside what the person is on, for a view's card that points there (ADR-0033). */
+export function showAgentPage(): void {
+  openAgentPage(false);
 }
 
 /** What waits for review, read again when the agent's activity changes and when the tab is drawn. */
@@ -125,38 +171,6 @@ onTabClosed((_places, ownedConversation) => {
   })();
 });
 
-/**
- * The agent's More panel closes when the person is done with it: a press anywhere else, Escape,
- * or a choice in it. It stayed open until More was pressed again.
- */
-document.addEventListener('pointerdown', (event) => {
-  const target = event.target instanceof Node ? event.target : null;
-  for (const more of content.querySelectorAll<HTMLDetailsElement>('[data-agent-chat] details.chat-more[open]')) {
-    if (target === null || !more.contains(target)) more.open = false;
-  }
-}, true);
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  const more = content.querySelector<HTMLDetailsElement>('[data-agent-chat] details.chat-more[open]');
-  if (more === null) return;
-  // Escape closes the panel and does nothing else: it would also stop a working agent. A value
-  // only looked at with the arrow keys goes back to the agent's own, so leaving does not pick it.
-  const looked = document.activeElement;
-  if (looked instanceof HTMLSelectElement && more.contains(looked)) revertLooked(looked);
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  more.open = false;
-  more.querySelector('summary')?.focus();
-}, true);
-
-/** A select's value only looked at with the arrow keys, put back to the agent's own. */
-function revertLooked(select: HTMLSelectElement): void {
-  if (select.dataset.keyed !== 'yes') return;
-  select.dataset.keyed = '';
-  const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
-  if (option !== undefined) select.value = option.currentValue;
-}
-
 /** The empty state as last written into the log. */
 let drawnEmpty: string | null = null;
 
@@ -184,6 +198,31 @@ function withConversation(payload: Record<string, unknown>): Record<string, unkn
 /** The tab's title: the agent's name. */
 export function agentChatTitle(): string {
   return chat.exists ? chat.name : 'Agent';
+}
+
+/**
+ * Launch an agent for a custom view's message (ADR-0033), without opening its tab: the person
+ * stays in the view. The conversation is followed as any other, and its tab opens from a notice
+ * or the Agent page. Throws the host's refusal.
+ */
+export async function launchAgentForView(agentId: string): Promise<void> {
+  if (launching) throw new Error('An agent is already being launched.');
+  launching = true;
+  try {
+    const view = await client.request<LaunchedAgentView>('agentSession.launch', { agentId });
+    launches += 1;
+    expanded.clear();
+    drawn.clear();
+    markup.clear();
+    mergeChat(chat, view, launchKey());
+    draft = '';
+    resetMentions();
+    patchChat(false);
+    announce(`${chat.name} is starting.`);
+    followAgentChat();
+  } finally {
+    launching = false;
+  }
 }
 
 /** Launch an agent from the Agent page and open its conversation in a new tab. */
@@ -224,6 +263,11 @@ export async function openAgentChat(): Promise<void> {
   if (chat.key === '') mergeChat(chat, await client.request<LaunchedAgentView>('agentSession.read', { after: 0 }), launchKey());
   await openTabOn('agentChat');
   followAgentChat();
+}
+
+/** Set one of the agent's own options, from the Agent page (ADR-0033). Answers whether the agent took it. */
+export function setAgentOption(configId: string, value: string, said: string): Promise<boolean> {
+  return act('agentSession.setOption', { configId, value }, said);
 }
 
 /** Keep the person's own command line on this device. */
@@ -280,9 +324,8 @@ export function renderAgentChat(): void {
     return;
   }
   drawn.clear();
-  drawnOptions = '';
   // Design A of the composer: what this conversation works on in small chips above the
-  // box, the agent's own options quietly inside it with + and Send, and the keys under it.
+  // box, + and Send inside it, and the keys under it. The agent's options are on the Agent page.
   content.innerHTML = `<div class="agent-chat" data-agent-chat data-chat-key="${escapeAttribute(chat.key)}" data-testid="agent-chat">
     <header class="chat-heading">
       <div class="chat-title"><h2 id="chat-name"></h2></div>
@@ -308,7 +351,6 @@ export function renderAgentChat(): void {
         <textarea id="agent-prompt" rows="2" aria-autocomplete="list" aria-controls="chat-mention" aria-haspopup="listbox"></textarea>
         <div class="chat-toolbar">
           <button id="chat-add-context" class="chat-quiet" type="button" aria-label="Point at something in this file" title="Point at something in this file (@)">${icon('plus')}</button>
-          <div id="chat-options" class="chat-options"></div>
           <span class="chat-toolbar-gap"></span>
           <button id="stop-agent" class="chat-round" type="button" aria-label="Stop" title="Stop (Esc in the message box)">${icon('stop')}</button>
           <button id="send-prompt" class="chat-round is-primary" type="submit" aria-label="Send" title="Send (Enter)">${icon('arrowUp')}</button>
@@ -344,47 +386,6 @@ export function renderAgentChat(): void {
   });
   content.querySelector<HTMLButtonElement>('#stop-agent')!.addEventListener('click', () => void act('agentSession.cancel', {}, 'Stopping.'));
   content.querySelector<HTMLButtonElement>('#new-agent-session')!.addEventListener('click', () => void newSession());
-  // Chromium on Windows changes a closed select on each arrow key and fires change at once, so
-  // the first arrow chose the agent's option (Allow All among them), closed More and dropped
-  // focus. A change made with the keys waits for Enter, or for focus to leave.
-  const optionsBox = content.querySelector<HTMLElement>('#chat-options')!;
-  const choose = (select: HTMLSelectElement, keyed: boolean): void => {
-    const option = chat.options.find((candidate) => candidate.id === select.dataset.configId);
-    if (option === undefined || select.value === option.currentValue) return;
-    // A pick from the open list in More is the person done with it; a key keeps them in it.
-    const more = select.closest<HTMLDetailsElement>('details.chat-more');
-    if (more !== null && !keyed) more.open = false;
-    commitOption(select, option);
-  };
-  optionsBox.addEventListener('keydown', (event) => {
-    const select = event.target instanceof HTMLSelectElement ? event.target : null;
-    if (select === null || select.dataset.configId === undefined) return;
-    if (event.key === 'Enter') { event.preventDefault(); select.dataset.keyed = ''; choose(select, true); return; }
-    if (event.key === 'Escape') { revertLooked(select); return; }
-    // Space opens the list, whose own keys never reach the select; a pick there is a pick.
-    if (!event.altKey && (event.key.startsWith('Arrow') || event.key === 'Home' || event.key === 'End' || event.key.startsWith('Page') || (event.key.length === 1 && event.key !== ' '))) select.dataset.keyed = 'yes';
-  });
-  optionsBox.addEventListener('pointerdown', (event) => {
-    if (event.target instanceof HTMLSelectElement) event.target.dataset.keyed = '';
-  });
-  optionsBox.addEventListener('focusout', (event) => {
-    const select = event.target instanceof HTMLSelectElement ? event.target : null;
-    if (select === null || select.dataset.configId === undefined || select.dataset.keyed !== 'yes') return;
-    select.dataset.keyed = '';
-    choose(select, true);
-  });
-  optionsBox.addEventListener('change', (event) => {
-    const select = event.target instanceof HTMLSelectElement ? event.target : null;
-    if (select === null || select.dataset.configId === undefined || select.dataset.keyed === 'yes') return;
-    choose(select, false);
-  });
-  const commitOption = (select: HTMLSelectElement, option: (typeof chat.options)[number]): void => {
-    void act('agentSession.setOption', { configId: select.dataset.configId, value: select.value },
-      `${option.name}: ${select.selectedOptions[0]?.text ?? select.value}.`).then((done) => {
-      // A refusal puts the agent's own value back.
-      if (!done) { drawnOptions = ''; patchChat(false); }
-    });
-  };
   const thread = content.querySelector<HTMLElement>('#chat-thread')!;
   thread.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -502,6 +503,7 @@ async function act(method: string, payload: Record<string, unknown>, said: strin
 function patchChat(force: boolean, only?: string): void {
   // The tab's mark follows the chat whether or not its page is on screen.
   noteActivity();
+  noteForOthers();
   const page = content.querySelector<HTMLElement>('[data-agent-chat]');
   if (page === null || page.dataset.chatKey !== chat.key) {
     // Another conversation on screen: a new launch rebuilds through the renderer.
@@ -544,15 +546,6 @@ function patchChat(force: boolean, only?: string): void {
   if (commandsNow !== shownCommands) {
     shownCommands = commandsNow;
     commandsChanged(page);
-  }
-
-  const options = page.querySelector<HTMLElement>('#chat-options')!;
-  const optionsHtml = chat.state === 'ended' ? '' : optionsMarkup(chat.options);
-  // An open list or More panel stays as the person has it until they are done with it.
-  const inUse = options.contains(document.activeElement) || options.querySelector('details[open]') !== null;
-  if (optionsHtml !== drawnOptions && !inUse) {
-    options.innerHTML = optionsHtml;
-    drawnOptions = optionsHtml;
   }
 
   const signIn = page.querySelector<HTMLElement>('#chat-sign-in')!;

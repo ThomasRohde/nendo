@@ -14,7 +14,7 @@
 import { isPeriod, resolveClauseValue, resolvePeriodClause } from '../record-window';
 import {
   apiVersion, chordOf, extensionLimits, hostKeys, normalizeKeys, utf8Length, viewEventNames,
-  type ConnectMessage, type HelloMessage, type Json, type KeyEventLike, type PortMessage, type SchemaDescription, type SchemaField,
+  type AssistantItem, type AssistantReply, type AssistantStatus, type ConnectMessage, type HelloMessage, type Json, type KeyEventLike, type PortMessage, type SchemaDescription, type SchemaField,
   type ViewContext, type ViewEventName, type ViewGraph, type ViewPage, type ViewRecord, type ViewSearchPage, type ViewTheme, type ViewTreeNode, type ViewTreePage,
 } from './protocol';
 
@@ -697,6 +697,26 @@ function install(host: Window & { nendo?: unknown }): void {
       get theme(): ViewTheme | null { return context?.theme ?? null; },
     }),
     view: Object.freeze({ loadRecords, loadGraph }),
+    assistant: Object.freeze({
+      /**
+       * The person's launched agent (ADR-0033): { state, name, working, access }. state is none,
+       * starting, signIn, ready or ended; access is the person's choice for views: never, ask or
+       * always. The event `assistant` carries it when it changes. Ask nendo.has('assistant.ask') first.
+       */
+      status: (): Promise<AssistantStatus> => call<AssistantStatus>('assistant.status'),
+      /**
+       * Sends a message to the agent and answers once its turn ends: { reply, stopReason }, the
+       * agent's message text of this turn only. options.context points it at up to eight
+       * nendo:// items, { uri, title, text }. Nendo asks the person first, in its own card: to
+       * launch an agent when none runs, and, unless they chose Always, whether this view may
+       * message it. The message shows in the conversation with this view's name. Refused with
+       * assistant-off, assistant-declined, assistant-unavailable or assistant-busy.
+       */
+      ask: (text: string, options: { context?: AssistantItem[] } = {}): Promise<AssistantReply> =>
+        call<AssistantReply>('assistant.ask', { text, ...(options.context === undefined ? {} : { context: options.context }) }),
+      /** Stops the turn this view's message started, if it still runs. */
+      cancel: (): Promise<null> => call<null>('assistant.cancel'),
+    }),
   });
   Object.defineProperty(host, 'nendo', { value: nendo, enumerable: true });
 }

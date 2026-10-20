@@ -351,6 +351,116 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task AViewsMessageIsMarkedAndItsOwnTurnIsReadBackWhole()
+    {
+        // ADR-0033: a view hears the reply of its own turn, not the conversation's.
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var first = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "first", 0).TurnId!;
+        await fixture.WaitAsync(view => !view.Working);
+        var sent = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "hello there", 0, from: "Lens");
+        Assert.IsNotNull(sent.TurnId);
+        Assert.AreNotEqual(first, sent.TurnId, "Two turns shared an ID.");
+        var turn = await WaitForTurnAsync(fixture, sent.TurnId);
+        Assert.AreEqual("You said: hello there", turn.Reply, "The reply carried more, or less, than its own turn.");
+        Assert.AreEqual("end_turn", turn.StopReason);
+        var view = fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0);
+        Assert.AreEqual("Lens", view.Entries.Single(entry => entry.Kind == "you" && entry.Text == "hello there").From, "The transcript did not say which view sent it.");
+        Assert.IsNull(view.Entries.Single(entry => entry.Kind == "you" && entry.Text == "first").From, "The person's own message was marked as a view's.");
+        Assert.AreEqual("You said: first", fixture.Controller.ReadLaunchedAgentTurn(fixture.FileSessionId, first).Reply);
+        Assert.AreEqual("agent-turn-gone",
+            Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.ReadLaunchedAgentTurn(fixture.FileSessionId, "t99")).Code);
+
+        // A stopped turn says so, and a turn the conversation's end overtook says that.
+        var stopped = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "wait", 0, from: "Lens").TurnId!;
+        await fixture.WaitAsync(current => current.Entries.Any(entry => entry.Kind == "agent" && entry.Text == "Working…"));
+        await fixture.Controller.CancelLaunchedAgentTurnAsync(fixture.FileSessionId, 0);
+        Assert.AreEqual("cancelled", (await WaitForTurnAsync(fixture, stopped)).StopReason);
+        var overtaken = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "wait", 0, from: "Lens").TurnId!;
+        await fixture.WaitAsync(current => current.Working);
+        await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0);
+        Assert.AreEqual("ended", (await WaitForTurnAsync(fixture, overtaken)).StopReason);
+    }
+
+    [TestMethod]
+    public async Task ViewsMessagesWaitInOrderWithinTheirBoundsAndStopDropsThem()
+    {
+        // ACP runs one turn at a time: a view's message during a turn waits for it (ADR-0033).
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var running = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "wait", 0, from: "Lens").TurnId!;
+        await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Text == "Working…"));
+        var first = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "one", 0, from: "Lens").TurnId!;
+        var other = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "two", 0, from: "Garden").TurnId!;
+        var dropped = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "three", 0, from: "Lens");
+        Assert.AreEqual(3, dropped.Queued);
+        Assert.AreEqual("agent-working", Assert.ThrowsExactly<NendoPreconditionException>(
+            () => fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "four", 0, from: "Lens")).Code, "One view had more than two messages waiting.");
+        Assert.AreEqual("agent-working", Assert.ThrowsExactly<NendoPreconditionException>(
+            () => fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "mine", 0)).Code, "The person's own message was queued rather than refused.");
+        Assert.IsFalse(fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0).Entries.Any(entry => entry.Text == "one"),
+            "A waiting message entered the transcript before its turn.");
+
+        // A view's cancel drops its own waiting message and nothing else.
+        await fixture.Controller.CancelLaunchedAgentTurnAsync(fixture.FileSessionId, 0, turnId: dropped.TurnId);
+        Assert.AreEqual("cancelled", fixture.Controller.ReadLaunchedAgentTurn(fixture.FileSessionId, dropped.TurnId!).StopReason);
+        Assert.IsTrue(fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0).Working, "Dropping a waiting message stopped the running turn.");
+
+        // Ending the running turn sends the next ones, in the order they came.
+        await fixture.Controller.CancelLaunchedAgentTurnAsync(fixture.FileSessionId, 0, turnId: running);
+        Assert.AreEqual("cancelled", (await WaitForTurnAsync(fixture, running)).StopReason);
+        Assert.AreEqual("You said: one", (await WaitForTurnAsync(fixture, first)).Reply);
+        Assert.AreEqual("You said: two", (await WaitForTurnAsync(fixture, other)).Reply);
+        var said = fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0).Entries.Where(entry => entry.Kind == "you").Select(entry => entry.Text).ToArray();
+        CollectionAssert.AreEqual(new[] { "wait", "one", "two" }, said);
+
+        // The person's Stop drops whatever still waits.
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "wait", 0);
+        await fixture.WaitAsync(view => view.Entries.Count(entry => entry.Text == "Working…") == 2);
+        var waiting = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "five", 0, from: "Lens").TurnId!;
+        await fixture.Controller.CancelLaunchedAgentTurnAsync(fixture.FileSessionId, 0);
+        Assert.AreEqual("cancelled", fixture.Controller.ReadLaunchedAgentTurn(fixture.FileSessionId, waiting).StopReason);
+        var after = await fixture.WaitAsync(view => !view.Working);
+        Assert.AreEqual(0, after.Queued);
+        Assert.IsFalse(after.Entries.Any(entry => entry.Text == "five"), "A message dropped by Stop was sent anyway.");
+    }
+
+    [TestMethod]
+    public async Task ViewsSetToNeverAreRefusedAndThePersonIsNot()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        var before = await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId);
+        Assert.AreEqual("ask", before.ViewAccess, "Views were not asked about by default.");
+        Assert.IsNull(before.LastAgentId);
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var chosen = await fixture.Controller.SetAgentViewAccessAsync(fixture.FileSessionId, "never");
+        Assert.AreEqual("never", chosen.ViewAccess);
+        Assert.AreEqual(DesktopAgentCatalog.CustomId, chosen.LastAgentId, "The agent launched was not remembered for a view's card.");
+        Assert.AreEqual("never", new DesktopAgentLaunchStore(fixture.DeviceRoot).ViewAccess, "The choice was not kept on the device.");
+        var refused = Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "hello", 0, from: "Lens"));
+        Assert.AreEqual("assistant-off", refused.Code);
+        Assert.IsFalse(fixture.Controller.ReadLaunchedAgent(fixture.FileSessionId, 0).Entries.Any(entry => entry.Kind == "you"), "A refused view's message reached the transcript.");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "hello", 0);
+        await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent"));
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => fixture.Controller.SetAgentViewAccessAsync(fixture.FileSessionId, "sometimes"));
+    }
+
+    private static async Task<AgentTurnView> WaitForTurnAsync(Fixture fixture, string turnId)
+    {
+        var deadline = DateTime.UtcNow + Patience;
+        while (true)
+        {
+            var turn = fixture.Controller.ReadLaunchedAgentTurn(fixture.FileSessionId, turnId);
+            if (turn.Done) return turn;
+            if (DateTime.UtcNow > deadline) Assert.Fail($"Turn {turnId} never ended.");
+            await Task.Delay(50);
+        }
+    }
+
+    [TestMethod]
     public async Task ClosingTheFileEndsTheAgentEverythingItStartedAndItsFolder()
     {
         await using var fixture = await Fixture.StartAsync("editData");
