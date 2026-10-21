@@ -396,12 +396,20 @@
   border-top: 1px solid var(--line);
 }
 
+/* The control sits beside its label, never at the far edge of a wide window: the label takes
+   at most 26rem and the control starts after it. Narrow, the control goes under the label. */
 .agent-setting-row {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(12rem, 26rem) minmax(0, max-content);
   align-items: center;
-  justify-content: space-between;
-  gap: 8px 24px;
+  justify-content: start;
+  gap: 8px 32px;
+}
+
+@media (max-width: 760px) {
+  .agent-setting-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .agent-setting-row h3 {

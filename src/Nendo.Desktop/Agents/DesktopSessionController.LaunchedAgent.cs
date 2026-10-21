@@ -242,10 +242,13 @@ internal sealed partial class DesktopSessionController
                 if (ReferenceEquals(agent, _launched)) LaunchedAgentChanged?.Invoke(revision);
             };
             _launched = agent;
+            // The launch answers what it started before the device is written: the write took long
+            // enough for a quick agent's handshake to finish first, so the answer said Ready.
+            var started = ReadLaunchedCore(agent, 0);
             // Which agent a view's card offers next; a device that cannot keep it still launches.
             try { AgentLaunch().SetLastAgent(command.Id); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-            return ReadLaunchedCore(agent, 0);
+            return started;
         }
         finally
         {

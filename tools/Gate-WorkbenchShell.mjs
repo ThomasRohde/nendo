@@ -806,6 +806,20 @@ async page => {
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
+  // On a wide monitor each setting's control sits beside its label: a row that spread its halves
+  // to the edges put the agent's options and Never / Ask first / Always 1,400 px from their names.
+  await check('agent settings beside their labels', 'idea', async () => {
+    await launch();
+    await agentPage('launch');
+    await until(() => document.querySelector('#agent-options select') !== null, null, 'the agent\'s options on the Agent page');
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.agent-setting-row')].map((row) => {
+      const label = row.firstElementChild.getBoundingClientRect(), control = row.lastElementChild.getBoundingClientRect();
+      return { label: row.querySelector('h3')?.textContent, gap: Math.round(control.left - label.left), row: Math.round(row.getBoundingClientRect().width) };
+    }));
+    assert(rows.length === 2 && rows.every((row) => row.gap <= 480 && row.row > 1600),
+      `at 2400 px a setting's control stands this far from its label: ${JSON.stringify(rows)}`);
+  }, 2400, 900);
+
   // The agent's options are on the Agent page's Launch card (ADR-0033). An arrow key in an
   // option looks and keeps More open; the focused option says so.
   await check('agent options', 'idea', async () => {
