@@ -41,6 +41,29 @@ public sealed class AuthoringExampleTests
         StringAssert.Contains(note, $"one property at a time it would be {Word(expanded)}.", note);
     }
 
+    /// <summary>
+    /// An agent building an app learns that a view may ask the person's launched agent
+    /// (ADR-0033) where it decides what the app does, not only in the method list: in the view
+    /// API's opening summary, in extension.setPackage, and in an example whose view checks for
+    /// the call before it offers it.
+    /// </summary>
+    [TestMethod]
+    public void AnAgentBuildingAnAppIsToldAViewMayAskTheLaunchedAgent()
+    {
+        using var reference = JsonDocument.Parse(NendoViewApi.Json);
+        StringAssert.Contains(reference.RootElement.GetProperty("about").GetString(), "nendo.assistant.ask",
+            "The view API's summary of what a view can do leaves out asking the agent.");
+        StringAssert.Contains(NendoAuthoringOperations.All.Single(operation => operation.OperationType == "extension.setPackage").Summary,
+            "ask-the-agent-from-a-view", "extension.setPackage does not point at asking the agent.");
+        var example = NendoAuthoringExamples.Description().Examples.Single(value => value.Name == "ask-the-agent-from-a-view");
+        var script = example.Mutations.SelectMany(mutation => mutation.Operations)
+            .Single(operation => operation.OperationType == "extension.putFile" && operation.Payload.GetProperty("path").GetString() == "view.js")
+            .Payload.GetProperty("text").GetString()!;
+        Assert.IsTrue(script.IndexOf("nendo.has('assistant.ask')", StringComparison.Ordinal) is >= 0 and var has
+            && script.IndexOf("nendo.assistant.ask(", StringComparison.Ordinal) > has,
+            "The example's view asks the agent without checking that this Nendo offers it.");
+    }
+
     [TestMethod]
     public async Task EveryPublishedExampleValidatesThroughTheRealAuthoringBoundary()
     {

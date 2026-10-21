@@ -56,6 +56,7 @@ internal static class NendoAuthoringExamples
             CalculateAndActAutomatically(),
             ACustomGraphFromTheFile(),
             PutACustomViewInTheFile(),
+            AskTheAgentFromAView(),
             TeachAnAgentThisFile(),
         ]));
 
@@ -163,6 +164,37 @@ internal static class NendoAuthoringExamples
                 {
                     packageId = "org.example.hello", path = "view.js",
                     text = "nendo.ready.then(async (view) => {\n  const records = await nendo.view.loadRecords();\n  document.getElementById('greeting').textContent = `Hello from ${view.title}: ${records.length} records.`;\n});\n",
+                }),
+            ]),
+        ]);
+
+    /// <summary>
+    /// A view that works with the person's launched agent (ADR-0033): it asks, and the agent's
+    /// results land as records the view draws again.
+    /// </summary>
+    private static NendoAuthoringExample AskTheAgentFromAView() => new(
+        "ask-the-agent-from-a-view",
+        "Give an app a button that asks the person's launched agent to do work in the file and shows its answer.",
+        [
+            "nendo.assistant.ask(text, { context }) sends a message to the agent the person launched from Nendo's Agent page and answers { reply, stopReason } once that turn ends. Check nendo.has('assistant.ask') first, and hide the control where it is missing.",
+            "Nendo asks the person first, in cards of its own: to launch an agent when none runs, and whether this view may message it, unless they chose Always; at Never the call is refused as assistant-off. The message shows in the agent's conversation with the view's title, and the agent asks the person, never the view, for permission.",
+            "Let the results land as records: say in the message which record type to write and what each record is, then draw again on the changes event. The reply is text for the person; the view never sees the agent's settings or the rest of its conversation.",
+            "context points the agent at up to eight of the file's nendo:// addresses, each with a title and a short text; the agent reads the rest over MCP at the person's access level. A message sent while the agent works waits its turn.",
+            "Show the package with a view definition that names it, as in put-a-custom-view-in-the-file. On a records screen, view.entityId is the record type the view is about.",
+        ],
+        [
+            new("Put the ask view in the file",
+            [
+                Operation("extension.setPackage", new { packageId = "org.example.ask", title = "Ask the agent", entryPoint = "index.html", version = "1.0.0" }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.ask", path = "index.html",
+                    text = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Ask the agent</title>\n<button id=\"ask\" type=\"button\" hidden>Suggest three more</button>\n<p id=\"answer\" aria-live=\"polite\"></p>\n<script src=\"/_nendo/api.js\"></script>\n<script src=\"view.js\"></script>\n",
+                }),
+                Operation("extension.putFile", new
+                {
+                    packageId = "org.example.ask", path = "view.js",
+                    text = "nendo.ready.then((view) => {\n  const button = document.getElementById('ask');\n  const answer = document.getElementById('answer');\n  if (!nendo.has('assistant.ask') || view.entityId === null) return;\n  button.hidden = false;\n  button.onclick = async () => {\n    button.disabled = true;\n    answer.textContent = 'Asking the agent…';\n    try {\n      const { reply } = await nendo.assistant.ask(\n        `Suggest three new records for ${view.title}. Create each as a record of ${view.entityId}, then say in one line what you added.`,\n        { context: [{ uri: `nendo://application/entity/${view.entityId}`, title: view.title }] });\n      answer.textContent = reply;\n    } catch (error) {\n      answer.textContent = error.message;\n    } finally {\n      button.disabled = false;\n    }\n  };\n  // The agent's records arrive as changes: draw the view's records again here.\n  nendo.changes.subscribe(() => {});\n});\n",
                 }),
             ]),
         ]);
