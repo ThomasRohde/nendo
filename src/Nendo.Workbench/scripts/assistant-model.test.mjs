@@ -21,10 +21,10 @@ test('Never refuses before anything else, without a card', () => {
 });
 
 test('with none running, a launch is offered, or why it cannot be', () => {
-  const listed = [{ id: 'copilot', name: 'COPILOT', settings: null }, { id: 'claude', name: 'CLAUDE', settings: null }];
+  const listed = [{ id: 'copilot', name: 'COPILOT', settings: null, last: false }, { id: 'claude', name: 'CLAUDE', settings: null, last: false }];
   assert.deepEqual(nextAskStep(facts({ conversation: none })), { kind: 'launch', agents: listed, selectedId: 'copilot' });
   assert.deepEqual(nextAskStep(facts({ conversation: { ...ready, state: 'ended' }, launchable: offer({ lastAgentId: 'claude' }) })),
-    { kind: 'launch', agents: listed, selectedId: 'claude' }, 'The card did not list every installed agent with the last one launched selected.');
+    { kind: 'launch', agents: [listed[0], { ...listed[1], last: true }], selectedId: 'claude' }, 'The card did not list every installed agent with the last one launched selected.');
   assert.deepEqual(nextAskStep(facts({ conversation: none, launchable: offer({ canLaunch: false, reason: 'Choose Inspect first.' }) })),
     { kind: 'cannotLaunch', reason: 'Choose Inspect first.' });
   assert.deepEqual(nextAskStep(facts({ conversation: none, launchable: offer({ hidden: ['copilot', 'claude'] }) })), { kind: 'noAgent' });

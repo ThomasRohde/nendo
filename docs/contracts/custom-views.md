@@ -1174,7 +1174,7 @@ person's launched agent a message and hear its own turn's reply; the
   its own modal cards, one at a time, quoting the message's first line. At Never it refuses
   at once. With no agent running it offers to launch one: the card lists every agent
   installed and shown, in the Agent page's order, with the one last launched on this device
-  selected (or the first), and the person may pick another. Under them it shows the chosen
+  selected (or the first), and the person may pick another. Beside them it shows the chosen
   agent's kept settings as pickers, and launches with what the person picks there. An agent with
   no kept settings is launched first, and once it is ready a second card shows its own settings,
   set as the person picks, and sends the message only on Send. The view's message names no agent

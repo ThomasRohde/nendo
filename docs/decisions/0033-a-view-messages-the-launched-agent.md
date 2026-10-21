@@ -47,7 +47,7 @@ request, and never reads the rest of the transcript.
   offers to launch an agent. It lists every agent installed and shown, in the Agent page's order,
   with the one last launched here selected (or the first, when that one is gone or hidden), and the
   person may pick another before launching. The view's message names no agent and the view never
-  learns which was offered. Under the agents, the card shows the chosen agent's settings as
+  learns which was offered. Beside the agents, the card shows the chosen agent's settings as
   pickers, built from the options it offered when it last ran here and set to the values kept
   for it (ADR-0030); what the person picks there is kept and sent before the agent is ready. An
   agent that has never run here has no settings to show: the card launches it, and once it is

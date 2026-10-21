@@ -5,6 +5,7 @@ import { confirmDialog } from './confirm-dialog';
 import type { AssistantItem, AssistantReply, AssistantStatus } from './extension-api/protocol';
 import type { BrokerAssistant, BrokerMount } from './extension-broker';
 import { escapeHtml, messageFor } from './format';
+import { icon } from './icons';
 import { WorkbenchHostError, type AgentTurn, type LaunchableAgents, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
 import { agentChatNow, followAgentChat, launchAgentForView, onAgentChatChanged, showAgentPage } from './view-agent-chat';
 
@@ -123,34 +124,44 @@ function settingsMarkup(settings: ReadonlyArray<{ id: string; name: string; valu
   }).join('');
 }
 
-/** What the settings box under the agents says and shows for `agent`. */
+/** The settings pane for `agent`: its kept settings as pickers, or why there are none yet. */
 function launchSettingsMarkup(agent: OfferedAgent | undefined): string {
   if (agent === undefined) return '';
+  const heading = `<div class="assistant-launch-heading"><h3>${escapeHtml(agent.name)} settings</h3>${agent.settings === null ? '' : '<span>As you left them last time</span>'}</div>`;
   return agent.settings === null
-    ? `<p class="assistant-card-note">${escapeHtml(agent.name)} has not run on this computer yet. Once it starts, its settings show here before the message goes.</p>`
-    : settingsMarkup(agent.settings);
+    ? `${heading}<div class="assistant-launch-unseen">${icon('info')}<p class="assistant-card-note">${escapeHtml(agent.name)} has not run on this computer yet. Nendo learns its settings when it starts, and shows them before the message goes.</p></div>`
+    : `${heading}<div class="assistant-card-settings">${settingsMarkup(agent.settings)}</div>`;
+}
+
+/** What the agents pane says under each agent's name. */
+function agentNote(agent: OfferedAgent): string {
+  if (agent.settings === null) return 'Not run here yet';
+  return agent.last ? 'Launched last' : 'Installed';
 }
 
 /**
- * The launch card's body: the agents installed and shown, the one last launched selected, the
- * chosen one's kept settings as pickers, and a button that names the agent chosen. With one agent
- * there is nothing to pick between, so none is listed. `picked` collects what the person sets,
- * by agent.
+ * The launch card's body: the message, then the agents installed and shown on the left, the one
+ * last launched selected, and the chosen one's kept settings on the right, with a button that
+ * names the agent chosen. `picked` collects what the person sets, by agent.
  */
 function launchCard(view: AssistantViewIdentity, text: string, agents: OfferedAgent[], selectedId: string, choose: (id: string) => void,
   picked: Map<string, Map<string, string>>): { bodyHtml: string; confirmLabel: string; prepare: (dialog: HTMLDialogElement) => void } {
   const agentOf = (id: string): OfferedAgent | undefined => agents.find((agent) => agent.id === id);
   const nameOf = (id: string): string => agentOf(id)?.name ?? id;
-  const intro = `<p>${escapeHtml(view.title)} wants to send this to an agent:</p>${quoted(text)}`;
-  const after = 'It works at the access level on the Agent page, and the message shows in its conversation.';
-  const list = agents.length === 1 ? '' : `<fieldset class="assistant-card-agents"><legend class="visually-hidden">Agent to launch</legend>${agents.map((agent) =>
-    `<label><input type="radio" name="assistant-card-agent" value="${escapeHtml(agent.id)}" data-assistant-agent="${escapeHtml(agent.id)}" ${agent.id === selectedId ? 'checked' : ''} />${escapeHtml(agent.name)}</label>`).join('')}</fieldset>`;
-  const bodyHtml = `${intro}<p>No agent is running. ${agents.length === 1 ? `Launch ${escapeHtml(nameOf(selectedId))}?` : 'Choose one to launch.'} ${after}</p>${list}
-    <div class="assistant-card-settings" data-assistant-settings>${launchSettingsMarkup(agentOf(selectedId))}</div>`;
+  const list = agents.map((agent) =>
+    `<label class="assistant-launch-agent"><input class="visually-hidden" type="radio" name="assistant-card-agent" value="${escapeHtml(agent.id)}" data-assistant-agent="${escapeHtml(agent.id)}" ${agent.id === selectedId ? 'checked' : ''} /><strong>${escapeHtml(agent.name)}</strong><small>${escapeHtml(agentNote(agent))}</small></label>`).join('');
+  const bodyHtml = `<div class="assistant-launch-message"><strong>${escapeHtml(view.title)} asks:</strong> <blockquote>${escapeHtml(messagePreview(text))}</blockquote></div>
+    <div class="assistant-launch-panes">
+      <fieldset class="assistant-launch-agents"><legend>Launch</legend>${list}</fieldset>
+      <div class="assistant-launch-settings" data-assistant-settings>${launchSettingsMarkup(agentOf(selectedId))}</div>
+    </div>`;
   return {
     bodyHtml,
     confirmLabel: `Launch ${escapeHtml(nameOf(selectedId))}`,
     prepare(dialog) {
+      dialog.classList.add('assistant-launch-dialog');
+      const actions = dialog.querySelector('.form-actions');
+      actions?.insertAdjacentHTML('afterbegin', '<span class="assistant-launch-footnote">No agent is running. It works at the access level on the Agent page.</span>');
       const button = dialog.querySelector<HTMLButtonElement>('[data-confirm]');
       const box = dialog.querySelector<HTMLElement>('[data-assistant-settings]');
       let current = selectedId;

@@ -57,8 +57,8 @@ function running(conversation: AssistantConversation): boolean {
   return conversation.exists && conversation.state !== 'ended' && conversation.state !== 'none';
 }
 
-/** An agent a launch card lists, with its kept settings, or null when it never ran here. */
-export interface OfferedAgent { id: string; name: string; settings: AgentSetting[] | null }
+/** An agent a launch card lists, with its kept settings (null when it never ran here) and whether it was launched last. */
+export interface OfferedAgent { id: string; name: string; settings: AgentSetting[] | null; last: boolean }
 
 /**
  * The agents a view's card offers to launch: every one installed and shown, in the Agent page's
@@ -68,7 +68,8 @@ export interface OfferedAgent { id: string; name: string; settings: AgentSetting
 export function agentsToOffer(launchable: LaunchableAgents): { agents: OfferedAgent[]; selectedId: string } | null {
   const hidden = new Set(launchable.hidden);
   const agents = launchable.agents.filter((agent) => agent.found && !hidden.has(agent.id))
-    .map(({ id, name, settings }) => ({ id, name, settings: settings !== undefined && settings !== null && settings.length > 0 ? settings : null }));
+    .map(({ id, name, settings }) => ({ id, name, settings: settings !== undefined && settings !== null && settings.length > 0 ? settings : null,
+      last: id === launchable.lastAgentId }));
   if (agents.length === 0) return null;
   const last = agents.find((agent) => agent.id === launchable.lastAgentId);
   return { agents, selectedId: (last ?? agents[0]!).id };

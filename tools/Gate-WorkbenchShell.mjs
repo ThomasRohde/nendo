@@ -887,7 +887,7 @@ async page => {
     // The preview finds Copilot and OpenCode, not Gemini; none was launched, so the first is selected.
     const listed = await page.evaluate(() => [...document.querySelectorAll('dialog[open] [data-assistant-agent]')].map((radio) => `${radio.value}${radio.checked ? '*' : ''}`));
     if (JSON.stringify(listed) !== JSON.stringify(['copilot*', 'opencode'])) problems.push(`the launch card listed ${JSON.stringify(listed)}`);
-    await page.click('dialog[open] [data-assistant-agent="opencode"]');
+    await page.click('dialog[open] label:has([data-assistant-agent="opencode"])');
     const label = await page.evaluate(() => document.querySelector('dialog[open] [data-confirm]')?.textContent ?? null);
     if (label !== 'Launch OpenCode') problems.push(`after picking OpenCode the button said ${JSON.stringify(label)}`);
     const unseen = await page.evaluate(() => ({ selects: document.querySelectorAll('dialog[open] [data-assistant-setting]').length,
@@ -924,6 +924,19 @@ async page => {
     await until(() => document.querySelector('dialog[open] [data-confirm]')?.textContent === 'Launch OpenCode', null, 'the second launch card');
     const kept = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('dialog[open] [data-assistant-setting]')].map((select) => [select.dataset.assistantSetting, select.value])));
     if (kept.reasoning_effort !== 'high' || kept.mode !== 'agent') problems.push(`the second launch card showed ${JSON.stringify(kept)}, not the kept settings`);
+    // The card's layout, measured: the agents beside the settings, every setting inside its pane,
+    // the buttons in a footer below both, and the card wide enough for the two.
+    const layout = await page.evaluate(() => {
+      const box = (selector) => document.querySelector(`dialog[open] ${selector}`)?.getBoundingClientRect() ?? null;
+      const dialog = box(''), agents = box('.assistant-launch-agents'), settings = box('.assistant-launch-settings'), panes = box('.assistant-launch-panes'), actions = box('.form-actions');
+      const selects = [...document.querySelectorAll('dialog[open] [data-assistant-setting]')].map((select) => select.getBoundingClientRect());
+      const rows = [...document.querySelectorAll('dialog[open] .assistant-launch-agent')].map((row) => Math.round(row.getBoundingClientRect().height));
+      if (!dialog || !agents || !settings || !panes || !actions || selects.length === 0) return { missing: true };
+      return { width: Math.round(dialog.width), side: Math.round(settings.left - agents.right), topGap: Math.round(Math.abs(settings.top - agents.top)),
+        overflow: Math.round(Math.max(...selects.map((select) => select.bottom)) - panes.bottom), footerGap: Math.round(actions.top - panes.bottom), rows };
+    });
+    if (layout.missing || layout.width < 640 || layout.side < 0 || layout.topGap > 1 || layout.overflow > 0 || layout.footerGap < 0 || layout.rows.some((height) => height < 40))
+      problems.push(`the launch card's layout was ${JSON.stringify(layout)}: the agents not beside the settings, a setting outside its pane, the buttons over them, or the card too narrow`);
     await page.selectOption('dialog[open] [data-assistant-setting="mode"]', 'plan');
     await page.click('dialog[open] [data-confirm]');
     await until(() => window.__answers.length === 4, null, 'the reply after relaunch', 8000);
