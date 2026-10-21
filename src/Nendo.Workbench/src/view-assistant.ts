@@ -1,5 +1,5 @@
 import { fileScopedClearable } from './app-state';
-import { agentToOffer, assistantStatus, conversationKey, messagePreview, nextAskStep, type AssistantConversation } from './assistant-model';
+import { assistantStatus, conversationKey, messagePreview, nextAskStep, type AssistantConversation, type OfferedAgent } from './assistant-model';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import type { AssistantItem, AssistantReply, AssistantStatus } from './extension-api/protocol';
@@ -12,7 +12,7 @@ import { agentChatNow, followAgentChat, launchAgentForView, onAgentChatChanged, 
  * A custom view messages the person's launched agent (ADR-0033).
  *
  * The broker checks what the view sent; this module asks the person, in Nendo's own cards, and
- * does the rest: launches the agent the Agent page last launched when none runs, waits while it
+ * does the rest: launches the agent the person picks on the card when none runs, waits while it
  * starts or signs in, sends the message marked with the view's title, and answers the view with
  * its own turn's reply once the turn ends. What to do next is worked out in assistant-model.ts.
  *
@@ -93,7 +93,7 @@ function waitForConversation(done: (conversation: AssistantConversation) => bool
 }
 
 /** Show a card once the one before it has closed. */
-function card(question: { title: string; bodyHtml: string; confirmLabel: string }): Promise<boolean> {
+function card(question: { title: string; bodyHtml: string; confirmLabel: string; prepare?: (dialog: HTMLDialogElement) => void }): Promise<boolean> {
   const shown = cards.then(() => confirmDialog({ headingId: 'assistant-card-heading', ...question }));
   cards = shown.catch(() => undefined);
   return shown;
@@ -101,6 +101,34 @@ function card(question: { title: string; bodyHtml: string; confirmLabel: string 
 
 function quoted(text: string): string {
   return `<blockquote class="assistant-card-message">${escapeHtml(messagePreview(text))}</blockquote>`;
+}
+
+/**
+ * The launch card's body: the agents installed and shown, the one last launched selected, and a
+ * button that names the one chosen. With one agent there is nothing to pick, so none is listed.
+ */
+function launchCard(view: AssistantViewIdentity, text: string, agents: OfferedAgent[], selectedId: string, choose: (id: string) => void): { bodyHtml: string; confirmLabel: string; prepare: (dialog: HTMLDialogElement) => void } {
+  const nameOf = (id: string): string => agents.find((agent) => agent.id === id)?.name ?? id;
+  const intro = `<p>${escapeHtml(view.title)} wants to send this to an agent:</p>${quoted(text)}`;
+  const after = 'It works at the access level on the Agent page, and the message shows in its conversation. Its settings are on the Agent page.';
+  const bodyHtml = agents.length === 1
+    ? `${intro}<p>No agent is running. Launch ${escapeHtml(nameOf(selectedId))}? ${after}</p>`
+    : `${intro}<p>No agent is running. Choose one to launch. ${after}</p>
+      <fieldset class="assistant-card-agents"><legend class="visually-hidden">Agent to launch</legend>${agents.map((agent) =>
+        `<label><input type="radio" name="assistant-card-agent" value="${escapeHtml(agent.id)}" data-assistant-agent="${escapeHtml(agent.id)}" ${agent.id === selectedId ? 'checked' : ''} />${escapeHtml(agent.name)}</label>`).join('')}</fieldset>`;
+  return {
+    bodyHtml,
+    confirmLabel: `Launch ${escapeHtml(nameOf(selectedId))}`,
+    prepare(dialog) {
+      const button = dialog.querySelector<HTMLButtonElement>('[data-confirm]');
+      for (const radio of dialog.querySelectorAll<HTMLInputElement>('input[name="assistant-card-agent"]'))
+        radio.addEventListener('change', () => {
+          if (!radio.checked) return;
+          choose(radio.value);
+          if (button !== null) button.textContent = `Launch ${nameOf(radio.value)}`;
+        });
+    },
+  };
 }
 
 /** Tell the person why no agent can run, with the way to the Agent page. */
@@ -134,18 +162,14 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
         sayCannot(view, 'No agent is installed on this computer, or every one is hidden. The Agent page shows how to install one.');
         throw new WorkbenchHostError('assistant-unavailable', 'No agent is installed on this computer.');
       case 'launch': {
-        const launch = await card({
-          title: `Let ${escapeHtml(view.title)} ask an agent?`,
-          bodyHtml: `<p>${escapeHtml(view.title)} wants to send this to an agent:</p>${quoted(message.text)}
-            <p>No agent is running. Launch ${escapeHtml(step.agentName)}? It works at the access level on the Agent page, and the message shows in its conversation. Its settings are on the Agent page.</p>`,
-          confirmLabel: `Launch ${escapeHtml(step.agentName)}`,
-        });
+        let chosen = step.selectedId;
+        const launch = await card({ title: `Let ${escapeHtml(view.title)} ask an agent?`, ...launchCard(view, message.text, step.agents, step.selectedId, (id) => { chosen = id; }) });
         if (!launch) {
           declined.set(view.packageId, conversationKey(conversationNow()));
           throw new WorkbenchHostError('assistant-declined', 'The person did not launch an agent for this view.');
         }
         try {
-          await launchAgentForView(step.agentId);
+          await launchAgentForView(chosen);
         } catch (error) {
           throw new WorkbenchHostError('assistant-unavailable', messageFor(error));
         }
@@ -269,5 +293,3 @@ export function assistantAccessChanged(next: ViewAgentAccess): void {
   for (const listener of listeners) listener();
 }
 
-/** For the node lane: the agent a card would offer. */
-export { agentToOffer };

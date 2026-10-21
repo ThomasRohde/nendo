@@ -4,9 +4,10 @@ import { bundleOf } from './bundle-of.mjs';
 
 // ADR-0033: what a custom view's message to the launched agent needs next. Never refuses at once;
 // Not now holds until the conversation changes; a launch is offered when none runs, and the agent
-// offered is the one last launched while it is still installed and shown; Ask asks once per
-// conversation; a running turn is no refusal, since the host keeps the message.
-const { agentToOffer, assistantStatus, conversationKey, messagePreview, nextAskStep } = await bundleOf('src/assistant-model.ts');
+// card lists every agent installed and shown, the one last launched selected while it is still
+// among them; Ask asks once per conversation; a running turn is no refusal, since the host keeps
+// the message.
+const { agentsToOffer, assistantStatus, conversationKey, messagePreview, nextAskStep } = await bundleOf('src/assistant-model.ts');
 
 const agent = (id, found = true) => ({ id, name: id.toUpperCase(), commandLine: id, found, package: null, installCommand: null, renamedFrom: null, updateCommand: null });
 const offer = (fields = {}) => ({ canLaunch: true, reason: null, agents: [agent('copilot'), agent('gemini', false), agent('claude')], customCommandLine: null, running: null, hidden: [], lastAgentId: null, viewAccess: 'ask', ...fields });
@@ -20,19 +21,22 @@ test('Never refuses before anything else, without a card', () => {
 });
 
 test('with none running, a launch is offered, or why it cannot be', () => {
-  assert.deepEqual(nextAskStep(facts({ conversation: none })), { kind: 'launch', agentId: 'copilot', agentName: 'COPILOT' });
+  const listed = [{ id: 'copilot', name: 'COPILOT' }, { id: 'claude', name: 'CLAUDE' }];
+  assert.deepEqual(nextAskStep(facts({ conversation: none })), { kind: 'launch', agents: listed, selectedId: 'copilot' });
   assert.deepEqual(nextAskStep(facts({ conversation: { ...ready, state: 'ended' }, launchable: offer({ lastAgentId: 'claude' }) })),
-    { kind: 'launch', agentId: 'claude', agentName: 'CLAUDE' }, 'The agent last launched was not the one offered.');
+    { kind: 'launch', agents: listed, selectedId: 'claude' }, 'The card did not list every installed agent with the last one launched selected.');
   assert.deepEqual(nextAskStep(facts({ conversation: none, launchable: offer({ canLaunch: false, reason: 'Choose Inspect first.' }) })),
     { kind: 'cannotLaunch', reason: 'Choose Inspect first.' });
   assert.deepEqual(nextAskStep(facts({ conversation: none, launchable: offer({ hidden: ['copilot', 'claude'] }) })), { kind: 'noAgent' });
   assert.equal(nextAskStep(facts({ conversation: none, launchable: null })).code, 'assistant-unavailable');
 });
 
-test('the agent offered is the last one launched only while it is installed and shown', () => {
-  assert.equal(agentToOffer(offer({ lastAgentId: 'gemini' })).id, 'copilot', 'An agent not installed was offered.');
-  assert.equal(agentToOffer(offer({ lastAgentId: 'claude', hidden: ['claude'] })).id, 'copilot', 'A hidden agent was offered.');
-  assert.equal(agentToOffer(offer({ agents: [agent('gemini', false)] })), null);
+test('the card lists the agents installed and shown, the last one launched selected only while listed', () => {
+  assert.deepEqual(agentsToOffer(offer({ lastAgentId: 'gemini' })).agents.map((listed) => listed.id), ['copilot', 'claude'], 'An agent not installed was listed.');
+  assert.equal(agentsToOffer(offer({ lastAgentId: 'gemini' })).selectedId, 'copilot', 'An agent not installed was selected.');
+  const hiding = agentsToOffer(offer({ lastAgentId: 'claude', hidden: ['claude'] }));
+  assert.deepEqual([hiding.agents.map((listed) => listed.id), hiding.selectedId], [['copilot'], 'copilot'], 'A hidden agent was listed or selected.');
+  assert.equal(agentsToOffer(offer({ agents: [agent('gemini', false)] })), null);
 });
 
 test('starting or signing in waits; Ask asks once per conversation; Always does not ask', () => {

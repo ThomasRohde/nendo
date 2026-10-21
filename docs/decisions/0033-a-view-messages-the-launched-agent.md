@@ -43,10 +43,12 @@ request, and never reads the rest of the transcript.
 
 - **Views may message the agent** is a setting on the Agent page, kept on this device: **Never**,
   **Ask** (the default) or **Always**. At Never `ask` is refused at once, without a card.
-- No agent running, one installed: a card names the view and the first line of its message and
-  offers to launch the agent last launched here (or the first one found). Launching from the card
-  counts as consent for that view; the message waits until the agent is ready, and sign-in happens
-  in the tab. Not now refuses.
+- No agent running, at least one installed: a card names the view and the first line of its message and
+  offers to launch an agent. It lists every agent installed and shown, in the Agent page's order,
+  with the one last launched here selected (or the first, when that one is gone or hidden), and the
+  person may pick another before launching. The view's message names no agent and the view never
+  learns which was offered. Launching from the card counts as consent for that view; the message
+  waits until the agent is ready, and sign-in happens in the tab. Not now refuses.
 - Agent running, setting Ask, the view's first message in this conversation: a card asks whether
   the view may message the agent. Allow holds until the conversation ends; nothing is stored.
 - Launch not possible (access Off, read-only, recovery) or no agent installed: a card says why and
@@ -97,6 +99,9 @@ other method.
 - **Refusing every message during a turn:** every view would write its own retry loop.
 - **Steering by cancelling the running turn and sending again:** ACP has no steering, and a
   cancel throws away the running turn's work, perhaps the person's own.
+- **The card launches the agent last launched, with no choice:** a person with two agents
+  installed had to leave for the Agent page to use the other.
+- **The view names the agent:** the agent is the person's program, chosen by the person.
 - **Model or effort per message:** the agent's settings are the person's, set in one place.
 - **Consent kept on the device per package:** a stored grant outlives the conversation the person
   looked at; the Always setting covers the person who wants no cards.

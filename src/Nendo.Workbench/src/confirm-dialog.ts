@@ -3,9 +3,10 @@
  * action named. Resolves true only when that action is pressed; Cancel, Escape and closing
  * the dialog any other way resolve false. The dialog removes itself once it closes.
  *
- * The body is markup, so the caller escapes whatever text it puts there.
+ * The body is markup, so the caller escapes whatever text it puts there. `prepare`, when given,
+ * wires the body's own controls once the dialog is in the document and before it opens.
  */
-export function confirmDialog(question: { headingId: string; title: string; bodyHtml: string; confirmLabel: string }): Promise<boolean> {
+export function confirmDialog(question: { headingId: string; title: string; bodyHtml: string; confirmLabel: string; prepare?: (dialog: HTMLDialogElement) => void }): Promise<boolean> {
   return new Promise(resolve => {
     const dialog = document.createElement('dialog');
     dialog.className = 'record-delete-dialog';
@@ -17,6 +18,7 @@ export function confirmDialog(question: { headingId: string; title: string; body
     dialog.addEventListener('close', () => { dialog.remove(); resolve(confirmed); }, { once: true });
     dialog.querySelector('[data-cancel]')?.addEventListener('click', () => dialog.close());
     dialog.querySelector('[data-confirm]')?.addEventListener('click', () => { confirmed = true; dialog.close(); });
+    question.prepare?.(dialog);
     dialog.showModal();
   });
 }

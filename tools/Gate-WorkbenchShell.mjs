@@ -858,7 +858,8 @@ async page => {
   });
 
   // ADR-0033: a custom view messages the launched agent through the real module the broker
-  // uses. Nendo's own card offers the launch, the message waits for the agent to be ready,
+  // uses. Nendo's own card lists the installed agents, the last one launched selected, and
+  // launches the one the person picks; the message waits for the agent to be ready,
   // the reply is the turn's own, two messages at once are answered in turn rather than one
   // refused, and Never refuses without a card.
   await check('a view messages the agent', 'idea', async () => {
@@ -877,7 +878,16 @@ async page => {
     await until(() => document.querySelector('dialog[open] [data-confirm]')?.textContent.startsWith('Launch') === true, null, 'the launch card');
     const card = await page.evaluate(() => document.querySelector('dialog[open] blockquote')?.textContent ?? null);
     if (card !== 'Count the ideas') problems.push(`the launch card quoted ${JSON.stringify(card)}`);
+    // The preview finds Copilot and OpenCode, not Gemini; none was launched, so the first is selected.
+    const listed = await page.evaluate(() => [...document.querySelectorAll('dialog[open] [data-assistant-agent]')].map((radio) => `${radio.value}${radio.checked ? '*' : ''}`));
+    if (JSON.stringify(listed) !== JSON.stringify(['copilot*', 'opencode'])) problems.push(`the launch card listed ${JSON.stringify(listed)}`);
+    await page.click('dialog[open] [data-assistant-agent="opencode"]');
+    const label = await page.evaluate(() => document.querySelector('dialog[open] [data-confirm]')?.textContent ?? null);
+    if (label !== 'Launch OpenCode') problems.push(`after picking OpenCode the button said ${JSON.stringify(label)}`);
     await page.click('dialog[open] [data-confirm]');
+    await until(() => document.querySelector('dialog[open]') === null, null, 'the launch card to close');
+    const launched = await page.evaluate(() => import('/src/view-agent-chat.ts').then((module) => module.agentChatNow().name));
+    if (launched !== 'OpenCode') problems.push(`the card launched ${JSON.stringify(launched)}, not the agent picked`);
     await until(() => window.__answers.length === 1, null, 'the reply', 8000);
     const first = await page.evaluate(() => window.__answers[0]);
     if (first.stopReason !== 'end_turn' || !String(first.reply).includes('Count the ideas')) problems.push(`the first reply was ${JSON.stringify(first)}`);

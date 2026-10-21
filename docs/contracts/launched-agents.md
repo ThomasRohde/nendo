@@ -64,7 +64,8 @@ a `.cmd` of at most 16 KiB) starts a renamed package carries `renamedFrom` and
 `running` is `{ agentId, name, state, working }` for an agent that has not ended, else null.
 `hidden` lists the agents hidden on this device (`custom` included); a hidden agent is still
 in `agents` so it can be shown again (`host-types.ts`, `LaunchableAgents`). `lastAgentId` is
-the agent last launched on this device, which a view's card offers. `viewAccess` is whether
+the agent last launched on this device, which a view's card selects among the agents it lists
+(those `found` and not `hidden`); the person may launch another from the card. `viewAccess` is whether
 custom views may message the agent: `never`, `ask` (the default) or `always`.
 `repositoryFolder` is the open file's repository, the nearest folder above it that holds `.git`
 (a folder, or a worktree's file) or else the file's own folder; `startInRepository` is whether

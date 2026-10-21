@@ -1172,8 +1172,10 @@ person's launched agent a message and hear its own turn's reply; the
   not one of the file's `nendo://` addresses is `invalid-params` before anything is asked.
 - **The Workbench** (`view-assistant.ts`, deciding by `assistant-model.ts`) asks the person in
   its own modal cards, one at a time, quoting the message's first line. At Never it refuses
-  at once. With no agent running it offers to launch the agent last launched on this
-  device, or the first installed and shown; launching counts as consent, and it waits up to
+  at once. With no agent running it offers to launch one: the card lists every agent
+  installed and shown, in the Agent page's order, with the one last launched on this device
+  selected (or the first), and the person may pick another. The view's message names no agent
+  and the view never learns which was offered. Launching counts as consent, and it waits up to
   six minutes for the agent to start and sign in. At Ask it asks once per conversation
   whether the view may message the agent. Not now holds for the package until the
   conversation changes. Nothing is kept on the device.

@@ -33,8 +33,8 @@ export type AskStep =
   | { kind: 'cannotLaunch'; reason: string }
   /** None installed and shown; the card offers the Agent page. */
   | { kind: 'noAgent' }
-  /** None running: the card offers to launch this one. */
-  | { kind: 'launch'; agentId: string; agentName: string }
+  /** None running: the card lists these to launch, with `selectedId` selected. */
+  | { kind: 'launch'; agents: OfferedAgent[]; selectedId: string }
   /** Starting or signing in: wait for it. */
   | { kind: 'wait' }
   /** Running, and the person has not said whether this view may message it. */
@@ -50,16 +50,19 @@ function running(conversation: AssistantConversation): boolean {
   return conversation.exists && conversation.state !== 'ended' && conversation.state !== 'none';
 }
 
+export interface OfferedAgent { id: string; name: string }
+
 /**
- * The agent a view's card offers to launch: the one last launched on this computer when it is
- * still installed and shown, otherwise the first installed and shown, in the Agent page's order.
+ * The agents a view's card offers to launch: every one installed and shown, in the Agent page's
+ * order, with the one last launched on this computer selected while it is still among them,
+ * otherwise the first. The person picks; the view never does.
  */
-export function agentToOffer(launchable: LaunchableAgents): { id: string; name: string } | null {
+export function agentsToOffer(launchable: LaunchableAgents): { agents: OfferedAgent[]; selectedId: string } | null {
   const hidden = new Set(launchable.hidden);
-  const usable = launchable.agents.filter((agent) => agent.found && !hidden.has(agent.id));
-  const last = usable.find((agent) => agent.id === launchable.lastAgentId);
-  const chosen = last ?? usable[0] ?? null;
-  return chosen === null ? null : { id: chosen.id, name: chosen.name };
+  const agents = launchable.agents.filter((agent) => agent.found && !hidden.has(agent.id)).map(({ id, name }) => ({ id, name }));
+  if (agents.length === 0) return null;
+  const last = agents.find((agent) => agent.id === launchable.lastAgentId);
+  return { agents, selectedId: (last ?? agents[0]!).id };
 }
 
 export function nextAskStep(facts: AskFacts): AskStep {
@@ -71,8 +74,8 @@ export function nextAskStep(facts: AskFacts): AskStep {
   if (!running(conversation)) {
     if (facts.launchable === null) return { kind: 'refuse', code: 'assistant-unavailable', message: 'This Nendo cannot launch an agent.' };
     if (!facts.launchable.canLaunch) return { kind: 'cannotLaunch', reason: facts.launchable.reason ?? 'An agent cannot be launched now.' };
-    const agent = agentToOffer(facts.launchable);
-    return agent === null ? { kind: 'noAgent' } : { kind: 'launch', agentId: agent.id, agentName: agent.name };
+    const offer = agentsToOffer(facts.launchable);
+    return offer === null ? { kind: 'noAgent' } : { kind: 'launch', ...offer };
   }
   if (conversation.state !== 'ready' || conversation.conversationId === null) return { kind: 'wait' };
   if (facts.access === 'ask' && facts.allowedFor !== conversation.conversationId)
