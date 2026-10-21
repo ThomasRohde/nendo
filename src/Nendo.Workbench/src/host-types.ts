@@ -278,6 +278,10 @@ export interface LaunchableAgents {
   lastAgentId?: string | null;
   /** Whether custom views may message the agent on this computer (ADR-0033); absent from an older host. */
   viewAccess?: ViewAgentAccess;
+  /** Whether this file's agent starts in its repository rather than an empty folder (ADR-0030). */
+  startInRepository?: boolean;
+  /** The file's repository: the nearest folder above it holding .git, or its own folder; null with no file. */
+  repositoryFolder?: string | null;
 }
 
 /** Whether custom views may message the launched agent: never, after asking once per conversation, or always. */
@@ -362,6 +366,8 @@ export interface LaunchedAgentView {
   turnId?: string | null;
   /** Views' messages waiting for the turn that runs (ADR-0033); absent from an older host. */
   queued?: number;
+  /** The file's repository when the agent was started there; null when it works in an empty folder. */
+  workingFolder?: string | null;
 }
 
 /** A turn read back (ADR-0033): whether it ended, the agent's message text of that turn, and why it stopped. */

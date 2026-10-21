@@ -57,7 +57,7 @@ a `.cmd` of at most 16 KiB) starts a renamed package carries `renamedFrom` and
 ```text
 { canLaunch, reason,
   agents: [{ id, name, commandLine, found, package, installCommand, renamedFrom, updateCommand }],
-  customCommandLine, running, hidden, lastAgentId, viewAccess }
+  customCommandLine, running, hidden, lastAgentId, viewAccess, startInRepository, repositoryFolder }
 ```
 
 `found` is whether the program is on `PATH`. The package fields are null for `custom`.
@@ -65,20 +65,24 @@ a `.cmd` of at most 16 KiB) starts a renamed package carries `renamedFrom` and
 `hidden` lists the agents hidden on this device (`custom` included); a hidden agent is still
 in `agents` so it can be shown again (`host-types.ts`, `LaunchableAgents`). `lastAgentId` is
 the agent last launched on this device, which a view's card offers. `viewAccess` is whether
-custom views may message the agent: `never`, `ask` (the default) or `always`. The command line,
-hidden IDs, last agent and view access are kept only on this device, in `agent-launch.json` under
-the device state (at most 4,096 bytes, written under the device state lock); an unknown ID is
-dropped on read.
+custom views may message the agent: `never`, `ask` (the default) or `always`.
+`repositoryFolder` is the open file's repository, the nearest folder above it that holds `.git`
+(a folder, or a worktree's file) or else the file's own folder; `startInRepository` is whether
+this file's agent starts there rather than in an empty folder. The command line, hidden IDs,
+last agent, view access and the files whose agent starts in their repository (at most 32, by
+full path, the most recently chosen kept) are kept only on this device, in `agent-launch.json`
+under the device state (at most 16 KiB, written under the device state lock); an unknown ID or
+a path that is not fully qualified is dropped on read.
 
 ## The bridge methods
 
-Thirteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
+Fourteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
 `fileSessionId`; a session no longer open is `stale-file-session`. All run off the UI thread
 (`WorkbenchMethods.OffUiThread`) and are dispatched after the actor check, so a request
 naming a custom view's `actor` is `actor-not-allowed`; the extension broker's method table
 names none of them.
 
-`list`, `setCommand`, `setHidden`, `setViewAccess` and `launch` take the request gate, finding the agents
+`list`, `setCommand`, `setHidden`, `setViewAccess`, `setStartIn` and `launch` take the request gate, finding the agents
 first, since that reads nothing of the file: one `PATH` search at a time, shared by requests
 that arrive while it runs or within two seconds of its start. The other eight do not wait on
 the gate and check `fileSessionId` themselves, so the tab keeps reading while an agent's own
@@ -93,7 +97,8 @@ restart with every launch.
 | `agentSession.setCommand` | `commandLine`, at most 1,000 characters; empty or absent forgets it | The list. `agent-command-not-saved` when the device could not keep it. |
 | `agentSession.setHidden` | `agentId` (at most 40), `hidden` | The list. An unknown ID is a validation refusal; `agent-choice-not-saved` when the device could not keep it. The file is not written. |
 | `agentSession.setViewAccess` | `access`: `never`, `ask` or `always` | The list. Anything else is a validation refusal; `agent-choice-not-saved` when the device could not keep it. |
-| `agentSession.launch` | `agentId` (at most 40) | The conversation at `starting`; the handshake runs on. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), or a validation refusal. |
+| `agentSession.setStartIn` | `repository`: true or false | The list. Start this file's agent in its repository, or in an empty folder again, from the next launch; `agent-choice-not-saved` when the device could not keep it. |
+| `agentSession.launch` | `agentId` (at most 40) | The conversation at `starting`; the handshake runs on. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), `agent-folder-missing` (the repository chosen is gone), or a validation refusal. |
 | `agentSession.read` | `after` | The conversation, or `exists: false`. |
 | `agentSession.prompt` | `text`, `after`, optional `context`, optional `from` (a custom view's title, at most 120) | Below, with `turnId`. `agent-not-ready` (starting, signing in or ended); `agent-working` for the person's message during a turn, or a view's past the queue's bound; `assistant-off` for a view's message while views are Never. |
 | `agentSession.turn` | `turnId` (at most 40) | `{ turnId, done, reply, stopReason }`. `agent-turn-gone` once it is no longer kept. |
@@ -223,7 +228,9 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   leaving it at `starting`. An error answer whose `code` is not a number is an internal
   error, never the end of the connection.
 - `session/new` names exactly one MCP server: the open file's address, as an `http` server
-  called `nendo` with no headers. The working directory is a new, empty folder.
+  called `nendo` with no headers. The working directory is the folder the program runs in
+  ([Lifetime](#lifetime)); the conversation's `workingFolder` names it when it is the file's
+  repository, and is null for an empty folder.
 - When `session/new` answers `auth_required`, the conversation waits at `signIn` and names
   the ways offered (at most eight). The agent program signs in, within five minutes; no secret
   passes through Nendo. One sign-in runs at a time, and an update naming another session is
@@ -244,8 +251,11 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
 ## Lifetime
 
 The program runs in a new empty folder under the device state's `agent-sessions`, named by
-the host process and a new GUID, never in or around the `.nendo` file's folder, with the
-person's environment as Windows holds it at launch. It is placed in a Job Object that ends
+the host process and a new GUID, or, when the person chose it for this file, in the file's
+repository, where it picks up that folder's instructions, skills, settings and hooks as it would
+from a terminal. Either way it runs with the person's environment as Windows holds it at launch.
+Nendo removes only the folders it made: ending the agent never removes anything from the
+repository, and a sweep looks only under `agent-sessions`. It is placed in a Job Object that ends
 it and every process it started when the job's handle closes: when the conversation ends and
 when the host ends for any reason (`AgentProcess.cs`). The last 4,000 characters of its
 error output are kept for the notice.
@@ -274,13 +284,14 @@ A level change that keeps the address keeps the agent; its next MCP call meets t
 
 The transcript lives in host memory from launch until the file closes or another agent is
 launched, never in the file or on the device. The device keeps the command line, the hidden
-agents and, until the next launch sweeps it, a working folder.
+agents, the files whose agent starts in their repository and, until the next launch sweeps it,
+a working folder of its own.
 
 ## What Nendo cannot confine
 
 The program is the one the person would run in a terminal, with the same abilities. Nendo
-gives it no file-system or terminal capability, an empty working folder and only the file's
-MCP address at the person's level. It does not sandbox the program, and an agent's own tools
+gives it no file-system or terminal capability, an empty working folder (or the file's
+repository, when the person chose it) and only the file's MCP address at the person's level. It does not sandbox the program, and an agent's own tools
 are its own. The axiom that agents never receive raw SQL or file-system authority holds for
 what Nendo grants, not for what the person's own program can do on this computer.
 
@@ -289,7 +300,7 @@ what Nendo grants, not for what the person's own program can do on this computer
 - [`DesktopLaunchedAgentTests`](../../tests/Nendo.Desktop.Tests/DesktopLaunchedAgentTests.cs)
   against a stand-in agent that records what it was told
   (`tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`), a view's turns and the queue
-  among them.
+  among them, and an agent started in the file's repository, which ending it leaves whole.
 - [`WorkbenchAgentSessionProtocolTests`](../../tests/Nendo.Desktop.Tests/WorkbenchAgentSessionProtocolTests.cs):
   the bridge methods, their refusals, off-UI-thread dispatch and device-only hiding.
 - The Workbench node tests `assistant-model.test.mjs`, `agent-chat.test.mjs`, `agent-context.test.mjs`,

@@ -99,6 +99,7 @@ internal static partial class WorkbenchMethods
         AgentSessionSetOption,
         AgentSessionSetViewAccess,
         AgentSessionTurn,
+        AgentSessionSetStartIn,
         // Pictures (ADR-0031): a copy of a link, a view's reads and puts, and showing a file in
         // its folder touch no window.
         MediaEmbedCopy,

@@ -32,6 +32,7 @@ export class PreviewAgentSession {
   private hidden: string[] = [];
   private lastAgentId: string | null = null;
   private viewAccess: ViewAgentAccess = 'ask';
+  private startInRepository = false;
   /** Turns started by a prompt, by ID: the order of the message, and how the turn stopped once it has. */
   private turns = new Map<string, { promptOrder: number; stopReason: string | null }>();
   private openTurn: string | null = null;
@@ -95,6 +96,9 @@ export class PreviewAgentSession {
         return this.list();
       }
       case 'agentSession.turn': return this.readTurn(String(payload.turnId ?? ''));
+      case 'agentSession.setStartIn':
+        this.startInRepository = payload.repository === true;
+        return this.list();
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''));
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
       case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0),
@@ -141,6 +145,8 @@ export class PreviewAgentSession {
       hidden: [...this.hidden],
       lastAgentId: this.lastAgentId,
       viewAccess: this.viewAccess,
+      startInRepository: this.startInRepository,
+      repositoryFolder: 'C:\\Users\\you\\Projects\\atlas',
     };
   }
 

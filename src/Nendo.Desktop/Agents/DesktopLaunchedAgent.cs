@@ -5,9 +5,10 @@ namespace Nendo.Desktop;
 
 /// <summary>
 /// The person's own agent program, launched from the Agent page for the open file (ADR-0030):
-/// its process, its empty working folder and its conversation.
+/// its process, its working folder and its conversation.
 /// <para>
-/// Ending it ends the program and everything it started, and removes the folder. The
+/// Ending it ends the program and everything it started, and removes the folder when Nendo made
+/// it; the file's repository, when the person chose to start there, is never removed. The
 /// conversation's transcript stays readable until the file closes or another agent is launched.
 /// </para>
 /// </summary>
@@ -16,16 +17,18 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     private readonly AgentProcess _process;
     private readonly AgentConversation _conversation;
     private readonly CancellationTokenSource _stop = new();
+    private readonly bool _ownsFolder;
     private int _ended;
 
     /// <summary>The folders of the agents this process runs now, which a sweep never takes.</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> LiveFolders = new(StringComparer.OrdinalIgnoreCase);
 
-    private DesktopLaunchedAgent(DesktopAgentCommand command, Uri endpoint, string workingDirectory, AgentProcess process)
+    private DesktopLaunchedAgent(DesktopAgentCommand command, Uri endpoint, string workingDirectory, AgentProcess process, bool ownsFolder)
     {
         Command = command;
         Endpoint = endpoint;
         WorkingDirectory = workingDirectory;
+        _ownsFolder = ownsFolder;
         _process = process;
         _conversation = new AgentConversation(process.StandardOutput, process.StandardInput, command.Name);
         _conversation.Changed += revision => Changed?.Invoke(revision);
@@ -44,6 +47,9 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
 
     internal string WorkingDirectory { get; }
 
+    /// <summary>Whether the agent works in the file's repository, which the person chose, rather than an empty folder.</summary>
+    internal bool InRepository => !_ownsFolder;
+
     internal int ProcessId => _process.ProcessId;
 
     internal AgentConversation Conversation => _conversation;
@@ -57,21 +63,29 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     internal event Action<long>? Changed;
 
     /// <summary>
-    /// Start <paramref name="command"/> in a new empty folder under <paramref name="sessionsRoot"/>
-    /// and begin the handshake, which runs on. Throws a refusal the Agent page can show when
-    /// the program is not installed or Windows cannot start it.
+    /// Start <paramref name="command"/> in a new empty folder under <paramref name="sessionsRoot"/>,
+    /// or in <paramref name="repository"/> when the person chose the file's repository, and begin
+    /// the handshake, which runs on. Throws a refusal the Agent page can show when the program is
+    /// not installed or Windows cannot start it.
     /// </summary>
     internal static DesktopLaunchedAgent Launch(DesktopAgentCommand command, Uri endpoint, string sessionsRoot, string clientVersion,
-        IReadOnlyDictionary<string, string>? environment = null)
+        IReadOnlyDictionary<string, string>? environment = null, string? repository = null)
     {
         if (command.ResolvedPath is null)
             throw new NendoPreconditionException("agent-not-found", $"{command.Name} is not installed on this computer: {command.Program} was not found.");
+        if (repository is not null && !Directory.Exists(repository))
+            throw new NendoPreconditionException("agent-folder-missing", $"The folder to start {command.Name} in is gone: {repository}. Choose an empty folder on the Agent page, or put it back.");
         // Every folder left by a launch that did not end through EndAsync -- a host that was
-        // killed, upgraded over or logged off, or a delete that gave up -- goes first.
+        // killed, upgraded over or logged off, or a delete that gave up -- goes first. Only
+        // folders under the sessions root are ever swept; a repository never is.
         SweepFolders(sessionsRoot);
-        var folder = Path.Combine(sessionsRoot, FolderName(Environment.ProcessId));
-        Directory.CreateDirectory(folder);
-        LiveFolders[Path.GetFullPath(folder)] = 0;
+        var owns = repository is null;
+        var folder = repository ?? Path.Combine(sessionsRoot, FolderName(Environment.ProcessId));
+        if (owns)
+        {
+            Directory.CreateDirectory(folder);
+            LiveFolders[Path.GetFullPath(folder)] = 0;
+        }
         AgentProcess process;
         try
         {
@@ -79,10 +93,10 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         }
         catch (Exception exception) when (exception is Win32Exception or InvalidOperationException or IOException)
         {
-            RemoveFolder(folder);
+            if (owns) RemoveFolder(folder);
             throw new NendoPreconditionException("agent-start-failed", $"{command.Name} could not start: {exception.Message}");
         }
-        var agent = new DesktopLaunchedAgent(command, endpoint, folder, process);
+        var agent = new DesktopLaunchedAgent(command, endpoint, folder, process, owns);
         agent.Started = agent._conversation.StartAsync(endpoint, folder, clientVersion, agent._stop.Token);
         _ = agent.WatchAsync();
         return agent;
@@ -115,14 +129,17 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
         await EndAsync(how);
     }
 
-    /// <summary>End the program, keep the transcript, remove the folder. Safe to call more than once.</summary>
+    /// <summary>
+    /// End the program, keep the transcript, and remove the folder Nendo made for it; never the
+    /// file's repository. Safe to call more than once.
+    /// </summary>
     internal async Task EndAsync(string notice)
     {
         _conversation.End(notice);
         if (Interlocked.Exchange(ref _ended, 1) != 0) return;
         await _stop.CancelAsync();
         await _process.DisposeAsync();
-        RemoveFolder(WorkingDirectory);
+        if (_ownsFolder) RemoveFolder(WorkingDirectory);
     }
 
     /// <summary>

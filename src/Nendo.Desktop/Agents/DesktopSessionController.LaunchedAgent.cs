@@ -27,6 +27,8 @@ internal sealed record DesktopLaunchedAgentSummary(string AgentId, string Name, 
 /// person hid on this device (by ID, <c>custom</c> for their own command). A hidden agent is still
 /// listed, so the page can offer to show it again. <c>LastAgentId</c> is the agent last launched
 /// on this device and <c>ViewAccess</c> whether custom views may message the agent (ADR-0033).
+/// <c>StartInRepository</c> says whether this file's agent starts in <c>RepositoryFolder</c>, the
+/// file's repository, rather than an empty folder; the folder is named whichever is chosen.
 /// </summary>
 internal sealed record DesktopLaunchableAgents(
     bool CanLaunch,
@@ -36,7 +38,9 @@ internal sealed record DesktopLaunchableAgents(
     DesktopLaunchedAgentSummary? Running,
     IReadOnlyList<string> Hidden,
     string? LastAgentId = null,
-    string ViewAccess = DesktopAgentLaunchStore.ViewAccessAsk);
+    string ViewAccess = DesktopAgentLaunchStore.ViewAccessAsk,
+    bool StartInRepository = false,
+    string? RepositoryFolder = null);
 
 /// <summary>
 /// The conversation tab's read: which launch it is, who the agent is, the level it works at, the
@@ -65,7 +69,8 @@ internal sealed record DesktopLaunchedAgentView(
     bool SigningIn = false,
     IReadOnlyList<AgentCommandView>? Commands = null,
     string? TurnId = null,
-    int Queued = 0)
+    int Queued = 0,
+    string? WorkingFolder = null)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
         new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0, false, []);
@@ -184,6 +189,47 @@ internal sealed partial class DesktopSessionController
         }
     }
 
+    /// <summary>
+    /// Start this file's agent in the file's repository, or in an empty folder again (ADR-0030),
+    /// kept on this device for this file. An agent already running keeps the folder it has.
+    /// </summary>
+    internal async Task<DesktopLaunchableAgents> SetAgentStartInRepositoryAsync(string fileSessionId, bool repository, CancellationToken cancellationToken = default)
+    {
+        var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
+        await EnterRequestGateAsync(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            RequireFileSession(fileSessionId);
+            var path = _currentPath ?? throw new NendoPreconditionException("agent-launch-unavailable", "Open a file first.");
+            try { AgentLaunch().SetStartInRepository(path, repository); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new NendoPreconditionException("agent-choice-not-saved", "That choice could not be kept on this computer.");
+            }
+            return DescribeLaunchableCore(catalog);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The repository a file is in: the nearest folder above it that holds <c>.git</c>, a folder
+    /// or the file a worktree has, or the file's own folder when none does.
+    /// </summary>
+    internal static string RepositoryFolderOf(string filePath)
+    {
+        var own = Path.GetDirectoryName(Path.GetFullPath(filePath))!;
+        for (var folder = own; folder is not null; folder = Path.GetDirectoryName(folder))
+        {
+            var git = Path.Combine(folder, ".git");
+            if (Directory.Exists(git) || File.Exists(git)) return folder;
+        }
+        return own;
+    }
+
     /// <summary>Choose on this device whether custom views may message the agent (ADR-0033).</summary>
     internal async Task<DesktopLaunchableAgents> SetAgentViewAccessAsync(string fileSessionId, string access, CancellationToken cancellationToken = default)
     {
@@ -235,7 +281,9 @@ internal sealed partial class DesktopSessionController
                 try { await previous.DisposeAsync(); }
                 catch (Exception) { /* The program is in a job that ends with the host. */ }
             }
-            var agent = DesktopLaunchedAgent.Launch(command, endpoint, AgentSessionsRoot, NendoProduct.Version, catalog.Environment);
+            // The file's repository when the person chose it for this file; otherwise an empty folder.
+            var repository = _currentPath is { } path && AgentLaunch().StartsInRepository(path) ? RepositoryFolderOf(path) : null;
+            var agent = DesktopLaunchedAgent.Launch(command, endpoint, AgentSessionsRoot, NendoProduct.Version, catalog.Environment, repository);
             agent.Changed += revision =>
             {
                 // A conversation that has since been replaced, or whose file has closed, is not news.
@@ -408,7 +456,9 @@ internal sealed partial class DesktopSessionController
             ? new DesktopLaunchedAgentSummary(agent.Command.Id, agent.Command.Name, agent.Conversation.State, agent.Conversation.Working)
             : null;
         var choices = AgentLaunch();
-        return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running, choices.Hidden, choices.LastAgentId, choices.ViewAccess);
+        var path = _currentPath;
+        return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running, choices.Hidden, choices.LastAgentId, choices.ViewAccess,
+            path is not null && choices.StartsInRepository(path), path is null ? null : RepositoryFolderOf(path));
     }
 
     /// <summary>Why an agent cannot be launched now, or null when it can.</summary>
@@ -431,7 +481,7 @@ internal sealed partial class DesktopSessionController
         return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
             snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn, snapshot.Commands ?? [],
-            Queued: snapshot.Queued);
+            Queued: snapshot.Queued, WorkingFolder: agent.InRepository ? agent.WorkingDirectory : null);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

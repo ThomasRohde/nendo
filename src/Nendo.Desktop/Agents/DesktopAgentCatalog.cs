@@ -204,12 +204,17 @@ internal static class DesktopAgentCatalog
 /// <summary>
 /// What a person chose about Launch on the Agent page, kept for this device only, never in a
 /// file (ADR-0030): the one command line they added, the agents they hid, the agent they last
-/// launched, and whether custom views may message the agent (ADR-0033). A computer at work may
-/// have only one agent its owner uses; the others' rows are noise there.
+/// launched, whether custom views may message the agent (ADR-0033), and the files whose agent
+/// starts in the file's repository rather than an empty folder. A computer at work may have only
+/// one agent its owner uses; the others' rows are noise there.
 /// </summary>
 internal sealed class DesktopAgentLaunchStore(string root)
 {
-    private const int MaximumBytes = 4096;
+    private const int MaximumBytes = 16 * 1024;
+
+    /// <summary>Files whose agent starts in their repository, the most recently chosen kept.</summary>
+    internal const int MaximumRepositoryFiles = 32;
+    private const int MaximumPathCharacters = 1024;
     private readonly string _root = Path.GetFullPath(root);
     private string StatePath => Path.Combine(_root, "agent-launch.json");
 
@@ -242,6 +247,20 @@ internal sealed class DesktopAgentLaunchStore(string root)
         var current = Load();
         if (current.LastAgentId == agentId) return;
         Write(current with { LastAgentId = agentId });
+    }
+
+    /// <summary>Whether the agent for the file at <paramref name="filePath"/> starts in the file's repository.</summary>
+    internal bool StartsInRepository(string filePath) =>
+        Load().RepositoryFiles.Contains(Path.GetFullPath(filePath), StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Start the agent for <paramref name="filePath"/> in its repository, or in an empty folder again.</summary>
+    internal void SetStartInRepository(string filePath, bool repository)
+    {
+        var full = Path.GetFullPath(filePath);
+        var current = Load();
+        var next = current.RepositoryFiles.Where(path => !string.Equals(path, full, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (repository) next.Add(full);
+        Write(current with { Repositories = next.TakeLast(MaximumRepositoryFiles).ToList() });
     }
 
     /// <summary>Choose whether custom views may message the agent.</summary>
@@ -283,7 +302,10 @@ internal sealed class DesktopAgentLaunchStore(string root)
             var hidden = (document.Hidden ?? []).Where(DesktopAgentCatalog.CanHide).Distinct(StringComparer.Ordinal).ToList();
             var last = document.LastAgentId is { } id && DesktopAgentCatalog.CanHide(id) ? id : null;
             var access = IsViewAccess(document.ViewAccess) ? document.ViewAccess! : ViewAccessAsk;
-            return new Choices(line, hidden, last, access);
+            var repositories = (document.RepositoryFiles ?? [])
+                .Where(path => path is { Length: > 0 and <= MaximumPathCharacters } && Path.IsPathFullyQualified(path))
+                .Distinct(StringComparer.OrdinalIgnoreCase).TakeLast(MaximumRepositoryFiles).ToList();
+            return new Choices(line, hidden, last, access, repositories);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -293,7 +315,7 @@ internal sealed class DesktopAgentLaunchStore(string root)
 
     private void Write(Choices choices)
     {
-        if (choices.CommandLine is null && choices.Hidden.Count == 0 && choices.LastAgentId is null && choices.ViewAccess == ViewAccessAsk)
+        if (choices.CommandLine is null && choices.Hidden.Count == 0 && choices.LastAgentId is null && choices.ViewAccess == ViewAccessAsk && choices.RepositoryFiles.Count == 0)
         {
             try { File.Delete(StatePath); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
@@ -302,13 +324,18 @@ internal sealed class DesktopAgentLaunchStore(string root)
         using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
         DesktopStateFile.Replace(_root, StatePath, "agent-launch",
             stream => JsonSerializer.Serialize(stream, new StoredLaunch(1, choices.CommandLine, choices.Hidden.Count == 0 ? null : [.. choices.Hidden],
-                choices.LastAgentId, choices.ViewAccess == ViewAccessAsk ? null : choices.ViewAccess)));
+                choices.LastAgentId, choices.ViewAccess == ViewAccessAsk ? null : choices.ViewAccess,
+                choices.RepositoryFiles.Count == 0 ? null : [.. choices.RepositoryFiles])));
     }
 
-    private sealed record Choices(string? CommandLine, IReadOnlyList<string> Hidden, string? LastAgentId = null, string ViewAccess = ViewAccessAsk)
+    private sealed record Choices(string? CommandLine, IReadOnlyList<string> Hidden, string? LastAgentId = null, string ViewAccess = ViewAccessAsk,
+        IReadOnlyList<string>? Repositories = null)
     {
         internal static readonly Choices None = new(null, []);
+
+        internal IReadOnlyList<string> RepositoryFiles => Repositories ?? [];
     }
 
-    private sealed record StoredLaunch(int Version, string? CommandLine, string[]? Hidden = null, string? LastAgentId = null, string? ViewAccess = null);
+    private sealed record StoredLaunch(int Version, string? CommandLine, string[]? Hidden = null, string? LastAgentId = null, string? ViewAccess = null,
+        string[]? RepositoryFiles = null);
 }

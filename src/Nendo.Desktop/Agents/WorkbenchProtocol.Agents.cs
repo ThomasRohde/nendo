@@ -25,12 +25,13 @@ internal static partial class WorkbenchMethods
     internal const string AgentSessionSetOption = "agentSession.setOption";
     internal const string AgentSessionSetViewAccess = "agentSession.setViewAccess";
     internal const string AgentSessionTurn = "agentSession.turn";
+    internal const string AgentSessionSetStartIn = "agentSession.setStartIn";
 
     internal static readonly IReadOnlySet<string> AgentSessionMethods = new HashSet<string>(StringComparer.Ordinal)
     {
         AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
         AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
-        AgentSessionSetViewAccess, AgentSessionTurn,
+        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn,
     };
 }
 
@@ -50,6 +51,8 @@ internal sealed partial class WorkbenchProtocolHandler
                 RequiredString(payload, "agentId", 40), RequiredBoolean(payload, "hidden"), cancellationToken),
             WorkbenchMethods.AgentSessionSetViewAccess => await _session.SetAgentViewAccessAsync(fileSessionId,
                 RequiredString(payload, "access", 20), cancellationToken),
+            WorkbenchMethods.AgentSessionSetStartIn => await _session.SetAgentStartInRepositoryAsync(fileSessionId,
+                RequiredBoolean(payload, "repository"), cancellationToken),
             WorkbenchMethods.AgentSessionLaunch => await _session.LaunchAgentAsync(fileSessionId, RequiredString(payload, "agentId", 40), cancellationToken),
             WorkbenchMethods.AgentSessionTurn => _session.ReadLaunchedAgentTurn(fileSessionId, RequiredString(payload, "turnId", 40), conversation),
             WorkbenchMethods.AgentSessionRead => _session.ReadLaunchedAgent(fileSessionId, after),

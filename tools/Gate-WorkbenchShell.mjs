@@ -816,8 +816,13 @@ async page => {
       const label = row.firstElementChild.getBoundingClientRect(), control = row.lastElementChild.getBoundingClientRect();
       return { label: row.querySelector('h3')?.textContent, gap: Math.round(control.left - label.left), row: Math.round(row.getBoundingClientRect().width) };
     }));
-    assert(rows.length === 2 && rows.every((row) => row.gap <= 480 && row.row > 1600),
+    assert(rows.length === 3 && rows.every((row) => row.gap <= 480 && row.row > 1600),
       `at 2400 px a setting's control stands this far from its label: ${JSON.stringify(rows)}`);
+    // Where the agent starts (ADR-0030): the file's repository is chosen here and named.
+    await page.click('[data-start-in="repository"]');
+    await until(() => document.querySelector('[data-start-in="repository"]')?.getAttribute('aria-pressed') === 'true', null, 'the repository chosen');
+    const named = await page.evaluate(() => document.querySelector('#start-in-heading')?.parentElement?.textContent ?? '');
+    assert(named.includes('atlas, this file') && named.includes('Nendo never removes it'), `Choosing the repository says: ${named}`);
   }, 2400, 900);
 
   // The agent's options are on the Agent page's Launch card (ADR-0033). An arrow key in an

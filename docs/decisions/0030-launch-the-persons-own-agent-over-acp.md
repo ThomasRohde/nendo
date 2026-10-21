@@ -44,7 +44,11 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
 - `session/new` names exactly one MCP server, this file's loopback address as `http`. An agent
   without `mcpCapabilities.http`, or on another protocol version, is refused by name.
 - The working directory is a new empty folder under this device's Nendo state, removed when the
-  session ends, never the folder that holds the `.nendo` file.
+  session ends, unless the person chose, for this file on this device, to start the agent in the
+  file's repository: the nearest folder above the file that holds `.git`, or the file's own folder
+  when none does. The agent then works there as it would from a terminal, with that folder's
+  instructions, skills, settings and hooks. Nendo never removes that folder, and the choice is
+  kept on the device, never in the file. Empty is the default.
 - Sign-in uses only a method the agent offered, with `authenticate`; the agent performs it and no
   secret passes through Nendo.
 - An application handle in tool input or output is hidden wherever agent text is shown (ADR-0009
@@ -76,8 +80,8 @@ file, recovery, the level set to Off and a moved listener address all end the se
 change between Inspect and Unattended does not; the agent's next MCP call meets it.
 
 **What Nendo cannot confine.** The program is the one the person would run in a terminal, with
-its own shell, file and web tools. Nendo grants it nothing more than an empty folder and the
-file's MCP address at the person's level, and does not sandbox it. The axiom that agents never
+its own shell, file and web tools. Nendo grants it nothing more than an empty folder, or the
+file's repository when the person chose it, and the file's MCP address at the person's level, and does not sandbox it. The axiom that agents never
 receive raw SQL or file-system authority holds for what Nendo grants, not for what the person's
 own program can do. The Agent page says so before the first launch.
 
@@ -101,6 +105,10 @@ client from a terminal.
   credential and network costs.
 - **Declaring file-system and terminal capabilities:** makes Nendo a file and shell broker, and
   does not stop an agent's own tools.
+- **Always the file's own folder:** a file kept in a repository's subfolder misses the
+  repository's instructions and skills, which sit at its root.
+- **A folder per agent through its own flags (`--add-dir` and the like):** not part of ACP, so one
+  command line per agent to keep up.
 - **Auto-allowing permissions at Unattended:** Unattended is about the file; a permission request
   is usually about the computer.
 - **Keeping the transcript in the file:** it is the person's working notes and carries whatever

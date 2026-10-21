@@ -697,8 +697,10 @@ The Agent page can launch the person's own agent program over ACP
   `agent-launch.json`, never the file. Launch is offered at Inspect and above. A missing
   or renamed npm package shows the commands to fix it, which the host never runs.
 - `AgentProcess` starts the program in a new empty folder under `agent-sessions/` in
-  device state, with the person's environment, inside a Job Object whose closing ends it
-  and everything it started.
+  device state, or in the file's repository when the person chose it for that file
+  (`RepositoryFolderOf`: the nearest folder holding `.git`), with the person's environment,
+  inside a Job Object whose closing ends it and everything it started. Nendo removes only
+  the folders it made.
 - `AgentConversation` speaks ACP version 1 on stdio: `initialize` declares no file-system
   or terminal capability, and `session/new` names one MCP server, this file's loopback
   address, as `http`. An agent that cannot connect over HTTP or speaks another version is

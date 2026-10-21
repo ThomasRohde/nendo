@@ -46,6 +46,63 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task ChosenForThisFileTheAgentStartsInTheFilesRepositoryAndNendoNeverRemovesIt()
+    {
+        // ADR-0030: the person may start the agent where it picks up the repository's own
+        // instructions and skills. Nendo made none of that folder, so it never removes any of it.
+        await using var fixture = await Fixture.StartAsync("editData");
+        var repository = Path.GetDirectoryName(fixture.FilePath)!;
+        Directory.CreateDirectory(Path.Combine(repository, ".git"));
+        var instructions = Path.Combine(repository, "AGENTS.md");
+        File.WriteAllText(instructions, "Use the file's skill.");
+        var before = await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId);
+        Assert.IsFalse(before.StartInRepository, "A file's agent started in its repository before anyone chose it.");
+        Assert.AreEqual(repository, before.RepositoryFolder);
+
+        var chosen = await fixture.Controller.SetAgentStartInRepositoryAsync(fixture.FileSessionId, true);
+        Assert.IsTrue(chosen.StartInRepository);
+        Assert.IsTrue(new DesktopAgentLaunchStore(fixture.DeviceRoot).StartsInRepository(fixture.FilePath), "The choice was not kept on the device.");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.AreEqual(repository, ready.WorkingFolder);
+        var started = fixture.Log().Last(entry => entry.TryGetProperty("started", out _));
+        Assert.AreEqual(Path.GetFullPath(repository), Path.GetFullPath(started.GetProperty("cwd").GetString()!), "The agent did not start in the file's repository.");
+        var told = fixture.Log().Last(entry => Method(entry) == "session/new").GetProperty("params");
+        Assert.AreEqual(Path.GetFullPath(repository), Path.GetFullPath(told.GetProperty("cwd").GetString()!), "The agent was told another folder than it runs in.");
+
+        await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0);
+        Assert.IsTrue(File.Exists(instructions) && File.Exists(fixture.FilePath) && Directory.Exists(Path.Combine(repository, ".git")),
+            "Ending the agent removed something from the file's repository.");
+
+        await fixture.Controller.SetAgentStartInRepositoryAsync(fixture.FileSessionId, false);
+        await fixture.LaunchAsync();
+        var again = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.IsNull(again.WorkingFolder);
+        var empty = fixture.Log().Last(entry => entry.TryGetProperty("started", out _)).GetProperty("cwd").GetString()!;
+        Assert.IsFalse(PathsOverlap(empty, repository), "Chosen back, the agent still started in the repository.");
+    }
+
+    [TestMethod]
+    public void TheRepositoryIsTheNearestFolderAboveTheFileThatHoldsGit()
+    {
+        var root = Directory.CreateTempSubdirectory("nendo-repository-");
+        try
+        {
+            var workspace = Directory.CreateDirectory(Path.Combine(root.FullName, "repo", "workspace")).FullName;
+            var file = Path.Combine(workspace, "Planner.nendo");
+            Assert.AreEqual(workspace, DesktopSessionController.RepositoryFolderOf(file), "Without .git, the file's own folder.");
+            Directory.CreateDirectory(Path.Combine(root.FullName, "repo", ".git"));
+            Assert.AreEqual(Path.Combine(root.FullName, "repo"), DesktopSessionController.RepositoryFolderOf(file), "A repository folder holding .git was missed.");
+            File.WriteAllText(Path.Combine(workspace, ".git"), "gitdir: ../../elsewhere");
+            Assert.AreEqual(workspace, DesktopSessionController.RepositoryFolderOf(file), "A worktree's .git file was missed.");
+        }
+        finally
+        {
+            root.Delete(recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task AnAgentThatCannotReachHttpMcpIsRefusedByName()
     {
         await using var fixture = await Fixture.StartAsync("inspect", "--no-http");

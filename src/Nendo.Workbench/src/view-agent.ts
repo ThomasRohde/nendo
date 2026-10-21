@@ -128,7 +128,20 @@ const viewAccessChoices: Array<{ value: ViewAgentAccess; label: string; detail: 
 function agentSettingsMarkup(running: { name: string } | null): string {
   const access = launchable?.viewAccess ?? 'ask';
   const chosen = viewAccessChoices.find((choice) => choice.value === access) ?? viewAccessChoices[1]!;
+  const repository = launchable?.repositoryFolder ?? null;
+  const inRepository = launchable?.startInRepository === true;
+  // Where the agent starts (ADR-0030): an empty folder, or the file's repository, where it picks
+  // up that folder's instructions and skills as it would from a terminal. Kept for this file.
+  const startIn = repository === null || launchable?.startInRepository === undefined ? '' : `<div class="agent-setting-row">
+        <div><h3 id="start-in-heading">Start the agent in</h3><p class="connection-note">${inRepository
+          ? `${escapeHtml(repository)}, this file's repository: the agent picks up its instructions, skills and settings, as it would in a terminal there. Nendo never removes it.`
+          : 'A new empty folder, removed when the conversation ends. Choose the repository to have the agent pick up its instructions and skills.'}${running === null ? '' : ' A change takes effect at the next launch.'}</p></div>
+        <div class="theme-control layout-control start-in-control" role="group" aria-labelledby="start-in-heading">
+          <button type="button" data-start-in="empty" aria-pressed="${!inRepository}">Empty folder</button>
+          <button type="button" data-start-in="repository" aria-pressed="${inRepository}" title="${escapeAttribute(repository)}">This file's repository</button></div>
+      </div>`;
   return `<section class="agent-settings" aria-label="Agent settings">
+      ${startIn}
       <div class="agent-setting-row">
         <div><h3 id="view-access-heading">Views may message the agent</h3><p class="connection-note">${escapeHtml(chosen.detail)} Each message shows in the conversation with the view's name.</p></div>
         <div class="theme-control layout-control view-access-control" role="group" aria-labelledby="view-access-heading">${viewAccessChoices.map((choice) =>
@@ -191,7 +204,7 @@ function launchMarkup(): string {
  * that had focus lost it each time, so a person moving with the keyboard was sent back to the
  * top of the document mid-step.
  */
-const focusKeys = ['agentTab', 'agentMode', 'launchAgent', 'copyAgent', 'agentHide', 'agentShow', 'connectionClient', 'agentSetting', 'reviewAgentProposal', 'viewAccess', 'configId'] as const;
+const focusKeys = ['agentTab', 'agentMode', 'launchAgent', 'copyAgent', 'agentHide', 'agentShow', 'connectionClient', 'agentSetting', 'reviewAgentProposal', 'viewAccess', 'configId', 'startIn'] as const;
 
 function focusedControl(): string | null {
   const active = document.activeElement;
@@ -368,6 +381,9 @@ export function renderAgent(): void {
     button.addEventListener('click', () => {
       void openAgentChat().catch((error: unknown) => showError(messageFor(error)));
     });
+  }
+  for (const button of content.querySelectorAll<HTMLButtonElement>('[data-start-in]')) {
+    button.addEventListener('click', () => void chooseStartIn(button.dataset.startIn === 'repository'));
   }
   for (const button of content.querySelectorAll<HTMLButtonElement>('[data-view-access]')) {
     button.addEventListener('click', () => void chooseViewAccess(button.dataset.viewAccess as ViewAgentAccess));
@@ -605,6 +621,20 @@ async function setHiddenOnThisComputer(agentId: string, hide: boolean): Promise<
 }
 
 /** Copy what installs an agent, or moves it off a renamed package, for a terminal (ADR-0030). */
+/** Choose where this file's agent starts: an empty folder, or the file's repository (ADR-0030). */
+async function chooseStartIn(repository: boolean): Promise<void> {
+  if ((launchable?.startInRepository === true) === repository) return;
+  try {
+    launchable = await client.request<LaunchableAgents>('agentSession.setStartIn', { repository });
+    launchableAt = Date.now();
+    rerender();
+    content.querySelector<HTMLButtonElement>(`[data-start-in="${repository ? 'repository' : 'empty'}"]`)?.focus();
+    announce(repository ? 'The agent starts in this file\'s repository from the next launch.' : 'The agent starts in an empty folder from the next launch.');
+  } catch (error) {
+    showError(messageFor(error));
+  }
+}
+
 /** Choose on this computer whether custom views may message the agent (ADR-0033). */
 async function chooseViewAccess(access: ViewAgentAccess): Promise<void> {
   if (launchable?.viewAccess === access) return;
