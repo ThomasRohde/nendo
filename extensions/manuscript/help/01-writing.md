@@ -35,7 +35,7 @@ Select a few words and a bar of icons appears over them. Point at a paragraph an
 | **Indent list item**, **Outdent list item** | Move a list item a level in or out. | `Tab`, `Shift` `Tab` |
 | **Insert table** | Put a table of three rows and three columns after the paragraph. | |
 | **Add row below**, **Add column right**, **Delete row**, **Delete column**, **Delete table** | Shown while you are in a table. | |
-| **Link to a passage**, **Add a note**, **Keep as cutting**, **Copy for the agent** | See *Notes, links and cuttings* below. | |
+| **Link to a passage**, **Add a note**, **Keep as cutting**, **Ask the agent** | See *Notes, links and cuttings* below. | |
 
 To keep a tool on the bar, open **More** and choose the pin beside it. To put one back under More, right-click it on the bar (or press the menu key while it has the keyboard). The bar you make is this computer's, like the appearance settings.
 
@@ -59,7 +59,7 @@ A paragraph that is a single picture, written as `![description](address)` in St
 
 ## Find, web links and pictures
 
-**Ctrl** **F**, or **Find** in the toolbar, finds a word or a phrase anywhere in the manuscript, the parts off the screen and the table cells included; tick **Cuttings too** to look there as well. **Enter** goes to the next one and **Shift** **Enter** back. **Ctrl** **H** opens it to replace: **Replace** changes the one you are on, **Replace all** every one, and one **Ctrl** **Z** puts them all back. Paste a reference made by **Copy for the agent** to go straight to that paragraph.
+**Ctrl** **F**, or **Find** in the toolbar, finds a word or a phrase anywhere in the manuscript, the parts off the screen and the table cells included; tick **Cuttings too** to look there as well. **Enter** goes to the next one and **Shift** **Enter** back. **Ctrl** **H** opens it to replace: **Replace** changes the one you are on, **Replace all** every one, and one **Ctrl** **Z** puts them all back. Paste a reference made by **Copy reference** to go straight to that paragraph.
 
 Select some words and choose **Web link** to link them to a web page; with the caret in a link, the same tool changes the address or removes the link. A Word export keeps the links.
 
@@ -85,7 +85,7 @@ The last group on the bar acts on the whole paragraph:
 | **Add a note** | Write a comment, question, task or issue on this paragraph. |
 | **Keep as cutting** | Take the paragraph out of the manuscript and keep it under **Cuttings**, where Studio and the Outline screen still show it. |
 | **Move up**, **Move down** | Move the paragraph, or the paragraphs you have selected, past the one above or below. `Alt` `Shift` `↑` and `↓` do the same. |
-| **Copy for the agent** | Copy a reference to this paragraph to paste into the Agent tab. Its tooltip names the paragraph and its version. |
+| **Ask the agent** | Ask the agent you launched from Nendo's Agent page about this paragraph, or about a whole section from its heading. Say what you want, such as *tighten it* or *check the facts*, and choose what it may do: **Add notes only**, the default, which leaves your text as it is and puts each suggestion in a note in the margin, **Change the text** or **Only answer**. Nendo asks you first whether Manuscript may message the agent, and to launch one if none is running. The answer shows here; close it and go on writing, and it comes as a notice. **Copy reference** copies a reference to paste into an agent instead; with a Nendo that cannot message an agent, the tool is **Copy for the agent** and does only that. Its tooltip names the paragraph and its version. |
 
 A paragraph keeps its notes and links wherever it goes. Move it, or cut it and paste it somewhere else in the manuscript, and they go with it; cut it without pasting and it waits under **Cuttings**. Join two paragraphs with **Backspace** and the second one's notes and links go to the first. **Ctrl** **Z** after Manuscript has saved brings a deleted paragraph back with its notes.
 

@@ -45,7 +45,7 @@ alignment, and no Role control.
   manuscript), each named with its keys in a tooltip: bold, italic, underline, strikethrough,
   inline code, highlight and clear formatting; align left, centre, right and justify; paragraph
   or Part, Chapter and Section heading; Quotation; Link to a passage, Add a note, Keep as cutting
-  and Copy for the agent. Ten are on the bar to start with; More holds the rest, where a pin puts
+  and Ask the agent. Ten are on the bar to start with; More holds the rest, where a pin puts
   one on the bar and a right-click on the bar puts it back (kept per device, `manuscript.bar`).
   Underline and highlight are kept in a block's Markdown as `<u>` and `<mark>`, outside the
   emphasis delimiters; alignment is the block's `mn.block.align` choice (Left, Centre, Right,
@@ -88,7 +88,24 @@ alignment, and no Role control.
 - Find and replace (Ctrl+F, Ctrl+H, or Find in the toolbar) reaches every paragraph and table
   cell, on the page or not, and with *Cuttings too* the cuttings as saved. Replace all is one
   step that one Ctrl+Z undoes, except in the Cuttings, which are written as records. A block's
-  ID, as *Copy for the agent* copies it, goes straight to the block.
+  ID, as *Copy reference* copies it, goes straight to the block.
+
+## Asking the agent
+
+- Where Nendo lets a view message the person's launched agent (`nendo.has('assistant.ask')`,
+  [ADR-0033](../../docs/decisions/0033-a-view-messages-the-launched-agent.md)), the agent tool is
+  **Ask the agent**: a request in the person's words and what the agent may do, *Add notes only*
+  (the default), *Change the text* or *Only answer*. Elsewhere it is *Copy for the agent*, which
+  copies a reference to the block.
+- What is on the page is saved first. The message (`askMessage` in `model.mjs`) carries the
+  request, what the passage is and the rule for the mode, and the passage as one `nendo://` item
+  whose lines are `ID: text` for each block: the paragraph, or for a heading its section up to the
+  next heading at its level or above, cut at 8,000 characters with a sentence saying so.
+- With notes only, the agent writes each suggestion as an `mn.note` of kind Comment on its block, so
+  it lands in the margin and in Notes; with *Change the text* it sets `mn.block.text` at the version
+  it read. Either reaches the page as another writer's change does.
+- The popover shows *Asking the agent…* with Stop, then the answer and *Show notes*; a question Nendo
+  refused says why. Closed meanwhile, the answer comes as Nendo's notice.
 
 ## Structure, notes and links
 

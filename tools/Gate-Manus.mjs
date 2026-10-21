@@ -837,6 +837,45 @@ async page => {
   await frame.waitForFunction(() => document.getElementById('drawer').hidden, null, { timeout: 3000 });
   checks.push('go to a block by its ID');
 
+  // ADR-0033: where Nendo lets a view message the person's agent, the agent tool asks it. The
+  // question names the paragraph by its ID as a nendo:// item and, by default, lets the agent add
+  // notes only; the answer shows in the popover; a refusal says why in the person's words.
+  await page.evaluate(() => window.broker.offerAssistant({ state: 'ready', name: 'Stand-in', working: false, access: 'ask' }));
+  await restart();
+  await select('b-find-1', 0, 5);
+  await frame.waitForSelector('.bar [data-tool="agent"]', { timeout: 3000 });
+  const askTool = await frame.evaluate(() => document.querySelector('.bar [data-tool="agent"]').getAttribute('aria-label'));
+  await frame.click('.bar [data-tool="agent"]');
+  await frame.waitForSelector('#ask-text', { timeout: 3000 });
+  const askHeading = await frame.evaluate(() => ({ title: document.querySelector('.popover.ask strong')?.textContent, mode: document.getElementById('ask-mode').value }));
+  assert(askTool === 'Ask the agent' && askHeading.title === 'Ask the agent about this paragraph' && askHeading.mode === 'notes', `Ask the agent: ${JSON.stringify({ askTool, askHeading })}`);
+  await frame.fill('#ask-text', 'Tighten the second sentence.');
+  await frame.click('.popover.ask button[type="submit"]');
+  await frame.waitForFunction(() => document.querySelector('.popover.ask strong')?.textContent === 'Asking the agent…', null, { timeout: 5000 });
+  await page.waitForFunction(() => window.broker.assistantAsks.length === 1, null, { timeout: 5000 });
+  const asked = await page.evaluate(() => window.broker.assistantAsks.at(-1));
+  assert(asked.text.startsWith('Tighten the second sentence.\n') && /Do not change the manuscript\. Put each suggestion in a note/.test(asked.text)
+    && asked.context.length === 1 && asked.context[0].uri === 'nendo://application/entity/mn.block/records?recordId=b-find-1' && asked.context[0].text.startsWith('b-find-1: '),
+    `What the agent was sent: ${JSON.stringify(asked)}`);
+  await page.evaluate(() => window.broker.answerAssistant({ reply: 'I added two notes.\n\nThe second sentence repeats the first.', stopReason: 'end_turn' }));
+  await frame.waitForFunction(() => document.querySelector('.popover.ask strong')?.textContent === 'The agent answered', null, { timeout: 5000 });
+  const answered = await frame.evaluate(() => ({ parts: [...document.querySelectorAll('.ask-reply p')].map(p => p.textContent), notes: [...document.querySelectorAll('.popover.ask button')].some(b => b.textContent === 'Show notes') }));
+  assert(JSON.stringify(answered.parts) === JSON.stringify(['I added two notes.', 'The second sentence repeats the first.']) && answered.notes, `The answer: ${JSON.stringify(answered)}`);
+  await frame.getByRole('button', { name: 'Ask again' }).click();
+  await frame.waitForSelector('#ask-text', { timeout: 3000 });
+  await frame.fill('#ask-text', 'And again.');
+  await frame.click('.popover.ask button[type="submit"]');
+  await frame.waitForFunction(() => document.querySelector('.popover.ask strong')?.textContent === 'Asking the agent…', null, { timeout: 5000 });
+  await page.waitForFunction(() => window.broker.assistantAsks.length === 2, null, { timeout: 5000 });
+  await page.evaluate(() => window.broker.answerAssistant({ error: { code: 'assistant-off', message: 'Views may not message the agent on this computer.' } }));
+  await frame.waitForFunction(() => document.querySelector('.popover.ask strong')?.textContent === 'Not asked', null, { timeout: 5000 });
+  const refusedAsk = await frame.evaluate(() => document.querySelector('.ask-reply').textContent);
+  assert(/Agent page/.test(refusedAsk), `A refused question: ${refusedAsk}`);
+  await frame.getByRole('button', { name: 'Done' }).click();
+  await page.evaluate(() => window.broker.offerAssistant(null));
+  await restart();
+  checks.push('ask the agent about a paragraph');
+
   // A web link: words linked from the bar's tool, saved as [words](address), changed, then removed.
   await select('b-find-1', 'old', '.');
   await page.evaluate(() => window.broker.command('fmt-weblink'));

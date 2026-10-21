@@ -56,6 +56,9 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
 //                                               view puts in the file, in base64 parts and a commit,
 //                                               answered by its bytes' address
 //   put(entityId, record), touch(entityId, id)  somebody else writes a record, or moves its version on
+//   offerAssistant(status), assistantAsks,       offer assistant.* from the next connect on (ADR-0033):
+//   answerAssistant(answer | { error })          status is what assistant.status answers; each ask is
+//                                               kept and waits until the probe answers it
 //   requests, events, hellos, refused, connects what happened, in order
 (() => {
   'use strict';
@@ -95,6 +98,11 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
   // address made from its bytes, as the file's store names content, and recorded in mediaPuts.
   const MEDIA_PUT = ['media.put'];
   let mediaPutOffered = false;
+  // The person's launched agent (ADR-0033), offered only when a probe asks: an ask waits, in
+  // order, until the probe answers it, as a turn does until the agent ends it.
+  const ASSISTANT = ['assistant.status', 'assistant.ask', 'assistant.cancel'];
+  let assistantStatus = null;
+  const assistantAsks = [], waitingAsks = [];
   const mediaPuts = [], mediaStaged = new Map();
   let placesOffered = false, startPlace = null;
   const places = [];
@@ -144,7 +152,7 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     return {
       apiVersion: config.apiVersion, packageId: config.packageId, configuration: {}, locale: 'en', readOnly: false,
       ...clone(context), theme: themeOf(context.theme ?? 'light'),
-      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : []), ...(mediaPutOffered ? MEDIA_PUT : [])],
+      methods: [...METHODS, ...(writes ? WRITES : []), ...(chrome ? CHROME : []), ...(placesOffered ? PLACES : []), ...(searchOffered ? SEARCH : []), ...(screensOffered ? SCREENS : []), ...(mediaUrls ? MEDIA : []), ...(mediaPutOffered ? MEDIA_PUT : []), ...(assistantStatus ? ASSISTANT : [])],
       ...(placesOffered ? { place: clone(startPlace) } : {}),
     };
   }
@@ -477,6 +485,15 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
           throw error;
         }
       }
+      case 'assistant.status':
+      case 'assistant.ask':
+      case 'assistant.cancel': {
+        if (assistantStatus === null) throw refusal('unknown-method', `${method} is not a method this fixture answers.`);
+        if (method === 'assistant.status') return clone(assistantStatus);
+        if (method === 'assistant.cancel') { waitingAsks.shift()?.resolve({ reply: '', stopReason: 'cancelled' }); return null; }
+        assistantAsks.push(clone(params));
+        return new Promise((resolve, reject) => waitingAsks.push({ resolve, reject }));
+      }
       default:
         throw refusal('unknown-method', `${String(method).slice(0, 80)} is not a method this fixture answers.`);
     }
@@ -654,6 +671,12 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     let reply;
     try {
       const result = answer(message.m, params);
+      // A turn of the agent: answered when it ends, whatever comes in between.
+      if (result instanceof Promise) {
+        result.then(value => post({ t: 'res', id: message.id, ok: true, r: value }),
+          error => post({ t: 'res', id: message.id, ok: false, e: { code: error.code ?? 'failed', message: error.message } }));
+        return;
+      }
       reply = { t: 'res', id: message.id, ok: true, r: result === undefined ? null : result };
     } catch (error) {
       reply = { t: 'res', id: message.id, ok: false, e: { code: error.code ?? 'failed', message: error.message } };
@@ -736,6 +759,16 @@ window.toolbarRules = Object.freeze({ readToolbar, readMenu });
     offerScreens(on) { screensOffered = on === true; return screensOffered; },
     offerMedia(urls) { mediaUrls = urls ? clone(urls) : null; return mediaUrls !== null; },
     offerMediaPut(on) { mediaPutOffered = on === true; return mediaPutOffered; },
+    offerAssistant(status) { assistantStatus = status ? clone(status) : null; return assistantStatus !== null; },
+    assistantAsks,
+    /** End the oldest waiting ask: with { reply, stopReason }, or with { error: { code, message } }. */
+    answerAssistant(answer) {
+      const waiting = waitingAsks.shift();
+      if (!waiting) return false;
+      if (answer?.error) waiting.reject(Object.assign(new Error(answer.error.message), { code: answer.error.code }));
+      else waiting.resolve(clone(answer));
+      return true;
+    },
     mediaPuts,
     screensOpened() { return requests.filter(request => request.m === 'ui.openScreen').map(request => request.p.surfaceId); },
     places,

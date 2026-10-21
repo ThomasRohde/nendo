@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, planFootnotes, withFootnotes, withLinkReviews, wordDiff, chunkWrites, withTargetVersions, countWords } from '../../extensions/manuscript/model.mjs';
+import { BLOCK, NOTE, LINK, F, GAP, assignOrders, deriveTree, readManuscript, manuscriptsOf, planWrites, withoutAsRead, valuesOf, sortDraft, forceDraft, planFootnotes, withFootnotes, withLinkReviews, wordDiff, chunkWrites, withTargetVersions, countWords, askMessage, ASK_MODES, ASK_PASSAGE_CHARACTERS } from '../../extensions/manuscript/model.mjs';
 
 const item = (id, kind, parent, order, depth, text = '', version = 1) =>
   ({ record: { entityId: BLOCK, recordId: id, version, values: { [F.kind]: kind, [F.parent]: parent, [F.order]: order, [F.text]: text } }, parentRecordId: parent, depth });
@@ -334,4 +334,36 @@ test('words compared word by word', () => {
     [{ kind: 'same', text: 'The lamp was ' }, { kind: 'gone', text: 'left unlit.' }, { kind: 'new', text: 'lit at dusk.' }]);
   assert.deepEqual(wordDiff('Same.', 'Same.'), [{ kind: 'same', text: 'Same.' }]);
   assert.deepEqual(wordDiff('', 'New words.'), [{ kind: 'new', text: 'New words.' }]);
+});
+
+// ADR-0033: a question to the person's launched agent about a passage. The passage travels as one
+// nendo:// item naming each block by its ID; notes only is the default and says not to change the
+// text; the passage is cut to the view API's bound for one item and says so.
+test('a question about a paragraph sends the block with its ID and keeps the text unchanged by default', () => {
+  const message = askMessage({ request: '  Tighten it.  ', title: 'Low Water', blocks: [{ id: 'p1', text: 'The tide table\nhung by the door.' }] });
+  assert.match(message.text, /^Tighten it\.\n/);
+  assert.match(message.text, /a paragraph of the manuscript "Low Water"/);
+  assert.match(message.text, /Do not change the manuscript\. Put each suggestion in a note: create a record of mn\.note with mn\.note\.block/);
+  assert.deepEqual(message.context, [{ uri: 'nendo://application/entity/mn.block/records?recordId=p1', title: 'Paragraph: The tide table hung by the door.', text: 'p1: The tide table hung by the door.' }]);
+  assert.deepEqual(ASK_MODES.map((mode) => mode.id), ['notes', 'rewrite', 'answer']);
+  assert.match(askMessage({ request: '', blocks: [{ id: 'p1', text: 'x' }] }).text, /^Suggest how to improve this\./, 'An empty request asked nothing.');
+});
+
+test('a question about a heading is about its section, and each mode says what the agent may do', () => {
+  const blocks = [{ id: 'ch1', text: 'The Tide Table' }, { id: 'p1', text: 'One.' }, { id: 'p2', text: 'Two.' }];
+  const rewrite = askMessage({ request: 'Check it', mode: 'rewrite', heading: 'The Tide Table', blocks });
+  assert.match(rewrite.text, /the section headed "The Tide Table"/);
+  assert.match(rewrite.text, /set mn\.block\.text on each one you change, at the version you read/);
+  assert.equal(rewrite.context[0].text, 'ch1: The Tide Table\np1: One.\np2: Two.');
+  assert.equal(rewrite.context[0].title, 'Section: The Tide Table');
+  assert.match(askMessage({ request: 'Why?', mode: 'answer', blocks }).text, /Do not change the file\. Answer only\./);
+});
+
+test('a long section is cut to the bound of one item and says where the rest is', () => {
+  const blocks = [{ id: 'ch1', text: 'Long' }, ...Array.from({ length: 40 }, (_, index) => ({ id: `p${index}`, text: 'word '.repeat(60) }))];
+  const message = askMessage({ request: 'Review', heading: 'Long', blocks });
+  assert.ok(message.context[0].text.length <= ASK_PASSAGE_CHARACTERS, `the passage is ${message.context[0].text.length} characters`);
+  assert.match(message.text, /The passage was cut short; read the rest/);
+  assert.ok(askMessage({ request: 'x', blocks: [{ id: 'p', text: 'y'.repeat(20000) }] }).context[0].text.length <= ASK_PASSAGE_CHARACTERS, 'One long paragraph went past the bound.');
+  assert.ok(askMessage({ request: 'x', blocks: [{ id: 'p', text: 'z'.repeat(400) }] }).context[0].title.length <= 120);
 });

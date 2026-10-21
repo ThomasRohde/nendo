@@ -203,6 +203,10 @@ button.quiet:hover { background: var(--soft); }
 .sheet-text sup.fn.ProseMirror-selectednode { outline: 1px solid var(--accent); border-radius: 2px; }
 .sheet-body sup.pv-fn { font-size: 0.7em; line-height: 0; }
 .popover #footnote-text { width: 100%; }
+/* The agent's answer about a passage (ADR-0033): its words as text, scrolled when long. */
+.ask-reply { max-height: 280px; overflow: auto; font-family: var(--prose); font-size: 14px; line-height: 1.5; }
+.ask-reply p { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ask-reply p:last-child { margin-bottom: 0; }
 /* What changed at a link's end since it was reviewed, word by word. */
 .diff { margin: 0; font-family: var(--prose); font-size: 14px; line-height: 1.45; }
 .diff del { color: var(--muted); text-decoration: line-through; }

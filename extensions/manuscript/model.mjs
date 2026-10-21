@@ -506,3 +506,54 @@ export function newBlockId(random = () => Math.random()) {
   for (let i = 0; i < 12; i++) s += Math.floor(random() * 16).toString(16);
   return `b-${s}`;
 }
+
+// ---------- Asking the person's agent (ADR-0033) ----------
+
+/** What the agent may do with a passage it is asked about. Notes only is the default. */
+export const ASK_MODES = [
+  { id: 'notes', label: 'Add notes only' },
+  { id: 'rewrite', label: 'Change the text' },
+  { id: 'answer', label: 'Only answer' },
+];
+const ASK_RULES = {
+  notes: `Do not change the manuscript. Put each suggestion in a note: create a record of ${NOTE} with ${F.noteBlock} set to the block it is about, ${F.noteKind} Comment and ${F.noteText} the suggestion. End by saying how many notes you added.`,
+  rewrite: `You may change the text of these blocks and nothing else: set ${F.text} on each one you change, at the version you read, keeping its Markdown marks and its footnote references. Do not add, move or delete blocks. End by saying what you changed.`,
+  answer: 'Do not change the file. Answer only.',
+};
+/** The most of a passage that travels with the message, as the view API bounds one item. */
+export const ASK_PASSAGE_CHARACTERS = 8000;
+
+/**
+ * A message to the launched agent about one passage of the manuscript: the person's request, then
+ * what the passage is and what the agent may do, with the passage as one nendo:// item whose lines
+ * name each block by its ID. `blocks` are in reading order, the first being the one asked about;
+ * `heading` is its words when it is a heading, whose section the passage is.
+ */
+export function askMessage({ request, mode = 'notes', title = '', heading = null, blocks }) {
+  const first = blocks[0];
+  const lines = [];
+  let length = 0, cut = false;
+  for (const b of blocks) {
+    const line = `${b.id}: ${(b.text ?? '').replace(/\s*\n\s*/g, ' ')}`;
+    if (length + line.length + 1 > ASK_PASSAGE_CHARACTERS) { cut = true; break; }
+    lines.push(line);
+    length += line.length + 1;
+  }
+  if (lines.length === 0) lines.push(`${first.id}: ${(first.text ?? '').slice(0, ASK_PASSAGE_CHARACTERS - first.id.length - 2)}`);
+  const scope = heading === null ? 'a paragraph' : `the section headed "${heading}"`;
+  const named = (heading ?? first.text ?? '').trim().replace(/\s+/g, ' ');
+  const label = `${heading === null ? 'Paragraph' : 'Section'}: ${named || first.id}`;
+  const text = [
+    (request ?? '').trim() || 'Suggest how to improve this.',
+    '',
+    `This is about ${scope} of the manuscript${title ? ` "${title}"` : ''} in the open file, sent from the Manuscript view. ` +
+      `Each line of the attached passage is a block of record type ${BLOCK}: its ID, then its text as Markdown of one paragraph.` +
+      (cut ? ` The passage was cut short; read the rest of the section's blocks from ${BLOCK} in reading order.` : ''),
+    ASK_RULES[mode] ?? ASK_RULES.notes,
+    'Keep your reply to a few sentences: the person reads it beside the manuscript.',
+  ].join('\n');
+  return {
+    text,
+    context: [{ uri: `nendo://application/entity/${BLOCK}/records?recordId=${encodeURIComponent(first.id)}`, title: label.length > 120 ? `${label.slice(0, 119)}…` : label, text: lines.join('\n') }],
+  };
+}

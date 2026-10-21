@@ -1,5 +1,5 @@
 // The Quiet sheet: the whole manuscript as one continuous page, saved paragraph by paragraph.
-import { BLOCK, NOTE, LINK, PROFILE, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS, FONTS, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf } from './model.mjs';
+import { BLOCK, NOTE, LINK, PROFILE, OUTPUT_LAYOUTS, PAGE_SIZES, SPACINGS, FONTS, F, GAP, NOTE_KINDS, LINK_KINDS, REVIEW, ROLES, readManuscript, planWrites, planFootnotes, withFootnotes, withLinkReviews, wordDiff, withoutAsRead, valuesOf, sortDraft, forceDraft, chunkWrites, withTargetVersions, countWords, levelOf, ASK_MODES, askMessage } from './model.mjs';
 import { createSheet, freshId } from './editor.mjs';
 import { exportPlan, safeName, pictureFiles, toMarkdown, toDocx, packDocx, draftLine, PAGE_TWIPS, article, paperTableColumns, BIBLIOGRAPHY } from './export.mjs';
 import { previewBlocks, figureWidths, PAGES, paperSheet, paperStyle, softHyphens } from './preview.mjs';
@@ -20,6 +20,8 @@ const state = {
   appearance: readAppearance(), popover: null, roles: false, aligns: false, lists: false, tables: false, mode: 'write', pins: [], more: false,
   hover: null, blockMenu: null, deletedIn: new Map(), newCuttings: null, footnotes: new Map(), footnoteTexts: new Map(), footnotesOn: false,
   linkSeen: false, linksView: 'review', notesOf: null, threadContext: new Set(), profilesOn: false, profiles: [], setupLayout: null,
+  // Questions to the person's agent still waiting for an answer (ADR-0033).
+  assistant: false, asks: new Set(),
 };
 window.manuscript = state;   // for the browser lane
 
@@ -489,6 +491,70 @@ async function copyReference() {
   try { await navigator.clipboard.writeText(text); toast('Copied a reference to this paragraph for the agent.'); closePopover(); }
   catch { openPopover('reference', { text }); }
 }
+
+/**
+ * The passage a question is about: the paragraph, or for a heading its section, the heading and
+ * every block after it up to the next heading at its level or above, in reading order.
+ */
+function passageOf(id) {
+  const blocks = [];
+  let heading = null, level = 0, inside = false;
+  sheet.editor.state.doc.forEach(node => {
+    const at = node.attrs.blockId;
+    if (!inside) {
+      if (at !== id) return;
+      inside = true;
+      if (node.type.name === 'heading') { heading = node.textContent.trim() || 'Untitled'; level = node.attrs.level; }
+      blocks.push({ id: at, text: block(at)?.text ?? node.textContent });
+      return;
+    }
+    if (heading === null || (node.type.name === 'heading' && node.attrs.level <= level)) { inside = false; id = null; return; }
+    if (block(at)) blocks.push({ id: at, text: block(at).text ?? node.textContent });
+  });
+  return { heading, blocks };
+}
+
+/**
+ * Ask the person's launched agent about the passage (ADR-0033). What is on the page is saved
+ * first, so the agent reads it as it stands. Nendo asks the person in its own cards; the answer
+ * is shown in the popover if it is still open, otherwise said in Nendo's notice. What the agent
+ * writes reaches the page as any other writer's change does.
+ */
+async function askAgent(request, mode) {
+  await flush();
+  const id = state.selected;
+  if (!block(id)) return;
+  const passage = passageOf(id);
+  const message = askMessage({ request, mode, title: state.title ?? $('title').value, heading: passage.heading, blocks: passage.blocks });
+  const ask = { id, mode, heading: passage.heading, state: 'asking', reply: '', stopReason: null, error: null };
+  state.popover = { ...state.popover, ask };
+  state.asks.add(ask);
+  redrawPopover();
+  try {
+    const answer = await nendo.assistant.ask(message.text, { context: message.context });
+    Object.assign(ask, { state: 'answered', reply: answer.reply ?? '', stopReason: answer.stopReason ?? 'end_turn' });
+  } catch (error) {
+    Object.assign(ask, { state: 'refused', error: assistantRefusal(error) });
+  } finally {
+    state.asks.delete(ask);
+  }
+  if (state.popover?.ask === ask) { redrawPopover(); return; }
+  const what = ask.heading === null ? 'this paragraph' : `“${ask.heading}”`;
+  toast(ask.state === 'refused' ? ask.error : `The agent answered about ${what}: ${ask.reply.replace(/\s+/g, ' ').slice(0, 220) || 'no words.'}`);
+}
+
+/** Why a question did not reach the agent, in the person's words. */
+function assistantRefusal(error) {
+  switch (error?.code) {
+    case 'assistant-off': return 'Views may not message the agent on this computer. Change it on Nendo’s Agent page, under Launch.';
+    case 'assistant-declined': return 'Not sent: you said Not now. Ask again once the conversation has changed.';
+    case 'assistant-busy': return 'The agent has too many messages waiting. Ask again when it has answered some.';
+    case 'assistant-unavailable': return `No agent can answer now: ${error.message}`;
+    default: return `Not sent: ${error?.message ?? String(error)}`;
+  }
+}
+
+function redrawPopover() { state.popoverEl?.remove(); state.popoverEl = null; placeOverlays(); }
 
 /** A link reviewed: current again, keeping its ends' words as they are now. */
 async function reviewed(link) {
@@ -1489,7 +1555,7 @@ function runTool(t) {
   else if (t.id === 'link') openPopover('link');
   else if (t.id === 'note') openPopover('note');
   else if (t.id === 'cut') keepAsCutting().catch(fail);
-  else if (t.id === 'agent') copyReference();
+  else if (t.id === 'agent') { if (state.assistant) openPopover('ask'); else copyReference(); }
   placeOverlays(); declare();
 }
 
@@ -1713,7 +1779,7 @@ function blockMenu(node) {
     menuItem({ label: 'Link to a passage', icon: 'link', run: () => runTool(TOOLS.find(t => t.id === 'link')) }),
     menuItem({ label: 'Add a note', icon: 'note', run: () => runTool(TOOLS.find(t => t.id === 'note')) }),
     kind !== 'heading' && menuItem({ label: 'Keep as cutting', icon: 'cut', run: () => runTool(TOOLS.find(t => t.id === 'cut')) }),
-    menuItem({ label: 'Copy for the agent', icon: 'agent', keys: block(id) ? `v${block(id).version}` : '', run: () => runTool(TOOLS.find(t => t.id === 'agent')) }));
+    menuItem({ label: TOOLS.find(t => t.id === 'agent').label, icon: 'agent', keys: block(id) ? `v${block(id).version}` : '', run: () => runTool(TOOLS.find(t => t.id === 'agent')) }));
   return el('div', { class: 'block-menu', role: 'menu', 'aria-label': 'This block' }, sections);
 }
 
@@ -1741,6 +1807,44 @@ function addMenu(node) {
       state.media && menuItem({ label: 'Picture', icon: 'picture', run: () => { sheet.focusBlock(id); choosePicture(); } }),
       add('Section heading', 'section', '###', 'Section'),
       add('Chapter heading', 'chapter', '##', 'Chapter')].filter(Boolean));
+}
+
+/**
+ * Ask the agent: what to ask, what it may do (notes only, the text, or nothing), and then the
+ * answer. The agent's steps and permission requests stay in its own conversation.
+ */
+function askPopover(p, top, close) {
+  const about = state.selected && sheet.locate(state.selected)?.node.type.name === 'heading' ? 'this section' : 'this paragraph';
+  const ask = p.ask;
+  if (ask && ask.state === 'asking') {
+    return el('div', { class: 'popover ask', style: `top:${top}px`, 'aria-live': 'polite' },
+      el('strong', { text: 'Asking the agent…' }),
+      el('p', { class: 'muted', text: 'Its steps and anything it asks permission for are in its conversation in Nendo. You can close this and go on writing; the answer comes as a notice.' }),
+      el('div', { class: 'row end' },
+        el('button', { type: 'button', class: 'quiet', text: 'Stop', on: { click: () => nendo.assistant.cancel().catch(() => {}) } }),
+        el('button', { type: 'button', class: 'primary', text: 'Close', on: { click: () => { closePopover(); placeOverlays(); sheet.editor.commands.focus(); } } })));
+  }
+  if (ask) {
+    const words = ask.state === 'refused' ? ask.error : (ask.reply.trim() || 'The agent said nothing.');
+    const stopped = ask.state === 'answered' && ask.stopReason !== 'end_turn'
+      ? el('p', { class: 'muted', text: ask.stopReason === 'cancelled' ? 'Stopped before it finished.' : ask.stopReason === 'ended' ? 'The conversation ended before it finished.' : `It stopped early (${ask.stopReason}).` }) : null;
+    const notes = ask.state === 'answered' && ask.mode === 'notes'
+      ? el('button', { type: 'button', class: 'quiet', text: 'Show notes', on: { click: () => { closePopover(); state.drawer = 'notes'; state.notesOf = ask.heading === null ? ask.id : null; render(); declare(); } } }) : null;
+    return el('div', { class: 'popover ask', style: `top:${top}px`, 'aria-live': 'polite' },
+      el('strong', { text: ask.state === 'refused' ? 'Not asked' : 'The agent answered' }),
+      el('div', { class: 'ask-reply' }, ...words.split(/\n{2,}/).map(part => el('p', { text: part }))), stopped,
+      el('div', { class: 'row end' }, notes,
+        el('button', { type: 'button', class: 'quiet', text: 'Ask again', on: { click: () => { state.popover = { ...state.popover, ask: null }; redrawPopover(); } } }),
+        el('button', { type: 'button', class: 'primary', text: 'Done', on: { click: () => { closePopover(); placeOverlays(); sheet.editor.commands.focus(); } } })));
+  }
+  const request = el('textarea', { id: 'ask-text', rows: '3', 'aria-label': 'What to ask the agent', placeholder: `What should the agent do with ${about}? For example: tighten it, check the facts, suggest a better opening.` });
+  const mode = el('select', { id: 'ask-mode', 'aria-label': 'What the agent may do' }, ASK_MODES.map(m => el('option', { value: m.id, text: m.label })));
+  const copy = el('button', { type: 'button', class: 'quiet', text: 'Copy reference', on: { click: () => copyReference() } });
+  request.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.target.form.requestSubmit(); } });
+  return el('form', { class: 'popover ask', style: `top:${top}px`, on: { submit: e => { e.preventDefault(); askAgent(request.value, mode.value).catch(fail); } } },
+    el('div', { class: 'row' }, el('strong', { text: `Ask the agent about ${about}` }), mode), request,
+    el('p', { class: 'muted', text: 'Notes only leaves your text as it is: each suggestion becomes a note in the margin.' }),
+    el('div', { class: 'row end' }, copy, close, el('button', { type: 'submit', class: 'primary', text: 'Ask' })));
 }
 
 function popover(top) {
@@ -1783,6 +1887,7 @@ function popover(top) {
       el('p', { class: 'muted', text: 'Shown under the picture, and read out for anyone who cannot see it. An export uses it as the picture’s description.' }),
       el('div', { class: 'row end' }, close, el('button', { type: 'submit', class: 'primary', text: 'Save' })));
   }
+  if (p.kind === 'ask') return askPopover(p, top, close);
   if (p.kind === 'reference') {
     return el('div', { class: 'popover', style: `top:${top}px` }, el('strong', { text: 'Copy this, then paste it into the Agent tab' }),
       el('input', { value: p.text, readonly: true, 'aria-label': 'Reference to this paragraph', on: { focus: e => e.target.select() } }), el('div', { class: 'row end' }, close));
@@ -2292,6 +2397,10 @@ function choosePicture() {
 async function start(context) {
   state.readOnly = context.readOnly === true;
   state.chrome = nendo.has('ui.setToolbar');
+  // The person's launched agent (ADR-0033): where Nendo lets a view message it, the agent tool asks
+  // it; elsewhere it copies a reference to paste into the agent's tab.
+  state.assistant = nendo.has('assistant.ask');
+  TOOLS.find(t => t.id === 'agent').label = state.assistant ? 'Ask the agent' : 'Copy for the agent';
   // A file built before roles or alignment has no Role or Align field; their controls wait for one.
   try {
     const schema = await nendo.schema.describe();

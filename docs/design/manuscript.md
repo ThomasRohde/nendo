@@ -82,7 +82,7 @@ where it would go and leaves it as stored until the person changes it.
 | Pictures | Media and `![alt](media:…)` in Markdown (ADR-0031) | 64 MiB per item, 2 GiB per file |
 | Tiptap | The view carries its own copy, within a package's 4 MiB per file and 16 MiB in all | A view cannot reach the Workbench's bundle |
 | Others' changes | The `changes` event, at most every 250 ms, as a nudge (`docs/contracts/custom-views.md`) | It says that the file changed, not which blocks |
-| Agent | The person's own agent over ACP, editing through MCP (ADR-0030, ADR-0014) | A view cannot call `agentSession.*` |
+| Agent | The person's own agent over ACP, editing through MCP (ADR-0030, ADR-0014); the view asks it about a passage with `nendo.assistant.ask` (ADR-0033) | A view sees only its own turn's reply, never the conversation or the agent's settings |
 
 ## Integrity rules
 
@@ -146,8 +146,10 @@ pass) is an application convention, not enforcement.
 
 The host launches the person's own agent over ACP and the agent edits through MCP; the host embeds
 no model (ADR-0014, ADR-0030). The file's own skill (ADR-0024) tells an agent how blocks, links and
-the history budget work. *Copy for the agent* copies a block's ID, which an agent or Find reaches
-directly.
+the history budget work. *Ask the agent* sends a passage, each block named by its ID, with the
+person's request and what the agent may do: notes only by default, so suggestions land as notes in
+the margin and the text stays the writer's (ADR-0033). *Copy reference* copies a block's ID, which
+an agent or Find reaches directly.
 
 A long generation is a managed run driven by the launched agent while it is open, section by
 section, never one huge insertion; background agents are out of scope. Every revision is attributed
