@@ -7,13 +7,14 @@ import { bundleOf } from './bundle-of.mjs';
 // card lists every agent installed and shown, the one last launched selected while it is still
 // among them; Ask asks once per conversation; a running turn is no refusal, since the host keeps
 // the message.
-const { agentsToOffer, assistantStatus, changedSettings, conversationKey, messagePreview, nextAskStep } = await bundleOf('src/assistant-model.ts');
+const { agentsToOffer, assistantStatus, changedSettings, conversationKey, declineHoldMs, messagePreview, nextAskStep } = await bundleOf('src/assistant-model.ts');
 
 const agent = (id, found = true) => ({ id, name: id.toUpperCase(), commandLine: id, found, package: null, installCommand: null, renamedFrom: null, updateCommand: null });
 const offer = (fields = {}) => ({ canLaunch: true, reason: null, agents: [agent('copilot'), agent('gemini', false), agent('claude')], customCommandLine: null, running: null, hidden: [], lastAgentId: null, viewAccess: 'ask', ...fields });
 const none = { exists: false, conversationId: null, state: 'none', working: false, name: null };
 const ready = { exists: true, conversationId: 'c1', state: 'ready', working: false, name: 'Claude' };
-const facts = (fields) => ({ access: 'ask', conversation: ready, launchable: offer(), declinedFor: undefined, allowedFor: undefined, ...fields });
+const facts = (fields) => ({ access: 'ask', conversation: ready, launchable: offer(), declined: undefined, now: 100_000, allowedFor: undefined, ...fields });
+const saidNotNow = (key, secondsAgo = 1) => ({ key, at: 100_000 - secondsAgo * 1000 });
 
 test('Never refuses before anything else, without a card', () => {
   assert.deepEqual(nextAskStep(facts({ access: 'never', conversation: none })).kind, 'refuse');
@@ -72,11 +73,20 @@ test('a running turn is no refusal: the host keeps the message', () => {
 });
 
 test('Not now holds until the conversation changes', () => {
-  assert.equal(nextAskStep(facts({ declinedFor: 'c1' })).code, 'assistant-declined');
-  assert.equal(nextAskStep(facts({ declinedFor: 'c0' })).kind, 'consent', 'Not now for an earlier conversation still held.');
+  assert.equal(nextAskStep(facts({ declined: saidNotNow('c1') })).code, 'assistant-declined');
+  assert.equal(nextAskStep(facts({ declined: saidNotNow('c0') })).kind, 'consent', 'Not now for an earlier conversation still held.');
   assert.equal(conversationKey(none), 'none');
-  assert.equal(nextAskStep(facts({ conversation: none, declinedFor: 'none' })).code, 'assistant-declined');
-  assert.equal(nextAskStep(facts({ declinedFor: 'none' })).kind, 'consent', 'Not now to a launch held once an agent ran.');
+  assert.equal(nextAskStep(facts({ conversation: none, declined: saidNotNow('none') })).code, 'assistant-declined');
+  assert.equal(nextAskStep(facts({ declined: saidNotNow('none') })).kind, 'consent', 'Not now to a launch held once an agent ran.');
+});
+
+test('Not now holds for a moment only: with no agent running, the next press shows the card again', () => {
+  const later = declineHoldMs / 1000 + 1;
+  assert.equal(nextAskStep(facts({ conversation: none, declined: saidNotNow('none', later) })).kind, 'launch',
+    'Not now to the launch card still refused the view once the moment had passed, with nothing that could change the conversation.');
+  assert.equal(nextAskStep(facts({ declined: saidNotNow('c1', later) })).kind, 'consent', 'Not now to the consent card held past the moment.');
+  assert.equal(nextAskStep(facts({ conversation: none, declined: saidNotNow('none', 5) })).code, 'assistant-declined',
+    'A view asking again at once got the card back.');
 });
 
 test('the status says nothing of the agent but its state and name', () => {

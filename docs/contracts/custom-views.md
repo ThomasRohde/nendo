@@ -1155,7 +1155,7 @@ sentence.
 | `unknown-event` | Script | `nendo.on` was given a name other than `context`, `theme`, `changes`, `command`, `place` or `assistant` |
 | `failed` | Broker | The answer could not be sent, or the failure had no code |
 | `assistant-off` | Workbench or host | The person chose Never for views on the Agent page |
-| `assistant-declined` | Workbench | The person said Not now in Nendo's card; refused without a card until the conversation changes |
+| `assistant-declined` | Workbench | The person said Not now in Nendo's card; refused without a card for 30 seconds while the conversation stays the same |
 | `assistant-unavailable` | Broker or Workbench | No agent can run now (access Off, read-only, none installed), or this Workbench has none |
 | `assistant-busy` | Workbench | Too many messages already wait for the agent |
 
@@ -1180,8 +1180,9 @@ person's launched agent a message and hear its own turn's reply; the
   set as the person picks, and sends the message only on Send. The view's message names no agent
   and the view never learns which was offered or how it is set. Launching counts as consent,
   and it waits up to six minutes for the agent to start and sign in. At Ask it asks once per
-  conversation whether the view may message the agent. Not now holds for the package until the
-  conversation changes. The Workbench keeps nothing on the device; the agent's settings are
+  conversation whether the view may message the agent. Not now holds for the package for 30 seconds
+  (`declineHoldMs`), while the conversation stays the same, and never longer: the next message after
+  that shows a card again. The Workbench keeps nothing on the device; the agent's settings are
   kept by the host ([launched agents](launched-agents.md#what-the-host-tells-the-agent)).
 - **The host** sends the message marked with `from`, the view's title, or keeps it in order
   while a turn runs, and answers the turn's reply once it ends.

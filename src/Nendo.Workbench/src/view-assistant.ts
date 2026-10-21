@@ -29,7 +29,7 @@ export interface AssistantViewIdentity { title: string; packageId: string }
 const startPatienceMs = 6 * 60_000;
 
 let access: ViewAgentAccess | null = null;
-const declined = new Map<string, string>();
+const declined = new Map<string, { key: string; at: number }>();
 const allowed = new Map<string, string>();
 /** The conversation each package launched for an agent with no kept settings, until the person presses Send. */
 const settingsFirst = new Map<string, string>();
@@ -237,7 +237,7 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
     if (needsOffer || access === null) offer = await launchable();
     const step = nextAskStep({
       access: await accessNow(), conversation, launchable: offer ?? null,
-      declinedFor: declined.get(view.packageId), allowedFor: allowed.get(view.packageId), settingsFor: settingsFirst.get(view.packageId),
+      declined: declined.get(view.packageId), now: Date.now(), allowedFor: allowed.get(view.packageId), settingsFor: settingsFirst.get(view.packageId),
     });
     switch (step.kind) {
       case 'refuse':
@@ -253,7 +253,7 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
         const picked = new Map<string, Map<string, string>>();
         const launch = await card({ title: `Let ${escapeHtml(view.title)} ask an agent?`, ...launchCard(view, message.text, step.agents, step.selectedId, (id) => { chosen = id; }, picked) });
         if (!launch) {
-          declined.set(view.packageId, conversationKey(conversationNow()));
+          declined.set(view.packageId, { key: conversationKey(conversationNow()), at: Date.now() });
           throw new WorkbenchHostError('assistant-declined', 'The person did not launch an agent for this view.');
         }
         const agent = step.agents.find((candidate) => candidate.id === chosen);
@@ -273,7 +273,7 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
         const send = await card(settingsCard(view, message.text, step.agentName, step.conversationId));
         settingsFirst.delete(view.packageId);
         if (!send) {
-          declined.set(view.packageId, step.conversationId);
+          declined.set(view.packageId, { key: step.conversationId, at: Date.now() });
           throw new WorkbenchHostError('assistant-declined', 'The person did not send the message.');
         }
         continue;
@@ -290,7 +290,7 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
           confirmLabel: 'Allow',
         });
         if (!allow) {
-          declined.set(view.packageId, conversationId);
+          declined.set(view.packageId, { key: conversationId, at: Date.now() });
           throw new WorkbenchHostError('assistant-declined', 'The person did not let this view message the agent.');
         }
         allowed.set(view.packageId, conversationId);

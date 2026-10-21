@@ -954,6 +954,37 @@ async page => {
     assert(problems.length === 0, problems.join('; ') + '.');
   });
 
+  // ADR-0033: Not now to the launch card refuses a view asking again at once, without a card,
+  // and only for a moment. With no agent running nothing changes the conversation, so a Not now
+  // kept until it did refused every later Start the person pressed. The clock is moved on rather
+  // than waited for.
+  await check('a view asks again after Not now', 'idea', async () => {
+    await agentPage('activity');
+    await page.click('[data-agent-mode="shapeApp"]');
+    await until(() => document.querySelector('[data-agent-mode="shapeApp"]')?.getAttribute('aria-pressed') === 'true', null, 'Shape app');
+    const problems = [];
+    await page.evaluate(async () => {
+      const module = await import('/src/view-assistant.ts');
+      window.__assistant = module.createAssistant(() => ({ title: 'Desk', packageId: 'org.example.desk' }), () => {});
+      window.__answers = [];
+      window.__ask = (key, text) => { window.__assistant.ask({ key }, { text, context: [] })
+        .then((answer) => window.__answers.push(answer), (error) => window.__answers.push({ error: error.code })); };
+      window.__ask('first', 'Which model are you running');
+    });
+    await until(() => document.querySelector('dialog[open] [data-confirm]')?.textContent.startsWith('Launch') === true, null, 'the launch card');
+    await page.click('dialog[open] [data-cancel]');
+    await until(() => window.__answers.length === 1, null, 'the Not now');
+    await page.evaluate(() => window.__ask('again', 'Which model are you running'));
+    await until(() => window.__answers.length === 2, null, 'the second answer');
+    const atOnce = await page.evaluate(() => ({ answer: window.__answers[1], card: document.querySelector('dialog[open]') !== null }));
+    if (atOnce.answer.error !== 'assistant-declined' || atOnce.card) problems.push(`asking again at once got ${JSON.stringify(atOnce)}, not a refusal without a card`);
+    await page.evaluate(() => { const real = Date.now.bind(Date); Date.now = () => real() + 31_000; window.__ask('later', 'Which model are you running'); });
+    const later = await page.waitForFunction(() => document.querySelector('dialog[open] [data-confirm]')?.textContent.startsWith('Launch') === true || window.__answers.length === 3,
+      null, { timeout: 4000 }).then(() => page.evaluate(() => ({ card: document.querySelector('dialog[open]') !== null, answer: window.__answers[2] ?? null })), () => ({ card: false, answer: null }));
+    if (!later.card) problems.push(`the person's next Start after Not now got ${JSON.stringify(later.answer)}, not the launch card`);
+    assert(problems.length === 0, problems.join('; ') + '.');
+  });
+
   // Focus on Open conversation comes back to the copy on screen after a redraw.
   await check('Open conversation focus', 'idea', async () => {
     await launch();

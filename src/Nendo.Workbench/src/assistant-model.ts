@@ -21,8 +21,10 @@ export interface AskFacts {
   conversation: AssistantConversation;
   /** What Launch offers on this computer; null where the host offers no Launch. */
   launchable: LaunchableAgents | null;
-  /** The conversation (or `none`) this package was told Not now for, if any. */
-  declinedFor: string | undefined;
+  /** The conversation (or `none`) this package was told Not now for, and when, if any. */
+  declined: { key: string; at: number } | undefined;
+  /** The time now, in the same clock as `declined.at`. */
+  now: number;
   /** The conversation this package may message, if the person allowed it. */
   allowedFor: string | undefined;
   /**
@@ -75,12 +77,20 @@ export function agentsToOffer(launchable: LaunchableAgents): { agents: OfferedAg
   return { agents, selectedId: (last ?? agents[0]!).id };
 }
 
+/**
+ * How long a Not now refuses a view without a card: long enough that a view asking again at once
+ * cannot keep the card in front of the person, short enough that the person's own next press in
+ * the view shows the card again. With no agent running the conversation never changes by itself,
+ * so a Not now kept until it did refused every later press.
+ */
+export const declineHoldMs = 30_000;
+
 export function nextAskStep(facts: AskFacts): AskStep {
   if (facts.access === 'never')
     return { kind: 'refuse', code: 'assistant-off', message: 'Views may not message the agent on this computer. The person can change it on the Agent page.' };
   const conversation = facts.conversation;
-  if (facts.declinedFor !== undefined && facts.declinedFor === conversationKey(conversation))
-    return { kind: 'refuse', code: 'assistant-declined', message: 'The person said Not now to this view. Ask again after the conversation changes.' };
+  if (facts.declined !== undefined && facts.declined.key === conversationKey(conversation) && facts.now - facts.declined.at < declineHoldMs)
+    return { kind: 'refuse', code: 'assistant-declined', message: 'The person said Not now to this view just now. Ask again when they ask for it.' };
   if (!running(conversation)) {
     if (facts.launchable === null) return { kind: 'refuse', code: 'assistant-unavailable', message: 'This Nendo cannot launch an agent.' };
     if (!facts.launchable.canLaunch) return { kind: 'cannotLaunch', reason: facts.launchable.reason ?? 'An agent cannot be launched now.' };

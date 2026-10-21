@@ -58,7 +58,10 @@ request, and never reads the rest of the transcript.
   the view may message the agent. Allow holds until the conversation ends; nothing is stored.
 - Launch not possible (access Off, read-only, recovery) or no agent installed: a card says why and
   links the Agent page.
-- A view that was told Not now is refused without a card until the conversation changes.
+- A view that was told Not now is refused without a card for 30 seconds, while the conversation
+  stays the same, so a view asking again at once cannot keep a card in front of the person; after
+  that its next message shows a card again. With no agent running the conversation never changes
+  by itself, so a Not now kept until it did would refuse every later press.
 
 **One turn at a time.** ACP runs one turn per session, and neither version 1 nor its drafts
 specify queueing or steering. A view's message that arrives during a turn waits in the host, in
