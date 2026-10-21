@@ -1,5 +1,5 @@
 import type { AssistantStatus } from './extension-api/protocol';
-import type { LaunchableAgents, LaunchedAgentState, ViewAgentAccess } from './host-types';
+import type { AgentSetting, LaunchableAgents, LaunchedAgentState, ViewAgentAccess } from './host-types';
 
 /**
  * What a custom view's message to the launched agent needs next (ADR-0033), worked out from what
@@ -25,6 +25,11 @@ export interface AskFacts {
   declinedFor: string | undefined;
   /** The conversation this package may message, if the person allowed it. */
   allowedFor: string | undefined;
+  /**
+   * The conversation launched from this package's card for an agent with no kept settings: its
+   * own settings are shown, and the message goes on Send, before anything is sent.
+   */
+  settingsFor?: string | undefined;
 }
 
 export type AskStep =
@@ -37,6 +42,8 @@ export type AskStep =
   | { kind: 'launch'; agents: OfferedAgent[]; selectedId: string }
   /** Starting or signing in: wait for it. */
   | { kind: 'wait' }
+  /** Launched from the card with no kept settings: show the agent's own, and send on Send. */
+  | { kind: 'settings'; conversationId: string; agentName: string }
   /** Running, and the person has not said whether this view may message it. */
   | { kind: 'consent'; agentName: string }
   | { kind: 'send'; conversationId: string };
@@ -50,7 +57,8 @@ function running(conversation: AssistantConversation): boolean {
   return conversation.exists && conversation.state !== 'ended' && conversation.state !== 'none';
 }
 
-export interface OfferedAgent { id: string; name: string }
+/** An agent a launch card lists, with its kept settings, or null when it never ran here. */
+export interface OfferedAgent { id: string; name: string; settings: AgentSetting[] | null }
 
 /**
  * The agents a view's card offers to launch: every one installed and shown, in the Agent page's
@@ -59,7 +67,8 @@ export interface OfferedAgent { id: string; name: string }
  */
 export function agentsToOffer(launchable: LaunchableAgents): { agents: OfferedAgent[]; selectedId: string } | null {
   const hidden = new Set(launchable.hidden);
-  const agents = launchable.agents.filter((agent) => agent.found && !hidden.has(agent.id)).map(({ id, name }) => ({ id, name }));
+  const agents = launchable.agents.filter((agent) => agent.found && !hidden.has(agent.id))
+    .map(({ id, name, settings }) => ({ id, name, settings: settings !== undefined && settings !== null && settings.length > 0 ? settings : null }));
   if (agents.length === 0) return null;
   const last = agents.find((agent) => agent.id === launchable.lastAgentId);
   return { agents, selectedId: (last ?? agents[0]!).id };
@@ -78,6 +87,8 @@ export function nextAskStep(facts: AskFacts): AskStep {
     return offer === null ? { kind: 'noAgent' } : { kind: 'launch', ...offer };
   }
   if (conversation.state !== 'ready' || conversation.conversationId === null) return { kind: 'wait' };
+  if (facts.settingsFor === conversation.conversationId)
+    return { kind: 'settings', conversationId: conversation.conversationId, agentName: conversation.name ?? 'the agent' };
   if (facts.access === 'ask' && facts.allowedFor !== conversation.conversationId)
     return { kind: 'consent', agentName: conversation.name ?? 'the agent' };
   // A turn running is no reason to refuse: the host keeps the message until it ends (ACP runs one
@@ -94,6 +105,19 @@ export function assistantStatus(conversation: AssistantConversation, access: Vie
     working: conversation.exists && conversation.state !== 'ended' && conversation.working,
     access,
   };
+}
+
+/**
+ * What a launch card sends with the agent: the settings the person changed from what is kept,
+ * each a value the agent offered. Nothing for an agent with no kept settings.
+ */
+export function changedSettings(settings: AgentSetting[] | null, picked: ReadonlyMap<string, string>): Record<string, string> {
+  const changed: Record<string, string> = {};
+  for (const setting of settings ?? []) {
+    const value = picked.get(setting.id);
+    if (value !== undefined && value !== setting.value && setting.values.some((candidate) => candidate.value === value)) changed[setting.id] = value;
+  }
+  return changed;
 }
 
 /** The first line of a view's message, for the card: at most `limit` characters. */

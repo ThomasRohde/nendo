@@ -1,5 +1,5 @@
 import { fileScopedClearable } from './app-state';
-import { assistantStatus, conversationKey, messagePreview, nextAskStep, type AssistantConversation, type OfferedAgent } from './assistant-model';
+import { assistantStatus, changedSettings, conversationKey, messagePreview, nextAskStep, type AssistantConversation, type OfferedAgent } from './assistant-model';
 import { client } from './client';
 import { confirmDialog } from './confirm-dialog';
 import type { AssistantItem, AssistantReply, AssistantStatus } from './extension-api/protocol';
@@ -18,7 +18,7 @@ import { agentChatNow, followAgentChat, launchAgentForView, onAgentChatChanged, 
  *
  * Nothing here is kept on the device. Not now holds for a package until the conversation
  * changes; Allow holds until the conversation ends. The Never, Ask and Always choice is the
- * Agent page's, kept by the host.
+ * Agent page's, kept by the host, as are the settings the person picks for each agent.
  */
 
 /** Who a mount is, for the cards and the transcript. */
@@ -30,6 +30,8 @@ const startPatienceMs = 6 * 60_000;
 let access: ViewAgentAccess | null = null;
 const declined = new Map<string, string>();
 const allowed = new Map<string, string>();
+/** The conversation each package launched for an agent with no kept settings, until the person presses Send. */
+const settingsFirst = new Map<string, string>();
 /** The turn each mount's message started, so cancel stops its own turn and no other. */
 const turns = new Map<string, { turnId: string; conversationId: string }>();
 /** One card at a time: a second view's card waits for the first to close. */
@@ -40,6 +42,7 @@ fileScopedClearable({
     access = null;
     declined.clear();
     allowed.clear();
+    settingsFirst.clear();
     turns.clear();
   },
 });
@@ -104,29 +107,102 @@ function quoted(text: string): string {
 }
 
 /**
- * The launch card's body: the agents installed and shown, the one last launched selected, and a
- * button that names the one chosen. With one agent there is nothing to pick, so none is listed.
+ * Pickers for an agent's settings: one select each, set to `value`, its values grouped as the agent
+ * groups them. `data-assistant-setting` names the option.
  */
-function launchCard(view: AssistantViewIdentity, text: string, agents: OfferedAgent[], selectedId: string, choose: (id: string) => void): { bodyHtml: string; confirmLabel: string; prepare: (dialog: HTMLDialogElement) => void } {
-  const nameOf = (id: string): string => agents.find((agent) => agent.id === id)?.name ?? id;
+function settingsMarkup(settings: ReadonlyArray<{ id: string; name: string; value: string; values: ReadonlyArray<{ value: string; name: string; group: string | null }> }>): string {
+  return settings.map((setting) => {
+    const groups = new Map<string, Array<{ value: string; name: string }>>();
+    for (const value of setting.values) groups.set(value.group ?? '', [...(groups.get(value.group ?? '') ?? []), value]);
+    const choice = (value: { value: string; name: string }): string =>
+      `<option value="${escapeHtml(value.value)}" ${value.value === setting.value ? 'selected' : ''}>${escapeHtml(value.name)}</option>`;
+    const options = [...groups].map(([group, values]) => group === ''
+      ? values.map(choice).join('')
+      : `<optgroup label="${escapeHtml(group)}">${values.map(choice).join('')}</optgroup>`).join('');
+    return `<label><span>${escapeHtml(setting.name)}</span><select data-assistant-setting="${escapeHtml(setting.id)}">${options}</select></label>`;
+  }).join('');
+}
+
+/** What the settings box under the agents says and shows for `agent`. */
+function launchSettingsMarkup(agent: OfferedAgent | undefined): string {
+  if (agent === undefined) return '';
+  return agent.settings === null
+    ? `<p class="assistant-card-note">${escapeHtml(agent.name)} has not run on this computer yet. Once it starts, its settings show here before the message goes.</p>`
+    : settingsMarkup(agent.settings);
+}
+
+/**
+ * The launch card's body: the agents installed and shown, the one last launched selected, the
+ * chosen one's kept settings as pickers, and a button that names the agent chosen. With one agent
+ * there is nothing to pick between, so none is listed. `picked` collects what the person sets,
+ * by agent.
+ */
+function launchCard(view: AssistantViewIdentity, text: string, agents: OfferedAgent[], selectedId: string, choose: (id: string) => void,
+  picked: Map<string, Map<string, string>>): { bodyHtml: string; confirmLabel: string; prepare: (dialog: HTMLDialogElement) => void } {
+  const agentOf = (id: string): OfferedAgent | undefined => agents.find((agent) => agent.id === id);
+  const nameOf = (id: string): string => agentOf(id)?.name ?? id;
   const intro = `<p>${escapeHtml(view.title)} wants to send this to an agent:</p>${quoted(text)}`;
-  const after = 'It works at the access level on the Agent page, and the message shows in its conversation. Its settings are on the Agent page.';
-  const bodyHtml = agents.length === 1
-    ? `${intro}<p>No agent is running. Launch ${escapeHtml(nameOf(selectedId))}? ${after}</p>`
-    : `${intro}<p>No agent is running. Choose one to launch. ${after}</p>
-      <fieldset class="assistant-card-agents"><legend class="visually-hidden">Agent to launch</legend>${agents.map((agent) =>
-        `<label><input type="radio" name="assistant-card-agent" value="${escapeHtml(agent.id)}" data-assistant-agent="${escapeHtml(agent.id)}" ${agent.id === selectedId ? 'checked' : ''} />${escapeHtml(agent.name)}</label>`).join('')}</fieldset>`;
+  const after = 'It works at the access level on the Agent page, and the message shows in its conversation.';
+  const list = agents.length === 1 ? '' : `<fieldset class="assistant-card-agents"><legend class="visually-hidden">Agent to launch</legend>${agents.map((agent) =>
+    `<label><input type="radio" name="assistant-card-agent" value="${escapeHtml(agent.id)}" data-assistant-agent="${escapeHtml(agent.id)}" ${agent.id === selectedId ? 'checked' : ''} />${escapeHtml(agent.name)}</label>`).join('')}</fieldset>`;
+  const bodyHtml = `${intro}<p>No agent is running. ${agents.length === 1 ? `Launch ${escapeHtml(nameOf(selectedId))}?` : 'Choose one to launch.'} ${after}</p>${list}
+    <div class="assistant-card-settings" data-assistant-settings>${launchSettingsMarkup(agentOf(selectedId))}</div>`;
   return {
     bodyHtml,
     confirmLabel: `Launch ${escapeHtml(nameOf(selectedId))}`,
     prepare(dialog) {
       const button = dialog.querySelector<HTMLButtonElement>('[data-confirm]');
+      const box = dialog.querySelector<HTMLElement>('[data-assistant-settings]');
+      let current = selectedId;
       for (const radio of dialog.querySelectorAll<HTMLInputElement>('input[name="assistant-card-agent"]'))
         radio.addEventListener('change', () => {
           if (!radio.checked) return;
-          choose(radio.value);
-          if (button !== null) button.textContent = `Launch ${nameOf(radio.value)}`;
+          current = radio.value;
+          choose(current);
+          if (button !== null) button.textContent = `Launch ${nameOf(current)}`;
+          const agent = agentOf(current);
+          if (box === null || agent === undefined) return;
+          // Each agent's picks stay as the person left them while they look at another.
+          const mine = picked.get(current);
+          box.innerHTML = launchSettingsMarkup(agent.settings === null ? agent
+            : { ...agent, settings: agent.settings.map((setting) => ({ ...setting, value: mine?.get(setting.id) ?? setting.value })) });
         });
+      box?.addEventListener('change', (event) => {
+        const select = event.target instanceof HTMLSelectElement ? event.target : null;
+        const id = select?.dataset.assistantSetting;
+        if (select === null || id === undefined) return;
+        const mine = picked.get(current) ?? new Map<string, string>();
+        mine.set(id, select.value);
+        picked.set(current, mine);
+      });
+    },
+  };
+}
+
+/**
+ * The card after launching an agent that had no kept settings: its own settings, set on the agent
+ * as the person picks each, and Send. What they pick is kept for the next launch by the host.
+ */
+function settingsCard(view: AssistantViewIdentity, text: string, agentName: string, conversationId: string): { title: string; bodyHtml: string; confirmLabel: string; prepare: (dialog: HTMLDialogElement) => void } {
+  const options = agentChatNow().options;
+  const settings = options.map((option) => ({ id: option.id, name: option.name, value: option.currentValue, values: option.values }));
+  return {
+    title: `Send to ${escapeHtml(agentName)}?`,
+    bodyHtml: `<p>${escapeHtml(view.title)} wants to send this to ${escapeHtml(agentName)}:</p>${quoted(text)}
+      <p>${settings.length === 0 ? `${escapeHtml(agentName)} offers no settings.` : `Choose ${escapeHtml(agentName)}'s settings before it goes. This computer keeps them for its next start.`}</p>
+      <div class="assistant-card-settings" data-assistant-settings>${settingsMarkup(settings)}</div>`,
+    confirmLabel: 'Send',
+    prepare(dialog) {
+      dialog.querySelector('[data-assistant-settings]')?.addEventListener('change', (event) => {
+        const select = event.target instanceof HTMLSelectElement ? event.target : null;
+        const id = select?.dataset.assistantSetting;
+        if (select === null || id === undefined) return;
+        const before = agentChatNow().options.find((option) => option.id === id)?.currentValue ?? select.value;
+        select.disabled = true;
+        void client.request<LaunchedAgentView>('agentSession.setOption', { configId: id, value: select.value, conversationId, after: agentChatNow().revision })
+          .then(() => { followAgentChat(); }, () => { select.value = before; })
+          .finally(() => { select.disabled = false; });
+      });
     },
   };
 }
@@ -150,7 +226,7 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
     if (needsOffer || access === null) offer = await launchable();
     const step = nextAskStep({
       access: await accessNow(), conversation, launchable: offer ?? null,
-      declinedFor: declined.get(view.packageId), allowedFor: allowed.get(view.packageId),
+      declinedFor: declined.get(view.packageId), allowedFor: allowed.get(view.packageId), settingsFor: settingsFirst.get(view.packageId),
     });
     switch (step.kind) {
       case 'refuse':
@@ -163,19 +239,32 @@ async function ask(view: AssistantViewIdentity, mountKey: string, message: { tex
         throw new WorkbenchHostError('assistant-unavailable', 'No agent is installed on this computer.');
       case 'launch': {
         let chosen = step.selectedId;
-        const launch = await card({ title: `Let ${escapeHtml(view.title)} ask an agent?`, ...launchCard(view, message.text, step.agents, step.selectedId, (id) => { chosen = id; }) });
+        const picked = new Map<string, Map<string, string>>();
+        const launch = await card({ title: `Let ${escapeHtml(view.title)} ask an agent?`, ...launchCard(view, message.text, step.agents, step.selectedId, (id) => { chosen = id; }, picked) });
         if (!launch) {
           declined.set(view.packageId, conversationKey(conversationNow()));
           throw new WorkbenchHostError('assistant-declined', 'The person did not launch an agent for this view.');
         }
+        const agent = step.agents.find((candidate) => candidate.id === chosen);
         try {
-          await launchAgentForView(chosen);
+          await launchAgentForView(chosen, changedSettings(agent?.settings ?? null, picked.get(chosen) ?? new Map()));
         } catch (error) {
           throw new WorkbenchHostError('assistant-unavailable', messageFor(error));
         }
         // Launching from the card is the person's consent for this view and this conversation.
         const launched = agentChatNow().conversationId;
         if (launched !== null) allowed.set(view.packageId, launched);
+        // An agent never seen here shows its own settings once it is ready, before the message goes.
+        if (launched !== null && (agent?.settings ?? null) === null) settingsFirst.set(view.packageId, launched);
+        continue;
+      }
+      case 'settings': {
+        const send = await card(settingsCard(view, message.text, step.agentName, step.conversationId));
+        settingsFirst.delete(view.packageId);
+        if (!send) {
+          declined.set(view.packageId, step.conversationId);
+          throw new WorkbenchHostError('assistant-declined', 'The person did not send the message.');
+        }
         continue;
       }
       case 'wait':

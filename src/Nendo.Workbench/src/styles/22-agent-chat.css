@@ -456,6 +456,23 @@
 .assistant-card-agents label:has(input:checked) { border-color: color-mix(in srgb, var(--cobalt) 45%, var(--line)); background: var(--cobalt-soft); }
 .assistant-card-agents input { min-height: 0; margin: 0; accent-color: var(--cobalt); }
 
+/* An agent's settings on a view's card, before it starts or before the message goes. */
+.assistant-card-settings {
+  display: grid;
+  gap: var(--space-2);
+  margin: 12px 0 0;
+}
+
+.assistant-card-settings label {
+  display: grid;
+  grid-template-columns: minmax(8rem, auto) 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.assistant-card-settings select { min-width: 0; }
+.assistant-card-note { margin: 0; color: var(--muted); }
+
 /* The first line of a view's message, quoted in Nendo's card. */
 .assistant-card-message {
   margin: 8px 0;

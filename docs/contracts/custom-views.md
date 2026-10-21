@@ -1174,11 +1174,15 @@ person's launched agent a message and hear its own turn's reply; the
   its own modal cards, one at a time, quoting the message's first line. At Never it refuses
   at once. With no agent running it offers to launch one: the card lists every agent
   installed and shown, in the Agent page's order, with the one last launched on this device
-  selected (or the first), and the person may pick another. The view's message names no agent
-  and the view never learns which was offered. Launching counts as consent, and it waits up to
-  six minutes for the agent to start and sign in. At Ask it asks once per conversation
-  whether the view may message the agent. Not now holds for the package until the
-  conversation changes. Nothing is kept on the device.
+  selected (or the first), and the person may pick another. Under them it shows the chosen
+  agent's kept settings as pickers, and launches with what the person picks there. An agent with
+  no kept settings is launched first, and once it is ready a second card shows its own settings,
+  set as the person picks, and sends the message only on Send. The view's message names no agent
+  and the view never learns which was offered or how it is set. Launching counts as consent,
+  and it waits up to six minutes for the agent to start and sign in. At Ask it asks once per
+  conversation whether the view may message the agent. Not now holds for the package until the
+  conversation changes. The Workbench keeps nothing on the device; the agent's settings are
+  kept by the host ([launched agents](launched-agents.md#what-the-host-tells-the-agent)).
 - **The host** sends the message marked with `from`, the view's title, or keeps it in order
   while a turn runs, and answers the turn's reply once it ends.
 - A view never sees or sets the agent's model, effort or mode, never answers a permission

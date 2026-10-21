@@ -263,6 +263,20 @@ export interface LaunchableAgent {
   installCommand: string | null;
   renamedFrom: string | null;
   updateCommand: string | null;
+  /**
+   * The settings kept for it on this computer, which a view's launch card shows before it starts
+   * (ADR-0033): null when it was never ready here; absent from an older host.
+   */
+  settings?: AgentSetting[] | null;
+}
+
+/** One of an agent's kept settings: the value it starts with and the values it offered when it last ran. */
+export interface AgentSetting {
+  id: string;
+  name: string;
+  category: string | null;
+  value: string;
+  values: Array<{ value: string; name: string; group: string | null }>;
 }
 
 /** What the Agent page offers under Launch, why a launch is not possible now, and what is running. */

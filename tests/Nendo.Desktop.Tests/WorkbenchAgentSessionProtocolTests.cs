@@ -31,6 +31,19 @@ public sealed class WorkbenchAgentSessionProtocolTests
         Assert.IsFalse(refused.Ok);
         Assert.AreEqual("agent-launch-unavailable", refused.Error!.Code);
 
+        // A launch card's settings are read before anything is launched: an object of at most 16
+        // option IDs to text values (ADR-0033).
+        foreach (var (name, settings) in new (string, object)[]
+        {
+            ("not-an-object", "high"),
+            ("not-text", new Dictionary<string, object> { ["reasoning_effort"] = 3 }),
+            ("too-many", Enumerable.Range(0, 17).ToDictionary(index => $"option{index}", _ => (object)"on")),
+        })
+        {
+            var malformed = await handler.HandleAsync(Request(name, WorkbenchMethods.AgentSessionLaunch, fileSessionId, new { agentId = "custom", settings }));
+            Assert.AreEqual("validation", malformed.Error?.Code, $"Launch settings {name} were not refused as malformed.");
+        }
+
         var none = await handler.HandleAsync(Request("read", WorkbenchMethods.AgentSessionRead, fileSessionId, new { after = 0 }));
         Assert.IsTrue(none.Ok, none.Error?.Message);
         Assert.IsFalse(((DesktopLaunchedAgentView)none.Result!).Exists);

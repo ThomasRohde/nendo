@@ -714,10 +714,11 @@ The Agent page can launch the person's own agent program over ACP
 - A custom view may message the conversation through `nendo.assistant`
   ([ADR-0033](decisions/0033-a-view-messages-the-launched-agent.md)): `view-assistant.ts`
   asks the person in Nendo's cards, launches the agent the person picks on the card when none
-  runs (the one last launched is selected), and
+  runs (the one last launched is selected) with the settings kept for it, and
   answers the view with its own turn's reply (`AgentConversation.Turns.cs`). A view's message
   during a turn waits in the host, at most 8. Never, Ask or Always for views is kept in
-  `agent-launch.json`.
+  `agent-launch.json`; the settings a person picks for each agent are kept in
+  `agent-options.json` and sent before the agent is ready.
 - The conversation reaches the tab through the `agentSession.*` bridge methods and the
   `agentSessionChanged` nudge, keyed by `conversationId`. The transcript lives in host
   memory, at most 1,000 entries.

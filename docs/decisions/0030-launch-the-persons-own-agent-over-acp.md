@@ -62,8 +62,11 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
 - A permission request shows the agent's own options. The host never answers one itself and never
   picks an *always* option for the person, at any level.
 - The agent's ACP session options (model, effort, mode and the rest) are shown on the Agent page
-  while it runs, and a value is sent only when the person picks it there. They are the agent's
-  settings, not Nendo's access level. The tab and custom views have none.
+  while it runs, and a value is sent only when the person picks it there or on a view's launch
+  card (ADR-0033). The values a person picks are kept per agent on this device, with the options
+  the agent last offered, and sent again when that agent next starts, before it is ready: a value
+  it no longer offers is not sent, and one it refuses leaves a notice in the conversation. They
+  are the agent's settings, not Nendo's access level. The tab and custom views have none.
 - **@** points the agent at what the person chooses (record types, fields, views, records found
   through the search index, waiting proposals, other tabs) as bounded nendo:// references the
   agent could already read at its level. **/** lists the agent's own slash commands; Nendo never

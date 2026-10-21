@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentStatus, type AgentTranscriptEntry, type AgentTurn, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
+import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentSetting, type AgentStatus, type AgentTranscriptEntry, type AgentTurn, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
 
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
@@ -44,8 +44,10 @@ export class PreviewAgentSession {
     { name: 'compact', description: 'Summarise the conversation so far', hint: null },
     { name: 'init', description: 'Write a guide to this file for later sessions', hint: null },
   ];
+  /** What each agent's settings were kept as on this computer: the options it offered and the person's picks (ADR-0030). */
+  private kept = new Map<string, { options: AgentOption[]; picked: Map<string, string> }>();
   // The options Copilot CLI 1.0.93 offers, trimmed.
-  private options: AgentOption[] = [
+  private readonly defaultOptions: AgentOption[] = [
     { id: 'mode', name: 'Mode', description: null, category: 'mode', currentValue: 'agent', values: [
       { value: 'agent', name: 'Agent', description: null, group: null }, { value: 'plan', name: 'Plan', description: null, group: null },
       { value: 'autopilot', name: 'Autopilot', description: null, group: null }] },
@@ -59,7 +61,27 @@ export class PreviewAgentSession {
       { value: 'on', name: 'On', description: null, group: null }, { value: 'off', name: 'Off', description: null, group: null }] },
   ];
 
+  private options: AgentOption[] = structuredClone(this.defaultOptions);
+
   constructor(private readonly status: () => AgentStatus) {}
+
+  /** The person picked `value` for `configId` of `agentId`: kept, with the options it offers now. */
+  private keep(agentId: string, picks: Record<string, string>): void {
+    const kept = this.kept.get(agentId) ?? { options: structuredClone(this.options), picked: new Map<string, string>() };
+    for (const [id, value] of Object.entries(picks)) kept.picked.set(id, value);
+    this.kept.set(agentId, kept);
+  }
+
+  private settingsOf(agentId: string): AgentSetting[] | null {
+    const kept = this.kept.get(agentId);
+    if (kept === undefined) return null;
+    return kept.options.map((option) => {
+      const picked = kept.picked.get(option.id);
+      return { id: option.id, name: option.name, category: option.category,
+        value: picked !== undefined && option.values.some((value) => value.value === picked) ? picked : option.currentValue,
+        values: option.values.map(({ value, name, group }) => ({ value, name, group })) };
+    });
+  }
 
   onChanged(listener: (revision: number) => void): () => void {
     this.listeners.add(listener);
@@ -79,9 +101,12 @@ export class PreviewAgentSession {
       throw new WorkbenchHostError('agent-conversation-replaced', 'That conversation has been replaced by a new one. Nothing was sent.');
     switch (method) {
       case 'agentSession.list': return this.list();
-      case 'agentSession.setCommand':
-        this.customCommandLine = typeof payload.commandLine === 'string' && payload.commandLine.trim() !== '' ? payload.commandLine.trim() : null;
+      case 'agentSession.setCommand': {
+        const line = typeof payload.commandLine === 'string' && payload.commandLine.trim() !== '' ? payload.commandLine.trim() : null;
+        if (line !== this.customCommandLine) this.kept.delete('custom');
+        this.customCommandLine = line;
         return this.list();
+      }
       case 'agentSession.setHidden': {
         const agentId = String(payload.agentId ?? '');
         if (!['copilot', 'gemini', 'opencode', 'custom'].includes(agentId)) throw new WorkbenchHostError('validation', 'Choose one of the agents the Agent page offers.');
@@ -99,7 +124,8 @@ export class PreviewAgentSession {
       case 'agentSession.setStartIn':
         this.startInRepository = payload.repository === true;
         return this.list();
-      case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''));
+      case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''),
+        typeof payload.settings === 'object' && payload.settings !== null ? payload.settings as Record<string, string> : {});
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
       case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0),
         Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : [],
@@ -114,6 +140,10 @@ export class PreviewAgentSession {
         if (option === undefined || !option.values.some((value) => value.value === payload.value))
           throw new WorkbenchHostError('validation', 'The agent does not offer that.');
         option.currentValue = String(payload.value);
+        if (this.agent !== null) {
+          this.keep(this.agent.id, { [option.id]: option.currentValue });
+          this.kept.get(this.agent.id)!.options = structuredClone(this.options);
+        }
         this.touch();
         return this.read(Number(payload.after ?? 0));
       }
@@ -125,13 +155,13 @@ export class PreviewAgentSession {
   private list(): LaunchableAgents {
     const mode = this.status().mode;
     const npm = (id: string, name: string, commandLine: string, found: boolean, pkg: string): LaunchableAgent =>
-      ({ id, name, commandLine, found, package: pkg, installCommand: `npm install -g ${pkg}`, renamedFrom: null, updateCommand: null });
+      ({ id, name, commandLine, found, package: pkg, installCommand: `npm install -g ${pkg}`, renamedFrom: null, updateCommand: null, settings: this.settingsOf(id) });
     const agents: LaunchableAgent[] = [
       npm('copilot', 'GitHub Copilot CLI', 'copilot --acp', true, '@github/copilot'),
       npm('gemini', 'Gemini CLI', 'gemini --experimental-acp', false, '@google/gemini-cli'),
       npm('opencode', 'OpenCode', 'opencode acp', true, 'opencode-ai'),
       ...(this.customCommandLine === null ? [] : [{ id: 'custom', name: 'Your command', commandLine: this.customCommandLine, found: true,
-        package: null, installCommand: null, renamedFrom: null, updateCommand: null }]),
+        package: null, installCommand: null, renamedFrom: null, updateCommand: null, settings: this.settingsOf('custom') }]),
     ];
     const running = this.agent !== null && this.state !== 'ended'
       ? { agentId: this.agent.id, name: this.agent.name, state: this.state, working: this.working }
@@ -197,13 +227,25 @@ export class PreviewAgentSession {
     return this.read(after);
   }
 
-  private launch(agentId: string): LaunchedAgentView {
+  private launch(agentId: string, settings: Record<string, string> = {}): LaunchedAgentView {
     const offer = this.list();
     if (!offer.canLaunch) throw new WorkbenchHostError('agent-launch-unavailable', offer.reason ?? 'An agent cannot be launched now.');
     if (offer.running !== null)
       throw new WorkbenchHostError('agent-already-running', `${offer.running.name} is already running for this file. End it before launching another.`);
     const agent = offer.agents.find((candidate) => candidate.id === agentId && candidate.found);
     if (agent === undefined) throw new WorkbenchHostError('agent-not-found', 'That agent is not installed on this computer.');
+    const offered = this.settingsOf(agent.id) ?? [];
+    for (const [id, value] of Object.entries(settings))
+      if (!offered.some((setting) => setting.id === id && setting.values.some((candidate) => candidate.value === value)))
+        throw new WorkbenchHostError('validation', `Choose one of the values ${agent.name} offered for ${id}.`);
+    if (Object.keys(settings).length > 0) this.keep(agent.id, settings);
+    // Each start begins at the agent's own values, then takes the ones kept for it, before it is ready.
+    this.options = structuredClone(this.defaultOptions);
+    for (const [id, value] of this.kept.get(agent.id)?.picked ?? []) {
+      const option = this.options.find((candidate) => candidate.id === id);
+      if (option !== undefined && option.values.some((candidate) => candidate.value === value)) option.currentValue = value;
+    }
+    if (!this.kept.has(agent.id)) this.kept.set(agent.id, { options: structuredClone(this.defaultOptions), picked: new Map() });
     this.agent = agent;
     this.lastAgentId = agent.id;
     this.turns = new Map();

@@ -6,7 +6,9 @@ namespace Nendo.Desktop;
 /// <summary>
 /// An agent the Agent page offers, whether it was found on this computer, and what a person would
 /// run in a terminal to install it or, when it came from a renamed package, to move it to the one
-/// still updated. Nendo shows these commands and never runs them.
+/// still updated. Nendo shows these commands and never runs them. <c>Settings</c> are the ones
+/// kept for it on this device, which a view's launch card shows before it starts; null when its
+/// options were never kept here.
 /// </summary>
 internal sealed record DesktopLaunchableAgentView(
     string Id,
@@ -16,7 +18,8 @@ internal sealed record DesktopLaunchableAgentView(
     string? Package,
     string? InstallCommand,
     string? RenamedFrom,
-    string? UpdateCommand);
+    string? UpdateCommand,
+    IReadOnlyList<DesktopAgentSettingView>? Settings = null);
 
 /// <summary>The agent running for this file, as the Agent page names it.</summary>
 internal sealed record DesktopLaunchedAgentSummary(string AgentId, string Name, string State, bool Working);
@@ -119,6 +122,16 @@ internal sealed partial class DesktopSessionController
 
     private DesktopAgentLaunchStore AgentLaunch() => _agentLaunch ??= new DesktopAgentLaunchStore(_deviceStateRoot);
 
+    private DesktopAgentOptionsStore AgentPicks() => _agentPicks ??= new DesktopAgentOptionsStore(_deviceStateRoot);
+    private DesktopAgentOptionsStore? _agentPicks;
+
+    /// <summary>Keep for <paramref name="agentId"/> what the person picked, or what the agent offers; a device that cannot keep it still runs the agent.</summary>
+    private void KeepSettings(Action<DesktopAgentOptionsStore> keep)
+    {
+        try { keep(AgentPicks()); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or TimeoutException) { }
+    }
+
     /// <summary>Where each launched agent's empty working folder is made.</summary>
     private string AgentSessionsRoot => Path.Combine(_deviceStateRoot, "agent-sessions");
 
@@ -154,11 +167,15 @@ internal sealed partial class DesktopSessionController
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             RequireFileSession(fileSessionId);
+            var before = AgentLaunch().CommandLine;
             try { AgentLaunch().Save(commandLine); }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 throw new NendoPreconditionException("agent-command-not-saved", "Your command could not be kept on this computer.");
             }
+            // Another command may be another program, with other settings.
+            if (!string.Equals(before, AgentLaunch().CommandLine, StringComparison.Ordinal))
+                KeepSettings(store => store.Forget(DesktopAgentCatalog.CustomId));
             return DescribeLaunchableCore(catalog);
         }
         finally
@@ -256,7 +273,12 @@ internal sealed partial class DesktopSessionController
     /// Start <paramref name="agentId"/> for the open file, at the access level it is at now. The
     /// handshake runs on; the conversation tab reads how it went.
     /// </summary>
-    internal async Task<DesktopLaunchedAgentView> LaunchAgentAsync(string fileSessionId, string agentId, CancellationToken cancellationToken = default)
+    /// <param name="settings">
+    /// What the person picked on a view's launch card, by option ID: each one of the settings kept
+    /// for this agent, and a value it offered. Kept before the agent starts, and sent with the rest.
+    /// </param>
+    internal async Task<DesktopLaunchedAgentView> LaunchAgentAsync(string fileSessionId, string agentId, CancellationToken cancellationToken = default,
+        IReadOnlyDictionary<string, string>? settings = null)
     {
         var catalog = await CatalogAsync(AgentLaunch().CommandLine, cancellationToken);
         await EnterRequestGateAsync(cancellationToken);
@@ -272,6 +294,18 @@ internal sealed partial class DesktopSessionController
                     $"{running.Command.Name} is already running for this file. End it before launching another.");
             var command = catalog.Agents.FirstOrDefault(candidate => candidate.Id == agentId)
                 ?? throw new NendoValidationException("Choose one of the agents the Agent page offers.");
+            if (settings is { Count: > 0 })
+            {
+                var offered = AgentPicks().Settings(command.Id) ?? [];
+                foreach (var (optionId, value) in settings)
+                {
+                    var option = offered.FirstOrDefault(candidate => candidate.Id == optionId)
+                        ?? throw new NendoValidationException($"{command.Name} has no setting {optionId} kept on this computer.");
+                    if (!option.Values.Any(candidate => candidate.Value == value))
+                        throw new NendoValidationException($"Choose one of the values {command.Name} offered for {option.Name}.");
+                }
+                KeepSettings(store => store.Pick(command.Id, settings));
+            }
             var endpoint = _agentHost!.Endpoint;
             var previous = _launched;
             _launched = null;
@@ -283,7 +317,9 @@ internal sealed partial class DesktopSessionController
             }
             // The file's repository when the person chose it for this file; otherwise an empty folder.
             var repository = _currentPath is { } path && AgentLaunch().StartsInRepository(path) ? RepositoryFolderOf(path) : null;
-            var agent = DesktopLaunchedAgent.Launch(command, endpoint, AgentSessionsRoot, NendoProduct.Version, catalog.Environment, repository);
+            var kept = AgentPicks().For(command.Id)?.Picked;
+            var agent = DesktopLaunchedAgent.Launch(command, endpoint, AgentSessionsRoot, NendoProduct.Version, catalog.Environment, repository,
+                new DesktopLaunchedAgent.AgentSettings(kept, options => KeepSettings(store => store.Offered(command.Id, options))));
             agent.Changed += revision =>
             {
                 // A conversation that has since been replaced, or whose file has closed, is not news.
@@ -366,6 +402,8 @@ internal sealed partial class DesktopSessionController
     {
         var agent = RequireLaunched(fileSessionId, conversationId);
         await agent.Conversation.SetOptionAsync(optionId, value, cancellationToken);
+        // The person's pick, kept for this agent's next start (ADR-0030).
+        KeepSettings(store => store.Pick(agent.Command.Id, new Dictionary<string, string> { [optionId] = value }));
         return ReadLaunchedCore(agent, after);
     }
 
@@ -450,7 +488,7 @@ internal sealed partial class DesktopSessionController
         var custom = AgentLaunch().CommandLine;
         var agents = catalog.Agents
             .Select(agent => new DesktopLaunchableAgentView(agent.Id, agent.Name, agent.CommandLine, agent.ResolvedPath is not null,
-                agent.Package, agent.InstallCommand, agent.RenamedFrom, agent.UpdateCommand))
+                agent.Package, agent.InstallCommand, agent.RenamedFrom, agent.UpdateCommand, KeptSettings(agent.Id)))
             .ToArray();
         var running = _launched is { HasEnded: false } agent
             ? new DesktopLaunchedAgentSummary(agent.Command.Id, agent.Command.Name, agent.Conversation.State, agent.Conversation.Working)
@@ -459,6 +497,12 @@ internal sealed partial class DesktopSessionController
         var path = _currentPath;
         return new DesktopLaunchableAgents(LaunchRefusal() is null, LaunchRefusal(), agents, custom, running, choices.Hidden, choices.LastAgentId, choices.ViewAccess,
             path is not null && choices.StartsInRepository(path), path is null ? null : RepositoryFolderOf(path));
+    }
+
+    private IReadOnlyList<DesktopAgentSettingView>? KeptSettings(string agentId)
+    {
+        try { return AgentPicks().Settings(agentId); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>Why an agent cannot be launched now, or null when it can.</summary>

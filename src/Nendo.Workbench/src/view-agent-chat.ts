@@ -205,11 +205,11 @@ export function agentChatTitle(): string {
  * stays in the view. The conversation is followed as any other, and its tab opens from a notice
  * or the Agent page. Throws the host's refusal.
  */
-export async function launchAgentForView(agentId: string): Promise<void> {
+export async function launchAgentForView(agentId: string, settings: Record<string, string> = {}): Promise<void> {
   if (launching) throw new Error('An agent is already being launched.');
   launching = true;
   try {
-    const view = await client.request<LaunchedAgentView>('agentSession.launch', { agentId });
+    const view = await client.request<LaunchedAgentView>('agentSession.launch', { agentId, ...(Object.keys(settings).length === 0 ? {} : { settings }) });
     launches += 1;
     expanded.clear();
     drawn.clear();

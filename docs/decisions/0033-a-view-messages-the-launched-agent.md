@@ -47,8 +47,13 @@ request, and never reads the rest of the transcript.
   offers to launch an agent. It lists every agent installed and shown, in the Agent page's order,
   with the one last launched here selected (or the first, when that one is gone or hidden), and the
   person may pick another before launching. The view's message names no agent and the view never
-  learns which was offered. Launching from the card counts as consent for that view; the message
-  waits until the agent is ready, and sign-in happens in the tab. Not now refuses.
+  learns which was offered. Under the agents, the card shows the chosen agent's settings as
+  pickers, built from the options it offered when it last ran here and set to the values kept
+  for it (ADR-0030); what the person picks there is kept and sent before the agent is ready. An
+  agent that has never run here has no settings to show: the card launches it, and once it is
+  ready a second card shows its own settings, set as the person picks, and sends the message only
+  on Send. Launching from the card counts as consent for that view; the message waits until the
+  agent is ready, and sign-in happens in the tab. Not now refuses.
 - Agent running, setting Ask, the view's first message in this conversation: a card asks whether
   the view may message the agent. Allow holds until the conversation ends; nothing is stored.
 - Launch not possible (access Off, read-only, recovery) or no agent installed: a card says why and
@@ -69,9 +74,9 @@ go to the person in the tab as always; while they are elsewhere a notice says th
 opens the tab. The view's results reach it through the file: the agent writes records over MCP at the
 person's level, and the view hears `changes`. The reply text is a convenience beside that.
 
-**The agent's settings live on the Agent page.** Model, effort, mode and any other option the
-agent offers are shown and set on the Agent page while it runs; the conversation tab shows none. A
-view has no way to read or set them.
+**The agent's settings are the person's.** Model, effort, mode and any other option the agent
+offers are shown and set on the Agent page while it runs, and on a view's launch card before it
+starts; the conversation tab shows none. A view has no way to read or set them.
 
 **Unchanged.** ADR-0009's levels, leases and change-set gate apply to whatever the agent does; a view
 still writes only as its own package; the kill switch (`views-off`) stops `assistant.*` with every
@@ -102,6 +107,10 @@ other method.
 - **The card launches the agent last launched, with no choice:** a person with two agents
   installed had to leave for the Agent page to use the other.
 - **The view names the agent:** the agent is the person's program, chosen by the person.
+- **Launching first and asking for the settings before every view's message:** an extra card
+  each time; it is kept only for an agent whose settings Nendo has never seen.
+- **Settings in the agent's command line:** only some agents take such flags, each spelled its
+  own way.
 - **Model or effort per message:** the agent's settings are the person's, set in one place.
 - **Consent kept on the device per package:** a stored grant outlives the conversation the person
   looked at; the Always setting covers the person who wants no cards.

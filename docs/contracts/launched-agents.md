@@ -56,11 +56,15 @@ a `.cmd` of at most 16 KiB) starts a renamed package carries `renamedFrom` and
 
 ```text
 { canLaunch, reason,
-  agents: [{ id, name, commandLine, found, package, installCommand, renamedFrom, updateCommand }],
+  agents: [{ id, name, commandLine, found, package, installCommand, renamedFrom, updateCommand, settings }],
   customCommandLine, running, hidden, lastAgentId, viewAccess, startInRepository, repositoryFolder }
 ```
 
 `found` is whether the program is on `PATH`. The package fields are null for `custom`.
+`settings` is null for an agent that has not been ready on this device; otherwise it is
+`[{ id, name, category, value, values: [{ value, name, group }] }]`, the `select` options the
+agent offered when it was last ready or last had one set, each with `value` the one the person
+last picked, or else the one the agent stated then (`DesktopAgentOptionsStore`).
 `running` is `{ agentId, name, state, working }` for an agent that has not ended, else null.
 `hidden` lists the agents hidden on this device (`custom` included); a hidden agent is still
 in `agents` so it can be shown again (`host-types.ts`, `LaunchableAgents`). `lastAgentId` is
@@ -95,11 +99,11 @@ restart with every launch.
 | Method | Payload | Answer and refusals |
 | --- | --- | --- |
 | `agentSession.list` | none | The list above. |
-| `agentSession.setCommand` | `commandLine`, at most 1,000 characters; empty or absent forgets it | The list. `agent-command-not-saved` when the device could not keep it. |
+| `agentSession.setCommand` | `commandLine`, at most 1,000 characters; empty or absent forgets it | The list. `agent-command-not-saved` when the device could not keep it. A changed command forgets the settings kept for `custom`. |
 | `agentSession.setHidden` | `agentId` (at most 40), `hidden` | The list. An unknown ID is a validation refusal; `agent-choice-not-saved` when the device could not keep it. The file is not written. |
 | `agentSession.setViewAccess` | `access`: `never`, `ask` or `always` | The list. Anything else is a validation refusal; `agent-choice-not-saved` when the device could not keep it. |
 | `agentSession.setStartIn` | `repository`: true or false | The list. Start this file's agent in its repository, or in an empty folder again, from the next launch; `agent-choice-not-saved` when the device could not keep it. |
-| `agentSession.launch` | `agentId` (at most 40) | The conversation at `starting`; the handshake runs on. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), `agent-folder-missing` (the repository chosen is gone), or a validation refusal. |
+| `agentSession.launch` | `agentId` (at most 40), optional `settings`: at most 16 `configId: value` pairs (at most 200 and 300 characters), each one of that agent's kept `settings` and a value it offered | The conversation at `starting`; the handshake runs on. `settings` are kept as the person's picks before the agent starts. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), `agent-folder-missing` (the repository chosen is gone), or a validation refusal. |
 | `agentSession.read` | `after` | The conversation, or `exists: false`. |
 | `agentSession.prompt` | `text`, `after`, optional `context`, optional `from` (a custom view's title, at most 120) | Below, with `turnId`. `agent-not-ready` (starting, signing in or ended); `agent-working` for the person's message during a turn, or a view's past the queue's bound; `assistant-off` for a view's message while views are Never. |
 | `agentSession.turn` | `turnId` (at most 40) | `{ turnId, done, reply, stopReason }`. `agent-turn-gone` once it is no longer kept. |
@@ -248,6 +252,16 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   from the open list or leaving the list sets it, and More stays open while stepping through.
   An agent that sends `modes` or `models` instead has them shown as Mode and Model and set
   with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`).
+- **Kept settings.** Each value the person sets, on the Agent page or a view's launch card, is
+  kept for that agent on this device in `agent-options.json` under the device state (at most
+  256 KiB, written under the device state lock), with the options the agent offered when it was
+  last ready or last had one set. When the agent next starts, after `session/new` and before the
+  conversation is `ready`, the host sends each kept value the agent still offers and does not
+  already hold, one at a time, each bounded at 30 seconds. A value it no longer offers is not
+  sent; one it refuses or does not answer leaves a notice entry naming the option, and the
+  conversation becomes `ready` all the same. A kept list that would pass the bound drops the
+  other agents' option lists first, then this one's; the picks stay. An unknown agent ID is
+  dropped on read.
 
 ## Lifetime
 
@@ -301,9 +315,11 @@ what Nendo grants, not for what the person's own program can do on this computer
 - [`DesktopLaunchedAgentTests`](../../tests/Nendo.Desktop.Tests/DesktopLaunchedAgentTests.cs)
   against a stand-in agent that records what it was told
   (`tests/Nendo.Desktop.Tests/TestFixtures/fake-acp-agent.mjs`), a view's turns and the queue
-  among them, and an agent started in the file's repository, which ending it leaves whole.
+  among them, an agent started in the file's repository, which ending it leaves whole, and
+  settings kept per agent and sent before it is next ready.
 - [`WorkbenchAgentSessionProtocolTests`](../../tests/Nendo.Desktop.Tests/WorkbenchAgentSessionProtocolTests.cs):
-  the bridge methods, their refusals, off-UI-thread dispatch and device-only hiding.
+  the bridge methods, their refusals, off-UI-thread dispatch, device-only hiding and a launch's
+  malformed settings.
 - The Workbench node tests `assistant-model.test.mjs`, `agent-chat.test.mjs`, `agent-context.test.mjs`,
   `agent-launch.test.mjs`, `navigation-trail.test.mjs` and `preview-agent-session.test.mjs`
   in `src/Nendo.Workbench/scripts/`.

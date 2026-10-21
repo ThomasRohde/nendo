@@ -657,6 +657,46 @@ public sealed class DesktopLaunchedAgentTests
         Assert.AreEqual("high", switched.Options.Single(option => option.Id == "reasoning_effort").CurrentValue);
     }
 
+    /// <summary>
+    /// A value the person sets is kept for that agent on this device and is the agent's before
+    /// it is next ready, so a view's message launched into it runs with it; the list names the
+    /// kept settings for a launch card, a card's picks are kept and sent the same way, a value the
+    /// agent never offered is refused, and another command forgets what was kept.
+    /// </summary>
+    [TestMethod]
+    public async Task APickedSettingIsKeptAndTheAgentsBeforeItIsNextReady()
+    {
+        await using var fixture = await Fixture.StartAsync("editData", "--config");
+        Assert.IsNull((await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId)).Agents.Single(agent => agent.Id == "custom").Settings,
+            "An agent that never ran here had settings to show.");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var offered = (await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId)).Agents.Single(agent => agent.Id == "custom").Settings;
+        Assert.IsNotNull(offered, "The options the agent offered were not kept for a launch card.");
+        CollectionAssert.AreEqual(new[] { "mode", "model", "reasoning_effort", "allow_all" }, offered.Select(setting => setting.Id).ToArray());
+        await fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "reasoning_effort", "high", 0);
+        await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0);
+
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.AreEqual("high", ready.Options.Single(option => option.Id == "reasoning_effort").CurrentValue,
+            "The value the person set last time was not the agent's when it was ready.");
+        Assert.AreEqual("high", (await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId)).Agents.Single(agent => agent.Id == "custom")
+            .Settings!.Single(setting => setting.Id == "reasoning_effort").Value, "The launch card would not show the kept value.");
+        await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0);
+
+        await Assert.ThrowsExactlyAsync<NendoValidationException>(() => fixture.Controller.LaunchAgentAsync(fixture.FileSessionId, DesktopAgentCatalog.CustomId,
+            settings: new Dictionary<string, string> { ["model"] = "gone" }));
+        await fixture.Controller.LaunchAgentAsync(fixture.FileSessionId, DesktopAgentCatalog.CustomId, settings: new Dictionary<string, string> { ["mode"] = "plan" });
+        var picked = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.AreEqual("plan", picked.Options.Single(option => option.Id == "mode").CurrentValue, "The launch card's pick was not the agent's when it was ready.");
+        Assert.AreEqual("high", picked.Options.Single(option => option.Id == "reasoning_effort").CurrentValue, "A card's pick dropped what was kept before.");
+        await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0);
+
+        await fixture.Controller.SetAgentCommandAsync(fixture.FileSessionId, fixture.Command + " --another");
+        Assert.IsNull(new DesktopAgentOptionsStore(fixture.DeviceRoot).For(DesktopAgentCatalog.CustomId), "Another command kept the settings of the one before.");
+    }
+
     /// <summary>An older agent's modes and models (OpenCode 1.1) are shown as Mode and Model and set by their own methods.</summary>
     [TestMethod]
     public async Task AnOlderAgentsModesAndModelsAreShownAndSetByTheirOwnMethods()

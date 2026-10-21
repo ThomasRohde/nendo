@@ -7,7 +7,7 @@ import { bundleOf } from './bundle-of.mjs';
 // card lists every agent installed and shown, the one last launched selected while it is still
 // among them; Ask asks once per conversation; a running turn is no refusal, since the host keeps
 // the message.
-const { agentsToOffer, assistantStatus, conversationKey, messagePreview, nextAskStep } = await bundleOf('src/assistant-model.ts');
+const { agentsToOffer, assistantStatus, changedSettings, conversationKey, messagePreview, nextAskStep } = await bundleOf('src/assistant-model.ts');
 
 const agent = (id, found = true) => ({ id, name: id.toUpperCase(), commandLine: id, found, package: null, installCommand: null, renamedFrom: null, updateCommand: null });
 const offer = (fields = {}) => ({ canLaunch: true, reason: null, agents: [agent('copilot'), agent('gemini', false), agent('claude')], customCommandLine: null, running: null, hidden: [], lastAgentId: null, viewAccess: 'ask', ...fields });
@@ -21,7 +21,7 @@ test('Never refuses before anything else, without a card', () => {
 });
 
 test('with none running, a launch is offered, or why it cannot be', () => {
-  const listed = [{ id: 'copilot', name: 'COPILOT' }, { id: 'claude', name: 'CLAUDE' }];
+  const listed = [{ id: 'copilot', name: 'COPILOT', settings: null }, { id: 'claude', name: 'CLAUDE', settings: null }];
   assert.deepEqual(nextAskStep(facts({ conversation: none })), { kind: 'launch', agents: listed, selectedId: 'copilot' });
   assert.deepEqual(nextAskStep(facts({ conversation: { ...ready, state: 'ended' }, launchable: offer({ lastAgentId: 'claude' }) })),
     { kind: 'launch', agents: listed, selectedId: 'claude' }, 'The card did not list every installed agent with the last one launched selected.');
@@ -37,6 +37,25 @@ test('the card lists the agents installed and shown, the last one launched selec
   const hiding = agentsToOffer(offer({ lastAgentId: 'claude', hidden: ['claude'] }));
   assert.deepEqual([hiding.agents.map((listed) => listed.id), hiding.selectedId], [['copilot'], 'copilot'], 'A hidden agent was listed or selected.');
   assert.equal(agentsToOffer(offer({ agents: [agent('gemini', false)] })), null);
+});
+
+const effort = { id: 'effort', name: 'Effort', category: 'thought_level', value: 'medium',
+  values: [{ value: 'low', name: 'Low', group: null }, { value: 'medium', name: 'Medium', group: null }, { value: 'high', name: 'High', group: null }] };
+
+test("the card carries each agent's kept settings, and launches with only what the person changed", () => {
+  const kept = offer({ agents: [{ ...agent('copilot'), settings: [effort] }, { ...agent('claude'), settings: [] }] });
+  assert.deepEqual(agentsToOffer(kept).agents.map((listed) => listed.settings), [[effort], null], 'The kept settings were not offered, or an empty list counted as kept.');
+  assert.deepEqual(changedSettings([effort], new Map([['effort', 'high']])), { effort: 'high' });
+  assert.deepEqual(changedSettings([effort], new Map([['effort', 'medium']])), {}, 'A kept value left as it was was sent as a pick.');
+  assert.deepEqual(changedSettings([effort], new Map([['effort', 'max'], ['mode', 'plan']])), {}, 'A value or setting the agent never offered was sent.');
+  assert.deepEqual(changedSettings(null, new Map([['effort', 'high']])), {});
+});
+
+test('an agent launched with no kept settings shows its own before the message goes, once ready', () => {
+  assert.equal(nextAskStep(facts({ conversation: { ...ready, state: 'starting' }, settingsFor: 'c1', allowedFor: 'c1' })).kind, 'wait');
+  assert.deepEqual(nextAskStep(facts({ settingsFor: 'c1', allowedFor: 'c1' })), { kind: 'settings', conversationId: 'c1', agentName: 'Claude' },
+    "The message went before the person saw the new agent's settings.");
+  assert.deepEqual(nextAskStep(facts({ settingsFor: 'c0', allowedFor: 'c1' })), { kind: 'send', conversationId: 'c1' });
 });
 
 test('starting or signing in waits; Ask asks once per conversation; Always does not ask', () => {

@@ -53,7 +53,8 @@ internal sealed partial class WorkbenchProtocolHandler
                 RequiredString(payload, "access", 20), cancellationToken),
             WorkbenchMethods.AgentSessionSetStartIn => await _session.SetAgentStartInRepositoryAsync(fileSessionId,
                 RequiredBoolean(payload, "repository"), cancellationToken),
-            WorkbenchMethods.AgentSessionLaunch => await _session.LaunchAgentAsync(fileSessionId, RequiredString(payload, "agentId", 40), cancellationToken),
+            WorkbenchMethods.AgentSessionLaunch => await _session.LaunchAgentAsync(fileSessionId, RequiredString(payload, "agentId", 40), cancellationToken,
+                LaunchSettings(payload)),
             WorkbenchMethods.AgentSessionTurn => _session.ReadLaunchedAgentTurn(fileSessionId, RequiredString(payload, "turnId", 40), conversation),
             WorkbenchMethods.AgentSessionRead => _session.ReadLaunchedAgent(fileSessionId, after),
             WorkbenchMethods.AgentSessionPrompt => _session.PromptLaunchedAgent(fileSessionId,
@@ -90,6 +91,28 @@ internal sealed partial class WorkbenchProtocolHandler
                 OptionalString(item, "title", AgentConversation.MaximumContextTitleCharacters) ?? string.Empty,
                 OptionalString(item, "text", AgentConversation.MaximumContextTextCharacters) ?? string.Empty)
             : throw new NendoValidationException("Each thing a message points at is an object with uri, title and text.")).ToArray();
+    }
+
+    /// <summary>
+    /// The settings a view's launch card picked: an object of at most 16 option IDs to values, or
+    /// none. Whether each is one the agent offered is the launch's to check.
+    /// </summary>
+    private static IReadOnlyDictionary<string, string>? LaunchSettings(JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("settings", out var settings) || settings.ValueKind == JsonValueKind.Null)
+            return null;
+        if (settings.ValueKind != JsonValueKind.Object) throw new NendoValidationException("Request property settings must be an object.");
+        var picked = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var setting in settings.EnumerateObject())
+        {
+            if (picked.Count == AgentConversation.MaximumOptions)
+                throw new NendoValidationException($"A launch sets {AgentConversation.MaximumOptions} settings at most.");
+            if (setting.Name.Length is 0 or > 200) throw new NendoValidationException("A setting's ID is 1 to 200 characters.");
+            if (setting.Value.ValueKind != JsonValueKind.String || setting.Value.GetString() is not { Length: > 0 and <= 300 } value)
+                throw new NendoValidationException("A setting's value is text of 1 to 300 characters.");
+            picked[setting.Name] = value;
+        }
+        return picked;
     }
 
     private static long OptionalInt64(JsonElement payload, string name) =>

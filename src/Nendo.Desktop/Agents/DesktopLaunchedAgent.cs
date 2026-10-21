@@ -20,17 +20,28 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     private readonly bool _ownsFolder;
     private int _ended;
 
+    /// <summary>
+    /// The person's kept values for this agent, sent before it is ready, and where the options it
+    /// offers go to be kept (ADR-0030).
+    /// </summary>
+    internal sealed record AgentSettings(IReadOnlyDictionary<string, string>? Kept, Action<IReadOnlyList<AgentOptionView>>? Offered);
+
     /// <summary>The folders of the agents this process runs now, which a sweep never takes.</summary>
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> LiveFolders = new(StringComparer.OrdinalIgnoreCase);
 
-    private DesktopLaunchedAgent(DesktopAgentCommand command, Uri endpoint, string workingDirectory, AgentProcess process, bool ownsFolder)
+    private DesktopLaunchedAgent(DesktopAgentCommand command, Uri endpoint, string workingDirectory, AgentProcess process, bool ownsFolder,
+        AgentSettings settings)
     {
         Command = command;
         Endpoint = endpoint;
         WorkingDirectory = workingDirectory;
         _ownsFolder = ownsFolder;
         _process = process;
-        _conversation = new AgentConversation(process.StandardOutput, process.StandardInput, command.Name);
+        _conversation = new AgentConversation(process.StandardOutput, process.StandardInput, command.Name)
+        {
+            Kept = settings.Kept ?? new Dictionary<string, string>(),
+            OptionsOffered = settings.Offered,
+        };
         _conversation.Changed += revision => Changed?.Invoke(revision);
     }
 
@@ -69,7 +80,7 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
     /// not installed or Windows cannot start it.
     /// </summary>
     internal static DesktopLaunchedAgent Launch(DesktopAgentCommand command, Uri endpoint, string sessionsRoot, string clientVersion,
-        IReadOnlyDictionary<string, string>? environment = null, string? repository = null)
+        IReadOnlyDictionary<string, string>? environment = null, string? repository = null, AgentSettings? settings = null)
     {
         if (command.ResolvedPath is null)
             throw new NendoPreconditionException("agent-not-found", $"{command.Name} is not installed on this computer: {command.Program} was not found.");
@@ -96,7 +107,7 @@ internal sealed class DesktopLaunchedAgent : IAsyncDisposable
             if (owns) RemoveFolder(folder);
             throw new NendoPreconditionException("agent-start-failed", $"{command.Name} could not start: {exception.Message}");
         }
-        var agent = new DesktopLaunchedAgent(command, endpoint, folder, process, owns);
+        var agent = new DesktopLaunchedAgent(command, endpoint, folder, process, owns, settings ?? new AgentSettings(null, null));
         agent.Started = agent._conversation.StartAsync(endpoint, folder, clientVersion, agent._stop.Token);
         _ = agent.WatchAsync();
         return agent;

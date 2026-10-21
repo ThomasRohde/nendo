@@ -216,9 +216,19 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             lock (_sync)
             {
                 _sessionId = sessionId;
+                // Starting, not ready, while the person's kept settings go to the agent.
+                if (_state == "signIn") _state = "starting";
+                ReadOptions(session);
+            }
+            await SendKeptAsync(sessionId);
+            // Kept before Ready, so a launch card read once the agent is ready already shows them.
+            IReadOnlyList<AgentOptionView> options;
+            lock (_sync) options = _options;
+            Offered(options);
+            lock (_sync)
+            {
                 if (_state != "ended") _state = "ready";
                 _notice = null;
-                ReadOptions(session);
             }
             Raise(Touch());
         }

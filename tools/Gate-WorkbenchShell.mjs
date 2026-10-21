@@ -859,11 +859,17 @@ async page => {
 
   // ADR-0033: a custom view messages the launched agent through the real module the broker
   // uses. Nendo's own card lists the installed agents, the last one launched selected, and
-  // launches the one the person picks; the message waits for the agent to be ready,
+  // launches the one the person picks. One never run here shows its settings once ready and
+  // sends on Send; the next card shows what was kept and launches with what is picked there.
+  // The message waits for the agent to be ready,
   // the reply is the turn's own, two messages at once are answered in turn rather than one
   // refused, and Never refuses without a card.
   await check('a view messages the agent', 'idea', async () => {
     await agentPage('activity');
+    await page.evaluate(() => {
+      window.__chatEffort = () => window.__chat?.options.find((option) => option.id === 'reasoning_effort')?.currentValue;
+      void import('/src/view-agent-chat.ts').then((module) => { window.__chatModule = module; Object.defineProperty(window, '__chat', { get: () => module.agentChatNow(), configurable: true }); });
+    });
     await page.click('[data-agent-mode="shapeApp"]');
     await until(() => document.querySelector('[data-agent-mode="shapeApp"]')?.getAttribute('aria-pressed') === 'true', null, 'Shape app');
     const problems = [];
@@ -884,10 +890,20 @@ async page => {
     await page.click('dialog[open] [data-assistant-agent="opencode"]');
     const label = await page.evaluate(() => document.querySelector('dialog[open] [data-confirm]')?.textContent ?? null);
     if (label !== 'Launch OpenCode') problems.push(`after picking OpenCode the button said ${JSON.stringify(label)}`);
+    const unseen = await page.evaluate(() => ({ selects: document.querySelectorAll('dialog[open] [data-assistant-setting]').length,
+      note: document.querySelector('dialog[open] .assistant-card-note') !== null }));
+    if (unseen.selects !== 0 || !unseen.note) problems.push(`an agent never run here had settings on the launch card: ${JSON.stringify(unseen)}`);
     await page.click('dialog[open] [data-confirm]');
-    await until(() => document.querySelector('dialog[open]') === null, null, 'the launch card to close');
+    // Never run here: once ready, its own settings, and nothing is sent until Send.
+    await until(() => document.querySelector('dialog[open] [data-confirm]')?.textContent === 'Send', null, 'the settings card', 8000);
     const launched = await page.evaluate(() => import('/src/view-agent-chat.ts').then((module) => module.agentChatNow().name));
     if (launched !== 'OpenCode') problems.push(`the card launched ${JSON.stringify(launched)}, not the agent picked`);
+    const early = await page.evaluate(() => import('/src/view-agent-chat.ts').then((module) =>
+      [...module.agentChatNow().entries.values()].filter((entry) => entry.kind === 'you').length));
+    if (early !== 0) problems.push(`the message went before Send: ${early} sent`);
+    await page.selectOption('dialog[open] [data-assistant-setting="reasoning_effort"]', 'high');
+    await until(() => window.__chatEffort?.() === 'high', null, 'the effort set on the agent');
+    await page.click('dialog[open] [data-confirm]');
     await until(() => window.__answers.length === 1, null, 'the reply', 8000);
     const first = await page.evaluate(() => window.__answers[0]);
     if (first.stopReason !== 'end_turn' || !String(first.reply).includes('Count the ideas')) problems.push(`the first reply was ${JSON.stringify(first)}`);
@@ -900,12 +916,27 @@ async page => {
     const marked = await page.evaluate(() => import('/src/view-agent-chat.ts').then((module) =>
       [...module.agentChatNow().entries.values()].filter((entry) => entry.kind === 'you').map((entry) => entry.from)));
     if (marked.length !== 3 || marked.some((from) => from !== 'Lens')) problems.push(`the transcript marked the view's messages ${JSON.stringify(marked)}`);
+    // The next card shows what was kept for OpenCode, and launches with what is picked on it.
+    await page.evaluate(() => import('/src/client.ts').then((module) => module.client.request('agentSession.end', { after: 0 })).then(() => window.__chatModule.followAgentChat()));
+    await until(() => window.__chat?.state === 'ended', null, 'the conversation to end');
+    // Not awaited: the answer waits for the card this check presses.
+    await page.evaluate(() => { window.__ask('again', 'Count them again'); });
+    await until(() => document.querySelector('dialog[open] [data-confirm]')?.textContent === 'Launch OpenCode', null, 'the second launch card');
+    const kept = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('dialog[open] [data-assistant-setting]')].map((select) => [select.dataset.assistantSetting, select.value])));
+    if (kept.reasoning_effort !== 'high' || kept.mode !== 'agent') problems.push(`the second launch card showed ${JSON.stringify(kept)}, not the kept settings`);
+    await page.selectOption('dialog[open] [data-assistant-setting="mode"]', 'plan');
+    await page.click('dialog[open] [data-confirm]');
+    await until(() => window.__answers.length === 4, null, 'the reply after relaunch', 8000);
+    const relaunched = await page.evaluate(() => ({ mode: window.__chat.options.find((option) => option.id === 'mode')?.currentValue, effort: window.__chatEffort(),
+      reply: window.__answers[3] }));
+    if (relaunched.mode !== 'plan' || relaunched.effort !== 'high' || relaunched.reply.stopReason !== 'end_turn')
+      problems.push(`relaunched from the card the agent was ${JSON.stringify(relaunched)}, not with the kept effort and the mode picked`);
     await page.click('[data-agent-tab="launch"]');
     await page.click('[data-view-access="never"]');
     await until(() => document.querySelector('[data-view-access="never"]')?.getAttribute('aria-pressed') === 'true', null, 'Never');
     await page.evaluate(() => window.__ask('never', 'Not allowed'));
-    await until(() => window.__answers.length === 4, null, 'the refusal');
-    const refused = await page.evaluate(() => ({ answer: window.__answers[3], card: document.querySelector('dialog[open]') !== null }));
+    await until(() => window.__answers.length === 5, null, 'the refusal');
+    const refused = await page.evaluate(() => ({ answer: window.__answers[4], card: document.querySelector('dialog[open]') !== null }));
     if (refused.answer.error !== 'assistant-off' || refused.card) problems.push(`at Never a view's message got ${JSON.stringify(refused)}`);
     assert(problems.length === 0, problems.join('; ') + '.');
   });

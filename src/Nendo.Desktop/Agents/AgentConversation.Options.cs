@@ -44,6 +44,58 @@ internal sealed partial class AgentConversation
     private bool _legacyOptions;
 
     /// <summary>
+    /// The values the person picked for this agent before, by option ID, sent once the session
+    /// opens and before it is ready (ADR-0030). Set before <see cref="StartAsync"/>.
+    /// </summary>
+    internal IReadOnlyDictionary<string, string> Kept { get; init; } = new Dictionary<string, string>();
+
+    /// <summary>
+    /// The options the agent offers, once the session is ready and after each one the person sets,
+    /// for the device to keep. Raised outside every lock; a listener's failure is not the conversation's.
+    /// </summary>
+    internal Action<IReadOnlyList<AgentOptionView>>? OptionsOffered { get; init; }
+
+    private void Offered(IReadOnlyList<AgentOptionView> options)
+    {
+        if (options.Count == 0) return;
+        try { OptionsOffered?.Invoke(options); }
+        catch (Exception) { /* Keeping them is a convenience; the conversation goes on. */ }
+    }
+
+    /// <summary>
+    /// Send each kept value the agent still offers and does not hold already, in the agent's order
+    /// of its options, since one may change what another offers. A value it no longer offers is
+    /// not sent; one it refuses leaves a notice, and the session opens all the same.
+    /// </summary>
+    private async Task SendKeptAsync(string sessionId)
+    {
+        if (Kept.Count == 0) return;
+        string[] order;
+        lock (_sync) order = _options.Select(option => option.Id).ToArray();
+        foreach (var optionId in order)
+        {
+            if (!Kept.TryGetValue(optionId, out var value)) continue;
+            AgentOptionView? option;
+            bool legacy;
+            lock (_sync)
+            {
+                if (_state == "ended") return;
+                option = _options.FirstOrDefault(candidate => candidate.Id == optionId);
+                legacy = _legacyOptions;
+            }
+            if (option is null || option.CurrentValue == value || !option.Values.Any(candidate => candidate.Value == value)) continue;
+            try
+            {
+                await SendOptionAsync(sessionId, option, value, legacy, CancellationToken.None);
+            }
+            catch (NendoPreconditionException exception)
+            {
+                lock (_sync) Add("notice", $"{exception.Message} It keeps its own {option.Name}.");
+            }
+        }
+    }
+
+    /// <summary>
     /// The names agents give this file's MCP tools: <c>nendo-nendo-read-resource</c>,
     /// <c>mcp__nendo__nendo.lease.acquire</c>, <c>nendo.read.resource</c>. A server prefix counts
     /// only when it is this session's server, <see cref="McpServerName"/>: every Nendo file's
@@ -207,6 +259,21 @@ internal sealed partial class AgentConversation
             sessionId = _sessionId;
             legacy = _legacyOptions;
         }
+        await SendOptionAsync(sessionId, option, value, legacy, cancellationToken);
+        long revision;
+        IReadOnlyList<AgentOptionView> options;
+        lock (_sync)
+        {
+            revision = Touch();
+            options = _options;
+        }
+        Raise(revision);
+        Offered(options);
+    }
+
+    private async Task SendOptionAsync(string sessionId, AgentOptionView option, string value, bool legacy, CancellationToken cancellationToken)
+    {
+        var optionId = option.Id;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _ending.Token);
         timeout.CancelAfter(OptionTimeout);
         try
@@ -242,8 +309,5 @@ internal sealed partial class AgentConversation
         {
             throw new NendoPreconditionException("agent-option-refused", exception.Message);
         }
-        long revision;
-        lock (_sync) revision = Touch();
-        Raise(revision);
     }
 }
