@@ -162,7 +162,7 @@ async function editCell(entity, record, value) {
 
 async function enableMcp() {
   await click('#nav-agent'); await ready(); await click('[data-agent-mode="shapeApp"]'); await ready();
-  const discoveryRoot = path.join(output,'device-state','discovery');
+  const discoveryRoot = path.join(output,'device-state','Mcp','active');
   const discovery = await waitFor(async()=>{
     let names;try{names=await fs.readdir(discoveryRoot);}catch{return null;}
     const found=[];

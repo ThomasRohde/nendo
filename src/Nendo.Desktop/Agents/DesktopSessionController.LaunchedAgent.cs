@@ -133,7 +133,7 @@ internal sealed partial class DesktopSessionController
     }
 
     /// <summary>Where each launched agent's empty working folder is made.</summary>
-    private string AgentSessionsRoot => Path.Combine(_deviceStateRoot, "agent-sessions");
+    private string AgentSessionsRoot => DesktopDeviceStateLayout.AgentSessions(_deviceStateRoot);
 
     /// <summary>The agent running for this file, for the tests.</summary>
     internal DesktopLaunchedAgent? LaunchedAgent => _launched;

@@ -20,7 +20,7 @@ internal sealed class DesktopShellStore
 {
     private const int MaximumBytes = 4096;
     private readonly string _root;
-    private string StatePath => Path.Combine(_root, "shell.json");
+    private string StatePath => Path.Combine(_root, "tray.json");
 
     /// <summary>"tray" or "exit". Tray is the default: an agent's work outlives the window.</summary>
     internal string CloseAction { get; private set; } = "tray";
@@ -47,7 +47,7 @@ internal sealed class DesktopShellStore
 
     internal DesktopShellStore(string root)
     {
-        _root = Path.GetFullPath(root);
+        _root = DesktopDeviceStateLayout.Window(root);
         if (ReadStored() is { } stored) Take(stored);
     }
 
@@ -107,10 +107,10 @@ internal sealed class DesktopShellStore
         var next = change(Current());
         try
         {
-            using var guard = DesktopDeviceStateLock.Enter("shell");
+            using var guard = DesktopDeviceStateLock.Enter("window.tray");
             // A missing or unreadable document holds no other window's choice to keep.
             next = change(ReadStored() ?? Current());
-            DesktopStateFile.Replace(_root, StatePath, "shell", stream => JsonSerializer.Serialize(stream, next));
+            DesktopStateFile.Replace(_root, StatePath, "tray", stream => JsonSerializer.Serialize(stream, next));
             Persisted = true;
             Notice = null;
         }

@@ -60,7 +60,7 @@ public sealed class WorkbenchBehaviourApprovalTests
         using var release = new ManualResetEventSlim();
         var holder = new Thread(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"));
             held.Set();
             release.Wait();
         }) { IsBackground = true };

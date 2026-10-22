@@ -61,7 +61,7 @@ public sealed class DesktopExtensionServingTests
             Assert.AreEqual(old, ExtensionOrigins.Host("app-one", "instance-b", PackageId, carriedOver: true), "The carried origin is not the application's old one.");
             Assert.AreNotEqual(old, ExtensionOrigins.Host("app-one", "instance-a", PackageId));
 
-            var path = Path.Combine(root.FullName, ExtensionOriginCarry.FileName);
+            var path = Path.Combine(DesktopDeviceStateLayout.Views(root.FullName), ExtensionOriginCarry.FileName);
             var written = File.ReadAllBytes(path);
             var later = new ExtensionOriginCarry(root.FullName, () => new Dictionary<string, string> { ["app-one"] = "instance-b" });
             Assert.IsTrue(later.Holds("app-one", "instance-a"), "A second start chose again.");
@@ -70,13 +70,13 @@ public sealed class DesktopExtensionServingTests
 
             var empty = Directory.CreateDirectory(Path.Combine(root.FullName, "empty")).FullName;
             Assert.IsEmpty(new ExtensionOriginCarry(empty, () => new Dictionary<string, string>()).Holders());
-            Assert.IsTrue(File.Exists(Path.Combine(empty, ExtensionOriginCarry.FileName)), "An empty recent list did not settle the choice.");
+            Assert.IsTrue(File.Exists(Path.Combine(DesktopDeviceStateLayout.Views(empty), ExtensionOriginCarry.FileName)), "An empty recent list did not settle the choice.");
             Assert.IsFalse(new ExtensionOriginCarry(empty, () => new Dictionary<string, string> { ["app-one"] = "instance-a" }).Holds("app-one", "instance-a"),
                 "A device with no recent files gave a file the old origin later.");
 
             var unreadable = Directory.CreateDirectory(Path.Combine(root.FullName, "unreadable")).FullName;
             Assert.IsFalse(new ExtensionOriginCarry(unreadable, () => null).Holds("app-one", "instance-a"));
-            Assert.IsFalse(File.Exists(Path.Combine(unreadable, ExtensionOriginCarry.FileName)), "A list that could not be read just now settled the choice.");
+            Assert.IsFalse(File.Exists(Path.Combine(DesktopDeviceStateLayout.Views(unreadable), ExtensionOriginCarry.FileName)), "A list that could not be read just now settled the choice.");
         }
         finally
         {

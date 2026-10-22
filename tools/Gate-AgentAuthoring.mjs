@@ -155,7 +155,7 @@ async function attachAgent(name) {
   assert(status.mode === 'shapeApp', `Agent authoring was not enabled: ${JSON.stringify(status)}`);
   // An isolated run publishes discovery under its own device-state root rather
   // than the owner's real location, so the journey never reads the owner's.
-  const isolated = path.join(output, 'device-state', 'discovery');
+  const isolated = path.join(output, 'device-state', 'Mcp', 'active');
   const root = await fs.access(isolated).then(() => isolated, () => path.join(process.env.LOCALAPPDATA, 'Nendo', 'Mcp', 'active'));
   let seen = '';
   const discovery = await waitFor(async () => {

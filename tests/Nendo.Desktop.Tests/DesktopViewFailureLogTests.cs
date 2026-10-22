@@ -96,9 +96,9 @@ public sealed class DesktopViewFailureLogTests
     public async Task AnOlderDeviceDocumentRecordsByDefault()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
         await File.WriteAllTextAsync(
-            Path.Combine(workspace.FileHistoryRoot, "shell.json"),
+            Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "tray.json"),
             """{"Version":1,"CloseAction":"exit","TrayIntroShown":true}""");
 
         var store = new DesktopShellStore(workspace.FileHistoryRoot);

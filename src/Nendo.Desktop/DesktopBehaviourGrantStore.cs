@@ -32,7 +32,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
     private long _revocationGeneration;
     private long _storedRevocationGeneration;
 
-    private string StatePath => Path.Combine(_root, "behaviour-grants.json");
+    private string StatePath => Path.Combine(_root, "consent.json");
 
     internal static string DefaultRoot => DesktopAppearanceStore.DefaultRoot;
 
@@ -51,7 +51,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
 
     internal DesktopBehaviourGrantStore(string root)
     {
-        _root = Path.GetFullPath(root);
+        _root = DesktopDeviceStateLayout.Actions(root);
         Read();
     }
 
@@ -183,7 +183,7 @@ internal sealed class DesktopBehaviourGrantStore : INendoBehaviourAuthority
     {
         try
         {
-            DesktopStateFile.Replace(_root, StatePath, "behaviour-grants",
+            DesktopStateFile.Replace(_root, StatePath, "consent",
                 stream => JsonSerializer.Serialize(stream, new StoredGrantDocument(1, _grants, _revocationGeneration)));
             Persisted = true;
             Notice = null;

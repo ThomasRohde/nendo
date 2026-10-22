@@ -31,8 +31,8 @@ public sealed class DesktopAppearanceTests
         Assert.IsTrue(reopened.Persisted);
         Assert.IsNull(reopened.Notice);
         Assert.IsFalse(File.Exists(workspace.FilePath));
-        CollectionAssert.AreEqual(new[] { "appearance.json" }, Directory.GetFiles(workspace.FileHistoryRoot).Select(Path.GetFileName).ToArray());
-        var serialized = await File.ReadAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "appearance.json"));
+        CollectionAssert.AreEqual(new[] { "appearance.json" }, Directory.GetFiles(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot)).Select(Path.GetFileName).ToArray());
+        var serialized = await File.ReadAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "appearance.json"));
         Assert.IsFalse(serialized.Contains("Effective", StringComparison.Ordinal));
         Assert.IsFalse(serialized.Contains(workspace.FileHistoryRoot, StringComparison.Ordinal));
     }
@@ -46,8 +46,8 @@ public sealed class DesktopAppearanceTests
     public async Task InvalidPreferenceFallsBackWithoutRepairingItsBytes(string text)
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "appearance.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "appearance.json");
         await File.WriteAllTextAsync(path, text);
         var store = new DesktopAppearanceStore(workspace.FileHistoryRoot);
         Assert.AreEqual("system", store.Preference);
@@ -62,8 +62,8 @@ public sealed class DesktopAppearanceTests
     public async Task OversizedPreferenceIsBoundedAndPreserved()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "appearance.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "appearance.json");
         var text = new string(' ', 4097);
         await File.WriteAllTextAsync(path, text);
         var store = new DesktopAppearanceStore(workspace.FileHistoryRoot);
@@ -87,8 +87,8 @@ public sealed class DesktopAppearanceTests
     public async Task SaveFailureAppliesOnlyToMemoryAndCleansOwnedStage()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "appearance.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "appearance.json");
         Directory.CreateDirectory(path); // Deterministic destination failure, not a disk-full test.
         var store = new DesktopAppearanceStore(workspace.FileHistoryRoot);
         store.Save("dark");

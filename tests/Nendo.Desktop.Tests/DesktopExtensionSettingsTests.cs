@@ -36,7 +36,7 @@ public sealed class DesktopExtensionSettingsTests
         using var release = new ManualResetEventSlim();
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "extension-settings.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Views(workspace.FileHistoryRoot), "settings.json"));
             acquired.SetResult();
             release.Wait();
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -67,7 +67,7 @@ public sealed class DesktopExtensionSettingsTests
         using var release = new ManualResetEventSlim();
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "extension-settings.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Views(workspace.FileHistoryRoot), "settings.json"));
             acquired.SetResult();
             release.Wait();
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -99,7 +99,7 @@ public sealed class DesktopExtensionSettingsTests
         using var release = new ManualResetEventSlim();
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "extension-settings.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Views(workspace.FileHistoryRoot), "settings.json"));
             acquired.SetResult();
             release.Wait();
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -142,8 +142,8 @@ public sealed class DesktopExtensionSettingsTests
         }
         Assert.IsLessThan(files.Length, low, "The fixture must reach the byte bound before the count bound.");
         var before = Document(low);
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "extension-settings.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Views(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Views(workspace.FileHistoryRoot), "settings.json");
         await File.WriteAllBytesAsync(path, before);
         using var store = new DesktopExtensionSettingsStore(workspace.FileHistoryRoot);
         Assert.IsFalse(store.Run, "The near-limit fixture must start with readable device Off.");
@@ -168,7 +168,7 @@ public sealed class DesktopExtensionSettingsTests
         using var store = new DesktopExtensionSettingsStore(workspace.FileHistoryRoot);
         store.SetRun(false);
         store.SetFileEnabled("first", false);
-        var path = Path.Combine(workspace.FileHistoryRoot, "extension-settings.json");
+        var path = Path.Combine(DesktopDeviceStateLayout.Views(workspace.FileHistoryRoot), "settings.json");
         using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None))
         {
             Assert.IsFalse(store.Run, "A briefly busy settings document turned custom views back on for the device.");

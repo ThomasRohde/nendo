@@ -350,7 +350,7 @@ the storage with it.
 One instance per application keeps the key without the instance ID,
 `applicationId + "\n" + packageId` (`ExtensionOriginCarry.cs`): the instance most
 recently opened per application ID in the recent-file list when the device first ran
-this rule, recorded once, under its lock, in `view-origin-carry.json` in device state.
+this rule, recorded once, under its lock, in `views\origin-carry.json` in device state.
 An empty list records an empty map; a list that cannot be read is tried again at a
 later start.
 
@@ -1262,8 +1262,8 @@ A view that is shown runs. Views are off when any of these holds:
 
 | Switch | Off reason | Where | Kept |
 | --- | --- | --- | --- |
-| **Run custom views** is off | `device` | Studio → Screens → Custom views | In `extension-settings.json`, for every file on this device |
-| **Run this file's views** is off | `file` | Studio → Screens → Custom views | In `extension-settings.json`, by the file's application ID |
+| **Run custom views** is off | `device` | Studio → Screens → Custom views | In `views\settings.json`, for every file on this device |
+| **Run this file's views** is off | `file` | Studio → Screens → Custom views | In `views\settings.json`, by the file's application ID |
 | The file's health is not `normal` | `health` | Health says why | While the file is read-only or needs recovery |
 | **Restart without custom views** | `recovery` | The native recovery panel | Until **Run custom views** is turned on again or Nendo starts again; never saved |
 
@@ -1300,8 +1300,8 @@ such as an agent at Unattended accepting its own proposal. An exact retry of a w
 that did commit still returns its receipt. A view's proposal accepted by a person is
 the person's act and is not checked this way.
 
-`extension-settings.json` sits in the device-state root, `%LocalAppData%\Nendo` unless
-`NENDO_DEVICE_STATE_ROOT` names another. It is device preference, never application
+`views\settings.json` sits in the device-state root, `%LocalAppData%\Nendo` unless
+`NENDO_DEVICE_STATE_ROOT` names another ([ADR-0034](../decisions/0034-device-state-layout.md)). It is device preference, never application
 data, so a file cannot turn its own views on, and a received file cannot turn off
 anyone else's. Both switches default to on. The store holds at most 256 KiB and 4,096
 files. If it cannot be read, views run with the defaults for the session, and the panel
@@ -1473,7 +1473,7 @@ running view of that package. It ignores a payload whose `packageId` is not a st
 A development link runs one package of one file from a folder on this device, so an
 edit shows the moment it is saved, without a proposal.
 
-- **Where it lives.** In this device's custom-view settings (`extension-settings.json`
+- **Where it lives.** In this device's custom-view settings (`views\settings.json`
   under the device state root), keyed by the file's application ID and the package ID,
   with the folder's full path. At most 64 links. A link that does not read as one when
   the settings load is dropped. Nothing about a link is written to the file, so a copy

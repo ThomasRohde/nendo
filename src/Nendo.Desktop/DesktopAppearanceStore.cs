@@ -28,7 +28,7 @@ internal sealed class DesktopAppearanceStore
 
     internal DesktopAppearanceStore(string root)
     {
-        _root = Path.GetFullPath(root);
+        _root = DesktopDeviceStateLayout.Window(root);
         try
         {
             var bytes = DesktopStateFile.ReadBytes(StatePath, MaximumBytes, "Appearance document exceeds its limit.");

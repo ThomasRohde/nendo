@@ -48,7 +48,7 @@ holds the method table, refusals, limits and review wording.
     unanswered writes. A byte-for-byte copy made outside Nendo keeps the instance ID and
     shares.
   - One instance per application keeps the key SHA-256(`applicationId\npackageId`): the
-    one `view-origin-carry.json` in device state names, written once under its lock from
+    one `views\origin-carry.json` in device state names, written once under its lock from
     the recent-file list, so views kept their storage when the instance joined the key.
     Settings and development links stay keyed by application ID.
 - `.example` is reserved (RFC 2606), so no real site shares a view's origin, and the host

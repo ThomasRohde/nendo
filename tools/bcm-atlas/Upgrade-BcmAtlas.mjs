@@ -14,7 +14,7 @@
 //         changed, so maturity, target and primary capability stay where they were. Needs Agent
 //         access at Edit data.
 //
-// The file is found by its application ID in this device's agent-ports.json, or named
+// The file is found by its application ID in this device's agents\ports.json, or named
 // with --endpoint. Update the package itself with Put-NendoPackage.mjs extensions/bcm-atlas.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -33,7 +33,7 @@ if (phase !== 'schema' && phase !== 'data') fail('Say which: node tools/bcm-atla
 
 async function endpoint() {
   if (option('--endpoint')) return option('--endpoint');
-  const ports = JSON.parse(await fs.readFile(path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'agent-ports.json'), 'utf8')
+  const ports = JSON.parse(await fs.readFile(path.join(process.env.LOCALAPPDATA ?? '', 'Nendo', 'agents', 'ports.json'), 'utf8')
     .catch(() => fail('This device keeps no agent ports yet. Open BCM.nendo in Nendo, turn on Agent access, or pass --endpoint.')));
   const port = ports.Files?.[BCM]?.Port;
   if (!port) fail('BCM.nendo has no agent port on this device. Open it in Nendo and turn on Agent access, or pass --endpoint.');

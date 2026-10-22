@@ -44,7 +44,7 @@ internal sealed class DesktopViewFailureLog(string root)
 {
     internal const int MaximumEntries = 50;
 
-    private readonly DesktopCappedJsonlLog<DesktopViewFailure> _log = new(root, "view-failures", MaximumEntries);
+    private readonly DesktopCappedJsonlLog<DesktopViewFailure> _log = new(DesktopDeviceStateLayout.Logs(root), "view-failures", MaximumEntries);
 
     internal static string DefaultRoot => DesktopAppearanceStore.DefaultRoot;
 

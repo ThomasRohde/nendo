@@ -39,7 +39,7 @@ foreach ($phase in @('create', 'reopen')) {
 }
 Assert-OwnerDeviceUnchanged $ownerDeviceBefore @('pilot.nendo') 'The drag journey'
 # The theme switches land in the run's own device state, which is what shows the root took.
-if (-not (Test-Path -LiteralPath (Join-Path $evidenceRoot 'device-state/appearance.json'))) { throw "The drag journey's theme switches did not reach its own device state. Evidence: $evidenceRoot" }
+if (-not (Test-Path -LiteralPath (Join-Path $evidenceRoot 'device-state/window/appearance.json'))) { throw "The drag journey's theme switches did not reach its own device state. Evidence: $evidenceRoot" }
 foreach ($file in $frozen) { if ((Get-FileHash -LiteralPath $file.path).Hash -ne $file.sha256) { throw "Payload changed: $($file.path)" } }
 @{ executable = $exe; files = $frozen; result = 'passed'; limitation = 'Current Windows user with existing WebView2; not a clean-machine or human test.' } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $evidenceRoot 'runtime.json')
 Write-Output "Pilot runtime evidence: $evidenceRoot"

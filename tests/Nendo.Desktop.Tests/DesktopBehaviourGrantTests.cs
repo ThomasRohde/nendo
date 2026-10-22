@@ -116,7 +116,7 @@ public sealed class DesktopBehaviourGrantTests
         using var release = new ManualResetEventSlim();
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"));
             acquired.SetResult();
             release.Wait();
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -145,7 +145,7 @@ public sealed class DesktopBehaviourGrantTests
         using var release = new ManualResetEventSlim();
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"));
             acquired.SetResult();
             release.Wait();
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -174,7 +174,7 @@ public sealed class DesktopBehaviourGrantTests
         using var release = new ManualResetEventSlim();
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"));
             acquired.SetResult();
             release.Wait();
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -232,7 +232,7 @@ public sealed class DesktopBehaviourGrantTests
         var later = Grant() with { ApplicationId = "later" };
         new DesktopBehaviourGrantStore(workspace.FileHistoryRoot).Approve(kept);
         var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json");
+        var path = Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json");
         var document = new FileInfo(path);
         var denyRead = new System.Security.AccessControl.FileSystemAccessRule(
             System.Security.Principal.WindowsIdentity.GetCurrent().User!,
@@ -274,7 +274,7 @@ public sealed class DesktopBehaviourGrantTests
         var acquired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var holder = Task.Factory.StartNew(() =>
         {
-            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+            using var guard = DesktopDeviceStateLock.EnterRequired(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"));
             acquired.SetResult();
             Thread.Sleep(TimeSpan.FromSeconds(2));
         }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -323,8 +323,8 @@ public sealed class DesktopBehaviourGrantTests
     public async Task UnreadableStateApprovesNothingAndSaysSo(string contents)
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"), contents);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"), contents);
 
         var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
 
@@ -354,8 +354,8 @@ public sealed class DesktopBehaviourGrantTests
     public async Task StructurallyInvalidStateInTheWrittenCasingApprovesNothingAndSaysSo(string contents)
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"), contents);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"), contents);
 
         var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
 
@@ -368,8 +368,8 @@ public sealed class DesktopBehaviourGrantTests
     public async Task ARepairedSharedDocumentClearsTheEarlierUnreadableNotice()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"), "not json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"), "not json");
         var stale = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
         Assert.IsFalse(stale.Persisted);
         Assert.IsNotNull(stale.Notice);
@@ -386,8 +386,8 @@ public sealed class DesktopBehaviourGrantTests
         // Guards the rows above: a well-formed document in exactly this casing is
         // read as a grant, so the refusals there are about the damaged member alone.
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"),
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"),
             "{\"Version\":1,\"Grants\":[{\"ApplicationId\":\"application-one\",\"InstanceId\":\"instance-one\",\"BehaviourDigest\":\"" + Digest + "\",\"ContractVersion\":\"behaviour-1\",\"DefinitionRevision\":3,\"Capabilities\":2}]}");
 
         var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
@@ -402,8 +402,8 @@ public sealed class DesktopBehaviourGrantTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await SeedWithTriggerAsync(workspace.FilePath);
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"),
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"),
             "{\"Version\":1,\"Grants\":[null]}");
 
         await using var session = new DesktopSessionController(
@@ -425,9 +425,9 @@ public sealed class DesktopBehaviourGrantTests
     public async Task AnOversizedDocumentIsRefusedWithoutBeingRead()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot));
         await File.WriteAllTextAsync(
-            Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"),
+            Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"),
             "{\"version\":1,\"grants\":[]," + new string(' ', 300_000) + "}");
 
         var store = new DesktopBehaviourGrantStore(workspace.FileHistoryRoot);
@@ -444,12 +444,12 @@ public sealed class DesktopBehaviourGrantTests
         store.Approve(Grant() with { InstanceId = "instance-two" });
 
         CollectionAssert.AreEqual(
-            new[] { "behaviour-grants.json" },
-            Directory.GetFiles(workspace.FileHistoryRoot).Select(Path.GetFileName).ToArray(),
+            new[] { "consent.json" },
+            Directory.GetFiles(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot)).Select(Path.GetFileName).ToArray(),
             "Staged temporary state was left behind.");
 
         // Device state, never application data: nothing here says where the file is.
-        var serialized = await File.ReadAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json"));
+        var serialized = await File.ReadAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json"));
         Assert.DoesNotContain(workspace.FilePath, serialized, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(workspace.FileHistoryRoot, serialized, StringComparison.OrdinalIgnoreCase);
     }

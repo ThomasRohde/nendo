@@ -449,7 +449,8 @@ cover every function, formula and schema binding that affects what an action doe
 with its own invalidation tests.
 
 **Where it lives.** Consent is device state, kept beside the other per-user
-preferences under `%LocalAppData%\Nendo`, never inside a `.nendo` file. A file
+preferences in `actions\consent.json` under `%LocalAppData%\Nendo`
+([ADR-0034](../decisions/0034-device-state-layout.md)), never inside a `.nendo` file. A file
 therefore cannot carry its own permission. A Duplicate, a Fork, a backup or a copy
 on another machine all arrive unapproved and ask again. Shared consent changes are
 serialized across processes and merge with the current document inside the lock;

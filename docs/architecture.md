@@ -50,7 +50,7 @@ Workbench ([ADR-0013](decisions/0013-custom-views-with-code-in-the-file.md),
   gives it a renderer process apart from the Workbench's, and a Duplicate's views get
   their own storage. The instance each application last opened before the instance ID
   entered the origin key keeps its old origin, recorded once in
-  `view-origin-carry.json` (`ExtensionOriginCarry.cs`).
+  `views\origin-carry.json` (`ExtensionOriginCarry.cs`).
 - The host answers every view origin from the open file through the browser's
   resource-request event, and serves the view API, `/_nendo/api.js`, from the installed
   Workbench.
@@ -381,7 +381,7 @@ its file open and its MCP host listening, so the person can still accept a propo
 consent to automatic actions, which an agent below Unattended cannot do for itself. The
 tray menu holds the real exit
 ([ADR-0002](decisions/0002-containing-desktop-architecture-and-process-model.md)). The
-close behaviour is device state (`shell.json`), defaulting to the notification area and
+close behaviour is device state (`window\tray.json`), defaulting to the notification area and
 toggled from the tray. `NENDO_DESKTOP_CLOSE_ACTION` pins it; every scripted window lane
 sets it to `exit`. There is one icon per window.
 
@@ -512,9 +512,14 @@ only a real pointer shows that a press there reaches the page.
 Each open file is its own process and main window (ADR-0002).
 
 - **Each file reopens where its window was.** `DesktopWindowStore` keeps the device's last
-  place in `window.json` and each file's in `window-files.json`, keyed by a digest of the
+  place and each file's in `window\places.json`, each file's keyed by a digest of the
   file's location, capped at the 64 most recent. A launch naming a file opens on its
   place; otherwise on the device's last one.
+- **Device state is grouped by concern** ([ADR-0034](decisions/0034-device-state-layout.md)). Under
+  `%LOCALAPPDATA%\Nendo`, or the root `NENDO_DEVICE_STATE_ROOT` names, each store keeps its
+  document in one of `agents`, `views`, `actions`, `window`, `files` and `logs`;
+  `Mcp\active` and `WebView2` sit beside them, and nothing else is written at the root.
+  `DesktopDeviceStateLayout` names the folders.
 - **Device state is shared safely.** `DesktopDeviceStateLock` is the named mutex that
   serialises writers of a shared device-state document, including the view-failure and
   agent-failure logs. Readers take no lock; `DesktopStateFile` replaces a document with
@@ -545,7 +550,7 @@ Each open file is its own process and main window (ADR-0002).
   256-pixel square (192 or 128 if the PNG would not fit one message), sends it with
   `look.embedIcon`, and proposes `application.setIcon`; a colour and a picture chosen
   together are two mutations of one proposal. `DesktopFileIconIndex` keeps the icon drawn
-  for each file (64 newest) in `icons/files.json`, and the Jump List gives each Recent row
+  for each file (64 newest) in `files\icons\files.json`, and the Jump List gives each Recent row
   that icon, or `DocumentIcon.ico`; a pinned row keeps its icon. Taskbar buttons group
   under one identity, so a grouped button shows one icon.
 - **Each window's notifications are its own.** The notification group is
@@ -694,9 +699,9 @@ The Agent page can launch the person's own agent program over ACP
 - `DesktopAgentCatalog` knows Copilot CLI, Gemini CLI, the Claude Code and Codex ACP
   adapters, and OpenCode, found on the `PATH` Windows holds now (`AgentEnvironment.cs`),
   plus one command line of the person's; hidden agents and that command are kept in
-  `agent-launch.json`, never the file. Launch is offered at Inspect and above. A missing
+  `agents\launch.json`, never the file. Launch is offered at Inspect and above. A missing
   or renamed npm package shows the commands to fix it, which the host never runs.
-- `AgentProcess` starts the program in a new empty folder under `agent-sessions/` in
+- `AgentProcess` starts the program in a new empty folder under `agents\sessions` in
   device state, or in the file's repository when the person chose it for that file
   (`RepositoryFolderOf`: the nearest folder holding `.git`), with the person's environment,
   inside a Job Object whose closing ends it and everything it started. Nendo removes only
@@ -717,8 +722,8 @@ The Agent page can launch the person's own agent program over ACP
   runs (the one last launched is selected) with the settings kept for it, and
   answers the view with its own turn's reply (`AgentConversation.Turns.cs`). A view's message
   during a turn waits in the host, at most 8. Never, Ask or Always for views is kept in
-  `agent-launch.json`; the settings a person picks for each agent are kept in
-  `agent-options.json` and sent before the agent is ready.
+  `agents\launch.json`; the settings a person picks for each agent are kept in
+  `agents\settings.json` and sent before the agent is ready.
 - The conversation reaches the tab through the `agentSession.*` bridge methods and the
   `agentSessionChanged` nudge, keyed by `conversationId`. The transcript lives in host
   memory, at most 1,000 entries.
@@ -784,7 +789,7 @@ capability a `.nendo` file needs, which changes only when the format gains a cap
 | File icons | `Desktop/DesktopFileIcon.cs` (`DesktopFileIcon`, `DesktopFileIconIndex`) |
 | Downloads | `Desktop/Extensions/ExtensionWebViewPolicy.cs` (every download handled, no WebView2 panel), `MainPage.Downloads.cs`, `WorkbenchProtocol.Downloads.cs` (`downloads.show`) |
 | View failures | `Desktop/DesktopViewFailureLog.cs` (device state, capped at 50, switched from the tray) |
-| Custom views: host | `Desktop/Extensions/ExtensionOrigins.cs`, `ExtensionOriginCarry.cs`, `ExtensionAssetServer.cs`, `ExtensionWebViewPolicy.cs`, `ExtensionFrameDiagnostics.cs`, `DesktopExtensionSettingsStore.cs` (`extension-settings.json`), `DesktopSessionController.Extensions.cs`, `WorkbenchProtocol.Extensions.cs`; `MainPage.xaml.cs` (`extensionFramesFailed`, Restart without custom views), `MainPage.Extensions.cs` (pickers) |
+| Custom views: host | `Desktop/Extensions/ExtensionOrigins.cs`, `ExtensionOriginCarry.cs`, `ExtensionAssetServer.cs`, `ExtensionWebViewPolicy.cs`, `ExtensionFrameDiagnostics.cs`, `DesktopExtensionSettingsStore.cs` (`views\settings.json`), `DesktopSessionController.Extensions.cs`, `WorkbenchProtocol.Extensions.cs`; `MainPage.xaml.cs` (`extensionFramesFailed`, Restart without custom views), `MainPage.Extensions.cs` (pickers) |
 | Custom views: Workbench | `Workbench/src/view-frames.ts`, `view-frame-markup.ts`, `extension-broker.ts` (method table and caps), `extension-model.ts`, `extension-ui.ts`, `view-packages.ts`, `frame-guard.ts`; view controls in `view-toolbar-model.ts`, `view-toolbar-markup.ts`, `view-toolbar.ts`, `view-menu.ts`, `place-pickers.ts` |
 | The view API | `Workbench/src/extension-api/nendo-api.ts`, `protocol.ts`, built by `vite.api.config.ts` to `dist/_nendo/api.js` |
 | Renderer | `Workbench/src/main.ts` (router and frame; hands `render` and `updateChrome` to `shell.ts`), `app-state.ts` (one `state`, imports no view), `view-*.ts` (one view per file; AG Grid only in `view-data.ts`) |
@@ -872,10 +877,10 @@ pwsh ./tools/Test-UnattendedBuildGate.ps1 -Executable <Nendo.Desktop.exe>   # th
 pwsh ./tools/Test-BehaviourAuthoringGate.ps1 -Executable <published Nendo.Desktop.exe>  # calculations, actions, and what an agent still cannot do
 ```
 
-Each lane runs its host on its own device-state root, MCP discovery folder and browser
-profile under its evidence folder (`NENDO_DEVICE_STATE_ROOT`, honoured by every build,
-and `WEBVIEW2_USER_DATA_FOLDER`), then checks the person's theme is unchanged and
-`agent-ports.json` gained no port for a lane file. A host on its own device-state root
+Each lane runs its host on its own device-state root, which holds its MCP discovery folder,
+and its own browser profile under its evidence folder (`NENDO_DEVICE_STATE_ROOT`, honoured by
+every build, and `WEBVIEW2_USER_DATA_FOLDER`), then checks the person's theme is unchanged and
+`agents\ports.json` gained no port for a lane file. A host on its own device-state root
 under the product identity writes neither the Jump List nor the notification
 registration (`DesktopRuntimeConfiguration.WritesShellState`); a lane that pins
 `NENDO_DESKTOP_APP_ID` writes both under its own identity. Lanes close their host through

@@ -23,8 +23,8 @@ internal sealed class DesktopAgentOptionsStore(string root)
 {
     internal const int MaximumBytes = 256 * 1024;
     private const int MaximumDepth = 8;
-    private readonly string _root = Path.GetFullPath(root);
-    private string StatePath => Path.Combine(_root, "agent-options.json");
+    private readonly string _root = DesktopDeviceStateLayout.Agents(root);
+    private string StatePath => Path.Combine(_root, "settings.json");
 
     /// <summary>What is kept for one agent: the options it last offered (empty when dropped for room) and the values the person picked.</summary>
     internal sealed record Kept(IReadOnlyList<AgentOptionView> Options, IReadOnlyDictionary<string, string> Picked);
@@ -148,7 +148,7 @@ internal sealed class DesktopAgentOptionsStore(string root)
             bytes = Serialize(all);
         }
         using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
-        DesktopStateFile.Replace(_root, StatePath, "agent-options", stream => stream.Write(bytes));
+        DesktopStateFile.Replace(_root, StatePath, "settings", stream => stream.Write(bytes));
     }
 
     private static byte[] Serialize(Dictionary<string, Kept> all) =>

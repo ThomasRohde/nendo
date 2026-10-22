@@ -114,7 +114,7 @@ async function hostOutcome(method, payload = {}) {
 async function attachAgent(name) {
   const status = await host('agent.setMode', { mode: 'shapeApp' });
   assert(status.mode === 'shapeApp', `Agent authoring was not enabled: ${JSON.stringify(status)}`);
-  const isolated = path.join(output, 'device-state', 'discovery');
+  const isolated = path.join(output, 'device-state', 'Mcp', 'active');
   const root = await fs.access(isolated).then(() => isolated, () => path.join(process.env.LOCALAPPDATA, 'Nendo', 'Mcp', 'active'));
   const discovery = await waitFor(async () => {
     const entries = [];

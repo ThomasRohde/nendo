@@ -75,7 +75,7 @@ custom views may message the agent: `never`, `ask` (the default) or `always`.
 (a folder, or a worktree's file) or else the file's own folder; `startInRepository` is whether
 this file's agent starts there rather than in an empty folder. The command line, hidden IDs,
 last agent, view access and the files whose agent starts in their repository (at most 32, by
-full path, the most recently chosen kept) are kept only on this device, in `agent-launch.json`
+full path, the most recently chosen kept) are kept only on this device, in `agents\launch.json`
 under the device state (at most 16 KiB, written under the device state lock); an unknown ID or
 a path that is not fully qualified is dropped on read.
 
@@ -253,7 +253,7 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   An agent that sends `modes` or `models` instead has them shown as Mode and Model and set
   with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`).
 - **Kept settings.** Each value the person sets, on the Agent page or a view's launch card, is
-  kept for that agent on this device in `agent-options.json` under the device state (at most
+  kept for that agent on this device in `agents\settings.json` under the device state (at most
   256 KiB, written under the device state lock), with the options the agent offered when it was
   last ready or last had one set. When the agent next starts, after `session/new` and before the
   conversation is `ready`, the host sends each kept value the agent still offers and does not
@@ -265,12 +265,12 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
 
 ## Lifetime
 
-The program runs in a new empty folder under the device state's `agent-sessions`, named by
+The program runs in a new empty folder under the device state's `agents\sessions`, named by
 the host process and a new GUID, or, when the person chose it for this file, in the file's
 repository, where it picks up that folder's instructions, skills, settings and hooks as it would
 from a terminal. Either way it runs with the person's environment as Windows holds it at launch.
 Nendo removes only the folders it made: ending the agent never removes anything from the
-repository, and a sweep looks only under `agent-sessions`. It is placed in a Job Object that ends
+repository, and a sweep looks only under `agents\sessions`. It is placed in a Job Object that ends
 it and every process it started when the job's handle closes: when the conversation ends and
 when the host ends for any reason (`AgentProcess.cs`). The last 4,000 characters of its
 error output are kept for the notice.

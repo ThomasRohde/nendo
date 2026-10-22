@@ -12,11 +12,11 @@ internal sealed class DesktopWindowStore(string root)
     /// <summary>How many files keep a place of their own before the least recently saved is forgotten.</summary>
     internal const int MaximumFiles = 64;
 
-    private const int MaximumFileBytes = 64 * 1024;
+    private const int MaximumBytes = 64 * 1024;
 
-    private string StatePath => Path.Combine(root, "window.json");
+    private readonly string _folder = DesktopDeviceStateLayout.Window(root);
 
-    private string FilesPath => Path.Combine(root, "window-files.json");
+    private string StatePath => Path.Combine(_folder, "places.json");
 
     /// <summary>
     /// Where a window should open: where this file's window last was, or, for a file that has
@@ -28,65 +28,47 @@ internal sealed class DesktopWindowStore(string root)
     /// read only once it is open, and a window that moved then would move under the pointer.
     /// </para>
     /// </summary>
-    internal DesktopWindowState? Load(string? filePath = null) =>
-        (filePath is null ? null : LoadForFile(filePath)) ?? LoadDevice();
+    internal DesktopWindowState? Load(string? filePath = null)
+    {
+        var places = Read();
+        if (places is null) return null;
+        if (filePath is not null && places.Files.TryGetValue(KeyFor(filePath), out var entry) && Usable(entry.State)) return entry.State;
+        return Usable(places.Last) ? places.Last : null;
+    }
 
     /// <summary>
     /// Keeps this window's place as the device default and, when a file is open, as that
-    /// file's own. True only when everything asked for was kept.
+    /// file's own, in one write. True when it was kept.
     /// </summary>
     internal bool Save(DesktopWindowState state, string? filePath = null)
     {
         if (state.Width <= 0 || state.Height <= 0) return false;
-        var saved = SaveDevice(state);
-        if (filePath is not null) saved &= SaveForFile(filePath, state);
-        return saved;
-    }
-
-    private DesktopWindowState? LoadDevice()
-    {
-        try
-        {
-            var saved = DesktopStateFile.Read<StoredWindow>(StatePath, 4096, maximumDepth: 4);
-            return saved is { Version: 1, State: { Width: > 0, Height: > 0 } } ? saved.State : null;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
-        {
-            return null;
-        }
-    }
-
-    private DesktopWindowState? LoadForFile(string filePath) =>
-        ReadFiles() is { } files && files.TryGetValue(KeyFor(filePath), out var entry) && entry.State is { Width: > 0, Height: > 0 }
-            ? entry.State
-            : null;
-
-    private bool SaveDevice(DesktopWindowState state) =>
-        DesktopStateFile.TryReplace(root, StatePath, "window", stream => JsonSerializer.Serialize(stream, new StoredWindow(1, state)));
-
-    private bool SaveForFile(string filePath, DesktopWindowState state)
-    {
-        // Two windows closing together would otherwise each read the list, add themselves and
-        // write it back, and the second write would forget the first window's place.
-        using var guard = DesktopDeviceStateLock.Enter("window-files");
-        var files = ReadFiles() ?? new Dictionary<string, StoredFileWindow>(StringComparer.Ordinal);
-        files[KeyFor(filePath)] = new StoredFileWindow(state, DateTimeOffset.UtcNow);
+        // Two windows closing together would otherwise each read the places, add themselves and
+        // write them back, and the second write would forget the first window's place.
+        using var guard = DesktopDeviceStateLock.Enter("window.places");
+        var files = Read()?.Files ?? new Dictionary<string, StoredFileWindow>(StringComparer.Ordinal);
+        if (filePath is not null) files[KeyFor(filePath)] = new StoredFileWindow(state, DateTimeOffset.UtcNow);
         var kept = files
             .OrderByDescending(pair => pair.Value.SavedAt)
             .Take(MaximumFiles)
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-        return DesktopStateFile.TryReplace(root, FilesPath, "window-files", stream =>
-            JsonSerializer.Serialize(stream, new StoredFileWindows(1, kept)));
+        return DesktopStateFile.TryReplace(_folder, StatePath, "places", stream =>
+            JsonSerializer.Serialize(stream, new StoredPlaces(1, state, kept)));
     }
 
-    private Dictionary<string, StoredFileWindow>? ReadFiles()
+    private static bool Usable(DesktopWindowState? state) => state is { Width: > 0, Height: > 0 };
+
+    private StoredPlaces? Read()
     {
         try
         {
-            var saved = DesktopStateFile.Read<StoredFileWindows>(FilesPath, MaximumFileBytes, maximumDepth: 6);
-            return saved is { Version: 1, Files: { } files }
-                ? new Dictionary<string, StoredFileWindow>(files, StringComparer.Ordinal)
-                : null;
+            var saved = DesktopStateFile.Read<StoredPlaces>(StatePath, MaximumBytes, maximumDepth: 6);
+            if (saved is not { Version: 1 }) return null;
+            // An entry or a list that is not there reads as no place for that file, not as no places.
+            var files = (saved.Files ?? [])
+                .Where(pair => pair.Value is not null)
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            return saved with { Files = files };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -101,9 +83,7 @@ internal sealed class DesktopWindowStore(string root)
     internal static string KeyFor(string filePath) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(filePath).ToUpperInvariant())))[..32];
 
-    private sealed record StoredWindow(int Version, DesktopWindowState State);
-
     private sealed record StoredFileWindow(DesktopWindowState State, DateTimeOffset SavedAt);
 
-    private sealed record StoredFileWindows(int Version, Dictionary<string, StoredFileWindow> Files);
+    private sealed record StoredPlaces(int Version, DesktopWindowState? Last, Dictionary<string, StoredFileWindow> Files);
 }

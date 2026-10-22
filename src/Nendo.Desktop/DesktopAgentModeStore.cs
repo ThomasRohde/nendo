@@ -37,7 +37,7 @@ internal sealed class DesktopAgentModeStore(string root)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
-        using var guard = DesktopDeviceStateLock.Enter("agent-modes");
+        using var guard = DesktopDeviceStateLock.Enter("agents.access");
         var modes = Read();
         // The old one-per-application entry moves to this file's own key, or goes with an Off,
         // but only when it was this file's: another instance's level is never touched.
@@ -68,7 +68,7 @@ internal sealed class DesktopAgentModeStore(string root)
     /// <summary>One file's entry: its application and its instance, joined by a character neither identifier holds.</summary>
     private static string Key(string applicationId, string instanceId) => applicationId + "\n" + instanceId;
 
-    private readonly DesktopKeyedFileStore<StoredMode> _files = new(root, "agent-modes", MaximumFiles,
+    private readonly DesktopKeyedFileStore<StoredMode> _files = new(DesktopDeviceStateLayout.Agents(root), "access", MaximumFiles,
         entry => entry.UsedAt, entry => entry is { Mode: { Length: > 0 }, Instance: { Length: > 0 } });
 
     private Dictionary<string, StoredMode> Read() => _files.Read();

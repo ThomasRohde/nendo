@@ -22,7 +22,7 @@ internal sealed class DesktopAgentFailureLog(string root)
     // replace below must not interleave.
     private static readonly object Gate = new();
 
-    private readonly DesktopCappedJsonlLog<NendoAgentFailure> _log = new(root, "agent-failures", MaximumEntries);
+    private readonly DesktopCappedJsonlLog<NendoAgentFailure> _log = new(DesktopDeviceStateLayout.Logs(root), "agent-failures", MaximumEntries);
 
     internal string LogPath => _log.LogPath;
 

@@ -40,7 +40,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
     private readonly List<DesktopDevelopmentLink> _links = [];
     private byte[]? _lastReadBytes;
     private bool _readInterrupted;
-    private string StatePath => Path.Combine(_root, "extension-settings.json");
+    private string StatePath => Path.Combine(_root, "settings.json");
 
     internal bool Run { get { lock (_sync) { Read(); return _run; } } }
 
@@ -84,7 +84,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
 
     internal DesktopExtensionSettingsStore(string root)
     {
-        _root = Path.GetFullPath(root);
+        _root = DesktopDeviceStateLayout.Views(root);
         Read();
         _lastNotifiedState = StateKey();
     }
@@ -270,7 +270,7 @@ internal sealed class DesktopExtensionSettingsStore : IDisposable
                 _links.Select(link => new StoredDevelopmentLink(link.ApplicationId, link.PackageId, link.Folder)).ToArray(),
                 _runGeneration, _fileRevision, _fileRevisions));
             if (bytes.Length > MaximumBytes) throw new IOException("Custom view settings exceed their limit.");
-            DesktopStateFile.Replace(_root, StatePath, "extension-settings", stream => stream.Write(bytes));
+            DesktopStateFile.Replace(_root, StatePath, "settings", stream => stream.Write(bytes));
             _lastReadBytes = bytes;
             Notice = null;
             _pendingChanges.Clear();

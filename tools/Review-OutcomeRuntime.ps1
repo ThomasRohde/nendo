@@ -52,4 +52,4 @@ finally {
 # The probe switches the theme to Light and then Dark and never back. Those clicks belong
 # in the run's own device state and nowhere else.
 Assert-OwnerDeviceUnchanged $ownerDeviceBefore @('outcome-workspace.nendo', 'review-backup.nendo') 'The outcome review'
-if (-not (Test-Path -LiteralPath (Join-Path $evidenceRoot 'device-state/appearance.json'))) { throw "The outcome review's theme switches did not reach its own device state. Evidence root: $evidenceRoot" }
+if (-not (Test-Path -LiteralPath (Join-Path $evidenceRoot 'device-state/window/appearance.json'))) { throw "The outcome review's theme switches did not reach its own device state. Evidence root: $evidenceRoot" }

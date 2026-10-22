@@ -17,13 +17,13 @@ function Stop-OwnedNendo($Target, [bool] $Succeeded, [string] $Label = 'Nendo') 
 
 # What a lane must never write in the owner's device state: the theme, and a kept agent
 # port for one of its own files. A lane whose host ran without a device-state root of its
-# own wrote both. The owner's Nendo rewrites agent-ports.json on every file open, so the
+# own wrote both. The owner's Nendo rewrites agents\ports.json on every file open, so the
 # lane looks for its own traces there -- a port kept under one of its file names that was
 # not there before -- rather than comparing the file. The theme is compared by its value,
 # which only a theme choice changes. -Root is for the check of these functions themselves.
 function Get-OwnerDeviceSnapshot([string] $Root = (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Nendo')) {
-    $appearance = Join-Path $Root 'appearance.json'
-    $ports = Join-Path $Root 'agent-ports.json'
+    $appearance = Join-Path $Root 'window\appearance.json'
+    $ports = Join-Path $Root 'agents\ports.json'
     $preference = if (Test-Path -LiteralPath $appearance -PathType Leaf) { [string](Get-Content -LiteralPath $appearance -Raw | ConvertFrom-Json).Preference } else { 'absent' }
     $kept = @{}
     if (Test-Path -LiteralPath $ports -PathType Leaf) {
@@ -35,12 +35,12 @@ function Get-OwnerDeviceSnapshot([string] $Root = (Join-Path ([Environment]::Get
 function Assert-OwnerDeviceUnchanged($Before, [string[]] $LaneFiles, [string] $Lane) {
     $after = Get-OwnerDeviceSnapshot $Before.Root
     if ($after.Preference -ne $Before.Preference) {
-        throw "$Lane changed the owner's theme in $($Before.Root)\appearance.json from $($Before.Preference) to $($after.Preference) (or the owner chose a theme while it ran)."
+        throw "$Lane changed the owner's theme in $($Before.Root)\window\appearance.json from $($Before.Preference) to $($after.Preference) (or the owner chose a theme while it ran)."
     }
     $traces = @(foreach ($id in $after.Ports.Keys) {
         if (-not $Before.Ports.ContainsKey($id) -and $LaneFiles -contains $after.Ports[$id]) { "$id ($($after.Ports[$id]))" }
     })
     if ($traces.Count -gt 0) {
-        throw "$Lane kept an agent port for its own file in the owner's $($Before.Root)\agent-ports.json: $($traces -join ', ')"
+        throw "$Lane kept an agent port for its own file in the owner's $($Before.Root)\agents\ports.json: $($traces -join ', ')"
     }
 }

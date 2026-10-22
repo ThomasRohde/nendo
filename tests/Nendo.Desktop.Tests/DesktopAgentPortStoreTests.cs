@@ -54,8 +54,8 @@ public sealed class DesktopAgentPortStoreTests
     public async Task AnUnreadableListStartsAgainFromTheDevicePort(string text)
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "agent-ports.json"), text);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "ports.json"), text);
         Assert.AreEqual(41763, new DesktopAgentPortStore(workspace.FileHistoryRoot).Claim("application-planner", "instance-planner", "Nendo.nendo", 41763));
     }
 
@@ -132,8 +132,8 @@ public sealed class DesktopAgentPortStoreTests
     public async Task AListKeptPerApplicationIsTakenOverByTheFirstFileToAsk()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "agent-ports.json"),
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
+        await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "ports.json"),
             """{"Version":1,"Files":{"application-reading":{"Port":41763,"Name":"Reading 2025.nendo","UsedAt":"2026-10-01T00:00:00+00:00"}}}""");
         var store = new DesktopAgentPortStore(workspace.FileHistoryRoot);
         Assert.AreEqual(41763, store.Peek("application-reading", "instance-2025", 41763), "Asking without claiming keeps nothing.");
@@ -153,8 +153,8 @@ public sealed class DesktopAgentPortStoreTests
         const string Legacy = """{"Version":1,"Files":{"application-reading":{"Port":41763,"Name":"Reading 2025.nendo","UsedAt":"2026-10-01T00:00:00+00:00"}}}""";
         await using (var workspace = new DesktopTestWorkspace())
         {
-            Directory.CreateDirectory(workspace.FileHistoryRoot);
-            await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "agent-ports.json"), Legacy);
+            Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
+            await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "ports.json"), Legacy);
             var store = new DesktopAgentPortStore(workspace.FileHistoryRoot);
             Assert.AreEqual(41764, store.Peek("application-reading", "instance-2026", 41763, "Reading 2026.nendo"));
             Assert.AreEqual(41764, store.Claim("application-reading", "instance-2026", "Reading 2026.nendo", 41763),
@@ -163,10 +163,10 @@ public sealed class DesktopAgentPortStoreTests
         }
         await using (var workspace = new DesktopTestWorkspace())
         {
-            Directory.CreateDirectory(workspace.FileHistoryRoot);
-            await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "agent-ports.json"), Legacy);
+            Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
+            await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "ports.json"), Legacy);
             // The access-level list of the same era kept one level per application, with its instance.
-            await File.WriteAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "agent-modes.json"),
+            await File.WriteAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "access.json"),
                 """{"Version":1,"Files":{"application-reading":{"Mode":"editData","Instance":"instance-2025","Name":null,"UsedAt":"2026-10-01T00:00:00+00:00"}}}""");
             var store = new DesktopAgentPortStore(workspace.FileHistoryRoot);
             // Renamed since, so the name no longer says; the level list still does.

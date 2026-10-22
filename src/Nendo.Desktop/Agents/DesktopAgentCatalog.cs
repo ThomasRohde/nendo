@@ -215,8 +215,8 @@ internal sealed class DesktopAgentLaunchStore(string root)
     /// <summary>Files whose agent starts in their repository, the most recently chosen kept.</summary>
     internal const int MaximumRepositoryFiles = 32;
     private const int MaximumPathCharacters = 1024;
-    private readonly string _root = Path.GetFullPath(root);
-    private string StatePath => Path.Combine(_root, "agent-launch.json");
+    private readonly string _root = DesktopDeviceStateLayout.Agents(root);
+    private string StatePath => Path.Combine(_root, "launch.json");
 
     /// <summary>Views may not message the agent.</summary>
     internal const string ViewAccessNever = "never";
@@ -322,7 +322,7 @@ internal sealed class DesktopAgentLaunchStore(string root)
             return;
         }
         using var guard = DesktopDeviceStateLock.EnterRequired(StatePath);
-        DesktopStateFile.Replace(_root, StatePath, "agent-launch",
+        DesktopStateFile.Replace(_root, StatePath, "launch",
             stream => JsonSerializer.Serialize(stream, new StoredLaunch(1, choices.CommandLine, choices.Hidden.Count == 0 ? null : [.. choices.Hidden],
                 choices.LastAgentId, choices.ViewAccess == ViewAccessAsk ? null : choices.ViewAccess,
                 choices.RepositoryFiles.Count == 0 ? null : [.. choices.RepositoryFiles])));

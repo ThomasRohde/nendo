@@ -121,18 +121,10 @@ public sealed partial class MainPage : Page
     internal void LaunchedAgentChanged(long revision) =>
         PostWorkbenchEvent(WorkbenchEvents.AgentSessionChanged, revision);
 
-    private static DesktopSessionController CreateSessionController()
-    {
-        // Isolated profiles use the same production services and permissions.
-        if (DesktopRuntimeConfiguration.DeviceStateRoot is { } root)
-        {
-            return new DesktopSessionController(new Nendo.LocalMcp.NendoLocalMcpHostOptions(Path.Combine(root, "discovery")),
-                Path.Combine(root, "file-history"),
-                deviceStateRoot: root);
-        }
-        // The default profile keeps the standard discovery location and the per-device settings root.
-        return new DesktopSessionController(deviceStateRoot: DesktopAppearanceStore.DefaultRoot);
-    }
+    // An isolated profile (NENDO_DEVICE_STATE_ROOT) has the same layout and the same production
+    // services and permissions as the person's own.
+    private static DesktopSessionController CreateSessionController() =>
+        new(deviceStateRoot: DesktopAppearanceStore.DefaultRoot);
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {

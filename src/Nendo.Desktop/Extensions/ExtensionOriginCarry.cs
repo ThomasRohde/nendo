@@ -9,19 +9,19 @@ namespace Nendo.Desktop;
 /// so the owner's own views keep their drafts at the upgrade.
 /// <para>
 /// The choice is made once, on the first start of a host that has this key, from the recent-file
-/// list before the file being opened is recorded in it, and kept as <c>view-origin-carry.json</c>
+/// list before the file being opened is recorded in it, and kept as <c>views\origin-carry.json</c>
 /// in device state. It is never written again: a Duplicate made afterwards has a new instance ID,
 /// so it is never the one named, and its views start on storage of their own.
 /// </para>
 /// </summary>
 internal sealed class ExtensionOriginCarry(string deviceStateRoot, Func<IReadOnlyDictionary<string, string>?> latestInstances)
 {
-    internal const string FileName = "view-origin-carry.json";
+    internal const string FileName = "origin-carry.json";
     private const int MaximumBytes = 64 * 1024;
     private const int MaximumEntries = 256;
     private static readonly IReadOnlyDictionary<string, string> None = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    private readonly string _root = Path.GetFullPath(deviceStateRoot);
+    private readonly string _root = DesktopDeviceStateLayout.Views(deviceStateRoot);
     private readonly object _sync = new();
     private IReadOnlyDictionary<string, string>? _holders;
 
@@ -44,7 +44,7 @@ internal sealed class ExtensionOriginCarry(string deviceStateRoot, Func<IReadOnl
                 // The list cannot be read just now: decide at a later start rather than on a passing failure.
                 if (latestInstances() is not { } latest) return None;
                 var kept = latest.Take(MaximumEntries).ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-                DesktopStateFile.Replace(_root, StatePath, "view-origin-carry",
+                DesktopStateFile.Replace(_root, StatePath, "origin-carry",
                     stream => JsonSerializer.Serialize(stream, new StoredCarry(1, kept)));
                 return _holders = kept;
             }

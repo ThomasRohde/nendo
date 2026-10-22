@@ -123,7 +123,7 @@ internal static class DesktopFileIcon
     };
 
     /// <summary>Where drawn icons are kept on this device.</summary>
-    internal static string CacheRoot(string deviceStateRoot) => Path.Combine(deviceStateRoot, "icons");
+    internal static string CacheRoot(string deviceStateRoot) => Path.Combine(DesktopDeviceStateLayout.Files(deviceStateRoot), "icons");
 
     /// <summary>The name the files for this look are kept under: the look and nothing about the file.</summary>
     internal static string KeyFor(NendoResolvedLook look) => look.Icon is { } icon

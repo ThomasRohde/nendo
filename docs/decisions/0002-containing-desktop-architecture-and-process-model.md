@@ -76,8 +76,8 @@ renderer may receive storage or generic privileged calls.
   menu carries the real exit, the live agent access mode with a control to turn it
   off, a switch that makes the close button exit, and **Record failures**. The
   tooltip names the file and says when it waits on approval; the first close on a
-  device explains where the window went. The close preference is device state,
-  defaulting to the notification area; `NENDO_DESKTOP_CLOSE_ACTION` (`tray` or
+  device explains where the window went. The close preference is device state
+  (`window\tray.json`), defaulting to the notification area; `NENDO_DESKTOP_CLOSE_ACTION` (`tray` or
   `exit`) pins it.
 - One process holds one file; a second file is a second process.
 - A tab dragged out of the tab strip and dropped outside the window, or pulled down
@@ -145,11 +145,11 @@ eleven `agentSession.*` methods and the `agentSessionChanged` event (see the
 
 ### Failure records
 
-- When the app view fails, the host appends one line to `view-failures.jsonl`: the
+- When the app view fails, the host appends one line to `logs\view-failures.jsonl`: the
   `ProcessFailedKind`, how long the view was up, whether the window was out of
   sight, and Windows' free physical memory and memory load.
 - When an MCP request fails inside Nendo, the refusal carries a failure reference,
-  and `agent-failures.jsonl` gets one line under it: the source (`tool`, `resource`,
+  and `logs\agent-failures.jsonl` gets one line under it: the source (`tool`, `resource`,
   `sdk` or `web server`), the request's name, the exception types from the outermost
   in, and the frames without file names or line numbers. The SDK's and web server's
   warnings and errors reach it by event and exception type. A refusal the agent has

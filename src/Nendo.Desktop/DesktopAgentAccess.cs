@@ -54,9 +54,9 @@ internal sealed partial class DesktopSessionController
             ? Path.Combine(Path.GetTempPath(), "nendo-device-state", Guid.NewGuid().ToString("N"))
             : null;
         _deviceStateRoot = deviceStateRoot ?? _ownedDeviceStateRoot!;
-        // A test's controller keeps its recent files in its own folder too.
-        _fileHistory = new DesktopFileHistory(fileHistoryRoot
-            ?? (_ownedDeviceStateRoot is not null ? Path.Combine(_ownedDeviceStateRoot, "file-history") : DesktopFileHistory.DefaultRoot));
+        // Recent files are device state like the rest (ADR-0034), so a test's controller keeps
+        // them in its own folder too.
+        _fileHistory = new DesktopFileHistory(fileHistoryRoot ?? DesktopDeviceStateLayout.Files(_deviceStateRoot));
         _locationPolicy = locationPolicy ?? DesktopLocationPolicy.ForDevice();
     }
 
@@ -74,12 +74,10 @@ internal sealed partial class DesktopSessionController
     internal NendoLocalMcpHostOptions CurrentHostOptions(int? preferredPort = null)
     {
         var settings = FreshSettings();
-        // A device-state root named by NENDO_DEVICE_STATE_ROOT is a whole profile, discovery
-        // included, as MainPage composes one; a controller built without options keeps its
-        // discovery entries there too, rather than in the person's own folder.
-        var discoveryRoot = _agentOptions?.DiscoveryRoot
-            ?? (DesktopRuntimeConfiguration.DeviceStateRoot is { } profile ? Path.Combine(profile, "discovery") : null)
-            ?? NendoLocalMcpHostOptions.CreateDefault().DiscoveryRoot;
+        // Discovery is part of the device state (ADR-0034): the person's root publishes where
+        // NendoLocalMcpHostOptions.CreateDefault says, and a test's or a lane's root keeps its
+        // entries out of the person's folder.
+        var discoveryRoot = _agentOptions?.DiscoveryRoot ?? DesktopDeviceStateLayout.Discovery(_deviceStateRoot);
         return new NendoLocalMcpHostOptions(discoveryRoot)
         {
             PreferredPort = settings.FixedPort ? preferredPort ?? settings.Port : 0,

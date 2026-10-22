@@ -46,16 +46,7 @@ internal sealed class DesktopFileHistory(string root, Func<string, bool>? heldEl
     private const long MaximumBytes = 64 * 1024;
     private const string Unavailable = "Recent-file history is unavailable. Recovery remains available; detection of older local copies may be incomplete.";
     private readonly string _root = Path.GetFullPath(root);
-    private string StatePath => Path.Combine(_root, "recent-files.json");
-
-    /// <summary>
-    /// The person's recent files, or an isolated profile's when NENDO_DEVICE_STATE_ROOT names
-    /// one, in the same file-history folder MainPage composes for it. It ignored the variable,
-    /// so a test controller that named no history wrote into the person's list.
-    /// </summary>
-    internal static string DefaultRoot => DesktopRuntimeConfiguration.DeviceStateRoot is { } profile
-        ? Path.Combine(profile, "file-history")
-        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Nendo", "FileHistory");
+    private string StatePath => Path.Combine(_root, "recent.json");
 
     /// <summary>The folder this history is kept in.</summary>
     internal string Root => _root;

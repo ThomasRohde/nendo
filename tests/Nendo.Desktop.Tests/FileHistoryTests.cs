@@ -120,7 +120,7 @@ public sealed class FileHistoryTests
         await using var workspace = new DesktopTestWorkspace();
         await using (var initial = await NendoWriteCoordinator.CreateAsync(workspace.FilePath, "fixture")) { }
         Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var historyPath = Path.Combine(workspace.FileHistoryRoot, "recent-files.json");
+        var historyPath = Path.Combine(workspace.FileHistoryRoot, "recent.json");
         await File.WriteAllTextAsync(historyPath, contents);
         var before = await File.ReadAllBytesAsync(workspace.FilePath);
         await using var session = Session(workspace);

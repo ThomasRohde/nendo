@@ -122,8 +122,8 @@ public sealed class DesktopAgentModeMemoryTests
             Assert.IsNull(modes.Recall("app-one", "duplicate"));
 
             // A document from before the instance joined the key: still this file's level, moved on its next change.
-            Directory.CreateDirectory(root);
-            File.WriteAllText(Path.Combine(root, "agent-modes.json"),
+            Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(root));
+            File.WriteAllText(Path.Combine(DesktopDeviceStateLayout.Agents(root), "access.json"),
                 """{"Version":1,"Files":{"app-two":{"Mode":"shapeApp","Instance":"kept","Name":null,"UsedAt":"2026-10-01T00:00:00+00:00"}}}""");
             Assert.AreEqual("shapeApp", modes.Recall("app-two", "kept"));
             Assert.IsNull(modes.Recall("app-two", "other"));

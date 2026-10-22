@@ -363,10 +363,11 @@ try {
     # own Nendo opening a file (a new port, a moved timestamp) is not the lane's doing; a
     # port kept for the lane's own file, or a changed theme, is.
     $standIn = Join-Path ([IO.Path]::GetTempPath()) ('nendo-owner-state-' + [Guid]::NewGuid().ToString('N'))
-    [void][IO.Directory]::CreateDirectory($standIn)
+    [void][IO.Directory]::CreateDirectory((Join-Path $standIn 'agents'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $standIn 'window'))
     try {
-        $writePorts = { param($entries) @{ Version = 1; Files = $entries } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $standIn 'agent-ports.json') }
-        Set-Content -LiteralPath (Join-Path $standIn 'appearance.json') -Value '{"Version":1,"Preference":"system"}'
+        $writePorts = { param($entries) @{ Version = 1; Files = $entries } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $standIn 'agents\ports.json') }
+        Set-Content -LiteralPath (Join-Path $standIn 'window\appearance.json') -Value '{"Version":1,"Preference":"system"}'
         & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T08:00:00Z' } }
         $ownerBefore = Get-OwnerDeviceSnapshot $standIn
         & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T09:00:00Z' }; 'application-b' = @{ Port = 41767; Name = 'Notes.nendo'; UsedAt = '2026-10-13T09:00:00Z' } }
@@ -376,7 +377,7 @@ try {
         try { Assert-OwnerDeviceUnchanged $ownerBefore @('pilot.nendo') 'Stand-in lane' } catch { $caught = $true }
         if (-not $caught) { throw "The owner-state check missed a port kept for the lane's own file." }
         & $writePorts @{ 'application-a' = @{ Port = 41766; Name = 'Planner.nendo'; UsedAt = '2026-10-13T08:00:00Z' } }
-        Set-Content -LiteralPath (Join-Path $standIn 'appearance.json') -Value '{"Version":1,"Preference":"dark"}'
+        Set-Content -LiteralPath (Join-Path $standIn 'window\appearance.json') -Value '{"Version":1,"Preference":"dark"}'
         $caught = $false
         try { Assert-OwnerDeviceUnchanged $ownerBefore @('pilot.nendo') 'Stand-in lane' } catch { $caught = $true }
         if (-not $caught) { throw "The owner-state check missed a changed theme." }

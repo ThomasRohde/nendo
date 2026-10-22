@@ -942,7 +942,7 @@ public sealed class DesktopLaunchedAgentTests
     public async Task LeftOverAgentFoldersAreSweptAtTheNextLaunch()
     {
         await using var fixture = await Fixture.StartAsync("inspect");
-        var root = Path.Combine(fixture.DeviceRoot, "agent-sessions");
+        var root = DesktopDeviceStateLayout.AgentSessions(fixture.DeviceRoot);
         using var ended = Process.Start(new ProcessStartInfo("node", "-e \"0\"") { UseShellExecute = false, CreateNoWindow = true })!;
         await ended.WaitForExitAsync();
         using var running = Process.Start(new ProcessStartInfo("node", "-e \"setTimeout(() => {}, 60000)\"") { UseShellExecute = false, CreateNoWindow = true })!;

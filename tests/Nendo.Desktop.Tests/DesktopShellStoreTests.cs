@@ -32,8 +32,8 @@ public sealed class DesktopShellStoreTests
         Assert.AreEqual(closeAction, reopened.CloseAction);
         Assert.IsTrue(reopened.Persisted);
         CollectionAssert.AreEqual(
-            new[] { "shell.json" },
-            Directory.GetFiles(workspace.FileHistoryRoot).Select(Path.GetFileName).ToArray());
+            new[] { "tray.json" },
+            Directory.GetFiles(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot)).Select(Path.GetFileName).ToArray());
     }
 
     [TestMethod]
@@ -79,8 +79,8 @@ public sealed class DesktopShellStoreTests
     public async Task ARefreshThatReadsTheDocumentClearsTheEarlierReadFailure()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "shell.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "tray.json");
         await File.WriteAllTextAsync(path, "not json");
         var store = new DesktopShellStore(workspace.FileHistoryRoot);
         Assert.IsFalse(store.Persisted);
@@ -114,8 +114,8 @@ public sealed class DesktopShellStoreTests
     public async Task InvalidStateFallsBackToTheDefaultWithoutRepairingItsBytes(string text)
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "shell.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "tray.json");
         await File.WriteAllTextAsync(path, text);
         var store = new DesktopShellStore(workspace.FileHistoryRoot);
         Assert.AreEqual("tray", store.CloseAction);
@@ -129,8 +129,8 @@ public sealed class DesktopShellStoreTests
     public async Task OversizedStateIsBoundedAndPreserved()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "shell.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "tray.json");
         var text = new string(' ', 4097);
         await File.WriteAllTextAsync(path, text);
         var store = new DesktopShellStore(workspace.FileHistoryRoot);
@@ -154,8 +154,8 @@ public sealed class DesktopShellStoreTests
     public async Task SaveFailureAppliesOnlyToMemoryAndCleansOwnedStage()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "shell.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "tray.json");
         Directory.CreateDirectory(path); // Deterministic destination failure, not a disk-full test.
         var store = new DesktopShellStore(workspace.FileHistoryRoot);
         store.SetCloseAction("exit");
@@ -172,7 +172,7 @@ public sealed class DesktopShellStoreTests
         var store = new DesktopShellStore(workspace.FileHistoryRoot);
         store.SetCloseAction("exit");
         store.MarkTrayIntroShown();
-        var serialized = await File.ReadAllTextAsync(Path.Combine(workspace.FileHistoryRoot, "shell.json"));
+        var serialized = await File.ReadAllTextAsync(Path.Combine(DesktopDeviceStateLayout.Window(workspace.FileHistoryRoot), "tray.json"));
         Assert.IsFalse(serialized.Contains(workspace.FileHistoryRoot, StringComparison.Ordinal));
         Assert.IsFalse(File.Exists(workspace.FilePath));
     }

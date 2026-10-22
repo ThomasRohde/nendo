@@ -40,7 +40,7 @@ application services, at a static loopback address, with no credential. The
 
 ### Ports and discovery
 
-- Each file keeps a port on this device, in `agent-ports.json` under its application
+- Each file keeps a port on this device, in `agents\ports.json` under its application
   ID and instance ID. The first time a file turns access on with Fixed port on, it
   keeps the device's port (41763 unless the person chose another) if no file keeps
   it, otherwise the next port no file keeps, and asks for that port from then on. A
@@ -74,7 +74,7 @@ application services, at a static loopback address, with no credential. The
 - The levels are Off, Inspect, Edit data, Shape app and Unattended. The host shows
   the active level and the modifying owner. The level is captured when the listener
   starts and fixed for its lifetime; a change restarts the listener.
-- The level is remembered per file on this device, in `agent-modes.json` under the
+- The level is remembered per file on this device, in `agents\access.json` under the
   application ID and instance ID. A writable open of that instance turns it on again;
   choosing Off forgets it. A Duplicate or Fork (a new instance), a read-only or
   recovery open, a restore and a replacement begin at Off. A copy made outside Nendo

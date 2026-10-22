@@ -154,7 +154,7 @@ async function attach(name) {
   }, 'Unattended to be on after the question was answered');
   await fs.writeFile(path.join(output, 'agent-status.json'), JSON.stringify(status, null, 2));
   assert(status.mode === 'unattended', `Unattended was not enabled: ${JSON.stringify(status)}`);
-  const isolated = path.join(output, 'device-state', 'discovery');
+  const isolated = path.join(output, 'device-state', 'Mcp', 'active');
   const root = await fs.access(isolated).then(() => isolated, () => path.join(process.env.LOCALAPPDATA, 'Nendo', 'Mcp', 'active'));
   const discovery = await waitFor(async () => {
     const entries = [];

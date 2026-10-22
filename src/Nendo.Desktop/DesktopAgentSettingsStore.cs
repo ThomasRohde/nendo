@@ -14,7 +14,8 @@ internal sealed class DesktopAgentSettingsStore
     internal const int MaximumExpirySeconds = 86400;
 
     private readonly string _root;
-    private string StatePath => Path.Combine(_root, "agent-settings.json");
+    private string Folder => DesktopDeviceStateLayout.Agents(_root);
+    private string StatePath => Path.Combine(Folder, "connection.json");
     private bool _pendingLeaseExpiry;
     private bool _pendingLeaseExpirySeconds;
     private bool _pendingFixedPort;
@@ -132,7 +133,7 @@ internal sealed class DesktopAgentSettingsStore
             LeaseExpirySeconds = changeSeconds || !merge ? leaseExpirySeconds : latest.LeaseExpirySeconds;
             FixedPort = changeFixed || !merge ? fixedPort : latest.FixedPort;
             Port = changePort || !merge ? port : latest.Port;
-            DesktopStateFile.Replace(_root, StatePath, "agent-settings", stream => JsonSerializer.Serialize(
+            DesktopStateFile.Replace(Folder, StatePath, "connection", stream => JsonSerializer.Serialize(
                 stream,
                 new StoredAgentSettings(1, LeaseExpiry, LeaseExpirySeconds, FixedPort, Port)));
             _pendingLeaseExpiry = _pendingLeaseExpirySeconds = _pendingFixedPort = _pendingPort = false;

@@ -69,7 +69,7 @@ public sealed class DesktopAgentSettingsTests
     {
         await using var workspace = new DesktopTestWorkspace();
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "agent-settings.json");
+        var path = Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "connection.json");
         Directory.CreateDirectory(path); // A task-owned obstacle to reading/writing the document.
         store.Save(true, 120, false, 51000);
         Assert.IsFalse(store.Persisted);
@@ -89,9 +89,9 @@ public sealed class DesktopAgentSettingsTests
     public async Task ASettingsDocumentWithTheRetiredCredentialKeyStillLoads()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
         await File.WriteAllTextAsync(
-            Path.Combine(workspace.FileHistoryRoot, "agent-settings.json"),
+            Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "connection.json"),
             """{"Version":1,"LeaseExpiry":false,"LeaseExpirySeconds":60,"FixedPort":true,"Port":41763,"StableCredential":true}""");
 
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
@@ -116,7 +116,7 @@ public sealed class DesktopAgentSettingsTests
 
         Assert.IsFalse(store.LeaseExpiry);
         Assert.AreEqual(NendoLocalMcpHostOptions.StandardPort, store.Port);
-        Assert.IsFalse(File.Exists(Path.Combine(workspace.FileHistoryRoot, "agent-settings.json")));
+        Assert.IsFalse(File.Exists(Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "connection.json")));
     }
 
     /// <summary>
@@ -158,7 +158,7 @@ public sealed class DesktopAgentSettingsTests
         var root = workspace.FileHistoryRoot;
         new DesktopAgentSettingsStore(root).Save(true, 90, true, 51000);
         var store = new DesktopAgentSettingsStore(root);
-        var path = Path.Combine(root, "agent-settings.json");
+        var path = Path.Combine(DesktopDeviceStateLayout.Agents(root), "connection.json");
         File.Delete(path);
         Directory.CreateDirectory(path); // A task-owned obstacle: the document cannot be read.
         try
@@ -181,7 +181,7 @@ public sealed class DesktopAgentSettingsTests
         await using var workspace = new DesktopTestWorkspace();
         var root = workspace.FileHistoryRoot;
         var store = new DesktopAgentSettingsStore(root);
-        var path = Path.Combine(root, "agent-settings.json");
+        var path = Path.Combine(DesktopDeviceStateLayout.Agents(root), "connection.json");
         Directory.CreateDirectory(path); // A task-owned obstacle to reading/writing the document.
         store.Save(true, 120, store.FixedPort, store.Port);
         Assert.IsFalse(store.Persisted);
@@ -200,9 +200,9 @@ public sealed class DesktopAgentSettingsTests
     public async Task UnreadableSettingsFallBackToDefaultsWithANotice()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
         await File.WriteAllTextAsync(
-            Path.Combine(workspace.FileHistoryRoot, "agent-settings.json"), "{ not json");
+            Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "connection.json"), "{ not json");
 
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
 
@@ -216,8 +216,8 @@ public sealed class DesktopAgentSettingsTests
     public async Task SavingRepairsACorruptSettingsDocument()
     {
         await using var workspace = new DesktopTestWorkspace();
-        Directory.CreateDirectory(workspace.FileHistoryRoot);
-        var path = Path.Combine(workspace.FileHistoryRoot, "agent-settings.json");
+        Directory.CreateDirectory(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot));
+        var path = Path.Combine(DesktopDeviceStateLayout.Agents(workspace.FileHistoryRoot), "connection.json");
         await File.WriteAllTextAsync(path, "{ not json");
         var store = new DesktopAgentSettingsStore(workspace.FileHistoryRoot);
 
@@ -260,16 +260,16 @@ public sealed class DesktopAgentSettingsTests
         await session.SetAgentModeAsync("editData");
         await using var client = await AcquireLeaseAsync((await session.GetAgentStatusAsync()).Endpoint!);
         var before = await session.GetAgentStatusAsync();
-        var settingsBytes = await File.ReadAllBytesAsync(Path.Combine(root, "agent-settings.json"));
-        var portsBytes = await File.ReadAllBytesAsync(Path.Combine(root, "agent-ports.json"));
+        var settingsBytes = await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "connection.json"));
+        var portsBytes = await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "ports.json"));
 
         continueRequest.SetResult();
         var refusal = await Assert.ThrowsExactlyAsync<NendoPreconditionException>(() => pending);
         Assert.AreEqual("stale-file-session", refusal.Code);
         Assert.AreEqual(current.FileSessionId, (await session.GetViewAsync()).FileSessionId);
         AssertSettingsAndListenerUnchanged(before, await session.GetAgentStatusAsync());
-        CollectionAssert.AreEqual(settingsBytes, await File.ReadAllBytesAsync(Path.Combine(root, "agent-settings.json")));
-        CollectionAssert.AreEqual(portsBytes, await File.ReadAllBytesAsync(Path.Combine(root, "agent-ports.json")));
+        CollectionAssert.AreEqual(settingsBytes, await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "connection.json")));
+        CollectionAssert.AreEqual(portsBytes, await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "ports.json")));
     }
 
     [TestMethod]
@@ -284,8 +284,8 @@ public sealed class DesktopAgentSettingsTests
         await session.SetAgentModeAsync("editData");
         await using var client = await AcquireLeaseAsync((await session.GetAgentStatusAsync()).Endpoint!);
         var before = await session.GetAgentStatusAsync();
-        var settingsBytes = await File.ReadAllBytesAsync(Path.Combine(root, "agent-settings.json"));
-        var portsBytes = await File.ReadAllBytesAsync(Path.Combine(root, "agent-ports.json"));
+        var settingsBytes = await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "connection.json"));
+        var portsBytes = await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "ports.json"));
         var requestedPort = FreePort();
         while (requestedPort == before.PortPreference) requestedPort = FreePort();
 
@@ -298,8 +298,8 @@ public sealed class DesktopAgentSettingsTests
         AssertSettingsAndListenerUnchanged(before, after);
         Assert.AreEqual(before.PortPreference,
             new DesktopAgentPortStore(root).Peek(current.Manifest!.ApplicationId, current.Manifest.InstanceId, NendoLocalMcpHostOptions.StandardPort));
-        CollectionAssert.AreEqual(settingsBytes, await File.ReadAllBytesAsync(Path.Combine(root, "agent-settings.json")));
-        CollectionAssert.AreEqual(portsBytes, await File.ReadAllBytesAsync(Path.Combine(root, "agent-ports.json")));
+        CollectionAssert.AreEqual(settingsBytes, await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "connection.json")));
+        CollectionAssert.AreEqual(portsBytes, await File.ReadAllBytesAsync(Path.Combine(DesktopDeviceStateLayout.Agents(root), "ports.json")));
     }
 
     private static int FreePort()

@@ -43,7 +43,7 @@ internal sealed class DesktopAgentPortStore(string root)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
-        using var guard = DesktopDeviceStateLock.Enter("agent-ports");
+        using var guard = DesktopDeviceStateLock.Enter("agents.ports");
         var ports = Read();
         var key = Key(applicationId, instanceId);
         var kept = TakeOver(ports, applicationId, instanceId, fileName);
@@ -73,7 +73,7 @@ internal sealed class DesktopAgentPortStore(string root)
         ArgumentException.ThrowIfNullOrWhiteSpace(applicationId);
         ArgumentException.ThrowIfNullOrWhiteSpace(instanceId);
         if (port is < 1024 or > 65535) throw new NendoValidationException("Choose a port between 1024 and 65535.");
-        using var guard = DesktopDeviceStateLock.Enter("agent-ports");
+        using var guard = DesktopDeviceStateLock.Enter("agents.ports");
         var ports = Read();
         var key = Key(applicationId, instanceId);
         var kept = TakeOver(ports, applicationId, instanceId, fileName);
@@ -137,7 +137,7 @@ internal sealed class DesktopAgentPortStore(string root)
         return basePort;
     }
 
-    private readonly DesktopKeyedFileStore<StoredPort> _files = new(root, "agent-ports", MaximumFiles,
+    private readonly DesktopKeyedFileStore<StoredPort> _files = new(DesktopDeviceStateLayout.Agents(root), "ports", MaximumFiles,
         entry => entry.UsedAt, entry => entry.Port is >= 1024 and <= 65535);
 
     private Dictionary<string, StoredPort> Read() => _files.Read();

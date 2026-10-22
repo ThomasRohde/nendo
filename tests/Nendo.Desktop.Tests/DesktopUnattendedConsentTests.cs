@@ -36,7 +36,7 @@ public sealed class DesktopUnattendedConsentTests
         Assert.IsFalse((await session.GetViewAsync()).BehaviourTrust!.IsApproved,
             $"{mode} recorded consent nobody gave.");
         // And nothing was written to the device either, which is the durable half.
-        Assert.IsFalse(File.Exists(Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json")),
+        Assert.IsFalse(File.Exists(Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json")),
             $"{mode} wrote a grant to this device.");
         // And there is nothing here to run: the delegate is the capability, so a level
         // that was never handed one cannot reach consent however it is asked.
@@ -49,7 +49,7 @@ public sealed class DesktopUnattendedConsentTests
     {
         await using var workspace = new DesktopTestWorkspace();
         await SeedAsync(workspace.FilePath);
-        var grantsPath = Path.Combine(workspace.FileHistoryRoot, "behaviour-grants.json");
+        var grantsPath = Path.Combine(DesktopDeviceStateLayout.Actions(workspace.FileHistoryRoot), "consent.json");
 
         // What the person's own click writes, recorded first and then taken away, so the
         // comparison below is against this device's real grant document rather than
