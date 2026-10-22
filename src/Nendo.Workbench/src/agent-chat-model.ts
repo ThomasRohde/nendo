@@ -1,7 +1,7 @@
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { markdownMarkup } from './markdown';
-import type { AgentCommand, AgentOption, AgentTranscriptEntry, LaunchedAgentState, LaunchedAgentView } from './host-types';
+import type { AgentCommand, AgentOption, AgentTranscriptEntry, AgentUsage, LaunchedAgentState, LaunchedAgentView } from './host-types';
 
 /**
  * The conversation with an agent launched from the Agent page (ADR-0030), as the tab holds it:
@@ -42,14 +42,37 @@ export interface AgentChat {
   queued: number;
   /** The agent reads pictures, so the message box takes them. */
   takesImages: boolean;
+  /** How full the agent's context is, as it last said; null until it says. */
+  usage: AgentUsage | null;
 }
 
 export function emptyChat(): AgentChat {
   return {
     key: '', conversationId: null, exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
     state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], signingIn: false, options: [], commands: [],
-    queued: 0, takesImages: false,
+    queued: 0, takesImages: false, usage: null,
   };
+}
+
+/** The share of its context at which the chip says the conversation is getting full. */
+export const usageHighPercent = 80;
+
+/**
+ * The context chip over the message box: the share of the agent's context in use, and, on hover,
+ * the tokens and the cost the agent reported. Null until the agent says.
+ */
+export function usageChip(usage: AgentUsage | null): { label: string; title: string; high: boolean } | null {
+  if (usage === null || usage.size <= 0) return null;
+  const percent = Math.min(100, Math.round((usage.used / usage.size) * 100));
+  let title = `${usage.used.toLocaleString('en-US')} of the ${usage.size.toLocaleString('en-US')} tokens of the agent's context are in use, as the agent counts them.`;
+  if (usage.costAmount !== null && usage.costCurrency !== null) {
+    let cost: string;
+    try { cost = new Intl.NumberFormat('en-US', { style: 'currency', currency: usage.costCurrency }).format(usage.costAmount); }
+    catch { cost = `${usage.costAmount} ${usage.costCurrency}`; }
+    title += ` The session has cost ${cost} so far.`;
+  }
+  if (percent >= usageHighPercent) title += ' The agent may soon drop or summarise the earliest of the conversation; New session starts a fresh one.';
+  return { label: `${percent}% of context`, title, high: percent >= usageHighPercent };
 }
 
 /**
@@ -83,6 +106,7 @@ export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: s
   chat.commands = view.commands ?? [];
   chat.queued = view.queued ?? 0;
   chat.takesImages = view.takesImages === true;
+  chat.usage = view.usage ?? null;
   chat.revision = Math.max(chat.revision, view.revision);
   const changed: string[] = [];
   for (const entry of view.entries) {

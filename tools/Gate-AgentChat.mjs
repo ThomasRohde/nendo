@@ -362,6 +362,14 @@ async page => {
   assert((await pictureLabels()).length === 0, 'the pictures stayed in the box after the message went.');
   checks.push('a picture dropped or pasted goes with the message');
 
+  // How full the agent's context is shows over the box once the agent says, as a share, with the
+  // tokens and cost on hover (the preview agent counts each message).
+  await until(() => { const chip = document.querySelector('#chat-usage'); return chip !== null && !chip.hidden && /^\d+% of context$/.test(chip.textContent.trim()); },
+    null, 'the context chip', 3000).catch(async () => { throw Error(`the context chip shows "${await text('#chat-usage')}", hidden: ${await page.evaluate(() => document.querySelector('#chat-usage')?.hidden)}.`); });
+  const usageTitle = await page.evaluate(() => document.querySelector('#chat-usage').title);
+  assert(/of the 200,000 tokens/.test(usageTitle) && /\$\d+\.\d\d so far/.test(usageTitle), `the context chip's hover says "${usageTitle}".`);
+  checks.push('the context chip shows how full the agent is');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };
 

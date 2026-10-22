@@ -1,4 +1,4 @@
-import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentSetting, type AgentStatus, type AgentTranscriptEntry, type AgentTurn, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
+import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentSetting, type AgentStatus, type AgentTranscriptEntry, type AgentTurn, type AgentUsage, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
 
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
@@ -197,6 +197,7 @@ export class PreviewAgentSession {
     const next = this.state === 'ready' ? this.queue.shift() : undefined;
     if (next === undefined) return;
     this.working = true;
+    this.count(next.text);
     const said = this.add({ kind: 'you', text: next.text, from: next.from });
     this.turns.set(next.turnId, { promptOrder: said.order, stopReason: null });
     this.openTurn = next.turnId;
@@ -248,6 +249,7 @@ export class PreviewAgentSession {
     }
     if (!this.kept.has(agent.id)) this.kept.set(agent.id, { options: structuredClone(this.defaultOptions), picked: new Map() });
     this.agent = agent;
+    this.usage = null;
     this.lastAgentId = agent.id;
     this.turns = new Map();
     this.openTurn = null;
@@ -264,6 +266,15 @@ export class PreviewAgentSession {
     // Ended while starting stays ended, as a real agent's process does.
     this.later(400, () => { if (this.state === 'starting') { this.state = 'ready'; this.touch(); } });
     return this.read(0);
+  }
+
+  /** How full the preview agent's context is: it counts about a thousand tokens a message, and a sample cost. */
+  private usage: AgentUsage | null = null;
+
+  /** A message entered the conversation: the preview agent counts it, as an agent's usage_update would. */
+  private count(text: string): void {
+    const used = (this.usage?.used ?? 12_000) + 1_000 + text.length;
+    this.usage = { used, size: 200_000, costAmount: Math.round(used * 0.0003) / 100, costCurrency: 'USD' };
   }
 
   /** Pictures staged for the next message, by key: only their size is kept, as the preview agent never looks at one. */
@@ -309,6 +320,7 @@ export class PreviewAgentSession {
     }
     if (this.working) throw new WorkbenchHostError('agent-working', 'The agent is still working. Wait, or press Stop.');
     this.working = true;
+    this.count(text);
     const said = this.add({ kind: 'you', text: text.trim(), title: pointedAt.length === 0 ? null : pointedAt.join(' · '), from });
     const turnId = `t${this.turns.size + 1}`;
     this.turns.set(turnId, { promptOrder: said.order, stopReason: null });
@@ -440,6 +452,7 @@ export class PreviewAgentSession {
       queued: this.queue.length,
       // The preview agent reads pictures, so the box takes them once it is ready.
       takesImages: this.agent !== null && this.state !== 'starting',
+      usage: this.usage,
     };
   }
 

@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
-const { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, signInMarkup, stateLabel, stepsSummary, threadItems, waitingForYou } =
+const { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, signInMarkup, stateLabel, stepsSummary, threadItems, usageChip, waitingForYou } =
   await bundleOf('src/agent-chat-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
@@ -284,4 +284,28 @@ test('a new launch never draws the old launch\'s markup for an entry of the same
   const fresh = cache.markup(item('new conversation'), 'Copilot', new Set(), false, 'file|2');
   assert.match(fresh, /new conversation/, 'The new launch drew the old launch\'s entry.');
   assert.equal(cache.built, 2);
+});
+
+test('the context chip says how full the agent says its context is, and warns when it is nearly full', () => {
+  assert.equal(usageChip(null), null, 'a chip was drawn before the agent said its use');
+  assert.equal(usageChip({ used: 5, size: 0, costAmount: null, costCurrency: null }), null);
+  const half = usageChip({ used: 100_000, size: 200_000, costAmount: 1.5, costCurrency: 'USD' });
+  assert.equal(half.label, '50% of context');
+  assert.equal(half.high, false);
+  assert.match(half.title, /100,000 of the 200,000 tokens/);
+  assert.match(half.title, /\$1\.50 so far/);
+  const full = usageChip({ used: 190_000, size: 200_000, costAmount: null, costCurrency: null });
+  assert.equal(full.high, true);
+  assert.doesNotMatch(full.title, /cost/);
+  assert.equal(usageChip({ used: 250_000, size: 200_000, costAmount: null, costCurrency: null }).label, '100% of context');
+  // A currency code no country uses is still said, by its code.
+  assert.match(usageChip({ used: 1, size: 10, costAmount: 2, costCurrency: 'XQQ' }).title, /XQQ\s2\.00 so far/);
+});
+
+test('a read carries the agent\'s context use into the chat, and a new launch starts without one', () => {
+  const chat = emptyChat();
+  mergeChat(chat, { ...view(), usage: { used: 10, size: 100, costAmount: null, costCurrency: null } }, 'k1');
+  assert.deepEqual(chat.usage, { used: 10, size: 100, costAmount: null, costCurrency: null });
+  mergeChat(chat, { ...view(), usage: undefined }, 'k1');
+  assert.equal(chat.usage, null, 'an older host\'s read left an old use standing');
 });

@@ -119,11 +119,17 @@ Every method except `list`, `setCommand`, `setHidden` and `attach` answers with 
 ```text
 { exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
   notice, agentTitle, revision, entries, more, signInMethods, options, firstOrder,
-  signingIn, commands, queued, takesImages }
+  signingIn, commands, queued, takesImages, usage }
 ```
 
 `takesImages` is whether the agent declared `agentCapabilities.promptCapabilities.image` at
-`initialize`.
+`initialize`. `usage` is how full the agent's context is, from its last `usage_update` Nendo could
+show: `{ used, size, costAmount, costCurrency }`, null until it sends one
+(`AgentConversation.Usage.cs`). An update without a whole, non-negative `used` and a `size` above
+zero is ignored and the last one stays; a `cost` that is not a non-negative `amount` with a
+three-letter upper-case `currency` is left out and the use kept. It is the agent's count, never
+Nendo's. The tab shows it as a chip beside the agent's, `N% of context`, with the tokens and the
+cost on hover, in the warning colour from 80% (`usageChip`, `agent-chat-model.ts`).
 
 `queued` is the number of views' messages waiting for the running turn.
 `conversationId` is new for each launch, null when none was launched. `state` is `none`,

@@ -910,6 +910,16 @@
   cursor: pointer;
 }
 
+/* The conversation is getting full: the chip says so in the warning colour, not only on hover. */
+.chat-chip[data-level="high"] {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--line));
+  color: var(--warning);
+}
+
+.chat-chip[data-level="high"] svg {
+  color: var(--warning);
+}
+
 .chat-chip.is-link:hover {
   border-color: var(--line-strong);
   background: var(--surface-soft);

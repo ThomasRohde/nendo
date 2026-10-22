@@ -74,7 +74,8 @@ internal sealed record DesktopLaunchedAgentView(
     string? TurnId = null,
     int Queued = 0,
     string? WorkingFolder = null,
-    bool TakesImages = false)
+    bool TakesImages = false,
+    AgentUsageView? Usage = null)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
         new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0, false, []);
@@ -538,7 +539,7 @@ internal sealed partial class DesktopSessionController
         return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
             snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn, snapshot.Commands ?? [],
-            Queued: snapshot.Queued, WorkingFolder: agent.InRepository ? agent.WorkingDirectory : null, TakesImages: snapshot.TakesImages);
+            Queued: snapshot.Queued, WorkingFolder: agent.InRepository ? agent.WorkingDirectory : null, TakesImages: snapshot.TakesImages, Usage: snapshot.Usage);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

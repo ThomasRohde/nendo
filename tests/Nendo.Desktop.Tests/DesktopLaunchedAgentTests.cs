@@ -808,6 +808,25 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task TheAgentsContextUseIsKeptAsItLastSaidIt()
+    {
+        // The person could not see how close the conversation was to the agent's context limit.
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.IsNull(ready.Usage, "A use was shown before the agent said one.");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "usage", 0);
+        var counted = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Counted."));
+        Assert.AreEqual(new AgentUsageView(45_000, 200_000, 0.12m, "USD"), counted.Usage,
+            "The use the agent could be shown was not kept, or one it could not replaced it.");
+
+        // A cost that is not an amount in a currency is left out; the use is kept.
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "usage-odd-cost", 0);
+        var again = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Counted again."));
+        Assert.AreEqual(new AgentUsageView(50_000, 200_000, null, null), again.Usage);
+    }
+
+    [TestMethod]
     public async Task PicturesTravelAsImageBlocksToAnAgentThatReadsThem()
     {
         // The owner could not drop a screenshot into the prompt. A picture is staged in chunks

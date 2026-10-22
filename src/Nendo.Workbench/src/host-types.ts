@@ -384,6 +384,16 @@ export interface LaunchedAgentView {
   workingFolder?: string | null;
   /** The agent said it reads pictures in a message (ACP promptCapabilities.image); absent from an older host. */
   takesImages?: boolean;
+  /** How full the agent's context is, as it last said (ACP usage_update); null until it says, absent from an older host. */
+  usage?: AgentUsage | null;
+}
+
+/** Tokens in use of the agent's context, and what the session has cost so far when the agent says. */
+export interface AgentUsage {
+  used: number;
+  size: number;
+  costAmount: number | null;
+  costCurrency: string | null;
 }
 
 /** A turn read back (ADR-0033): whether it ended, the agent's message text of that turn, and why it stopped. */

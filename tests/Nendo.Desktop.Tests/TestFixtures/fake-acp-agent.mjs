@@ -92,6 +92,21 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'cancelled' } });
     return;
   }
+  if (text === 'usage') {
+    // One the host can show, then two it cannot (no size, a count as text), which leave it standing.
+    update(sessionId, { sessionUpdate: 'usage_update', used: 45000, size: 200000, cost: { amount: 0.12, currency: 'USD' } });
+    update(sessionId, { sessionUpdate: 'usage_update', used: 1000, size: 0 });
+    update(sessionId, { sessionUpdate: 'usage_update', used: '9', size: 200000 });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Counted.' } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'usage-odd-cost') {
+    update(sessionId, { sessionUpdate: 'usage_update', used: 50000, size: 200000, cost: { amount: -1, currency: 'usd' } });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Counted again.' } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'tool') {
     update(sessionId, { sessionUpdate: 'plan', entries: [{ content: 'Read the schema', priority: 'high', status: 'in_progress' }] });
     update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-2', title: 'nendo.read.resource', kind: 'read', status: 'in_progress' });

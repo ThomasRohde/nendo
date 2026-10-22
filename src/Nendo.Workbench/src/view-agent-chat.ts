@@ -3,7 +3,7 @@ import { client } from './client';
 import { escapeAttribute, escapeHtml, messageFor } from './format';
 import type { AgentStatus, LaunchableAgents, LaunchedAgentView } from './host';
 import { icon } from './icons';
-import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, mergeChat, reviewHint, signInMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
+import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, mergeChat, reviewHint, signInMarkup, stateLabel, stateTone, threadItems, usageChip, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
 import { announce, content, rerender, showError, showKeptAlert } from './shell';
 import { drawTabs, onTabClosed, openTabOn, releaseOwnedPage, setTabStatus } from './workspace-tabs';
 import { clearPictures, heldPictureCount, resetPictures, stagePictures, wirePictures } from './agent-images';
@@ -347,6 +347,7 @@ export function renderAgentChat(): void {
         <span class="chat-chip" title="The file this conversation works on">${icon('file')}<span id="chat-file-name"></span></span>
         <button id="chat-access" class="chat-chip is-link" type="button">${icon('health')}<span id="chat-level"></span></button>
         <span class="chat-chip"><span class="chat-chip-dot" aria-hidden="true"></span><span id="chat-agent-name"></span></span>
+        <span id="chat-usage" class="chat-chip" hidden>${icon('gauge')}<span id="chat-usage-label"></span></span>
       </div>
       <form id="chat-composer" class="chat-composer" data-media-drop>
         <div id="chat-attachments" class="chat-attachments" hidden></div>
@@ -532,6 +533,12 @@ function patchChat(force: boolean, only?: string): void {
   page.querySelector('#chat-agent-name')!.textContent = chat.agentTitle ?? chat.name;
   page.querySelector('#chat-file-name')!.textContent = state.session.fileName ?? '';
   page.querySelector('#chat-level')!.textContent = chat.level;
+  const usage = usageChip(chat.usage);
+  const usageChipElement = page.querySelector<HTMLElement>('#chat-usage')!;
+  usageChipElement.hidden = usage === null;
+  usageChipElement.title = usage?.title ?? '';
+  usageChipElement.dataset.level = usage?.high === true ? 'high' : 'normal';
+  page.querySelector('#chat-usage-label')!.textContent = usage?.label ?? '';
   patchReview();
   page.querySelector<HTMLElement>('#chat-access')!.title = chat.exists
     ? `Nendo's access level for this file; open the Agent page to change it. ${chat.name} reaches this file only through ${chat.endpoint ?? 'its agent address'}, and keeps its own tools on this computer.`
