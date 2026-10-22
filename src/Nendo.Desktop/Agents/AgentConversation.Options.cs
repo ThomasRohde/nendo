@@ -30,9 +30,10 @@ internal sealed record AgentOptionView(
 /// The current form is session config options: the agent lists them when the session opens,
 /// Nendo sets one with <c>session/set_config_option</c>, and the agent restates them all with
 /// <c>config_option_update</c>. Older agents send <c>modes</c>, set with <c>session/set_mode</c>,
-/// and an unstable <c>models</c> list, set with <c>session/set_model</c>; Nendo shows those as a
-/// Mode and a Model option when the agent sends no config options. Nendo changes an option only
-/// when the person picks a value; it never chooses one itself.
+/// and a <c>models</c> list, set with <c>session/set_model</c>, which ACP has removed; Nendo shows
+/// those as a Mode and a Model option only when the agent sends no config options, as OpenCode 1.1
+/// does. An agent that sends both is set only through its config options. Nendo changes an option
+/// only when the person picks a value; it never chooses one itself.
 /// </para>
 /// </summary>
 internal sealed partial class AgentConversation

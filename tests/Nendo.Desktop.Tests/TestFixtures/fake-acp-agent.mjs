@@ -275,7 +275,8 @@ lines.on('line', (line) => {
       if (!signedIn) send({ id: message.id, error: { code: -32000, message: 'Authentication required' } });
       else if (args.includes('--refuse-session')) send({ id: message.id, error: { code: -32603, message: 'Internal error', data: { details: 'Invalid permissions.defaultMode: auto.' } } });
       else send({ id: message.id, result: { sessionId: 'session-1',
-        ...(args.includes('--config') ? { configOptions: offered(), modes: legacy.modes } : {}),
+        // As Copilot 1.0 and Codex 2.1 do: config options, and the older modes and models beside them.
+        ...(args.includes('--config') ? { configOptions: offered(), modes: legacy.modes, models: legacy.models } : {}),
         ...(args.includes('--legacy') ? legacy : {}) } });
       if (signedIn && args.includes('--commands')) setTimeout(() => update('session-1', { sessionUpdate: 'available_commands_update', availableCommands: commands }), 20);
       break;

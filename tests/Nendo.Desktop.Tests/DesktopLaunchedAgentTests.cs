@@ -669,6 +669,13 @@ public sealed class DesktopLaunchedAgentTests
         var flipped = fixture.Log().Last(entry => Method(entry) == "session/set_config_option").GetProperty("params");
         Assert.AreEqual("boolean", flipped.GetProperty("type").GetString());
         Assert.AreEqual(JsonValueKind.True, flipped.GetProperty("value").ValueKind, flipped.GetRawText());
+
+        // The agent also sent the older modes and models; config options are its options, so a
+        // model goes by set_config_option and the removed session/set_model is never sent.
+        await fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "model", "haiku", 0);
+        Assert.AreEqual("haiku", fixture.Log().Last(entry => Method(entry) == "session/set_config_option").GetProperty("params").GetProperty("value").GetString());
+        Assert.IsFalse(fixture.Log().Any(entry => Method(entry) is "session/set_mode" or "session/set_model"),
+            "An agent with config options was set by the older methods.");
     }
 
     /// <summary>

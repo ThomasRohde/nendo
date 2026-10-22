@@ -284,8 +284,11 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   on the option; the Agent page draws it as a switch, set as it is pressed, and Nendo sends it
   with `type: "boolean"` and a JSON boolean `value`. A view's launch card and the kept settings
   offer it as On and Off. Any other option type is left out.
-  An agent that sends `modes` or `models` instead has them shown as Mode and Model and set
-  with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`).
+  An agent that sends no config options, only `modes` or `models`, has them shown as Mode and
+  Model and set with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`);
+  ACP has removed `session/set_model`, and it is kept for such an agent alone. An agent that sends
+  config options beside `modes` or `models` is set only through its config options, and its
+  `current_mode_update` and `current_model_update` are not drawn.
 - **Kept settings.** Each value the person sets, on the Agent page or a view's launch card, is
   kept for that agent on this device in `agents\settings.json` under the device state (at most
   256 KiB, written under the device state lock), with the options the agent offered when it was
