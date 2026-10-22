@@ -320,3 +320,11 @@ test('an on/off setting of the agent\'s is a switch, and a select stays a select
   assert.ok(!markup.includes('<img src=x'), markup);
   assert.match(optionsMarkup([{ ...verbose, currentValue: 'false' }]), /aria-pressed="false"/);
 });
+
+test('a read carries the agent\'s name for the conversation, and an older host\'s read has none', () => {
+  const chat = emptyChat();
+  mergeChat(chat, { ...view(), sessionTitle: 'Fix the board' }, 'k1');
+  assert.equal(chat.sessionTitle, 'Fix the board');
+  mergeChat(chat, { ...view(), sessionTitle: undefined }, 'k1');
+  assert.equal(chat.sessionTitle, null);
+});

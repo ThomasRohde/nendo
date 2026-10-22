@@ -332,7 +332,7 @@ export function renderAgentChat(): void {
   // box, + and Send inside it, and the keys under it. The agent's options are on the Agent page.
   content.innerHTML = `<div class="agent-chat" data-agent-chat data-chat-key="${escapeAttribute(chat.key)}" data-testid="agent-chat">
     <header class="chat-heading">
-      <div class="chat-title"><h2 id="chat-name"></h2></div>
+      <div class="chat-title"><h2 id="chat-name"></h2><span id="chat-session-title" class="chat-session-title" hidden></span></div>
       <span id="chat-state" class="chat-pill"><span class="chat-dot" aria-hidden="true"></span><strong id="chat-state-label"></strong></span>
       <button id="new-agent-session" class="chat-quiet" type="button" aria-label="New session" title="New session: end this conversation and start the agent again">${icon('newChat')}</button>
     </header>
@@ -529,6 +529,11 @@ function patchChat(force: boolean, only?: string): void {
     return;
   }
   page.querySelector('#chat-name')!.textContent = chat.name;
+  // The agent's own name for the conversation, beside its name; the tab keeps the agent's name.
+  const sessionTitle = page.querySelector<HTMLElement>('#chat-session-title')!;
+  sessionTitle.hidden = chat.sessionTitle === null;
+  sessionTitle.textContent = chat.sessionTitle ?? '';
+  sessionTitle.title = chat.sessionTitle ?? '';
   // The agent as it names itself, with its version where it says one; the heading already names it.
   page.querySelector('#chat-agent-name')!.textContent = chat.agentTitle ?? chat.name;
   page.querySelector('#chat-file-name')!.textContent = state.session.fileName ?? '';

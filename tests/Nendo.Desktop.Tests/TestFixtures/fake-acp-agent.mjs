@@ -111,6 +111,20 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
+  if (text === 'title') {
+    // A title with a handle in it and lines folded, an update that leaves it out, then a clear.
+    update(sessionId, { sessionUpdate: 'session_info_update', title: 'Fix the\nboard  applicationHandle: secret-handle-0123456789', updatedAt: '2026-10-22T10:00:00Z' });
+    update(sessionId, { sessionUpdate: 'session_info_update', updatedAt: '2026-10-22T10:01:00Z' });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Named.' } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
+  if (text === 'untitle') {
+    update(sessionId, { sessionUpdate: 'session_info_update', title: null });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Unnamed.' } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'usage') {
     // One the host can show, then two it cannot (no size, a count as text), which leave it standing.
     update(sessionId, { sessionUpdate: 'usage_update', used: 45000, size: 200000, cost: { amount: 0.12, currency: 'USD' } });

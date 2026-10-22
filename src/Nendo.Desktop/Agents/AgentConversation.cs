@@ -55,7 +55,8 @@ internal sealed record AgentConversationSnapshot(
     IReadOnlyList<AgentCommandView>? Commands = null,
     int Queued = 0,
     bool TakesImages = false,
-    AgentUsageView? Usage = null);
+    AgentUsageView? Usage = null,
+    string? SessionTitle = null);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -513,7 +514,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
             var firstOrder = _entries.Count == 0 ? _order + 1 : _entries[0].Order;
-            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands, _queue.Count, _images, _usage);
+            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands, _queue.Count, _images, _usage, _sessionTitle);
         }
     }
 
@@ -639,6 +640,9 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                     break;
                 case "usage_update":
                     if (!ApplyUsage(update)) return;
+                    break;
+                case "session_info_update":
+                    if (!ApplySessionInfo(update)) return;
                     break;
                 default:
                     // The agent's echo of what the person typed, and anything newer, are not drawn.

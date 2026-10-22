@@ -57,8 +57,9 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
 **The tab.**
 
 - A tab kind of the window, never written to the file. It shows message text, tool calls with
-  their kind, status and whether they went through Nendo, the plan, permission requests, and how
-  full the agent's context is and what it has cost, as the agent reports them.
+  their kind, status and whether they went through Nendo, the plan, permission requests, the
+  agent's name for the conversation, and how full its context is and what it has cost, as the
+  agent reports them.
 - Agent text is untrusted: text and safe Markdown, no HTML, no script, no automatic navigation.
 - A permission request shows the agent's own options. The host never answers one itself and never
   picks an *always* option for the person, at any level.

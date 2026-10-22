@@ -247,6 +247,15 @@
   white-space: nowrap;
 }
 
+/* The agent's name for the conversation: one line, cut short before it pushes the state pill. */
+.chat-session-title {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-pill {
   display: inline-flex;
   align-items: center;

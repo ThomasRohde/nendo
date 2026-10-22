@@ -252,6 +252,7 @@ export class PreviewAgentSession {
     if (!this.kept.has(agent.id)) this.kept.set(agent.id, { options: structuredClone(this.defaultOptions), picked: new Map() });
     this.agent = agent;
     this.usage = null;
+    this.sessionTitle = null;
     this.lastAgentId = agent.id;
     this.turns = new Map();
     this.openTurn = null;
@@ -270,11 +271,15 @@ export class PreviewAgentSession {
     return this.read(0);
   }
 
+  /** The preview agent names the conversation after the person's first message, as agents do. */
+  private sessionTitle: string | null = null;
+
   /** How full the preview agent's context is: it counts about a thousand tokens a message, and a sample cost. */
   private usage: AgentUsage | null = null;
 
   /** A message entered the conversation: the preview agent counts it, as an agent's usage_update would. */
   private count(text: string): void {
+    if (this.sessionTitle === null && text.trim() !== '') this.sessionTitle = text.trim().slice(0, 60);
     const used = (this.usage?.used ?? 12_000) + 1_000 + text.length;
     this.usage = { used, size: 200_000, costAmount: Math.round(used * 0.0003) / 100, costCurrency: 'USD' };
   }
@@ -455,6 +460,7 @@ export class PreviewAgentSession {
       // The preview agent reads pictures, so the box takes them once it is ready.
       takesImages: this.agent !== null && this.state !== 'starting',
       usage: this.usage,
+      sessionTitle: this.sessionTitle,
     };
   }
 

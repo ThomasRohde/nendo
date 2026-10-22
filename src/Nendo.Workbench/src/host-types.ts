@@ -388,6 +388,8 @@ export interface LaunchedAgentView {
   takesImages?: boolean;
   /** How full the agent's context is, as it last said (ACP usage_update); null until it says, absent from an older host. */
   usage?: AgentUsage | null;
+  /** The agent's name for the conversation (ACP session_info_update); null until it gives one, absent from an older host. */
+  sessionTitle?: string | null;
 }
 
 /** Tokens in use of the agent's context, and what the session has cost so far when the agent says. */

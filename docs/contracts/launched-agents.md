@@ -119,7 +119,7 @@ Every method except `list`, `setCommand`, `setHidden` and `attach` answers with 
 ```text
 { exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
   notice, agentTitle, revision, entries, more, signInMethods, options, firstOrder,
-  signingIn, commands, queued, takesImages, usage }
+  signingIn, commands, queued, takesImages, usage, sessionTitle }
 ```
 
 `takesImages` is whether the agent declared `agentCapabilities.promptCapabilities.image` at
@@ -130,6 +130,12 @@ zero is ignored and the last one stays; a `cost` that is not a non-negative `amo
 three-letter upper-case `currency` is left out and the use kept. It is the agent's count, never
 Nendo's. The tab shows it as a chip beside the agent's, `N% of context`, with the tokens and the
 cost on hover, in the warning colour from 80% (`usageChip`, `agent-chat-model.ts`).
+
+`sessionTitle` is the agent's name for the conversation, from its `session_info_update`, null
+until it gives one (`AgentConversation.SessionInfo.cs`). The update is partial: one without
+`title` leaves it, a null `title` clears it. It is one line, white space folded, at most 200
+characters and redacted like every agent text. The tab shows it beside the agent's name in the
+conversation's heading; the tab itself keeps the agent's name.
 
 `queued` is the number of views' messages waiting for the running turn.
 `conversationId` is new for each launch, null when none was launched. `state` is `none`,

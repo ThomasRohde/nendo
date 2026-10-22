@@ -850,6 +850,25 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task TheAgentsNameForTheConversationIsShownAsItLastSaidIt()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.IsNull(ready.SessionTitle);
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "title", 0);
+        var named = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Named."));
+        Assert.IsNotNull(named.SessionTitle, "The agent's name for the conversation was not kept, or an update without one cleared it.");
+        Assert.IsFalse(named.SessionTitle.Contains("secret-handle-0123456789", StringComparison.Ordinal), named.SessionTitle);
+        StringAssert.StartsWith(named.SessionTitle, "Fix the board applicationHandle");
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "untitle", 0);
+        var cleared = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Unnamed."));
+        Assert.IsNull(cleared.SessionTitle, "A null title did not clear the name.");
+    }
+
+    [TestMethod]
     public async Task TheAgentsContextUseIsKeptAsItLastSaidIt()
     {
         // The person could not see how close the conversation was to the agent's context limit.

@@ -383,6 +383,13 @@ async page => {
   assert(/of the 200,000 tokens/.test(usageTitle) && /\$\d+\.\d\d so far/.test(usageTitle), `the context chip's hover says "${usageTitle}".`);
   checks.push('the context chip shows how full the agent is');
 
+  // The agent's name for the conversation shows beside its own, and the tab keeps the agent's name
+  // (the preview agent names it after the first message of this launch).
+  await until(() => { const title = document.querySelector('#chat-session-title'); return title !== null && !title.hidden && title.textContent.trim() !== ''; },
+    null, 'the conversation\'s title', 3000).catch(async () => { throw Error(`the conversation's title is "${await text('#chat-session-title')}".`); });
+  assert((await tabs()).some(tab => tab.active && tab.label === agent), `the conversation's tab is no longer named ${agent}: ${JSON.stringify(await tabs())}.`);
+  checks.push('the conversation shows the agent\'s name for it');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };
 

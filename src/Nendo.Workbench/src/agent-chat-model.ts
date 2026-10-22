@@ -44,13 +44,15 @@ export interface AgentChat {
   takesImages: boolean;
   /** How full the agent's context is, as it last said; null until it says. */
   usage: AgentUsage | null;
+  /** The agent's name for the conversation; null until it gives one. */
+  sessionTitle: string | null;
 }
 
 export function emptyChat(): AgentChat {
   return {
     key: '', conversationId: null, exists: false, agentId: null, name: 'Agent', commandLine: null, endpoint: null, level: 'Off',
     state: 'none', working: false, notice: null, agentTitle: null, revision: 0, entries: new Map(), signInMethods: [], signingIn: false, options: [], commands: [],
-    queued: 0, takesImages: false, usage: null,
+    queued: 0, takesImages: false, usage: null, sessionTitle: null,
   };
 }
 
@@ -107,6 +109,7 @@ export function mergeChat(chat: AgentChat, view: LaunchedAgentView, launchKey: s
   chat.queued = view.queued ?? 0;
   chat.takesImages = view.takesImages === true;
   chat.usage = view.usage ?? null;
+  chat.sessionTitle = view.sessionTitle ?? null;
   chat.revision = Math.max(chat.revision, view.revision);
   const changed: string[] = [];
   for (const entry of view.entries) {
