@@ -134,6 +134,22 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
+  if (text === 'notices') {
+    // As the schema says: a notice, the same one again, one with no title, and an unknown severity.
+    update(sessionId, { sessionUpdate: 'notice', severity: 'warning', title: 'Rate limit close', description: '90% of this hour used.' });
+    update(sessionId, { sessionUpdate: 'notice', severity: 'warning', title: 'Rate limit close', description: '90% of this hour used.' });
+    update(sessionId, { sessionUpdate: 'notice', severity: 'error', title: '' });
+    update(sessionId, { sessionUpdate: 'notice', severity: '_vendor', title: 'Model updated' });
+    // A compaction: a summary chunk creates it, an update patches it, another leaves the summary, a null error clears.
+    update(sessionId, { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'Read the schema.' } });
+    update(sessionId, { sessionUpdate: 'compaction_summary_chunk', compactionId: 'c1', content: { type: 'text', text: 'Added two fields.' } });
+    update(sessionId, { sessionUpdate: 'compaction_update', compactionId: 'c1', status: 'failed', error: 'Out of room for applicationHandle: secret-handle-0123456789' });
+    update(sessionId, { sessionUpdate: 'compaction_update', compactionId: 'c2', status: 'in_progress' });
+    update(sessionId, { sessionUpdate: 'compaction_update', compactionId: 'c2', status: 'completed', summary: [{ type: 'text', text: 'Short now.' }] });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Told.' } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'title') {
     // A title with a handle in it and lines folded, an update that leaves it out, then a clear.
     update(sessionId, { sessionUpdate: 'session_info_update', title: 'Fix the\nboard  applicationHandle: secret-handle-0123456789', updatedAt: '2026-10-22T10:00:00Z' });

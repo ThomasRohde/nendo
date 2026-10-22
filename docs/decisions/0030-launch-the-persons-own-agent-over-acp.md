@@ -58,8 +58,8 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
 
 - A tab kind of the window, never written to the file. It shows message text, tool calls with
   their kind, status and whether they went through Nendo, the plan, permission requests, the
-  agent's name for the conversation, and how full its context is and what it has cost, as the
-  agent reports them.
+  agent's notices and context compactions, its name for the conversation, and how full its
+  context is and what it has cost, as the agent reports them.
 - Agent text is untrusted: text and safe Markdown, no HTML, no script, no automatic navigation.
 - A picture the agent or its tools send inline is drawn when its own bytes say PNG, JPEG, GIF or
   WebP, within a bound, from those bytes and nothing else: no SVG, no address it names, no fetch.

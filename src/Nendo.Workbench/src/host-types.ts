@@ -302,7 +302,7 @@ export interface LaunchableAgents {
 export type ViewAgentAccess = 'never' | 'ask' | 'always';
 
 export type LaunchedAgentState = 'none' | 'starting' | 'signIn' | 'ready' | 'ended';
-export type AgentEntryKind = 'you' | 'agent' | 'thought' | 'tool' | 'plan' | 'permission' | 'notice';
+export type AgentEntryKind = 'you' | 'agent' | 'thought' | 'tool' | 'plan' | 'permission' | 'notice' | 'compaction';
 
 /**
  * One entry of a launched agent's conversation. Everything in it is the agent's own words or
@@ -328,6 +328,8 @@ export interface AgentTranscriptEntry {
   from?: string | null;
   /** The pictures the entry shows, read by ID with agentSession.image; absent when none, or from an older host. */
   images?: AgentEntryImage[] | null;
+  /** For a compaction: why it failed, as the agent said. */
+  error?: string | null;
 }
 
 /** A picture the agent or a tool showed: its type as its bytes say, its size and, where its header says, its pixels. */

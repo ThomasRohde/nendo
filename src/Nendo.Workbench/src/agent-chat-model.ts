@@ -224,7 +224,7 @@ export function composerState(chat: AgentChat): { canSend: boolean; canStop: boo
  * agent's tool calls, thoughts and plan between two messages) folded into one line.
  */
 export type ThreadItem =
-  | { key: string; type: 'you' | 'agent' | 'notice' | 'permission'; entry: AgentTranscriptEntry }
+  | { key: string; type: 'you' | 'agent' | 'notice' | 'permission' | 'compaction'; entry: AgentTranscriptEntry }
   | { key: string; type: 'steps'; entries: AgentTranscriptEntry[] };
 
 export function threadItems(chat: AgentChat): ThreadItem[] {
@@ -240,7 +240,7 @@ export function threadItems(chat: AgentChat): ThreadItem[] {
       continue;
     }
     run = null;
-    items.push({ key: entry.id, type: entry.kind === 'you' || entry.kind === 'agent' || entry.kind === 'permission' ? entry.kind : 'notice', entry });
+    items.push({ key: entry.id, type: entry.kind === 'you' || entry.kind === 'agent' || entry.kind === 'permission' || entry.kind === 'compaction' ? entry.kind : 'notice', entry });
   }
   return items;
 }
@@ -319,7 +319,9 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
     case 'permission':
       return permissionMarkup(entry, agentName, expanded.has(item.key), key);
     default:
-      return `<p class="chat-notice" data-item="${key}">${escapeHtml(entry.text)}</p>`;
+      return noticeMarkup(entry, agentName, key);
+    case 'compaction':
+      return compactionMarkup(entry, agentName, key);
   }
 }
 
@@ -451,6 +453,32 @@ export function picturesMarkup(images: readonly AgentEntryImage[] | null | undef
 function stepPictures(entries: readonly AgentTranscriptEntry[]): AgentEntryImage[] {
   const seen = new Set<string>();
   return entries.flatMap((entry) => entry.images ?? []).filter((image) => !seen.has(image.id) && seen.add(image.id) !== undefined);
+}
+
+const severityWords: Record<string, string> = { info: 'Note', warning: 'Warning', error: 'Error' };
+
+/**
+ * A notice: Nendo's own (the agent stopped, an option it refused) as a quiet line, or the agent's,
+ * with its severity and title and the description after it.
+ */
+function noticeMarkup(entry: AgentTranscriptEntry, agentName: string, key: string): string {
+  if (entry.origin !== 'agent' || entry.title === null) return `<p class="chat-notice" data-item="${key}">${escapeHtml(entry.text)}</p>`;
+  const severity = entry.status ?? 'info';
+  return `<p class="chat-notice is-agent" data-severity="${escapeAttribute(severity)}" data-item="${key}">${icon(severity === 'info' ? 'info' : 'alert')}<span><strong>${escapeHtml(`${severityWords[severity] ?? 'Note'} from ${agentName}: ${entry.title}`)}</strong>${entry.text === '' ? '' : ` ${escapeHtml(entry.text)}`}</span></p>`;
+}
+
+const compactionWords: Record<string, string> = {
+  in_progress: 'is shortening the conversation to fit its context…',
+  completed: 'shortened the conversation to fit its context',
+  failed: 'could not shorten the conversation',
+  cancelled: 'stopped shortening the conversation',
+};
+
+/** A compaction as one line in the thread, its summary in a fold and its error after it. */
+function compactionMarkup(entry: AgentTranscriptEntry, agentName: string, key: string): string {
+  const status = entry.status ?? 'in_progress';
+  const said = `${agentName} ${compactionWords[status] ?? `compacted the conversation (${status})`}`;
+  return `<div class="chat-compaction" data-status="${escapeAttribute(status)}" data-item="${key}"><span class="chat-compaction-line">${icon('layers')}<span>${escapeHtml(said)}</span></span>${entry.error === null || entry.error === undefined || entry.error === '' ? '' : `<span class="chat-compaction-error">${escapeHtml(entry.error)}</span>`}${entry.text === '' ? '' : `<details data-part="${escapeAttribute(`${entry.id}:summary`)}"><summary>What it kept</summary><div class="chat-plain">${escapeHtml(entry.text)}</div></details>`}</div>`;
 }
 
 /** An on/off setting as a switch: pressed is On. */

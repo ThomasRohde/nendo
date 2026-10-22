@@ -623,6 +623,63 @@
   text-align: center;
 }
 
+/* The agent's own notice: its severity in colour, its title first. */
+.chat-notice.is-agent {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+}
+
+.chat-notice.is-agent svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.chat-notice.is-agent[data-severity="warning"] svg,
+.chat-notice.is-agent[data-severity="error"] svg {
+  color: var(--warning);
+}
+
+.chat-notice.is-agent[data-severity="error"] {
+  border-color: color-mix(in srgb, var(--warning) 45%, var(--line));
+}
+
+/* A compaction: one quiet line in the thread, its summary in a fold. */
+.chat-compaction {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.chat-compaction-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-compaction-line svg {
+  width: 14px;
+  height: 14px;
+}
+
+.chat-compaction-error {
+  display: block;
+  margin-top: 2px;
+  color: var(--warning);
+}
+
+.chat-compaction details {
+  margin-top: 4px;
+}
+
 .chat-steps-line {
   display: inline-flex;
   align-items: center;

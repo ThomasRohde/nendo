@@ -349,3 +349,22 @@ test('a picture a tool showed is drawn under its folded step, once, not only ins
   const open = itemMarkup({ key: 'steps:e1', type: 'steps', entries: [tool('e1')] }, 'Codex', new Set(['steps:e1']));
   assert.equal((open.match(/data-agent-image="i1"/g) ?? []).length, 1, 'an open fold drew the picture twice');
 });
+
+test('the agent\'s notice says its severity and title; a compaction is its own line with its summary in a fold', () => {
+  const entry = (fields) => ({ id: 'e1', order: 1, revision: 1, text: '', title: null, toolKind: null, status: null, input: null, options: null, answer: null, plan: null, origin: null, ...fields });
+  const chat = emptyChat();
+  mergeChat(chat, { ...view(), entries: [entry({ kind: 'compaction', status: 'completed', text: 'Kept the schema.' })] }, 'k1');
+  assert.deepEqual(threadItems(chat).map((item) => item.type), ['compaction'], 'a compaction was folded among the steps or drawn as a notice');
+
+  const warning = itemMarkup({ key: 'e1', type: 'notice', entry: entry({ kind: 'notice', origin: 'agent', status: 'warning', title: hostile, text: 'Almost full.' }) }, 'Copilot', new Set());
+  assert.match(warning, /data-severity="warning"/);
+  assert.match(warning, /Warning from Copilot: /);
+  assert.ok(!warning.includes('<img src=x'), warning);
+  const ours = itemMarkup({ key: 'e2', type: 'notice', entry: entry({ kind: 'notice', text: 'Stopped.' }) }, 'Copilot', new Set());
+  assert.equal(ours, '<p class="chat-notice" data-item="e2">Stopped.</p>', 'Nendo\'s own notice changed');
+
+  const failed = itemMarkup({ key: 'e3', type: 'compaction', entry: entry({ kind: 'compaction', status: 'failed', text: 'Kept the schema.', error: hostile }) }, 'Copilot', new Set());
+  assert.match(failed, /Copilot could not shorten the conversation/);
+  assert.match(failed, /<details data-part="e1:summary"><summary>What it kept<\/summary>/);
+  assert.ok(!failed.includes('<img src=x'), failed);
+});

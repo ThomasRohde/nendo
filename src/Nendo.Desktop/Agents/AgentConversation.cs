@@ -34,7 +34,8 @@ internal sealed record AgentTranscriptEntry(
     IReadOnlyList<AgentPlanItemView>? Plan = null,
     string? Origin = null,
     string? From = null,
-    IReadOnlyList<AgentEntryImageView>? Images = null);
+    IReadOnlyList<AgentEntryImageView>? Images = null,
+    string? Error = null);
 
 /// <summary>
 /// What a reader is told: the state, and the entries that changed after its revision.
@@ -153,8 +154,9 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 {
                     fs = new { readTextFile = false, writeTextFile = false },
                     terminal = false,
-                    // The agent may offer on/off settings, which the Agent page shows as switches.
-                    session = new { configOptions = new { boolean = new { } } },
+                    // The agent may offer on/off settings, which the Agent page shows as switches, and
+                    // tell the person things in notices and compactions, which the thread shows.
+                    session = new { configOptions = new { boolean = new { } }, notices = new { }, compaction = new { } },
                 },
                 clientInfo = new { name = "nendo", title = "Nendo", version = clientVersion },
             }, timeout.Token);
@@ -645,6 +647,15 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 case "session_info_update":
                     if (!ApplySessionInfo(update)) return;
                     break;
+                case "notice":
+                    if (!ApplyNotice(update)) return;
+                    break;
+                case "compaction_update":
+                    if (!ApplyCompaction(update)) return;
+                    break;
+                case "compaction_summary_chunk":
+                    if (!ApplyCompactionChunk(update)) return;
+                    break;
                 default:
                     // The agent's echo of what the person typed, and anything newer, are not drawn.
                     return;
@@ -752,6 +763,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             _entries.RemoveAt(0);
             foreach (var pair in _toolEntries.Where(pair => ReferenceEquals(pair.Value, dropped)).ToArray())
                 _toolEntries.Remove(pair.Key);
+            foreach (var pair in _compactionEntries.Where(pair => ReferenceEquals(pair.Value, dropped)).ToArray())
+                _compactionEntries.Remove(pair.Key);
         }
         return entry;
     }
@@ -936,10 +949,14 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         /// <summary>The pictures the entry shows, kept by the conversation and read by their IDs.</summary>
         internal List<AgentEntryImageView>? Images { get; set; }
 
+        /// <summary>For a compaction: why it failed, as the agent said.</summary>
+        internal string? Error { get; set; }
+
         /// <summary>The entry as the tab is sent it: every text the agent wrote passes the one redaction boundary.</summary>
         internal AgentTranscriptEntry View() =>
             new(Id, Order, Revision, Kind, Redact(Text.ToString()), Title is null ? null : Redact(Title), ToolKind, Status,
-                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin, From, Images?.ToArray());
+                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin, From, Images?.ToArray(),
+                Error is null ? null : Redact(Error));
     }
 
     private sealed class PendingPermission(TaskCompletionSource<string?> answer)

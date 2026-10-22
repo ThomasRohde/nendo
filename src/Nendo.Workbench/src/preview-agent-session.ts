@@ -342,7 +342,21 @@ export class PreviewAgentSession {
     this.openTurn = turnId;
     if (from !== null) return { ...this.viewTurn(text.trim(), after), turnId };
     if (text.trim() === 'parallel') return { ...this.parallel(after), turnId };
-    if (/\bpicture\b/i.test(text)) {
+    // A slash command is the agent's own, run below, even one named /compact.
+    const command = text.trim().startsWith('/');
+    if (!command && /\bcompact\b/i.test(text)) {
+      // The preview agent warns, then shortens the conversation, as an agent near its limit does.
+      this.later(300, () => {
+        this.add({ kind: 'notice', text: 'The conversation is close to its limit.', title: 'Context almost full', status: 'warning', origin: 'agent' });
+        this.add({ kind: 'compaction', text: 'Kept: the request record type and its fields.', status: 'completed' });
+        this.add({ kind: 'agent', text: 'Compacted.' });
+        this.working = false;
+        this.endTurn('end_turn');
+        this.touch();
+      });
+      return { ...this.read(after), turnId };
+    }
+    if (!command && /\bpicture\b/i.test(text)) {
       // The preview agent answers a message about a picture with one of its own.
       this.later(300, () => {
         // As an agent's image generation does: the picture comes back from a tool, which the tab folds.

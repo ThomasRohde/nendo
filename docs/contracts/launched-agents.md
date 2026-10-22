@@ -164,8 +164,8 @@ after New session or a file change, never merges a read whose `conversationId` d
 (`mergeChat`), and drops every entry before `firstOrder`.
 
 An entry is `{ id, order, revision, kind, text, title, toolKind, status, input, options,
-answer, plan, origin, images }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
-`permission`, `notice`. Message and thought chunks join into one entry until something else
+answer, plan, origin, images, error }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
+`permission`, `notice`, `compaction`. Message and thought chunks join into one entry until something else
 intervenes, or until a chunk names another message by its ACP `messageId`, which starts a new
 entry; a chunk that names none joins the entry open before it. A tool call is one entry, updated in place; a diff in its content is kept as its
 path and the text before and after (each cut at 8,000 characters). The plan is one entry,
@@ -182,6 +182,19 @@ name alone decides. A server prefix counts only when it is the session's own ser
 A permission request's `text` is what its tool call says it would do: its content (a diff,
 text) and the places it names (`Where: path:line`), or else the tool call's text. The tab
 offers that text and the input before the person answers.
+
+**Notices and compactions** (`AgentConversation.Notices.cs`). The agent's `notice` is a `notice`
+entry with `origin` `agent`: `title` its title (at most 300 characters; one without a title is
+not shown), `text` its description (at most 2,000), `status` its severity, `info`, `warning` or
+`error`, any other shown as `info`. A notice the same as the one just before it is not added
+again. Nendo's own notices (the agent stopped, an option it refused) carry no `origin`. A context
+compaction is one `compaction` entry, placed where its ID is first seen, by a
+`compaction_update` or a `compaction_summary_chunk`, and patched in place: `status` as the agent
+states it (`in_progress` until it says otherwise), `text` its summary, `error` why it failed. A
+`summary` or `error` left out of an update stays; `null` clears it, as does an empty `summary`;
+a summary chunk appends one block. The tab draws the agent's notice with its severity and title,
+and a compaction as one line of its own (the agent shortened, is shortening, could not or stopped
+shortening the conversation) with its error and, in a fold, its summary.
 
 **Pictures.** An image block in an agent message, its reasoning or a tool's content is kept when
 it carries its bytes inline and those bytes say PNG, JPEG, GIF or WebP (`NendoMedia.Sniff`), at
@@ -275,8 +288,9 @@ conversation ended first. The last 16 ended turns are kept, and every turn not e
 The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversation.cs`).
 
 - `initialize` declares no file-system or terminal capability (`fs.readTextFile`,
-  `fs.writeTextFile`, `terminal` all false), and declares `session.configOptions.boolean`, so
-  the agent may offer on/off settings. An agent answering another protocol version, or
+  `fs.writeTextFile`, `terminal` all false), and declares `session.configOptions.boolean`,
+  `session.notices` and `session.compaction`, so the agent may offer on/off settings and send
+  notices and compactions. An agent answering another protocol version, or
   not declaring `agentCapabilities.mcpCapabilities.http`, is ended with a sentence naming
   why; a version sent as text is named as not ACP. A number sent as another JSON kind reads as
   absent, and any other handshake failure ends the conversation with a sentence rather than

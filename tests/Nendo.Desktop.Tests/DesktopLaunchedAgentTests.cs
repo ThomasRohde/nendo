@@ -884,6 +884,34 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task TheAgentsNoticesAndCompactionsAreInTheConversation()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var session = fixture.Log().Single(entry => Method(entry) == "initialize").GetProperty("params").GetProperty("clientCapabilities").GetProperty("session");
+        Assert.AreEqual(JsonValueKind.Object, session.GetProperty("notices").ValueKind, "Nendo did not declare that it shows notices.");
+        Assert.AreEqual(JsonValueKind.Object, session.GetProperty("compaction").ValueKind, "Nendo did not declare that it shows compactions.");
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "notices", 0);
+        var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Told."));
+        var notices = done.Entries.Where(entry => entry.Kind == "notice" && entry.Origin == "agent").ToArray();
+        CollectionAssert.AreEqual(new[] { "Rate limit close", "Model updated" }, notices.Select(entry => entry.Title).ToArray(),
+            "A repeated notice was said twice, one without a title was shown, or one was lost.");
+        Assert.AreEqual("warning", notices[0].Status);
+        Assert.AreEqual("90% of this hour used.", notices[0].Text);
+        Assert.AreEqual("info", notices[1].Status, "An unknown severity was not shown as information.");
+
+        var compactions = done.Entries.Where(entry => entry.Kind == "compaction").ToArray();
+        Assert.HasCount(2, compactions, "A compaction was not one entry patched in place.");
+        Assert.AreEqual("failed", compactions[0].Status);
+        Assert.AreEqual("Read the schema.\nAdded two fields.", compactions[0].Text, "A status update without a summary cleared the chunks.");
+        Assert.IsFalse(compactions[0].Error!.Contains("secret-handle-0123456789", StringComparison.Ordinal), compactions[0].Error);
+        Assert.AreEqual(("completed", "Short now."), (compactions[1].Status, compactions[1].Text));
+        Assert.IsLessThan(done.Entries.Single(entry => entry.Text == "Told.").Order, compactions[1].Order, "A compaction moved from where it was first seen.");
+    }
+
+    [TestMethod]
     public async Task TheAgentsNameForTheConversationIsShownAsItLastSaidIt()
     {
         await using var fixture = await Fixture.StartAsync("editData");

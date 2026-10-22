@@ -412,6 +412,23 @@ async page => {
   assert(picture.folded && picture.inSight, `the tool's picture is not in sight under its folded step: ${JSON.stringify(picture)}.`);
   checks.push('a picture the agent shows is drawn');
 
+  // The agent's notice says its severity and title, and a compaction is a line of its own with its summary in a fold.
+  await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && !document.querySelector('#send-prompt').hidden,
+    null, 'the agent to finish its turn', 8000);
+  await box.fill('Please compact the conversation');
+  await box.press('Enter');
+  await until(() => document.querySelector('.chat-compaction') !== null, null, 'the compaction line', 6000)
+    .catch(async () => { throw Error(`no compaction line; the thread ends ${JSON.stringify(await page.evaluate(() => document.querySelector('#chat-thread').textContent.slice(-200)))}.`); });
+  const told = await page.evaluate(() => ({
+    notice: document.querySelector('.chat-notice.is-agent')?.textContent.trim() ?? null,
+    severity: document.querySelector('.chat-notice.is-agent')?.dataset.severity ?? null,
+    compaction: document.querySelector('.chat-compaction-line')?.textContent.trim() ?? null,
+    folded: document.querySelector('.chat-compaction details')?.open === false,
+  }));
+  assert(told.severity === 'warning' && told.notice?.includes('Context almost full'), `the agent's notice is ${JSON.stringify(told)}.`);
+  assert(told.compaction?.includes('shortened the conversation') && told.folded, `the compaction is ${JSON.stringify(told)}.`);
+  checks.push('the agent\'s notices and compactions are in the thread');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };
 
