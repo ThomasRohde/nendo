@@ -88,6 +88,8 @@ $plannedSteps = @(
     , @('workbench-shell', 'Workbench shell')
     , @('repository', 'Repository')
 )
+# Earlier runs' logs and run folders go first; anything written in the last 12 hours stays.
+& (Join-Path $PSScriptRoot 'Clear-Artifacts.ps1')
 Start-GateProgress -Path (Join-Path $repoRoot 'artifacts/gate-progress.json') -Steps $plannedSteps `
     -TimingsPath (Join-Path $repoRoot 'artifacts/gate-timings.json')
 

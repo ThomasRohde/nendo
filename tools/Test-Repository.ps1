@@ -383,6 +383,26 @@ try {
         if (-not $caught) { throw "The owner-state check missed a changed theme." }
     } finally { Remove-Item -LiteralPath $standIn -Recurse -Force -ErrorAction SilentlyContinue }
     Write-Host "OK       the lanes' owner-state check finds their own traces and ignores the owner's use of Nendo"
+    # The gate's artifacts sweep, against a stand-in folder: an old log and run folder go; the
+    # build output, payload, installer and gate files stay whatever their age, and so does a
+    # run folder with anything written recently.
+    $sweep = Join-Path ([IO.Path]::GetTempPath()) ('nendo-artifacts-sweep-' + [Guid]::NewGuid().ToString('N'))
+    try {
+        $old = (Get-Date).AddDays(-3)
+        foreach ($name in 'bin\a.dll', 'obj\a.json', 'build\publish\a.dll', 'installer\Nendo-Setup.exe', 'gate-timings.json', 'gate-progress.json', 'old.log', 'old-run\evidence.json', 'live-run\old.json', 'live-run\new.json') {
+            $file = Join-Path $sweep $name
+            [void][IO.Directory]::CreateDirectory((Split-Path -Parent $file))
+            Set-Content -LiteralPath $file -Value 'x'
+            if ($name -ne 'live-run\new.json') { (Get-Item -LiteralPath $file).LastWriteTime = $old }
+        }
+        [void][IO.Directory]::CreateDirectory((Join-Path $sweep 'empty-run'))
+        foreach ($folder in Get-ChildItem -LiteralPath $sweep -Directory -Recurse) { $folder.LastWriteTime = $old }
+        & (Join-Path $repoRoot 'tools\Clear-Artifacts.ps1') -Root $sweep | Out-Null
+        $left = @(Get-ChildItem -LiteralPath $sweep -Force | ForEach-Object Name | Sort-Object)
+        $expected = @('bin', 'build', 'gate-progress.json', 'gate-timings.json', 'installer', 'live-run', 'obj')
+        if (($left -join ',') -ne ($expected -join ',')) { throw "The artifacts sweep left $($left -join ', '); expected $($expected -join ', ')." }
+    } finally { Remove-Item -LiteralPath $sweep -Recurse -Force -ErrorAction SilentlyContinue }
+    Write-Host 'OK       the artifacts sweep removes old scratch and keeps the build, payload, installer, gate files and recent runs'
 
     Write-Host 'Repository verification passed.'
 }

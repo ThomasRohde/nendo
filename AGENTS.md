@@ -268,6 +268,11 @@ installer, and whatever a run writes while you work. Delete freely, subject to
 the checks below, and clean up what your task created. Nothing owner-owned lives
 here — that is what `workspace/` is for.
 
+`tools/Clear-Artifacts.ps1` removes everything except `bin/`, `obj/`, `build/`,
+`installer/` and the gate's progress and timings, leaving any entry written in the
+last 12 hours, which may be another session's run. `Test-Production.ps1` runs it at
+its start; run it by hand with `-OlderThan 0:00` to clear everything now.
+
 The evidence for this project is the test suite. It runs in a few minutes and
 lives in git, so a stored run output from last week proves nothing it cannot
 prove now. Do not build a retention scheme on top of this directory, do not
