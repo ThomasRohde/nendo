@@ -19,6 +19,7 @@ internal static partial class WorkbenchMethods
     internal const string AgentSessionRead = "agentSession.read";
     internal const string AgentSessionPrompt = "agentSession.prompt";
     internal const string AgentSessionAttach = "agentSession.attach";
+    internal const string AgentSessionImage = "agentSession.image";
     internal const string AgentSessionAnswer = "agentSession.answer";
     internal const string AgentSessionCancel = "agentSession.cancel";
     internal const string AgentSessionAuthenticate = "agentSession.authenticate";
@@ -32,7 +33,7 @@ internal static partial class WorkbenchMethods
     {
         AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
         AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
-        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn, AgentSessionAttach,
+        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn, AgentSessionAttach, AgentSessionImage,
     };
 }
 
@@ -65,6 +66,8 @@ internal sealed partial class WorkbenchProtocolHandler
                 OptionalString(payload, "text", AgentConversation.MaximumPromptCharacters) ?? string.Empty, after, PointedAt(payload), conversation,
                 OptionalString(payload, "from", 120), Pictures(fileSessionId, payload)),
             WorkbenchMethods.AgentSessionAttach => StageAgentPicture(fileSessionId, payload, conversation),
+            WorkbenchMethods.AgentSessionImage => _session.ReadLaunchedAgentImage(fileSessionId, RequiredString(payload, "imageId", 20),
+                OptionalInt64(payload, "offset"), conversation),
             WorkbenchMethods.AgentSessionAnswer => _session.AnswerLaunchedAgent(fileSessionId,
                 RequiredString(payload, "entryId", 40), OptionalString(payload, "optionId", 200), after, conversation),
             WorkbenchMethods.AgentSessionCancel => await _session.CancelLaunchedAgentTurnAsync(fileSessionId, after, conversation,

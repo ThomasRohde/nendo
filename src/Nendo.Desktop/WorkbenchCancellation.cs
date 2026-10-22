@@ -93,6 +93,7 @@ internal static partial class WorkbenchMethods
         AgentSessionRead,
         AgentSessionPrompt,
         AgentSessionAttach,
+        AgentSessionImage,
         AgentSessionAnswer,
         AgentSessionCancel,
         AgentSessionAuthenticate,

@@ -61,6 +61,10 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
   agent's name for the conversation, and how full its context is and what it has cost, as the
   agent reports them.
 - Agent text is untrusted: text and safe Markdown, no HTML, no script, no automatic navigation.
+- A picture the agent or its tools send inline is drawn when its own bytes say PNG, JPEG, GIF or
+  WebP, within a bound, from those bytes and nothing else: no SVG, no address it names, no fetch.
+  The conversation keeps a bounded number in memory and the oldest go first. What a picture shows
+  is the agent's, as its text is; Nendo cannot hide an application handle inside one.
 - A permission request shows the agent's own options. The host never answers one itself and never
   picks an *always* option for the person, at any level.
 - The agent's ACP session options (model, effort, mode and the rest) are shown on the Agent page

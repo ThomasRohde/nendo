@@ -1,5 +1,8 @@
 import { WorkbenchHostError, type AgentCommand, type AgentOption, type AgentSetting, type AgentStatus, type AgentTranscriptEntry, type AgentTurn, type AgentUsage, type LaunchableAgent, type LaunchableAgents, type LaunchedAgentState, type LaunchedAgentView, type ViewAgentAccess } from './host-types';
 
+/** A PNG of one pixel, which the preview agent shows when asked for a picture. */
+const previewPicture = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
 /**
  * A launched agent for the browser preview (ADR-0030): the same requests and the same nudges as
  * the Desktop host, answered by a short script, so the Agent page's Launch and the conversation
@@ -129,6 +132,11 @@ export class PreviewAgentSession {
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''),
         typeof payload.settings === 'object' && payload.settings !== null ? payload.settings as Record<string, string> : {});
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
+      case 'agentSession.image': {
+        const id = String(payload.imageId ?? '');
+        if (id !== 'p1') throw new WorkbenchHostError('agent-image-gone', 'That picture is no longer kept.');
+        return { base64: previewPicture, length: atob(previewPicture).length, mediaType: 'image/png', next: null };
+      }
       case 'agentSession.attach': return this.stagePicture(String(payload.uploadKey ?? ''), Number(payload.offset ?? 0), String(payload.base64 ?? ''));
       case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0),
         [...this.pictures(payload.images), ...(Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : [])],
@@ -334,6 +342,16 @@ export class PreviewAgentSession {
     this.openTurn = turnId;
     if (from !== null) return { ...this.viewTurn(text.trim(), after), turnId };
     if (text.trim() === 'parallel') return { ...this.parallel(after), turnId };
+    if (/\bpicture\b/i.test(text)) {
+      // The preview agent answers a message about a picture with one of its own.
+      this.later(300, () => {
+        this.add({ kind: 'agent', text: 'Here is one.', images: [{ id: 'p1', mediaType: 'image/png', length: atob(previewPicture).length, width: 1, height: 1 }] });
+        this.working = false;
+        this.endTurn('end_turn');
+        this.touch();
+      });
+      return { ...this.read(after), turnId };
+    }
     if (text.trim().startsWith('/')) {
       const name = text.trim().slice(1).split(/\s/)[0];
       this.later(300, () => {

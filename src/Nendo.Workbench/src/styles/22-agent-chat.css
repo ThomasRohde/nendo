@@ -247,6 +247,29 @@
   white-space: nowrap;
 }
 
+/* A picture the agent or a tool showed: its own size up to the column's width, and not taller than a screenful. */
+.chat-pictures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chat-picture {
+  max-width: 100%;
+  max-height: 360px;
+  width: auto;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface-soft);
+}
+
+.chat-picture-gone {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 /* The agent's name for the conversation: one line, cut short before it pushes the state pill. */
 .chat-session-title {
   overflow: hidden;

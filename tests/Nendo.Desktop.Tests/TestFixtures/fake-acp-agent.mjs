@@ -111,6 +111,29 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
+  if (text === 'pictures' || text === 'many-pictures') {
+    // A PNG of 2 by 3 pixels as far as its header says, told apart from another by its last byte.
+    const png = (tag) => {
+      const u32 = (n) => [n >>> 24, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+      return Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, ...u32(2), ...u32(3), 8, 6, 0, 0, 0, 0, 0, 0, 0, tag]).toString('base64');
+    };
+    const image = (data) => ({ type: 'image', mimeType: 'image/png', data });
+    if (text === 'many-pictures') {
+      for (let tag = 1; tag <= 33; tag += 1) update(sessionId, { sessionUpdate: 'agent_message_chunk', content: image(png(tag)) });
+    } else {
+      update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm1', content: { type: 'text', text: 'Here it is.' } });
+      update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm1', content: image(png(200)) });
+      // Not drawn: SVG, a picture by address alone, and bytes that are no picture at all.
+      update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm1', content: { type: 'image', mimeType: 'image/svg+xml', data: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>').toString('base64') } });
+      update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm1', content: { type: 'image', mimeType: 'image/png', uri: 'https://example.com/a.png' } });
+      update(sessionId, { sessionUpdate: 'agent_message_chunk', messageId: 'm1', content: { type: 'image', mimeType: 'image/png', data: Buffer.from('plain words').toString('base64') } });
+      // The same picture again, from a tool: kept once.
+      update(sessionId, { sessionUpdate: 'tool_call', toolCallId: 'call-shot', title: 'Take a screenshot', kind: 'other', status: 'completed',
+        content: [{ type: 'content', content: image(png(200)) }] });
+    }
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'title') {
     // A title with a handle in it and lines folded, an update that leaves it out, then a clear.
     update(sessionId, { sessionUpdate: 'session_info_update', title: 'Fix the\nboard  applicationHandle: secret-handle-0123456789', updatedAt: '2026-10-22T10:00:00Z' });

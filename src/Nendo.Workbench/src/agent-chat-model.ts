@@ -1,7 +1,7 @@
 import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { markdownMarkup } from './markdown';
-import type { AgentCommand, AgentOption, AgentTranscriptEntry, AgentUsage, LaunchedAgentState, LaunchedAgentView } from './host-types';
+import type { AgentCommand, AgentEntryImage, AgentOption, AgentTranscriptEntry, AgentUsage, LaunchedAgentState, LaunchedAgentView } from './host-types';
 
 /**
  * The conversation with an agent launched from the Agent page (ADR-0030), as the tab holds it:
@@ -314,7 +314,7 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
         ? `<span class="chat-you-from">From ${escapeHtml(entry.from)}</span>` : ''}${escapeHtml(entry.text)}${entry.title === null || entry.title === ''
         ? '' : `<span class="chat-you-context">With ${escapeHtml(entry.title)}</span>`}</div>`;
     case 'agent':
-      return `<div class="chat-agent markdown-body" data-item="${key}">${markdownMarkup(entry.text, { headingShift: 2 })}</div>`;
+      return `<div class="chat-agent markdown-body" data-item="${key}">${markdownMarkup(entry.text, { headingShift: 2 })}${picturesMarkup(entry.images, agentName)}</div>`;
     case 'permission':
       return permissionMarkup(entry, agentName, expanded.has(item.key), key);
     default:
@@ -372,6 +372,7 @@ function stepMarkup(entry: AgentTranscriptEntry): string {
       <small>${escapeHtml(toolKinds[entry.toolKind ?? 'other'] ?? 'Tool')} · ${escapeHtml(statuses[status] ?? status)}</small>
       ${entry.input === null ? '' : `<details data-part="${escapeAttribute(`${entry.id}:sent`)}"><summary>What it sent</summary><pre class="chat-plain">${escapeHtml(entry.input)}</pre></details>`}
       ${entry.text === '' ? '' : `<details data-part="${escapeAttribute(`${entry.id}:back`)}"><summary>What came back</summary><pre class="chat-plain">${escapeHtml(entry.text)}</pre></details>`}
+      ${picturesMarkup(entry.images, 'The tool')}
     </div>
   </div>`;
 }
@@ -431,6 +432,16 @@ function selectMarkup(option: AgentOption): string {
     ? values.map(optionTag).join('')
     : `<optgroup label="${escapeAttribute(group)}">${values.map(optionTag).join('')}</optgroup>`).join('');
   return `<select data-config-id="${escapeAttribute(option.id)}" aria-label="${escapeAttribute(option.name)}">${body}</select>`;
+}
+
+/**
+ * The pictures an entry shows, as images with no address yet: the tab fills each from the host's
+ * bytes once drawn (agent-pictures.ts). Width and height, where the picture's header gave them,
+ * hold its place while it is read.
+ */
+export function picturesMarkup(images: readonly AgentEntryImage[] | null | undefined, shownBy: string): string {
+  if (images === null || images === undefined || images.length === 0) return '';
+  return `<div class="chat-pictures">${images.map((image) => `<img class="chat-picture" data-agent-image="${escapeAttribute(image.id)}" alt="${escapeAttribute(`A picture ${shownBy} showed`)}"${image.width !== null && image.height !== null ? ` width="${image.width}" height="${image.height}"` : ''}>`).join('')}</div>`;
 }
 
 /** An on/off setting as a switch: pressed is On. */

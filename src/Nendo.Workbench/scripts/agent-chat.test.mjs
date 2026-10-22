@@ -6,7 +6,7 @@ import { bundleOf } from './bundle-of.mjs';
 // Reads carry only what changed and are merged by entry; a run of steps folds into one line;
 // everything an agent or a tool says is drawn as text, never as markup; and the agent's own
 // options are drawn as it offers them.
-const { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, signInMarkup, stateLabel, stepsSummary, threadItems, usageChip, waitingForYou } =
+const { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, itemMarkup, mergeChat, optionsMarkup, partitionOptions, reviewHint, signInMarkup, stateLabel, picturesMarkup, stepsSummary, threadItems, usageChip, waitingForYou } =
   await bundleOf('src/agent-chat-model.ts');
 
 const hostile = '<img src=x onerror="alert(1)"><script>alert(2)</script>';
@@ -327,4 +327,15 @@ test('a read carries the agent\'s name for the conversation, and an older host\'
   assert.equal(chat.sessionTitle, 'Fix the board');
   mergeChat(chat, { ...view(), sessionTitle: undefined }, 'k1');
   assert.equal(chat.sessionTitle, null);
+});
+
+test('a picture the agent showed is an image with no address until the tab reads its bytes', () => {
+  assert.equal(picturesMarkup(null, 'Claude'), '');
+  assert.equal(picturesMarkup([], 'Claude'), '');
+  const markup = picturesMarkup([{ id: 'i1', mediaType: 'image/png', length: 10, width: 2, height: 3 }, { id: hostile, mediaType: 'image/png', length: 1, width: null, height: null }], hostile);
+  assert.match(markup, /<img class="chat-picture" data-agent-image="i1" alt="A picture [^"]*" width="2" height="3">/);
+  assert.ok(!/<img[^>]*\ssrc="/.test(markup), 'a picture was given an address before its bytes were read');
+  assert.ok(!markup.includes('<img src=x'), markup);
+  const message = itemMarkup({ key: 'e1', type: 'agent', entry: { id: 'e1', order: 1, revision: 1, kind: 'agent', text: 'Here it is.', title: null, toolKind: null, status: null, input: null, options: null, answer: null, plan: null, origin: null, images: [{ id: 'i1', mediaType: 'image/png', length: 10, width: 2, height: 3 }] } }, 'Claude', new Set());
+  assert.match(message, /data-agent-image="i1"/, 'the agent\'s message does not show its picture');
 });

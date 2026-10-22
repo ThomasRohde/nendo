@@ -850,6 +850,40 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task APictureTheAgentSendsIsKeptAndReadBackFromItsOwnBytes()
+    {
+        // An image the agent or a tool sent was drawn as "(an image)". One Nendo can draw is kept,
+        // by the bytes it came with, and read back in windows; anything else stays the placeholder.
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "pictures", 0);
+        var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "tool"));
+        var message = done.Entries.Single(entry => entry.Kind == "agent");
+        Assert.IsNotNull(message.Images, "The agent's picture was not kept.");
+        var image = message.Images.Single();
+        Assert.AreEqual(("image/png", 2, 3), (image.MediaType, image.Width, image.Height));
+        Assert.AreEqual(3, System.Text.RegularExpressions.Regex.Count(message.Text, @"\(an image\)"),
+            $"SVG, an address alone and bytes that are no picture were not left as the placeholder: {message.Text}");
+        Assert.AreEqual(image.Id, done.Entries.Single(entry => entry.Kind == "tool").Images!.Single().Id, "The same picture from a tool was kept twice.");
+
+        var window = fixture.Controller.ReadLaunchedAgentImage(fixture.FileSessionId, image.Id, 0);
+        Assert.IsNull(window.Next);
+        var bytes = Convert.FromBase64String(window.Base64);
+        Assert.AreEqual(image.Length, bytes.LongLength);
+        CollectionAssert.AreEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47 }, bytes[..4]);
+        Assert.AreEqual(200, bytes[^1]);
+
+        // The conversation keeps the newest pictures: past the bound, the oldest is gone.
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "many-pictures", 0);
+        await fixture.WaitAsync(view => !view.Working && view.Entries.Count(entry => entry.Kind == "agent") == 2);
+        var gone = Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.ReadLaunchedAgentImage(fixture.FileSessionId, image.Id, 0));
+        Assert.AreEqual("agent-image-gone", gone.Code);
+        var newest = (await fixture.WaitAsync(view => true)).Entries.Last(entry => entry.Kind == "agent").Images!.Last();
+        Assert.AreEqual(33, Convert.FromBase64String(fixture.Controller.ReadLaunchedAgentImage(fixture.FileSessionId, newest.Id, 0).Base64)[^1]);
+    }
+
+    [TestMethod]
     public async Task TheAgentsNameForTheConversationIsShownAsItLastSaidIt()
     {
         await using var fixture = await Fixture.StartAsync("editData");

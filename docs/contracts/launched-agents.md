@@ -81,7 +81,7 @@ a path that is not fully qualified is dropped on read.
 
 ## The bridge methods
 
-Fifteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
+Sixteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
 `fileSessionId`; a session no longer open is `stale-file-session`. All run off the UI thread
 (`WorkbenchMethods.OffUiThread`) and are dispatched after the actor check, so a request
 naming a custom view's `actor` is `actor-not-allowed`; the extension broker's method table
@@ -89,7 +89,7 @@ names none of them.
 
 `list`, `setCommand`, `setHidden`, `setViewAccess`, `setStartIn` and `launch` take the request gate, finding the agents
 first, since that reads nothing of the file: one `PATH` search at a time, shared by requests
-that arrive while it runs or within two seconds of its start. The other nine do not wait on
+that arrive while it runs or within two seconds of its start. The other ten do not wait on
 the gate and check `fileSessionId` themselves, so the tab keeps reading while an agent's own
 write holds the file. Each of those except `read` is `agent-not-launched` when no agent was
 launched for the file, and may name the `conversationId` the tab holds; one naming a
@@ -107,6 +107,7 @@ restart with every launch.
 | `agentSession.read` | `after` | The conversation, or `exists: false`. |
 | `agentSession.attach` | `uploadKey` (at most 80), `offset`, `base64`: one chunk of a picture for the next message | `{ staged }`, the bytes held under that key. `agent-takes-no-images` for an agent that does not read pictures; `agent-image-too-large` once the picture passes 5 MiB, which drops it. |
 | `agentSession.prompt` | `text`, `after`, optional `images`, optional `context`, optional `from` (a custom view's title, at most 120) | Below, with `turnId`. `agent-not-ready` (starting, signing in or ended); `agent-working` for the person's message during a turn, or a view's past the queue's bound; `assistant-off` for a view's message while views are Never. |
+| `agentSession.image` | `imageId` (at most 20), `offset` | `{ base64, length, mediaType, next }`: 150,000 bytes of a picture an entry shows, from `offset`; `next` is null at the end. `agent-image-gone` once the conversation no longer keeps it. |
 | `agentSession.turn` | `turnId` (at most 40) | `{ turnId, done, reply, stopReason }`. `agent-turn-gone` once it is no longer kept. |
 | `agentSession.answer` | `entryId` (at most 40), `optionId` (at most 200), absent to cancel | `agent-question-gone` when the agent no longer waits; a validation refusal for an option not offered. |
 | `agentSession.cancel` | `after`, optional `turnId` | Without `turnId`, the person's Stop: `session/cancel` for the running turn, every open permission request answered as cancelled, and every waiting message dropped. With `turnId`, a view's own turn: dropped while it waits, cancelled as Stop while it runs, nothing once ended. |
@@ -114,7 +115,7 @@ restart with every launch.
 | `agentSession.setOption` | `configId` (at most 200), `value` (at most 300), `after` | `agent-not-ready`; a validation refusal for an option or value not offered; `agent-option-refused` when the agent refused or did not answer within 30 seconds. |
 | `agentSession.end` | `after` | Ends the agent and keeps the transcript. |
 
-Every method except `list`, `setCommand`, `setHidden` and `attach` answers with the conversation:
+Every method except `list`, `setCommand`, `setHidden`, `attach` and `image` answers with the conversation:
 
 ```text
 { exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
@@ -163,7 +164,7 @@ after New session or a file change, never merges a read whose `conversationId` d
 (`mergeChat`), and drops every entry before `firstOrder`.
 
 An entry is `{ id, order, revision, kind, text, title, toolKind, status, input, options,
-answer, plan, origin }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
+answer, plan, origin, images }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
 `permission`, `notice`. Message and thought chunks join into one entry until something else
 intervenes, or until a chunk names another message by its ACP `messageId`, which starts a new
 entry; a chunk that names none joins the entry open before it. A tool call is one entry, updated in place; a diff in its content is kept as its
@@ -181,6 +182,18 @@ name alone decides. A server prefix counts only when it is the session's own ser
 A permission request's `text` is what its tool call says it would do: its content (a diff,
 text) and the places it names (`Where: path:line`), or else the tool call's text. The tab
 offers that text and the input before the person answers.
+
+**Pictures.** An image block in an agent message, its reasoning or a tool's content is kept when
+it carries its bytes inline and those bytes say PNG, JPEG, GIF or WebP (`NendoMedia.Sniff`), at
+most 5 MiB (`AgentConversation.Pictures.cs`). SVG, a picture named only by an address, which
+Nendo never fetches, and anything else stay the text "(an image)". The conversation keeps at most
+32 pictures and 64 MiB of them in host memory, the same bytes once, and drops the oldest first. An
+entry names its pictures in `images`, each `{ id, mediaType, length, width, height }` (width and
+height where the header says them); a message's picture joins its message by the same rule as its
+text. The tab draws each as an image with no address, reads its bytes with `agentSession.image`,
+and fills it from a `data:` address (`agent-pictures.ts`); one no longer kept is said as "(a
+picture no longer kept)". What a picture shows is the agent's: Nendo cannot hide an application
+handle inside one.
 
 Everything an entry holds is kept as text. Every text the agent writes into the transcript
 (messages, reasoning, plans, a tool's title, input and output, a notice carrying its error

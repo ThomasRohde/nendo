@@ -33,7 +33,8 @@ internal sealed record AgentTranscriptEntry(
     string? Answer = null,
     IReadOnlyList<AgentPlanItemView>? Plan = null,
     string? Origin = null,
-    string? From = null);
+    string? From = null,
+    IReadOnlyList<AgentEntryImageView>? Images = null);
 
 /// <summary>
 /// What a reader is told: the state, and the entries that changed after its revision.
@@ -618,10 +619,10 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             switch (kind)
             {
                 case "agent_message_chunk":
-                    AppendChunk("agent", ContentText(update), Text(update, "messageId", 200));
+                    AppendContent("agent", update);
                     break;
                 case "agent_thought_chunk":
-                    AppendChunk("thought", ContentText(update), Text(update, "messageId", 200));
+                    AppendContent("thought", update);
                     break;
                 case "tool_call":
                 case "tool_call_update":
@@ -654,23 +655,50 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     }
 
     /// <summary>
-    /// A chunk of the agent's message or reasoning joins the entry open before it, of the same kind
-    /// and with nothing between, unless it names another message by its ACP <c>messageId</c>: then
-    /// it starts its own. A chunk that names none joins, as from an agent that sends no IDs.
+    /// A chunk of the agent's message or reasoning: a picture it can draw goes into the entry as a
+    /// picture, anything else as text.
     /// </summary>
+    private void AppendContent(string kind, JsonElement update)
+    {
+        var messageId = Text(update, "messageId", 200);
+        if (update.TryGetProperty("content", out var content) && KeepImage(content) is { } image)
+        {
+            var entry = OpenMessage(kind, messageId) ?? StartMessage(kind, string.Empty, messageId);
+            (entry.Images ??= []).Add(image);
+            entry.Revision = _revision + 1;
+            return;
+        }
+        AppendChunk(kind, ContentText(update), messageId);
+    }
+
+    /// <summary>
+    /// The entry a chunk joins: the one open before it, of the same kind and with nothing between,
+    /// unless the chunk names another message by its ACP <c>messageId</c>. A chunk that names none
+    /// joins, as from an agent that sends no IDs. Null when the chunk starts its own.
+    /// </summary>
+    private MutableEntry? OpenMessage(string kind, string? messageId) =>
+        _openMessage is { } open && open.Kind == kind && ReferenceEquals(_entries.LastOrDefault(), open)
+            && (messageId is null || string.Equals(messageId, open.MessageId, StringComparison.Ordinal))
+            ? open : null;
+
+    private MutableEntry StartMessage(string kind, string text, string? messageId)
+    {
+        _openMessage = Add(kind, text);
+        _openMessage.MessageId = messageId;
+        return _openMessage;
+    }
+
     private void AppendChunk(string kind, string text, string? messageId)
     {
         if (text.Length == 0) return;
-        if (_openMessage is { } open && open.Kind == kind && ReferenceEquals(_entries.LastOrDefault(), open)
-            && (messageId is null || string.Equals(messageId, open.MessageId, StringComparison.Ordinal)))
+        if (OpenMessage(kind, messageId) is { } open)
         {
             open.Text.Append(text);
             if (open.Text.Length > MaximumEntryCharacters) open.Text.Length = MaximumEntryCharacters;
             open.Revision = _revision + 1;
             return;
         }
-        _openMessage = Add(kind, text);
-        _openMessage.MessageId = messageId;
+        StartMessage(kind, text, messageId);
     }
 
     private void ApplyToolCall(JsonElement update, bool created)
@@ -693,6 +721,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         {
             entry.Text.Clear();
             entry.Text.Append(Redact(ToolContentText(content)));
+            entry.Images = ToolImages(content);
         }
         entry.Origin = Origin(entry.Title, entry.ToolKind, entry.ToolName);
         entry.Revision = _revision + 1;
@@ -904,10 +933,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         /// <summary>The tool's name as the agent's metadata gives it, when it does. Not shown.</summary>
         internal string? ToolName { get; set; }
 
+        /// <summary>The pictures the entry shows, kept by the conversation and read by their IDs.</summary>
+        internal List<AgentEntryImageView>? Images { get; set; }
+
         /// <summary>The entry as the tab is sent it: every text the agent wrote passes the one redaction boundary.</summary>
         internal AgentTranscriptEntry View() =>
             new(Id, Order, Revision, Kind, Redact(Text.ToString()), Title is null ? null : Redact(Title), ToolKind, Status,
-                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin, From);
+                Input is null ? null : Redact(Input), Options, Answer, Plan, Origin, From, Images?.ToArray());
     }
 
     private sealed class PendingPermission(TaskCompletionSource<string?> answer)

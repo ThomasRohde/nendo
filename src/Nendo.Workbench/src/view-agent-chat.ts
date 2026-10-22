@@ -7,6 +7,7 @@ import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyCha
 import { announce, content, rerender, showError, showKeptAlert } from './shell';
 import { drawTabs, onTabClosed, openTabOn, releaseOwnedPage, setTabStatus } from './workspace-tabs';
 import { clearPictures, heldPictureCount, resetPictures, stagePictures, wirePictures } from './agent-images';
+import { fillPictures, resetShownPictures, type PictureWindow } from './agent-pictures';
 import { clearPointedAt, composerNote, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 import { commandKey, commandsChanged, wireCommands } from './agent-command-menu';
 import { keysLine } from './agent-command-model';
@@ -45,9 +46,9 @@ fileScopedClearable({
     expanded.clear();
     drawn.clear();
     markup.clear();
+    askedPermissions.clear();
     resetMentions();
     resetPictures();
-    askedPermissions.clear();
     toldSignIn = null;
   },
 });
@@ -220,6 +221,7 @@ export async function launchAgentForView(agentId: string, settings: Record<strin
     draft = '';
     resetMentions();
     resetPictures();
+    resetShownPictures();
     patchChat(false);
     announce(`${chat.name} is starting.`);
     followAgentChat();
@@ -248,6 +250,7 @@ export async function launchAgent(agentId: string): Promise<void> {
     draft = '';
     resetMentions();
     resetPictures();
+    resetShownPictures();
     releaseOwnedPage();
     await openTabOn('agentChat');
     announce(`${chat.name} is starting in a new tab.`);
@@ -651,4 +654,6 @@ function patchChat(force: boolean, only?: string): void {
     if (drawnEmpty !== empty || thread.querySelector('.chat-empty') === null) { thread.innerHTML = empty; drawnEmpty = empty; }
   } else drawnEmpty = null;
   if ((force && only === undefined) || nearBottom) scroller.scrollTop = scroller.scrollHeight;
+  // The pictures the agent showed are read once each, after the entries that show them are drawn.
+  void fillPictures(thread, chat.key, (imageId, offset) => client.request<PictureWindow>('agentSession.image', withConversation({ imageId, offset })));
 }

@@ -326,6 +326,17 @@ export interface AgentTranscriptEntry {
   origin: 'nendo' | 'agent' | null;
   /** For a message: the custom view that sent it, by its title (ADR-0033); null for the person's own. */
   from?: string | null;
+  /** The pictures the entry shows, read by ID with agentSession.image; absent when none, or from an older host. */
+  images?: AgentEntryImage[] | null;
+}
+
+/** A picture the agent or a tool showed: its type as its bytes say, its size and, where its header says, its pixels. */
+export interface AgentEntryImage {
+  id: string;
+  mediaType: string;
+  length: number;
+  width: number | null;
+  height: number | null;
 }
 
 /**

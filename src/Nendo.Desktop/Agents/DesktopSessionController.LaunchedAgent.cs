@@ -379,6 +379,10 @@ internal sealed partial class DesktopSessionController
             throw new NendoPreconditionException("agent-takes-no-images", $"{agent.Command.Name} does not read pictures.");
     }
 
+    /// <summary>A window of a picture the agent showed, for the tab to draw it.</summary>
+    internal AgentImageWindow ReadLaunchedAgentImage(string fileSessionId, string imageId, long offset, string? conversationId = null) =>
+        RequireLaunched(fileSessionId, conversationId).Conversation.ReadImage(imageId, offset);
+
     /// <summary>A turn of this conversation read back: whether it ended, its reply and why it stopped.</summary>
     internal AgentTurnView ReadLaunchedAgentTurn(string fileSessionId, string turnId, string? conversationId = null) =>
         RequireLaunched(fileSessionId, conversationId).Conversation.ReadTurn(turnId);
