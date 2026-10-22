@@ -159,7 +159,8 @@ after New session or a file change, never merges a read whose `conversationId` d
 An entry is `{ id, order, revision, kind, text, title, toolKind, status, input, options,
 answer, plan, origin }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
 `permission`, `notice`. Message and thought chunks join into one entry until something else
-intervenes. A tool call is one entry, updated in place; a diff in its content is kept as its
+intervenes, or until a chunk names another message by its ACP `messageId`, which starts a new
+entry; a chunk that names none joins the entry open before it. A tool call is one entry, updated in place; a diff in its content is kept as its
 path and the text before and after (each cut at 8,000 characters). The plan is one entry,
 replaced whole each time.
 

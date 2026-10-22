@@ -611,10 +611,10 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             switch (kind)
             {
                 case "agent_message_chunk":
-                    AppendChunk("agent", ContentText(update));
+                    AppendChunk("agent", ContentText(update), Text(update, "messageId", 200));
                     break;
                 case "agent_thought_chunk":
-                    AppendChunk("thought", ContentText(update));
+                    AppendChunk("thought", ContentText(update), Text(update, "messageId", 200));
                     break;
                 case "tool_call":
                 case "tool_call_update":
@@ -643,10 +643,16 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         Raise(revision);
     }
 
-    private void AppendChunk(string kind, string text)
+    /// <summary>
+    /// A chunk of the agent's message or reasoning joins the entry open before it, of the same kind
+    /// and with nothing between, unless it names another message by its ACP <c>messageId</c>: then
+    /// it starts its own. A chunk that names none joins, as from an agent that sends no IDs.
+    /// </summary>
+    private void AppendChunk(string kind, string text, string? messageId)
     {
         if (text.Length == 0) return;
-        if (_openMessage is { } open && open.Kind == kind && ReferenceEquals(_entries.LastOrDefault(), open))
+        if (_openMessage is { } open && open.Kind == kind && ReferenceEquals(_entries.LastOrDefault(), open)
+            && (messageId is null || string.Equals(messageId, open.MessageId, StringComparison.Ordinal)))
         {
             open.Text.Append(text);
             if (open.Text.Length > MaximumEntryCharacters) open.Text.Length = MaximumEntryCharacters;
@@ -654,6 +660,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             return;
         }
         _openMessage = Add(kind, text);
+        _openMessage.MessageId = messageId;
     }
 
     private void ApplyToolCall(JsonElement update, bool created)
@@ -870,6 +877,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         internal string Kind { get; } = kind;
         internal long Revision { get; set; }
         internal StringBuilder Text { get; } = new();
+        /// <summary>The agent's ID for the message or reasoning this entry holds, when it sent one; never shown.</summary>
+        internal string? MessageId { get; set; }
         internal string? Title { get; set; }
         internal string? ToolKind { get; set; }
         internal string? Status { get; set; }

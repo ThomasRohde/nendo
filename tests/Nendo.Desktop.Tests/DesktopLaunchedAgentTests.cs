@@ -808,6 +808,25 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task AnAgentsMessagesInARowAreToldApartByTheirMessageId()
+    {
+        // Two messages the agent sent one after the other were drawn as one. ACP's messageId says
+        // where one ends: a new one starts a new entry, and a chunk without one joins the message open.
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var turnId = fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "messages", 0).TurnId!;
+        var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent"));
+        CollectionAssert.AreEqual(new[] { "First message.", "Second message. Still the second." },
+            done.Entries.Where(entry => entry.Kind == "agent").Select(entry => entry.Text).ToArray(),
+            "Messages with different messageIds were joined, or a chunk without one started its own.");
+        CollectionAssert.AreEqual(new[] { "Thinking once.", "Thinking twice." },
+            done.Entries.Where(entry => entry.Kind == "thought").Select(entry => entry.Text).ToArray());
+        // A view's turn reads back each message, a blank line between them (ADR-0033).
+        Assert.AreEqual("First message.\n\nSecond message. Still the second.", fixture.Controller.ReadLaunchedAgentTurn(fixture.FileSessionId, turnId).Reply);
+    }
+
+    [TestMethod]
     public async Task TheAgentsContextUseIsKeptAsItLastSaidIt()
     {
         // The person could not see how close the conversation was to the agent's context limit.

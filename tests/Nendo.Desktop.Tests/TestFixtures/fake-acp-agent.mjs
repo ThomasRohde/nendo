@@ -92,6 +92,22 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'cancelled' } });
     return;
   }
+  if (text === 'messages') {
+    // Two messages in a row, each in two chunks under its own messageId, then a chunk with none,
+    // which belongs to the message open before it; and two thoughts the same way.
+    const chunk = (kind, messageId, text) =>
+      update(sessionId, { sessionUpdate: kind, ...(messageId === null ? {} : { messageId }), content: { type: 'text', text } });
+    chunk('agent_thought_chunk', 't1', 'Thinking ');
+    chunk('agent_thought_chunk', 't1', 'once.');
+    chunk('agent_thought_chunk', 't2', 'Thinking twice.');
+    chunk('agent_message_chunk', 'm1', 'First ');
+    chunk('agent_message_chunk', 'm1', 'message.');
+    chunk('agent_message_chunk', 'm2', 'Second ');
+    chunk('agent_message_chunk', 'm2', 'message.');
+    chunk('agent_message_chunk', null, ' Still the second.');
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'usage') {
     // One the host can show, then two it cannot (no size, a count as text), which leave it standing.
     update(sessionId, { sessionUpdate: 'usage_update', used: 45000, size: 200000, cost: { amount: 0.12, currency: 'USD' } });
