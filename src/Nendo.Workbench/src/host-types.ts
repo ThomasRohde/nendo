@@ -382,6 +382,8 @@ export interface LaunchedAgentView {
   queued?: number;
   /** The file's repository when the agent was started there; null when it works in an empty folder. */
   workingFolder?: string | null;
+  /** The agent said it reads pictures in a message (ACP promptCapabilities.image); absent from an older host. */
+  takesImages?: boolean;
 }
 
 /** A turn read back (ADR-0033): whether it ended, the agent's message text of that turn, and why it stopped. */

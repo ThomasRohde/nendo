@@ -940,6 +940,13 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cobalt) 16%, transparent), var(--shadow);
 }
 
+/* A picture held over the box, for an agent that reads pictures or not: the box says it takes the drop. */
+.chat-composer.is-drop-target {
+  border-color: var(--cobalt);
+  border-style: dashed;
+  background: var(--cobalt-soft);
+}
+
 .chat-composer textarea {
   display: block;
   box-sizing: border-box;

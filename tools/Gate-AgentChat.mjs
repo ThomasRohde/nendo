@@ -327,6 +327,41 @@ async page => {
   assert((await chipLabels()).length === 8, 'the refused thing was pointed at after all.');
   checks.push('a thing that cannot be pointed at is refused on screen');
 
+  // A picture dropped on the message box, or pasted into it, goes with the message (the owner
+  // could not drop one): the window's own drop (open a .nendo file) leaves it alone, a file that is
+  // not a picture is refused on screen, and the person's entry names the pictures it sent.
+  await box.fill('');
+  const pictureLabels = () => page.evaluate(() => [...document.querySelectorAll('#chat-pictures .chat-attachment')].map(chip => chip.textContent.trim()));
+  const hand = (kind, name, type) => page.evaluate(({ kind, name, type }) => {
+    const transfer = new DataTransfer();
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4]);
+    transfer.items.add(new File([type === 'image/png' ? png : 'not a picture'], name, { type }));
+    const composer = document.querySelector('#chat-composer');
+    const prompt = document.querySelector('#agent-prompt');
+    if (kind === 'paste') {
+      prompt.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+      return { hint: !document.querySelector('#file-drop-target').hidden };
+    }
+    for (const event of ['dragenter', 'dragover']) prompt.dispatchEvent(new DragEvent(event, { dataTransfer: transfer, bubbles: true, cancelable: true }));
+    const hint = !document.querySelector('#file-drop-target').hidden;
+    prompt.dispatchEvent(new DragEvent('drop', { dataTransfer: transfer, bubbles: true, cancelable: true }));
+    return { hint };
+  }, { kind, name, type });
+  assert(await page.evaluate(() => !document.querySelector('#chat-add-picture').hidden), 'an agent that reads pictures shows no picture button.');
+  const dropped = await hand('drop', 'shot.png', 'image/png');
+  assert(!dropped.hint, 'a picture held over the message box showed the window\'s open-a-file hint.');
+  await hand('paste', 'image.png', 'image/png');
+  assert(JSON.stringify(await pictureLabels()) === JSON.stringify(['shot.png', 'Pasted picture 1.png']), `the box holds ${JSON.stringify(await pictureLabels())}.`);
+  await hand('drop', 'notes.txt', 'text/plain');
+  assert((await text('#chat-composer-note'))?.includes('notes.txt is not a PNG') === true, `a file that is not a picture was not refused on screen: "${await text('#chat-composer-note')}".`);
+  assert((await pictureLabels()).length === 2, 'a file that is not a picture was added.');
+  await box.fill('What is wrong here?');
+  await box.press('Enter');
+  await until(() => [...document.querySelectorAll('.chat-you')].some(entry => entry.textContent.includes('What is wrong here?') && entry.textContent.includes('shot.png · Pasted picture 1.png')),
+    null, 'the message naming its pictures', 6000);
+  assert((await pictureLabels()).length === 0, 'the pictures stayed in the box after the message went.');
+  checks.push('a picture dropped or pasted goes with the message');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };
 

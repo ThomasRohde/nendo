@@ -69,7 +69,9 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
   are the agent's settings, not Nendo's access level. The tab and custom views have none.
 - **@** points the agent at what the person chooses (record types, fields, views, records found
   through the search index, waiting proposals, other tabs) as bounded nendo:// references the
-  agent could already read at its level. **/** lists the agent's own slash commands; Nendo never
+  agent could already read at its level. Pictures the person pastes, drops or picks go with the
+  message as ACP image blocks, bounded, and only to an agent that declared
+  `promptCapabilities.image`; Nendo keeps none of them. **/** lists the agent's own slash commands; Nendo never
   runs or checks one.
 - A proposal the agent validates is reviewed on the Agent page as any other.
 - A custom view may send a message into the conversation, marked with its title

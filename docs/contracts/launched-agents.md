@@ -81,7 +81,7 @@ a path that is not fully qualified is dropped on read.
 
 ## The bridge methods
 
-Fourteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
+Fifteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
 `fileSessionId`; a session no longer open is `stale-file-session`. All run off the UI thread
 (`WorkbenchMethods.OffUiThread`) and are dispatched after the actor check, so a request
 naming a custom view's `actor` is `actor-not-allowed`; the extension broker's method table
@@ -89,7 +89,7 @@ names none of them.
 
 `list`, `setCommand`, `setHidden`, `setViewAccess`, `setStartIn` and `launch` take the request gate, finding the agents
 first, since that reads nothing of the file: one `PATH` search at a time, shared by requests
-that arrive while it runs or within two seconds of its start. The other eight do not wait on
+that arrive while it runs or within two seconds of its start. The other nine do not wait on
 the gate and check `fileSessionId` themselves, so the tab keeps reading while an agent's own
 write holds the file. Each of those except `read` is `agent-not-launched` when no agent was
 launched for the file, and may name the `conversationId` the tab holds; one naming a
@@ -105,7 +105,8 @@ restart with every launch.
 | `agentSession.setStartIn` | `repository`: true or false | The list. Start this file's agent in its repository, or in an empty folder again, from the next launch; `agent-choice-not-saved` when the device could not keep it. |
 | `agentSession.launch` | `agentId` (at most 40), optional `settings`: at most 16 `configId: value` pairs (at most 200 and 300 characters), each one of that agent's kept `settings` and a value it offered | The conversation at `starting`; the handshake runs on. `settings` are kept as the person's picks before the agent starts. `agent-launch-unavailable`, `agent-already-running`, `agent-not-found` (not on this computer), `agent-start-failed` (Windows could not start it), `agent-folder-missing` (the repository chosen is gone), or a validation refusal. |
 | `agentSession.read` | `after` | The conversation, or `exists: false`. |
-| `agentSession.prompt` | `text`, `after`, optional `context`, optional `from` (a custom view's title, at most 120) | Below, with `turnId`. `agent-not-ready` (starting, signing in or ended); `agent-working` for the person's message during a turn, or a view's past the queue's bound; `assistant-off` for a view's message while views are Never. |
+| `agentSession.attach` | `uploadKey` (at most 80), `offset`, `base64`: one chunk of a picture for the next message | `{ staged }`, the bytes held under that key. `agent-takes-no-images` for an agent that does not read pictures; `agent-image-too-large` once the picture passes 5 MiB, which drops it. |
+| `agentSession.prompt` | `text`, `after`, optional `images`, optional `context`, optional `from` (a custom view's title, at most 120) | Below, with `turnId`. `agent-not-ready` (starting, signing in or ended); `agent-working` for the person's message during a turn, or a view's past the queue's bound; `assistant-off` for a view's message while views are Never. |
 | `agentSession.turn` | `turnId` (at most 40) | `{ turnId, done, reply, stopReason }`. `agent-turn-gone` once it is no longer kept. |
 | `agentSession.answer` | `entryId` (at most 40), `optionId` (at most 200), absent to cancel | `agent-question-gone` when the agent no longer waits; a validation refusal for an option not offered. |
 | `agentSession.cancel` | `after`, optional `turnId` | Without `turnId`, the person's Stop: `session/cancel` for the running turn, every open permission request answered as cancelled, and every waiting message dropped. With `turnId`, a view's own turn: dropped while it waits, cancelled as Stop while it runs, nothing once ended. |
@@ -113,13 +114,16 @@ restart with every launch.
 | `agentSession.setOption` | `configId` (at most 200), `value` (at most 300), `after` | `agent-not-ready`; a validation refusal for an option or value not offered; `agent-option-refused` when the agent refused or did not answer within 30 seconds. |
 | `agentSession.end` | `after` | Ends the agent and keeps the transcript. |
 
-Every method except `list`, `setCommand` and `setHidden` answers with the conversation:
+Every method except `list`, `setCommand`, `setHidden` and `attach` answers with the conversation:
 
 ```text
 { exists, conversationId, agentId, name, commandLine, endpoint, level, state, working,
   notice, agentTitle, revision, entries, more, signInMethods, options, firstOrder,
-  signingIn, commands, queued }
+  signingIn, commands, queued, takesImages }
 ```
+
+`takesImages` is whether the agent declared `agentCapabilities.promptCapabilities.image` at
+`initialize`.
 
 `queued` is the number of views' messages waiting for the running turn.
 `conversationId` is new for each launch, null when none was launched. `state` is `none`,
@@ -179,9 +183,10 @@ goes through the Markdown subset, which escapes every character before adding a 
 The transcript holds at most 1,000 entries (oldest dropped first) and 200,000 characters per
 entry; a tool's output is cut at 20,000 characters and its input at 2,000.
 
-## A prompt, and what the person points at
+## A prompt, its pictures, and what the person points at
 
-`agentSession.prompt` takes `text`, at most 100,000 characters and not empty once trimmed.
+`agentSession.prompt` takes `text`, at most 100,000 characters, not empty once trimmed unless the
+message carries a picture.
 Its optional `context` is what the person pointed at with @: at most eight items
 `{ uri, title, text }`. `uri` is one of the file's `nendo://` addresses, at most 600
 characters, no whitespace; `title` 1–120 characters once trimmed; each `text` at most 8,000
@@ -196,7 +201,24 @@ added, its @name is not left in the message, and a line under the chips (also an
 says why and which item to take back. Names are cut to 120 characters. New session clears
 the composer.
 
-The ACP prompt is the person's words first, then the items. An agent that declared
+**Pictures.** The tab takes a picture pasted into the message box, dropped on it or picked with
+its picture button, which shows only when `takesImages` (`agent-images.ts`,
+`agent-image-model.ts`). The composer carries `data-media-drop`, so the window's own drop, which
+opens a `.nendo` file, leaves a file let go over it to the composer. A picture for an agent that
+does not read pictures, a type other than PNG, JPEG, GIF or WebP, one over 5 MiB, a ninth, or
+one past 20 MiB together is not added, and the line under the chips says why. When the message
+goes, the tab stages each picture with `agentSession.attach` under a new key, in chunks of
+150,000 bytes, and names it in `images`: at most eight `{ uploadKey, name }`. The host takes each
+from what was staged under its key for this file session, in memory only and dropped after 15
+minutes unsent, reads its type from its bytes (`NendoMedia.Sniff`), and refuses the message when
+one is missing, empty, of another type (`agent-image-type`, SVG included), past its bound or past
+20 MiB together (`agent-image-too-large`), or when the agent does not read pictures
+(`agent-takes-no-images`). A staged picture goes with one message only; a refused message keeps
+the tab's pictures, and the next send stages them again. The person's entry names the pictures,
+then the items, in its `title`.
+
+The ACP prompt is the person's words first, then each picture as an `image` block
+(`mimeType`, `data` in base64), then the items. A message of pictures alone has no text block. An agent that declared
 `agentCapabilities.promptCapabilities.embeddedContext` gets each item as a `resource` block
 with its address and its text as `text/markdown`; any other gets a `resource_link` per item
 followed by one text block with the descriptions, which `agent-context-model.ts` writes with
@@ -320,9 +342,9 @@ what Nendo grants, not for what the person's own program can do on this computer
 - [`WorkbenchAgentSessionProtocolTests`](../../tests/Nendo.Desktop.Tests/WorkbenchAgentSessionProtocolTests.cs):
   the bridge methods, their refusals, off-UI-thread dispatch, device-only hiding and a launch's
   malformed settings.
-- The Workbench node tests `assistant-model.test.mjs`, `agent-chat.test.mjs`, `agent-context.test.mjs`,
+- The Workbench node tests `assistant-model.test.mjs`, `agent-chat.test.mjs`, `agent-context.test.mjs`, `agent-image.test.mjs`,
   `agent-launch.test.mjs`, `navigation-trail.test.mjs` and `preview-agent-session.test.mjs`
   in `src/Nendo.Workbench/scripts/`.
 - [`tools/Review-AgentChat.ps1`](../../tools/Review-AgentChat.ps1), run by
   `Test-Production.ps1`: the built Workbench against the preview's scripted agent, in both
-  themes.
+  themes, a picture dropped and pasted on the message box among its checks.

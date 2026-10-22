@@ -226,7 +226,7 @@ lines.on('line', (line) => {
       send({ id: message.id, result: {
         protocolVersion: args.includes('--version-text') ? '2025-06-18' : Number(option('--version') ?? 1),
         agentCapabilities: { loadSession: false, mcpCapabilities: { http: !args.includes('--no-http'), sse: false },
-          promptCapabilities: { embeddedContext: !args.includes('--no-embedded') } },
+          promptCapabilities: { embeddedContext: !args.includes('--no-embedded'), image: args.includes('--images') } },
         authMethods: args.includes('--auth') ? [{ id: 'browser', name: 'Sign in with a browser' }] : [],
         agentInfo: { name: 'fake-agent', title: 'Fake agent', version: '1.0.0' },
       } });

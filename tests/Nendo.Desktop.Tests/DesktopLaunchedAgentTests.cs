@@ -808,6 +808,139 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task PicturesTravelAsImageBlocksToAnAgentThatReadsThem()
+    {
+        // The owner could not drop a screenshot into the prompt. A picture is staged in chunks
+        // through the bridge, named by the message, and reaches the agent as an ACP image block.
+        await using var fixture = await Fixture.StartAsync("editData", "--images");
+        await fixture.LaunchAsync();
+        var ready = await fixture.WaitAsync(view => view.State == "ready");
+        Assert.IsTrue(ready.TakesImages, "An agent that declared promptCapabilities.image was not told as reading pictures.");
+        var handler = new WorkbenchProtocolHandler(fixture.Controller, _ => { });
+        var png = Picture(PngSignature, 300_000);
+        await StageAsync(handler, fixture.FileSessionId, "shot-1", png);
+        var sent = await handler.HandleAsync(Request("send", WorkbenchMethods.AgentSessionPrompt, fixture.FileSessionId,
+            new { text = "What is wrong here?", images = new[] { new { uploadKey = "shot-1", name = "shot.png" } } }));
+        Assert.IsTrue(sent.Ok, sent.Error?.Message);
+        var done = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Kind == "agent"));
+        Assert.AreEqual("shot.png", done.Entries.First(entry => entry.Kind == "you").Title, "The person's message does not name its picture.");
+        var prompt = fixture.Log().Single(entry => Method(entry) == "session/prompt").GetProperty("params").GetProperty("prompt");
+        Assert.AreEqual(2, prompt.GetArrayLength(), prompt.GetRawText()[..Math.Min(400, prompt.GetRawText().Length)]);
+        Assert.AreEqual("What is wrong here?", prompt[0].GetProperty("text").GetString());
+        Assert.AreEqual("image", prompt[1].GetProperty("type").GetString(), "The picture did not go as an image block.");
+        Assert.AreEqual("image/png", prompt[1].GetProperty("mimeType").GetString());
+        CollectionAssert.AreEqual(png, Convert.FromBase64String(prompt[1].GetProperty("data").GetString()!), "The agent did not get the picture's bytes.");
+
+        // A picture alone is a message, and its type is what its bytes say, not its name.
+        var jpeg = Picture([0xFF, 0xD8, 0xFF, 0xE0], 1_000);
+        await StageAsync(handler, fixture.FileSessionId, "shot-2", jpeg);
+        var alone = await handler.HandleAsync(Request("alone", WorkbenchMethods.AgentSessionPrompt, fixture.FileSessionId,
+            new { images = new[] { new { uploadKey = "shot-2", name = "named.png" } } }));
+        Assert.IsTrue(alone.Ok, alone.Error?.Message);
+        await fixture.WaitAsync(view => !view.Working && view.Entries.Count(entry => entry.Kind == "you") == 2);
+        var second = fixture.Log().Where(entry => Method(entry) == "session/prompt").Last().GetProperty("params").GetProperty("prompt");
+        Assert.AreEqual(1, second.GetArrayLength(), "A message of a picture alone carried a text block.");
+        Assert.AreEqual("image/jpeg", second[0].GetProperty("mimeType").GetString());
+
+        // A staged picture goes with one message only.
+        var again = await handler.HandleAsync(Request("again", WorkbenchMethods.AgentSessionPrompt, fixture.FileSessionId,
+            new { text = "And this?", images = new[] { new { uploadKey = "shot-2", name = "named.png" } } }));
+        Assert.IsFalse(again.Ok, "A picture already sent was sent again.");
+    }
+
+    [TestMethod]
+    public async Task PicturesAreRefusedBeforeTheAgentWhenItReadsNoneOrTheyPassTheirBounds()
+    {
+        await using (var fixture = await Fixture.StartAsync("editData"))
+        {
+            await fixture.LaunchAsync();
+            var ready = await fixture.WaitAsync(view => view.State == "ready");
+            Assert.IsFalse(ready.TakesImages);
+            var handler = new WorkbenchProtocolHandler(fixture.Controller, _ => { });
+            var staged = await handler.HandleAsync(Request("stage", WorkbenchMethods.AgentSessionAttach, fixture.FileSessionId,
+                new { uploadKey = "shot", offset = 0, base64 = Convert.ToBase64String(Picture(PngSignature, 100)) }));
+            Assert.AreEqual("agent-takes-no-images", staged.Error?.Code, "A picture was staged for an agent that reads none.");
+            var direct = Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "Look", 0,
+                images: [AgentConversation.Image("shot.png", Picture(PngSignature, 100))]));
+            Assert.AreEqual("agent-takes-no-images", direct.Code);
+            Assert.IsFalse(fixture.Log().Any(entry => Method(entry) == "session/prompt"), "A picture reached an agent that reads none.");
+        }
+
+        await using (var fixture = await Fixture.StartAsync("editData", "--images"))
+        {
+            await fixture.LaunchAsync();
+            await fixture.WaitAsync(view => view.State == "ready");
+            var handler = new WorkbenchProtocolHandler(fixture.Controller, _ => { });
+            var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>"u8.ToArray();
+            foreach (var (key, bytes, code) in new[]
+            {
+                ("text", "not a picture at all"u8.ToArray(), "agent-image-type"),
+                ("svg", svg, "agent-image-type"),
+            })
+            {
+                await StageAsync(handler, fixture.FileSessionId, key, bytes);
+                var refused = await handler.HandleAsync(Request(key, WorkbenchMethods.AgentSessionPrompt, fixture.FileSessionId,
+                    new { text = "Look", images = new[] { new { uploadKey = key, name = $"{key}.png" } } }));
+                Assert.AreEqual(code, refused.Error?.Code, $"{key} was sent as a picture.");
+            }
+
+            var large = Picture(PngSignature, AgentConversation.MaximumImageBytes + 1);
+            WorkbenchResponse? last = null;
+            for (var offset = 0; offset < large.Length; offset += 150_000)
+            {
+                last = await handler.HandleAsync(Request($"large-{offset}", WorkbenchMethods.AgentSessionAttach, fixture.FileSessionId,
+                    new { uploadKey = "large", offset, base64 = Convert.ToBase64String(large, offset, Math.Min(150_000, large.Length - offset)) }));
+                if (!last.Ok) break;
+            }
+            Assert.AreEqual("agent-image-too-large", last?.Error?.Code, "A picture past its bound was staged whole.");
+
+            var missing = await handler.HandleAsync(Request("missing", WorkbenchMethods.AgentSessionPrompt, fixture.FileSessionId,
+                new { text = "Look", images = new[] { new { uploadKey = "never-staged", name = "gone.png" } } }));
+            Assert.IsFalse(missing.Ok, "A message named a picture that never arrived.");
+
+            var many = Enumerable.Range(0, AgentConversation.MaximumImages + 1).Select(index => new { uploadKey = $"k{index}", name = $"{index}.png" }).ToArray();
+            var tooMany = await handler.HandleAsync(Request("many", WorkbenchMethods.AgentSessionPrompt, fixture.FileSessionId, new { text = "Look", images = many }));
+            Assert.IsFalse(tooMany.Ok, "A message carried more pictures than its bound.");
+
+            var together = Enumerable.Range(0, 5).Select(index => AgentConversation.Image($"{index}.png", Picture(PngSignature, 4_500_000))).ToArray();
+            Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "Look", 0, images: together));
+            Assert.IsFalse(fixture.Log().Any(entry => Method(entry) == "session/prompt"), "A refused picture reached the agent.");
+        }
+    }
+
+    private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+    /// <summary>A picture as far as its first bytes say: the signature, then filler.</summary>
+    private static byte[] Picture(byte[] signature, int length)
+    {
+        var bytes = new byte[length];
+        signature.CopyTo(bytes, 0);
+        for (var index = signature.Length; index < length; index++) bytes[index] = (byte)(index * 31);
+        return bytes;
+    }
+
+    /// <summary>Stage a picture through the bridge as the Workbench does, in chunks that fit one message.</summary>
+    private static async Task StageAsync(WorkbenchProtocolHandler handler, string fileSessionId, string uploadKey, byte[] bytes)
+    {
+        for (var offset = 0; offset < bytes.Length; offset += 150_000)
+        {
+            var staged = await handler.HandleAsync(Request($"{uploadKey}-{offset}", WorkbenchMethods.AgentSessionAttach, fileSessionId,
+                new { uploadKey, offset, base64 = Convert.ToBase64String(bytes, offset, Math.Min(150_000, bytes.Length - offset)) }));
+            Assert.IsTrue(staged.Ok, staged.Error?.Message);
+        }
+    }
+
+    private static string Request(string requestId, string method, string fileSessionId, object payload) =>
+        JsonSerializer.Serialize(new
+        {
+            protocolVersion = DesktopShellContract.BridgeProtocolVersion,
+            requestId,
+            method,
+            fileSessionId,
+            payload,
+        });
+
+    [TestMethod]
     public async Task OnlyTheFilesOwnAddressesAndBoundedTextArePointedAt()
     {
         await using var fixture = await Fixture.StartAsync("editData");

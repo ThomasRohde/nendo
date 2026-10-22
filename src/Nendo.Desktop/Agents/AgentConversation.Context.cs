@@ -46,13 +46,18 @@ internal sealed partial class AgentConversation
     }
 
     /// <summary>
-    /// The ACP prompt: the person's words first, then what they pointed at. An agent that reads
-    /// embedded context gets each as a resource with its address and description; any other gets
-    /// a resource link, which every ACP agent reads, and the descriptions as text after it.
+    /// The ACP prompt: the person's words first, then their pictures, then what they pointed at.
+    /// A message of pictures alone has no text block. An agent that reads embedded context gets
+    /// each item as a resource with its address and description; any other gets a resource link,
+    /// which every ACP agent reads, and the descriptions as text after it.
     /// </summary>
-    internal static object[] PromptBlocks(string prompt, IReadOnlyList<AgentPromptContext> context, bool embeddedContext)
+    internal static object[] PromptBlocks(string prompt, IReadOnlyList<AgentPromptContext> context, bool embeddedContext,
+        IReadOnlyList<AgentPromptImage>? images = null)
     {
-        var blocks = new List<object> { new { type = "text", text = prompt } };
+        var blocks = new List<object>();
+        if (prompt.Length > 0) blocks.Add(new { type = "text", text = prompt });
+        foreach (var image in images ?? [])
+            blocks.Add(new { type = "image", mimeType = image.MediaType, data = Convert.ToBase64String(image.Bytes) });
         if (context.Count == 0) return [.. blocks];
         if (embeddedContext)
         {
@@ -69,11 +74,4 @@ internal sealed partial class AgentConversation
         blocks.Add(new { type = "text", text = described.ToString() });
         return [.. blocks];
     }
-
-    /// <summary>Whether the agent said, at initialize, that it reads resources embedded in a prompt.</summary>
-    private static bool ReadsEmbeddedContext(JsonElement initialized) =>
-        initialized.ValueKind == JsonValueKind.Object &&
-        initialized.TryGetProperty("agentCapabilities", out var capabilities) && capabilities.ValueKind == JsonValueKind.Object &&
-        capabilities.TryGetProperty("promptCapabilities", out var prompt) && prompt.ValueKind == JsonValueKind.Object &&
-        prompt.TryGetProperty("embeddedContext", out var embedded) && embedded.ValueKind == JsonValueKind.True;
 }

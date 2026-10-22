@@ -73,7 +73,8 @@ internal sealed record DesktopLaunchedAgentView(
     IReadOnlyList<AgentCommandView>? Commands = null,
     string? TurnId = null,
     int Queued = 0,
-    string? WorkingFolder = null)
+    string? WorkingFolder = null,
+    bool TakesImages = false)
 {
     internal static DesktopLaunchedAgentView None(string level) =>
         new(false, null, null, null, null, null, level, "none", false, null, null, 0, [], false, [], [], 0, false, []);
@@ -355,13 +356,25 @@ internal sealed partial class DesktopSessionController
     /// The custom view that sent the message, by its title (ADR-0033), or null for the person's
     /// own. Refused while the person chose Never for views on this device.
     /// </param>
-    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? conversationId = null, string? from = null)
+    internal DesktopLaunchedAgentView PromptLaunchedAgent(string fileSessionId, string text, long after, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? conversationId = null, string? from = null,
+        IReadOnlyList<AgentPromptImage>? images = null)
     {
         var agent = RequireLaunched(fileSessionId, conversationId);
         if (from is not null && AgentLaunch().ViewAccess == DesktopAgentLaunchStore.ViewAccessNever)
             throw new NendoPreconditionException("assistant-off", "Views may not message the agent on this computer. Change it on the Agent page.");
-        var turnId = agent.Conversation.Prompt(text, pointedAt, from);
+        var turnId = agent.Conversation.Prompt(text, pointedAt, from, images);
         return ReadLaunchedCore(agent, after) with { TurnId = turnId };
+    }
+
+    /// <summary>
+    /// Refuse a picture before its bytes are staged: no agent, a replaced one, or one that did not
+    /// say it reads images.
+    /// </summary>
+    internal void RequireLaunchedAgentTakesImages(string fileSessionId, string? conversationId = null)
+    {
+        var agent = RequireLaunched(fileSessionId, conversationId);
+        if (!agent.Conversation.TakesImages)
+            throw new NendoPreconditionException("agent-takes-no-images", $"{agent.Command.Name} does not read pictures.");
     }
 
     /// <summary>A turn of this conversation read back: whether it ended, its reply and why it stopped.</summary>
@@ -525,7 +538,7 @@ internal sealed partial class DesktopSessionController
         return new DesktopLaunchedAgentView(true, agent.ConversationId, agent.Command.Id, agent.Command.Name, agent.Command.CommandLine,
             agent.Endpoint.AbsoluteUri, LevelName(), snapshot.State, snapshot.Working, snapshot.Notice, snapshot.AgentTitle,
             snapshot.Revision, snapshot.Entries, snapshot.More, snapshot.SignInMethods, snapshot.Options, snapshot.FirstOrder, snapshot.SigningIn, snapshot.Commands ?? [],
-            Queued: snapshot.Queued, WorkingFolder: agent.InRepository ? agent.WorkingDirectory : null);
+            Queued: snapshot.Queued, WorkingFolder: agent.InRepository ? agent.WorkingDirectory : null, TakesImages: snapshot.TakesImages);
     }
 
     private string LevelName() => NendoAccessLevels.DisplayName(_agentMode);

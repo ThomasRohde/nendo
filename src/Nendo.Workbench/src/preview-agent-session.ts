@@ -127,8 +127,9 @@ export class PreviewAgentSession {
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''),
         typeof payload.settings === 'object' && payload.settings !== null ? payload.settings as Record<string, string> : {});
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
+      case 'agentSession.attach': return this.stagePicture(String(payload.uploadKey ?? ''), Number(payload.offset ?? 0), String(payload.base64 ?? ''));
       case 'agentSession.prompt': return this.sendPrompt(String(payload.text ?? ''), Number(payload.after ?? 0),
-        Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : [],
+        [...this.pictures(payload.images), ...(Array.isArray(payload.context) ? payload.context.map((item) => String((item as { title?: unknown }).title ?? '')).filter((title) => title !== '') : [])],
         typeof payload.from === 'string' && payload.from !== '' ? payload.from : null);
       case 'agentSession.answer': return this.answer(String(payload.entryId ?? ''), payload.optionId == null ? null : String(payload.optionId), Number(payload.after ?? 0));
       case 'agentSession.cancel': return typeof payload.turnId === 'string'
@@ -265,11 +266,38 @@ export class PreviewAgentSession {
     return this.read(0);
   }
 
+  /** Pictures staged for the next message, by key: only their size is kept, as the preview agent never looks at one. */
+  private staged = new Map<string, number>();
+
+  /** A chunk of a picture, as the host stages it (agentSession.attach): in order, within 5 MiB. */
+  private stagePicture(uploadKey: string, offset: number, base64: string): { staged: number } {
+    if (this.agent === null) throw new WorkbenchHostError('agent-not-launched', 'No agent was launched for this file.');
+    const held = this.staged.get(uploadKey) ?? 0;
+    if (offset !== held) throw new WorkbenchHostError('validation', `This picture has ${held} bytes staged under that key, so the next chunk starts at offset ${held}.`);
+    const staged = held + atob(base64).length;
+    if (staged > 5 * 1024 * 1024) {
+      this.staged.delete(uploadKey);
+      throw new WorkbenchHostError('agent-image-too-large', 'A picture is at most 5 MiB.');
+    }
+    this.staged.set(uploadKey, staged);
+    return { staged };
+  }
+
+  /** The names of the pictures a message carries, each taken from what was staged under its key. */
+  private pictures(images: unknown): string[] {
+    if (!Array.isArray(images)) return [];
+    return images.map((image) => {
+      const { uploadKey, name } = image as { uploadKey?: unknown; name?: unknown };
+      if (!this.staged.delete(String(uploadKey ?? ''))) throw new WorkbenchHostError('validation', `${String(name ?? 'A picture')} did not arrive. Add it again.`);
+      return String(name ?? 'image');
+    });
+  }
+
   private sendPrompt(text: string, after: number, pointedAt: string[], from: string | null = null): LaunchedAgentView {
     if (from !== null && this.viewAccess === 'never')
       throw new WorkbenchHostError('assistant-off', 'Views may not message the agent on this computer. Change it on the Agent page.');
     if (this.state !== 'ready') throw new WorkbenchHostError('agent-not-ready', 'The agent is not ready for a message yet.');
-    if (text.trim() === '') throw new WorkbenchHostError('validation', 'Type something for the agent first.');
+    if (text.trim() === '' && pointedAt.length === 0) throw new WorkbenchHostError('validation', 'Type something for the agent first.');
     if (this.working && from !== null) {
       if (this.queue.length >= 8 || this.queue.filter((waiting) => waiting.from === from).length >= 2)
         throw new WorkbenchHostError('agent-working', 'Too many messages already wait for the agent.');
@@ -410,6 +438,8 @@ export class PreviewAgentSession {
       firstOrder: this.entries[0]?.order ?? this.order + 1,
       signingIn: false,
       queued: this.queue.length,
+      // The preview agent reads pictures, so the box takes them once it is ready.
+      takesImages: this.agent !== null && this.state !== 'starting',
     };
   }
 

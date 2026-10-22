@@ -18,6 +18,7 @@ internal static partial class WorkbenchMethods
     internal const string AgentSessionLaunch = "agentSession.launch";
     internal const string AgentSessionRead = "agentSession.read";
     internal const string AgentSessionPrompt = "agentSession.prompt";
+    internal const string AgentSessionAttach = "agentSession.attach";
     internal const string AgentSessionAnswer = "agentSession.answer";
     internal const string AgentSessionCancel = "agentSession.cancel";
     internal const string AgentSessionAuthenticate = "agentSession.authenticate";
@@ -31,12 +32,15 @@ internal static partial class WorkbenchMethods
     {
         AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
         AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
-        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn,
+        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn, AgentSessionAttach,
     };
 }
 
 internal sealed partial class WorkbenchProtocolHandler
 {
+    /// <summary>Pictures on their way to the agent's next message, by file session and the tab's key.</summary>
+    private readonly NendoMediaUploads<object> _agentPictures = new();
+
     private async Task<object> HandleAgentSessionAsync(string method, string fileSessionId, JsonElement payload, CancellationToken cancellationToken)
     {
         var after = OptionalInt64(payload, "after");
@@ -58,9 +62,9 @@ internal sealed partial class WorkbenchProtocolHandler
             WorkbenchMethods.AgentSessionTurn => _session.ReadLaunchedAgentTurn(fileSessionId, RequiredString(payload, "turnId", 40), conversation),
             WorkbenchMethods.AgentSessionRead => _session.ReadLaunchedAgent(fileSessionId, after),
             WorkbenchMethods.AgentSessionPrompt => _session.PromptLaunchedAgent(fileSessionId,
-                OptionalString(payload, "text", AgentConversation.MaximumPromptCharacters)
-                    ?? throw new NendoValidationException("Type something for the agent first."), after, PointedAt(payload), conversation,
-                OptionalString(payload, "from", 120)),
+                OptionalString(payload, "text", AgentConversation.MaximumPromptCharacters) ?? string.Empty, after, PointedAt(payload), conversation,
+                OptionalString(payload, "from", 120), Pictures(fileSessionId, payload)),
+            WorkbenchMethods.AgentSessionAttach => StageAgentPicture(fileSessionId, payload, conversation),
             WorkbenchMethods.AgentSessionAnswer => _session.AnswerLaunchedAgent(fileSessionId,
                 RequiredString(payload, "entryId", 40), OptionalString(payload, "optionId", 200), after, conversation),
             WorkbenchMethods.AgentSessionCancel => await _session.CancelLaunchedAgentTurnAsync(fileSessionId, after, conversation,
@@ -91,6 +95,49 @@ internal sealed partial class WorkbenchProtocolHandler
                 OptionalString(item, "title", AgentConversation.MaximumContextTitleCharacters) ?? string.Empty,
                 OptionalString(item, "text", AgentConversation.MaximumContextTextCharacters) ?? string.Empty)
             : throw new NendoValidationException("Each thing a message points at is an object with uri, title and text.")).ToArray();
+    }
+
+    /// <summary>
+    /// A chunk of a picture for the agent's next message, staged in memory under the tab's own key
+    /// for this file session. A picture is refused before its bytes arrive when the agent does not
+    /// read pictures, and as soon as it passes its bound.
+    /// </summary>
+    private object StageAgentPicture(string fileSessionId, JsonElement payload, string? conversation)
+    {
+        _session.RequireLaunchedAgentTakesImages(fileSessionId, conversation);
+        var key = fileSessionId + "\n" + RequiredString(payload, "uploadKey", 80);
+        var offset = OptionalInt64(payload, "offset");
+        byte[] chunk;
+        try { chunk = Convert.FromBase64String(RequiredString(payload, "base64", MaximumMessageCharacters)); }
+        catch (FormatException) { throw new NendoValidationException("base64 is not valid base64."); }
+        var staged = _agentPictures.Stage(key, offset, chunk);
+        if (staged > AgentConversation.MaximumImageBytes)
+        {
+            _agentPictures.Forget(key);
+            throw new NendoPreconditionException("agent-image-too-large", $"A picture is at most {AgentConversation.MaximumImageBytes / (1024 * 1024)} MiB.");
+        }
+        return new { staged };
+    }
+
+    /// <summary>
+    /// The pictures a message carries: at most eight {uploadKey, name}, each taken from what was
+    /// staged under its key, or none. A key with nothing staged refuses the message.
+    /// </summary>
+    private IReadOnlyList<AgentPromptImage> Pictures(string fileSessionId, JsonElement payload)
+    {
+        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("images", out var list) || list.ValueKind == JsonValueKind.Null)
+            return [];
+        if (list.ValueKind != JsonValueKind.Array) throw new NendoValidationException("Request property images must be a list.");
+        if (list.GetArrayLength() > AgentConversation.MaximumImages)
+            throw new NendoValidationException($"A message carries {AgentConversation.MaximumImages} pictures at most.");
+        var pictures = new List<AgentPromptImage>();
+        foreach (var item in list.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object) throw new NendoValidationException("Each picture is an object with uploadKey and name.");
+            var key = fileSessionId + "\n" + RequiredString(item, "uploadKey", 80);
+            pictures.Add(AgentConversation.Image(OptionalString(item, "name", 400), _agentPictures.Take(key)));
+        }
+        return pictures;
     }
 
     /// <summary>

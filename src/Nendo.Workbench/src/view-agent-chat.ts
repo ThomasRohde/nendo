@@ -6,6 +6,7 @@ import { icon } from './icons';
 import { chatActivity, chatTabStatus, composerState, createMarkupCache, emptyChat, mergeChat, reviewHint, signInMarkup, stateLabel, stateTone, threadItems, waitingForYou, type AgentChat, type ChatActivity } from './agent-chat-model';
 import { announce, content, rerender, showError, showKeptAlert } from './shell';
 import { drawTabs, onTabClosed, openTabOn, releaseOwnedPage, setTabStatus } from './workspace-tabs';
+import { clearPictures, heldPictureCount, resetPictures, stagePictures, wirePictures } from './agent-images';
 import { clearPointedAt, composerNote, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 import { commandKey, commandsChanged, wireCommands } from './agent-command-menu';
 import { keysLine } from './agent-command-model';
@@ -45,6 +46,7 @@ fileScopedClearable({
     drawn.clear();
     markup.clear();
     resetMentions();
+    resetPictures();
     askedPermissions.clear();
     toldSignIn = null;
   },
@@ -217,6 +219,7 @@ export async function launchAgentForView(agentId: string, settings: Record<strin
     mergeChat(chat, view, launchKey());
     draft = '';
     resetMentions();
+    resetPictures();
     patchChat(false);
     announce(`${chat.name} is starting.`);
     followAgentChat();
@@ -244,6 +247,7 @@ export async function launchAgent(agentId: string): Promise<void> {
     // The whole composer starts again: the message, and what it pointed at.
     draft = '';
     resetMentions();
+    resetPictures();
     releaseOwnedPage();
     await openTabOn('agentChat');
     announce(`${chat.name} is starting in a new tab.`);
@@ -344,13 +348,16 @@ export function renderAgentChat(): void {
         <button id="chat-access" class="chat-chip is-link" type="button">${icon('health')}<span id="chat-level"></span></button>
         <span class="chat-chip"><span class="chat-chip-dot" aria-hidden="true"></span><span id="chat-agent-name"></span></span>
       </div>
-      <form id="chat-composer" class="chat-composer">
+      <form id="chat-composer" class="chat-composer" data-media-drop>
         <div id="chat-attachments" class="chat-attachments" hidden></div>
+        <div id="chat-pictures" class="chat-attachments" hidden></div>
         <p id="chat-composer-note" class="chat-composer-note" hidden></p>
         <label class="visually-hidden" for="agent-prompt">Message to the agent</label>
         <textarea id="agent-prompt" rows="2" aria-autocomplete="list" aria-controls="chat-mention" aria-haspopup="listbox"></textarea>
         <div class="chat-toolbar">
           <button id="chat-add-context" class="chat-quiet" type="button" aria-label="Point at something in this file" title="Point at something in this file (@)">${icon('plus')}</button>
+          <button id="chat-add-picture" class="chat-quiet" type="button" aria-label="Add a picture" title="Add a picture. You can also paste one into the box or drop one on it." hidden>${icon('image')}</button>
+          <input id="chat-picture-input" type="file" multiple hidden tabindex="-1">
           <span class="chat-toolbar-gap"></span>
           <button id="stop-agent" class="chat-round" type="button" aria-label="Stop" title="Stop (Esc in the message box)">${icon('stop')}</button>
           <button id="send-prompt" class="chat-round is-primary" type="submit" aria-label="Send" title="Send (Enter)">${icon('arrowUp')}</button>
@@ -366,6 +373,7 @@ export function renderAgentChat(): void {
   prompt.value = draft;
   prompt.addEventListener('input', () => { draft = prompt.value; });
   wireMentions(chatPage);
+  wirePictures(chatPage, () => ({ takesImages: chat.takesImages, name: chat.name }));
   shownCommands = '';
   wireCommands(chatPage, () => ({ list: chat.commands, agent: chat.name }));
   content.querySelector<HTMLButtonElement>('#chat-access')!.addEventListener('click', () => openAgentPage(false));
@@ -445,7 +453,8 @@ function focusedControl(item: HTMLElement): ((next: HTMLElement) => HTMLElement 
 async function send(): Promise<void> {
   const prompt = content.querySelector<HTMLTextAreaElement>('#agent-prompt');
   const text = prompt?.value.trim() ?? '';
-  if (text === '') return;
+  // A picture alone is a message.
+  if (text === '' && heldPictureCount() === 0) return;
   // The message is on its way: a second Enter sent it again, and the host's refusal of the copy
   // was shown as an error although the first went through.
   if (sending) return;
@@ -463,7 +472,14 @@ async function send(): Promise<void> {
   if (sendButton !== null) sendButton.disabled = true;
   try {
     const context = pointedAt();
-    const sent = await act('agentSession.prompt', context.length === 0 ? { text } : { text, context }, null);
+    let images: Array<{ uploadKey: string; name: string }> = [];
+    try {
+      images = await stagePictures((payload) => client.request('agentSession.attach', withConversation(payload)));
+    } catch (error) {
+      showError(messageFor(error));
+      return;
+    }
+    const sent = await act('agentSession.prompt', { text, ...(context.length === 0 ? {} : { context }), ...(images.length === 0 ? {} : { images }) }, null);
     if (!sent) return;
     draft = '';
     if (prompt !== null) {
@@ -472,6 +488,7 @@ async function send(): Promise<void> {
       prompt.dispatchEvent(new Event('input', { bubbles: true }));
     }
     clearPointedAt(content);
+    clearPictures(content);
   } finally {
     sending = false;
     patchChat(false);
@@ -540,6 +557,10 @@ function patchChat(force: boolean, only?: string): void {
   if (roundFocused === 'send' && sendButton.hidden) (stopButton.hidden ? prompt : stopButton).focus({ preventScroll: true });
   if (roundFocused === 'stop' && stopButton.hidden) prompt.focus({ preventScroll: true });
   page.querySelector<HTMLButtonElement>('#chat-add-context')!.disabled = chat.state === 'ended' || !chat.exists;
+  // Only for an agent that reads pictures; a picture pasted or dropped for any other says why it did not go.
+  const addPicture = page.querySelector<HTMLButtonElement>('#chat-add-picture')!;
+  addPicture.hidden = !chat.takesImages;
+  addPicture.disabled = chat.state === 'ended' || !chat.exists;
   page.querySelector<HTMLButtonElement>('#new-agent-session')!.disabled = chat.agentId === null || chat.state === 'starting';
   page.querySelector('#chat-keys')!.textContent = keysLine(chat.commands.length > 0);
   const commandsNow = JSON.stringify(chat.commands);

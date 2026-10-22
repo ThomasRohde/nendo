@@ -53,7 +53,8 @@ internal sealed record AgentConversationSnapshot(
     long FirstOrder,
     bool SigningIn = false,
     IReadOnlyList<AgentCommandView>? Commands = null,
-    int Queued = 0);
+    int Queued = 0,
+    bool TakesImages = false);
 
 /// <summary>
 /// One ACP session with one agent, over whatever carries its messages (ADR-0030).
@@ -93,6 +94,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     private IReadOnlyList<AgentSignInMethodView> _signIn = [];
     private MutableEntry? _openMessage;
     private bool _embeddedContext;
+    private bool _images;
     private bool _signingIn;
     private readonly TaskCompletionSource _ended = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -165,7 +167,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             {
                 _signIn = ReadSignIn(initialized);
                 _agentTitle = ReadAgentTitle(initialized);
-                _embeddedContext = ReadsEmbeddedContext(initialized);
+                _embeddedContext = PromptCapability(initialized, "embeddedContext");
+                _images = PromptCapability(initialized, "image");
             }
             await OpenSessionAsync(timeout.Token);
         }
@@ -317,16 +320,19 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     /// The person's own message is refused during a turn, as the tab offers Stop instead.
     /// </para>
     /// </summary>
-    internal string Prompt(string text, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? from = null)
+    internal string Prompt(string text, IReadOnlyList<AgentPromptContext>? pointedAt = null, string? from = null,
+        IReadOnlyList<AgentPromptImage>? images = null)
     {
         var prompt = text.Trim();
         var context = pointedAt ?? [];
-        if (prompt.Length == 0) throw new Nendo.Engine.NendoValidationException("Type something for the agent first.");
+        var pictures = images ?? [];
+        if (prompt.Length == 0 && pictures.Count == 0) throw new Nendo.Engine.NendoValidationException("Type something for the agent first.");
         if (prompt.Length > MaximumPromptCharacters)
             throw new Nendo.Engine.NendoValidationException($"A message is at most {MaximumPromptCharacters:N0} characters.");
         ValidateContext(context);
+        ValidateImages(pictures);
         var sender = from is null ? null : AcpConnection.Bounded(from.Trim(), 120);
-        var message = new QueuedMessage(prompt, context, sender);
+        var message = new QueuedMessage(prompt, context, sender, pictures);
         long revision;
         StartedTurn? started;
         lock (_sync)
@@ -335,6 +341,9 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 throw new Nendo.Engine.NendoPreconditionException("agent-not-ready", _state == "ended"
                     ? "This conversation has ended. Launch the agent again from the Agent page."
                     : "The agent is not ready for a message yet.");
+            // An agent that did not say it reads images would drop them, or fail the turn.
+            if (pictures.Count > 0 && !_images)
+                throw new Nendo.Engine.NendoPreconditionException("agent-takes-no-images", $"{_agentName} does not read pictures.");
             if (_working && sender is null)
                 throw new Nendo.Engine.NendoPreconditionException("agent-working", "The agent is still working. Wait, or press Stop.");
             if (_working)
@@ -350,10 +359,11 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         return message.Turn.Id;
     }
 
-    /// <summary>A message on its way to the agent: its words, what it points at, the view that sent it, and its turn.</summary>
-    private sealed class QueuedMessage(string text, IReadOnlyList<AgentPromptContext> context, string? from)
+    /// <summary>A message on its way to the agent: its words, its pictures, what it points at, the view that sent it, and its turn.</summary>
+    private sealed class QueuedMessage(string text, IReadOnlyList<AgentPromptContext> context, string? from, IReadOnlyList<AgentPromptImage> images)
     {
         internal string Text { get; } = text;
+        internal IReadOnlyList<AgentPromptImage> Images { get; } = images;
         internal IReadOnlyList<AgentPromptContext> Context { get; } = context;
         internal string? From { get; } = from;
         internal Turn Turn { get; set; } = null!;
@@ -368,11 +378,12 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         _working = true;
         _openMessage = null;
         var said = Add("you", message.Text);
-        // The person's own entry names what they pointed at, so the thread shows it.
-        if (message.Context.Count > 0) said.Title = string.Join(" · ", message.Context.Select(item => item.Title.Trim()));
+        // The person's own entry names their pictures and what they pointed at, so the thread shows them.
+        var named = message.Images.Select(image => image.Name).Concat(message.Context.Select(item => item.Title.Trim())).ToArray();
+        if (named.Length > 0) said.Title = string.Join(" · ", named);
         said.From = message.From;
         message.Turn = message.Turn is null ? BeginTurn(said) : StartQueuedTurn(message.Turn, said);
-        return new StartedTurn(_sessionId!, PromptBlocks(message.Text, message.Context, _embeddedContext), message.Turn);
+        return new StartedTurn(_sessionId!, PromptBlocks(message.Text, message.Context, _embeddedContext, message.Images), message.Turn);
     }
 
     private async Task RunTurnAsync(StartedTurn started)
@@ -495,7 +506,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             var taken = changed.Take(limit).Select(entry => entry.View()).ToArray();
             var revision = more ? taken[^1].Revision : _revision;
             var firstOrder = _entries.Count == 0 ? _order + 1 : _entries[0].Order;
-            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands, _queue.Count);
+            return new AgentConversationSnapshot(_state, _working, _notice is null ? null : Redact(_notice), _agentTitle, revision, taken, more, _signIn, _options, firstOrder, _signingIn, _commands, _queue.Count, _images);
         }
     }
 
