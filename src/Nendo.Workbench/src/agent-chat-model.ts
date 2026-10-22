@@ -303,6 +303,7 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
         <span class="chat-steps-mark" role="img" aria-label="${status === 'running' ? 'Running' : status === 'failed' ? 'A step failed' : 'Done'}">${mark}</span>
       </button>
       ${open ? `<div class="chat-steps-list">${item.entries.map(stepMarkup).join('')}</div>` : ''}
+      ${picturesMarkup(stepPictures(item.entries), 'a tool')}
     </section>`;
   }
   const entry = item.entry;
@@ -372,7 +373,6 @@ function stepMarkup(entry: AgentTranscriptEntry): string {
       <small>${escapeHtml(toolKinds[entry.toolKind ?? 'other'] ?? 'Tool')} · ${escapeHtml(statuses[status] ?? status)}</small>
       ${entry.input === null ? '' : `<details data-part="${escapeAttribute(`${entry.id}:sent`)}"><summary>What it sent</summary><pre class="chat-plain">${escapeHtml(entry.input)}</pre></details>`}
       ${entry.text === '' ? '' : `<details data-part="${escapeAttribute(`${entry.id}:back`)}"><summary>What came back</summary><pre class="chat-plain">${escapeHtml(entry.text)}</pre></details>`}
-      ${picturesMarkup(entry.images, 'The tool')}
     </div>
   </div>`;
 }
@@ -442,6 +442,15 @@ function selectMarkup(option: AgentOption): string {
 export function picturesMarkup(images: readonly AgentEntryImage[] | null | undefined, shownBy: string): string {
   if (images === null || images === undefined || images.length === 0) return '';
   return `<div class="chat-pictures">${images.map((image) => `<img class="chat-picture" data-agent-image="${escapeAttribute(image.id)}" alt="${escapeAttribute(`A picture ${shownBy} showed`)}"${image.width !== null && image.height !== null ? ` width="${image.width}" height="${image.height}"` : ''}>`).join('')}</div>`;
+}
+
+/**
+ * The pictures a run of steps showed, each once. They are drawn under the folded line, not in
+ * it: a picture a tool made is a result the person came for, and a fold hid it.
+ */
+function stepPictures(entries: readonly AgentTranscriptEntry[]): AgentEntryImage[] {
+  const seen = new Set<string>();
+  return entries.flatMap((entry) => entry.images ?? []).filter((image) => !seen.has(image.id) && seen.add(image.id) !== undefined);
 }
 
 /** An on/off setting as a switch: pressed is On. */

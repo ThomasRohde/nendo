@@ -339,3 +339,13 @@ test('a picture the agent showed is an image with no address until the tab reads
   const message = itemMarkup({ key: 'e1', type: 'agent', entry: { id: 'e1', order: 1, revision: 1, kind: 'agent', text: 'Here it is.', title: null, toolKind: null, status: null, input: null, options: null, answer: null, plan: null, origin: null, images: [{ id: 'i1', mediaType: 'image/png', length: 10, width: 2, height: 3 }] } }, 'Claude', new Set());
   assert.match(message, /data-agent-image="i1"/, 'the agent\'s message does not show its picture');
 });
+
+test('a picture a tool showed is drawn under its folded step, once, not only inside the fold', () => {
+  const image = { id: 'i1', mediaType: 'image/png', length: 10, width: 2, height: 3 };
+  const tool = (id) => ({ id, order: 1, revision: 1, kind: 'tool', text: '', title: 'Image generation', toolKind: 'other', status: 'completed', input: null, options: null, answer: null, plan: null, origin: 'agent', images: [image] });
+  const folded = itemMarkup({ key: 'steps:e1', type: 'steps', entries: [tool('e1'), tool('e2')] }, 'Codex', new Set());
+  assert.equal((folded.match(/data-agent-image="i1"/g) ?? []).length, 1, folded);
+  assert.ok(!folded.includes('chat-steps-list'), 'the fold was drawn open');
+  const open = itemMarkup({ key: 'steps:e1', type: 'steps', entries: [tool('e1')] }, 'Codex', new Set(['steps:e1']));
+  assert.equal((open.match(/data-agent-image="i1"/g) ?? []).length, 1, 'an open fold drew the picture twice');
+});

@@ -190,7 +190,8 @@ Nendo never fetches, and anything else stay the text "(an image)". The conversat
 32 pictures and 64 MiB of them in host memory, the same bytes once, and drops the oldest first. An
 entry names its pictures in `images`, each `{ id, mediaType, length, width, height }` (width and
 height where the header says them); a message's picture joins its message by the same rule as its
-text. The tab draws each as an image with no address, reads its bytes with `agentSession.image`,
+text. A tool's pictures are drawn under its run of folded steps, each once, in sight while the run
+is folded. The tab draws each as an image with no address, reads its bytes with `agentSession.image`,
 and fills it from a `data:` address (`agent-pictures.ts`); one no longer kept is said as "(a
 picture no longer kept)". What a picture shows is the agent's: Nendo cannot hide an application
 handle inside one.

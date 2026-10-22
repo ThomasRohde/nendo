@@ -345,7 +345,10 @@ export class PreviewAgentSession {
     if (/\bpicture\b/i.test(text)) {
       // The preview agent answers a message about a picture with one of its own.
       this.later(300, () => {
-        this.add({ kind: 'agent', text: 'Here is one.', images: [{ id: 'p1', mediaType: 'image/png', length: atob(previewPicture).length, width: 1, height: 1 }] });
+        // As an agent's image generation does: the picture comes back from a tool, which the tab folds.
+        this.add({ kind: 'tool', text: '', title: 'Image generation', toolKind: 'other', status: 'completed', origin: 'agent',
+          images: [{ id: 'p1', mediaType: 'image/png', length: atob(previewPicture).length, width: 1, height: 1 }] });
+        this.add({ kind: 'agent', text: 'Here is one.' });
         this.working = false;
         this.endTurn('end_turn');
         this.touch();

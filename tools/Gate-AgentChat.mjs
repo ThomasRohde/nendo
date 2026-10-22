@@ -390,19 +390,26 @@ async page => {
   assert((await tabs()).some(tab => tab.active && tab.label === agent), `the conversation's tab is no longer named ${agent}: ${JSON.stringify(await tabs())}.`);
   checks.push('the conversation shows the agent\'s name for it');
 
-  // A picture the agent shows is drawn from the bytes the host keeps, as a data: address.
+  // A picture a tool shows is drawn from the bytes the host keeps, as a data: address, and in
+  // sight under its folded step: a fold hid the picture Codex made.
   // The turn before may wait for a permission answer; Stop ends it.
   if (await page.evaluate(() => !document.querySelector('#stop-agent').hidden)) await page.click('#stop-agent');
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && !document.querySelector('#send-prompt').hidden,
     null, 'the agent to finish its turn', 8000);
   await box.fill('Show me a picture of it');
   await box.press('Enter');
-  await until(() => { const image = document.querySelector('.chat-agent img[data-agent-image]'); return image !== null && image.complete && image.naturalWidth === 1; },
-    null, 'the agent\'s picture to be drawn', 6000).catch(async () => {
-      throw Error(`the agent's picture is ${JSON.stringify(await page.evaluate(() => { const image = document.querySelector('.chat-agent img[data-agent-image]'); return image === null ? null : { src: (image.getAttribute('src') ?? '').slice(0, 40), width: image.naturalWidth }; }))}.`);
-    });
-  assert((await page.evaluate(() => document.querySelector('.chat-agent img[data-agent-image]').getAttribute('src'))).startsWith('data:image/png;base64,'),
-    'the agent\'s picture was drawn from somewhere other than its bytes.');
+  const shown = () => page.evaluate(() => {
+    const image = [...document.querySelectorAll('.chat-steps img[data-agent-image]')].at(-1);
+    if (image === undefined) return null;
+    const section = image.closest('.chat-steps');
+    return { src: (image.getAttribute('src') ?? '').slice(0, 40), width: image.naturalWidth, inSight: image.getClientRects().length > 0,
+      folded: section.querySelector('.chat-steps-list') === null };
+  });
+  await until(() => { const image = [...document.querySelectorAll('.chat-steps img[data-agent-image]')].at(-1); return image !== undefined && image.complete && image.naturalWidth === 1; },
+    null, 'the tool\'s picture to be drawn', 6000).catch(async () => { throw Error(`the tool's picture is ${JSON.stringify(await shown())}.`); });
+  const picture = await shown();
+  assert(picture.src.startsWith('data:image/png;base64,'), 'the tool\'s picture was drawn from somewhere other than its bytes.');
+  assert(picture.folded && picture.inSight, `the tool's picture is not in sight under its folded step: ${JSON.stringify(picture)}.`);
   checks.push('a picture the agent shows is drawn');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
