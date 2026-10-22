@@ -53,6 +53,9 @@ const configOptions = [
     options: [{ value: 'on', name: 'On' }, { value: 'off', name: 'Off' }] },
   { id: 'verbose', name: 'Verbose', type: 'boolean', currentValue: false },
 ];
+// ACP sends a boolean option only to a client that declared session.configOptions.boolean.
+let booleans = false;
+const offered = () => configOptions.filter((candidate) => candidate.type !== 'boolean' || booleans);
 const legacy = { modes: { currentModeId: 'build', availableModes: [{ id: 'build', name: 'Build' }, { id: 'plan', name: 'Plan' }] },
   models: { currentModelId: 'big', availableModels: [{ modelId: 'big', name: 'Big' }, { modelId: 'small', name: 'Small' }] } };
 const commands = [
@@ -168,7 +171,7 @@ async function prompt(id, params) {
   if (text === 'switch') {
     if (args.includes('--config')) {
       configOptions[0].currentValue = 'plan';
-      update(sessionId, { sessionUpdate: 'config_option_update', configOptions });
+      update(sessionId, { sessionUpdate: 'config_option_update', configOptions: offered() });
     } else {
       update(sessionId, { sessionUpdate: 'current_mode_update', currentModeId: 'plan' });
     }
@@ -254,6 +257,7 @@ lines.on('line', (line) => {
   log({ method: message.method, params: message.params });
   switch (message.method) {
     case 'initialize':
+      booleans = message.params?.clientCapabilities?.session?.configOptions?.boolean !== undefined;
       send({ id: message.id, result: {
         protocolVersion: args.includes('--version-text') ? '2025-06-18' : Number(option('--version') ?? 1),
         agentCapabilities: { loadSession: false, mcpCapabilities: { http: !args.includes('--no-http'), sse: false },
@@ -271,7 +275,7 @@ lines.on('line', (line) => {
       if (!signedIn) send({ id: message.id, error: { code: -32000, message: 'Authentication required' } });
       else if (args.includes('--refuse-session')) send({ id: message.id, error: { code: -32603, message: 'Internal error', data: { details: 'Invalid permissions.defaultMode: auto.' } } });
       else send({ id: message.id, result: { sessionId: 'session-1',
-        ...(args.includes('--config') ? { configOptions, modes: legacy.modes } : {}),
+        ...(args.includes('--config') ? { configOptions: offered(), modes: legacy.modes } : {}),
         ...(args.includes('--legacy') ? legacy : {}) } });
       if (signedIn && args.includes('--commands')) setTimeout(() => update('session-1', { sessionUpdate: 'available_commands_update', availableCommands: commands }), 20);
       break;
@@ -279,8 +283,12 @@ lines.on('line', (line) => {
       const option = configOptions.find((candidate) => candidate.id === message.params.configId);
       if (args.includes('--text-code')) { send({ id: message.id, error: { code: 'internal', message: 'boom' } }); break; }
       if (option === undefined || message.params.value === 'refuse') { send({ id: message.id, error: { code: -32602, message: 'No such value' } }); break; }
+      if ((option.type === 'boolean') !== (message.params.type === 'boolean' && typeof message.params.value === 'boolean')) {
+        send({ id: message.id, error: { code: -32602, message: `${option.id} takes a ${option.type}` } });
+        break;
+      }
       option.currentValue = message.params.value;
-      send({ id: message.id, result: { configOptions } });
+      send({ id: message.id, result: { configOptions: offered() } });
       break;
     }
     case 'session/set_mode':

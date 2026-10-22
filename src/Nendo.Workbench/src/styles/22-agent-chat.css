@@ -1145,6 +1145,37 @@
 
 /* The composer's own focus ring is on while anything in it has focus, so the select with focus
    says so itself, at full strength. */
+/* An on/off setting of the agent's: the switch the Agent page's own settings use (11-agent-access.css). */
+.chat-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.chat-switch[aria-pressed="true"] .switch-glyph {
+  background: var(--cobalt);
+}
+
+.chat-switch[aria-pressed="true"] .switch-glyph::after {
+  left: 19px;
+  background: var(--on-accent);
+}
+
+.chat-switch:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .chat-switch[aria-pressed="true"] .switch-glyph {
+    background: Highlight;
+  }
+}
+
 .chat-option select:focus-visible,
 .chat-more-row select:focus-visible {
   outline: 2px solid var(--cobalt);

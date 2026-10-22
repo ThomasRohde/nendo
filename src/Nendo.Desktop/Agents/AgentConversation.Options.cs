@@ -11,7 +11,9 @@ internal sealed record AgentOptionValueView(string Value, string Name, string? D
 /// One of the agent's own settings for this session: its model, how hard it thinks, its mode, or
 /// anything else it offers (ADR-0030). <c>Category</c> is the agent's word for what it is
 /// (<c>model</c>, <c>thought_level</c>, <c>mode</c>, <c>model_config</c>, or its own), and only
-/// guides where the tab shows it.
+/// guides where the tab shows it. <c>Type</c> is <c>select</c>, or <c>boolean</c> for an on/off
+/// setting, carried as the values <c>true</c> (On) and <c>false</c> (Off) so it is kept and picked
+/// like any other.
 /// </summary>
 internal sealed record AgentOptionView(
     string Id,
@@ -19,7 +21,8 @@ internal sealed record AgentOptionView(
     string? Description,
     string? Category,
     string CurrentValue,
-    IReadOnlyList<AgentOptionValueView> Values);
+    IReadOnlyList<AgentOptionValueView> Values,
+    string Type = AgentConversation.SelectOption);
 
 /// <summary>
 /// The agent's own options, in the three forms ACP agents send them (ADR-0030).
@@ -38,6 +41,10 @@ internal sealed partial class AgentConversation
     internal const int MaximumOptionValues = 300;
     internal const string LegacyModeOption = "acp.mode";
     internal const string LegacyModelOption = "acp.model";
+    internal const string SelectOption = "select";
+    internal const string BooleanOption = "boolean";
+    private static readonly AgentOptionValueView[] OnOff =
+        [new("true", "On", null, null), new("false", "Off", null, null)];
     private static readonly TimeSpan OptionTimeout = TimeSpan.FromSeconds(30);
 
     private IReadOnlyList<AgentOptionView> _options = [];
@@ -149,11 +156,27 @@ internal sealed partial class AgentConversation
         _options = options;
     }
 
+    /// <summary>
+    /// The agent's select and boolean options, in its order. A boolean is sent only to a client
+    /// that declared <c>session.configOptions.boolean</c>, which Nendo does; any other type is left out.
+    /// </summary>
     private static IReadOnlyList<AgentOptionView> ParseConfigOptions(JsonElement config) =>
         config.EnumerateArray()
-            .Where(option => option.ValueKind == JsonValueKind.Object && Text(option, "type", 20) == "select")
+            .Where(option => option.ValueKind == JsonValueKind.Object && Text(option, "type", 20) is SelectOption or BooleanOption)
             .Select(option =>
             {
+                if (Text(option, "type", 20) == BooleanOption)
+                {
+                    var on = option.TryGetProperty("currentValue", out var stated) && stated.ValueKind == JsonValueKind.True;
+                    return new AgentOptionView(
+                        Text(option, "id", 200) ?? string.Empty,
+                        Text(option, "name", 120) ?? Text(option, "id", 120) ?? "Option",
+                        Text(option, "description", 500),
+                        Text(option, "category", 60),
+                        on ? "true" : "false",
+                        OnOff,
+                        BooleanOption);
+                }
                 var values = new List<AgentOptionValueView>();
                 if (option.TryGetProperty("options", out var list) && list.ValueKind == JsonValueKind.Array)
                 {
@@ -280,8 +303,10 @@ internal sealed partial class AgentConversation
         {
             if (!legacy)
             {
-                var answer = await _connection.RequestAsync("session/set_config_option",
-                    new { sessionId, configId = optionId, value }, timeout.Token);
+                // An on/off setting goes as a JSON boolean, named as one.
+                var answer = await _connection.RequestAsync("session/set_config_option", option.Type == BooleanOption
+                    ? new { sessionId, configId = optionId, type = BooleanOption, value = value == "true" }
+                    : (object)new { sessionId, configId = optionId, value }, timeout.Token);
                 lock (_sync)
                 {
                     if (answer.ValueKind == JsonValueKind.Object && answer.TryGetProperty("configOptions", out var config) && config.ValueKind == JsonValueKind.Array)

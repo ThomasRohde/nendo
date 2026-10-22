@@ -61,6 +61,22 @@ export function wireAgentOptions(
     select.dataset.keyed = '';
     choose(select, true);
   });
+  // A switch is set as it is pressed: unlike a select, nothing about it is only looked at.
+  box.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-config-switch]') : null;
+    if (button === null || button.dataset.busy === 'yes') return;
+    const option = options().find((candidate) => candidate.id === button.dataset.configSwitch);
+    if (option === undefined) return;
+    const on = option.currentValue !== 'true';
+    button.dataset.busy = 'yes';
+    button.setAttribute('aria-pressed', String(on));
+    void commit(option, String(on), on ? 'On' : 'Off').then((done) => {
+      button.dataset.busy = '';
+      if (done) return;
+      delete box.dataset.drawn;
+      patchAgentOptions(box, options(), false);
+    });
+  });
   box.addEventListener('change', (event) => {
     const select = event.target instanceof HTMLSelectElement ? event.target : null;
     if (select === null || select.dataset.configId === undefined || select.dataset.keyed === 'yes') return;

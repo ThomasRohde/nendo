@@ -59,6 +59,8 @@ export class PreviewAgentSession {
       { value: 'high', name: 'High', description: null, group: null }, { value: 'max', name: 'Max', description: null, group: null }] },
     { id: 'allow_all', name: 'Allow All', description: 'Run every tool without asking', category: 'permissions', currentValue: 'off', values: [
       { value: 'on', name: 'On', description: null, group: null }, { value: 'off', name: 'Off', description: null, group: null }] },
+    { id: 'verbose', name: 'Verbose', description: 'Say more about each step', category: null, currentValue: 'false', type: 'boolean', values: [
+      { value: 'true', name: 'On', description: null, group: null }, { value: 'false', name: 'Off', description: null, group: null }] },
   ];
 
   private options: AgentOption[] = structuredClone(this.defaultOptions);

@@ -255,7 +255,8 @@ conversation ended first. The last 16 ended turns are kept, and every turn not e
 The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversation.cs`).
 
 - `initialize` declares no file-system or terminal capability (`fs.readTextFile`,
-  `fs.writeTextFile`, `terminal` all false). An agent answering another protocol version, or
+  `fs.writeTextFile`, `terminal` all false), and declares `session.configOptions.boolean`, so
+  the agent may offer on/off settings. An agent answering another protocol version, or
   not declaring `agentCapabilities.mcpCapabilities.http`, is ended with a sentence naming
   why; a version sent as text is named as not ACP. A number sent as another JSON kind reads as
   absent, and any other handshake failure ends the conversation with a sentence rather than
@@ -274,11 +275,15 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   waits for the person; the host never answers by itself. Stop, End or the connection's end
   answers it as cancelled, drawn as cancelled when the turn stopped. The card names the
   tool's kind (Read, Edit, Delete, Run) beside the agent's title.
-- The agent's own `select` config options (model, effort, mode or anything else; at most 16,
-  each with at most 300 values) are shown on the Agent page as stated and set with
-  `session/set_config_option` only when the person picks a value there
+- The agent's own `select` and `boolean` config options (model, effort, mode or anything else;
+  at most 16, each select with at most 300 values) are shown on the Agent page as stated and set
+  with `session/set_config_option` only when the person picks a value there
   (`agent-options.ts`). An arrow key on a closed list only looks: Enter, a pick
-  from the open list or leaving the list sets it, and More stays open while stepping through.
+  from the open list or leaving the list sets it, and More stays open while stepping through. A
+  `boolean` option is carried as the values `true` (On) and `false` (Off), with `type: boolean`
+  on the option; the Agent page draws it as a switch, set as it is pressed, and Nendo sends it
+  with `type: "boolean"` and a JSON boolean `value`. A view's launch card and the kept settings
+  offer it as On and Off. Any other option type is left out.
   An agent that sends `modes` or `models` instead has them shown as Mode and Model and set
   with `session/set_mode` and `session/set_model` (`AgentConversation.Options.cs`).
 - **Kept settings.** Each value the person sets, on the Agent page or a view's launch card, is

@@ -632,8 +632,15 @@ public sealed class DesktopLaunchedAgentTests
         await using var fixture = await Fixture.StartAsync("editData", "--config");
         await fixture.LaunchAsync();
         var ready = await fixture.WaitAsync(view => view.State == "ready");
-        CollectionAssert.AreEqual(new[] { "mode", "model", "reasoning_effort", "allow_all" }, ready.Options.Select(option => option.Id).ToArray(),
-            "The options are not the agent's, in its order, without the boolean Nendo cannot draw.");
+        CollectionAssert.AreEqual(new[] { "mode", "model", "reasoning_effort", "allow_all", "verbose" }, ready.Options.Select(option => option.Id).ToArray(),
+            "The options are not the agent's, in its order, with its on/off setting.");
+        var verbose = ready.Options.Single(option => option.Id == "verbose");
+        Assert.AreEqual(AgentConversation.BooleanOption, verbose.Type);
+        Assert.AreEqual("false", verbose.CurrentValue);
+        CollectionAssert.AreEqual(new[] { "true", "false" }, verbose.Values.Select(value => value.Value).ToArray());
+        var declared = fixture.Log().Single(entry => Method(entry) == "initialize").GetProperty("params").GetProperty("clientCapabilities");
+        Assert.AreEqual(JsonValueKind.Object, declared.GetProperty("session").GetProperty("configOptions").GetProperty("boolean").ValueKind,
+            "Nendo did not declare that it shows on/off settings.");
         var model = ready.Options.Single(option => option.Id == "model");
         Assert.AreEqual("sonnet", model.CurrentValue);
         CollectionAssert.AreEqual(new[] { "Fast", "Smart" }, model.Values.Select(value => value.Group).ToArray(), "A grouped option lost its groups.");
@@ -655,6 +662,13 @@ public sealed class DesktopLaunchedAgentTests
         fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "switch", 0);
         var switched = await fixture.WaitAsync(view => !view.Working && view.Options.Single(option => option.Id == "mode").CurrentValue == "plan");
         Assert.AreEqual("high", switched.Options.Single(option => option.Id == "reasoning_effort").CurrentValue);
+
+        // An on/off setting goes to the agent as a JSON boolean, named as one, and comes back on.
+        var on = await fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "verbose", "true", 0);
+        Assert.AreEqual("true", on.Options.Single(option => option.Id == "verbose").CurrentValue, "The agent did not take the on/off setting.");
+        var flipped = fixture.Log().Last(entry => Method(entry) == "session/set_config_option").GetProperty("params");
+        Assert.AreEqual("boolean", flipped.GetProperty("type").GetString());
+        Assert.AreEqual(JsonValueKind.True, flipped.GetProperty("value").ValueKind, flipped.GetRawText());
     }
 
     /// <summary>
@@ -673,7 +687,9 @@ public sealed class DesktopLaunchedAgentTests
         await fixture.WaitAsync(view => view.State == "ready");
         var offered = (await fixture.Controller.ListLaunchableAgentsAsync(fixture.FileSessionId)).Agents.Single(agent => agent.Id == "custom").Settings;
         Assert.IsNotNull(offered, "The options the agent offered were not kept for a launch card.");
-        CollectionAssert.AreEqual(new[] { "mode", "model", "reasoning_effort", "allow_all" }, offered.Select(setting => setting.Id).ToArray());
+        CollectionAssert.AreEqual(new[] { "mode", "model", "reasoning_effort", "allow_all", "verbose" }, offered.Select(setting => setting.Id).ToArray());
+        // An on/off setting is kept, and offered on a launch card, as On and Off.
+        CollectionAssert.AreEqual(new[] { "On", "Off" }, offered.Single(setting => setting.Id == "verbose").Values.Select(value => value.Name).ToArray());
         await fixture.Controller.SetLaunchedAgentOptionAsync(fixture.FileSessionId, "reasoning_effort", "high", 0);
         await fixture.Controller.EndLaunchedAgentAsync(fixture.FileSessionId, 0);
 

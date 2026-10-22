@@ -430,11 +430,20 @@ function selectMarkup(option: AgentOption): string {
   return `<select data-config-id="${escapeAttribute(option.id)}" aria-label="${escapeAttribute(option.name)}">${body}</select>`;
 }
 
+/** An on/off setting as a switch: pressed is On. */
+function switchMarkup(option: AgentOption): string {
+  return `<button type="button" class="chat-switch" data-config-switch="${escapeAttribute(option.id)}" aria-pressed="${option.currentValue === 'true'}" aria-label="${escapeAttribute(option.name)}"><span class="switch-glyph" aria-hidden="true"></span></button>`;
+}
+
+function controlMarkup(option: AgentOption): string {
+  return option.type === 'boolean' ? switchMarkup(option) : selectMarkup(option);
+}
+
 /** The agent's own options in the composer: its model, effort and mode, and More for the rest. */
 export function optionsMarkup(options: AgentOption[]): string {
   const { primary, more } = partitionOptions(options);
   const pill = (option: AgentOption): string =>
-    `<label class="chat-option"${option.description === null ? '' : ` title="${escapeAttribute(option.description)}"`}>${option.category === 'model' ? `<span class="chat-option-icon" aria-hidden="true">${icon('cpu')}</span>` : `<span class="chat-option-name">${escapeHtml(option.name)}</span>`}${selectMarkup(option)}</label>`;
+    `<label class="chat-option"${option.description === null ? '' : ` title="${escapeAttribute(option.description)}"`}>${option.category === 'model' ? `<span class="chat-option-icon" aria-hidden="true">${icon('cpu')}</span>` : `<span class="chat-option-name">${escapeHtml(option.name)}</span>`}${controlMarkup(option)}</label>`;
   return primary.map(pill).join('') + (more.length === 0 ? '' : `<details class="chat-more"><summary>More</summary><div class="chat-more-panel">${more.map((option) =>
-    `<label class="chat-more-row"><span>${escapeHtml(option.name)}</span>${selectMarkup(option)}</label>`).join('')}<p>${more.length === 1 ? 'This option is' : 'These options are'} the agent's own. Nendo only passes on what you pick.</p></div></details>`);
+    `<label class="chat-more-row"><span>${escapeHtml(option.name)}</span>${controlMarkup(option)}</label>`).join('')}<p>${more.length === 1 ? 'This option is' : 'These options are'} the agent's own. Nendo only passes on what you pick.</p></div></details>`);
 }

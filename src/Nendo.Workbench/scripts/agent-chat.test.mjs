@@ -309,3 +309,14 @@ test('a read carries the agent\'s context use into the chat, and a new launch st
   mergeChat(chat, { ...view(), usage: undefined }, 'k1');
   assert.equal(chat.usage, null, 'an older host\'s read left an old use standing');
 });
+
+test('an on/off setting of the agent\'s is a switch, and a select stays a select', () => {
+  const verbose = { id: 'verbose', name: hostile, description: null, category: null, currentValue: 'true', type: 'boolean',
+    values: [{ value: 'true', name: 'On', description: null, group: null }, { value: 'false', name: 'Off', description: null, group: null }] };
+  const markup = optionsMarkup([option({}), verbose]);
+  assert.match(markup, /<button type="button" class="chat-switch" data-config-switch="verbose" aria-pressed="true"/);
+  assert.ok(!markup.includes('<select data-config-id="verbose"'), 'the on/off setting was drawn as a select');
+  assert.match(markup, /<select data-config-id="model"/);
+  assert.ok(!markup.includes('<img src=x'), markup);
+  assert.match(optionsMarkup([{ ...verbose, currentValue: 'false' }]), /aria-pressed="false"/);
+});

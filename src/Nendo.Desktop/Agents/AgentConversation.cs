@@ -147,7 +147,13 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 protocolVersion = ProtocolVersion,
                 // Nothing through Nendo: no files, no terminal. The agent reaches the open file
                 // only through the MCP address below, at the person's access level.
-                clientCapabilities = new { fs = new { readTextFile = false, writeTextFile = false }, terminal = false },
+                clientCapabilities = new
+                {
+                    fs = new { readTextFile = false, writeTextFile = false },
+                    terminal = false,
+                    // The agent may offer on/off settings, which the Agent page shows as switches.
+                    session = new { configOptions = new { boolean = new { } } },
+                },
                 clientInfo = new { name = "nendo", title = "Nendo", version = clientVersion },
             }, timeout.Token);
             var stated = initialized.ValueKind == JsonValueKind.Object && initialized.TryGetProperty("protocolVersion", out var v) ? v : default;

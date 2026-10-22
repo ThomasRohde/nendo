@@ -120,7 +120,7 @@ async page => {
         const rect = element => { const r = element.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; };
         const panel = document.querySelector('.chat-more-panel');
         const pane = document.getElementById('studio-content');
-        const controls = [...panel.querySelectorAll('select')];
+        const controls = [...panel.querySelectorAll('select, [data-config-switch]')];
         const last = controls.reduce((right, control) => !right || control.getBoundingClientRect().right > right.getBoundingClientRect().right ? control : right, null);
         const lastRect = rect(last);
         const hit = document.elementFromPoint((lastRect.left + lastRect.right) / 2, (lastRect.top + lastRect.bottom) / 2);
@@ -136,8 +136,21 @@ async page => {
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.evaluate(() => document.querySelector('[data-theme-option="light"]')?.click());
-  await goToTab(agent);
   checks.push('More opens in sight');
+
+  // An on/off setting of the agent's is a switch, set as it is pressed and said aloud.
+  await page.click('.chat-more summary');
+  await until(() => document.querySelector('details.chat-more')?.open === true, null, 'More to open');
+  const verbose = '[data-config-switch="verbose"]';
+  assert(await page.evaluate(selector => document.querySelector(selector)?.getAttribute('aria-pressed'), verbose) === 'false',
+    'the agent\'s on/off setting is not drawn as a switch that is off.');
+  await page.click(verbose);
+  await until(() => (window.__said ?? []).includes('Verbose: On.'), null, 'the switch to be set', 3000)
+    .catch(async () => { throw Error(`pressing the switch said ${JSON.stringify((await said()).slice(-2))}.`); });
+  assert(await page.evaluate(selector => document.querySelector(selector)?.getAttribute('aria-pressed'), verbose) === 'true', 'the switch did not stay on.');
+  await page.keyboard.press('Escape');
+  await goToTab(agent);
+  checks.push('an on/off setting is a switch');
 
   // New session starts the composer again: what the old message pointed at goes, and the
   // next message points at nothing.

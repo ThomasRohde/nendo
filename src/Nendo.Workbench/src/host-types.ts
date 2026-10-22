@@ -339,6 +339,8 @@ export interface AgentOption {
   category: string | null;
   currentValue: string;
   values: Array<{ value: string; name: string; description: string | null; group: string | null }>;
+  /** `boolean` for an on/off setting, whose values are `true` (On) and `false` (Off); absent or `select` otherwise. */
+  type?: string;
 }
 
 /**
