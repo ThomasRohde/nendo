@@ -622,10 +622,16 @@ async function editDeck(changes, id = deck.deckId) {
 }
 // Typing in the deck's own fields gathers under the deck it was typed in: a second field in the
 // pause never drops the first, and a deck opened before the pause never takes the other's words.
-let deckTyping = null, deckSaving = null;
-const saveDeckTyping = debounce(async () => {
+// One deck write is out at a time; typing made meanwhile waits for it, and a flush waits for both.
+let deckTyping = null, deckSaving = null, deckWriting = null;
+const saveDeckTyping = debounce(() => {
+  if (deckWriting) return deckWriting.then(() => deckTyping ? saveDeckTyping.flush() : undefined);
+  if (!deckTyping) return Promise.resolve();
+  deckWriting = writeDeckTyping().finally(() => { deckWriting = null; });
+  return deckWriting;
+}, 700);
+async function writeDeckTyping() {
   const typed = deckTyping;
-  if (!typed) return;
   deckTyping = null; deckSaving = typed;
   const landed = await editDeck(typed.changes, typed.id);
   deckSaving = null;
@@ -635,7 +641,7 @@ const saveDeckTyping = debounce(async () => {
     else deck.held.push({ entityId: E.deck, recordId: typed.id, version: typed.version, values: deckValues(typed.changes) });
   }
   keepDrafts();
-}, 700);
+}
 function typeDeck(changes) {
   const d = currentDeck();
   if (!d || nendo.context?.readOnly) return;

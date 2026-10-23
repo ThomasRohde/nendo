@@ -291,6 +291,14 @@ async page => {
   const html = await exported('export.html', 'html');
   assert(html.text.includes('<title>Typed just before export</title>') && html.name === 'Typed just before export.html',
     `An export made in the pause must carry the deck's typing: ${JSON.stringify({ name: html.name, title: /<title>([^<]*)/.exec(html.text)?.[1] })}.`);
+  // An export made while the deck's write is out waits for its answer.
+  await page.evaluate(() => window.broker.hold('records.update', 1500));
+  await frame.fill('#d-title', 'Typed while its save is out');
+  await settle(900);
+  const late = await exported('export.html', 'html');
+  assert(late.name === 'Typed while its save is out.html', `An export made while the deck's write is out must wait for it: ${JSON.stringify(late.name)}.`);
+  await frame.fill('#d-title', 'Typed just before export');
+  await page.waitForFunction(id => window.broker.record('dk.deck', id)?.values['dk.deck.title'] === 'Typed just before export', deckRecord.recordId, { timeout: 5000 });
   await frame.click('#tab-slide');
   const leftOut = await frame.evaluate(() => window.deck.exports.at(-1).leftOut);
   assert(html.text.includes('https://example.com/pictures/harbour.png') && leftOut === 1,
