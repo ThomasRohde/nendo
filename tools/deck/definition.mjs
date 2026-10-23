@@ -1,0 +1,428 @@
+// The shape of a Deck file: record types, screens, the Deck view, its skill, the six templates and
+// the example deck, one stage per change set. tools/Build-Deck.mjs sends them; this file only says
+// what they are. extensions/deck/README.md gives the reasons.
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { E, F, LAYOUT_IDS, CHARTS } from '../../extensions/deck/model.mjs';
+import { TEMPLATES } from '../../extensions/deck/themes.mjs';
+import { EXAMPLE_DECK, EXAMPLE_SLIDES } from './example.mjs';
+
+export const SURFACE = 'deck';
+export const CALL_CHARACTERS = 200_000;
+export const PACKAGE_ID = 'org.nendo.deck';
+export const SKILL_PACKAGE_ID = 'dev.nendo.deck';
+export const SKILL_URI = 'skill://dev.nendo.deck/deck/SKILL.md';
+const here = path.dirname(fileURLToPath(import.meta.url));
+export const PACKAGE_FOLDER = path.resolve(here, '..', '..', 'extensions', 'deck');
+export const SKILL_FOLDER = path.resolve(here, 'skill');
+export const NEW_FILE_LABEL = 'deck';
+export const SEED_DATE = '2026-10-23';
+export const VIEW_NODE = 'dk.view';
+export const EXAMPLE_ID = 'dk.deck.example';
+
+export const FAMILIES = ['Keynote', 'Editorial', 'Swiss', 'Boardroom', 'Studio', 'Minimal'];
+export const DECK_STATUS = ['Draft', 'Ready', 'Presented'];
+export const ASPECTS = ['16:9', '4:3'];
+export const ASK_SCOPES = ['Whole deck', 'Selection', 'Mission'];
+export const ASK_STATUS = ['Waiting', 'Working', 'Done', 'Failed', 'Cancelled'];
+export const VARIANT_STATUS = ['Proposed', 'Used', 'Dismissed'];
+export const BRAND_SOURCES = ['Brandkits', 'By hand'];
+
+const op = (operationType, payload) => ({ operationType, payload });
+const field = (entityId, fieldId, displayName, storageKind, presentation, { required = false, options = [] } = {}) =>
+  op('schema.addField', { entityId, fieldId, displayName, storageKind, required, presentation, options });
+const text = (entityId, fieldId, displayName, required = false) => field(entityId, fieldId, displayName, 'Text', 'singleLine', { required });
+const long = (entityId, fieldId, displayName, required = false) => field(entityId, fieldId, displayName, 'Text', 'longText', { required });
+const markdown = (entityId, fieldId, displayName) => field(entityId, fieldId, displayName, 'Text', 'markdown');
+const picture = (entityId, fieldId, displayName) => field(entityId, fieldId, displayName, 'Text', 'media');
+const choice = (entityId, fieldId, displayName, options, required = false) => field(entityId, fieldId, displayName, 'Text', 'singleChoice', { required, options });
+const date = (entityId, fieldId, displayName) => field(entityId, fieldId, displayName, 'Date', 'date');
+const integer = (entityId, fieldId, displayName) => field(entityId, fieldId, displayName, 'Integer', null);
+const boolean = (entityId, fieldId, displayName, required = false) => field(entityId, fieldId, displayName, 'Boolean', null, { required });
+const reference = (entityId, fieldId, displayName, required = false) => field(entityId, fieldId, displayName, 'Reference', null, { required });
+const bind = (entityId, fieldId, targetEntityId, labelFieldId) => op('schema.configureReference', { entityId, fieldId, targetEntityId, labelFieldId });
+const tone = (entityId, fieldId, choiceId, toneName) =>
+  op('schema.setChoiceMetadata', { entityId, fieldId, choiceId, displayName: choiceId, retired: false, tone: toneName });
+
+/** Screen nodes carry their position within their parent, counted here (as the planner's tree()). */
+function tree() {
+  const positions = new Map();
+  const operations = [];
+  const add = (nodeId, kind, parentNodeId, properties = {}) => {
+    const key = parentNodeId ?? '';
+    const position = positions.get(key) ?? 0;
+    positions.set(key, position + 1);
+    operations.push(op('ui.addNode', { surfaceId: SURFACE, nodeId, parentNodeId, kind, position, properties }));
+    return nodeId;
+  };
+  const bindings = (parentNodeId, fieldIds) => { for (const fieldId of fieldIds) add(`${parentNodeId}.${fieldId}`, 'fieldBinding', parentNodeId, { fieldId }); };
+  return { add, bindings, asMutations: description => chunk(operations, description) };
+}
+
+function chunk(operations, description, size = 16) {
+  const mutations = [];
+  const total = Math.ceil(operations.length / size);
+  for (let start = 0; start < operations.length; start += size) {
+    mutations.push({ description: total > 1 ? `${description} (${mutations.length + 1} of ${total})` : description, operations: operations.slice(start, start + size) });
+  }
+  return mutations;
+}
+
+export const PURPOSE = [
+  'Slide decks. A Deck has Slides in order; each slide has a layout (Title, Bullets, Two columns, Big',
+  'numbers, Timeline, Chart and eleven more), a title, a kicker, a Markdown body, speaker notes and',
+  'perhaps a picture. A deck draws with a Template (its look) and perhaps a Brand kit, imported from a',
+  'Brandkits export, whose colours, fonts and logo override the template\'s.',
+  '',
+  'The Deck view is where decks are written, presented and exported to HTML and PowerPoint. The person',
+  'asks their own agent from the view: each request is an Ask record, written first, and the agent',
+  'answers with slides it writes, or with Variants of a slide that the person uses or dismisses. The',
+  'file carries the agent\'s half as the skill dev.nendo.deck. There are no automatic actions.',
+].join('\n');
+
+const ENTITIES = Object.values(E);
+
+export const STAGES = {
+  schema: {
+    title: 'Deck: the record types',
+    makes: ENTITIES,
+    mutations: () => [
+      { description: 'Say what this file is for, and give it a look of its own', operations: [
+        op('application.setPurpose', { purpose: PURPOSE }),
+        op('application.setLook', { tone: 'orange', letter: 'D' }),
+        op('application.setNewFileLabel', { label: NEW_FILE_LABEL }),
+      ] },
+      { description: 'Create Templates', operations: [
+        op('schema.createEntity', { entityId: E.template, displayName: 'Templates' }),
+        text(E.template, F.template.name, 'Name', true),
+        choice(E.template, F.template.family, 'Family', FAMILIES, true),
+        long(E.template, F.template.description, 'About'),
+        text(E.template, F.template.headingFont, 'Heading font'),
+        text(E.template, F.template.bodyFont, 'Body font'),
+        text(E.template, F.template.background, 'Background'),
+        text(E.template, F.template.surface, 'Surface'),
+        text(E.template, F.template.ink, 'Text'),
+        text(E.template, F.template.muted, 'Muted text'),
+        text(E.template, F.template.primary, 'Primary'),
+        text(E.template, F.template.secondary, 'Secondary'),
+        text(E.template, F.template.accent, 'Accent'),
+      ] },
+      { description: 'Create Brand kits', operations: [
+        op('schema.createEntity', { entityId: E.brand, displayName: 'Brand kits' }),
+        text(E.brand, F.brand.name, 'Name', true),
+        choice(E.brand, F.brand.source, 'Source', BRAND_SOURCES),
+        text(E.brand, F.brand.primary, 'Primary'),
+        text(E.brand, F.brand.secondary, 'Secondary'),
+        text(E.brand, F.brand.accent, 'Accent'),
+        text(E.brand, F.brand.background, 'Background'),
+        text(E.brand, F.brand.surface, 'Surface'),
+        text(E.brand, F.brand.ink, 'Text'),
+        text(E.brand, F.brand.muted, 'Muted text'),
+        text(E.brand, F.brand.headingFont, 'Heading font'),
+        text(E.brand, F.brand.bodyFont, 'Body font'),
+        text(E.brand, F.brand.monoFont, 'Mono font'),
+        picture(E.brand, F.brand.logo, 'Logo'),
+        picture(E.brand, F.brand.logoDark, 'Logo on dark'),
+      ] },
+      { description: 'Give Brand kits their words', operations: [
+        long(E.brand, F.brand.voice, 'Voice'),
+        text(E.brand, F.brand.tagline, 'Tagline'),
+        long(E.brand, F.brand.tokens, 'Tokens'),
+      ] },
+      { description: 'Create Decks', operations: [
+        op('schema.createEntity', { entityId: E.deck, displayName: 'Decks' }),
+        text(E.deck, F.deck.title, 'Title', true),
+        text(E.deck, F.deck.subtitle, 'Subtitle'),
+        text(E.deck, F.deck.author, 'Author'),
+        date(E.deck, F.deck.date, 'Date'),
+        long(E.deck, F.deck.audience, 'Audience'),
+        long(E.deck, F.deck.goal, 'Goal'),
+        choice(E.deck, F.deck.aspect, 'Shape', ASPECTS),
+        reference(E.deck, F.deck.template, 'Template'),
+        reference(E.deck, F.deck.brand, 'Brand kit'),
+        text(E.deck, F.deck.footer, 'Footer'),
+        boolean(E.deck, F.deck.numbers, 'Slide numbers', true),
+        choice(E.deck, F.deck.status, 'Status', DECK_STATUS),
+      ] },
+      { description: 'Create Slides', operations: [
+        op('schema.createEntity', { entityId: E.slide, displayName: 'Slides' }),
+        reference(E.slide, F.slide.deck, 'Deck', true),
+        integer(E.slide, F.slide.order, 'Order'),
+        choice(E.slide, F.slide.layout, 'Layout', LAYOUT_IDS, true),
+        text(E.slide, F.slide.title, 'Title'),
+        text(E.slide, F.slide.kicker, 'Kicker'),
+        markdown(E.slide, F.slide.body, 'Body'),
+        markdown(E.slide, F.slide.body2, 'Body 2'),
+        long(E.slide, F.slide.notes, 'Speaker notes'),
+        picture(E.slide, F.slide.image, 'Picture'),
+        text(E.slide, F.slide.imageAlt, 'Picture text'),
+        choice(E.slide, F.slide.chart, 'Chart', CHARTS),
+        boolean(E.slide, F.slide.hidden, 'Hidden', true),
+      ] },
+      { description: 'Create Asks and Variants', operations: [
+        op('schema.createEntity', { entityId: E.ask, displayName: 'Asks' }),
+        reference(E.ask, F.ask.deck, 'Deck', true),
+        choice(E.ask, F.ask.scope, 'Scope', ASK_SCOPES, true),
+        long(E.ask, F.ask.request, 'Request', true),
+        long(E.ask, F.ask.selection, 'Selection'),
+        choice(E.ask, F.ask.status, 'Status', ASK_STATUS, true),
+        long(E.ask, F.ask.progress, 'Progress'),
+        long(E.ask, F.ask.reply, 'Reply'),
+        text(E.ask, F.ask.made, 'Asked'),
+        op('schema.createEntity', { entityId: E.variant, displayName: 'Variants' }),
+        reference(E.variant, F.variant.ask, 'Ask', true),
+        reference(E.variant, F.variant.slide, 'Slide', true),
+        text(E.variant, F.variant.label, 'Label', true),
+        long(E.variant, F.variant.changes, 'Changes', true),
+        long(E.variant, F.variant.rationale, 'Why'),
+        choice(E.variant, F.variant.status, 'Status', VARIANT_STATUS, true),
+      ] },
+      { description: 'Point every reference at what it names', operations: [
+        bind(E.deck, F.deck.template, E.template, F.template.name),
+        bind(E.deck, F.deck.brand, E.brand, F.brand.name),
+        bind(E.slide, F.slide.deck, E.deck, F.deck.title),
+        bind(E.ask, F.ask.deck, E.deck, F.deck.title),
+        bind(E.variant, F.variant.ask, E.ask, F.ask.request),
+        bind(E.variant, F.variant.slide, E.slide, F.slide.title),
+      ] },
+    ],
+  },
+
+  colour: {
+    title: 'Deck: colour the choices',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.schema(E.ask)).fields.find(f => f.fieldId === F.ask.status)?.choices.some(c => c.tone) ?? false,
+    mutations: () => chunk(TONES.flatMap(([entityId, fieldId, pairs]) => pairs.map(([choiceId, toneName]) => tone(entityId, fieldId, choiceId, toneName))), 'Colour the choices'),
+  },
+
+  screens: {
+    title: 'Deck: the lists and the record pages',
+    needs: ENTITIES,
+    appliedWhen: async read => read.hasNode('dk.deck.list'),
+    mutations: () => {
+      const t = tree();
+      const decks = t.add('dk.deck.list', 'recordList', null, { definitionVersion: 3, entityId: E.deck, title: 'Decks', orderByFieldId: F.deck.date, orderDirection: 'descending' });
+      t.bindings(decks, [F.deck.title, F.deck.author, F.deck.date, F.deck.template, F.deck.brand, F.deck.status]);
+      const brands = t.add('dk.brand.list', 'gallerySurface', null, { definitionVersion: 3, entityId: E.brand, title: 'Brand kits',
+        titleFieldId: F.brand.name, orderByFieldId: F.brand.name, orderDirection: 'ascending' });
+      t.bindings(brands, [F.brand.logo, F.brand.primary, F.brand.headingFont, F.brand.tagline]);
+      const templates = t.add('dk.template.list', 'recordList', null, { definitionVersion: 3, entityId: E.template, title: 'Templates', orderByFieldId: F.template.name, orderDirection: 'ascending' });
+      t.bindings(templates, [F.template.name, F.template.family, F.template.description, F.template.headingFont, F.template.primary]);
+      const asks = t.add('dk.ask.list', 'recordList', null, { definitionVersion: 3, entityId: E.ask, title: 'Asks', orderByFieldId: F.ask.made, orderDirection: 'descending' });
+      t.bindings(asks, [F.ask.request, F.ask.deck, F.ask.scope, F.ask.status, F.ask.made]);
+
+      const deckPage = t.add('dk.deck.page', 'detailSurface', null, { definitionVersion: 3, entityId: E.deck, title: 'Deck', titleFieldId: F.deck.title, subtitleFieldId: F.deck.subtitle, accentFieldId: F.deck.status });
+      t.bindings(deckPage, [F.deck.author, F.deck.date, F.deck.audience, F.deck.goal, F.deck.template, F.deck.brand, F.deck.aspect, F.deck.footer, F.deck.numbers, F.deck.status]);
+      const slides = t.add('dk.deck.page.slides', 'relatedList', deckPage, { targetEntityId: E.slide, viaFieldId: F.slide.deck, title: 'Slides', orderByFieldId: F.slide.order, orderDirection: 'ascending' });
+      t.bindings(slides, [F.slide.order, F.slide.layout, F.slide.title, F.slide.hidden]);
+      const slidePage = t.add('dk.slide.page', 'detailSurface', null, { definitionVersion: 3, entityId: E.slide, title: 'Slide', titleFieldId: F.slide.title, subtitleFieldId: F.slide.kicker, accentFieldId: F.slide.layout });
+      t.bindings(slidePage, [F.slide.deck, F.slide.order, F.slide.layout, F.slide.body, F.slide.body2, F.slide.notes, F.slide.image, F.slide.imageAlt, F.slide.chart, F.slide.hidden]);
+      const brandPage = t.add('dk.brand.page', 'detailSurface', null, { definitionVersion: 3, entityId: E.brand, title: 'Brand kit', titleFieldId: F.brand.name, subtitleFieldId: F.brand.tagline });
+      t.bindings(brandPage, [F.brand.source, F.brand.logo, F.brand.logoDark, F.brand.primary, F.brand.secondary, F.brand.accent, F.brand.background, F.brand.surface,
+        F.brand.ink, F.brand.muted, F.brand.headingFont, F.brand.bodyFont, F.brand.monoFont, F.brand.voice, F.brand.tokens]);
+      const templatePage = t.add('dk.template.page', 'detailSurface', null, { definitionVersion: 3, entityId: E.template, title: 'Template', titleFieldId: F.template.name, accentFieldId: F.template.family });
+      t.bindings(templatePage, [F.template.family, F.template.description, F.template.headingFont, F.template.bodyFont, F.template.background, F.template.surface,
+        F.template.ink, F.template.muted, F.template.primary, F.template.secondary, F.template.accent]);
+      const askPage = t.add('dk.ask.page', 'detailSurface', null, { definitionVersion: 3, entityId: E.ask, title: 'Ask', titleFieldId: F.ask.request, accentFieldId: F.ask.status });
+      t.bindings(askPage, [F.ask.deck, F.ask.scope, F.ask.status, F.ask.made, F.ask.selection, F.ask.progress, F.ask.reply]);
+      const variants = t.add('dk.ask.page.variants', 'relatedList', askPage, { targetEntityId: E.variant, viaFieldId: F.variant.ask, title: 'Variants' });
+      t.bindings(variants, [F.variant.slide, F.variant.label, F.variant.status]);
+      const variantPage = t.add('dk.variant.page', 'detailSurface', null, { definitionVersion: 3, entityId: E.variant, title: 'Variant', titleFieldId: F.variant.label, accentFieldId: F.variant.status });
+      t.bindings(variantPage, [F.variant.ask, F.variant.slide, F.variant.status, F.variant.rationale, F.variant.changes]);
+      return t.asMutations('The lists and the record pages');
+    },
+  },
+
+  view: {
+    title: 'Deck: the Deck view, which the file opens on',
+    needs: ENTITIES,
+    appliedWhen: async read => read.hasNode(VIEW_NODE),
+    mutations: async () => {
+      const files = await packageMutations(PACKAGE_FOLDER, PACKAGE_ID, 'Put the Deck package into the file');
+      const node = op('ui.addNode', { surfaceId: SURFACE, nodeId: VIEW_NODE, parentNodeId: null, kind: 'extensionView', beforeNodeId: 'dk.deck.list',
+        properties: { definitionVersion: 3, title: 'Deck', packageId: PACKAGE_ID, entityId: E.deck, opensFile: true } });
+      return [...files, { description: 'Show the Deck view, and open the file on it', operations: [node] }];
+    },
+  },
+
+  skill: {
+    title: 'Deck: the skill that tells an agent how to work an ask',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.json('nendo://application/extensions')).some(p => p.packageId === SKILL_PACKAGE_ID),
+    mutations: async () => {
+      const { manifest, skill } = await skillPackage();
+      return [{ description: 'Put the Deck skill into the file', operations: [
+        op('extension.setPackage', { packageId: SKILL_PACKAGE_ID, kind: 'skill', title: manifest.title, version: manifest.version, description: manifest.description }),
+        op('extension.putFile', { packageId: SKILL_PACKAGE_ID, path: 'SKILL.md', text: skill, expectedSha256: 'absent' }),
+      ] }];
+    },
+  },
+
+  seed: {
+    title: 'Deck: the six templates and the example deck',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.json(`nendo://application/entity/${E.template}/schema`)).recordCount > 0,
+    mutations: () => chunk(seedOperations(), 'The templates and the example deck'),
+  },
+
+  keep: {
+    title: 'Deck: keep the templates and the example in every new deck file',
+    needs: ENTITIES,
+    appliedWhen: async read => ((await read.json('nendo://application/describe?include=newFile')).newFile?.types ?? []).some(t => t.kept > 0),
+    mutations: () => chunk(seedRecords().map(r => op('data.setKeptInNewFiles', { entityId: r.entityId, recordId: r.recordId, kept: true })), 'Keep the seeds in a new file'),
+  },
+
+  search: {
+    title: 'Deck: build the search index, so Find reads every slide',
+    needs: ENTITIES,
+    appliedWhen: async read => hasSearchIndex(read),
+    mutations: () => [{ description: 'Build the search index', operations: [op('application.buildSearchIndex', {})] }],
+  },
+};
+
+const TONES = [
+  [E.deck, F.deck.status, [['Draft', 'amber'], ['Ready', 'green'], ['Presented', 'blue']]],
+  [E.ask, F.ask.status, [['Waiting', 'grey'], ['Working', 'amber'], ['Done', 'green'], ['Failed', 'red'], ['Cancelled', 'grey']]],
+  [E.ask, F.ask.scope, [['Whole deck', 'blue'], ['Selection', 'teal'], ['Mission', 'violet']]],
+  [E.variant, F.variant.status, [['Proposed', 'violet'], ['Used', 'green'], ['Dismissed', 'grey']]],
+  [E.template, F.template.family, [['Keynote', 'violet'], ['Editorial', 'amber'], ['Swiss', 'red'], ['Boardroom', 'blue'], ['Studio', 'teal'], ['Minimal', 'grey']]],
+  [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
+];
+
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search'];
+
+/** Whether the file can be searched: the search read answers, rather than refusing for want of an index. */
+export async function hasSearchIndex(read) {
+  try {
+    await read.json('nendo://application/search?q=deck&limit=1');
+    return true;
+  } catch (error) {
+    if (/SEARCH_INDEX_MISSING/.test(error?.message ?? '')) return false;
+    throw error;
+  }
+}
+
+// ---- Seeds: the six templates and the example deck. ----------------------------------------------
+
+export const templateRecordId = id => `dk.template.${id}`;
+const capital = word => word[0].toUpperCase() + word.slice(1);
+
+/** The seed records in write order, as {entityId, recordId, values}: templates, the deck, its slides. */
+export function seedRecords() {
+  const records = TEMPLATES.map(t => ({ entityId: E.template, recordId: templateRecordId(t.id), values: {
+    [F.template.name]: t.name, [F.template.family]: capital(t.id), [F.template.description]: t.description,
+    [F.template.headingFont]: t.fonts.heading, [F.template.bodyFont]: t.fonts.body,
+    [F.template.background]: t.colors.bg, [F.template.surface]: t.colors.surface, [F.template.ink]: t.colors.ink, [F.template.muted]: t.colors.muted,
+    [F.template.primary]: t.colors.primary, [F.template.secondary]: t.colors.secondary, [F.template.accent]: t.colors.accent,
+  } }));
+  records.push({ entityId: E.deck, recordId: EXAMPLE_ID, values: {
+    [F.deck.title]: EXAMPLE_DECK.title, [F.deck.subtitle]: EXAMPLE_DECK.subtitle, [F.deck.author]: EXAMPLE_DECK.author, [F.deck.date]: SEED_DATE,
+    [F.deck.audience]: EXAMPLE_DECK.audience, [F.deck.goal]: EXAMPLE_DECK.goal, [F.deck.aspect]: '16:9', [F.deck.template]: templateRecordId('keynote'),
+    [F.deck.footer]: EXAMPLE_DECK.footer, [F.deck.numbers]: true, [F.deck.status]: 'Ready',
+  } });
+  EXAMPLE_SLIDES.forEach((s, i) => records.push({ entityId: E.slide, recordId: `dk.slide.example-${String(i + 1).padStart(2, '0')}`, values: {
+    [F.slide.deck]: EXAMPLE_ID, [F.slide.order]: (i + 1) * 10, [F.slide.layout]: s.layout, [F.slide.hidden]: false,
+    ...(s.title ? { [F.slide.title]: s.title } : {}), ...(s.kicker ? { [F.slide.kicker]: s.kicker } : {}), ...(s.body ? { [F.slide.body]: s.body } : {}),
+    ...(s.body2 ? { [F.slide.body2]: s.body2 } : {}), ...(s.notes ? { [F.slide.notes]: s.notes } : {}), ...(s.chart ? { [F.slide.chart]: s.chart } : {}),
+    ...(s.imageAlt ? { [F.slide.imageAlt]: s.imageAlt } : {}),
+  } }));
+  return records;
+}
+
+const REFERENCES = { [E.template]: [], [E.deck]: [F.deck.template, F.deck.brand], [E.slide]: [F.slide.deck] };
+
+export function seedOperations() {
+  return seedRecords().map(r => op('data.createRecord', { entityId: r.entityId, recordId: r.recordId, values: r.values,
+    expectedTargetVersions: Object.fromEntries(REFERENCES[r.entityId].filter(f => r.values[f] != null).map(f => [f, 1])) }));
+}
+
+// ---- What the fixture broker serves the view in tools/Review-Deck.ps1. -----------------------------
+
+export function fixture({ seeds = true } = {}) {
+  const schemaOps = STAGES.schema.mutations().flatMap(m => m.operations);
+  const entities = schemaOps.filter(o => o.operationType === 'schema.createEntity').map(o => ({ entityId: o.payload.entityId, displayName: o.payload.displayName, hierarchy: null, fields: [] }));
+  const byId = Object.fromEntries(entities.map(e => [e.entityId, e]));
+  for (const o of schemaOps) {
+    if (o.operationType === 'schema.addField') {
+      const p = o.payload;
+      byId[p.entityId].fields.push({ fieldId: p.fieldId, displayName: p.displayName, storageKind: p.storageKind.toLowerCase(), required: p.required, presentation: p.presentation,
+        calculated: false, choices: (p.options ?? []).map(id => ({ id, displayName: id, retired: false, tone: null })), reference: null, scale: null });
+    }
+    if (o.operationType === 'schema.configureReference') {
+      const f = byId[o.payload.entityId].fields.find(x => x.fieldId === o.payload.fieldId);
+      f.reference = { targetEntityId: o.payload.targetEntityId, labelFieldId: o.payload.labelFieldId };
+    }
+  }
+  for (const o of STAGES.colour.mutations().flatMap(m => m.operations)) {
+    byId[o.payload.entityId].fields.find(f => f.fieldId === o.payload.fieldId).choices.find(c => c.id === o.payload.choiceId).tone = o.payload.tone;
+  }
+  const records = Object.fromEntries(entities.map(e => [e.entityId, []]));
+  if (seeds) {
+    for (const r of seedRecords()) records[r.entityId].push({ entityId: r.entityId, recordId: r.recordId, version: 1, values: r.values, labels: {}, exact: {}, calculated: {} });
+  } else {
+    for (const r of seedRecords().filter(x => x.entityId === E.template)) records[r.entityId].push({ entityId: r.entityId, recordId: r.recordId, version: 1, values: r.values, labels: {}, exact: {}, calculated: {} });
+  }
+  return {
+    changeSequence: 1,
+    schema: { entities, commands: [] },
+    hierarchies: {},
+    records,
+    commandEffects: {},
+    context: { viewId: VIEW_NODE, kind: 'extensionView', placement: 'screen', title: 'Deck', entityId: E.deck, recordId: null,
+      bindings: { labelFieldId: null, statusFieldId: null, fields: [], filters: [] }, theme: 'light' },
+  };
+}
+
+// ---- Packages: a folder's files as extension operations, in parts a call can carry. ---------------
+
+/** The Deck skill as the file carries it: its manifest and its SKILL.md. */
+export async function skillPackage() {
+  const manifest = JSON.parse(await fs.readFile(path.join(SKILL_FOLDER, 'nendo-package.json'), 'utf8'));
+  const skill = await fs.readFile(path.join(SKILL_FOLDER, 'SKILL.md'), 'utf8');
+  return { manifest, skill };
+}
+
+export async function packageFiles(folder) {
+  const manifest = JSON.parse(await fs.readFile(path.join(folder, 'nendo-package.json'), 'utf8'));
+  const names = (await fs.readdir(folder, { recursive: true, withFileTypes: true }))
+    .filter(entry => entry.isFile())
+    .map(entry => path.relative(folder, path.join(entry.parentPath ?? entry.path, entry.name)).split(path.sep).join('/'))
+    .filter(name => name !== 'nendo-package.json' && name !== 'README.md' && !name.split('/').some(part => part.startsWith('.') || part === 'node_modules'))
+    .sort();
+  const files = [];
+  for (const name of names) {
+    const bytes = await fs.readFile(path.join(folder, name));
+    files.push({ path: name, bytes, sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
+  }
+  return { manifest, files };
+}
+
+export async function packageMutations(folder, packageId, description) {
+  const { manifest, files } = await packageFiles(folder);
+  if (manifest.packageId !== packageId) throw new Error(`${folder} is ${manifest.packageId}, not ${packageId}.`);
+  const setPackage = op('extension.setPackage', { packageId, title: manifest.title, entryPoint: manifest.entryPoint ?? 'index.html', version: manifest.version, description: manifest.description });
+  return fileMutations(files, packageId, description, [setPackage]);
+}
+
+/** Each file as extension.putFile parts of 70 KiB, new to the package, in mutations a call can carry. */
+export function fileMutations(files, packageId, description, operations = [], held = new Map()) {
+  const partBytes = 70 * 1024;
+  for (const file of files) {
+    for (let offset = 0; offset === 0 || offset < file.bytes.length; offset += partBytes) {
+      operations.push(op('extension.putFile', { packageId, path: file.path, base64: file.bytes.subarray(offset, offset + partBytes).toString('base64'),
+        ...(offset === 0 ? { expectedSha256: held.get(file.path) ?? 'absent' } : { append: true }) }));
+    }
+  }
+  const mutations = [];
+  for (const operation of operations) {
+    const size = JSON.stringify(operation).length;
+    const last = mutations.at(-1);
+    if (!last || last.operations.length === 16 || last.size + size > CALL_CHARACTERS) mutations.push({ description, operations: [], size: 0 });
+    mutations.at(-1).operations.push(operation);
+    mutations.at(-1).size += size;
+  }
+  return mutations.map(({ description: d, operations: o }) => ({ description: d, operations: o }));
+}

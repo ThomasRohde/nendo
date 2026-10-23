@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Deck</title>
+  <link rel="stylesheet" href="deck.css">
+  <style id="slide-css"></style>
+</head>
+<body>
+  <div id="own-toolbar" class="own-toolbar" role="toolbar" aria-label="Deck" hidden></div>
+  <div id="app" aria-busy="true">
+    <nav id="sorter" class="sorter" aria-label="Slides">
+      <header class="sorter-head">
+        <span class="mark" aria-hidden="true">D</span>
+        <div class="sorter-title"><strong id="deck-title">Deck</strong><small id="deck-count">Reading the file…</small></div>
+      </header>
+      <ol id="slides" class="slides" role="listbox" aria-label="Slides" tabindex="0"></ol>
+      <div class="sorter-foot">
+        <button id="add-slide" type="button" class="ghost-button">+ Slide</button>
+      </div>
+    </nav>
+
+    <main id="center" class="center">
+      <div id="stage-wrap" class="stage-wrap">
+        <div id="stage" class="stage" aria-label="Current slide"></div>
+        <p id="fit-warning" class="fit-warning" role="status" hidden></p>
+      </div>
+      <section id="variants" class="variants" aria-label="Variants from your agent" hidden></section>
+      <div class="lower">
+        <label class="notes-label" for="notes">Speaker notes</label>
+        <textarea id="notes" class="notes" rows="3" placeholder="What you will say on this slide"></textarea>
+      </div>
+      <form id="ask" class="ask" autocomplete="off" hidden>
+        <div class="ask-scope" role="radiogroup" aria-label="What the agent works on">
+          <button type="button" role="radio" data-scope="Whole deck" aria-checked="true">Whole deck</button>
+          <button type="button" role="radio" data-scope="Selection" aria-checked="false">This slide</button>
+          <select id="mission" aria-label="Mission">
+            <option value="">Mission…</option>
+            <option value="Tighten the story">Tighten the story</option>
+            <option value="Write speaker notes">Write speaker notes</option>
+            <option value="Rewrite in the brand voice">Rewrite in the brand voice</option>
+            <option value="Make every slide fit">Make every slide fit</option>
+            <option value="Plan the pictures">Plan the pictures</option>
+          </select>
+        </div>
+        <textarea id="ask-text" rows="1" placeholder="Ask your agent: “A 10-slide pitch for…”, “Make this punchier”"></textarea>
+        <button id="ask-send" type="submit" class="primary-button">Ask</button>
+        <button id="ask-stop" type="button" class="ghost-button" hidden>Stop</button>
+        <p id="ask-status" class="ask-status" role="status" aria-live="polite"></p>
+      </form>
+    </main>
+
+    <aside id="inspector" class="inspector" aria-label="Inspector">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tab-slide" aria-selected="true" aria-controls="pane-slide">Slide</button>
+        <button role="tab" id="tab-design" aria-selected="false" aria-controls="pane-design">Design</button>
+        <button role="tab" id="tab-asks" aria-selected="false" aria-controls="pane-asks">Asks</button>
+      </div>
+      <section id="pane-slide" role="tabpanel" aria-labelledby="tab-slide" class="pane">
+        <h3>Layout</h3>
+        <div id="layouts" class="layouts" role="listbox" aria-label="Layouts"></div>
+        <p id="layout-hint" class="hint"></p>
+        <div class="field" data-uses="kicker"><label for="f-kicker">Kicker</label><input id="f-kicker" data-field="kicker" maxlength="200"></div>
+        <div class="field" data-uses="title"><label for="f-title">Title</label><textarea id="f-title" data-field="title" rows="2"></textarea></div>
+        <div class="field" data-uses="body"><label for="f-body" id="l-body">Body</label><textarea id="f-body" data-field="body" rows="8" spellcheck="true"></textarea></div>
+        <div class="field" data-uses="body2"><label for="f-body2" id="l-body2">Body 2</label><textarea id="f-body2" data-field="body2" rows="5"></textarea></div>
+        <div class="field" data-uses="chart"><span class="label">Chart</span><div id="f-chart" class="segmented" role="radiogroup" aria-label="Chart"></div></div>
+        <div class="field" data-uses="image">
+          <span class="label">Picture</span>
+          <div class="picture-row">
+            <button id="pick-image" type="button" class="ghost-button">Choose picture…</button>
+            <button id="clear-image" type="button" class="ghost-button">Remove</button>
+            <input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" hidden>
+          </div>
+          <input id="f-imageAlt" data-field="imageAlt" placeholder="What the picture shows" aria-label="Picture text">
+        </div>
+        <label class="check"><input id="f-hidden" type="checkbox"> Hide this slide when presenting</label>
+      </section>
+      <section id="pane-design" role="tabpanel" aria-labelledby="tab-design" class="pane" hidden>
+        <h3>Template</h3>
+        <div id="templates" class="templates" role="listbox" aria-label="Templates"></div>
+        <h3>Brand kit</h3>
+        <div id="brands" class="brands" role="listbox" aria-label="Brand kits"></div>
+        <div class="picture-row">
+          <button id="import-brand" type="button" class="ghost-button">Import from Brandkits…</button>
+          <input id="brand-file" type="file" accept=".json,.css,.zip,.svg,.png,application/json,text/css,application/zip" hidden>
+        </div>
+        <p class="hint">In Brandkits, choose Export, then the tokens, the CSS or the Claude Design bundle. Pick that file here, or drop it on this panel.</p>
+        <h3>Deck</h3>
+        <div class="field"><label for="d-title">Title</label><input id="d-title" data-deck="title"></div>
+        <div class="field"><label for="d-subtitle">Subtitle</label><input id="d-subtitle" data-deck="subtitle"></div>
+        <div class="field"><label for="d-author">Author</label><input id="d-author" data-deck="author"></div>
+        <div class="field"><label for="d-audience">Audience</label><textarea id="d-audience" data-deck="audience" rows="2" placeholder="Who will see it, and what they know"></textarea></div>
+        <div class="field"><label for="d-goal">Goal</label><textarea id="d-goal" data-deck="goal" rows="2" placeholder="What they should think or do afterwards"></textarea></div>
+        <div class="field"><label for="d-footer">Footer</label><input id="d-footer" data-deck="footer"></div>
+        <div class="field"><span class="label">Shape</span><div id="d-aspect" class="segmented" role="radiogroup" aria-label="Shape"></div></div>
+        <label class="check"><input id="d-numbers" type="checkbox"> Slide numbers</label>
+      </section>
+      <section id="pane-asks" role="tabpanel" aria-labelledby="tab-asks" class="pane" hidden>
+        <ol id="asks" class="asks"></ol>
+      </section>
+    </aside>
+  </div>
+
+  <section id="start" class="start" hidden aria-labelledby="start-title">
+    <div class="start-inner">
+      <h1 id="start-title">Make a deck</h1>
+      <p class="lede">Say what the talk is about and your agent writes the slides, or start from a template and write them yourself.</p>
+      <form id="start-form" autocomplete="off">
+        <label for="start-name">Title</label>
+        <input id="start-name" required maxlength="200" placeholder="Why we should move batch payments to streaming">
+        <label for="start-about">What is it about?</label>
+        <textarea id="start-about" rows="3" placeholder="Audience, goal, length, and anything the agent must include"></textarea>
+        <span class="label">Template</span>
+        <div id="start-templates" class="templates wide" role="listbox" aria-label="Templates"></div>
+        <div class="start-actions">
+          <button id="start-agent" type="submit" class="primary-button">Ask the agent to write it</button>
+          <button id="start-blank" type="button" class="ghost-button">Start blank</button>
+          <button id="start-cancel" type="button" class="ghost-button" hidden>Cancel</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <div id="present" class="present" hidden><iframe id="present-frame" title="Presenting" allow="fullscreen"></iframe></div>
+  <p id="toast" class="toast" role="status" aria-live="polite"></p>
+  <script src="/_nendo/api.js"></script>
+  <script type="module" src="view.mjs"></script>
+</body>
+</html>

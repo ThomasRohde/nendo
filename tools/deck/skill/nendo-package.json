@@ -1,0 +1,7 @@
+{
+  "packageId": "dev.nendo.deck",
+  "title": "Writing slides in Deck",
+  "kind": "skill",
+  "version": "1.0.0",
+  "description": "How an agent writes and reworks slide decks in this Deck file: the record types, the seventeen layouts and their body grammar, and the Asks the Deck view sends, answered with slides or with variants of a slide."
+}
