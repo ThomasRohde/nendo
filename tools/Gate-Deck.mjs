@@ -185,11 +185,15 @@ async page => {
   }, { askId: ask.recordId, slideId: askSlide });
   await until(() => document.querySelectorAll('#variants .variant').length === 2);
   assert(await frame.locator(`#slides li[data-id="${askSlide}"].has-variants`).count() === 1, 'The slide in the list must say it has variants.');
-  await frame.click('#variants [data-use="dk.variant.v2"]');
+  // Typing in the pause before its save, then Use from the keyboard, which takes no focus away.
+  await frame.fill('#notes', 'Typed before Use');
+  await frame.evaluate(() => document.querySelector('#variants [data-use="dk.variant.v2"]').click());
   await until(() => document.querySelectorAll('#variants .variant').length === 0);
+  await settle(900);
   const used = await record('dk.slide', askSlide);
   assert(used.values['dk.slide.layout'] === 'Statement' && used.values['dk.slide.kicker'] === 'The rule' && !used.values['dk.slide.image'],
     `Use must set the variant's slide fields, and only slide fields it may: ${JSON.stringify(used.values)}.`);
+  assert(used.values['dk.slide.notes'] === 'Typed before Use', `Use must keep the typing it does not change: notes ${JSON.stringify(used.values['dk.slide.notes'])}.`);
   assert((await record('dk.variant', 'dk.variant.v2')).values['dk.variant.status'] === 'Used' && (await record('dk.variant', 'dk.variant.v1')).values['dk.variant.status'] === 'Dismissed',
     'The used variant is Used and its sibling Dismissed.');
   assert(!await frame.evaluate(() => document.getElementById('ask-status').classList.contains('working')), 'The ask bar stops showing work once the agent answers.');
@@ -225,7 +229,18 @@ async page => {
   const noteParts = pptx.names.filter(n => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(n)).length;
   assert(pptx.magic && pptx.name.endsWith('.pptx') && slideParts === exampleSlides && noteParts === exampleSlides && pptx.names.includes('[Content_Types].xml')
     && JSON.stringify(pptx.size) === JSON.stringify(['12192000', '6858000']), `The PowerPoint file must hold ${exampleSlides} slides with notes at 16:9: ${JSON.stringify({ slideParts, noteParts, size: pptx.size })}.`);
+  await page.evaluate(deckId => {
+    const slides = window.broker.records('dk.slide').filter(r => r.values['dk.slide.deck'] === deckId);
+    const set = (layout, address) => { const s = slides.find(r => r.values['dk.slide.layout'] === layout); window.broker.put('dk.slide', { ...s, version: s.version + 1, values: { ...s.values, 'dk.slide.image': address } }); };
+    set('Full image', 'https://example.com/pictures/harbour.png');
+    set('Image right', '.\\Deck pictures\\gone.png');
+    window.broker.pushChanges();
+  }, deckRecord.recordId);
+  await until(() => window.deck.slides.some(s => s.image === 'https://example.com/pictures/harbour.png'));
   const html = await exported('export.html', 'html');
+  const leftOut = await frame.evaluate(() => window.deck.exports.at(-1).leftOut);
+  assert(html.text.includes('https://example.com/pictures/harbour.png') && leftOut === 1,
+    `The HTML file must link a web picture it cannot read and count one from a folder as left out: linked ${html.text.includes('https://example.com/pictures/harbour.png')}, left out ${leftOut}.`);
   const htmlSlides = (html.text.match(/class="dk-slide/g) ?? []).length;
   assert(html.name.endsWith('.html') && htmlSlides === exampleSlides && !/<script[^>]+src=/i.test(html.text) && !/<link[^>]+stylesheet[^>]+href="(?!https:\/\/fonts\.googleapis\.com)/i.test(html.text),
     `The HTML file must hold every slide and load no script or stylesheet of its own from elsewhere: ${htmlSlides} slides.`);
@@ -278,6 +293,38 @@ async page => {
   await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Kept from before', kept, { timeout: 5000 })
     .catch(async () => { throw Error(`Typing not saved when the frame ended must be saved when the view starts again: ${JSON.stringify((await record('dk.slide', kept))?.values['dk.slide.title'])}.`); });
   assert(await frame.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('deck.drafts.')).length) === 0, 'A draft that was saved must leave the device.');
+  // The deck's own fields are kept the same way.
+  await frame.click('#tab-design');
+  await frame.fill('#d-footer', 'Footer kept from before');
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  await page.waitForFunction(id => window.broker.record('dk.deck', id)?.values['dk.deck.footer'] === 'Footer kept from before', deckRecord.recordId, { timeout: 5000 })
+    .catch(() => { throw Error('Typing in the deck\'s fields not saved when the frame ended must be saved when the view starts again.'); });
+  // Typing over a slide somebody changed while the view was away is held for the person, never saved on its own.
+  await frame.evaluate(() => document.querySelectorAll('#slides li')[3].click());
+  const heldSlide = (await state()).slideId;
+  await frame.fill('#f-title', 'Mine from before');
+  await page.evaluate(id => { window.broker.touch('dk.slide', id); window.broker.remount(); }, heldSlide);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  await until(() => !document.getElementById('held').hidden)
+    .catch(() => { throw Error('Typing over a slide that changed since must be offered back, not dropped.'); });
+  assert((await record('dk.slide', heldSlide)).values['dk.slide.title'] !== 'Mine from before', 'Typing over a slide that changed since must not be saved without the person.');
+  await frame.click('#held-put');
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Mine from before', heldSlide, { timeout: 5000 });
+  await until(() => document.getElementById('held').hidden && !Object.keys(localStorage).some(k => k.startsWith('deck.drafts.')));
+  // A save the file refuses keeps the typing, on screen and on the device, and the next save takes it.
+  await frame.evaluate(id => document.querySelector(`#slides li[data-id="${id}"]`).click(), heldSlide);
+  await page.evaluate(() => window.broker.fail('records.update', { code: 'busy', message: 'The file is busy.' }));
+  await frame.fill('#f-title', 'Refused once');
+  await settle(1200);
+  const refused = await frame.evaluate(id => ({ pending: window.deck.pending.has(id), kept: Object.keys(localStorage).some(k => k.startsWith('deck.drafts.')) }), heldSlide);
+  assert(refused.pending && refused.kept, `A refused save must keep the typing: ${JSON.stringify(refused)}.`);
+  await frame.fill('#f-title', 'Refused once, then saved');
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Refused once, then saved', heldSlide, { timeout: 5000 });
   checks.push('typing kept over a remount');
 
   // 14. Opening another deck waits for the slide's save in flight, and typing in the deck's own

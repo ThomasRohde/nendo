@@ -67,7 +67,8 @@ out of tokens, since that one may have written only some of the slides.
 ## Present and export
 
 Present builds the HTML export with the pictures' own URLs and shows it in a frame over the view.
-The exported HTML is one file with every picture inlined: arrows, space and Page keys, `P` for the
+The exported HTML is one file with every picture the file holds inlined; a web picture stays linked
+by its address, and one linked from a folder on the computer is left out, which the export says: arrows, space and Page keys, `P` for the
 presenter view (this slide, the next, the notes and a clock), `G` for a grid, `F` for full screen,
 `B` for black, `#N` in the address for a slide, and one slide per page when printed. The PowerPoint
 export reads each embedded picture with `nendo.media.read`, and draws an SVG or WebP to PNG first.
@@ -80,7 +81,9 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
   says so.
 - Charts are column, bar, line and doughnut, from a Markdown table; there is no chart editor.
 - One person edits a slide at a time: a save that meets a newer version reads the record again and
-  saves the typing over it. Typing still waiting for its save is kept in the package's storage on the
-  device, and saved the same way when the view starts again if Nendo ended its frame first.
+  saves the typing over it. Typing still waiting for its save, or refused by the file, is kept in the
+  package's storage on the device with the version it was typed over (`drafts.mjs`). When the view
+  starts again it saves what meets that version, and holds what meets a newer one under a notice:
+  Put mine back writes it over the change, Discard mine drops it.
 - A Markdown link keeps its address only for `http:`, `https:` and `mailto:`; any other link is
   shown as its words alone, so nothing in a slide runs in the view's frame.

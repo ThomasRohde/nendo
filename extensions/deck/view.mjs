@@ -11,6 +11,7 @@ import { canvasMeasure, forgetMeasurements } from './measure.mjs';
 import { buildPptx } from './pptx.mjs';
 import { buildHtml } from './export-html.mjs';
 import { importBrandFile } from './brand-import.mjs';
+import { differing, readDrafts, writeDrafts, sortDrafts, withoutWritten } from './drafts.mjs';
 import { installFocusRing } from './kit/nendo-view-kit.js';
 
 const nendo = window.nendo;
@@ -21,7 +22,7 @@ const SKILL = 'skill://dev.nendo.deck/deck/SKILL.md';
 const deck = window.deck = {
   ready: false, decks: [], templates: [], brands: [], slides: [], asks: [], variants: [],
   deckId: null, slideId: null, scope: 'Whole deck', tab: 'slide', theme: null, media: new Map(),
-  pending: new Map(), problem: null, toolbars: 0, exports: [], presenting: false, canAsk: false, chrome: false,
+  pending: new Map(), held: [], problem: null, toolbars: 0, exports: [], presenting: false, canAsk: false, chrome: false,
 };
 
 document.getElementById('slide-css').textContent = SLIDE_CSS;
@@ -194,6 +195,7 @@ function drawAll() {
   drawInspector();
   drawVariants();
   drawAsk();
+  drawHeld();
   declareToolbar();
 }
 
@@ -468,7 +470,7 @@ function edit(changes, { now = false } = {}) {
   const slide = currentSlide();
   if (!slide || nendo.context?.readOnly) return;
   Object.assign(slide, changes);
-  const pending = deck.pending.get(slide.id) ?? { values: {} };
+  const pending = deck.pending.get(slide.id) ?? { values: {}, version: slide.record.version };
   Object.assign(pending.values, changes);
   deck.pending.set(slide.id, pending);
   keepDrafts();
@@ -477,6 +479,8 @@ function edit(changes, { now = false } = {}) {
 }
 const redrawSoon = debounce(() => { drawStage(); drawSorter(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
 function drawSlidePaneQuiet() { const s = currentSlide(); if (s) { $('layout-hint').textContent = layoutOf(s.layout).hint; } }
+
+const conflict = error => !!error?.code && /version|conflict|stale/i.test(`${error.code} ${error.message}`);
 
 let saving = null;
 /** A save asked for while one is out waits for it and then saves what is left, so awaiting a flush waits for the write. */
@@ -491,83 +495,150 @@ async function savePending() {
     let again = false;
     for (const [id, pending] of [...deck.pending]) {
       const slide = deck.slides.find(s => s.id === id);
-      if (!slide) { deck.pending.delete(id); continue; }
       const values = { ...pending.values };
+      const written = toValues(values);
       try {
-        const record = await nendo.records.update({ entityId: E.slide, recordId: id, version: slide.record.version }, toValues(values));
-        slide.record = record; slide.version = record.version;
+        const version = slide?.record.version ?? (await nendo.records.get(E.slide, id))?.version;
+        if (version === undefined) { deck.pending.delete(id); continue; }
+        const record = await nendo.records.update({ entityId: E.slide, recordId: id, version }, written);
+        if (slide) { slide.record = record; slide.version = record.version; }
+        pending.version = record.version;
+        deck.held = withoutWritten(deck.held, E.slide, id, written);
         // Typing that arrived while the write was out stays pending.
         for (const [k, val] of Object.entries(values)) if (pending.values[k] === val) delete pending.values[k];
         if (!Object.keys(pending.values).length) deck.pending.delete(id);
       } catch (error) {
-        const fresh = await nendo.records.get(E.slide, id).catch(() => null);
-        if (!fresh) { deck.pending.delete(id); problem(error, 'The slide could not be saved; it was deleted'); continue; }
-        slide.record = fresh;
-        if (error?.code && /version|conflict|stale/i.test(error.code + error.message)) { again = true; continue; }
-        problem(error, 'The slide could not be saved');
-        deck.pending.delete(id);
+        // null is a slide deleted since; a read that fails says nothing, so the typing stays.
+        const fresh = await nendo.records.get(E.slide, id).catch(() => undefined);
+        if (fresh === null) { deck.pending.delete(id); problem(error, 'The slide could not be saved; it was deleted'); continue; }
+        if (fresh && slide) slide.record = fresh;
+        if (fresh && !Object.keys(differing(written, fresh)).length) { deck.pending.delete(id); continue; }
+        if (fresh && conflict(error)) { pending.version = fresh.version; again = true; continue; }
+        // Anything else keeps the typing, on screen and on the device; the next save tries again.
+        problem(error, 'The slide could not be saved; your typing is kept and goes with the next save');
       }
     }
     if (!again) break;
   }
 }
 
-// Nendo ends a view's frame without asking (ADR-0013), so typing still waiting for its save is kept
-// in the package's own storage until the save lands, and saved when the view starts again.
-const draftKey = () => `deck.drafts.v1.${nendo.context?.viewId ?? 'deck'}`;
-// Typing kept from before that could not be saved when the view started stays kept for the next start.
-let unrestored = {};
+// ---- Drafts, on this device --------------------------------------------------------------------
+// Nendo ends a view's frame without asking (ADR-0013). Typing still waiting for its save is kept in
+// the package's own storage with the version it was typed over (drafts.mjs), and restored over that
+// version when the view starts again. What meets a newer version is held for the person to put
+// back or discard; it is never saved over somebody else's change on its own.
+
+const draftKey = () => `deck.drafts.v2.${nendo.context?.viewId ?? 'deck'}`;
+const deckValues = changes => Object.fromEntries(Object.entries(changes).map(([k, val]) => [F.deck[k], val === '' ? null : val]));
+function draftEntries() {
+  const entries = [...deck.pending].filter(([, p]) => Object.keys(p.values).length)
+    .map(([id, p]) => ({ entityId: E.slide, recordId: id, version: p.version, values: toValues(p.values) }));
+  // Deck typing on its way to the file stays kept until it lands: a frame may end before the answer.
+  for (const typed of [deckSaving, deckTyping]) if (typed) entries.push({ entityId: E.deck, recordId: typed.id, version: typed.version, values: deckValues(typed.changes) });
+  // Held first, so the newer typing on the same record wins when both come back.
+  return [...deck.held, ...entries];
+}
 function keepDrafts() {
   try {
-    const kept = { ...unrestored, ...Object.fromEntries([...deck.pending].filter(([, p]) => Object.keys(p.values).length).map(([id, p]) => [id, p.values])) };
-    if (Object.keys(kept).length) localStorage.setItem(draftKey(), JSON.stringify(kept)); else localStorage.removeItem(draftKey());
+    const text = writeDrafts(draftEntries());
+    if (text) localStorage.setItem(draftKey(), text); else localStorage.removeItem(draftKey());
   } catch { /* storage off: the next save is all there is */ }
 }
-/** Saves what was typed and not saved before the view last stopped, over the slide as it is now. */
+/** Puts back what was typed and not saved before the view last stopped. Answers how many records it saved. */
 async function restoreDrafts() {
-  let kept = null;
-  try { kept = JSON.parse(localStorage.getItem(draftKey()) ?? 'null'); } catch { return 0; }
-  if (!kept || typeof kept !== 'object' || nendo.context?.readOnly) return 0;
-  let restored = 0;
-  for (const [id, values] of Object.entries(kept)) {
-    const record = await nendo.records.get(E.slide, id).catch(() => null);
-    if (!record || !values || typeof values !== 'object') continue;
-    const typed = toValues(Object.fromEntries(Object.entries(values).filter(([k]) => SLIDE_FIELD[k])));
-    // A save that landed as the frame ended leaves nothing to write.
-    const differ = Object.fromEntries(Object.entries(typed).filter(([f, val]) => (record.values?.[f] ?? null) !== val));
-    if (!Object.keys(differ).length) continue;
-    try { await nendo.records.update({ entityId: E.slide, recordId: id, version: record.version }, differ); restored++; }
-    catch (error) { unrestored[id] = values; problem(error, 'Typing kept from before could not be saved; it stays kept for the next start'); }
+  let entries = [];
+  try { entries = readDrafts(localStorage.getItem(draftKey())); } catch { return 0; }
+  if (!entries.length || nendo.context?.readOnly) return 0;
+  const now = new Map(), unread = [];
+  for (const entry of entries) {
+    const key = `${entry.entityId}\n${entry.recordId}`;
+    if (!now.has(key)) now.set(key, await nendo.records.get(entry.entityId, entry.recordId).catch(() => undefined));
+    if (now.get(key) === undefined) unread.push(entry);
   }
+  const { fresh, stale } = sortDrafts(entries.filter(e => !unread.includes(e)), (entityId, recordId) => now.get(`${entityId}\n${recordId}`));
+  let restored = 0;
+  for (const entry of fresh) {
+    try { await nendo.records.update({ entityId: entry.entityId, recordId: entry.recordId, version: entry.version }, entry.values); restored++; }
+    catch { stale.push(entry); }
+  }
+  deck.held = [...unread, ...stale];
   keepDrafts();
-  if (restored) toast(`Saved typing on ${restored} slide${restored === 1 ? '' : 's'} kept from before the view last closed.`);
+  if (restored) toast(`Saved typing on ${restored} ${restored === 1 ? 'slide' : 'slides'} kept from before Deck last closed.`);
   return restored;
 }
+function drawHeld() {
+  const n = deck.held.length;
+  $('held').hidden = n === 0;
+  if (!n) return;
+  const nameOf = e => e.values[F.slide.title] ?? e.values[F.deck.title] ?? deck.slides.find(s => s.id === e.recordId)?.title ?? v(deck.decks.find(d => d.recordId === e.recordId), F.deck.title);
+  const names = [...new Set(deck.held.map(nameOf).filter(Boolean))].slice(0, 3).map(t => `“${t.length > 40 ? `${t.slice(0, 39)}…` : t}”`).join(', ');
+  $('held-text').textContent = `Typing from before Deck last closed was not saved, and ${n === 1 ? 'what it was typed over has' : `the ${n} places it was typed over have`} changed since${names ? `: ${names}` : ''}. Put yours back over the change, or discard yours.`;
+}
+async function putHeldBack() {
+  const left = [];
+  for (const entry of deck.held) {
+    const record = await nendo.records.get(entry.entityId, entry.recordId).catch(() => undefined);
+    if (record === null) continue;
+    if (record === undefined) { left.push(entry); continue; }
+    try { await nendo.records.update({ entityId: entry.entityId, recordId: entry.recordId, version: record.version }, entry.values); }
+    catch (error) { left.push(entry); problem(error, 'Your typing could not be put back'); }
+  }
+  deck.held = left;
+  keepDrafts();
+  await refresh();
+}
+function discardHeld() { deck.held = []; keepDrafts(); drawHeld(); }
 
+/** Writes the deck's own fields; true when they landed. A newer version is read and written over once. */
 async function editDeck(changes, id = deck.deckId) {
   const d = deck.decks.find(x => x.recordId === id);
-  if (!d) return;
-  const values = {};
-  for (const [k, val] of Object.entries(changes)) values[F.deck[k]] = val === '' ? null : val;
+  if (!d) return false;
+  const values = deckValues(changes);
   const targetVersions = {};
   if (changes.template) targetVersions[F.deck.template] = deck.templates.find(t => t.recordId === changes.template)?.version;
   if (changes.brand) targetVersions[F.deck.brand] = deck.brands.find(b => b.recordId === changes.brand)?.version;
+  const write = () => nendo.records.update({ entityId: E.deck, recordId: d.recordId, version: d.version }, values, Object.keys(targetVersions).length ? { targetVersions } : undefined);
   try {
-    const record = await nendo.records.update({ entityId: E.deck, recordId: d.recordId, version: d.version }, values, Object.keys(targetVersions).length ? { targetVersions } : undefined);
+    let record;
+    try { record = await write(); }
+    catch (error) {
+      const fresh = conflict(error) ? await nendo.records.get(E.deck, id).catch(() => null) : null;
+      if (!fresh) throw error;
+      Object.assign(d, fresh);
+      record = await write();
+    }
     Object.assign(d, record);
-    if (id !== deck.deckId) return;
-    deck.theme = themeFor(d);
-    await resolveMedia(); await loadFonts(deck.theme);
-    laidCache.clear(); drawAll();
-  } catch (error) { problem(error, 'The deck could not be changed'); }
+    deck.held = withoutWritten(deck.held, E.deck, id, values);
+    if (id === deck.deckId) {
+      deck.theme = themeFor(d);
+      await resolveMedia(); await loadFonts(deck.theme);
+      laidCache.clear(); drawAll();
+    }
+    return true;
+  } catch (error) { problem(error, 'The deck could not be changed'); return false; }
 }
 // Typing in the deck's own fields gathers under the deck it was typed in: a second field in the
 // pause never drops the first, and a deck opened before the pause never takes the other's words.
-let deckTyping = null;
-const saveDeckTyping = debounce(() => { const typed = deckTyping; deckTyping = null; return typed ? editDeck(typed.changes, typed.id) : undefined; }, 700);
+let deckTyping = null, deckSaving = null;
+const saveDeckTyping = debounce(async () => {
+  const typed = deckTyping;
+  if (!typed) return;
+  deckTyping = null; deckSaving = typed;
+  const landed = await editDeck(typed.changes, typed.id);
+  deckSaving = null;
+  if (!landed) {
+    // Refused: the typing stays, under newer typing on the same deck, or held for another deck's.
+    if (!deckTyping || deckTyping.id === typed.id) deckTyping = { ...typed, changes: { ...typed.changes, ...(deckTyping?.changes ?? {}) } };
+    else deck.held.push({ entityId: E.deck, recordId: typed.id, version: typed.version, values: deckValues(typed.changes) });
+  }
+  keepDrafts();
+}, 700);
 function typeDeck(changes) {
-  if (deckTyping && deckTyping.id !== deck.deckId) saveDeckTyping.flush();
-  deckTyping = { id: deck.deckId, changes: { ...(deckTyping?.changes ?? {}), ...changes } };
+  const d = currentDeck();
+  if (!d || nendo.context?.readOnly) return;
+  if (deckTyping && deckTyping.id !== d.recordId) saveDeckTyping.flush();
+  deckTyping = { id: d.recordId, version: deckTyping?.version ?? d.version, changes: { ...(deckTyping?.changes ?? {}), ...changes } };
+  keepDrafts();
   saveDeckTyping();
 }
 
@@ -748,6 +819,7 @@ function refusalText(error) {
 }
 
 async function useVariants(list) {
+  await save.flush();
   const writes = [], touched = new Set();
   for (const variant of list) {
     const slideId = v(variant, F.variant.slide);
@@ -756,7 +828,8 @@ async function useVariants(list) {
     touched.add(slideId);
     let changes = {};
     try { changes = pick(JSON.parse(v(variant, F.variant.changes) ?? '{}')); } catch { /* nothing to use */ }
-    deck.pending.delete(slideId);
+    const pending = deck.pending.get(slideId);
+    if (pending) { for (const k of Object.keys(changes)) delete pending.values[k]; if (!Object.keys(pending.values).length) deck.pending.delete(slideId); }
     writes.push({ op: 'update', entityId: E.slide, recordId: slideId, version: slide.record.version, values: toValues(changes) });
     writes.push({ op: 'update', entityId: E.variant, recordId: variant.recordId, version: variant.version, values: { [F.variant.status]: 'Used' } });
     for (const other of deck.variants.filter(x => x !== variant && v(x, F.variant.slide) === slideId && v(x, F.variant.ask) === v(variant, F.variant.ask) && v(x, F.variant.status) === 'Proposed'))
@@ -805,7 +878,7 @@ function addressesOf(laidSlides) {
 }
 const dataUrl = blob => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
 
-async function htmlDocument({ embedded = false, start = 0 } = {}) {
+async function htmlDocument({ embedded = false, start = 0, leftOut = [] } = {}) {
   const d = currentDeck();
   const shown = deck.slides.filter(s => !s.hidden);
   const laidSlides = shown.map((s, i) => laid(s, deck.theme, false, i + 1));
@@ -813,7 +886,10 @@ async function htmlDocument({ embedded = false, start = 0 } = {}) {
   for (const address of addressesOf(laidSlides)) {
     if (embedded) { urls.set(address, urlFor(address)); continue; }
     const blob = await pictureBytes(address).catch(() => null);
-    urls.set(address, blob ? await dataUrl(blob) : null);
+    if (blob) urls.set(address, await dataUrl(blob));
+    // A web picture Nendo cannot read stays linked by its address; one in a folder on this computer cannot travel.
+    else if (/^https:\/\//i.test(address)) urls.set(address, address);
+    else { urls.set(address, null); leftOut.push(address); }
   }
   const { W, H } = sizeOf(deck.theme.aspect);
   return buildHtml({ title: v(d, F.deck.title) ?? 'Deck', author: v(d, F.deck.author) ?? '', W, H, theme: deck.theme, start, embedded,
@@ -832,7 +908,11 @@ const fileName = ext => `${String(v(currentDeck(), F.deck.title) ?? 'Deck').repl
 async function exportHtml() {
   await save.flush();
   toast('Making the HTML file…');
-  download(new Blob([await htmlDocument()], { type: 'text/html' }), fileName('html'));
+  const leftOut = [];
+  download(new Blob([await htmlDocument({ leftOut })], { type: 'text/html' }), fileName('html'));
+  deck.exports.at(-1).leftOut = leftOut.length;
+  const n = leftOut.length;
+  if (n) toast(`${n} ${n === 1 ? 'picture is' : 'pictures are'} linked from a folder on this computer and not in the HTML file. Embed ${n === 1 ? 'it' : 'them'} in the file to take ${n === 1 ? 'it' : 'them'} along.`);
 }
 async function exportPptx() {
   await save.flush();
@@ -1154,6 +1234,8 @@ function wire() {
     }
   });
   addEventListener('pagehide', () => { save.flush(); saveDeckTyping.flush(); });
+  $('held-put').addEventListener('click', () => putHeldBack());
+  $('held-discard').addEventListener('click', () => discardHeld());
 }
 const chosenStartTemplate = () => $('start-templates').dataset.chosen || deck.templates[0]?.recordId || null;
 

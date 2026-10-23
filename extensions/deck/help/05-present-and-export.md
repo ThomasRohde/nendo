@@ -26,4 +26,4 @@
 | **HTML (one file)** | The deck as one web page with every picture inside it. It plays in any browser with the keys above, presenter view included. Print it, or save it as PDF, and you get one slide per page. |
 | **Speaker notes (.md)** | The notes of every shown slide, in order, as a text file. |
 
-The files go to your Downloads folder. A picture that is only linked, not kept in the file, is left out of the PowerPoint file, and Deck says so.
+The files go to your Downloads folder. A picture that is only linked, not kept in the file, is left out of the PowerPoint file, and Deck says so. The HTML file keeps a web picture as a link, which shows when the file is opened online, and leaves out a picture linked from a folder on your computer, and Deck says so too.

@@ -54,6 +54,10 @@ body.has-own-toolbar #app { height: calc(100vh - 45px); }
 
 /* Centre */
 .center { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
+.held { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 12px 24px 0; padding: 10px 12px; border: 1px solid var(--warning); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
+.held[hidden] { display: none; }
+.held p { flex: 1 1 320px; margin: 0; line-height: 1.4; }
+.held button:not(.primary-button) { padding: 6px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--raised); color: var(--ink); cursor: pointer; }
 .stage-wrap { position: relative; flex: 1; min-height: 160px; display: grid; place-items: center; padding: 20px 24px 10px; }
 .stage { position: relative; box-shadow: var(--shadow), 0 0 0 1px var(--line); border-radius: 4px; overflow: hidden; background: #fff; }
 .stage .scaled { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
