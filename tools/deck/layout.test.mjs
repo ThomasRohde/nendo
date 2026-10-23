@@ -42,6 +42,24 @@ test('every layout draws an empty slide, and shows hints only while editing', ()
   }
 });
 
+test('a negative value is drawn below nought with its own sign, and a doughnut of noughts says nought', () => {
+  const theme = resolveTheme({ template: TEMPLATES[0] });
+  const chartOf = (chart, body) => layoutSlide({ layout: 'Chart', title: 'Margin', body, body2: '', chart, image: null }, theme, { measure: approxMeasure });
+  const body = '| Year | Margin |\n|---|---:|\n| 2024 | 40 |\n| 2025 | -25 |';
+  for (const chart of ['Column', 'Bar']) {
+    const items = chartOf(chart, body).items;
+    const labels = items.filter(p => p.role === 'chart').map(p => p.paragraphs?.map(q => q.runs.map(r => r.text).join('')).join('') ?? '');
+    assert.ok(labels.some(t => /^[-\u2212]25$/.test(t)), `${chart} labels: ${labels}`);
+    const bars = items.filter(p => p.type === 'rect' && p.h > 2 && p.w > 2 && p.radius !== undefined && p.role === undefined);
+    const [up, down] = chart === 'Column' ? bars.slice(-2).map(b => [b.y, b.y + b.h]) : bars.slice(-2).map(b => [b.x, b.x + b.w]);
+    // The positive bar ends where the negative one starts: both meet at nought.
+    assert.ok(Math.abs((chart === 'Column' ? up[1] : up[0]) - (chart === 'Column' ? down[0] : down[1])) < 0.5, `${chart} bars meet at nought: ${JSON.stringify({ up, down })}`);
+  }
+  const ring = chartOf('Doughnut', '| Part | Share |\n|---|---:|\n| A | 0 |\n| B | 0 |').items;
+  const middle = ring.filter(p => p.role === 'chart').map(p => p.paragraphs?.map(q => q.runs.map(r => r.text).join('')).join('') ?? '');
+  assert.ok(middle.includes('0') && !middle.includes('1'), `the middle says the total: ${middle}`);
+});
+
 test('a chart slide draws each kind from its table', () => {
   const theme = resolveTheme(TEMPLATES[3]);
   const body = '| Year | Revenue | Cost |\n| --- | --- | --- |\n| 2024 | 12 | 8 |\n| 2025 | 18 | 9 |\n| 2026 | 25 | 11 |';

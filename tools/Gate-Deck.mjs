@@ -91,8 +91,27 @@ async page => {
   await until(i => window.deck.slides[i]?.id === window.deck.slideId, added + 1);
   s = await state();
   assert(s.slides.every((x, i) => i === 0 || x.order > s.slides[i - 1].order), 'Orders must rise down the list after a move.');
+  // A delete the file refuses keeps the typing that was waiting for its save.
+  await frame.fill('#f-title', 'Typed before a refused delete');
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'busy', message: 'The file is busy.' }));
+  await command('slide.delete');
+  await settle(1200);
+  const refusedDelete = await record('dk.slide', s.slideId);
+  assert(refusedDelete.values['dk.slide.title'] === 'Typed before a refused delete', `A refused delete must keep the slide's typing: ${JSON.stringify(refusedDelete.values['dk.slide.title'])}.`);
   await command('slide.delete');
   await until(n => window.deck.slides.length === n, exampleSlides);
+  // A thumbnail dropped below the list goes to the end, then back before the second.
+  const moved = (await state()).slides[1].id;
+  const drag = (fromIndex, beforeIndex) => frame.evaluate(({ fromIndex, beforeIndex }) => {
+    const list = document.getElementById('slides'), items = list.querySelectorAll('li[data-id]'), dt = new DataTransfer();
+    items[fromIndex].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    (beforeIndex === null ? list : items[beforeIndex]).dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  }, { fromIndex, beforeIndex });
+  await drag(1, null);
+  await until(id => window.deck.slides.at(-1)?.id === id, moved, 3000)
+    .catch(async () => { const order = (await state()).slides.map(x => x.id); throw Error(`A slide dropped below the list must go to the end: it is at ${order.indexOf(moved) + 1} of ${order.length}.`); });
+  await drag(exampleSlides - 1, 1);
+  await until(id => window.deck.slides[1]?.id === id, moved, 3000);
   const batches = await requests('records.batch');
   assert(batches.length >= 3 && batches.slice(-3).every(b => b.offerUndo === true && typeof b.label === 'string'), 'Add, move and delete must each be a labelled batch that offers Undo.');
   checks.push('add, move, delete');
@@ -237,7 +256,13 @@ async page => {
     window.broker.pushChanges();
   }, deckRecord.recordId);
   await until(() => window.deck.slides.some(s => s.image === 'https://example.com/pictures/harbour.png'));
+  // The deck's own typing goes into the export made in the pause before its save.
+  await frame.click('#tab-design');
+  await frame.fill('#d-title', 'Typed just before export');
   const html = await exported('export.html', 'html');
+  assert(html.text.includes('<title>Typed just before export</title>') && html.name === 'Typed just before export.html',
+    `An export made in the pause must carry the deck's typing: ${JSON.stringify({ name: html.name, title: /<title>([^<]*)/.exec(html.text)?.[1] })}.`);
+  await frame.click('#tab-slide');
   const leftOut = await frame.evaluate(() => window.deck.exports.at(-1).leftOut);
   assert(html.text.includes('https://example.com/pictures/harbour.png') && leftOut === 1,
     `The HTML file must link a web picture it cannot read and count one from a folder as left out: linked ${html.text.includes('https://example.com/pictures/harbour.png')}, left out ${leftOut}.`);

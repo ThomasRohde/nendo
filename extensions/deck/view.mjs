@@ -482,6 +482,9 @@ function drawSlidePaneQuiet() { const s = currentSlide(); if (s) { $('layout-hin
 
 const conflict = error => !!error?.code && /version|conflict|stale/i.test(`${error.code} ${error.message}`);
 
+/** Saves the slide typing and the deck typing, for whatever reads the deck next. */
+const flushAll = () => Promise.all([save.flush(), saveDeckTyping.flush()]);
+
 let saving = null;
 /** A save asked for while one is out waits for it and then saves what is left, so awaiting a flush waits for the write. */
 const save = debounce(() => {
@@ -681,8 +684,10 @@ async function deleteSlide() {
   const writes = deck.variants.filter(x => v(x, F.variant.slide) === s.id).map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
   writes.push({ op: 'delete', entityId: E.slide, recordId: s.id, version: s.record.version });
   try {
-    deck.pending.delete(s.id);
     await nendo.records.batch(writes, { label: `Delete slide ${at + 1}`, offerUndo: true });
+    // Only a slide that is gone lets go of its typing; a refused delete keeps it.
+    deck.pending.delete(s.id);
+    keepDrafts();
     deck.slideId = deck.slides[at + 1]?.id ?? deck.slides[at - 1]?.id ?? null;
     await refresh();
   } catch (error) { problem(error, 'The slide could not be deleted'); }
@@ -705,7 +710,7 @@ async function setHidden(hidden) { edit({ hidden }, { now: true }); }
 async function putPicture(file, slide = currentSlide()) {
   if (!slide || !file) return;
   if (!/^image\/(png|jpeg|gif|webp|svg\+xml|avif)$/.test(file.type)) { toast(`${file.name} is not a picture Deck can use: PNG, JPEG, GIF, WebP or SVG.`); return; }
-  await save.flush();
+  await flushAll();
   try {
     toast(`Putting ${file.name} into the file…`);
     const fresh = await nendo.records.get(E.slide, slide.id);
@@ -766,7 +771,7 @@ async function ask(text, { scope = deck.scope, mission = '' } = {}) {
   const id = newId('ask');
   const selection = realScope === 'Selection' && slide ? `${slide.id} (slide ${deck.slides.indexOf(slide) + 1}: ${slide.title || slide.layout})` : '';
   try {
-    await save.flush();
+    await flushAll();
     await nendo.records.create(E.ask, {
       [F.ask.deck]: d.recordId, [F.ask.scope]: realScope, [F.ask.request]: mission && text ? `${mission}: ${text}` : request, [F.ask.selection]: selection || null,
       [F.ask.status]: 'Waiting', [F.ask.made]: new Date().toISOString() }, { recordId: id, targetVersions: { [F.ask.deck]: d.version } });
@@ -819,7 +824,7 @@ function refusalText(error) {
 }
 
 async function useVariants(list) {
-  await save.flush();
+  await flushAll();
   const writes = [], touched = new Set();
   for (const variant of list) {
     const slideId = v(variant, F.variant.slide);
@@ -906,7 +911,7 @@ function download(blob, name) {
 const fileName = ext => `${String(v(currentDeck(), F.deck.title) ?? 'Deck').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Deck'}.${ext}`;
 
 async function exportHtml() {
-  await save.flush();
+  await flushAll();
   toast('Making the HTML file…');
   const leftOut = [];
   download(new Blob([await htmlDocument({ leftOut })], { type: 'text/html' }), fileName('html'));
@@ -915,7 +920,7 @@ async function exportHtml() {
   if (n) toast(`${n} ${n === 1 ? 'picture is' : 'pictures are'} linked from a folder on this computer and not in the HTML file. Embed ${n === 1 ? 'it' : 'them'} in the file to take ${n === 1 ? 'it' : 'them'} along.`);
 }
 async function exportPptx() {
-  await save.flush();
+  await flushAll();
   toast('Making the PowerPoint file…');
   const slides = deck.slides.map((s, i) => ({ laid: laid(s, deck.theme, false, numberOf(s)), hidden: s.hidden, i }));
   const images = new Map(), missing = [];
@@ -944,7 +949,7 @@ function exportNotes() {
 
 let presentUrl = null;
 async function present(fromHere = false) {
-  await save.flush();
+  await flushAll();
   const shown = deck.slides.filter(s => !s.hidden);
   if (!shown.length) { toast('There is no slide to show: every slide is hidden.'); return; }
   const start = fromHere ? Math.max(0, shown.findIndex(s => s.id === deck.slideId)) : 0;
@@ -984,7 +989,7 @@ function select(id, { place = true } = {}) {
 
 async function openDeck(id) {
   if (id === deck.deckId) return;
-  await Promise.all([save.flush(), saveDeckTyping.flush()]);
+  await flushAll();
   deck.deckId = id; deck.slideId = null;
   laidCache.clear();
   await refresh();
@@ -1140,7 +1145,8 @@ function wire() {
     const li = e.target.closest('li[data-id]');
     const from = deck.slides.findIndex(s => s.id === dragging);
     let to = li ? deck.slides.findIndex(s => s.id === li.dataset.id) : deck.slides.length - 1;
-    if (to > from) to -= 1;
+    // Before a thumbnail, a later one counts the moved slide out; below the list is simply the end.
+    if (li && to > from) to -= 1;
     dragging = null;
     moveSlide(from, to);
   });

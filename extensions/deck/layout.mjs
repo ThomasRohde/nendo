@@ -13,7 +13,7 @@
 //                    tracking, caps, paragraphs: [{runs, bullet, number, level, heading}], role}
 // A fill is a colour or {type: linear|radial, angle, stops: [{at, color, alpha}]}.
 
-import { paragraphs, rows, table, chartData, formatNumber, niceScale, inline, plainText } from './model.mjs';
+import { paragraphs, rows, table, chartData, formatNumber, signedScale, inline, plainText } from './model.mjs';
 import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast } from './themes.mjs';
 
 /** A measurer for node and for tests: close to Segoe UI's widths, and the same on every machine. */
@@ -579,12 +579,13 @@ function drawChart(g, type, data, x, y, w, h) {
     y += 38; h -= 38;
   }
   if (type === 'Doughnut') {
-    const values = data.series[0].values.map(v => Math.max(0, v)), total = values.reduce((a, b) => a + b, 0) || 1;
+    // The middle says the data's own total, nought included; only the sweep needs a share of something.
+    const values = data.series[0].values.map(v => Math.max(0, v)), total = values.reduce((a, b) => a + b, 0), share = total || 1;
     const r = Math.min(h, w * 0.5) / 2, cx = x + r + 10, cy = y + h / 2;
     let at = 0;
     const colours = values.map((_, i) => [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.5), mix(c.accent, c.bg, 0.5), mix(c.secondary, c.bg, 0.5)][i % 6]);
     values.forEach((v, i) => {
-      const sweep = v / total * 360;
+      const sweep = v / share * 360;
       if (sweep > 0) g.items.push({ type: 'arc', cx, cy, r, inner: r * 0.58, start: at, end: at + Math.min(sweep, 359.99), fill: colours[i] });
       at += sweep;
     });
@@ -599,18 +600,21 @@ function drawChart(g, type, data, x, y, w, h) {
     return;
   }
   const all = data.series.flatMap(s => s.values);
-  const { max, step } = niceScale(Math.max(...all, 0));
+  // A signed axis: a negative value is drawn below (or left of) nought, never as nought.
+  const { min, max, step } = signedScale(all);
+  const frac = v => (v - min) / (max - min);
   const horizontal = type === 'Bar';
   const labelW = horizontal ? Math.min(w * 0.3, Math.max(...data.labels.map(l => g.measure(l, { size: 16, font: g.fonts.body }))) + 16) : 0;
   const axisH = horizontal ? 0 : 34;
   const px = x + (horizontal ? labelW : 44), pw = w - (horizontal ? labelW : 44), ph = h - axisH - 8, py = y + 8;
   // Grid and axis labels.
-  for (let v = 0; v <= max + 1e-9; v += step) {
+  for (let v = min; v <= max + step * 1e-6; v += step) {
+    if (Math.abs(v) < step * 1e-6) v = 0;
     if (horizontal) {
-      const gx = px + (v / max) * pw;
+      const gx = px + frac(v) * pw;
       g.items.push({ type: 'line', x1: gx, y1: py, x2: gx, y2: py + ph, stroke: c.line, width: v === 0 ? 1.5 : 1, dash: v !== 0 });
     } else {
-      const gy = py + ph - (v / max) * ph;
+      const gy = py + ph - frac(v) * ph;
       g.items.push({ type: 'line', x1: px, y1: gy, x2: px + pw, y2: gy, stroke: c.line, width: v === 0 ? 1.5 : 1, dash: v !== 0 });
       g.items.push(text({ x: x, y: gy - 10, w: 36, h: 20, size: 13, font: g.fonts.body, color: muted, align: 'right', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
     }
@@ -620,7 +624,7 @@ function drawChart(g, type, data, x, y, w, h) {
     const dx = n > 1 ? pw / (n - 1) : 0;
     data.labels.forEach((label, i) => g.items.push(text({ x: px + i * dx - 60, y: py + ph + 10, w: 120, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: label, markdown: false, role: 'chart' })));
     data.series.forEach((s, j) => {
-      const points = s.values.map((v, i) => [px + i * dx, py + ph - (v / max) * ph]);
+      const points = s.values.map((v, i) => [px + i * dx, py + ph - frac(v) * ph]);
       g.items.push({ type: 'path', points, closed: false, stroke: palette[j % 4], width: 4 });
       points.forEach(([cx, cy], i) => {
         g.items.push({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % 4], stroke: g.bg.fill === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 });
@@ -634,16 +638,17 @@ function drawChart(g, type, data, x, y, w, h) {
     if (horizontal) g.items.push(text({ x, y: py + i * band, w: labelW - 12, h: band, size: 16, font: g.fonts.body, color: ink, align: 'right', valign: 'middle', text: label, markdown: false, role: 'chart' }));
     else g.items.push(text({ x: px + i * band, y: py + ph + 10, w: band, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: label, markdown: false, role: 'chart' }));
     data.series.forEach((s, j) => {
-      const v = Math.max(0, s.values[i]), len = (v / max) * (horizontal ? pw : ph);
+      // Each bar runs from nought to its value, either way.
+      const v = s.values[i], zero = frac(0), end = frac(v), len = Math.abs(end - zero) * (horizontal ? pw : ph);
       const fill = palette[j % 4];
       if (horizontal) {
-        const by = py + i * band + (band - inner) / 2 + j * barW;
-        g.items.push({ type: 'rect', x: px, y: by, w: Math.max(len, 1), h: barW - 3, fill, radius: Math.min(4, g.s.radius) });
-        if (k === 1) g.items.push(text({ x: px + len + 8, y: by, w: 90, h: barW - 3, size: 15, weight: 700, font: g.fonts.body, color: ink, valign: 'middle', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
+        const by = py + i * band + (band - inner) / 2 + j * barW, from = px + Math.min(zero, end) * pw;
+        g.items.push({ type: 'rect', x: from, y: by, w: Math.max(len, 1), h: barW - 3, fill, radius: Math.min(4, g.s.radius) });
+        if (k === 1) g.items.push(text({ x: v < 0 ? from - 98 : from + len + 8, y: by, w: 90, h: barW - 3, size: 15, weight: 700, font: g.fonts.body, color: ink, align: v < 0 ? 'right' : 'left', valign: 'middle', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
       } else {
-        const bx = px + i * band + (band - inner) / 2 + j * barW;
-        g.items.push({ type: 'rect', x: bx, y: py + ph - len, w: barW - 4, h: Math.max(len, 1), fill, radius: Math.min(4, g.s.radius) });
-        if (k === 1) g.items.push(text({ x: bx - 20, y: py + ph - len - 26, w: barW + 36, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
+        const bx = px + i * band + (band - inner) / 2 + j * barW, top = py + ph - Math.max(zero, end) * ph;
+        g.items.push({ type: 'rect', x: bx, y: top, w: barW - 4, h: Math.max(len, 1), fill, radius: Math.min(4, g.s.radius) });
+        if (k === 1) g.items.push(text({ x: bx - 20, y: v < 0 ? top + len + 4 : top - 26, w: barW + 36, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
       }
     });
   });

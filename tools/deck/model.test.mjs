@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LAYOUTS, LAYOUT_IDS, layoutOf, slideFrom, sortSlides, reorder, inline, paragraphs, plainText, rows, table, numberIn, chartData, formatNumber, niceScale, F } from '../../extensions/deck/model.mjs';
+import { LAYOUTS, LAYOUT_IDS, layoutOf, slideFrom, sortSlides, reorder, inline, paragraphs, plainText, rows, table, numberIn, chartData, formatNumber, niceScale, signedScale, F } from '../../extensions/deck/model.mjs';
 
 test('seventeen layouts, each named once, each saying the fields it reads', () => {
   assert.equal(LAYOUTS.length, 17);
@@ -60,6 +60,13 @@ test('chart data reads numbers out of cells', () => {
   const d = chartData('| Quarter | Sales | Cost |\n| --- | --- | --- |\n| Q1 | 10% | 4 |\n| Q2 | 12% | x |');
   assert.deepEqual(d, { labels: ['Q1', 'Q2'], series: [{ name: 'Sales', values: [10, 12] }, { name: 'Cost', values: [4, 0] }], unit: '%' });
   assert.equal(chartData('| one |\n| --- |\n| a |'), null);
+});
+
+test('a signed axis runs through nought and holds the least and greatest values', () => {
+  assert.deepEqual(signedScale([40, -25, 10]), { min: -40, max: 40, step: 20 });
+  assert.deepEqual(signedScale([3, 7]), { min: 0, max: 8, step: 2 });
+  assert.deepEqual(signedScale([-3, -7]), { min: -8, max: 0, step: 2 });
+  assert.deepEqual(signedScale([0, 0]), { min: 0, max: 1, step: 0.25 });
 });
 
 test('numbers on axes are tidy', () => {

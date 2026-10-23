@@ -166,6 +166,15 @@ export function formatNumber(n, unit = '') {
   return text.replace(/\.0(?=[BMk]|$)/, '') + unit;
 }
 /** A nice upper bound and step for an axis from 0. */
+/** A signed axis from the data's least to its greatest value, always through zero, in tidy steps. */
+export function signedScale(values, ticks = 4) {
+  const least = Math.min(0, ...values), most = Math.max(0, ...values);
+  if (!(most - least > 0)) return { min: 0, max: 1, step: 0.25 };
+  const { step } = niceScale(most - least, ticks);
+  // + 0 turns a negative nought into nought, which an axis label would otherwise print with its sign.
+  return { min: Math.floor(least / step + 1e-9) * step + 0, max: Math.ceil(most / step - 1e-9) * step + 0, step };
+}
+
 export function niceScale(max, ticks = 4) {
   if (!(max > 0)) return { max: 1, step: 0.25 };
   const raw = max / ticks, power = 10 ** Math.floor(Math.log10(raw)), f = raw / power;
