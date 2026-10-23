@@ -22,7 +22,7 @@ A Nendo file cannot read another file, so a kit comes across as an export.
 1. In **Brandkits**, open the kit and choose **Export**. Pick the **Claude Design bundle (zip)**, the **design tokens (JSON)** or the **CSS variables**.
 2. In Deck, on the **Design** tab, choose **Import from Brandkits…** and pick that file, or drop it on the tab.
 
-Deck reads the kit's primary, secondary and accent colours, its background, surface, text and muted colours, its heading, body and mono fonts, its voice and tagline, and, from the bundle, its logo and its logo for dark backgrounds. The deck you are on starts using the kit at once. Import the same kit again, after a change in Brandkits, and Deck updates it.
+Deck reads the kit's primary, secondary and accent colours, its background, surface, text and muted colours, its heading, body and mono fonts, its voice and tagline, and, from the bundle, its logo and its logo for dark backgrounds. The deck you are on starts using the kit at once. Import the same kit again, after a change in Brandkits, and Deck updates what the file holds and keeps the rest.
 
 A kit's logo shows large on the title and closing slides and small at the top of most others; on a dark slide Deck uses the logo for dark backgrounds. A logo picture on its own, dropped on the tab, goes onto the kit the deck uses.
 

@@ -50,7 +50,7 @@ the Claude Design bundle (a zip of `README.md`, `tokens/tokens.json`, `tokens/br
 `assets/logos/`), the design tokens alone, or the CSS variables alone. `brand-import.mjs` reads token
 paths for their role (`text-secondary` is muted text, not the secondary colour), font families, the
 README's title, Voice section and tagline, and picks the logo and the logo whose name says dark,
-reverse or white. Importing a kit of the same name again updates it.
+reverse or white. Importing a kit of the same name again updates the fields its file holds and keeps the rest.
 
 ## The agent
 
@@ -79,7 +79,8 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
   view and in the HTML file when online; PowerPoint substitutes a font it does not have.
 - A picture only linked by URL is drawn on the stage but left out of the PowerPoint file, which
   says so.
-- Charts are column, bar, line and doughnut, from a Markdown table; there is no chart editor.
+- Charts are column, bar, line and doughnut, from a Markdown table; there is no chart editor. A
+  doughnut draws the table's first number column and names it under the total.
 - One person edits a slide at a time: a save that meets a newer version reads the record again and
   saves the typing over it. Typing still waiting for its save, or refused by the file, is kept in the
   package's storage on the device with the version it was typed over (`drafts.mjs`). When the view

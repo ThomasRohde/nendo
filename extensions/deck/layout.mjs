@@ -570,7 +570,8 @@ function drawChart(g, type, data, x, y, w, h) {
   const { c } = g;
   const palette = [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.45)];
   const ink = g.bg.ink, muted = g.bg.muted;
-  const legend = data.series.length > 1;
+  // A doughnut shows one column, its first, and names its parts beside it: no series legend above.
+  const legend = data.series.length > 1 && type !== 'Doughnut';
   if (legend) {
     let lx = x;
     data.series.forEach((s, i) => {
@@ -592,6 +593,9 @@ function drawChart(g, type, data, x, y, w, h) {
       at += sweep;
     });
     g.items.push(text({ x: cx - r * 0.5, y: cy - 30, w: r, h: 60, size: 40, weight: 700, font: g.fonts.heading, color: ink, align: 'center', valign: 'middle', text: formatNumber(total, data.unit), markdown: false, role: 'chart', lineHeight: 1 }));
+    // Which column it is, under the total; with more than one, the editor says the others are not drawn.
+    if (data.series.length > 1) g.items.push(text({ x: cx - r * 0.6, y: cy + 28, w: r * 1.2, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: data.series[0].name, markdown: false, role: 'chart' }));
+    if (data.series.length > 1 && g.ctx.editing) g.items.push(text({ x, y: y + h - 22, w, h: 22, size: 14, font: g.fonts.body, color: muted, text: `A doughnut draws the first column only; ${data.series.slice(1).map(s => s.name).join(', ')} ${data.series.length > 2 ? 'are' : 'is'} not drawn.`, markdown: false, role: 'hint', ghost: true }));
     const lx = cx + r + 48, rowH = Math.min(44, h / values.length);
     data.labels.forEach((label, i) => {
       const ly = cy - (values.length * rowH) / 2 + i * rowH;

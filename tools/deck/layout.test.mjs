@@ -80,6 +80,16 @@ test('a chart table with no rows draws no chart and no number that is not one', 
   }
 });
 
+test('a doughnut of two columns names the one it draws and advertises no other', () => {
+  const theme = resolveTheme(TEMPLATES[0]);
+  const body = '| Part | Plan | Actual |\n|---|---:|---:|\n| A | 3 | 4 |\n| B | 5 | 6 |';
+  const textOf = items => items.filter(p => p.role === 'chart').map(p => p.paragraphs?.map(q => q.runs.map(r => r.text).join('')).join('') ?? '');
+  const shown = layoutSlide({ layout: 'Chart', title: 'Split', body, body2: '', chart: 'Doughnut', image: null }, theme, { measure: approxMeasure });
+  assert.ok(textOf(shown.items).includes('Plan') && !textOf(shown.items).includes('Actual'), `the doughnut says Plan and not Actual: ${textOf(shown.items)}`);
+  const editing = layoutSlide({ layout: 'Chart', title: 'Split', body, body2: '', chart: 'Doughnut', image: null }, theme, { measure: approxMeasure, editing: true });
+  assert.ok(editing.items.some(p => p.role === 'hint' && /Actual is not drawn/.test(p.paragraphs?.map(q => q.runs.map(r => r.text).join('')).join('') ?? '')), 'the editor says Actual is not drawn');
+});
+
 test('a chart slide draws each kind from its table', () => {
   const theme = resolveTheme(TEMPLATES[3]);
   const body = '| Year | Revenue | Cost |\n| --- | --- | --- |\n| 2024 | 12 | 8 |\n| 2025 | 18 | 9 |\n| 2026 | 25 | 11 |';

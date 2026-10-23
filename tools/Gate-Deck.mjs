@@ -98,8 +98,13 @@ async page => {
   await settle(1200);
   const refusedDelete = await record('dk.slide', s.slideId);
   assert(refusedDelete.values['dk.slide.title'] === 'Typed before a refused delete', `A refused delete must keep the slide's typing: ${JSON.stringify(refusedDelete.values['dk.slide.title'])}.`);
+  // Typing, then Delete from the host's menu: the frame's blur starts the save, and the delete waits for it.
+  await frame.fill('#f-title', 'Typed just before delete');
+  await page.evaluate(() => window.broker.hold('records.update', 600));
+  await frame.evaluate(() => document.activeElement.blur());
   await command('slide.delete');
-  await until(n => window.deck.slides.length === n, exampleSlides);
+  await until(n => window.deck.slides.length === n, exampleSlides, 3000)
+    .catch(async () => { throw Error(`A delete right after typing must delete on the first press: ${(await state()).slides.length} slides, not ${exampleSlides}.`); });
   // A thumbnail dropped below the list goes to the end, then back before the second.
   const moved = (await state()).slides[1].id;
   const drag = (fromIndex, beforeIndex) => frame.evaluate(({ fromIndex, beforeIndex }) => {

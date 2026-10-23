@@ -10,7 +10,7 @@ import { slideHtml, SLIDE_CSS } from './render.mjs';
 import { canvasMeasure, forgetMeasurements } from './measure.mjs';
 import { buildPptx } from './pptx.mjs';
 import { buildHtml } from './export-html.mjs';
-import { importBrandFile } from './brand-import.mjs';
+import { importBrandFile, kitValues } from './brand-import.mjs';
 import { differing, readDrafts, writeDrafts, sortDrafts, withoutWritten } from './drafts.mjs';
 import { installFocusRing } from './kit/nendo-view-kit.js';
 
@@ -679,6 +679,7 @@ async function duplicateSlide() {
 }
 
 async function deleteSlide() {
+  await flushAll();
   const s = currentSlide(); if (!s) return;
   const at = deck.slides.indexOf(s);
   const writes = deck.variants.filter(x => v(x, F.variant.slide) === s.id).map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
@@ -731,15 +732,16 @@ async function importBrand(file) {
   try {
     const kit = await importBrandFile(file);
     const id = newId('brand');
-    const values = { [F.brand.name]: kit.name || 'Imported kit', [F.brand.source]: 'Brandkits', [F.brand.voice]: kit.voice || null, [F.brand.tagline]: kit.tagline || null,
-      [F.brand.tokens]: kit.tokens || null, [F.brand.headingFont]: kit.fonts.heading ?? null, [F.brand.bodyFont]: kit.fonts.body ?? null, [F.brand.monoFont]: kit.fonts.mono ?? null };
-    for (const role of BRAND_ROLES) values[F.brand[role]] = kit.colors[role] ?? null;
+    // What the file holds, by field: an import again changes only that and keeps the rest of the kit.
+    const held = Object.fromEntries(Object.entries(kitValues(kit)).map(([k, val]) => [F.brand[k], val]));
     const existing = deck.brands.find(b => (v(b, F.brand.name) ?? '').toLowerCase() === (kit.name || '').toLowerCase());
     let record;
     if (existing && Object.keys(kit.colors).length) {
-      record = await nendo.records.update({ entityId: E.brand, recordId: existing.recordId, version: existing.version }, values);
+      record = await nendo.records.update({ entityId: E.brand, recordId: existing.recordId, version: existing.version }, held);
     } else if (Object.keys(kit.colors).length) {
-      record = await nendo.records.create(E.brand, values, { recordId: id });
+      const values = { [F.brand.name]: 'Imported kit', [F.brand.voice]: null, [F.brand.tagline]: null, [F.brand.tokens]: null, [F.brand.headingFont]: null, [F.brand.bodyFont]: null, [F.brand.monoFont]: null };
+      for (const role of BRAND_ROLES) values[F.brand[role]] = null;
+      record = await nendo.records.create(E.brand, { ...values, ...held }, { recordId: id });
     } else {
       // A logo on its own goes onto the kit the deck uses.
       const target = deck.brands.find(b => b.recordId === v(currentDeck(), F.deck.brand));

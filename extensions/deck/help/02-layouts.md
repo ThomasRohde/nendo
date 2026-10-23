@@ -30,7 +30,7 @@ A layout says what a slide shows and where. Choose one under **Layout** on the *
 | **Timeline** | Steps in time | `- When \| What \| detail` |
 | **Cards** | Two to six parallel ideas | `- Heading \| text` |
 | **Table** | Rows and columns | A Markdown table |
-| **Chart** | Numbers as a column, bar, line or doughnut chart | A Markdown table; Body 2 is the takeaway |
+| **Chart** | Numbers as a column, bar, line or doughnut chart | A Markdown table; Body 2 is the takeaway. A doughnut draws the first number column |
 | **Closing** | Thanks, or the ask | Contact lines |
 
 ## When the words do not fit

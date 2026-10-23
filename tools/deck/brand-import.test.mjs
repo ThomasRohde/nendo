@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { roleOf, parseTokensJson, parseCss, readReadme, importBrandFile } from '../../extensions/deck/brand-import.mjs';
+import { roleOf, parseTokensJson, parseCss, readReadme, importBrandFile, kitValues, emptyKit } from '../../extensions/deck/brand-import.mjs';
 import { zip } from '../../extensions/deck/zip.mjs';
 
 const file = (name, data) => ({ name, arrayBuffer: async () => (typeof data === 'string' ? new TextEncoder().encode(data) : data).buffer });
@@ -49,6 +49,13 @@ test('a Claude Design bundle: tokens, CSS, README and both logos', async () => {
   assert.equal(kit.voice, 'Warm.');
   assert.deepEqual(kit.colors, { primary: '#0B6E4F', accent: '#E4572E' }, 'the tokens win over the CSS for a role both name');
   assert.deepEqual([kit.logos.light.name, kit.logos.light.type, kit.logos.dark.name], ['logo-primary.svg', 'image/svg+xml', 'logo-reverse.svg']);
+});
+
+test('a kit names only the fields its file holds, so an import again keeps the rest', () => {
+  const kit = parseCss(':root { --brand-primary: #0B6E4F; }', { ...emptyKit(), name: 'Harbour' });
+  assert.deepEqual(kitValues(kit), { source: 'Brandkits', name: 'Harbour', tokens: ':root { --brand-primary: #0B6E4F; }', primary: '#0B6E4F' });
+  const full = { ...emptyKit(), name: 'Harbour', voice: 'Plain.', tagline: 'Out to sea', tokens: '{}', fonts: { heading: 'Inter', body: 'Inter' }, colors: { primary: '#0B6E4F', ink: '#111111' } };
+  assert.deepEqual(kitValues(full), { source: 'Brandkits', name: 'Harbour', voice: 'Plain.', tagline: 'Out to sea', tokens: '{}', headingFont: 'Inter', bodyFont: 'Inter', primary: '#0B6E4F', ink: '#111111' });
 });
 
 test('a single logo, and a file that is no kit', async () => {

@@ -79,6 +79,20 @@ export function parseCss(text, kit = emptyKit()) {
 
 export const emptyKit = () => ({ name: '', colors: {}, fonts: {}, voice: '', tagline: '', logos: {}, tokens: '' });
 
+/**
+ * A kit's values by Brand kit field name (model.mjs F.brand). Only what the file holds is named, so
+ * importing a file again updates those fields and leaves the rest of the kit as the person had it;
+ * a new kit is given null for the rest.
+ */
+export function kitValues(kit) {
+  const values = { source: 'Brandkits' };
+  if (kit.name) values.name = kit.name;
+  for (const key of ['voice', 'tagline', 'tokens']) if (kit[key]) values[key] = kit[key];
+  for (const [role, key] of [['heading', 'headingFont'], ['body', 'bodyFont'], ['mono', 'monoFont']]) if (kit.fonts?.[role]) values[key] = kit.fonts[role];
+  for (const [role, value] of Object.entries(kit.colors ?? {})) if (value) values[role] = value;
+  return values;
+}
+
 const DARK_LOGO = /(dark|reverse|reversed|inverse|inverted|white|knockout|on[-_]?dark|negative)/i;
 
 /** A file the person picked or dropped: answers a kit, or throws a sentence saying why not. */
