@@ -91,6 +91,13 @@ async page => {
   await until(i => window.deck.slides[i]?.id === window.deck.slideId, added + 1);
   s = await state();
   assert(s.slides.every((x, i) => i === 0 || x.order > s.slides[i - 1].order), 'Orders must rise down the list after a move.');
+  // Typing, then a move: the move waits for the save the blur started, and moves on the first press.
+  await frame.fill('#f-title', 'Typed just before a move');
+  await page.evaluate(() => window.broker.hold('records.update', 600));
+  await frame.evaluate(() => document.activeElement.blur());
+  await command('slide.up');
+  await until(i => window.deck.slides[i]?.id === window.deck.slideId, added, 3000)
+    .catch(async () => { const now = await state(); throw Error(`A move right after typing must move on the first press: the slide is at ${now.slides.findIndex(x => x.id === now.slideId) + 1}, not ${added + 1}.`); });
   // A delete the file refuses keeps the typing that was waiting for its save.
   await frame.fill('#f-title', 'Typed before a refused delete');
   await page.evaluate(() => window.broker.fail('records.batch', { code: 'busy', message: 'The file is busy.' }));
@@ -219,6 +226,13 @@ async page => {
   }, { askId: ask.recordId, slideId: askSlide });
   await until(() => document.querySelectorAll('#variants .variant').length === 2);
   assert(await frame.locator(`#slides li[data-id="${askSlide}"].has-variants`).count() === 1, 'The slide in the list must say it has variants.');
+  // A Use the file refuses, after a save it refused too, keeps the typing in the fields the variant sets.
+  await frame.fill('#f-title', 'Typed before a refused Use');
+  await page.evaluate(() => { window.broker.fail('records.update', { code: 'busy', message: 'The file is busy.' }); window.broker.fail('records.batch', { code: 'busy', message: 'The file is busy.' }); });
+  await frame.evaluate(() => document.querySelector('#variants [data-use="dk.variant.v2"]').click());
+  await settle(1200);
+  const keptForUse = await frame.evaluate(id => window.deck.pending.get(id)?.values.title, askSlide);
+  assert(keptForUse === 'Typed before a refused Use', `A refused Use must keep the typing it would have replaced: ${JSON.stringify(keptForUse)}.`);
   // Typing in the pause before its save, then Use from the keyboard, which takes no focus away.
   await frame.fill('#notes', 'Typed before Use');
   await frame.evaluate(() => document.querySelector('#variants [data-use="dk.variant.v2"]').click());

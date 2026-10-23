@@ -647,6 +647,7 @@ function typeDeck(changes) {
 
 /** A new slide after the current one, ordered between its neighbours. */
 async function addSlide(layout = 'Bullets', values = {}) {
+  await flushAll();
   const d = currentDeck();
   if (!d) return;
   const at = deck.slides.findIndex(s => s.id === deck.slideId);
@@ -695,6 +696,7 @@ async function deleteSlide() {
 }
 
 async function moveSlide(from, to) {
+  await flushAll();
   if (to < 0 || to >= deck.slides.length || from === to) return;
   const changes = reorder(deck.slides, from, to);
   const writes = changes.map(c => ({ op: 'update', entityId: E.slide, recordId: c.id, version: deck.slides.find(s => s.id === c.id).record.version, values: { [F.slide.order]: c.order } }));
@@ -827,7 +829,7 @@ function refusalText(error) {
 
 async function useVariants(list) {
   await flushAll();
-  const writes = [], touched = new Set();
+  const writes = [], touched = new Set(), replaced = [];
   for (const variant of list) {
     const slideId = v(variant, F.variant.slide);
     const slide = deck.slides.find(s => s.id === slideId);
@@ -836,7 +838,7 @@ async function useVariants(list) {
     let changes = {};
     try { changes = pick(JSON.parse(v(variant, F.variant.changes) ?? '{}')); } catch { /* nothing to use */ }
     const pending = deck.pending.get(slideId);
-    if (pending) { for (const k of Object.keys(changes)) delete pending.values[k]; if (!Object.keys(pending.values).length) deck.pending.delete(slideId); }
+    if (pending) replaced.push([slideId, Object.keys(changes).filter(k => k in pending.values).map(k => [k, pending.values[k]])]);
     writes.push({ op: 'update', entityId: E.slide, recordId: slideId, version: slide.record.version, values: toValues(changes) });
     writes.push({ op: 'update', entityId: E.variant, recordId: variant.recordId, version: variant.version, values: { [F.variant.status]: 'Used' } });
     for (const other of deck.variants.filter(x => x !== variant && v(x, F.variant.slide) === slideId && v(x, F.variant.ask) === v(variant, F.variant.ask) && v(x, F.variant.status) === 'Proposed'))
@@ -845,6 +847,14 @@ async function useVariants(list) {
   if (!writes.length) return;
   try {
     await nendo.records.batch(writes, { label: list.length > 1 ? `Use ${touched.size} variants` : `Use ${v(list[0], F.variant.label) ?? 'a variant'}`.slice(0, 80), offerUndo: true });
+    // The variant replaced these fields; typing made in them since stays.
+    for (const [slideId, fields] of replaced) {
+      const pending = deck.pending.get(slideId);
+      if (!pending) continue;
+      for (const [k, val] of fields) if (pending.values[k] === val) delete pending.values[k];
+      if (!Object.keys(pending.values).length) deck.pending.delete(slideId);
+    }
+    keepDrafts();
     await refresh();
   } catch (error) { problem(error, 'The variant could not be used'); }
 }
