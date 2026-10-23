@@ -20,6 +20,7 @@ internal static partial class WorkbenchMethods
     internal const string AgentSessionPrompt = "agentSession.prompt";
     internal const string AgentSessionAttach = "agentSession.attach";
     internal const string AgentSessionImage = "agentSession.image";
+    internal const string AgentSessionRespond = "agentSession.respond";
     internal const string AgentSessionAnswer = "agentSession.answer";
     internal const string AgentSessionCancel = "agentSession.cancel";
     internal const string AgentSessionAuthenticate = "agentSession.authenticate";
@@ -33,7 +34,7 @@ internal static partial class WorkbenchMethods
     {
         AgentSessionList, AgentSessionSetCommand, AgentSessionSetHidden, AgentSessionLaunch, AgentSessionRead, AgentSessionPrompt,
         AgentSessionAnswer, AgentSessionCancel, AgentSessionAuthenticate, AgentSessionEnd, AgentSessionSetOption,
-        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn, AgentSessionAttach, AgentSessionImage,
+        AgentSessionSetViewAccess, AgentSessionTurn, AgentSessionSetStartIn, AgentSessionAttach, AgentSessionImage, AgentSessionRespond,
     };
 }
 
@@ -66,6 +67,8 @@ internal sealed partial class WorkbenchProtocolHandler
                 OptionalString(payload, "text", AgentConversation.MaximumPromptCharacters) ?? string.Empty, after, PointedAt(payload), conversation,
                 OptionalString(payload, "from", 120), Pictures(fileSessionId, payload)),
             WorkbenchMethods.AgentSessionAttach => StageAgentPicture(fileSessionId, payload, conversation),
+            WorkbenchMethods.AgentSessionRespond => _session.RespondLaunchedAgent(fileSessionId, RequiredString(payload, "entryId", 40),
+                RequiredString(payload, "action", 20), payload.TryGetProperty("content", out var answered) ? answered : default, after, conversation),
             WorkbenchMethods.AgentSessionImage => _session.ReadLaunchedAgentImage(fileSessionId, RequiredString(payload, "imageId", 20),
                 OptionalInt64(payload, "offset"), conversation),
             WorkbenchMethods.AgentSessionAnswer => _session.AnswerLaunchedAgent(fileSessionId,

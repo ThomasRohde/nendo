@@ -81,7 +81,7 @@ a path that is not fully qualified is dropped on read.
 
 ## The bridge methods
 
-Sixteen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
+Seventeen methods (`WorkbenchProtocol.Agents.cs`). Each names its file session in
 `fileSessionId`; a session no longer open is `stale-file-session`. All run off the UI thread
 (`WorkbenchMethods.OffUiThread`) and are dispatched after the actor check, so a request
 naming a custom view's `actor` is `actor-not-allowed`; the extension broker's method table
@@ -89,7 +89,7 @@ names none of them.
 
 `list`, `setCommand`, `setHidden`, `setViewAccess`, `setStartIn` and `launch` take the request gate, finding the agents
 first, since that reads nothing of the file: one `PATH` search at a time, shared by requests
-that arrive while it runs or within two seconds of its start. The other ten do not wait on
+that arrive while it runs or within two seconds of its start. The other eleven do not wait on
 the gate and check `fileSessionId` themselves, so the tab keeps reading while an agent's own
 write holds the file. Each of those except `read` is `agent-not-launched` when no agent was
 launched for the file, and may name the `conversationId` the tab holds; one naming a
@@ -110,6 +110,7 @@ restart with every launch.
 | `agentSession.image` | `imageId` (at most 20), `offset` | `{ base64, length, mediaType, next }`: 150,000 bytes of a picture an entry shows, from `offset`; `next` is null at the end. `agent-image-gone` once the conversation no longer keeps it. |
 | `agentSession.turn` | `turnId` (at most 40) | `{ turnId, done, reply, stopReason }`. `agent-turn-gone` once it is no longer kept. |
 | `agentSession.answer` | `entryId` (at most 40), `optionId` (at most 200), absent to cancel | `agent-question-gone` when the agent no longer waits; a validation refusal for an option not offered. |
+| `agentSession.respond` | `entryId` (at most 40), `action` (`accept`, `decline` or `cancel`), `content` for accept: field names to values | The conversation. `agent-question-gone` when the agent no longer waits; a validation refusal for an answer the form does not take. |
 | `agentSession.cancel` | `after`, optional `turnId` | Without `turnId`, the person's Stop: `session/cancel` for the running turn, every open permission request answered as cancelled, and every waiting message dropped. With `turnId`, a view's own turn: dropped while it waits, cancelled as Stop while it runs, nothing once ended. |
 | `agentSession.authenticate` | `methodId` (at most 200) | `agent-not-signing-in` unless the agent waits to sign in; `agent-signing-in` while a sign-in started here runs; a validation refusal for a way not offered. `signingIn` is true until it ends. |
 | `agentSession.setOption` | `configId` (at most 200), `value` (at most 300), `after` | `agent-not-ready`; a validation refusal for an option or value not offered; `agent-option-refused` when the agent refused or did not answer within 30 seconds. |
@@ -164,8 +165,8 @@ after New session or a file change, never merges a read whose `conversationId` d
 (`mergeChat`), and drops every entry before `firstOrder`.
 
 An entry is `{ id, order, revision, kind, text, title, toolKind, status, input, options,
-answer, plan, origin, images, error }`, `kind` one of `you`, `agent`, `thought`, `tool`, `plan`,
-`permission`, `notice`, `compaction`. Message and thought chunks join into one entry until something else
+answer, plan, origin, images, error, fields }`, `kind` one of `you`, `agent`, `thought`, `tool`,
+`plan`, `permission`, `notice`, `compaction`, `question`. Message and thought chunks join into one entry until something else
 intervenes, or until a chunk names another message by its ACP `messageId`, which starts a new
 entry; a chunk that names none joins the entry open before it. A tool call is one entry, updated in place; a diff in its content is kept as its
 path and the text before and after (each cut at 8,000 characters). The plan is one entry,
@@ -182,6 +183,24 @@ name alone decides. A server prefix counts only when it is the session's own ser
 A permission request's `text` is what its tool call says it would do: its content (a diff,
 text) and the places it names (`Where: path:line`), or else the tool call's text. The tab
 offers that text and the input before the person answers.
+
+**Questions** (`AgentConversation.Questions.cs`, `agent-question-model.ts`). `initialize` declares
+`elicitation.form` and never `elicitation.url` ([ADR-0030](../decisions/0030-launch-the-persons-own-agent-over-acp.md)).
+An `elicitation/create` in form mode is a `question` entry: `text` the agent's message (and the
+form's description after a blank line), `title` the form's title, `status` `waiting`, then
+`answered`, `declined` or `cancelled`, `answer` what was sent, and `fields`, at most 16, each
+`{ name, title, description, type, required, format, choices, minimum, maximum, minLength,
+maxLength, default }` with `type` `text` (with `format` `email`, `uri`, `date` or `date-time`),
+`number`, `integer`, `boolean`, `choice` (a string with `enum` or `oneOf`), `choices` (an array
+of strings) or `unsupported` for any other, never drawn as a known control. Titles and
+descriptions are redacted like every agent text. Any other mode, link mode included, is answered
+`decline` and never shown. The host never answers a question by itself; `agentSession.respond`
+answers it, and an `accept` is checked against the form (every required field, each value of its
+field's type, a choice among those offered, within its bounds, no field the form did not ask)
+before the agent gets `{ action: "accept", content }`. A form with an `unsupported` field can only
+be declined. Stop, End or the connection's end answers every open question `cancel`. A waiting
+question makes the tab say Waiting for you. The card shows each field with its label, says never
+to type a password or a key, and names a missing answer on the card before anything is sent.
 
 **Notices and compactions** (`AgentConversation.Notices.cs`). The agent's `notice` is a `notice`
 entry with `origin` `agent`: `title` its title (at most 300 characters; one without a title is
@@ -288,7 +307,8 @@ conversation ended first. The last 16 ended turns are kept, and every turn not e
 The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversation.cs`).
 
 - `initialize` declares no file-system or terminal capability (`fs.readTextFile`,
-  `fs.writeTextFile`, `terminal` all false), and declares `session.configOptions.boolean`,
+  `fs.writeTextFile`, `terminal` all false), declares `elicitation.form` (never `url`), and
+  declares `session.configOptions.boolean`,
   `session.notices` and `session.compaction`, so the agent may offer on/off settings and send
   notices and compactions. An agent answering another protocol version, or
   not declaring `agentCapabilities.mcpCapabilities.http`, is ended with a sentence naming
@@ -304,8 +324,8 @@ The handshake is ACP protocol version 1, bounded at 90 seconds (`AgentConversati
   the ways offered (at most eight). The agent program signs in, within five minutes; no secret
   passes through Nendo. One sign-in runs at a time, and an update naming another session is
   not drawn.
-- The only agent request the host answers is `session/request_permission`; any other is
-  method not found. A permission request shows the agent's own options (at most eight) and
+- The agent requests the host answers are `session/request_permission` and
+  `elicitation/create`; any other is method not found. A permission request shows the agent's own options (at most eight) and
   waits for the person; the host never answers by itself. Stop, End or the connection's end
   answers it as cancelled, drawn as cancelled when the turn stopped. The card names the
   tool's kind (Read, Edit, Delete, Run) beside the agent's title.

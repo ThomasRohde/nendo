@@ -302,7 +302,7 @@ export interface LaunchableAgents {
 export type ViewAgentAccess = 'never' | 'ask' | 'always';
 
 export type LaunchedAgentState = 'none' | 'starting' | 'signIn' | 'ready' | 'ended';
-export type AgentEntryKind = 'you' | 'agent' | 'thought' | 'tool' | 'plan' | 'permission' | 'notice' | 'compaction';
+export type AgentEntryKind = 'you' | 'agent' | 'thought' | 'tool' | 'plan' | 'permission' | 'notice' | 'compaction' | 'question';
 
 /**
  * One entry of a launched agent's conversation. Everything in it is the agent's own words or
@@ -330,6 +330,28 @@ export interface AgentTranscriptEntry {
   images?: AgentEntryImage[] | null;
   /** For a compaction: why it failed, as the agent said. */
   error?: string | null;
+  /** For a question the agent asks in a form: its fields, in the agent's order. */
+  fields?: AgentQuestionField[] | null;
+}
+
+/**
+ * One field of a question the agent asks (ACP elicitation, form mode): its name in the answer, its
+ * words, and what it takes. `type` is text, number, integer, boolean, choice, choices, or
+ * unsupported for one Nendo cannot show.
+ */
+export interface AgentQuestionField {
+  name: string;
+  title: string;
+  description: string | null;
+  type: string;
+  required: boolean;
+  format: string | null;
+  choices: Array<{ value: string; title: string }> | null;
+  minimum: number | null;
+  maximum: number | null;
+  minLength: number | null;
+  maxLength: number | null;
+  default: string | null;
 }
 
 /** A picture the agent or a tool showed: its type as its bytes say, its size and, where its header says, its pixels. */

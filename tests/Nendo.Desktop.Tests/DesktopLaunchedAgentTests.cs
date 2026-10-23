@@ -884,6 +884,75 @@ public sealed class DesktopLaunchedAgentTests
     }
 
     [TestMethod]
+    public async Task TheAgentsQuestionIsAskedInAFormAndAnsweredOnlyAsThePersonFillsIt()
+    {
+        await using var fixture = await Fixture.StartAsync("editData");
+        await fixture.LaunchAsync();
+        await fixture.WaitAsync(view => view.State == "ready");
+        var elicitation = fixture.Log().Single(entry => Method(entry) == "initialize").GetProperty("params").GetProperty("clientCapabilities").GetProperty("elicitation");
+        Assert.AreEqual(JsonValueKind.Object, elicitation.GetProperty("form").ValueKind, "Nendo did not declare form questions.");
+        Assert.IsFalse(elicitation.TryGetProperty("url", out _), "Nendo declared questions that send the person to an address.");
+        static JsonElement Content(object value) => JsonSerializer.SerializeToElement(value);
+
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "question", 0);
+        var asking = await fixture.WaitAsync(view => view.Entries.Any(entry => entry.Kind == "question"));
+        var question = asking.Entries.Single(entry => entry.Kind == "question");
+        Assert.AreEqual(("waiting", "A new request"), (question.Status, question.Title));
+        StringAssert.StartsWith(question.Text, "Tell me about the request.");
+        CollectionAssert.AreEqual(new[] { "text", "choice", "integer", "boolean", "choices" }, question.Fields!.Select(field => field.Type).ToArray());
+        Assert.AreEqual("Small", question.Fields![1].Choices![0].Title);
+        Assert.IsFalse(fixture.Log().Any(entry => entry.TryGetProperty("elicited", out _)), "The host answered the question by itself.");
+
+        // Checked before the agent hears anything: a required field, a choice not offered, a bound, a field not asked.
+        foreach (var refused in new object[]
+        {
+            new { size = "s" },
+            new { name = "Ada", count = 3, size = "xl" },
+            new { name = "Ada", count = 11 },
+            new { name = "Ada", count = 3, password = "hunter2" },
+            new { name = "Ada", count = 2.5 },
+        })
+        {
+            Assert.ThrowsExactly<NendoValidationException>(() => fixture.Controller.RespondLaunchedAgent(fixture.FileSessionId, question.Id, "accept", Content(refused), 0),
+                JsonSerializer.Serialize(refused));
+        }
+        Assert.IsFalse(fixture.Log().Any(entry => entry.TryGetProperty("elicited", out _)), "A refused answer reached the agent.");
+
+        fixture.Controller.RespondLaunchedAgent(fixture.FileSessionId, question.Id, "accept",
+            Content(new { name = "Ada", size = "l", count = 3, urgent = false, tags = new[] { "blue" } }), 0);
+        var answered = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Heard accept."));
+        var sent = fixture.Log().Single(entry => entry.TryGetProperty("elicited", out _)).GetProperty("elicited");
+        Assert.AreEqual("accept", sent.GetProperty("action").GetString());
+        var content = sent.GetProperty("content");
+        Assert.AreEqual(3, content.GetProperty("count").GetInt32());
+        Assert.AreEqual(JsonValueKind.False, content.GetProperty("urgent").ValueKind);
+        Assert.AreEqual("blue", content.GetProperty("tags")[0].GetString());
+        var done = answered.Entries.Single(entry => entry.Kind == "question");
+        Assert.AreEqual("answered", done.Status);
+        StringAssert.Contains(done.Answer, "Size: Large");
+
+        // Declined, and asked in link mode: the agent hears decline; link mode is never shown.
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "question", 0);
+        var second = (await fixture.WaitAsync(view => view.Entries.Count(entry => entry.Kind == "question") == 2)).Entries.Last(entry => entry.Kind == "question");
+        fixture.Controller.RespondLaunchedAgent(fixture.FileSessionId, second.Id, "decline", default, 0);
+        await fixture.WaitAsync(view => !view.Working && view.Entries.Count(entry => entry.Text == "Heard decline.") == 1);
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "question-link", 0);
+        var link = await fixture.WaitAsync(view => !view.Working && view.Entries.Count(entry => entry.Text == "Heard decline.") == 2);
+        Assert.AreEqual(2, link.Entries.Count(entry => entry.Kind == "question"), "A question in link mode was shown.");
+
+        // A field Nendo cannot show is never answered as if shown; Stop answers a waiting question as cancelled.
+        fixture.Controller.PromptLaunchedAgent(fixture.FileSessionId, "question-odd", 0);
+        var odd = (await fixture.WaitAsync(view => view.Entries.Count(entry => entry.Kind == "question") == 3)).Entries.Last(entry => entry.Kind == "question");
+        Assert.AreEqual("unsupported", odd.Fields![0].Type);
+        Assert.ThrowsExactly<NendoValidationException>(() => fixture.Controller.RespondLaunchedAgent(fixture.FileSessionId, odd.Id, "accept", Content(new { note = "x" }), 0));
+        await fixture.Controller.CancelLaunchedAgentTurnAsync(fixture.FileSessionId, 0);
+        var stopped = await fixture.WaitAsync(view => !view.Working && view.Entries.Any(entry => entry.Text == "Heard cancel."));
+        Assert.AreEqual("cancelled", stopped.Entries.Last(entry => entry.Kind == "question").Status);
+        var gone = Assert.ThrowsExactly<NendoPreconditionException>(() => fixture.Controller.RespondLaunchedAgent(fixture.FileSessionId, odd.Id, "decline", default, 0));
+        Assert.AreEqual("agent-question-gone", gone.Code);
+    }
+
+    [TestMethod]
     public async Task TheAgentsNoticesAndCompactionsAreInTheConversation()
     {
         await using var fixture = await Fixture.StartAsync("editData");

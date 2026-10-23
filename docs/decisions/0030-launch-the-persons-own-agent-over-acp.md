@@ -67,6 +67,10 @@ leases and change-set gate. The tab's gating is a convenience, not the protectio
   is the agent's, as its text is; Nendo cannot hide an application handle inside one.
 - A permission request shows the agent's own options. The host never answers one itself and never
   picks an *always* option for the person, at any level.
+- The agent may ask the person a question in a form (ACP elicitation, form mode): a card with the
+  form's fields, answered only as the person fills it in and checked against the form before the
+  agent gets it. Nendo never declares link mode, so an agent never sends the person to an
+  address through Nendo; a request in it is declined.
 - The agent's ACP session options (model, effort, mode and the rest) are shown on the Agent page
   while it runs, and a value is sent only when the person picks it there or on a view's launch
   card (ADR-0033). The values a person picks are kept per agent on this device, with the options

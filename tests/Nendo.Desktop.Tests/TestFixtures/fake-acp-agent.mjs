@@ -134,6 +134,24 @@ async function prompt(id, params) {
     send({ id, result: { stopReason: 'end_turn' } });
     return;
   }
+  if (text === 'question' || text === 'question-link' || text === 'question-odd') {
+    const requestedSchema = text === 'question-odd'
+      ? { type: 'object', properties: { scores: { type: 'array', items: { type: 'number' } }, note: { type: 'string' } } }
+      : { type: 'object', title: 'A new request', description: 'What the record needs.', required: ['name', 'count'], properties: {
+        name: { type: 'string', title: 'Name', maxLength: 50 },
+        size: { type: 'string', title: 'Size', oneOf: [{ const: 's', title: 'Small' }, { const: 'l', title: 'Large' }] },
+        count: { type: 'integer', title: 'How many', minimum: 1, maximum: 10 },
+        urgent: { type: 'boolean', title: 'Urgent', default: true },
+        tags: { type: 'array', title: 'Tags', items: { type: 'string', enum: ['red', 'blue'] } },
+      } };
+    const answer = await ask('elicitation/create', text === 'question-link'
+      ? { sessionId, mode: 'url', elicitationId: 'e1', url: 'https://example.com/sign-in', message: 'Sign in' }
+      : { sessionId, mode: 'form', message: 'Tell me about the request.', requestedSchema });
+    log({ elicited: answer });
+    update(sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `Heard ${answer.action}.` } });
+    send({ id, result: { stopReason: 'end_turn' } });
+    return;
+  }
   if (text === 'notices') {
     // As the schema says: a notice, the same one again, one with no title, and an unknown severity.
     update(sessionId, { sessionUpdate: 'notice', severity: 'warning', title: 'Rate limit close', description: '90% of this hour used.' });

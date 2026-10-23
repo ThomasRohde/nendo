@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Nendo.Engine;
 using Nendo.LocalMcp;
 
@@ -377,6 +378,14 @@ internal sealed partial class DesktopSessionController
         var agent = RequireLaunched(fileSessionId, conversationId);
         if (!agent.Conversation.TakesImages)
             throw new NendoPreconditionException("agent-takes-no-images", $"{agent.Command.Name} does not read pictures.");
+    }
+
+    /// <summary>The person's answer to a question the agent asked: accept with what they filled in, decline, or cancel.</summary>
+    internal DesktopLaunchedAgentView RespondLaunchedAgent(string fileSessionId, string entryId, string action, JsonElement content, long after, string? conversationId = null)
+    {
+        var agent = RequireLaunched(fileSessionId, conversationId);
+        agent.Conversation.Respond(entryId, action, content);
+        return ReadLaunchedCore(agent, after);
     }
 
     /// <summary>A window of a picture the agent showed, for the tab to draw it.</summary>

@@ -8,6 +8,7 @@ import { announce, content, rerender, showError, showKeptAlert } from './shell';
 import { drawTabs, onTabClosed, openTabOn, releaseOwnedPage, setTabStatus } from './workspace-tabs';
 import { clearPictures, heldPictureCount, resetPictures, stagePictures, wirePictures } from './agent-images';
 import { fillPictures, resetShownPictures, type PictureWindow } from './agent-pictures';
+import { questionAnswer, type QuestionRaw } from './agent-question-model';
 import { clearPointedAt, composerNote, mentionKey, pointedAt, resetMentions, wireMentions } from './agent-mention';
 import { commandKey, commandsChanged, wireCommands } from './agent-command-menu';
 import { keysLine } from './agent-command-model';
@@ -401,6 +402,11 @@ export function renderAgentChat(): void {
   const thread = content.querySelector<HTMLElement>('#chat-thread')!;
   thread.addEventListener('click', (event) => {
     const target = event.target instanceof Element ? event.target : null;
+    const decline = target?.closest<HTMLButtonElement>('[data-question-decline]');
+    if (decline) {
+      void act('agentSession.respond', { entryId: decline.dataset.questionDecline, action: 'decline' }, 'You declined the question.');
+      return;
+    }
     const answer = target?.closest<HTMLButtonElement>('[data-answer-entry]');
     if (answer) {
       void act('agentSession.answer', { entryId: answer.dataset.answerEntry, optionId: answer.dataset.optionId }, `You chose ${answer.textContent ?? 'an answer'}.`);
@@ -412,6 +418,19 @@ export function renderAgentChat(): void {
       if (expanded.has(key)) expanded.delete(key); else expanded.add(key);
       patchChat(false, key);
     }
+  });
+  // A question the agent asks in a form: the answer goes when the form is sent, by its button or Enter.
+  thread.addEventListener('submit', (event) => {
+    const form = event.target instanceof HTMLFormElement && event.target.matches('[data-question]') ? event.target : null;
+    if (form === null) return;
+    event.preventDefault();
+    const entry = chat.entries.get(form.dataset.question!);
+    if (entry === undefined || entry.fields === undefined || entry.fields === null) return;
+    const answer = questionAnswer(entry.fields, questionRaw(form));
+    const error = form.querySelector<HTMLElement>('.chat-question-error')!;
+    if ('error' in answer) { error.textContent = answer.error; error.hidden = false; return; }
+    error.hidden = true;
+    void act('agentSession.respond', { entryId: entry.id, action: 'accept', content: answer.content }, 'Your answer was sent.');
   });
   content.querySelector<HTMLElement>('#chat-sign-in')!.addEventListener('click', (event) => {
     const method = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-sign-in]') : null;
@@ -452,6 +471,21 @@ function focusedControl(item: HTMLElement): ((next: HTMLElement) => HTMLElement 
   const controls = (root: HTMLElement): HTMLElement[] => [...root.querySelectorAll<HTMLElement>('button, summary, a[href], [tabindex]')];
   const at = controls(item).indexOf(active);
   return at < 0 ? null : (next) => controls(next)[at] ?? null;
+}
+
+/** What a question's controls hold: a box's text, a list's value, yes or no, the ticked choices. */
+function questionRaw(form: HTMLFormElement): QuestionRaw {
+  const raw: QuestionRaw = {};
+  for (const control of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-question-field]')) {
+    const name = control.dataset.questionField!;
+    if (control instanceof HTMLInputElement && control.type === 'checkbox' && control.closest('.chat-question-choices') !== null) {
+      const ticked = Array.isArray(raw[name]) ? raw[name] : [];
+      if (control.checked) ticked.push(control.value);
+      raw[name] = ticked;
+    } else if (control instanceof HTMLInputElement && control.type === 'checkbox') raw[name] = control.checked;
+    else raw[name] = control.value;
+  }
+  return raw;
 }
 
 async function send(): Promise<void> {

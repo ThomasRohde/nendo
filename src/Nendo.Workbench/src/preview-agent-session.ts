@@ -132,6 +132,21 @@ export class PreviewAgentSession {
       case 'agentSession.launch': return this.launch(String(payload.agentId ?? ''),
         typeof payload.settings === 'object' && payload.settings !== null ? payload.settings as Record<string, string> : {});
       case 'agentSession.read': return this.read(Number(payload.after ?? 0));
+      case 'agentSession.respond': {
+        const entry = this.entries.find((candidate) => candidate.id === String(payload.entryId ?? '') && candidate.kind === 'question' && candidate.status === 'waiting');
+        if (entry === undefined) throw new WorkbenchHostError('agent-question-gone', 'The agent is no longer waiting for that answer.');
+        const action = String(payload.action ?? '');
+        const content = (payload.content ?? {}) as Record<string, unknown>;
+        if (action === 'accept' && (typeof content.name !== 'string' || content.name === '')) throw new WorkbenchHostError('validation', 'Name needs an answer.');
+        entry.status = action === 'accept' ? 'answered' : action === 'decline' ? 'declined' : 'cancelled';
+        entry.answer = action === 'accept' ? Object.entries(content).map(([key, value]) => `${key}: ${String(value)}`).join(' · ') : action === 'decline' ? 'Declined' : 'Cancelled';
+        entry.revision = this.revision + 1;
+        this.add({ kind: 'agent', text: action === 'accept' ? `Thanks: ${entry.answer}.` : 'Then I will ask in a message.' });
+        this.working = false;
+        this.endTurn('end_turn');
+        this.touch();
+        return this.read(Number(payload.after ?? 0));
+      }
       case 'agentSession.image': {
         const id = String(payload.imageId ?? '');
         if (id !== 'p1') throw new WorkbenchHostError('agent-image-gone', 'That picture is no longer kept.');
@@ -344,6 +359,19 @@ export class PreviewAgentSession {
     if (text.trim() === 'parallel') return { ...this.parallel(after), turnId };
     // A slash command is the agent's own, run below, even one named /compact.
     const command = text.trim().startsWith('/');
+    if (!command && /\bquestion\b/i.test(text)) {
+      // The preview agent asks in a form, as an agent that needs a detail does.
+      this.later(300, () => {
+        this.add({ kind: 'question', text: 'What should the new request record type be called?', title: 'A new record type', status: 'waiting', fields: [
+          { name: 'name', title: 'Name', description: null, type: 'text', required: true, format: null, choices: null, minimum: null, maximum: null, minLength: null, maxLength: 60, default: null },
+          { name: 'size', title: 'Size', description: 'How many fields to start with', type: 'choice', required: false, format: null,
+            choices: [{ value: 's', title: 'Small' }, { value: 'l', title: 'Large' }], minimum: null, maximum: null, minLength: null, maxLength: null, default: null },
+          { name: 'urgent', title: 'Urgent', description: null, type: 'boolean', required: false, format: null, choices: null, minimum: null, maximum: null, minLength: null, maxLength: null, default: 'false' },
+        ] });
+        this.touch();
+      });
+      return { ...this.read(after), turnId };
+    }
     if (!command && /\bcompact\b/i.test(text)) {
       // The preview agent warns, then shortens the conversation, as an agent near its limit does.
       this.later(300, () => {

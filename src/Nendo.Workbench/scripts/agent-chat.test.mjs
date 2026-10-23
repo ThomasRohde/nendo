@@ -368,3 +368,36 @@ test('the agent\'s notice says its severity and title; a compaction is its own l
   assert.match(failed, /<details data-part="e1:summary"><summary>What it kept<\/summary>/);
   assert.ok(!failed.includes('<img src=x'), failed);
 });
+
+const { questionAnswer, questionMarkup } = await bundleOf('src/agent-question-model.ts');
+
+test('the agent\'s question is a card with its fields, and the answer read from it keeps each field\'s type', () => {
+  const field = (fields) => ({ description: null, required: false, format: null, choices: null, minimum: null, maximum: null, minLength: null, maxLength: null, default: null, ...fields });
+  const fields = [
+    field({ name: 'name', title: hostile, type: 'text', required: true }),
+    field({ name: 'count', title: 'How many', type: 'integer', minimum: 1, maximum: 10 }),
+    field({ name: 'size', title: 'Size', type: 'choice', choices: [{ value: 's', title: 'Small' }] }),
+    field({ name: 'urgent', title: 'Urgent', type: 'boolean' }),
+    field({ name: 'tags', title: 'Tags', type: 'choices', choices: [{ value: 'red', title: 'Red' }, { value: 'blue', title: 'Blue' }] }),
+  ];
+  const entry = { id: 'e1', order: 1, revision: 1, kind: 'question', text: 'Tell me.', title: null, toolKind: null, status: 'waiting', input: null, options: null, answer: null, plan: null, origin: null, fields };
+  const card = questionMarkup(entry, 'Copilot', 'e1');
+  assert.match(card, /<form class="chat-question" data-item="e1" data-question="e1"/);
+  assert.match(card, /data-question-field="count" type="number" step="1" min="1" max="10"/);
+  assert.match(card, /Never type a password/);
+  assert.ok(!card.includes('<img src=x'), card);
+  const chat = emptyChat();
+  mergeChat(chat, { ...view(), entries: [entry] }, 'k1');
+  assert.equal(waitingForYou(chat), true, 'a waiting question did not say the agent waits for the person');
+
+  assert.deepEqual(questionAnswer(fields, { name: '', count: '', size: '', urgent: false, tags: [] }), { error: `${hostile} needs an answer.` });
+  assert.deepEqual(questionAnswer(fields, { name: 'Ada', count: '2.5', size: '', urgent: false, tags: [] }), { error: 'How many is a whole number.' });
+  assert.deepEqual(questionAnswer(fields, { name: 'Ada', count: '3', size: 's', urgent: true, tags: ['blue'] }),
+    { content: { name: 'Ada', count: 3, size: 's', urgent: true, tags: ['blue'] } });
+
+  const odd = questionMarkup({ ...entry, fields: [field({ name: 'scores', title: 'Scores', type: 'unsupported' })] }, 'Copilot', 'e1');
+  assert.ok(!odd.includes('type="submit"'), 'a form Nendo cannot show offered to send an answer');
+  assert.match(odd, /data-question-decline="e1"/);
+  const done = questionMarkup({ ...entry, status: 'answered', answer: 'Name: Ada' }, 'Copilot', 'e1');
+  assert.ok(!done.includes('<form'), 'an answered question still offers its form');
+});

@@ -623,6 +623,96 @@
   text-align: center;
 }
 
+/* A question the agent asks in a form: a card like a permission request, one field per row. */
+.chat-question {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.chat-question-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-question-head svg {
+  width: 16px;
+  height: 16px;
+  color: var(--cobalt);
+}
+
+.chat-question p {
+  margin: 0;
+}
+
+.chat-question-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: center;
+}
+
+.chat-question-row small {
+  grid-column: 2;
+  color: var(--muted);
+}
+
+.chat-question-row input[type="text"],
+.chat-question-row input[type="email"],
+.chat-question-row input[type="url"],
+.chat-question-row input[type="date"],
+.chat-question-row input[type="number"],
+.chat-question-row select {
+  max-width: 360px;
+}
+
+.chat-question-row input[type="checkbox"] {
+  justify-self: start;
+}
+
+.chat-question-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.chat-question-note,
+.chat-question-unsupported {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.chat-question-error {
+  color: var(--warning);
+}
+
+.chat-question-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-question.is-done {
+  border-color: var(--line);
+}
+
+.chat-question-answer {
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .chat-question-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chat-question-row small {
+    grid-column: 1;
+  }
+}
+
 /* The agent's own notice: its severity in colour, its title first. */
 .chat-notice.is-agent {
   display: flex;

@@ -35,7 +35,8 @@ internal sealed record AgentTranscriptEntry(
     string? Origin = null,
     string? From = null,
     IReadOnlyList<AgentEntryImageView>? Images = null,
-    string? Error = null);
+    string? Error = null,
+    IReadOnlyList<AgentQuestionFieldView>? Fields = null);
 
 /// <summary>
 /// What a reader is told: the state, and the entries that changed after its revision.
@@ -154,6 +155,8 @@ internal sealed partial class AgentConversation : IAsyncDisposable
                 {
                     fs = new { readTextFile = false, writeTextFile = false },
                     terminal = false,
+                    // The agent may ask the person a question in a form; never send them to an address.
+                    elicitation = new { form = new { } },
                     // The agent may offer on/off settings, which the Agent page shows as switches, and
                     // tell the person things in notices and compactions, which the thread shows.
                     session = new { configOptions = new { boolean = new { } }, notices = new { }, compaction = new { } },
@@ -453,16 +456,19 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     {
         string? sessionId;
         PendingPermission[] open;
+        PendingQuestion[] questions;
         long revision;
         lock (_sync)
         {
             sessionId = _working ? _sessionId : null;
             open = _permissions.Values.ToArray();
+            questions = CancelQuestionsLocked();
             DropQueue("cancelled");
             revision = Touch();
         }
         Raise(revision);
         foreach (var permission in open) permission.Answer.TrySetResult(null);
+        foreach (var question in questions) question.Answer.TrySetResult(QuestionCancelled());
         if (sessionId is null) return;
         try { await _connection.NotifyAsync("session/cancel", new { sessionId }); }
         catch (AcpConnectionClosedException) { }
@@ -487,6 +493,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
     internal void End(string notice)
     {
         PendingPermission[] open;
+        PendingQuestion[] questions;
         long revision;
         lock (_sync)
         {
@@ -499,9 +506,11 @@ internal sealed partial class AgentConversation : IAsyncDisposable
             Add("notice", _notice);
             DropQueue("ended");
             open = _permissions.Values.ToArray();
+            questions = CancelQuestionsLocked();
             revision = Touch();
         }
         foreach (var permission in open) permission.Answer.TrySetResult(null);
+        foreach (var question in questions) question.Answer.TrySetResult(QuestionCancelled());
         _ending.Cancel();
         _ended.TrySetResult();
         Raise(revision);
@@ -525,6 +534,7 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         method switch
         {
             "session/request_permission" => AskPersonAsync(parameters, cancellationToken),
+            "elicitation/create" => AskQuestionAsync(parameters, cancellationToken),
             // Declared off in initialize; an agent that asks anyway is told Nendo does not serve it.
             _ => throw new AcpMethodNotFoundException(method),
         };
@@ -952,11 +962,17 @@ internal sealed partial class AgentConversation : IAsyncDisposable
         /// <summary>For a compaction: why it failed, as the agent said.</summary>
         internal string? Error { get; set; }
 
+        /// <summary>For a question: its form's fields, as the agent stated them.</summary>
+        internal IReadOnlyList<AgentQuestionFieldView>? Fields { get; set; }
+
+        /// <summary>For a question: the tool call it belongs to, when the agent says. Not shown.</summary>
+        internal string? ToolCallId { get; set; }
+
         /// <summary>The entry as the tab is sent it: every text the agent wrote passes the one redaction boundary.</summary>
         internal AgentTranscriptEntry View() =>
             new(Id, Order, Revision, Kind, Redact(Text.ToString()), Title is null ? null : Redact(Title), ToolKind, Status,
                 Input is null ? null : Redact(Input), Options, Answer, Plan, Origin, From, Images?.ToArray(),
-                Error is null ? null : Redact(Error));
+                Error is null ? null : Redact(Error), Fields);
     }
 
     private sealed class PendingPermission(TaskCompletionSource<string?> answer)

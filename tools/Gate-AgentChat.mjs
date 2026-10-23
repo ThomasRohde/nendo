@@ -429,6 +429,28 @@ async page => {
   assert(told.compaction?.includes('shortened the conversation') && told.folded, `the compaction is ${JSON.stringify(told)}.`);
   checks.push('the agent\'s notices and compactions are in the thread');
 
+  // A question the agent asks in a form: a card with its fields; a missing answer is said on the
+  // card, and the answer the person fills in is what the agent hears.
+  await until(() => document.querySelector('#chat-state-label')?.textContent === 'Ready' && !document.querySelector('#send-prompt').hidden,
+    null, 'the agent to finish its turn', 8000);
+  await box.fill('I have a question for you');
+  await box.press('Enter');
+  await until(() => document.querySelector('form.chat-question [data-question-field="name"]') !== null, null, 'the question card', 6000);
+  await until(() => document.querySelector('#chat-state-label')?.textContent === 'Waiting for you', null, 'the tab to say the agent waits for the person', 3000)
+    .catch(async () => { throw Error(`with a question open the tab says "${await text('#chat-state-label')}".`); });
+  await page.click('form.chat-question button[type="submit"]');
+  await until(() => { const error = document.querySelector('form.chat-question .chat-question-error'); return error !== null && !error.hidden && error.textContent.includes('Name needs an answer'); },
+    null, 'the missing answer said on the card', 3000);
+  await page.fill('form.chat-question [data-question-field="name"]', 'Requests');
+  await page.selectOption('form.chat-question [data-question-field="size"]', 'l');
+  await page.check('form.chat-question [data-question-field="urgent"]');
+  await page.click('form.chat-question button[type="submit"]');
+  await until(() => [...document.querySelectorAll('.chat-agent')].some(reply => reply.textContent.includes('Thanks: name: Requests · size: l · urgent: true')),
+    null, 'the agent to hear the answer', 4000)
+    .catch(async () => { throw Error(`the agent heard ${JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('.chat-agent')].at(-1)?.textContent))}.`); });
+  assert(await page.evaluate(() => document.querySelector('.chat-question.is-done') !== null), 'the answered question still offers its form.');
+  checks.push('the agent\'s question is answered in its form');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, more, checks, errors };
 

@@ -2,6 +2,7 @@ import { escapeAttribute, escapeHtml } from './format';
 import { icon, type IconName } from './icons';
 import { markdownMarkup } from './markdown';
 import type { AgentCommand, AgentEntryImage, AgentOption, AgentTranscriptEntry, AgentUsage, LaunchedAgentState, LaunchedAgentView } from './host-types';
+import { questionMarkup } from './agent-question-model';
 
 /**
  * The conversation with an agent launched from the Agent page (ADR-0030), as the tab holds it:
@@ -130,9 +131,10 @@ export function orderedEntries(chat: AgentChat): AgentTranscriptEntry[] {
   return [...chat.entries.values()].sort((left, right) => left.order - right.order);
 }
 
-/** A permission request still waiting for the person. */
+/** A permission request, or a question the agent asks, still waiting for the person. */
 export function waitingForYou(chat: AgentChat): boolean {
-  return chat.state === 'ready' && [...chat.entries.values()].some((entry) => entry.kind === 'permission' && entry.answer === null);
+  return chat.state === 'ready' && [...chat.entries.values()].some((entry) =>
+    (entry.kind === 'permission' && entry.answer === null) || (entry.kind === 'question' && entry.status === 'waiting'));
 }
 
 export function stateLabel(chat: AgentChat): string {
@@ -224,7 +226,7 @@ export function composerState(chat: AgentChat): { canSend: boolean; canStop: boo
  * agent's tool calls, thoughts and plan between two messages) folded into one line.
  */
 export type ThreadItem =
-  | { key: string; type: 'you' | 'agent' | 'notice' | 'permission' | 'compaction'; entry: AgentTranscriptEntry }
+  | { key: string; type: 'you' | 'agent' | 'notice' | 'permission' | 'compaction' | 'question'; entry: AgentTranscriptEntry }
   | { key: string; type: 'steps'; entries: AgentTranscriptEntry[] };
 
 export function threadItems(chat: AgentChat): ThreadItem[] {
@@ -240,7 +242,7 @@ export function threadItems(chat: AgentChat): ThreadItem[] {
       continue;
     }
     run = null;
-    items.push({ key: entry.id, type: entry.kind === 'you' || entry.kind === 'agent' || entry.kind === 'permission' || entry.kind === 'compaction' ? entry.kind : 'notice', entry });
+    items.push({ key: entry.id, type: entry.kind === 'you' || entry.kind === 'agent' || entry.kind === 'permission' || entry.kind === 'compaction' || entry.kind === 'question' ? entry.kind : 'notice', entry });
   }
   return items;
 }
@@ -322,6 +324,8 @@ export function itemMarkup(item: ThreadItem, agentName: string, expanded: Readon
       return noticeMarkup(entry, agentName, key);
     case 'compaction':
       return compactionMarkup(entry, agentName, key);
+    case 'question':
+      return questionMarkup(entry, agentName, key);
   }
 }
 
