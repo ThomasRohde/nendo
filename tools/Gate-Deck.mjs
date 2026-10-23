@@ -274,7 +274,37 @@ async page => {
   assert(await frame.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('deck.drafts.')).length) === 0, 'A draft that was saved must leave the device.');
   checks.push('typing kept over a remount');
 
-  // 14. A file with no deck opens on the start screen; its six templates fit the width.
+  // 14. Opening another deck waits for the slide's save in flight, and typing in the deck's own
+  // fields stays with the deck it was typed in: two fields in one pause both land, and a deck opened
+  // before the pause takes neither.
+  const firstDeck = await record('dk.deck', deckRecord.recordId);
+  await page.evaluate(d => {
+    window.broker.put('dk.deck', { ...d, recordId: 'dk.deck.second', version: 1, values: { ...d.values, 'dk.deck.title': 'Second deck', 'dk.deck.subtitle': null, 'dk.deck.footer': null } });
+    window.broker.pushChanges();
+  }, firstDeck);
+  await until(() => window.deck.decks.length === 2);
+  await frame.click('#tab-design');
+  await frame.fill('#d-subtitle', 'Typed subtitle');
+  await frame.fill('#d-footer', 'Typed footer');
+  await page.evaluate(() => window.broker.pushPlace({ deck: 'dk.deck.second' }));
+  await until(() => window.deck.deckId === 'dk.deck.second');
+  await settle(1200);
+  const [one, two] = [await record('dk.deck', deckRecord.recordId), await record('dk.deck', 'dk.deck.second')];
+  assert(one.values['dk.deck.subtitle'] === 'Typed subtitle' && one.values['dk.deck.footer'] === 'Typed footer' && !two.values['dk.deck.subtitle'] && !two.values['dk.deck.footer'],
+    `Both fields typed in one pause must land on the deck they were typed in: ${JSON.stringify({ one: [one.values['dk.deck.subtitle'], one.values['dk.deck.footer']], two: [two.values['dk.deck.subtitle'], two.values['dk.deck.footer']] })}.`);
+  await page.evaluate(id => window.broker.pushPlace({ deck: id }), deckRecord.recordId);
+  await until(id => window.deck.deckId === id && window.deck.slides.length > 0, deckRecord.recordId);
+  await frame.click('#tab-slide');
+  await page.evaluate(() => window.broker.hold('records.update', 900));
+  await frame.fill('#f-title', 'Slow title');
+  const asked = Date.now();
+  await page.evaluate(() => window.broker.pushPlace({ deck: 'dk.deck.second' }));
+  await until(() => window.deck.deckId === 'dk.deck.second');
+  const waited = Date.now() - asked;
+  assert(waited >= 700, `Opening another deck must wait for the slide's save in flight: it opened after ${waited} ms of a 900 ms write.`);
+  checks.push('saves wait, deck typing stays with its deck');
+
+  // 15. A file with no deck opens on the start screen; its six templates fit the width.
   await page.evaluate(empty => { window.broker.setFixture(empty); window.broker.remount(); }, empty);
   await page.waitForTimeout(300);
   frame = await mounted();

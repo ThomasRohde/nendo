@@ -49,7 +49,7 @@ const v = (record, field) => record?.values?.[field] ?? null;
 const currentDeck = () => deck.decks.find(d => d.recordId === deck.deckId) ?? null;
 const visibleSlides = () => deck.slides;
 const currentSlide = () => deck.slides.find(s => s.id === deck.slideId) ?? deck.slides[0] ?? null;
-function debounce(fn, ms) { let t = null; const run = (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; run.flush = (...a) => { clearTimeout(t); fn(...a); }; return run; }
+function debounce(fn, ms) { let t = null; const run = (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; run.flush = (...a) => { clearTimeout(t); return fn(...a); }; return run; }
 
 // ---- Reading the file --------------------------------------------------------------------------
 
@@ -478,11 +478,17 @@ function edit(changes, { now = false } = {}) {
 const redrawSoon = debounce(() => { drawStage(); drawSorter(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
 function drawSlidePaneQuiet() { const s = currentSlide(); if (s) { $('layout-hint').textContent = layoutOf(s.layout).hint; } }
 
-let saving = false;
-const save = debounce(async () => {
-  if (saving) { save(); return; }
-  saving = true;
-  try {
+let saving = null;
+/** A save asked for while one is out waits for it and then saves what is left, so awaiting a flush waits for the write. */
+const save = debounce(() => {
+  if (saving) return saving.then(() => deck.pending.size ? save.flush() : undefined);
+  saving = savePending().finally(() => { saving = null; keepDrafts(); });
+  return saving;
+}, 650);
+async function savePending() {
+  // A write that meets a newer version reads the record again and goes once more, in this same save.
+  for (let pass = 0; pass < 3 && deck.pending.size; pass++) {
+    let again = false;
     for (const [id, pending] of [...deck.pending]) {
       const slide = deck.slides.find(s => s.id === id);
       if (!slide) { deck.pending.delete(id); continue; }
@@ -497,13 +503,14 @@ const save = debounce(async () => {
         const fresh = await nendo.records.get(E.slide, id).catch(() => null);
         if (!fresh) { deck.pending.delete(id); problem(error, 'The slide could not be saved; it was deleted'); continue; }
         slide.record = fresh;
-        if (error?.code && /version|conflict|stale/i.test(error.code + error.message)) { save(); continue; }
+        if (error?.code && /version|conflict|stale/i.test(error.code + error.message)) { again = true; continue; }
         problem(error, 'The slide could not be saved');
         deck.pending.delete(id);
       }
     }
-  } finally { saving = false; keepDrafts(); }
-}, 650);
+    if (!again) break;
+  }
+}
 
 // Nendo ends a view's frame without asking (ADR-0013), so typing still waiting for its save is kept
 // in the package's own storage until the save lands, and saved when the view starts again.
@@ -535,8 +542,8 @@ async function restoreDrafts() {
   return restored;
 }
 
-async function editDeck(changes) {
-  const d = currentDeck();
+async function editDeck(changes, id = deck.deckId) {
+  const d = deck.decks.find(x => x.recordId === id);
   if (!d) return;
   const values = {};
   for (const [k, val] of Object.entries(changes)) values[F.deck[k]] = val === '' ? null : val;
@@ -546,12 +553,21 @@ async function editDeck(changes) {
   try {
     const record = await nendo.records.update({ entityId: E.deck, recordId: d.recordId, version: d.version }, values, Object.keys(targetVersions).length ? { targetVersions } : undefined);
     Object.assign(d, record);
+    if (id !== deck.deckId) return;
     deck.theme = themeFor(d);
     await resolveMedia(); await loadFonts(deck.theme);
     laidCache.clear(); drawAll();
   } catch (error) { problem(error, 'The deck could not be changed'); }
 }
-const editDeckSoon = debounce(editDeck, 700);
+// Typing in the deck's own fields gathers under the deck it was typed in: a second field in the
+// pause never drops the first, and a deck opened before the pause never takes the other's words.
+let deckTyping = null;
+const saveDeckTyping = debounce(() => { const typed = deckTyping; deckTyping = null; return typed ? editDeck(typed.changes, typed.id) : undefined; }, 700);
+function typeDeck(changes) {
+  if (deckTyping && deckTyping.id !== deck.deckId) saveDeckTyping.flush();
+  deckTyping = { id: deck.deckId, changes: { ...(deckTyping?.changes ?? {}), ...changes } };
+  saveDeckTyping();
+}
 
 /** A new slide after the current one, ordered between its neighbours. */
 async function addSlide(layout = 'Bullets', values = {}) {
@@ -886,7 +902,7 @@ function select(id, { place = true } = {}) {
 
 async function openDeck(id) {
   if (id === deck.deckId) return;
-  await save.flush();
+  await Promise.all([save.flush(), saveDeckTyping.flush()]);
   deck.deckId = id; deck.slideId = null;
   laidCache.clear();
   await refresh();
@@ -1095,7 +1111,7 @@ function wire() {
   inspector.addEventListener('dragover', e => { if (deck.tab === 'design' && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); inspector.classList.add('drop'); } });
   inspector.addEventListener('dragleave', () => inspector.classList.remove('drop'));
   inspector.addEventListener('drop', e => { if (deck.tab !== 'design' || !e.dataTransfer.files.length) return; e.preventDefault(); inspector.classList.remove('drop'); importBrand(e.dataTransfer.files[0]); });
-  for (const input of document.querySelectorAll('[data-deck]')) input.addEventListener('input', () => editDeckSoon({ [input.dataset.deck]: input.value }));
+  for (const input of document.querySelectorAll('[data-deck]')) input.addEventListener('input', () => typeDeck({ [input.dataset.deck]: input.value }));
   $('d-numbers').addEventListener('change', () => editDeck({ numbers: $('d-numbers').checked }));
   $('asks').addEventListener('click', e => {
     const use = e.target.closest('[data-use-all]'), drop = e.target.closest('[data-dismiss-all]');
@@ -1135,7 +1151,7 @@ function wire() {
       select(deck.slides[Math.max(0, Math.min(deck.slides.length - 1, i + (e.key === 'PageDown' ? 1 : -1)))].id);
     }
   });
-  addEventListener('pagehide', () => save.flush());
+  addEventListener('pagehide', () => { save.flush(); saveDeckTyping.flush(); });
 }
 const chosenStartTemplate = () => $('start-templates').dataset.chosen || deck.templates[0]?.recordId || null;
 
