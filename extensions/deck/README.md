@@ -1,10 +1,10 @@
 # Deck
 
-Slide decks in one `.nendo` file, which opens on the Deck view (`dk.view`, an `extensionView` with
-`opensFile`). The package is `org.nendo.deck`; everything in this folder but `nendo-package.json` and
-`README.md` is what the file carries. `tools/Build-Deck.mjs` builds a Deck file from
-`tools/deck/definition.mjs` into an empty file Nendo has open, and `tools/Review-Deck.ps1` is its
-lane. The owner's `workspace/Deck.nendo` holds their own decks and is not in git.
+Slide decks in one `.nendo` file. `workspace/Deck.nendo` opens on the Deck view (`dk.view`, an
+`extensionView` with `opensFile`). The package is `org.nendo.deck`; everything in this folder but
+`nendo-package.json` and `README.md` is what the file carries. `tools/Build-Deck.mjs` builds a Deck
+file from `tools/deck/definition.mjs` into an empty file Nendo has open, and brings a built file's
+package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
 
 ## The records
 
