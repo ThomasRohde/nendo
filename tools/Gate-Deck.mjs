@@ -173,6 +173,16 @@ async page => {
     return { primaryText: contrast(c.primaryText, c.bg), ink: contrast(c.ink, c.bg), muted: contrast(c.muted, c.bg) };
   });
   assert(contrast.primaryText >= 3 && contrast.ink >= 7 && contrast.muted >= 4.5, `The brand's colours must stay legible on the template: ${JSON.stringify(contrast)}.`);
+  // The same kit again from a file that holds one colour changes that colour and keeps the rest.
+  await frame.evaluate(() => {
+    const tokens = { name: 'Northwind', color: { brand: { primary: { $value: '#0A5C42' } } } };
+    const data = new DataTransfer(); data.items.add(new File([JSON.stringify(tokens)], 'tokens.json', { type: 'application/json' }));
+    document.getElementById('inspector').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+  });
+  await page.waitForFunction(id => window.broker.record('dk.brand', id)?.values['dk.brand.primary'] === '#0A5C42', kit.recordId, { timeout: 8000 });
+  const again = await record('dk.brand', kit.recordId);
+  const lost = ['dk.brand.accent', 'dk.brand.ink', 'dk.brand.headingFont', 'dk.brand.tagline', 'dk.brand.voice'].filter(k => again.values[k] !== want[k]);
+  assert(lost.length === 0 && (await records('dk.brand')).length === 1, `An import again must keep what its file does not hold: ${JSON.stringify(lost.map(k => [k, again.values[k]]))}.`);
   checks.push('brand kit import');
 
   // 8. An ask is a record first, then a message that names the skill, with the ask and deck as context.
