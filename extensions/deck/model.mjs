@@ -152,7 +152,8 @@ export function numberIn(cell) {
 /** The chart a table describes: labels down the first column, one series per other column. */
 export function chartData(body) {
   const t = table(body);
-  if (!t || t.head.length < 2) return null;
+  // A table with no rows is no data: a chart of nothing would divide by nothing.
+  if (!t || t.head.length < 2 || !t.rows.length) return null;
   const series = t.head.slice(1).map((name, i) => ({ name, values: t.rows.map(r => numberIn(r[i + 1]) ?? 0) }));
   return { labels: t.rows.map(r => r[0]), series, unit: unitOf(t.rows.map(r => r[1]).join(' ')) };
 }

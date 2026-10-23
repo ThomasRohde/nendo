@@ -69,6 +69,10 @@ test('a signed axis runs through nought and holds the least and greatest values'
   assert.deepEqual(signedScale([0, 0]), { min: 0, max: 1, step: 0.25 });
 });
 
+test('a chart table with a head and no rows is no data', () => {
+  assert.equal(chartData('| Year | Sales |\n|---|---:|'), null);
+});
+
 test('numbers on axes are tidy', () => {
   assert.deepEqual([formatNumber(1500000), formatNumber(25000), formatNumber(3.25), formatNumber(40, '%')], ['1.5M', '25k', '3.3', '40%']);
   assert.deepEqual(niceScale(87), { max: 100, step: 25 });

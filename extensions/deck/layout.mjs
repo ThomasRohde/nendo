@@ -205,7 +205,9 @@ function title(g, value, x, y, w, h, opts = {}) {
 /** Kicker and title at the top of a content slide, with the family's rule. Answers the content top. */
 function header(g, opts = {}) {
   const { X, W, c, theme, slide } = g;
-  const x = opts.x ?? X, w = opts.w ?? W - 2 * X - (theme.brand?.logo && !opts.x ? 170 : 0);
+  // The top-right logo (chrome) sits at the right of this header, however wide it is given.
+  const logo = !!(theme.brand?.logo || theme.brand?.logoDark);
+  const x = opts.x ?? X, w = (opts.w ?? W - 2 * X) - (logo ? 170 : 0);
   const fam = theme.family;
   let y = 52;
   if (fam === 'swiss') g.items.push({ type: 'rect', x, y: 36, w: 56, h: 8, fill: c.primary });
@@ -214,7 +216,7 @@ function header(g, opts = {}) {
   if (fam === 'swiss') y = 60;
   const ky = kicker(g, slide.kicker, x, y, w);
   const ty = slide.kicker ? ky + 8 : y;
-  const used = title(g, slide.title, x, ty, opts.w ?? w, opts.titleH ?? 108, { size: opts.titleSize ?? (fam === 'swiss' ? 46 : 42), min: 24 });
+  const used = title(g, slide.title, x, ty, w, opts.titleH ?? 108, { size: opts.titleSize ?? (fam === 'swiss' ? 46 : 42), min: 24 });
   let bottom = ty + Math.max(used, 46);
   if (fam === 'editorial') g.items.push({ type: 'line', x1: x, y1: bottom + 18, x2: x + (opts.w ?? W - 2 * X), y2: bottom + 18, stroke: c.ink, width: 1.25 });
   if (fam === 'boardroom') g.items.push({ type: 'rect', x, y: bottom + 16, w: 56, h: 4, fill: c.accent });

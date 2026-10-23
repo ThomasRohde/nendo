@@ -60,6 +60,26 @@ test('a negative value is drawn below nought with its own sign, and a doughnut o
   assert.ok(middle.includes('0') && !middle.includes('1'), `the middle says the total: ${middle}`);
 });
 
+test('a logo at the top right keeps clear of the title beside a picture, from either side', () => {
+  for (const template of TEMPLATES) for (const kit of [brand, { ...brand, logo: null, logoDark: 'media:dark' }]) for (const layout of ['Image left', 'Image right']) {
+    const theme = resolveTheme(template, kit);
+    const laid = layoutSlide({ layout, title: 'A title long enough to run the whole width of its half of the slide', kicker: '', body: 'Words', body2: '', image: null, imageAlt: '', chart: 'Column' }, theme, { measure: approxMeasure });
+    const logo = laid.items.find(p => p.role === 'logo'), heading = laid.items.find(p => p.role === 'title');
+    if (!logo) continue;
+    const overlaps = heading.x < logo.x + logo.w && logo.x < heading.x + heading.w && heading.y < logo.y + logo.h && logo.y < heading.y + heading.h;
+    assert.ok(!overlaps, `${template.id} ${layout}: title ${heading.x}..${heading.x + heading.w}, logo ${logo.x}..${logo.x + logo.w}`);
+  }
+});
+
+test('a chart table with no rows draws no chart and no number that is not one', () => {
+  const theme = resolveTheme(TEMPLATES[0]);
+  for (const chart of CHARTS) for (const editing of [true, false]) {
+    const laid = layoutSlide({ layout: 'Chart', title: 'Nothing yet', body: '| Year | Sales |\n|---|---:|', body2: '', chart, image: null }, theme, { measure: approxMeasure, editing });
+    const numbers = JSON.stringify(laid.items, (k, v) => typeof v === 'number' && !Number.isFinite(v) ? `NOT A NUMBER ${k}` : v);
+    assert.ok(!numbers.includes('NOT A NUMBER'), `${chart}: ${numbers.match(/NOT A NUMBER \w+/)}`);
+  }
+});
+
 test('a chart slide draws each kind from its table', () => {
   const theme = resolveTheme(TEMPLATES[3]);
   const body = '| Year | Revenue | Cost |\n| --- | --- | --- |\n| 2024 | 12 | 8 |\n| 2025 | 18 | 9 |\n| 2026 | 25 | 11 |';
