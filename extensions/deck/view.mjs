@@ -515,9 +515,11 @@ async function savePending() {
 // Nendo ends a view's frame without asking (ADR-0013), so typing still waiting for its save is kept
 // in the package's own storage until the save lands, and saved when the view starts again.
 const draftKey = () => `deck.drafts.v1.${nendo.context?.viewId ?? 'deck'}`;
+// Typing kept from before that could not be saved when the view started stays kept for the next start.
+let unrestored = {};
 function keepDrafts() {
   try {
-    const kept = Object.fromEntries([...deck.pending].filter(([, p]) => Object.keys(p.values).length).map(([id, p]) => [id, p.values]));
+    const kept = { ...unrestored, ...Object.fromEntries([...deck.pending].filter(([, p]) => Object.keys(p.values).length).map(([id, p]) => [id, p.values])) };
     if (Object.keys(kept).length) localStorage.setItem(draftKey(), JSON.stringify(kept)); else localStorage.removeItem(draftKey());
   } catch { /* storage off: the next save is all there is */ }
 }
@@ -535,9 +537,9 @@ async function restoreDrafts() {
     const differ = Object.fromEntries(Object.entries(typed).filter(([f, val]) => (record.values?.[f] ?? null) !== val));
     if (!Object.keys(differ).length) continue;
     try { await nendo.records.update({ entityId: E.slide, recordId: id, version: record.version }, differ); restored++; }
-    catch (error) { problem(error, 'Typing kept from before could not be saved'); }
+    catch (error) { unrestored[id] = values; problem(error, 'Typing kept from before could not be saved; it stays kept for the next start'); }
   }
-  try { localStorage.removeItem(draftKey()); } catch { /* nothing kept */ }
+  keepDrafts();
   if (restored) toast(`Saved typing on ${restored} slide${restored === 1 ? '' : 's'} kept from before the view last closed.`);
   return restored;
 }

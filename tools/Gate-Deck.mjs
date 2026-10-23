@@ -265,6 +265,12 @@ async page => {
   await frame.evaluate(() => document.querySelectorAll('#slides li')[2].click());
   const kept = (await state()).slideId;
   await frame.fill('#f-title', 'Kept from before');
+  // The first start's write is refused: the typing stays kept, and the next start saves it.
+  await page.evaluate(() => { window.broker.fail('records.update', { code: 'busy', message: 'The file is busy.' }); window.broker.remount(); });
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  assert(await frame.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('deck.drafts.')).length) === 1, 'Typing whose restore was refused must stay kept on the device.');
   await page.evaluate(() => window.broker.remount());
   await page.waitForTimeout(300);
   frame = await mounted();
