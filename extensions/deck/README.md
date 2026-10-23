@@ -1,9 +1,10 @@
 # Deck
 
-Slide decks in one `.nendo` file. `workspace/Deck.nendo` opens on the Deck view (`dk.view`, an
-`extensionView` with `opensFile`). The package is `org.nendo.deck`; everything in this folder but
-`nendo-package.json` and `README.md` is what the file carries. `tools/Build-Deck.mjs` builds a file
-from `tools/deck/definition.mjs`, and `tools/Review-Deck.ps1` is its lane.
+Slide decks in one `.nendo` file, which opens on the Deck view (`dk.view`, an `extensionView` with
+`opensFile`). The package is `org.nendo.deck`; everything in this folder but `nendo-package.json` and
+`README.md` is what the file carries. `tools/Build-Deck.mjs` builds a Deck file from
+`tools/deck/definition.mjs` into an empty file Nendo has open, and `tools/Review-Deck.ps1` is its
+lane. The owner's `workspace/Deck.nendo` holds their own decks and is not in git.
 
 ## The records
 
@@ -59,7 +60,9 @@ the file carries, `skill://dev.nendo.deck/deck/SKILL.md` (source in `tools/deck/
 writes slides directly for a whole-deck ask, and Variants for a one-slide ask or a mission; the view
 shows each variant drawn as the slide would be, and Use writes its fields and dismisses its siblings
 in one batch that Nendo offers to undo. A variant may set words and the layout, never the picture.
-When the agent ends its turn and leaves its Ask open, the view closes it as Done, Cancelled or Failed.
+When the agent ends its turn and leaves its Ask open, the view closes it: Done for a turn that ended as
+it should, Cancelled for one the person stopped, and Failed for any other end, such as a turn that ran
+out of tokens, since that one may have written only some of the slides.
 
 ## Present and export
 
@@ -77,4 +80,7 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
   says so.
 - Charts are column, bar, line and doughnut, from a Markdown table; there is no chart editor.
 - One person edits a slide at a time: a save that meets a newer version reads the record again and
-  saves the typing over it.
+  saves the typing over it. Typing still waiting for its save is kept in the package's storage on the
+  device, and saved the same way when the view starts again if Nendo ended its frame first.
+- A Markdown link keeps its address only for `http:`, `https:` and `mailto:`; any other link is
+  shown as its words alone, so nothing in a slide runs in the view's frame.

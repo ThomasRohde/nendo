@@ -193,6 +193,15 @@ async page => {
   assert((await record('dk.variant', 'dk.variant.v2')).values['dk.variant.status'] === 'Used' && (await record('dk.variant', 'dk.variant.v1')).values['dk.variant.status'] === 'Dismissed',
     'The used variant is Used and its sibling Dismissed.');
   assert(!await frame.evaluate(() => document.getElementById('ask-status').classList.contains('working')), 'The ask bar stops showing work once the agent answers.');
+  // A turn cut short leaves its ask Failed, not Done: it may have written half the slides.
+  await frame.click('[data-scope="Whole deck"]');
+  await frame.fill('#ask-text', 'Tighten every title');
+  await frame.click('#ask-send');
+  await page.waitForFunction(() => window.broker.assistantAsks.length === 2, null, { timeout: 5000 });
+  await page.evaluate(() => window.broker.answerAssistant({ reply: '', stopReason: 'max_tokens' }));
+  await until(() => !document.getElementById('ask-status').classList.contains('working'));
+  const cut = (await records('dk.ask')).find(a => a.values['dk.ask.request'] === 'Tighten every title');
+  assert(cut?.values['dk.ask.status'] === 'Failed', `An ask whose turn ran out must be Failed, not Done: ${cut?.values['dk.ask.status']}.`);
   checks.push('variants');
 
   // 10. The three exports: a PowerPoint package with every slide and its notes, one HTML file that
@@ -251,7 +260,21 @@ async page => {
   assert(dark.body === 'rgb(39, 40, 41)', `The frame must take Nendo's dark canvas: ${dark.body}.`);
   checks.push('theme');
 
-  // 13. A file with no deck opens on the start screen; its six templates fit the width.
+  // 13. Typing the frame never got to save is saved when the view starts again. A remount closes
+  // the old frame's port first, so nothing it sends on the way out arrives.
+  await frame.evaluate(() => document.querySelectorAll('#slides li')[2].click());
+  const kept = (await state()).slideId;
+  await frame.fill('#f-title', 'Kept from before');
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Kept from before', kept, { timeout: 5000 })
+    .catch(async () => { throw Error(`Typing not saved when the frame ended must be saved when the view starts again: ${JSON.stringify((await record('dk.slide', kept))?.values['dk.slide.title'])}.`); });
+  assert(await frame.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith('deck.drafts.')).length) === 0, 'A draft that was saved must leave the device.');
+  checks.push('typing kept over a remount');
+
+  // 14. A file with no deck opens on the start screen; its six templates fit the width.
   await page.evaluate(empty => { window.broker.setFixture(empty); window.broker.remount(); }, empty);
   await page.waitForTimeout(300);
   frame = await mounted();

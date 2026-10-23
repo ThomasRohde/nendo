@@ -471,6 +471,7 @@ function edit(changes, { now = false } = {}) {
   const pending = deck.pending.get(slide.id) ?? { values: {} };
   Object.assign(pending.values, changes);
   deck.pending.set(slide.id, pending);
+  keepDrafts();
   redrawSoon();
   if (now) save.flush(); else save();
 }
@@ -501,8 +502,38 @@ const save = debounce(async () => {
         deck.pending.delete(id);
       }
     }
-  } finally { saving = false; }
+  } finally { saving = false; keepDrafts(); }
 }, 650);
+
+// Nendo ends a view's frame without asking (ADR-0013), so typing still waiting for its save is kept
+// in the package's own storage until the save lands, and saved when the view starts again.
+const draftKey = () => `deck.drafts.v1.${nendo.context?.viewId ?? 'deck'}`;
+function keepDrafts() {
+  try {
+    const kept = Object.fromEntries([...deck.pending].filter(([, p]) => Object.keys(p.values).length).map(([id, p]) => [id, p.values]));
+    if (Object.keys(kept).length) localStorage.setItem(draftKey(), JSON.stringify(kept)); else localStorage.removeItem(draftKey());
+  } catch { /* storage off: the next save is all there is */ }
+}
+/** Saves what was typed and not saved before the view last stopped, over the slide as it is now. */
+async function restoreDrafts() {
+  let kept = null;
+  try { kept = JSON.parse(localStorage.getItem(draftKey()) ?? 'null'); } catch { return 0; }
+  if (!kept || typeof kept !== 'object' || nendo.context?.readOnly) return 0;
+  let restored = 0;
+  for (const [id, values] of Object.entries(kept)) {
+    const record = await nendo.records.get(E.slide, id).catch(() => null);
+    if (!record || !values || typeof values !== 'object') continue;
+    const typed = toValues(Object.fromEntries(Object.entries(values).filter(([k]) => SLIDE_FIELD[k])));
+    // A save that landed as the frame ended leaves nothing to write.
+    const differ = Object.fromEntries(Object.entries(typed).filter(([f, val]) => (record.values?.[f] ?? null) !== val));
+    if (!Object.keys(differ).length) continue;
+    try { await nendo.records.update({ entityId: E.slide, recordId: id, version: record.version }, differ); restored++; }
+    catch (error) { problem(error, 'Typing kept from before could not be saved'); }
+  }
+  try { localStorage.removeItem(draftKey()); } catch { /* nothing kept */ }
+  if (restored) toast(`Saved typing on ${restored} slide${restored === 1 ? '' : 's'} kept from before the view last closed.`);
+  return restored;
+}
 
 async function editDeck(changes) {
   const d = currentDeck();
@@ -671,7 +702,9 @@ async function ask(text, { scope = deck.scope, mission = '' } = {}) {
   try {
     const answer = await nendo.assistant.ask(lines.join('\n'), { context });
     deck.lastReply = answer?.reply ? answer.reply.trim().split('\n').slice(0, 6).join('\n') : '';
-    await finishAsk(id, answer?.stopReason === 'cancelled' ? 'Cancelled' : 'Done', answer?.reply ?? '');
+    // A turn cut short (max_tokens, max_turn_requests, refusal) may leave slides half written.
+    const stop = answer?.stopReason;
+    await finishAsk(id, stop === 'end_turn' ? 'Done' : stop === 'cancelled' ? 'Cancelled' : 'Failed', answer?.reply || (stop ? `The agent stopped: ${stop}.` : ''));
   } catch (error) {
     deck.lastReply = refusalText(error);
     await finishAsk(id, 'Failed', deck.lastReply);
@@ -1124,7 +1157,7 @@ async function refresh() {
   deck.chrome = nendo.has('ui.setToolbar');
   deck.canAsk = nendo.has('assistant.ask') && !nendo.context.readOnly;
   wire();
-  try { await load(); } catch (error) { problem(error, 'The deck could not be read'); }
+  try { await load(); if (await restoreDrafts()) await load(); } catch (error) { problem(error, 'The deck could not be read'); }
   deck.ready = true;
   drawAll();
   if (!deck.decks.length) showStart(false);

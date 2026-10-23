@@ -33,6 +33,10 @@ test('inline marks: bold, italic, code and links', () => {
   assert.ok(runs.find(r => r.text === 'italic').i);
   assert.ok(runs.find(r => r.text === 'code').code);
   assert.equal(runs.find(r => r.text === 'link').link, 'https://example.com');
+  assert.equal(inline('[mail](mailto:a@example.com)')[0].link, 'mailto:a@example.com');
+  // An address that would run in the frame keeps its words and loses its link.
+  for (const address of ['javascript:void0', 'JavaScript:void0', 'data:text/html,x', 'vbscript:x', '//example.com', '#3'])
+    assert.deepEqual(inline(`[click](${address})`), [{ text: 'click' }], address);
 });
 
 test('paragraphs: bullets, a second level, numbers, headings, and plain lines joined', () => {

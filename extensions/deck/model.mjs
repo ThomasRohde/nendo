@@ -77,6 +77,9 @@ export function reorder(slides, fromIndex, toIndex) {
 
 // ---- Text: a small Markdown, enough for slides. ------------------------------------------------
 
+/** A link goes to the web or to mail; a `javascript:` or other address would run in the view's frame. */
+export const safeLink = address => /^(?:https?:\/\/|mailto:)/i.test(String(address ?? '')) ? String(address) : null;
+
 /** Inline marks: **bold**, *italic* or _italic_, `code`, [text](link). Returns runs. */
 export function inline(text) {
   const runs = [];
@@ -88,7 +91,7 @@ export function inline(text) {
     if (m[2] ?? m[3]) runs.push({ text: m[2] ?? m[3], b: true });
     else if (m[4] ?? m[5]) runs.push({ text: m[4] ?? m[5], i: true });
     else if (m[6]) runs.push({ text: m[6], code: true });
-    else if (m[7]) runs.push({ text: m[7], link: m[8] });
+    else if (m[7]) runs.push(safeLink(m[8]) ? { text: m[7], link: m[8] } : { text: m[7] });
     at = pattern.lastIndex;
   }
   plain(text.slice(at));
