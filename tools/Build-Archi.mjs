@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { STAGES, STAGE_ORDER, LINK_RULE_STAGE, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, NEW_FILE_LABEL, WORKBENCH_SCREEN, workbenchView, allowedRelationships } from './archi-definition.mjs';
+import { STAGES, STAGE_ORDER, LINK_RULE_STAGE, CALL_CHARACTERS, ROOT_FOLDERS, TYPES, MODEL, PACKAGE_FOLDER, SKILL_FOLDER, NEW_FILE_LABEL, WORKBENCH_SCREEN, workbenchView, allowedRelationships } from './archi-definition.mjs';
 import { CONCEPT_TYPES } from './archi-concept-types.mjs';
 import { TARGET_FILE_NAME, fail, target, withLease } from './archi-mcp.mjs';
 
@@ -197,6 +197,14 @@ async function workbench(file, dryRun) {
   if (run.status !== 0) process.exit(run.status ?? 1);
 }
 
+// The agent's skill (ADR-0024): how an agent models in this file and works the Agent panel's
+// asks, proposed as the workbench is, only what differs.
+function skill(file, dryRun) {
+  const put = ['tools/Put-NendoPackage.mjs', SKILL_FOLDER, '--application', file.manifest.applicationId, '--title', 'Archi: the agent’s skill', dryRun ? '--dry-run' : '--accept'];
+  const run = spawnSync(process.execPath, put, { stdio: 'inherit', cwd: path.join(import.meta.dirname, '..') });
+  if (run.status !== 0) process.exit(run.status ?? 1);
+}
+
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const named = args.filter(arg => !arg.startsWith('--'));
@@ -207,6 +215,7 @@ if (args.includes('--list')) {
   console.log(`${LINK_RULE_STAGE.padEnd(10)} ${STAGES[LINK_RULE_STAGE].title}, once the seed is in`);
   console.log(`${'compare'.padEnd(10)} The seeded concept types against their table`);
   console.log(`${'workbench'.padEnd(10)} The Archi workbench package, and the screen that shows it`);
+  console.log(`${'skill'.padEnd(10)} The agent's skill, Modelling ArchiMate in Archi`);
   process.exit(0);
 }
 
@@ -222,6 +231,7 @@ const file = await target('nendo-archi-build');
 console.log(`Target          ${TARGET_FILE_NAME} (${file.manifest.applicationId})`);
 if (named[0] === 'compare') await compare(file);
 else if (named[0] === 'workbench') await workbench(file, dryRun);
+else if (named[0] === 'skill') skill(file, dryRun);
 else if (named[0] === 'seed') await seed(file, dryRun);
 else if (named.length > 0) {
   if (!STAGES[named[0]]) fail(`No stage is called ${named[0]}. --list names them.`);

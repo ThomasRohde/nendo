@@ -4,6 +4,7 @@
 // window.nendo, draws, and sends the writes model.js plans.
 
 import * as M from './model.js';
+import * as AG from './agent.js';
 
 const nendo = window.nendo;
 const $ = id => document.getElementById(id);
@@ -23,6 +24,9 @@ const READS = { models: M.E.model, folders: M.E.folder, types: M.E.type, concept
  */
 const APPEARANCE_KEY = 'archi-appearance';
 function appearanceKept() { try { return localStorage.getItem(APPEARANCE_KEY) === 'shown'; } catch { return false; } }
+// The Agent panel, open or closed, as this device last left it.
+const AGENT_KEY = 'archi-agent';
+function agentKept() { try { return localStorage.getItem(AGENT_KEY) === 'shown'; } catch { return false; } }
 
 /*
  * The most records of one type the workbench reads. One more is asked for, so a type that
@@ -38,6 +42,9 @@ const state = {
   sets: null, openView: null, diagramSelection: [], zoom: 1, editing: false, pending: 0, transparent: false, styleShown: appearanceKept(),
   validator: { open: false, issues: null, of: null, current: null },
   visualiser: { open: false },
+  agent: { open: agentKept(), available: false, asks: [], proposals: [], status: null, turns: new Set(), quick: [] },
+  // The view open before a proposal's preview opened one only its edits make, to go back to on Discard.
+  previousView: null,
 };
 
 // The canvas is archi-online's renderer, bundled; it loads beside the tree, not before it.
@@ -53,14 +60,17 @@ function readAll() {
   // A superseded read also waits for its successor: a queued write must plan from
   // the newly installed model, not merely finish waiting for an obsolete response.
   const reading = (async () => {
-    const entries = await Promise.all(Object.entries(READS).map(async ([key, entityId]) =>
-      [key, await nendo.records.queryAll({ entityId }, { max: READ_MAX + 1 })]));
+    const [entries, agentRecords] = await Promise.all([
+      Promise.all(Object.entries(READS).map(async ([key, entityId]) => [key, await nendo.records.queryAll({ entityId }, { max: READ_MAX + 1 })])),
+      readAgentRecords().catch(() => null),
+    ]);
     if (reading !== newestRead) return newestRead;
+    if (agentRecords) Object.assign(state.agent, agentRecords);
     state.cut = entries.filter(([, list]) => list.length > READ_MAX).map(([key]) => READS[key]);
     const sets = Object.fromEntries(entries.map(([key, list]) => [key, list.length > READ_MAX ? list.slice(0, READ_MAX) : list]));
     state.sets = sets;
     state.model = M.buildModel(sets);
-    if (state.openView && !state.model.records.has(state.openView)) state.openView = null;
+    if (state.openView && !state.model.records.has(state.openView) && !keptCreates(state.openView)) state.openView = null;
     if (!state.loaded) {
       state.loaded = true;
       // Back or Forward, or a return to this screen, starts the workbench where it was.
@@ -407,9 +417,10 @@ function listOf(ids, attributes = '') {
 
 function renderDiagram() {
   const centre = $('centre');
-  const view = state.model.records.get(state.openView);
+  const view = state.model.records.get(state.openView) ?? { entityId: M.E.view, recordId: state.openView, values: {} };
   centre.classList.add('diagram');
   if (state.editing && canvasModule?.createEditor) { renderEditor(view); return; }
+  if (!state.model.records.has(view.recordId)) { centre.innerHTML = '<p class="quiet">This view is only in the edits waiting to be committed. Press Edit to see them.</p>'; return; }
   if (editor) stopEditor();
   if (!canvasModule) { centre.innerHTML = '<p class="quiet">Drawing the view…</p>'; canvasReady.then(() => renderCentre()); return; }
   let host = centre.querySelector('.canvas-host');
@@ -484,7 +495,7 @@ function analysedMirror() {
 function renderCentre() {
   const model = state.model, record = model?.records.get(state.selected);
   const centre = $('centre');
-  if (state.openView && model?.records.has(state.openView)) { renderDiagram(); return; }
+  if (state.openView && (model?.records.has(state.openView) || keptCreates(state.openView))) { renderDiagram(); return; }
   if (canvas) { canvas.destroy(); canvas = null; drawnSets = null; }
   if (editor) stopEditor();
   centre.classList.remove('diagram');
@@ -858,6 +869,7 @@ function toolbarItems(trim) {
     ...(state.editing ? editingMenus() : []),
     { kind: 'toggle', id: 'validator', label: 'Validator', icon: 'info', iconOnly: true, pressed: state.validator.open },
     { kind: 'toggle', id: 'visualiser', label: 'Visualiser', icon: 'focus', iconOnly: true, pressed: state.visualiser.open },
+    ...(state.agent.available ? [{ kind: 'toggle', id: 'agent', label: 'Agent', pressed: state.agent.open, keys: 'Ctrl+Shift+A' }] : []),
     ...(state.openView ? [{ kind: 'menu', id: 'export', label: 'Export', icon: 'export', iconOnly: true, items: [
       { id: 'export-png-1', label: 'PNG', detail: 'At the view’s own size' },
       { id: 'export-png-2', label: 'PNG at 2×', detail: 'Sharp on a slide' },
@@ -982,6 +994,7 @@ function runCommand({ id, value }) {
     case 'discard': discardEdits(); break;
     case 'validator': showValidator(value === true); break;
     case 'visualiser': showVisualiser(value === true); break;
+    case 'agent': showAgent(value === true); break;
     case 'open-archimate': case 'open-exchange': showOpenArchimate(); break;
     case 'save-archimate': saveArchimate(); break;
     case 'save-exchange': saveExchange(); break;
@@ -1032,14 +1045,20 @@ let keptViewId = null;
 function readEdits() {
   try {
     const saved = JSON.parse(localStorage.getItem(EDITS_KEY) ?? 'null');
-    return Array.isArray(saved?.writes) && saved.writes.length > 0 ? { viewId: saved.viewId ?? null, writes: saved.writes } : null;
+    return Array.isArray(saved?.writes) && saved.writes.length > 0
+      ? { viewId: saved.viewId ?? null, writes: saved.writes, proposalId: saved.proposalId ?? null, proposalTitle: saved.proposalTitle ?? null } : null;
   } catch { return null; }
 }
 
+/** Whether the edits kept in this browser make the record: a view only a waiting proposal makes stays open. */
+const keptCreates = id => readEdits()?.writes.some(write => write.op === 'create' && write.recordId === id) ?? false;
+
 function keepEdits(writes) {
+  if (writes.length === 0) { keptViewId = null; keptProposal = null; }
   try {
-    if (writes.length === 0) { keptViewId = null; localStorage.removeItem(EDITS_KEY); }
-    else localStorage.setItem(EDITS_KEY, JSON.stringify({ viewId: keptViewId ?? editor?.viewId() ?? state.openView, writes }));
+    if (writes.length === 0) localStorage.removeItem(EDITS_KEY);
+    else localStorage.setItem(EDITS_KEY, JSON.stringify({ viewId: keptViewId ?? editor?.viewId() ?? state.openView, writes,
+      ...(keptProposal ? { proposalId: keptProposal.id, proposalTitle: keptProposal.title } : {}) }));
   } catch { /* kept for this visit only */ }
 }
 
@@ -1071,6 +1090,7 @@ function renderEditor(view) {
     const kept = readEdits();
     const saved = kept?.writes ?? null;
     keptViewId = saved ? kept.viewId : null;
+    keptProposal = kept?.proposalId ? { id: kept.proposalId, title: kept.proposalTitle ?? 'the proposal' } : null;
     const start = saved ? canvasModule.buildMirror(canvasModule.applyWrites(state.sets, saved)) : editBase;
     editor = canvasModule.createEditor(host, start, {
       // An edit made now is made on the view open now, so the kept edits are named under it.
@@ -1093,7 +1113,8 @@ function renderEditor(view) {
     fitEditorSoon();
     if (saved) {
       const madeOn = keptViewId && keptViewId !== view.recordId ? state.model.records.get(keptViewId) : null;
-      setStatus(madeOn
+      if (keptProposal && !madeOn) setStatus(`${keptProposal.title} waits in the editor: Commit applies it, Discard drops it.`);
+      else setStatus(madeOn
         ? `${saved.length} edits were waiting to be committed on the view ${M.label(state.model, madeOn)}, not on this one. Open ${M.label(state.model, madeOn)} to see them, then Commit or Discard.`
         : `${saved.length} edits were waiting to be committed, and are here again.`, Boolean(madeOn));
     }
@@ -1137,16 +1158,30 @@ function toggleEditing(on) {
 function commitEdits() {
   if (!editor || state.pending === 0) return;
   const count = state.pending;
+  // A proposal's preview is applied, and marked Applied, in the one revision, so Undo takes back both.
+  const applying = keptProposal;
+  const label = applying ? `Apply ${applying.title}` : `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`;
   // Once saved, the edits are undone as one step of the file's, not one by one in the editor.
-  return write(() => waitingWrites(), `Commit ${count} ${count === 1 ? 'change' : 'changes'} to the view`, { atomic: true })
+  return write(() => [...waitingWrites(), ...(applying ? appliedWrite(applying.id) : [])], label, { atomic: true })
     .then(ok => { if (ok) { editor?.clearHistory?.(); declareToolbar(); } return ok; });
 }
 
 function discardEdits() {
   if (!editor) return;
-  editor.reset(editBase);
-  editsChanged();
-  setStatus('The waiting changes were discarded.');
+  const previewed = keptProposal;
+  if (state.openView && !state.model.records.has(state.openView)) {
+    // A view only the waiting edits make goes with them, and the workbench shows the view it showed before.
+    keepEdits([]);
+    state.pending = 0;
+    stopEditor();
+    state.editing = false;
+    state.openView = state.previousView && state.model.records.has(state.previousView) ? state.previousView : null;
+    render();
+  } else {
+    editor.reset(editBase);
+    editsChanged();
+  }
+  setStatus(previewed ? `The preview of ${previewed.title} was discarded; the proposal is still in the Agent panel.` : 'The waiting changes were discarded.');
 }
 
 // ---------------------------------------------------------------- automation
@@ -1356,6 +1391,7 @@ function renderValidator() {
   const count = severity => issues.filter(issue => issue.severity === severity).length;
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
   $('validator-summary').textContent = `${plural(count('error'), 'error', 'errors')}, ${plural(count('warning'), 'warning', 'warnings')}, ${count('advice')} advice`;
+  $('validator-ask').hidden = !(state.agent.available && issues.length > 0 && !state.readOnly);
   const stale = `<p class="stale" ${validatorStale() ? '' : 'hidden'}>The model has changed since. Validate again to check it as it is now.</p>`;
   if (issues.length === 0) { list.innerHTML = `${stale}<p class="quiet">No issues found.</p>`; return; }
   let html = stale, index = 0;
@@ -1414,6 +1450,371 @@ $('validator-config').addEventListener('close', () => {
   try { localStorage.setItem(RULES_KEY, JSON.stringify(off)); } catch { /* kept for this visit only */ }
   validate();
 });
+
+// ---------------------------------------------------------------- the agent
+
+/*
+ * The person's launched agent (ADR-0033), asked from the Agent panel. Every request is an Ask
+ * record, written before the agent is messaged, so a refusal, a reload or a closed frame never
+ * loses it; the agent updates it as it works, by the archimate skill the file carries
+ * (tools/archi/skill). A change it would make is a Proposal. Preview opens it in the editor as
+ * the edits waiting on its view, its new boxes laid out by ELK when it gave them no place, and
+ * selected; the person can change them there. Commit applies them as one revision that also marks
+ * the proposal Applied, so Undo takes both back. agent.js plans all of it. A Nendo that cannot
+ * message an agent from a view still keeps the Ask, for an agent connected over MCP to work.
+ */
+const canAsk = () => nendo.has('assistant.ask');
+// The proposal whose edits wait in the editor, kept with them in this browser.
+let keptProposal = null;
+const plans = new Map();
+
+/** Whether this file has the Agent asks and Agent proposals the panel reads and writes. */
+async function checkAgentTypes() {
+  try {
+    const ids = new Set((await nendo.schema.describe()).entities.map(entity => entity.entityId));
+    state.agent.available = ids.has(AG.A.ask) && ids.has(AG.A.proposal);
+  } catch { state.agent.available = false; }
+}
+
+function readAgentRecords() {
+  if (!state.agent.available) return Promise.resolve({ asks: [], proposals: [] });
+  return Promise.all([AG.A.ask, AG.A.proposal].map(entityId => nendo.records.queryAll({ entityId }, { max: 5000 })))
+    .then(([asks, proposals]) => ({ asks, proposals }));
+}
+
+function showAgent(open) {
+  state.agent.open = open;
+  try { localStorage.setItem(AGENT_KEY, open ? 'shown' : 'hidden'); } catch { /* this visit only */ }
+  renderAgent();
+  declareToolbar();
+  if (open) requestAnimationFrame(() => $('agent-request')?.focus());
+}
+
+/** What the agent is asked about: the open view, and what is selected in the editor or the tree. */
+function agentScope() {
+  const viewId = state.openView && state.model?.records.has(state.openView) ? state.openView : null;
+  const model = editor?.model();
+  const boxes = editor ? editor.selected().map(id => model.nodes[id]?.elementId ?? model.connections[id]?.relationshipId ?? id) : [];
+  const fromDiagram = state.diagramSelection.map(id => state.model?.records.get(id)?.values['ar.item.concept'] ?? id);
+  const selected = [...new Set([...boxes, ...(boxes.length ? [] : [treeSelection(), ...fromDiagram])])]
+    .filter(id => id && id !== viewId && state.model?.records.has(id) && state.model.records.get(id).entityId !== M.E.model);
+  return { viewId, selected };
+}
+
+function agentIssues() {
+  return (state.validator.issues ?? []).slice(0, 80).map(issue => ({
+    severity: issue.severity, message: issue.message,
+    objectId: issue.location.view?.objectId ?? issue.location.modelTree.idPath.at(-1) ?? null,
+    where: issue.location.modelTree.labelPath.join(' / '),
+  }));
+}
+
+function agentStatusText() {
+  if (!state.agent.available) return 'This file has no Agent asks: build it again with the agent stage.';
+  if (state.readOnly) return 'This file is open read-only.';
+  if (!canAsk()) return 'This Nendo cannot message an agent from a view. An ask waits here for an agent connected to this file: ask it to “work the Archi asks”.';
+  const status = state.agent.status;
+  if (!status) return '';
+  if (status.access === 'never') return 'Views may not message the agent on this computer. Change it on Nendo’s Agent page.';
+  const name = status.name || 'The agent';
+  switch (status.state) {
+    case 'ready': return status.working ? `${name} is working.` : `${name} is ready.`;
+    case 'starting': return `${name} is starting…`;
+    case 'signIn': return `${name} is waiting for you to sign in, in its tab.`;
+    default: return 'No agent is running: asking offers to launch one.';
+  }
+}
+
+/** Why a message did not reach the agent, in the person's words. */
+function assistantRefusal(error) {
+  switch (error?.code) {
+    case 'assistant-off': return 'Views may not message the agent on this computer. Change it on Nendo’s Agent page.';
+    case 'assistant-declined': return 'Not sent: you said Not now. Ask again in a moment.';
+    case 'assistant-busy': return 'The agent has too many messages waiting. Ask again when it has answered some.';
+    case 'assistant-unavailable': return `No agent can answer now. ${describe(error)}`;
+    default: return `Not sent: ${describe(error)}`;
+  }
+}
+
+/** Writes an Ask for the request, then messages the agent about it. */
+async function sendAsk({ request, mode, issues = false }) {
+  if (state.readOnly) { setStatus('This file is open read-only.', true); return false; }
+  if (!state.agent.available || !state.model) { setStatus(agentStatusText(), true); return false; }
+  const scope = agentScope();
+  let ask;
+  try { ask = AG.askRecord(state.model, { request, mode, ...scope }); } catch (error) { setStatus(describe(error), true); return false; }
+  if (!await write([ask], 'Ask the agent', { undoable: false })) return false;
+  if (!canAsk()) {
+    setStatus('The ask waits in the Agent panel for an agent connected to this file: ask it to “work the Archi asks”.');
+    return true;
+  }
+  const record = state.agent.asks.find(entry => entry.recordId === ask.recordId);
+  if (record) askAgent(record, { ...scope, issues: issues ? agentIssues() : [] });
+  return true;
+}
+
+async function askAgent(ask, context) {
+  const message = AG.askMessage(state.model, ask, context);
+  state.agent.turns.add(ask.recordId);
+  renderAgent();
+  let answer = null, refusal = null;
+  try { answer = await nendo.assistant.ask(message.text, { context: message.context }); } catch (error) { refusal = assistantRefusal(error); }
+  state.agent.turns.delete(ask.recordId);
+  await readAll().catch(() => undefined);
+  const proposalsOf = () => state.agent.proposals.filter(proposal => proposal.values['ar.proposal.ask'] === ask.recordId);
+  // The agent keeps its Ask true by the skill; where it did not, the turn's end finishes it.
+  await write(() => {
+    const now = state.agent.asks.find(entry => entry.recordId === ask.recordId);
+    const finish = AG.finishedAsk(now, { reply: answer?.reply, stopReason: answer?.stopReason, proposals: proposalsOf().length, refusal });
+    return finish ? [finish] : [];
+  }, 'Finish the ask', { undoable: false });
+  if (refusal) { setStatus(refusal, true); return; }
+  const waiting = proposalsOf().filter(proposal => proposal.values['ar.proposal.status'] === 'Proposed');
+  const reply = AG.oneLine(answer?.reply || state.agent.asks.find(entry => entry.recordId === ask.recordId)?.values['ar.ask.reply'] || '', 220);
+  if (answer?.stopReason === 'cancelled') { setStatus('The agent was stopped.'); return; }
+  // One proposal and nothing waiting in the editor: it is shown at once, as the person asked for it.
+  if (waiting.length > 0 && state.pending === 0 && !readEdits() && !state.readOnly) {
+    await previewProposal(waiting[0].recordId);
+    if (waiting.length > 1) setStatus(`${$('status').textContent} The agent offers ${waiting.length - 1} more in the Agent panel.`);
+    return;
+  }
+  setStatus(waiting.length > 0 ? `The agent proposes ${waiting.length === 1 ? 'a change' : `${waiting.length} changes`}: see the Agent panel.` : `The agent answered: ${reply || 'no words.'}`);
+}
+
+function stopAsk() {
+  nendo.assistant.cancel().catch(error => setStatus(describe(error), true));
+}
+
+/** A proposal planned against the records as they now stand, kept until either changes. */
+function planOf(proposal) {
+  let planned = 0;
+  const key = `${proposal.version}`;
+  const kept = plans.get(proposal.recordId);
+  if (kept?.key === key && kept.sets === state.sets && kept.canvas === canvasModule) return kept.plan;
+  const parsed = AG.parseWrites(proposal.values['ar.proposal.writes']);
+  const allowed = canvasModule?.validRelationshipTypes
+    ? (source, target, relationship) => canvasModule.validRelationshipTypes(source, target).includes(relationship) : () => true;
+  const plan = parsed.error ? { error: parsed.error, problems: [], counts: null, changes: [] }
+    : { error: null, ...AG.planProposal(state.model, parsed.writes, { allowed, viewId: proposal.values['ar.proposal.view'] || null, newId: () => `ar-planned-${++planned}` }) };
+  plans.set(proposal.recordId, { key, sets: state.sets, canvas: canvasModule, plan });
+  return plan;
+}
+
+const proposalNamed = id => state.agent.proposals.find(proposal => proposal.recordId === id) ?? null;
+const proposalTitle = proposal => AG.oneLine(proposal?.values['ar.proposal.title'] || 'the proposal', 80);
+/** The write that marks a proposal Applied, in the revision that applies it. */
+function appliedWrite(proposalId) {
+  const proposal = proposalNamed(proposalId);
+  return proposal && proposal.values['ar.proposal.status'] === 'Proposed'
+    ? [{ op: 'update', entityId: AG.A.proposal, recordId: proposal.recordId, version: proposal.version, values: { 'ar.proposal.status': 'Applied' } }] : [];
+}
+
+/** The proposal's edits waiting in the editor on its view, its new boxes selected. */
+async function previewProposal(proposalId) {
+  const proposal = proposalNamed(proposalId);
+  if (!proposal) return;
+  if (state.readOnly) { setStatus('This file is open read-only.', true); return; }
+  if (!canvasModule) await canvasReady;
+  if (!canvasModule?.createEditor) { setStatus('The editor has not loaded yet.', true); return; }
+  const kept = readEdits();
+  if (kept?.proposalId === proposalId) {
+    state.openView = kept.viewId;
+    state.editing = true;
+    render();
+    return;
+  }
+  if (state.pending > 0 || kept) { setStatus('Commit or discard the edits waiting on the view first, then preview the proposal.', true); return; }
+  const title = proposalTitle(proposal);
+  setStatus(`Preparing ${title}…`);
+  let plan;
+  try { plan = await AG.proposalEdits(canvasModule, state.sets, state.model, proposal); } catch (error) { setStatus(`${title} cannot be previewed: ${describe(error)}`, true); return; }
+  if (plan.error) { setStatus(`${title} cannot be previewed: ${plan.error}`, true); return; }
+  const viewId = plan.viewId ?? (state.openView && state.model.records.has(state.openView) ? state.openView : null);
+  if (!viewId) { setStatus(`${title} changes no view, so there is nothing to draw. Apply it or reject it.`, true); return; }
+  if (plan.edits.length > 199) { setStatus(`${title} needs ${plan.edits.length} record writes, and at most 200 can be saved together. Ask the agent for a smaller change.`, true); return; }
+  stopEditor();
+  keptProposal = { id: proposalId, title };
+  keptViewId = viewId;
+  try { localStorage.setItem(EDITS_KEY, JSON.stringify({ viewId, writes: plan.edits, proposalId, proposalTitle: title })); } catch { /* this visit only */ }
+  state.previousView = state.openView;
+  state.openView = viewId;
+  if (state.model.records.has(viewId)) state.selected = viewId;
+  state.diagramSelection = plan.edits.filter(write => write.op === 'create' && write.entityId === M.E.item).map(write => write.recordId);
+  state.editing = true;
+  render();
+  const problems = plan.problems.length ? ` ${plan.problems.join(' ')}` : '';
+  setStatus(`Previewing ${title}: ${AG.countsSentence(plan.counts)}. Commit applies it, Discard drops it, and you can change it first.${problems}`, plan.problems.length > 0);
+}
+
+async function applyProposal(proposalId) {
+  const proposal = proposalNamed(proposalId);
+  if (!proposal) return;
+  if (state.readOnly) { setStatus('This file is open read-only.', true); return; }
+  if (readEdits()?.proposalId === proposalId && editor) { commitEdits(); return; }
+  if (state.pending > 0 || readEdits()) { setStatus('Commit or discard the edits waiting on the view first.', true); return; }
+  if (!canvasModule) await canvasReady;
+  const title = proposalTitle(proposal);
+  let plan;
+  try { plan = await AG.proposalEdits(canvasModule, state.sets, state.model, proposal); } catch (error) { setStatus(`${title} was refused: ${describe(error)}`, true); return; }
+  if (plan.error) { setStatus(`${title} was refused: ${plan.error}`, true); return; }
+  if (plan.blocking) { setStatus(`${title} cannot be applied as it is: ${plan.problems.join(' ')} Preview it to change it.`, true); return; }
+  if (await write(() => [...plan.edits, ...appliedWrite(proposalId)], `Apply ${title}`, { atomic: true }) && plan.viewId && state.model.records.has(plan.viewId)) {
+    state.openView = plan.viewId;
+    select(plan.viewId);
+  }
+}
+
+function rejectProposal(proposalId) {
+  const proposal = proposalNamed(proposalId);
+  if (!proposal) return;
+  write(() => {
+    const now = proposalNamed(proposalId);
+    return now && now.values['ar.proposal.status'] === 'Proposed'
+      ? [{ op: 'update', entityId: AG.A.proposal, recordId: now.recordId, version: now.version, values: { 'ar.proposal.status': 'Rejected' } }] : [];
+  }, `Reject ${proposalTitle(proposal)}`);
+}
+
+function removeAsks(askIds, label) {
+  return write(() => AG.removeAsks(state.agent.asks, state.agent.proposals, askIds), label);
+}
+
+/** Asks that are done with and hold no proposal still waiting for the person. */
+function finishedAskIds() {
+  return state.agent.asks.filter(ask => AG.FINISHED.includes(ask.values['ar.ask.state']) && !state.agent.turns.has(ask.recordId)
+    && !state.agent.proposals.some(proposal => proposal.values['ar.proposal.ask'] === ask.recordId && proposal.values['ar.proposal.status'] === 'Proposed'))
+    .map(ask => ask.recordId);
+}
+
+const ASK_TONES = { Waiting: 'grey', Working: 'blue', Answered: 'green', Proposed: 'violet', Failed: 'red', Cancelled: 'grey' };
+const PROPOSAL_TONES = { Proposed: 'violet', Applied: 'green', Rejected: 'grey' };
+
+function renderAgent() {
+  const panel = $('agent');
+  if (!panel) return;
+  panel.hidden = !state.agent.open;
+  $('own-agent').setAttribute('aria-pressed', String(state.agent.open));
+  if (!state.agent.open) return;
+  $('agent-status').textContent = agentStatusText();
+  const usable = state.agent.available && !state.readOnly && Boolean(state.model);
+  $('agent-request').disabled = !usable;
+  $('agent-mode').disabled = !usable;
+  $('agent-send').disabled = !usable;
+  $('agent-send').textContent = canAsk() ? 'Ask' : 'Leave for the agent';
+  const scope = state.model ? agentScope() : { viewId: null, selected: [] };
+  const chip = (text, title) => `<span class="agent-chip" title="${escape(title ?? text)}">${escape(text)}</span>`;
+  const view = scope.viewId ? state.model.records.get(scope.viewId) : null;
+  const first = scope.selected[0] ? state.model.records.get(scope.selected[0]) : null;
+  $('agent-context').innerHTML = [
+    view ? chip(`View: ${AG.oneLine(M.label(state.model, view), 40)}`, 'The open view goes with the request, box by box') : '',
+    first ? chip(scope.selected.length === 1 ? AG.oneLine(M.label(state.model, first), 40) : `${scope.selected.length} selected`, 'What is selected goes with the request') : '',
+  ].join('') || '<span class="quiet">The whole model</span>';
+  const quick = usable ? AG.quickAsks(state.model, { ...scope, issues: state.validator.issues?.length ?? 0,
+    empty: state.model.of(M.E.concept).length === 0 }) : [];
+  $('agent-quick').innerHTML = quick.map(entry => `<button type="button" class="agent-quick" data-quick="${escape(entry.id)}" data-mode="${entry.mode}" title="${escape(entry.request ?? entry.draft)}">${escape(entry.label)}</button>`).join('');
+  state.agent.quick = quick;
+
+  const entries = AG.asksWithProposals(state.agent.asks, state.agent.proposals);
+  $('agent-clear').disabled = state.readOnly || finishedAskIds().length === 0;
+  const list = $('agent-list');
+  if (entries.length === 0) {
+    list.innerHTML = `<p class="quiet agent-empty">${state.agent.available ? 'Ask the agent about the model, or for a change: it proposes, and you preview it on the view before anything is saved.' : ''}</p>`;
+    return;
+  }
+  const previewing = readEdits()?.proposalId ?? null;
+  list.innerHTML = entries.map(({ ask, proposals }) => {
+    const values = ask.values;
+    const askState = values['ar.ask.state'] ?? 'Waiting';
+    const turn = state.agent.turns.has(ask.recordId);
+    const { last, step } = AG.progressOf(ask);
+    const asked = values['ar.ask.asked'] ? new Date(values['ar.ask.asked']) : null;
+    const when = asked && !Number.isNaN(asked.getTime()) ? asked.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : '';
+    const again = ['Failed', 'Cancelled'].includes(askState) && canAsk() && !state.readOnly;
+    const working = turn || askState === 'Working';
+    return `<article class="agent-ask" data-ask="${escape(ask.recordId)}" data-state="${escape(askState)}">
+      <div class="agent-ask-head">
+        <span class="agent-state" style="--tone:${tone(ASK_TONES[askState] ?? 'grey')}">${escape(turn && askState === 'Waiting' ? 'Asking' : askState)}</span>
+        <span class="agent-request" title="${escape(values['ar.ask.request'])}">${escape(AG.oneLine(values['ar.ask.request'], 140))}</span>
+        <span class="quiet agent-mode-word">${escape(values['ar.ask.mode'] === 'Answer' ? 'Answer' : 'Propose')}</span>
+        <time class="quiet">${escape(when)}</time>
+        ${turn ? '<button type="button" data-ask-stop>Stop</button>' : ''}
+        ${again ? '<button type="button" data-ask-again>Ask again</button>' : ''}
+        ${state.readOnly || turn ? '' : '<button type="button" class="agent-remove" data-ask-remove aria-label="Remove this ask" title="Remove this ask and its proposals">×</button>'}
+      </div>
+      ${working || last ? `<div class="agent-progress">${step ? `<progress max="${step.of}" value="${Math.min(step.done, step.of)}"></progress>` : working ? '<progress></progress>' : ''}<span class="quiet">${escape(last || 'Waiting for the agent…')}</span></div>` : ''}
+      ${values['ar.ask.reply'] ? `<p class="agent-reply">${escape(values['ar.ask.reply'])}</p>` : ''}
+      ${proposals.map(proposal => renderProposal(proposal, previewing)).join('')}
+    </article>`;
+  }).join('');
+}
+
+function renderProposal(proposal, previewing) {
+  const values = proposal.values;
+  const status = values['ar.proposal.status'] ?? 'Proposed';
+  const plan = planOf(proposal);
+  const open = status === 'Proposed' && !state.readOnly;
+  const shown = previewing === proposal.recordId;
+  const changes = plan.changes ?? [];
+  const problems = plan.error ? [plan.error] : plan.problems ?? [];
+  return `<div class="agent-proposal" data-proposal="${escape(proposal.recordId)}" data-status="${escape(status)}" ${shown ? 'aria-current="true"' : ''}>
+    <div class="agent-proposal-head"><strong>${escape(values['ar.proposal.title'] || 'Proposal')}</strong>
+      <span class="agent-state" style="--tone:${tone(PROPOSAL_TONES[status] ?? 'grey')}">${escape(shown ? 'Previewing' : status)}</span></div>
+    ${values['ar.proposal.summary'] ? `<p class="agent-summary">${escape(values['ar.proposal.summary'])}</p>` : ''}
+    ${plan.counts ? `<p class="quiet agent-counts">${escape(AG.countsSentence(plan.counts))}</p>` : ''}
+    ${changes.length ? `<details><summary>What it changes</summary><ul>${changes.slice(0, 40).map(line => `<li>${escape(line)}</li>`).join('')}${changes.length > 40 ? `<li class="quiet">and ${changes.length - 40} more</li>` : ''}</ul></details>` : ''}
+    ${problems.map(problem => `<p class="problem">${escape(problem)}</p>`).join('')}
+    ${open ? `<div class="agent-actions">
+      ${shown ? '<span class="quiet">Waiting in the editor: Commit applies it.</span>' : `<button type="button" class="primary" data-preview ${plan.error ? 'disabled' : ''}>Preview</button>`}
+      <button type="button" data-apply ${plan.error || plan.blocking ? 'disabled' : ''}>Apply</button>
+      <button type="button" data-reject>Reject</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function wireAgent() {
+  $('own-agent').addEventListener('click', () => showAgent(!state.agent.open));
+  $('agent-close').addEventListener('click', () => showAgent(false));
+  $('agent-clear').addEventListener('click', () => {
+    const ids = finishedAskIds();
+    if (ids.length) removeAsks(ids, `Clear ${ids.length} finished ${ids.length === 1 ? 'ask' : 'asks'}`);
+  });
+  $('agent-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const request = $('agent-request').value.trim();
+    if (!request) { $('agent-request').focus(); return; }
+    $('agent-send').disabled = true;
+    try {
+      if (await sendAsk({ request, mode: $('agent-mode').value })) $('agent-request').value = '';
+    } finally { renderAgent(); }
+  });
+  $('agent-request').addEventListener('keydown', event => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); $('agent-form').requestSubmit(); }
+  });
+  $('agent-quick').addEventListener('click', event => {
+    const button = event.target.closest('[data-quick]');
+    const entry = button && state.agent.quick?.find(candidate => candidate.id === button.dataset.quick);
+    if (!entry) return;
+    if (entry.draft) {
+      $('agent-mode').value = entry.mode;
+      $('agent-request').value = entry.draft;
+      $('agent-request').focus();
+      $('agent-request').setSelectionRange(entry.draft.length, entry.draft.length);
+      return;
+    }
+    sendAsk({ request: entry.request, mode: entry.mode, issues: entry.issues === true });
+  });
+  $('agent-list').addEventListener('click', event => {
+    const askId = event.target.closest('[data-ask]')?.dataset.ask;
+    const proposalId = event.target.closest('[data-proposal]')?.dataset.proposal;
+    if (event.target.closest('[data-ask-stop]')) stopAsk();
+    else if (event.target.closest('[data-ask-remove]')) removeAsks([askId], 'Remove the ask');
+    else if (event.target.closest('[data-ask-again]')) {
+      const ask = state.agent.asks.find(entry => entry.recordId === askId);
+      if (ask) sendAsk({ request: ask.values['ar.ask.request'], mode: ask.values['ar.ask.mode'] });
+    } else if (event.target.closest('[data-preview]')) previewProposal(proposalId);
+    else if (event.target.closest('[data-apply]')) applyProposal(proposalId);
+    else if (event.target.closest('[data-reject]')) rejectProposal(proposalId);
+  });
+}
 
 // ---------------------------------------------------------------- the Visualiser
 
@@ -1801,6 +2202,7 @@ function render() {
   declarePlace();
   markStale();
   refreshVisualiser();
+  renderAgent();
   // The Properties Manager open over the workbench follows the file, as the tree does.
   if (canvasModule && $('properties-manager').open) renderPropertiesManager();
 }
@@ -1849,7 +2251,7 @@ function declarePlace() {
 /** Put the workbench where a place says, as far as the model still has it. */
 function applyPlace(place) {
   const has = id => typeof id === 'string' && state.model.records.has(id);
-  state.openView = has(place?.view) ? place.view : null;
+  state.openView = has(place?.view) || (typeof place?.view === 'string' && keptCreates(place.view)) ? place.view : null;
   state.selected = has(place?.selected) ? place.selected : state.openView ?? modelRecord()?.recordId ?? null;
   state.diagramSelection = has(place?.item) ? [place.item] : [];
   state.draftProperties = null;
@@ -1974,6 +2376,7 @@ function wire() {
   wireTools();
   $('own-validator').addEventListener('click', () => showValidator(!state.validator.open));
   $('own-visualiser').addEventListener('click', () => showVisualiser(!state.visualiser.open));
+  wireAgent();
   $('own-open-archimate').addEventListener('click', () => showOpenArchimate());
   $('own-save-archimate').addEventListener('click', () => saveArchimate());
   $('own-save-exchange').addEventListener('click', () => saveExchange());
@@ -2009,6 +2412,12 @@ function wire() {
   $('validate').addEventListener('click', () => validate());
   $('validator-rules').addEventListener('click', () => { if (canvasModule) configureRules(); });
   $('validator-close').addEventListener('click', () => showValidator(false));
+  $('validator-ask').addEventListener('click', () => {
+    const fix = AG.quickAsks(state.model, { issues: state.validator.issues?.length ?? 0 }).find(entry => entry.id === 'fix-issues');
+    if (!fix) return;
+    if (!state.agent.open) showAgent(true);
+    sendAsk({ request: fix.request, mode: fix.mode, issues: true });
+  });
   $('validator-list').addEventListener('click', event => {
     const row = event.target.closest('[data-issue]');
     const issue = row && state.validator.issues?.[Number(row.dataset.issue)];
@@ -2410,8 +2819,13 @@ if (nendo === undefined) {
       nendo.on('command', command => { try { runCommand(command); } catch (error) { setStatus(describe(error), true); } });
     } else showOwnToolbar();
     nendo.on('changes', schedule);
-    nendo.on('context', next => { state.readOnly = next.readOnly === true; schedule(); });
-    return readAll();
+    // A change of the file's definition, such as accepting the agent's record types, says so here.
+    nendo.on('context', next => { state.readOnly = next.readOnly === true; checkAgentTypes().finally(schedule); });
+    if (nendo.has('assistant.status')) {
+      nendo.on('assistant', status => { state.agent.status = status; renderAgent(); });
+      nendo.assistant.status().then(status => { state.agent.status = status; renderAgent(); }).catch(() => undefined);
+    }
+    return checkAgentTypes().then(readAll);
   }).then(async () => {
     setStatus(summary());
     await canvasReady;

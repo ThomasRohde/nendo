@@ -15,6 +15,7 @@
   <button id="own-specializations" type="button">Specializations…</button>
   <button id="own-validator" type="button" aria-pressed="false">Validator</button>
   <button id="own-visualiser" type="button" aria-pressed="false">Visualiser</button>
+  <button id="own-agent" type="button" aria-pressed="false">Agent</button>
   <button id="own-open-archimate" type="button">Open .archimate or Exchange XML…</button>
   <button id="own-save-archimate" type="button">Save as .archimate</button>
   <button id="own-save-exchange" type="button">Save as Exchange XML</button>
@@ -37,6 +38,7 @@
     <strong>Validator</strong>
     <button id="validate" type="button" class="primary">Validate</button>
     <button id="validator-rules" type="button">Rules…</button>
+    <button id="validator-ask" type="button" hidden>Ask the agent to fix them</button>
     <span id="validator-summary" class="quiet" role="status"></span>
     <span class="spacer"></span>
     <button id="validator-close" type="button" aria-label="Close the validator">×</button>
@@ -63,6 +65,28 @@
     <button id="visualiser-close" type="button" aria-label="Close the Visualiser">×</button>
   </header>
   <div id="visualiser-canvas" class="visualiser-host"></div>
+</section>
+<section id="agent" class="agent" aria-label="Agent" hidden>
+  <header class="agent-bar">
+    <strong>Agent</strong>
+    <span id="agent-status" class="quiet" role="status"></span>
+    <span class="spacer"></span>
+    <button id="agent-clear" type="button" disabled>Clear finished</button>
+    <button id="agent-close" type="button" aria-label="Close the agent panel">×</button>
+  </header>
+  <div class="agent-body">
+    <form id="agent-form" class="agent-compose">
+      <div id="agent-quick" class="agent-quick-row" aria-label="Quick asks"></div>
+      <textarea id="agent-request" rows="3" maxlength="20000" aria-label="Ask the agent" placeholder="Ask about the model, or describe a change: “add the claims process”, “why is this view so busy?”"></textarea>
+      <div class="agent-row">
+        <span id="agent-context" class="agent-context" aria-label="What goes with the request"></span>
+        <span class="spacer"></span>
+        <select id="agent-mode" aria-label="What the agent may do"><option value="Propose">Propose changes</option><option value="Answer">Just answer</option></select>
+        <button id="agent-send" type="submit" class="primary" title="Ctrl Enter">Ask</button>
+      </div>
+    </form>
+    <div id="agent-list" class="agent-list" aria-label="Asks and proposals"></div>
+  </div>
 </section>
 <footer><span id="status" role="status">Reading the model…</span></footer>
 <dialog id="new-element">

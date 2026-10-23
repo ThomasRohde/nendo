@@ -229,6 +229,46 @@ wait in the editor the tools ask for them to be committed or discarded first.
   out. Like every download, the file goes to Downloads, as `Archisurance (1).xml` when
   `Archisurance.xml` is already there.
 
+### Working with the agent
+
+**Agent** in Nendo's row (Ctrl Shift A) opens the Agent panel under the workbench, where you ask
+your own agent, the one Nendo launches on its Agent page ([ADR-0033](../../docs/decisions/0033-a-view-messages-the-launched-agent.md)),
+about the model or for a change. The file carries the agent's half as a skill, *Modelling
+ArchiMate in Archi* (`org.nendo.archimate`, from `tools/archi/skill/`): the record types,
+ArchiMate's allowed relationships, how a view's boxes and lines are stored, and what follows.
+
+- **Ask** sends what you type, with the open view, box by box, and what is selected in the
+  editor or the tree. *Propose changes* (the default) has the agent change nothing itself and
+  write a proposal; *Just answer* has it reply and write nothing else. Ctrl Enter asks too.
+- **Quick asks** above the box follow what is open and selected: explain, review or complete the
+  open view; document the selected elements, suggest their relationships or draft a view around
+  them; draft a view or a first model from a description; say what the model is missing. With the
+  validator's findings listed, **Ask the agent to fix them** in the validator sends them as well.
+- **Every request is an Ask** in *Agent asks*, written before the agent is messaged, so a
+  refusal, a reload or a closed screen never loses it. The panel shows each Ask's state, the
+  agent's last progress line with its step ("2 of 5"), Stop while it runs, and its reply. When
+  the agent's turn ends and it left the Ask unfinished, the workbench finishes it with the reply
+  it gave. A message Nendo did not send, because you said Not now or views may not message the
+  agent, finishes the Ask as Failed with the reason, and **Ask again** sends it once more.
+- **A proposal** (*Agent proposals*) is a list of record writes the agent wrote and never
+  applied. The panel says what it adds, changes and removes, and names anything the file would
+  refuse, such as a relationship ArchiMate does not allow, which keeps Apply from it.
+  **Preview** opens it on its view in the editor as the edits waiting there, its new boxes
+  selected; boxes the agent gave no place go below the view's boxes, and on a view the proposal
+  makes, ELK lays them out. Change them as you like, then **Commit** applies them and marks the
+  proposal Applied in one revision, which Undo takes back whole; **Discard** drops the preview
+  and leaves the proposal waiting. **Apply** does the same without the editor; **Reject** marks
+  it Rejected. When an Ask you just sent ends with proposals and nothing waits in the editor, the
+  first opens at once.
+- The workbench fills in what the agent may leave out: a concept's category and folder, a box's
+  kind and size, a line's two boxes from its relationship's ends; it gives its own IDs record
+  IDs, and a delete takes what Archi's would.
+- **Clear finished** removes the Asks that are done, with their proposals, unless a proposal
+  still waits.
+- Where Nendo cannot message an agent from a view, **Leave for the agent** writes the Ask and
+  leaves it Waiting: an agent connected to the file over MCP works every waiting Ask when told to
+  "work the Archi asks".
+
 ### Without the workbench, and on a smaller Nendo
 
 In Use, Concepts → Elements and Relationships show an *On views* column, a concept's page
@@ -251,6 +291,8 @@ starts, and the validator lists each one under Model integrity, opening it on it
 
 - `model.js`: every rule, and every change as the record writes it makes. No DOM, so
   `tools/archi/model.test.mjs` tests it over Archisurance.
+- `agent.js`: what a request to the agent says and carries, and a proposal made into the edits
+  the editor previews. No DOM, so `tools/archi/agent.test.mjs` tests it over Archisurance.
 - `view.js`, `view.css`, `index.html`: the tree, the middle and the properties.
 - `canvas.js`: the drawing, the editor, the validator, the Analysis and the Visualiser. Built
   by `tools/archi/build-canvas.mjs` from `tools/archi/canvas` (the mirror of the records as
@@ -269,7 +311,8 @@ starts, and the validator lists each one under Model integrity, opening it on it
 - `kit/nendo-view-kit.js`: the view kit, byte for byte (`tools/view-kit/kit.test.mjs`).
 
 `node tools/Build-Archi.mjs workbench` puts the package, and the first time its screen, into
-the open Archi.nendo.
+the open Archi.nendo; `node tools/Build-Archi.mjs skill` puts the agent's skill, and
+`node tools/Build-Archi.mjs agent` the Agent asks and Agent proposals.
 
 ## Checked by
 
@@ -283,7 +326,9 @@ the open Archi.nendo.
   `io.test.mjs` (the `.archimate` mapping both ways over Archisurance, the versions each batch
   names, refusals before any write, Sketch and Canvas views, and the Exchange export validated
   with libxml2); `automation.test.mjs` (nesting, Generate View For and layout with the
-  vendored ELK worker, each read back as the model archi-online left); `manage.test.mjs` (each
+  vendored ELK worker, each read back as the model archi-online left); `agent.test.mjs` (a
+  request's message and context within Nendo's bounds, and proposals planned, placed, laid out by
+  ELK and made into the writes Commit sends); `manage.test.mjs` (each
   model tool's writes read back, then undone and redone to the byte); and `view.test.mjs`
   (the shipped `view.js`: undo bounds, the 16 KiB row, F2, the 50,000-record read, kept
   edits and the layout bound).
@@ -298,7 +343,11 @@ the open Archi.nendo.
   palette at 0.35; undoes and redoes nine tree gestures and an editor commit to the exact
   records, and refuses an undo of a record changed elsewhere; runs each model tool, including
   a replace over 200 places refused with nothing written; and measures the rename box's
-  contrast (at least 4.5) and the Properties Manager in both themes. The broker keeps deletion
+  contrast (at least 4.5) and the Properties Manager in both themes. With the broker's stand-in
+  agent it asks from the Agent panel and checks the Ask, the message and its context, previews a
+  proposal on its view, applies it with its Applied mark in one batch that one Undo takes back,
+  rejects one, names a relationship ArchiMate refuses, finishes a refused message as Failed, lays
+  out and discards a new view, and leaves an Ask waiting where no agent can be messaged. The broker keeps deletion
   history as Nendo does, so a create of a deleted record ID is refused there as in a file.
 
 The Engine's `RecordWritesUndoTests` walk a batch back and forward, a chain of gestures on one

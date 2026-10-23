@@ -48,6 +48,9 @@ by it.
 | **Property** | Key, value, order, and one owner of: concept, view, folder, diagram item, model | Archi's ordered key/value lists. A reference targets one type, so a property has five optional owner references, exactly one set; each owner's page lists its properties |
 | **Allowed relationship** | Source type, target type, relationship type (each a Concept type) | ArchiMate's relationship table as 12,829 seeded records, kept in a new file. Concepts declare a link rule over it ([ADR-0026](../decisions/0026-allowed-links.md)): Source, Target and Type on a relationship, Type on each end. The table's *Relationship* end is spelled out for each of the eleven relationship types |
 
+| **Agent ask** | Request, mode (Propose, Answer), context, state (Waiting, Working, Answered, Proposed, Failed, Cancelled), progress, reply, asked, finished | A request from the workbench's Agent panel to the person's launched agent, written before the agent is messaged ([ADR-0033](../decisions/0033-a-view-messages-the-launched-agent.md)). Its context names the open view and the selection by record ID, as text, so nothing an agent was asked about stops a delete |
+| **Agent proposal** | Ask, title, summary, view, writes, status (Proposed, Applied, Rejected), order | A change the agent would make, as record writes in JSON without versions; the person previews it in the editor and applies or rejects it. The file's skill package `org.nendo.archimate` tells an agent both protocols |
+
 **What stays in code.** The relationship table, the 25 viewpoints, the figures, the
 label-expression grammar and the validator's rules are ArchiMate's and do not change with a model.
 They live in the package, generated from archi-online's tables. The relationship table is also

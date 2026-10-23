@@ -17,6 +17,7 @@ body { margin: 0; display: flex; flex-direction: column; background: var(--canva
 button, input, select, textarea { font: inherit; color: inherit; }
 button { border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-raised); padding: 3px 10px; cursor: pointer; }
 button:hover { background: var(--surface-soft); }
+.agent button:disabled { opacity: 0.5; cursor: default; }
 button.primary { background: var(--cobalt); border-color: var(--cobalt); color: var(--surface-raised); }
 button.danger { background: var(--danger); border-color: var(--danger); color: var(--surface-raised); }
 input, select, textarea { border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface-raised); padding: 3px 7px; min-width: 0; }
@@ -104,6 +105,52 @@ ul.links li button:hover, .field button.value:hover { background: var(--surface-
 .validator-config-list { display: flex; flex-direction: column; gap: 6px; }
 .validator-config-list label { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); font-size: 0.93rem; }
 .validator-config-list small { color: var(--muted); margin-left: auto; }
+
+/* The Agent panel: a request and its quick asks on the left, the asks and their proposals on the right. */
+.agent { flex: 0 0 auto; height: clamp(220px, 40vh, 480px); display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--surface); }
+.agent[hidden] { display: none; }
+.agent-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+.agent-bar .spacer { flex: 1; }
+.agent-bar #agent-status { font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.agent-bar #agent-close { border: 0; background: none; font-size: 1.1rem; line-height: 1; padding: 2px 8px; }
+.agent-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, 2fr) minmax(0, 3fr); }
+.agent-compose { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-right: 1px solid var(--line); min-height: 0; overflow: auto; }
+.agent-compose textarea { flex: 1; min-height: 64px; resize: none; }
+.agent-quick-row { display: flex; flex-wrap: wrap; gap: 6px; }
+button.agent-quick { border-radius: 999px; padding: 1px 10px; font-size: 0.84rem; background: var(--surface-soft); border-color: var(--line); }
+button.agent-quick:hover { background: var(--cobalt-soft); border-color: var(--cobalt); }
+button.agent-quick[data-mode="Answer"]::before { content: "?"; margin-right: 5px; color: var(--muted); font-weight: 600; }
+.agent-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agent-row .spacer { flex: 1; }
+.agent-context { display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.84rem; min-width: 0; }
+.agent-chip { padding: 0 8px; border-radius: 999px; background: var(--cobalt-soft); color: var(--ink); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-list { min-height: 0; overflow: auto; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.agent-empty { margin: 8px 2px; }
+.agent-ask { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface-raised); }
+.agent-ask-head { display: flex; align-items: baseline; gap: 8px; }
+.agent-ask-head .agent-request { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.agent-ask-head time, .agent-mode-word { font-size: 0.8rem; white-space: nowrap; }
+.agent-ask-head button { padding: 0 8px; font-size: 0.84rem; }
+.agent-ask-head .agent-remove { border: 0; background: none; color: var(--muted); font-size: 1rem; padding: 0 4px; }
+.agent-state { flex: none; display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
+.agent-state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--tone, var(--muted)); }
+.agent-ask[data-state="Working"] .agent-state::before { animation: agent-pulse 1.2s ease-in-out infinite; }
+@keyframes agent-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .agent-ask[data-state="Working"] .agent-state::before { animation: none; } }
+.agent-progress { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.84rem; }
+.agent-progress progress { flex: none; width: 120px; height: 6px; accent-color: var(--cobalt); }
+.agent-reply { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-proposal { margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: var(--surface-soft); border: 1px solid transparent; }
+.agent-proposal[aria-current="true"] { border-color: var(--cobalt); background: var(--cobalt-soft); }
+.agent-proposal[data-status="Rejected"], .agent-proposal[data-status="Applied"] { opacity: 0.75; }
+.agent-proposal-head { display: flex; align-items: baseline; gap: 8px; justify-content: space-between; }
+.agent-summary { margin: 4px 0 0; overflow-wrap: anywhere; }
+.agent-counts { margin: 4px 0 0; font-size: 0.84rem; }
+.agent-proposal details { margin-top: 4px; font-size: 0.86rem; }
+.agent-proposal details ul { margin: 4px 0 0; padding-left: 18px; }
+.agent-proposal .problem { margin: 4px 0 0; font-size: 0.86rem; }
+.agent-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+@media (max-width: 760px) { .agent-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); } .agent-compose { border-right: 0; border-bottom: 1px solid var(--line); } }
 
 /* The Visualiser: archi-online's graph under the workbench, beside or above the validator. */
 .visualiser { flex: 0 0 auto; height: clamp(220px, 42vh, 520px); display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--surface); }

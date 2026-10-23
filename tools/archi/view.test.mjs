@@ -125,6 +125,7 @@ test('reversed read completion installs only the newest model', async () => {
   const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M, READ_MAX: 50000,
     nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
     render: () => rendered.push(state.model.records.get('owner').version), startEmptyModel() {},
+    readAgentRecords: () => Promise.resolve(null), keptCreates: () => false,
   });
   const reading = section('// ---------------------------------------------------------------- reading', '/**\n * A new Archi model');
   vm.runInContext(reading + '\nglobalThis.load = readAll;', context);
@@ -141,6 +142,7 @@ test('a superseded read waits for the newest model before a queued writer can co
   const context = vm.createContext({ state, READS: { concepts: M.E.concept }, M, READ_MAX: 50000,
     nendo: { records: { queryAll() { const reply = deferred(); replies.push(reply); return reply.promise; } } },
     render() {}, startEmptyModel() {},
+    readAgentRecords: () => Promise.resolve(null), keptCreates: () => false,
   });
   vm.runInContext(section('// ---------------------------------------------------------------- reading', '/**\n * A new Archi model') + '\nglobalThis.load = readAll;', context);
   const old = context.load().then(() => observed.push(state.model.records.get('owner').version));
@@ -194,7 +196,7 @@ function controller(draft, batch = true, failAt = null) {
   const state = { readOnly: false, openView: draft.viewId, pending: 0 };
   const context = vm.createContext({
     state, editor: { model: () => draft.after, viewId: () => draft.viewId, canUndo: () => false }, editSets: fixture, editBase: draft.before,
-    canvasModule: { writesFor }, EDITS_KEY: 'archi-edits',
+    canvasModule: { writesFor }, EDITS_KEY: 'archi-edits', keptProposal: null, appliedWrite: () => [],
     localStorage: { setItem: (key, value) => saved.set(key, value), removeItem: key => saved.delete(key) },
     declareToolbar() {}, markStale() {}, refreshVisualiser() {}, describe: error => error.message, setStatus: (message, problem = false) => statuses.push({ message, problem }),
     async readAll() { readCalls++; },
@@ -347,7 +349,7 @@ test("on a Nendo without the newer row icons the row is declared again with word
   let left = null;
   const context = vm.createContext({
     M, describe: error => error?.message ?? String(error), summary: () => '1 element', TextEncoder, $: () => null,
-    state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, zoom: 1, transparent: false },
+    state: { nativeChrome: true, filter: { text: '', layer: '' }, openView: 'ar-view', readOnly: false, editing: true, pending: 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, agent: { available: true, open: false }, zoom: 1, transparent: false },
     canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
     editor: { canUndo: () => false, canRedo: () => false },
     undoName: () => null, redoName: () => null,
@@ -413,7 +415,7 @@ for (const editing of [true, false]) {
       M, describe: error => error?.message ?? String(error), summary: () => '120 elements · 176 relationships · 17 views', TextEncoder, $: () => null,
       SPECIALIZED: 'new-specialized:',
       state: { nativeChrome: true, model: specializedModel(63, 80), filter: { text: '', layer: '', specialization: '' }, openView: editing ? 'ar-view' : null,
-        readOnly: false, editing, pending: editing ? 3 : 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, zoom: 1, transparent: false },
+        readOnly: false, editing, pending: editing ? 3 : 0, styleShown: false, validator: { open: false }, visualiser: { open: false }, agent: { available: true, open: false }, zoom: 1, transparent: false },
       canvasModule: { createEditor() {}, editorSettings: () => ({ grid: false, snap: true, guides: true }) },
       editor: { canUndo: () => false, canRedo: () => false },
       undoName: () => 'Move Customer', redoName: () => null,
@@ -476,6 +478,7 @@ test('a record type read past its cap is said, and no file is saved from it', as
       return Array.from({ length: asked }, (_, index) => ({ entityId, recordId: `c${index}`, version: 1, values: { 'ar.concept.category': 'Element' } }));
     } } },
     render() {}, startEmptyModel() {},
+    readAgentRecords: () => Promise.resolve(null), keptCreates: () => false,
   });
   vm.runInContext(section('// ---------------------------------------------------------------- reading', '/**\n * A new Archi model') + '\nglobalThis.load = readAll;', context);
   await context.load();
@@ -500,7 +503,7 @@ test('edits kept from view A, found while view B is edited, name view A until an
   const statuses = [];
   const centre = { innerHTML: '', querySelector: () => null };
   const context = vm.createContext({ M, state: { model, sets: {}, styleShown: false, diagramSelection: [], pending: 0, openView: viewB.recordId },
-    $: () => centre, canvas: null, drawnSets: null, requestAnimationFrame() {}, declareToolbar() {}, markStale() {}, refreshVisualiser() {}, select() {}, renderCentre() {},
+    keptProposal: null, $: () => centre, canvas: null, drawnSets: null, requestAnimationFrame() {}, declareToolbar() {}, markStale() {}, refreshVisualiser() {}, select() {}, renderCentre() {},
     localStorage: { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value), removeItem: key => stored.delete(key) },
     setStatus: (message, problem = false) => statuses.push({ message, problem }),
     canvasModule: { buildMirror: () => ({}), applyWrites: sets => sets, writesFor: () => [{ op: 'update', entityId: M.E.item, recordId: 'box', version: 1, values: { 'ar.item.x': 5 } }],

@@ -7,10 +7,13 @@ import { STAGES } from '../archi-definition.mjs';
 
 const KIND = { Text: 'text', Integer: 'integer', Decimal: 'decimal', Boolean: 'boolean', Date: 'date', Reference: 'reference' };
 
-/** schema.describe's entities, as the host would answer them for the file the stages build. */
-export function archiSchema() {
+/**
+ * schema.describe's entities, as the host would answer them for the file the stages build. A file
+ * built before the agent's stage has no Agent asks or Agent proposals: `agent: false` is that file.
+ */
+export function archiSchema({ agent = true } = {}) {
   const entities = new Map();
-  const operations = ['model', 'diagrams', 'order'].flatMap(name => STAGES[name].mutations().flatMap(mutation => mutation.operations));
+  const operations = ['model', 'diagrams', 'order', ...(agent ? ['agent'] : [])].flatMap(name => STAGES[name].mutations().flatMap(mutation => mutation.operations));
   for (const { operationType, payload } of operations) {
     if (operationType === 'schema.createEntity') entities.set(payload.entityId, { entityId: payload.entityId, displayName: payload.displayName, fields: [], hierarchy: null });
     if (operationType === 'schema.addField') {
@@ -31,10 +34,10 @@ export function archiSchema() {
   return { entities: [...entities.values()] };
 }
 
-export function archiFixture(extra = []) {
+export function archiFixture(extra = [], { agent = true } = {}) {
   const { records } = JSON.parse(readFileSync(new URL('./archisurance.json', import.meta.url), 'utf8'));
   for (const record of extra) (records[record.entityId] ??= []).push(record);
-  const schema = archiSchema();
+  const schema = archiSchema({ agent });
   // A record as window.nendo reads it: every field of its type present, null where it has no value.
   const full = Object.fromEntries(Object.entries(records).map(([entityId, list]) => {
     const fields = schema.entities.find(entity => entity.entityId === entityId).fields.map(field => field.fieldId);

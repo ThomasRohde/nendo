@@ -2450,6 +2450,194 @@ async (page) => {
   assert((await rows())[0].label === 'Archisurance', 'The tree does not start at the opened model.');
   results.openArchimate = { batches: openSaves.map(batch => batch.writes), records: openedRecords };
 
+  // ---- The person's launched agent (ADR-0033), as the fixture's stand-in answers for it: an Ask
+  // written before the message, the message and its context, the agent's Proposal previewed in the
+  // editor as waiting edits, applied with its Applied mark in one revision that one Undo takes
+  // back, rejected, refused, a new view laid out and discarded, and an Ask left for an agent
+  // connected over MCP where Nendo cannot message one.
+  {
+    // The view with most boxes at its top among those showing an element an application component may serve.
+    const servable = ['BusinessActor', 'BusinessRole', 'BusinessProcess', 'BusinessFunction', 'BusinessInteraction', 'ApplicationComponent', 'ApplicationFunction', 'ApplicationProcess'];
+    const conceptOf = id => fixture.records['ar.concept'].find(concept => concept.recordId === id);
+    const servableBox = viewId => fixture.records['ar.item'].find(item => item.values['ar.item.view'] === viewId && item.values['ar.item.kind'] === 'Element'
+      && servable.includes(conceptOf(item.values['ar.item.concept'])?.values['ar.concept.type'].replace('ar.type.r.', '')));
+    const agentView = fixture.records['ar.view'].filter(record => servableBox(record.recordId))
+      .map(record => [record, fixture.records['ar.item'].filter(item => item.values['ar.item.view'] === record.recordId && item.values['ar.item.kind'] === 'Element' && !item.values['ar.item.parent']).length])
+      .sort((a, b) => b[1] - a[1])[0][0];
+    const fields = Object.fromEntries(fixture.schema.entities.map(entity => [entity.entityId, entity.fields.map(field => field.fieldId)]));
+    const full = (entityId, recordId, version, values) => ({ entityId, recordId, version, labels: {},
+      values: Object.fromEntries(fields[entityId].map(id => [id, values[id] ?? null])) });
+    const restart = async (assistant, place) => {
+      await page.evaluate(([value, offered, at]) => { window.broker.setFixture(value); window.broker.offerAssistant(offered); window.broker.startAt(at); window.broker.remount(); },
+        [fixture, assistant, place]);
+      view = null;
+      for (let attempt = 0; attempt < 400 && view === null; attempt++) {
+        const candidate = page.frames().filter(frame => !frame.isDetached() && frame.url().startsWith(origin + '/')).at(-1);
+        if (candidate && await candidate.evaluate(() => /120 elements · 176 relationships · 17 views/.test(document.getElementById('status')?.textContent ?? '')).catch(() => false)) view = candidate;
+        else await page.waitForTimeout(25);
+      }
+      assert(view !== null, 'The workbench did not start again for the agent.');
+      await view.evaluate(() => { localStorage.removeItem('archi-edits'); localStorage.removeItem('archi-agent'); });
+    };
+    const ready = { state: 'ready', name: 'Stand-in agent', working: false, access: 'ask' };
+    await restart(ready, { view: agentView.recordId, selected: agentView.recordId, item: null });
+    const agentResults = {};
+    // Nendo's row offers the panel only where the file has the agent's record types.
+    const toggle = await control('agent');
+    assert(toggle && toggle.kind === 'toggle' && toggle.label === 'Agent' && toggle.keys === 'Ctrl+Shift+A' && toggle.pressed === false,
+      `Nendo's row does not offer the Agent panel: ${JSON.stringify(toggle)}.`);
+    await page.evaluate(() => window.broker.command('agent', true, 'toolbar'));
+    await until(() => !document.getElementById('agent').hidden && document.getElementById('agent-status').textContent === 'Stand-in agent is ready.', null,
+      'The Agent panel did not open saying the agent is ready.');
+    const quick = await view.evaluate(() => [...document.querySelectorAll('#agent-quick [data-quick]')].map(button => button.dataset.quick));
+    assert(['explain-view', 'review-view', 'complete-view', 'draft-view', 'gaps'].every(id => quick.includes(id)),
+      `The quick asks for an open view are not offered: ${JSON.stringify(quick)}.`);
+    const chips = await view.evaluate(() => document.getElementById('agent-context').textContent);
+    assert(chips.startsWith(`View: ${agentView.values['ar.view.name']}`.slice(0, 40)), `The panel does not say the open view goes with the request: ${chips}.`);
+
+    // The Ask is written first; then the message names it, and its context the view box by box.
+    const asksBefore = (await records('ar.ask')).length;
+    await view.fill('#agent-request', 'Add a broker portal that serves the customer');
+    await view.click('#agent-send');
+    await page.waitForFunction(() => window.broker.assistantAsks.length === 1, null, { timeout: 8000, polling: 50 });
+    const asks = await records('ar.ask');
+    assert(asks.length === asksBefore + 1, 'No Ask record was written before the agent was messaged.');
+    const ask = asks.at(-1);
+    assert(ask.values['ar.ask.state'] === 'Waiting' && ask.values['ar.ask.mode'] === 'Propose' && ask.values['ar.ask.request'] === 'Add a broker portal that serves the customer'
+      && ask.values['ar.ask.context'].startsWith(`view ${agentView.recordId} «`), `The Ask is not what was asked: ${JSON.stringify(ask.values)}.`);
+    const sent = (await page.evaluate(() => window.broker.assistantAsks))[0];
+    assert(sent.text.startsWith(`Work Archi ask «Add a broker portal that serves the customer» (ar.ask record ${ask.recordId}) by this file's archimate skill (skill://org.nendo.archimate/archimate/SKILL.md)`),
+      `The message does not name the Ask and the skill: ${sent.text.slice(0, 240)}.`);
+    assert(sent.context.length === 2 && sent.context[0].uri === `nendo://application/entity/ar.ask/records?recordId=${encodeURIComponent(ask.recordId)}`
+      && sent.context[1].title === `View: ${agentView.values['ar.view.name']}` && sent.context[1].text.split('\n').filter(line => line.startsWith('box ')).length >= 3
+      && sent.context.every(item => item.text.length <= 8000 && item.title.length <= 120 && item.uri.length <= 600),
+      `The context does not carry the Ask and the open view within Nendo's bounds: ${JSON.stringify(sent.context.map(item => [item.uri, item.title, item.text.length]))}.`);
+    await until(() => document.querySelector('#agent-list .agent-ask [data-ask-stop]') !== null, null, 'A running ask offers no Stop.');
+
+    // The agent works it, by the skill: Working with a step, then a Proposal, then Proposed.
+    const elementBox = servableBox(agentView.recordId);
+    const served = conceptOf(elementBox.values['ar.item.concept']);
+    await page.evaluate(([entity, record]) => { window.broker.put(entity, record); window.broker.pushChanges(); },
+      ['ar.ask', full('ar.ask', ask.recordId, ask.version + 1, { ...ask.values, 'ar.ask.state': 'Working', 'ar.ask.progress': 'Started.\nStep 1 of 2: read the view.' })]);
+    await until(() => document.querySelector('#agent-list .agent-progress progress')?.getAttribute('max') === '2'
+      && /Step 1 of 2: read the view\./.test(document.querySelector('#agent-list .agent-progress').textContent), null, 'The panel does not show the agent’s step.');
+    const portalWrites = [
+      { op: 'create', entityId: 'ar.concept', recordId: '$portal', values: { 'ar.concept.name': 'Broker portal', 'ar.concept.type': 'ApplicationComponent' } },
+      { op: 'create', entityId: 'ar.concept', recordId: '$serves', values: { 'ar.concept.type': 'ServingRelationship', 'ar.concept.source': '$portal', 'ar.concept.target': served.recordId } },
+      { op: 'create', entityId: 'ar.item', recordId: '$box', values: { 'ar.item.concept': '$portal' } },
+      { op: 'create', entityId: 'ar.item', values: { 'ar.item.concept': '$serves' } },
+    ];
+    const proposalId = 'ar.proposal.r.portal';
+    await page.evaluate(([proposal, finished]) => {
+      window.broker.put('ar.proposal', proposal);
+      window.broker.put('ar.ask', finished);
+      window.broker.pushChanges();
+      window.broker.answerAssistant({ reply: 'I propose a broker portal serving the customer.', stopReason: 'end_turn' });
+    }, [full('ar.proposal', proposalId, 1, { 'ar.proposal.ask': ask.recordId, 'ar.proposal.title': 'Add the broker portal', 'ar.proposal.summary': 'A portal for brokers.',
+      'ar.proposal.view': agentView.recordId, 'ar.proposal.writes': JSON.stringify(portalWrites), 'ar.proposal.status': 'Proposed', 'ar.proposal.order': 1 }),
+      full('ar.ask', ask.recordId, ask.version + 2, { ...ask.values, 'ar.ask.state': 'Proposed', 'ar.ask.progress': 'Started.\nStep 2 of 2: proposed.', 'ar.ask.reply': 'One proposal.' })]);
+    // One proposal and nothing waiting: it opens at once in the editor, as the edits waiting on its view.
+    await until(() => /^Previewing Add the broker portal: 1 new element · 1 new relationship · 1 box · 1 line\./.test(document.getElementById('status').textContent), null,
+      'The proposal did not open in the editor when the agent’s turn ended.');
+    const kept = JSON.parse(await view.evaluate(() => localStorage.getItem('archi-edits')));
+    assert(kept.proposalId === proposalId && kept.viewId === agentView.recordId, `The waiting edits do not name the proposal: ${JSON.stringify({ proposalId: kept.proposalId, viewId: kept.viewId })}.`);
+    const placedBox = kept.writes.find(write => write.op === 'create' && write.entityId === 'ar.item' && write.values['ar.item.kind'] === 'Element');
+    const bottom = Math.max(...fixture.records['ar.item'].filter(item => item.values['ar.item.view'] === agentView.recordId && !item.values['ar.item.parent'] && item.values['ar.item.kind'] !== 'Relationship connection')
+      .map(item => item.values['ar.item.y'] + item.values['ar.item.height']));
+    assert(placedBox && placedBox.values['ar.item.y'] > bottom, `The box the agent gave no place was not put below the view's boxes: ${JSON.stringify(placedBox?.values)} against ${bottom}.`);
+    const line = kept.writes.find(write => write.op === 'create' && write.values['ar.item.kind'] === 'Relationship connection');
+    assert(line && line.values['ar.item.source'] === placedBox.recordId && line.values['ar.item.target'] === elementBox.recordId,
+      `The line was not drawn between the new box and the box of the element it serves: ${JSON.stringify(line?.values)}.`);
+    await labelIs('commit', `Commit ${kept.writes.length}`, 'The preview');
+    await until(proposal => document.querySelector(`[data-proposal="${proposal}"]`)?.getAttribute('aria-current') === 'true', proposalId, 'The panel does not mark the proposal as the one previewed.');
+    const askAfterTurn = (await records('ar.ask')).find(record => record.recordId === ask.recordId);
+    assert(askAfterTurn.values['ar.ask.state'] === 'Proposed' && askAfterTurn.version === ask.version + 2,
+      `The turn's end wrote over an Ask the agent had finished: ${JSON.stringify([askAfterTurn.values['ar.ask.state'], askAfterTurn.version])}.`);
+
+    // Commit applies it and marks it Applied in one revision; one Undo takes back both.
+    const batchesBefore = await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').length);
+    await page.evaluate(() => window.broker.command('commit', null, 'toolbar'));
+    await until(() => /^Apply Add the broker portal\.$/.test(document.getElementById('status').textContent), null, 'Commit did not apply the proposal.');
+    const applied = (await page.evaluate(() => window.broker.requests.filter(request => request.m === 'records.batch').map(request => request.p))).slice(batchesBefore);
+    assert(applied.length === 1 && applied[0].label === 'Apply Add the broker portal'
+      && applied[0].writes.some(write => write.entityId === 'ar.proposal' && write.recordId === proposalId && write.values['ar.proposal.status'] === 'Applied')
+      && applied[0].writes.some(write => write.op === 'create' && write.entityId === 'ar.concept' && write.values['ar.concept.name'] === 'Broker portal'),
+      `The proposal was not applied with its mark in one revision: ${JSON.stringify(applied.map(batch => [batch.label, batch.writes.length]))}.`);
+    assert((await page.evaluate(id => window.broker.record('ar.proposal', id), proposalId)).values['ar.proposal.status'] === 'Applied', 'The proposal is not Applied.');
+    await labelIs('undo', 'Undo Apply Add the broker portal', 'After applying');
+    await step('undo');
+    assert((await page.evaluate(id => window.broker.record('ar.proposal', id), proposalId)).values['ar.proposal.status'] === 'Proposed'
+      && !(await records('ar.concept')).some(concept => concept.values['ar.concept.name'] === 'Broker portal'), 'Undo did not take back the proposal and its mark together.');
+    agentResults.applied = { writes: applied[0].writes.length, placedAt: [placedBox.values['ar.item.x'], placedBox.values['ar.item.y']] };
+
+    // Reject is the person's, and is written as such.
+    await until(proposal => document.querySelector(`[data-proposal="${proposal}"] [data-reject]`) !== null, proposalId, 'A proposal waiting again offers no Reject.');
+    await view.click(`[data-proposal="${proposalId}"] [data-reject]`);
+    await until(proposal => document.querySelector(`[data-proposal="${proposal}"]`)?.dataset.status === 'Rejected', proposalId, 'Reject did not mark the proposal Rejected.');
+
+    // A relationship ArchiMate does not allow is said on the proposal, and Apply is not offered for it.
+    const elements = fixture.records['ar.concept'].filter(concept => concept.values['ar.concept.category'] === 'Element');
+    const actorType = elements.find(concept => concept.values['ar.concept.type'] === 'ar.type.r.BusinessActor');
+    const objectType = elements.find(concept => concept.values['ar.concept.type'] === 'ar.type.r.BusinessObject');
+    await page.evaluate(proposal => { window.broker.put('ar.proposal', proposal); window.broker.pushChanges(); },
+      full('ar.proposal', 'ar.proposal.r.refused', 1, { 'ar.proposal.ask': ask.recordId, 'ar.proposal.title': 'Compose a business object of an actor', 'ar.proposal.status': 'Proposed', 'ar.proposal.order': 2,
+        'ar.proposal.writes': JSON.stringify([{ op: 'create', entityId: 'ar.concept', values: { 'ar.concept.type': 'CompositionRelationship', 'ar.concept.source': objectType.recordId, 'ar.concept.target': actorType.recordId } }]) }));
+    await until(() => /^ArchiMate does not allow Composition from /.test(document.querySelector('[data-proposal="ar.proposal.r.refused"] .problem')?.textContent ?? '')
+      && document.querySelector('[data-proposal="ar.proposal.r.refused"] [data-apply]').disabled, null, 'A relationship ArchiMate does not allow was not named, or Apply was offered for it.');
+
+    // A refusal in Nendo's card finishes the Ask as Failed, with the reason.
+    await view.fill('#agent-request', 'What does this view leave out?');
+    await view.selectOption('#agent-mode', 'Answer');
+    await view.click('#agent-send');
+    await page.waitForFunction(() => window.broker.assistantAsks.length === 2, null, { timeout: 8000, polling: 50 });
+    await page.evaluate(() => window.broker.answerAssistant({ error: { code: 'assistant-declined', message: 'The person said Not now.' } }));
+    await until(() => /^Not sent: you said Not now\./.test(document.getElementById('status').textContent), null, 'A refused message was not said.');
+    const refusedAsk = (await records('ar.ask')).find(record => record.values['ar.ask.request'] === 'What does this view leave out?');
+    assert(refusedAsk.values['ar.ask.state'] === 'Failed' && /Not sent: you said Not now\./.test(refusedAsk.values['ar.ask.progress']) && refusedAsk.values['ar.ask.mode'] === 'Answer',
+      `The refused Ask was not finished as Failed: ${JSON.stringify(refusedAsk.values)}.`);
+
+    // A new view of boxes with no place is laid out by ELK; Discard drops it and goes back to the view before.
+    const fresh = [{ op: 'create', entityId: 'ar.view', recordId: '$v', values: { 'ar.view.name': 'Drafted by the agent' } },
+      ...elements.slice(0, 4).map(element => ({ op: 'create', entityId: 'ar.item', values: { 'ar.item.view': '$v', 'ar.item.concept': element.recordId } }))];
+    await page.evaluate(proposal => { window.broker.put('ar.proposal', proposal); window.broker.pushChanges(); },
+      full('ar.proposal', 'ar.proposal.r.fresh', 1, { 'ar.proposal.ask': ask.recordId, 'ar.proposal.title': 'A view of four', 'ar.proposal.status': 'Proposed', 'ar.proposal.order': 3,
+        'ar.proposal.view': '$v', 'ar.proposal.writes': JSON.stringify(fresh) }));
+    await until(() => document.querySelector('[data-proposal="ar.proposal.r.fresh"] [data-preview]') !== null, null, 'The new view’s proposal offers no Preview.');
+    await view.click('[data-proposal="ar.proposal.r.fresh"] [data-preview]');
+    await until(() => /^Previewing A view of four: 1 new view · 4 boxes\./.test(document.getElementById('status').textContent), null, 'The new view was not previewed.');
+    const freshEdits = JSON.parse(await view.evaluate(() => localStorage.getItem('archi-edits')));
+    const freshBoxes = freshEdits.writes.filter(write => write.entityId === 'ar.item');
+    assert(freshBoxes.length === 4 && new Set(freshBoxes.map(write => `${write.values['ar.item.x']},${write.values['ar.item.y']}`)).size === 4
+      && await view.evaluate(() => document.querySelector('#centre .editor-host') !== null), `The new view's boxes were not laid out apart in the editor: ${JSON.stringify(freshBoxes.map(write => [write.values['ar.item.x'], write.values['ar.item.y']]))}.`);
+    await page.evaluate(() => window.broker.command('discard', null, 'toolbar'));
+    await until(() => /^The preview of A view of four was discarded; the proposal is still in the Agent panel\.$/.test(document.getElementById('status').textContent)
+      && localStorage.getItem('archi-edits') === null, null, 'Discard did not drop the new view’s preview.');
+    // The view only the preview made goes with it: the editor closes, and the view shown before is open again.
+    await until(() => document.querySelector('#centre .canvas-host') !== null && document.querySelector('#centre .editor-host') === null, null,
+      'After Discard the editor stayed open on a view only the discarded preview made.');
+    await rowQuiet();
+    const backTo = (await page.evaluate(() => window.broker.places.at(-1)?.place))?.view;
+    const editToggle = await control('edit');
+    assert(backTo === agentView.recordId && editToggle?.pressed === false,
+      `After Discard the workbench is not back on ${agentView.recordId} out of the editor: the place is ${backTo}, Edit ${JSON.stringify(editToggle?.pressed)}.`);
+    agentResults.laidOut = freshBoxes.length;
+
+    // Where Nendo cannot message an agent from a view, the Ask waits for one connected over MCP.
+    await restart(null, { view: agentView.recordId, selected: agentView.recordId, item: null });
+    await page.evaluate(() => window.broker.command('agent', true, 'toolbar'));
+    await until(() => !document.getElementById('agent').hidden && document.getElementById('agent-send').textContent === 'Leave for the agent'
+      && /work the Archi asks/.test(document.getElementById('agent-status').textContent), null, 'Without assistant.ask the panel does not say the ask waits for an agent.');
+    const askedBefore = await page.evaluate(() => window.broker.assistantAsks.length);
+    await view.fill('#agent-request', 'Document the customer');
+    await view.click('#agent-send');
+    await until(() => /work the Archi asks/.test(document.getElementById('status').textContent), null, 'Leaving an ask for the agent was not said.');
+    const left = (await records('ar.ask')).filter(record => record.values['ar.ask.request'] === 'Document the customer');
+    assert(left.length === 1 && left[0].values['ar.ask.state'] === 'Waiting' && await page.evaluate(() => window.broker.assistantAsks.length) === askedBefore,
+      'Without assistant.ask the Ask was not left Waiting, or a message was sent.');
+    await view.evaluate(() => localStorage.removeItem('archi-agent'));
+    results.agent = agentResults;
+  }
+
   assert(errors.length === 0, `The page reported errors: ${errors.join(' | ')}`);
   // Review-ArchiWorkbench.ps1 requires this: the CLI ends a probe early, exit code 0, when a native
   // dialog or file chooser opens, so only the probe's own last word says it measured everything.

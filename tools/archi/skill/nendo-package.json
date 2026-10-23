@@ -1,0 +1,7 @@
+{
+  "packageId": "org.nendo.archimate",
+  "title": "Modelling ArchiMate in Archi",
+  "kind": "skill",
+  "version": "1.0.0",
+  "description": "How an agent reads and changes an Archi model in this file: the record types, ArchiMate's allowed relationships, diagram geometry, and the Asks and Proposals the Archi view sends."
+}

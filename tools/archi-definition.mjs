@@ -118,7 +118,12 @@ export const FOLDER_KINDS = ['Strategy', 'Business', 'Application', 'Technology 
   'Implementation & Migration', 'Other', 'Relations', 'Views'];
 const FOLDER_TONES = { Strategy: 'orange', Business: 'amber', Application: 'teal', 'Technology & Physical': 'green',
   Motivation: 'violet', 'Implementation & Migration': 'red', Other: 'grey', Relations: 'grey', Views: 'blue' };
-export const ITEM_KINDS = ['Element', 'Group', 'Note', 'View reference', 'Relationship connection', 'Connection'];
+export const ASK_MODES = ['Propose', 'Answer'];
+export const ASK_STATES = ['Waiting', 'Working', 'Answered', 'Proposed', 'Failed', 'Cancelled'];
+const ASK_TONES = { Waiting: 'grey', Working: 'blue', Answered: 'green', Proposed: 'violet', Failed: 'red', Cancelled: 'grey' };
+export const PROPOSAL_STATUSES = ['Proposed', 'Applied', 'Rejected'];
+const PROPOSAL_TONES = { Proposed: 'violet', Applied: 'green', Rejected: 'grey' };
+export const ITEM_KINDS =['Element', 'Group', 'Note', 'View reference', 'Relationship connection', 'Connection'];
 const DUBLIN_CORE = ['title', 'creator', 'subject', 'description', 'publisher', 'contributor', 'date', 'type',
   'format', 'identifier', 'source', 'language', 'relation', 'coverage', 'rights'];
 const titled = word => word.charAt(0).toUpperCase() + word.slice(1);
@@ -414,6 +419,43 @@ export const STAGES = {
     ]),
   },
 
+  // The person's launched agent (ADR-0033) works through records: every request from the
+  // workbench's Agent panel is an Ask, written before the agent is messaged, which the agent
+  // updates as it goes; a change it would make is a Proposal, a list of record writes the person
+  // previews in the editor and applies or rejects. Neither points at a model record, so nothing an
+  // agent asked about ever stops a concept or a view being deleted.
+  agent: {
+    title: 'Archi: the agent’s asks and proposals',
+    makes: ['ar.ask', 'ar.proposal'],
+    mutations: () => [
+      ...inMutations('Create Agent asks', [
+        op('schema.createEntity', { entityId: 'ar.ask', displayName: 'Agent asks' }),
+        long('ar.ask', 'ar.ask.request', 'Request'),
+        choice('ar.ask', 'ar.ask.mode', 'Mode', ASK_MODES, true),
+        long('ar.ask', 'ar.ask.context', 'Context'),
+        choice('ar.ask', 'ar.ask.state', 'State', ASK_STATES, true),
+        long('ar.ask', 'ar.ask.progress', 'Progress'),
+        long('ar.ask', 'ar.ask.reply', 'Reply'),
+        text('ar.ask', 'ar.ask.asked', 'Asked'),
+        text('ar.ask', 'ar.ask.finished', 'Finished'),
+      ]),
+      ...inMutations('Create Agent proposals', [
+        op('schema.createEntity', { entityId: 'ar.proposal', displayName: 'Agent proposals' }),
+        ...reference('ar.proposal', 'ar.proposal.ask', 'Ask', 'ar.ask', 'ar.ask.request', true),
+        text('ar.proposal', 'ar.proposal.title', 'Title', true),
+        long('ar.proposal', 'ar.proposal.summary', 'Summary'),
+        text('ar.proposal', 'ar.proposal.view', 'View'),
+        long('ar.proposal', 'ar.proposal.writes', 'Writes'),
+        choice('ar.proposal', 'ar.proposal.status', 'Status', PROPOSAL_STATUSES, true),
+        integer('ar.proposal', 'ar.proposal.order', 'Order'),
+      ]),
+      ...inMutations('Colour the asks and proposals', [
+        ...ASK_STATES.map(state => tone('ar.ask', 'ar.ask.state', state, ASK_TONES[state])),
+        ...PROPOSAL_STATUSES.map(status => tone('ar.proposal', 'ar.proposal.status', status, PROPOSAL_TONES[status])),
+      ]),
+    ],
+  },
+
   pages: {
     title: 'Archi: screens for diagram items, types, the model and properties',
     needs: ['ar.model', 'ar.folder', 'ar.type', 'ar.concept', 'ar.view', 'ar.item', 'ar.property', 'ar.specialization'],
@@ -545,7 +587,7 @@ function screenOperations() {
   return { first: t.operations.slice(0, cut), second: t.operations.slice(cut) };
 }
 
-export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile', 'order', 'rules'];
+export const STAGE_ORDER = ['model', 'diagrams', 'colour', 'screens', 'pages', 'counts', 'countsShown', 'folderLast', 'unused', 'newFile', 'order', 'rules', 'agent'];
 
 /** Declared after the seed, since declaring checks every relationship against the seeded rows. */
 export const LINK_RULE_STAGE = 'linkRule';
@@ -555,6 +597,8 @@ export const NEW_FILE_LABEL = 'Archi model';
 
 export const PACKAGE_ID = 'org.nendo.archi';
 export const PACKAGE_FOLDER = 'extensions/archi';
+/** The agent's skill the file carries (ADR-0024), tools/archi/skill. */
+export const SKILL_FOLDER = 'tools/archi/skill';
 
 /** The workbench's screen: a view of the file, which the file opens on. */
 export const WORKBENCH_SCREEN = 'ar.screen.workbench';
