@@ -488,6 +488,8 @@ function player(W, H) {
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
+    // Full screen is the window's own: the audience window fills the projector, not the console's screen.
+    if (audience && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); full(); return; }
     if (relay(e.key)) { e.preventDefault(); return; }
     if (press(e.key)) e.preventDefault();
   });
@@ -515,7 +517,7 @@ function player(W, H) {
   $('c-end').onclick = finish;
   $('b-pres').onclick = () => presenter(!body.classList.contains('presenter'));
   if ($('c-audience')) $('c-audience').onclick = openAudience;
-  if ($('b-close')) $('b-close').onclick = () => parent.postMessage({ deck: 'close', index: at }, '*');
+  if ($('b-close')) $('b-close').onclick = finish;
   let notesSize = 22;
   try { notesSize = Number(localStorage.getItem('deck.notes.size')) || 22; } catch { /* no storage here */ }
   const setNotes = size => { notesSize = Math.min(48, Math.max(12, size)); $('console').style.setProperty('--notes', notesSize + 'px'); try { localStorage.setItem('deck.notes.size', String(notesSize)); } catch { /* no storage here */ } };

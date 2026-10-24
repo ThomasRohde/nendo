@@ -474,6 +474,14 @@ async page => {
   const talkAfter = await talkState(), audienceAfter = await audienceWindow.evaluate(() => window.deckPlayer.state());
   assert(talkAfter.at * 1000 + talkAfter.shown > talkBefore.at * 1000 + talkBefore.shown && audienceAfter.at === talkAfter.at && audienceAfter.shown === talkAfter.shown,
     `A click in the audience window must turn the talk in the console, and both must show the same place: ${JSON.stringify({ talkBefore, talkAfter, audienceAfter })}.`);
+  // F in the audience window fills that window, not the console's.
+  const fullCount = 'window.fullAsked = 0; document.documentElement.requestFullscreen = () => { window.fullAsked++; return Promise.resolve(); };';
+  await audienceWindow.evaluate(fullCount);
+  await page.evaluate(code => document.querySelector('iframe[name="hashcheck"]').contentWindow.eval(code), fullCount);
+  await audienceWindow.locator('body').press('f');
+  await settle(300);
+  const fullAsked = { audience: await audienceWindow.evaluate(() => window.fullAsked), console: await page.evaluate(() => document.querySelector('iframe[name="hashcheck"]').contentWindow.fullAsked) };
+  assert(fullAsked.audience === 1 && fullAsked.console === 0, `F in the audience window must ask that window, and only it, for full screen: ${JSON.stringify(fullAsked)}.`);
   await audienceWindow.close();
   await page.evaluate(url => { document.querySelector('iframe[name="hashcheck"]').remove(); URL.revokeObjectURL(url); }, fileUrl);
   // Printing the file from presenter view prints the slides.
@@ -651,9 +659,12 @@ async page => {
   show = frame.childFrames()[0];
   await show.waitForFunction(() => !!window.deckPlayer && document.body.classList.contains('rehearse') && document.body.classList.contains('presenter'), null, { timeout: 5000 });
   await settle(1600);
-  await show.click('#c-end');
+  // Leaving the console for the slides alone and closing from their toolbar still finishes the
+  // rehearsal; the console's own Finish takes the same path.
+  await show.locator('body').press('p');
+  await show.click('#b-close');
   await frame.waitForFunction(() => window.deck.presenting === false && !document.getElementById('rehearsed').hidden, null, { timeout: 5000 })
-    .catch(() => { throw Error('Finishing a rehearsal must offer to keep its times.'); });
+    .catch(() => { throw Error('Closing a rehearsal, from the console or the slides\' toolbar, must offer to keep its times.'); });
   const offer = await frame.evaluate(() => ({ text: document.getElementById('rehearsed-text').textContent, times: window.deck.timings?.times }));
   assert(/^You rehearsed for 0:0\d over 1 slide, for a 5:00 talk\./.test(offer.text) && offer.times?.length === 1 && offer.times[0].seconds >= 1,
     `The offer must say how long the rehearsal ran, over the slides it reached: ${JSON.stringify(offer)}.`);
