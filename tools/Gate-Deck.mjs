@@ -303,6 +303,10 @@ async page => {
   await frame.click('#tab-design');
   await dropDesign('#3A86A8');
   await page.waitForFunction(id => window.broker.record('dk.brand', id)?.values['dk.brand.primary'] === '#3A86A8', designKit.recordId, { timeout: 8000 });
+  // The import ends by putting the design on the deck, after its pictures: a template or kit chosen
+  // before then is put back by it, so the checks go on once the import says it is done.
+  await until(() => /updated in place/.test(document.getElementById('toast').textContent), null, 15000)
+    .catch(() => { throw Error('A design imported again must say it was updated in place.'); });
   const counts = [(await records('dk.template')).length, (await records('dk.brand')).length];
   assert(counts[0] === 7 && counts[1] === 2, `A design imported again must update its two records in place: ${JSON.stringify(counts)} templates and kits.`);
   // Back to the template and kit the checks below were written for.
