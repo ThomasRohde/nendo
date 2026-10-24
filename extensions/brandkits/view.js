@@ -295,10 +295,7 @@ function paintBoard(host, m, marks) {
   // Samples: the kit applied, each with the pairs it uses.
   const sampleCards = m.samples.slice(0, 4).map(sample => {
     const sv = sample.values;
-    const back = m.hexOf(m.colour(sv.sampleBackground)) ?? m.bg;
-    const ink = m.hexOf(m.colour(sv.sampleInk)) ?? (back === m.bg ? m.ink : inkOn(back));
-    const accent = m.hexOf(m.colour(sv.sampleAccent)) ?? m.hexOf(m.colours.find(c => c.values.colourRole === 'Accent' || c.values.colourRole === 'Primary')) ?? ink;
-    const actionInk = (ratio(back, accent) ?? 0) >= (ratio(ink, accent) ?? 0) ? back : ink;
+    const { back, ink, accent, actionInk } = sampleColours(m, sv);
     const src = logoUrl(m.logo(sv.sampleLogo));
     const isButton = sv.sampleKind === 'Button';
     const action = sv.sampleAction || isButton ? h('span', { class: 'action', style: { background: accent, color: actionInk, fontFamily: body } }, str(sv.sampleAction) || str(sv.sampleHeadline) || 'Continue') : null;
@@ -377,9 +374,22 @@ function usedPairs(m) {
     const back = m.colour(sv.sampleBackground), ink = m.colour(sv.sampleInk), accent = m.colour(sv.sampleAccent);
     const name = str(sv.sampleName) || 'a sample';
     if (back && ink && m.hexOf(back) && m.hexOf(ink) && sv.sampleKind !== 'Button') pairs.push({ label: `${name}: text`, value: ratio(m.hexOf(ink), m.hexOf(back)), kind: 'text' });
-    if (back && accent && m.hexOf(back) && m.hexOf(accent) && (sv.sampleAction || sv.sampleKind === 'Button')) pairs.push({ label: `${name}: button`, value: ratio(m.hexOf(accent), m.hexOf(back)), kind: 'ui' });
+    if (back && accent && m.hexOf(back) && m.hexOf(accent) && (sv.sampleAction || sv.sampleKind === 'Button')) {
+      pairs.push({ label: `${name}: button`, value: ratio(m.hexOf(accent), m.hexOf(back)), kind: 'ui' });
+      const drawn = sampleColours(m, sv);
+      pairs.push({ label: `${name}: button label`, value: ratio(drawn.actionInk, drawn.accent), kind: 'text' });
+    }
   }
   return pairs;
+}
+
+/** A sample's colours as its card draws them: the button's label takes whichever of the background and the text reads better on it. */
+function sampleColours(m, sv) {
+  const back = m.hexOf(m.colour(sv.sampleBackground)) ?? m.bg;
+  const ink = m.hexOf(m.colour(sv.sampleInk)) ?? (back === m.bg ? m.ink : inkOn(back));
+  const accent = m.hexOf(m.colour(sv.sampleAccent)) ?? m.hexOf(m.colours.find(c => c.values.colourRole === 'Accent' || c.values.colourRole === 'Primary')) ?? ink;
+  const actionInk = (ratio(back, accent) ?? 0) >= (ratio(ink, accent) ?? 0) ? back : ink;
+  return { back, ink, accent, actionInk };
 }
 
 // ---------- the board

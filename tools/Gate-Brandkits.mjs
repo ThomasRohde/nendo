@@ -129,6 +129,18 @@ async page => {
   assert(exported.pictures.includes('logos/logo.svg') && exported.pictures.includes('logos/mark.svg'), `The design must carry the kit's logo and mark: ${JSON.stringify(exported.pictures)}.`);
   checks.push('deck design export');
 
+  // 5. The Contrast tile counts the words on a sample's button, not only the button on its card. A
+  // grey accent passes 3:1 as a button on cream, but neither cream nor espresso reads at 4.5:1 on it.
+  await page.evaluate(() => {
+    const caramel = window.broker.record('colour', 'c-ex-caramel');
+    window.broker.put('colour', { ...caramel, version: caramel.version + 1, values: { ...caramel.values, colourHex: '#777777' } });
+    window.broker.pushChanges();
+  });
+  const pairs = await until(() => /fail AA/.test(document.querySelector('.t-contrast .summary')?.textContent ?? ''), null, 4000)
+    .then(() => null).catch(() => frame.evaluate(() => document.querySelector('.t-contrast')?.textContent));
+  assert(pairs === null, `A button label that fails AA on its button must count among the failing pairs: ${pairs}.`);
+  checks.push('button label contrast');
+
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);
   return { complete: true, checks, errors };
   })(); } catch (error) { throw Error(`${error.message} [after: ${checks.at(-1) ?? 'nothing'}]`); }
