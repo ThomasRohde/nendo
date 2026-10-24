@@ -83,6 +83,24 @@ test('a design draws its own backgrounds, chart colours, mark and logo placement
   assert.ok(footer.x >= logo.x + logo.w, 'the footer moves aside for the logo');
 });
 
+test('a logo at the top keeps clear of the kicker and title, and a mark alone is still drawn', () => {
+  const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const slide = { layout: 'Bullets', title: 'What we heard from the field', kicker: 'Findings', body: '- One\n- Two' };
+  for (const family of ['editorial', 'keynote', 'swiss']) for (const placement of ['top-left', 'top-right']) for (const logos of [{ light: 'logos/logo.svg' }, { light: 'logos/logo.svg', mark: 'logos/mark.svg' }, { mark: 'logos/mark.svg' }]) {
+    const design = normalizeDesign({ ...NORRSKEN, template: { family }, logos: { ...logos, placement }, backgrounds: {} });
+    const { template, brand, deck } = designSpecs(design, p => `media:${p}`);
+    const laid = layoutSlide(slide, resolveTheme(template, brand, deck));
+    const logo = laid.items.find(i => i.role === 'logo');
+    const at = `${family}, ${placement}, ${Object.keys(logos).join(' and ')}`;
+    assert.ok(logo, `a content slide draws the brand's logo or mark (${at})`);
+    if (!logos.light) assert.equal(logo.src, 'media:logos/mark.svg', `a brand with only a mark shows the mark (${at})`);
+    for (const role of ['kicker', 'title']) {
+      const box = laid.items.find(i => i.role === role);
+      assert.ok(!overlaps(logo, box), `the logo covers the ${role} (${at}): ${JSON.stringify({ logo: [logo.x, logo.y, logo.w, logo.h], [role]: [box.x, box.y, box.w, box.h] })}`);
+    }
+  }
+});
+
 test('a design kept as Deck records draws the same as the design itself', () => {
   const design = normalizeDesign(NORRSKEN);
   const values = designValues(design);

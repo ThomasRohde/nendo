@@ -206,8 +206,9 @@ function chrome(g, feature, kind) {
   }
   const brand = theme.brand;
   const place = theme.logoPlacement ?? 'top-right';
-  if (brand && (brand.logo || brand.logoDark) && place !== 'none') {
-    const src = g.bg.dark ? (brand.logoDark ?? brand.logo) : (brand.logo ?? brand.logoDark);
+  if (hasLogo(theme) && place !== 'none') {
+    // A brand with only a mark shows the mark wherever the logo would go.
+    const src = (g.bg.dark ? (brand.logoDark ?? brand.logo) : (brand.logo ?? brand.logoDark)) ?? brand.mark;
     if (kind === 'Title' || kind === 'Closing') {
       const center = kind === 'Closing' && fam !== 'swiss';
       g.items.push({ type: 'image', x: center ? W / 2 - 110 : X, y: kind === 'Closing' ? H - 150 : 56, w: 220, h: 56, src, fit: 'contain', align: center ? 'center' : 'left', role: 'logo', alt: `${brand.name} logo` });
@@ -223,14 +224,14 @@ function chrome(g, feature, kind) {
   }
 }
 
-/** Whether a content slide's logo sits at its top right, where the header leaves room for it. */
-export const logoAtTopRight = theme => !!(theme.brand?.logo || theme.brand?.logoDark) && (theme.logoPlacement ?? 'top-right') === 'top-right';
-/** The room the footer leaves at its left and right for a logo placed beside it. */
-function footerRoom(theme, side) {
-  if (!(theme.brand?.logo || theme.brand?.logoDark)) return 0;
-  if ((theme.logoPlacement ?? 'top-right') !== `bottom-${side}`) return 0;
+/** Whether the brand has anything to show on a slide: a logo, a logo for dark grounds, or a mark. */
+const hasLogo = theme => !!(theme.brand?.logo || theme.brand?.logoDark || theme.brand?.mark);
+/** The room a content slide's logo takes beside the header or the footer at one corner, such as 'top-left'. */
+function logoRoom(theme, corner) {
+  if (!hasLogo(theme) || (theme.logoPlacement ?? 'top-right') !== corner) return 0;
   return (theme.brand.mark ? 40 : 150) + 20;
 }
+const footerRoom = (theme, side) => logoRoom(theme, `bottom-${side}`);
 
 // ---- Shared pieces -----------------------------------------------------------------------------
 
@@ -274,18 +275,19 @@ function title(g, value, x, y, w, h, opts = {}) {
 /** Kicker and title at the top of a content slide, with the family's rule. Answers the content top. */
 function header(g, opts = {}) {
   const { X, W, c, theme, slide } = g;
-  // The top-right logo (chrome) sits at the right of this header, however wide it is given.
-  const logo = logoAtTopRight(theme);
-  const x = opts.x ?? X, w = (opts.w ?? W - 2 * X) - (logo ? 170 : 0);
+  // A logo at the top (chrome) sits beside the kicker and title, however wide the header is given;
+  // the family's rules keep the header's full width.
+  const x = opts.x ?? X, full = opts.w ?? W - 2 * X;
+  const before = logoRoom(theme, 'top-left'), tx = x + before, w = full - before - logoRoom(theme, 'top-right');
   const fam = theme.family;
   let y = 52;
-  if (fam === 'swiss') g.items.push({ type: 'rect', x, y: 36, w: 56, h: 8, fill: c.primary });
+  if (fam === 'swiss') g.items.push({ type: 'rect', x: tx, y: 36, w: 56, h: 8, fill: c.primary });
   if (fam === 'boardroom') g.items.push({ type: 'rect', x: 0, y: 0, w: g.W, h: 8, fill: c.primary });
   if (fam === 'minimal') g.items.push({ type: 'line', x1: x, y1: 36, x2: x + (opts.w ?? W - 2 * X), y2: 36, stroke: c.line, width: 1 });
   if (fam === 'swiss') y = 60;
-  const ky = kicker(g, slide.kicker, x, y, w);
+  const ky = kicker(g, slide.kicker, tx, y, w);
   const ty = ky > y ? ky + 8 : y;
-  const used = title(g, slide.title, x, ty, w, opts.titleH ?? 108, { size: opts.titleSize ?? (fam === 'swiss' ? 46 : 42), min: 24 });
+  const used = title(g, slide.title, tx, ty, w, opts.titleH ?? 108, { size: opts.titleSize ?? (fam === 'swiss' ? 46 : 42), min: 24 });
   let bottom = ty + Math.max(used, 46);
   if (fam === 'editorial') g.items.push({ type: 'line', x1: x, y1: bottom + 18, x2: x + (opts.w ?? W - 2 * X), y2: bottom + 18, stroke: c.ink, width: 1.25 });
   if (fam === 'boardroom') g.items.push({ type: 'rect', x, y: bottom + 16, w: 56, h: 4, fill: c.accent });
