@@ -365,10 +365,14 @@ const LAYOUT_FUNCTIONS = {
         if (fam !== 'swiss' && fam !== 'minimal' && fam !== 'editorial') {
           g.items.push({ type: 'rect', x, y: top, w, h: 64, fill: colour, radius: g.s.radius });
           if (g.s.radius) g.items.push({ type: 'rect', x, y: top + 40, w, h: 24, fill: colour });
-          g.items.push(text({ x: x + 24, y: top + 16, w: w - 48, h: 34, size: 24, weight: 600, font: g.fonts.heading, color: readableOn(colour, '#FFFFFF', c.ink), paragraphs: [{ runs: head.runs, level: 0 }], role }));
+          const band = text({ x: x + 24, y: top + 16, w: w - 48, h: 34, size: 24, weight: 600, font: g.fonts.heading, color: readableOn(colour, '#FFFFFF', c.ink), paragraphs: [{ runs: head.runs, level: 0 }], role });
+          fit(band, g.measure, 14);
+          g.items.push(band);
           y = top + 88;
         } else {
-          g.items.push(text({ x: inner.x, y, w: inner.w, h: 36, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), paragraphs: [{ runs: head.runs, level: 0 }], role }));
+          const heading = text({ x: inner.x, y, w: inner.w, h: 36, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), paragraphs: [{ runs: head.runs, level: 0 }], role });
+          fit(heading, g.measure, 14);
+          g.items.push(heading);
           y += 50;
         }
       }
@@ -618,7 +622,8 @@ function drawChart(g, type, data, x, y, w, h) {
   const frac = v => (v - min) / (max - min);
   const horizontal = type === 'Bar';
   const labelW = horizontal ? Math.min(w * 0.3, Math.max(...data.labels.map(l => g.measure(l, { size: 16, font: g.fonts.body }))) + 16) : 0;
-  const axisH = horizontal ? 0 : 34;
+  const scaled = horizontal && data.series.length > 1;
+  const axisH = horizontal ? (scaled ? 28 : 0) : 34;
   const px = x + (horizontal ? labelW : 44), pw = w - (horizontal ? labelW : 44), ph = h - axisH - 8, py = y + 8;
   // Grid and axis labels.
   for (let v = min; v <= max + step * 1e-6; v += step) {
@@ -626,6 +631,7 @@ function drawChart(g, type, data, x, y, w, h) {
     if (horizontal) {
       const gx = px + frac(v) * pw;
       g.items.push({ type: 'line', x1: gx, y1: py, x2: gx, y2: py + ph, stroke: c.line, width: v === 0 ? 1.5 : 1, dash: v !== 0 });
+      if (scaled) g.items.push(text({ x: gx - 40, y: py + ph + 6, w: 80, h: 20, size: 13, font: g.fonts.body, color: muted, align: 'center', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
     } else {
       const gy = py + ph - frac(v) * ph;
       g.items.push({ type: 'line', x1: px, y1: gy, x2: px + pw, y2: gy, stroke: c.line, width: v === 0 ? 1.5 : 1, dash: v !== 0 });

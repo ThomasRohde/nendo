@@ -116,6 +116,25 @@ test('a table cell shrinks to its row, or says it overflows', () => {
   assert.equal(bad.length, 0, `cells taller than their row with no overflow: ${bad.map(p => `${Math.round(textHeight(p, approxMeasure))}/${p.h} at ${p.size}px`)}`);
 });
 
+test('bars of several columns say their numbers on the axis', () => {
+  const theme = resolveTheme(TEMPLATES[0]);
+  const laid = layoutSlide({ layout: 'Chart', title: 'Before and after', body: '| Team | Before | After |\n|---|---:|---:|\n| North | 100 | 300 |\n| South | 150 | 250 |', body2: '', chart: 'Bar', image: null }, theme, { measure: approxMeasure });
+  const words = laid.items.filter(p => p.role === 'chart').map(p => p.paragraphs?.map(q => q.runs.map(r => r.text).join('')).join('') ?? '');
+  const numbers = words.filter(t => /^[-\u2212]?\d[\d,.]*$/.test(t));
+  assert.ok(numbers.length >= 2, `the chart says numbers: ${words}`);
+});
+
+test('a long comparison heading shrinks to its band, or says it overflows', () => {
+  for (const template of TEMPLATES) {
+    const theme = resolveTheme(template);
+    const heading = '### A heading for this side that runs on well past the width of its column';
+    const laid = layoutSlide({ layout: 'Comparison', title: 'Two sides', body: `${heading}\n- One`, body2: `${heading}\n- Two`, image: null, chart: 'Column' }, theme, { measure: approxMeasure });
+    const heads = laid.items.filter(p => p.type === 'text' && (p.role === 'body' || p.role === 'body2') && p.weight >= 600);
+    const bad = heads.filter(p => textHeight(p, approxMeasure) > p.h + 0.5 && !p.overflow);
+    assert.equal(bad.length, 0, `${template.id}: headings taller than their box with no overflow: ${bad.map(p => `${Math.round(textHeight(p, approxMeasure))}/${p.h} at ${p.size}px`)}`);
+  }
+});
+
 test('fit shrinks text to its box, and says when it cannot', () => {
   const long = { type: 'text', x: 0, y: 0, w: 300, h: 60, size: 40, weight: 400, font: 'Segoe UI', lineHeight: 1.2, paragraphs: [{ runs: [{ text: 'word '.repeat(40) }], level: 0 }] };
   fit(long, approxMeasure, 14);
