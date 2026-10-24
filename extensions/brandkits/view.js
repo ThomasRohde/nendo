@@ -13,7 +13,7 @@ import { kitDesign, readChoices, SLIDE_PICTURE_FIELDS, FAMILIES, BACKGROUNDS, PL
 import { layoutSlide } from './deck/layout.mjs';
 import { resolveTheme } from './deck/themes.mjs';
 import { slideHtml, SLIDE_CSS } from './deck/render.mjs';
-import { canvasMeasure } from './deck/measure.mjs';
+import { canvasMeasure, forgetMeasurements } from './deck/measure.mjs';
 import { designSpecs, writeDesignPackage, designFileName } from './deck/design.mjs';
 
 const $ = id => document.getElementById(id);
@@ -548,6 +548,13 @@ function kitPlain(m) {
 }
 const svgUrl = text => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
 
+// Slides are fitted with measured text: when a kit's web font arrives the widths measured with the
+// fallback are wrong, so they are forgotten and the slides drawn again, as Deck does.
+document.fonts?.addEventListener?.('loadingdone', () => {
+  forgetMeasurements();
+  const tile = document.querySelector('.t-slides');
+  if (tile && S.slides) { const m = modelOf(S.records); if (m.kit) tile.replaceWith(slidesTile(m)); }
+});
 const slideScale = new ResizeObserver(entries => {
   for (const { target } of entries) { const inner = target.firstElementChild; if (inner) inner.style.transform = `scale(${target.clientWidth / Number(inner.dataset.w || 1280)})`; }
 });

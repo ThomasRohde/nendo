@@ -39,6 +39,10 @@ async page => {
   assert(first.family === 'editorial', `A kit with no slide choices must start on the family its personality suggests: ${first.family}.`);
   assert(Math.abs(first.ratio - 16 / 9) < 0.02 && Math.abs(first.drawn - first.width) < 2 && first.width > 200, `Each slide must fill its 16:9 box: ${JSON.stringify(first)}.`);
   assert(first.text.includes(fixture.records.kit[0].values.kitTagline), 'The title slide must carry the kit\'s tagline.');
+  // A web font that arrives after the slides were fitted with the fallback's widths draws them again.
+  await frame.evaluate(() => { document.querySelector('.t-slides').dataset.drawn = 'before'; document.fonts.dispatchEvent(new Event('loadingdone')); });
+  await until(() => document.querySelector('.t-slides') && document.querySelector('.t-slides').dataset.drawn !== 'before' && document.querySelectorAll('.t-slides .dk-slide').length === 4, null, 4000)
+    .catch(() => { throw Error('When a web font has loaded, the slides must be measured and drawn again.'); });
   // The tile's grid goes to two columns below 1000 pixels: every slide is scaled to its new box.
   await page.setViewportSize({ width: 900, height: 900 });
   const resized = await until(() => [...document.querySelectorAll('.t-slides .slide-shot')].every(box => Math.abs(box.firstElementChild.getBoundingClientRect().width - box.getBoundingClientRect().width) < 2), null, 4000)
