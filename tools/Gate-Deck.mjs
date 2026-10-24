@@ -622,8 +622,8 @@ async page => {
   await clickAt(BODY, 4, 0.9);
   const pasted = await frame.evaluate(() => {
     const data = new DataTransfer();
-    data.setData('text/html', '<meta charset="utf-8"><p><b>Pasted</b> words </p>');
-    data.setData('text/plain', 'Pasted words ');
+    data.setData('text/html', '<meta charset="utf-8"><p><b>Pasted</b> words</p>');
+    data.setData('text/plain', 'Pasted words');
     document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
     return window.deck.slides.find(x => x.id === window.deck.slideId).body.split('\n')[0];
   });
