@@ -1132,9 +1132,21 @@ async page => {
   await page.keyboard.press('Control+z');
   await onScreenAndInFile(start, 'Back in its deck, Ctrl Z must take the delete back');
   // Where Nendo will not take a delete back, the slide is made again by hand, naming its deck at the
-  // version the deck has now.
+  // version the deck has now, with the agent's variants on it; an earlier step on the slide follows
+  // it to its new ID.
   await thumb(2).click();
+  await page.evaluate(({ deckId, slideId }) => {
+    window.broker.put('dk.ask', { entityId: 'dk.ask', recordId: 'dk.ask.arrange', version: 1, labels: {}, exact: {}, calculated: {},
+      values: { 'dk.ask.deck': deckId, 'dk.ask.request': 'Shorter', 'dk.ask.scope': 'Selection', 'dk.ask.status': 'Done', 'dk.ask.made': '2026-10-24T09:00:00Z' } });
+    window.broker.put('dk.variant', { entityId: 'dk.variant', recordId: 'dk.variant.arrange', version: 1, labels: {}, exact: {}, calculated: {},
+      values: { 'dk.variant.ask': 'dk.ask.arrange', 'dk.variant.slide': slideId, 'dk.variant.label': 'Shorter', 'dk.variant.changes': '{"title":"Short"}', 'dk.variant.status': 'Proposed' } });
+    window.broker.pushChanges();
+  }, { deckId, slideId: start[2] });
+  await until(() => window.deck.variants.length === 1, null, 5000);
+  await command('slide.hide');
+  await until(id => window.deck.slides.find(s => s.id === id)?.hidden === true, start[2], 5000);
   const goneTitle = await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, start[2]);
+  await frame.locator('#slides').focus();
   await page.keyboard.press('Delete');
   await until(n => window.deck.slides.length === n - 1, n, 5000);
   await page.evaluate(() => window.broker.fail('records.undo', { code: 'stale', message: 'The file changed since.' }, 1));
@@ -1145,6 +1157,13 @@ async page => {
   const remade = (await order())[2];
   assert(remade !== start[2] && await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, remade) === goneTitle && (await lastBatch()).label === 'Undo Delete slide 3',
     `A delete taken back by hand must make the slide again in its place, under a new ID: ${(await lastBatch()).label}.`);
+  const variantsBack = (await records('dk.variant')).filter(r => r.values['dk.variant.slide'] === remade).length;
+  assert(variantsBack === 1, `A delete taken back by hand must bring back the slide's variants with it: ${variantsBack} on the new slide.`);
+  await page.evaluate(() => window.broker.fail('records.undo', { code: 'stale', message: 'The file changed since.' }, 1));
+  await page.keyboard.press('Control+z');
+  await settle(400);
+  const hiddenAfter = (await records('dk.slide')).find(r => r.recordId === remade)?.values['dk.slide.hidden'];
+  assert(hiddenAfter === false, `Ctrl Z after a slide came back under a new ID must take back the hide made before its delete: hidden is ${hiddenAfter}.`);
   checks.push('steps keep their deck');
   }
 

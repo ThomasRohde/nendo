@@ -836,13 +836,20 @@ function takeStep(back) {
   return stepping;
 }
 
-/** A step put back by writing: fields as they were, a made slide deleted, a deleted one made again under a new ID. */
+// The references a step's records carry, and the record type each points at.
+const REFERS = { [F.slide.deck]: E.deck, [F.variant.ask]: E.ask, [F.variant.slide]: E.slide };
+
+/**
+ * A step put back by writing: fields as they were, a made record deleted, a deleted one made again
+ * under a new ID. Records are kept in the order they are made in (slides before their variants), so
+ * deletes go in the reverse order: a variant before the slide it points at.
+ */
 async function byHand(step, which, label) {
-  const writes = [], made = new Map();
+  const writes = [], gone = [], made = new Map();
   for (const rec of step.records) {
     const want = rec[which], other = rec[which === 'before' ? 'after' : 'before'];
     const now = await nendo.records.get(rec.entityId, rec.id);
-    if (want === null) { if (now) writes.push({ op: 'delete', entityId: rec.entityId, recordId: rec.id, version: now.version }); continue; }
+    if (want === null) { if (now) gone.push({ op: 'delete', entityId: rec.entityId, recordId: rec.id, version: now.version }); continue; }
     if (other !== null) {
       if (!now) continue;
       const values = Object.fromEntries(Object.entries(want).filter(([f, x]) => (now.values?.[f] ?? null) !== (x ?? null)));
@@ -850,19 +857,44 @@ async function byHand(step, which, label) {
       continue;
     }
     if (now) continue;
-    // A deleted record's ID stays the file's, so the slide comes back under a new one, naming its
-    // deck at the version the deck has now; a deck that is gone takes no slide back.
-    const deckOf = want[F.slide.deck] ? await nendo.records.get(E.deck, want[F.slide.deck]).catch(() => null) : null;
-    if (want[F.slide.deck] && !deckOf) continue;
-    const id = newId('slide');
+    // A deleted record's ID stays the file's, so it comes back under a new one. Each record it points
+    // at is named at the version it has now, or at its first when it comes back in this batch too; a
+    // record whose target is gone stays gone.
+    const values = { ...want }, targetVersions = {};
+    let lost = false;
+    for (const [field, entityId] of Object.entries(REFERS)) {
+      const target = values[field];
+      if (!target) continue;
+      if (made.has(target)) { values[field] = made.get(target); targetVersions[field] = 1; continue; }
+      const found = await nendo.records.get(entityId, target).catch(() => null);
+      if (!found) { lost = true; break; }
+      targetVersions[field] = found.version;
+    }
+    if (lost) continue;
+    const id = newId(rec.entityId === E.slide ? 'slide' : 'variant');
     made.set(rec.id, id);
-    writes.push({ op: 'create', entityId: rec.entityId, recordId: id, values: want, ...(deckOf ? { targetVersions: { [F.slide.deck]: deckOf.version } } : {}) });
+    writes.push({ op: 'create', entityId: rec.entityId, recordId: id, values, ...(Object.keys(targetVersions).length ? { targetVersions } : {}) });
   }
+  writes.unshift(...gone.reverse());
   if (!writes.length) return null;
   const answer = await nendo.records.batch(writes, { label: label.slice(0, 80) });
-  for (const rec of step.records) rec.id = made.get(rec.id) ?? rec.id;
-  for (const sel of [step.selection?.before, step.selection?.after]) if (sel) { sel.ids = sel.ids.map(id => made.get(id) ?? id); sel.current = made.get(sel.current) ?? sel.current; }
+  for (const [from, to] of made) renamed(from, to, step);
   return answer;
+}
+
+/**
+ * A record that came back under a new ID: every kept step, this one among them, and the stage's
+ * typing steps name it by the new one, so taking back what was done to it earlier still finds it.
+ */
+function renamed(from, to, step) {
+  for (const s of new Set([step, ...deck.steps.undo, ...deck.steps.redo])) {
+    for (const rec of s.records) {
+      if (rec.id === from) rec.id = to;
+      for (const side of [rec.before, rec.after]) for (const field of Object.keys(REFERS)) if (side?.[field] === from) side[field] = to;
+    }
+    for (const sel of [s.selection?.before, s.selection?.after]) if (sel) { sel.ids = sel.ids.map(id => id === from ? to : id); if (sel.current === from) sel.current = to; }
+  }
+  editor?.renamed(from, to);
 }
 
 /** Said to a screen reader, and nowhere else. */
@@ -948,9 +980,13 @@ async function deleteSlides(verb = 'Delete', ids = null) {
   const doomed = ids ? deck.slides.filter(s => ids.includes(s.id)) : selectedSlides();
   if (!doomed.length || nendo.context?.readOnly) return;
   const gone = new Set(doomed.map(s => s.id));
-  const writes = deck.variants.filter(x => gone.has(v(x, F.variant.slide))).map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
+  const variants = deck.variants.filter(x => gone.has(v(x, F.variant.slide)));
+  const writes = variants.map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
   for (const s of doomed) writes.push({ op: 'delete', entityId: E.slide, recordId: s.id, version: s.record.version });
-  const records = doomed.map(s => ({ entityId: E.slide, id: s.id, before: Object.fromEntries(Object.entries(s.record.values ?? {}).filter(([, x]) => x !== null && x !== undefined)), after: null }));
+  // The slides and then their variants, as a by-hand undo makes them again.
+  const kept = record => Object.fromEntries(Object.entries(record.values ?? {}).filter(([, x]) => x !== null && x !== undefined));
+  const records = [...doomed.map(s => ({ entityId: E.slide, id: s.id, before: kept(s.record), after: null })),
+    ...variants.map(x => ({ entityId: E.variant, id: x.recordId, before: kept(x), after: null }))];
   const first = deck.slides.indexOf(doomed[0]);
   const label = doomed.length === 1 && verb === 'Delete' ? `Delete slide ${first + 1}` : `${verb} ${slidesWord(doomed.length)}`;
   const next = deck.slides.slice(first).find(s => !gone.has(s.id)) ?? deck.slides.slice(0, first).reverse().find(s => !gone.has(s.id)) ?? null;

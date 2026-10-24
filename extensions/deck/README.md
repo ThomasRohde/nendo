@@ -100,7 +100,9 @@ together with the stage's typing, the later first. A step is taken back through 
 `records.redo`; Nendo refuses one whose slides changed since, such as a moved slide typed in
 afterwards, so each step also keeps the fields it wrote before and after, and a refused step is put
 back by a batch of its own. A slide deleted and made again that way comes back under a new ID, since
-a deleted record's ID stays the file's. A step in another deck waits until that deck is open.
+a deleted record's ID stays the file's, with its variants made again on it in the same batch; every
+kept step, and the stage's typing steps, then name the slide by its new ID. A step in another deck
+waits until that deck is open.
 
 ## Designs
 

@@ -816,6 +816,8 @@ export function createStageEditor(host) {
     peek: back => top(back)?.at ?? null,
     /** A slide was added, moved or deleted: the words' redo goes, as a new change of words ends it. */
     forgetRedo: () => { redo.length = 0; },
+    /** A slide came back under a new ID: the typing steps on it follow it there. */
+    renamed: (from, to) => { for (const entry of [...undo, ...redo]) if (entry.slideId === from) entry.slideId = to; },
     /** What the probes read: the box, its paragraphs and the selection as the page holds it now. */
     state: () => (readSelection(), session) ? { field: session.field, dialect: session.dialect, key: session.key, from: session.from, value: session.value, sel: session.sel,
       text: session.doc.map(T.textOf), kinds: session.doc.map(p => p.kind), marks: session.marks, undo: undo.length, redo: redo.length, menu: !!menu } : { undo: undo.length, redo: redo.length, menu: !!menu },
