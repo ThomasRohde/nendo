@@ -47,6 +47,7 @@ Click any words on the slide to edit them where they are. Click to place the car
 | `Page Up`, `Page Down` | The slide above or below, when you are not typing |
 | `F5` | Present from the first slide |
 | `Shift` `F5` | Present from this slide |
+| Keys while presenting | See **Present and export**: the next point, the presenter view, the laser, the pen and the timer |
 | `Enter` in the ask bar | Send the ask; `Shift` `Enter` starts a new line |
 | `Ctrl` `Z`, `Ctrl` `Y` | Undo and redo the last change: words on a slide, or adding, moving, pasting, hiding and deleting slides |
 

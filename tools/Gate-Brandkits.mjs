@@ -29,6 +29,10 @@ async page => {
   // 1. The board draws the kit, and under it the Slides tile: four slides Deck's engine drew.
   await until(() => document.querySelector('.bento') && document.querySelectorAll('.t-slides .slide-shot .dk-slide').length === 4, null, 15000)
     .catch(() => { throw Error('The Slides tile never showed four slides drawn by the Deck engine: a module of the package failed to load, or the tile is missing.'); });
+  // The tile scales a drawn slide to its box a frame later; measure once it has, and let the
+  // assertion below name a slide that never fills it.
+  await until(() => { const shot = document.querySelector('.t-slides .slide-shot'), slide = shot?.firstElementChild;
+    return !!slide && Math.abs(slide.getBoundingClientRect().width - shot.getBoundingClientRect().width) < 2; }, null, 4000).catch(() => {});
   const first = await frame.evaluate(() => {
     const shot = document.querySelector('.t-slides .slide-shot'), slide = shot.firstElementChild;
     const box = shot.getBoundingClientRect(), drawn = slide.getBoundingClientRect();

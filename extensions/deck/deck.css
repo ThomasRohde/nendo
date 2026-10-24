@@ -268,3 +268,18 @@ body.dragging-slides, body.dragging-slides * { cursor: grabbing !important; }
   .lower { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* Presenting: builds, transitions, rehearsal and the deck check. */
+.rehearsed { border-color: var(--accent); }
+.tab-count { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--accent-soft); color: var(--ink); font-size: 12px; font-weight: 600; }
+.tab-count:empty { display: none; }
+.check-length { margin: 0 0 8px; line-height: 1.45; }
+.check-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.check-list button { display: grid; grid-template-columns: 8px 2.2em 1fr; align-items: baseline; gap: 8px; width: 100%; padding: 7px 8px; border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink); text-align: left; cursor: pointer; font: inherit; line-height: 1.35; }
+.check-list button:hover, .check-list button:focus-visible { border-color: var(--line); background: var(--raised); }
+.check-list .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); align-self: center; }
+.check-list .error .dot { background: var(--danger); }
+.check-list .warn .dot { background: var(--warning); }
+.check-list .num { color: var(--muted); font-variant-numeric: tabular-nums; }
+.step-marks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.step-mark { position: absolute; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--accent); color: var(--bg); font: 600 11px/18px 'Segoe UI', system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px var(--bg); transform: translate(-130%, 0); }

@@ -11,7 +11,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
 const read = file => fs.readFile(path.join(repo, file), 'utf8');
 // Every stage that declares fields: the record types, and the fields later stages add to them.
-const schemaOps = () => [...STAGES.schema.mutations(), ...STAGES.design.mutations()].flatMap(m => m.operations);
+const schemaOps = () => [...STAGES.schema.mutations(), ...STAGES.design.mutations(), ...STAGES.present.mutations()].flatMap(m => m.operations);
 const fieldOf = id => schemaOps().find(o => o.operationType === 'schema.addField' && o.payload.fieldId === id)?.payload;
 
 test('each stage fits a change set, and each mutation a call', async () => {
