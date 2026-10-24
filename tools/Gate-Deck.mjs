@@ -427,6 +427,36 @@ async page => {
   frame = await mounted();
   await ready();
   await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Kept over a read-only start', heldSlide, { timeout: 5000 });
+  // A start whose first read fails leaves typing kept from before for the next start, and restores it on its next good read.
+  const keptOver = async (text, after) => {
+    await page.evaluate(() => window.broker.fail('records.update', { code: 'busy', message: 'The file is busy.' }));
+    const id = (await state()).slideId;
+    await frame.fill('#f-title', text);
+    await settle(1200);
+    await page.evaluate(() => { window.broker.fail('records.query', { code: 'busy', message: 'The file is busy.' }); window.broker.remount(); });
+    await page.waitForTimeout(300);
+    frame = await mounted();
+    await ready();
+    await after();
+    await page.waitForFunction(({ id, text }) => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === text, { id, text }, { timeout: 5000 })
+      .catch(async () => { throw Error(`Typing kept from before a start whose first read failed must be saved later: ${JSON.stringify((await record('dk.slide', id)).values['dk.slide.title'])}.`); });
+  };
+  await keptOver('Kept over a failed start', async () => { await page.evaluate(() => window.broker.remount()); await page.waitForTimeout(300); frame = await mounted(); await ready(); });
+  await keptOver('Restored on the next good read', () => page.evaluate(() => window.broker.pushChanges()));
+  // A refused write whose words the record already holds keeps the typing made while it was out.
+  // The changes from the steps before are read first, so the view does not see the other writer's save.
+  await settle(1000);
+  const bothSlide = (await state()).slideId;
+  await page.evaluate(id => {
+    const r = window.broker.record('dk.slide', id);
+    window.broker.put('dk.slide', { ...r, version: r.version + 1, values: { ...r.values, 'dk.slide.title': 'Typed by both' } });
+    window.broker.hold('records.update', 900);
+  }, bothSlide);
+  await frame.fill('#f-title', 'Typed by both');
+  await settle(900);
+  await frame.fill('#f-title', 'Typed while the write was out');
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Typed while the write was out', bothSlide, { timeout: 5000 })
+    .catch(async () => { throw Error(`Typing made while a refused write was out must stay: ${JSON.stringify((await record('dk.slide', bothSlide)).values['dk.slide.title'])}.`); });
   checks.push('typing kept over a remount');
 
   // 14. Opening another deck waits for the slide's save in flight, and typing in the deck's own

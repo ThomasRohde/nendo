@@ -515,7 +515,12 @@ async function savePending() {
         const fresh = await nendo.records.get(E.slide, id).catch(() => undefined);
         if (fresh === null) { deck.pending.delete(id); problem(error, 'The slide could not be saved; it was deleted'); continue; }
         if (fresh && slide) slide.record = fresh;
-        if (fresh && !Object.keys(differing(written, fresh)).length) { deck.pending.delete(id); continue; }
+        if (fresh && !Object.keys(differing(written, fresh)).length) {
+          // The record holds what this write carried; typing made since stays and goes once more.
+          for (const [k, val] of Object.entries(values)) if (pending.values[k] === val) delete pending.values[k];
+          if (!Object.keys(pending.values).length) deck.pending.delete(id); else { pending.version = fresh.version; again = true; }
+          continue;
+        }
         if (fresh && conflict(error)) { pending.version = fresh.version; again = true; continue; }
         // Anything else keeps the typing, on screen and on the device; the next save tries again.
         problem(error, 'The slide could not be saved; your typing is kept and goes with the next save');
@@ -532,6 +537,9 @@ async function savePending() {
 // back or discard; it is never saved over somebody else's change on its own.
 
 const draftKey = () => `deck.drafts.v2.${nendo.context?.viewId ?? 'deck'}`;
+// Until the start has read the stored drafts (restoreDrafts), nothing replaces them: a frame that ends
+// or fails to load before then leaves them for the next start.
+let draftsRead = false;
 const deckValues = changes => Object.fromEntries(Object.entries(changes).map(([k, val]) => [F.deck[k], val === '' ? null : val]));
 function draftEntries() {
   const entries = [...deck.pending].filter(([, p]) => Object.keys(p.values).length)
@@ -542,7 +550,7 @@ function draftEntries() {
   return [...deck.held, ...entries];
 }
 function keepDrafts() {
-  if (nendo.context?.readOnly) return;
+  if (!draftsRead || nendo.context?.readOnly) return;
   try {
     const text = writeDrafts(draftEntries());
     if (text) localStorage.setItem(draftKey(), text); else localStorage.removeItem(draftKey());
@@ -550,9 +558,10 @@ function keepDrafts() {
 }
 /** Puts back what was typed and not saved before the view last stopped. Answers how many records it saved. */
 async function restoreDrafts() {
+  if (nendo.context?.readOnly) return 0;
   let entries = [];
-  try { entries = readDrafts(localStorage.getItem(draftKey())); } catch { return 0; }
-  if (!entries.length || nendo.context?.readOnly) return 0;
+  try { entries = readDrafts(localStorage.getItem(draftKey())); } catch { draftsRead = true; return 0; }
+  if (!entries.length) { draftsRead = true; return 0; }
   const now = new Map(), unread = [];
   for (const entry of entries) {
     const key = `${entry.entityId}\n${entry.recordId}`;
@@ -566,6 +575,7 @@ async function restoreDrafts() {
     catch { stale.push(entry); }
   }
   deck.held = [...unread, ...stale];
+  draftsRead = true;
   keepDrafts();
   if (restored) toast(`Saved typing on ${restored} ${restored === 1 ? 'slide' : 'slides'} kept from before Deck last closed.`);
   return restored;
@@ -1271,6 +1281,7 @@ async function refresh() {
   if (refreshing) { again = true; return refreshing; }
   refreshing = (async () => {
     do { again = false; await load(); } while (again);
+    if (!draftsRead && await restoreDrafts()) await load();
     drawAll();
   })().catch(error => problem(error, 'The deck could not be read')).finally(() => { refreshing = null; });
   return refreshing;
@@ -1282,10 +1293,12 @@ async function refresh() {
   deck.chrome = nendo.has('ui.setToolbar');
   deck.canAsk = nendo.has('assistant.ask') && !nendo.context.readOnly;
   wire();
-  try { await load(); if (await restoreDrafts()) await load(); } catch (error) { problem(error, 'The deck could not be read'); }
+  let read = false;
+  try { await load(); read = true; if (await restoreDrafts()) await load(); } catch (error) { problem(error, 'The deck could not be read'); }
   deck.ready = true;
   drawAll();
-  if (!deck.decks.length) showStart(false);
+  // The start screen is for a file with no deck, not for a first read that failed.
+  if (read && !deck.decks.length) showStart(false);
   nendo.on('changes', debounce(() => refresh(), 250));
   nendo.on('context', () => { deck.canAsk = nendo.has('assistant.ask') && !nendo.context.readOnly; deck.chrome = nendo.has('ui.setToolbar'); lastToolbar = ''; refresh(); });
   nendo.on('command', ({ id, value }) => command(id, value));
