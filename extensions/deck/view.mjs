@@ -1635,6 +1635,7 @@ function offerTimings(ids, timings) {
 }
 function drawRehearsed() { $('rehearsed').hidden = !deck.timings || deck.timings.deckId !== deck.deckId; }
 async function keepTimings() {
+  // The offer is put away while the times are written, and back if the file refuses them.
   const kept = deck.timings;
   deck.timings = null; drawRehearsed();
   if (!kept || kept.deckId !== deck.deckId || nendo.context?.readOnly) return;
@@ -1645,8 +1646,12 @@ async function keepTimings() {
   try {
     await writeStep('Keep the rehearsal times', writes, records, { before: ofSelection(), after: ofSelection() });
     announce(`Kept the times on ${slidesWord(list.length)}.`);
-  } catch (error) { problem(error, 'The times could not be kept'); }
+  } catch (error) {
+    deck.timings ??= kept;
+    problem(error, 'The times could not be kept');
+  }
   await refresh();
+  drawRehearsed();
 }
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && deck.presenting) { /* stays in the frame */ } });
 

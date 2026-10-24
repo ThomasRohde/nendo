@@ -668,6 +668,12 @@ async page => {
   const offer = await frame.evaluate(() => ({ text: document.getElementById('rehearsed-text').textContent, times: window.deck.timings?.times }));
   assert(/^You rehearsed for 0:0\d over 1 slide, for a 5:00 talk\./.test(offer.text) && offer.times?.length === 1 && offer.times[0].seconds >= 1,
     `The offer must say how long the rehearsal ran, over the slides it reached: ${JSON.stringify(offer)}.`);
+  // A Keep the file refuses leaves the offer up, to try again.
+  await page.evaluate(() => window.broker.fail('records.batch', { code: 'busy', message: 'The file is busy.' }));
+  await frame.click('#rehearsed-keep');
+  await settle(800);
+  const refusedKeep = await frame.evaluate(() => ({ shown: !document.getElementById('rehearsed').hidden, times: window.deck.timings?.times?.length ?? 0 }));
+  assert(refusedKeep.shown && refusedKeep.times === 1, `A Keep the file refuses must leave the times offered: ${JSON.stringify(refusedKeep)}.`);
   await frame.click('#rehearsed-keep');
   await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.seconds'] >= 1, offer.times[0].id, { timeout: 5000 })
     .catch(() => { throw Error('Keep must write the time on the slide the rehearsal spent it on.'); });
