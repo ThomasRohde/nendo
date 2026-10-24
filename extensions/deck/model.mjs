@@ -171,7 +171,7 @@ function escapeText(text) {
   return text.replace(/[\\`*_[\]]/g, '\\$&').replace(/<(?=\/?u>|br>)/gi, '\\<');
 }
 const OPEN = { link: () => '[', b: () => '**', i: () => '_', u: () => '<u>' };
-const CLOSE = { link: r => `](${r.link})`, b: () => '**', i: () => '_', u: () => '</u>' };
+const CLOSE = { link: r => `](${r.link.replace(/[()\s]/g, ch => `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)})`, b: () => '**', i: () => '_', u: () => '</u>' };
 const NESTING = ['link', 'b', 'i', 'u'];
 /** Runs as inline Markdown that `inline` reads back as the same runs. */
 export function inlineMarkdown(runs) {
@@ -259,13 +259,16 @@ export function rowCells(body) {
   for (const raw of String(body ?? '').replace(/\r\n?/g, '\n').split('\n')) {
     const start = at;
     at += raw.length + 1;
-    const line = raw.trim();
-    if (!line || /^#{1,6}\s/.test(line)) continue;
-    const marker = /^([-*•]|\d+[.)])\s+/.exec(line)?.[0] ?? '';
-    let pos = start + (raw.length - raw.trimStart().length) + marker.length;
-    out.push(line.slice(marker.length).split('|').map(piece => {
+    if (!raw.trim() || /^#{1,6}\s/.test(raw.trim())) continue;
+    // The line keeps its trailing spaces, so an empty last cell keeps the space after its bar.
+    const line = raw.trimStart();
+    const marker = /^([-*•]|\d+[.)])\s/.exec(line)?.[0] ?? '';
+    let pos = start + (raw.length - line.length) + marker.length;
+    out.push(line.slice(marker.length).split('|').map((piece, i) => {
       const lead = piece.length - piece.trimStart().length, text = piece.trim();
-      const cell = { text, from: pos + lead, to: pos + lead + text.length };
+      // An empty cell stays where its words were: after its marker, or after the one space past its bar.
+      const skip = text ? lead : Math.min(lead, i ? 1 : 0);
+      const cell = { text, from: pos + skip, to: pos + skip + text.length };
       pos += piece.length + 1;
       return cell;
     }));
@@ -291,7 +294,8 @@ export function table(body) {
     if (inner.endsWith('|')) inner = inner.slice(0, -1);
     return inner.split('|').map(piece => {
       const lead = piece.length - piece.trimStart().length, text = piece.trim();
-      const cell = { text, from: pos + lead, to: pos + lead + text.length };
+      const skip = text ? lead : Math.min(lead, 1);
+      const cell = { text, from: pos + skip, to: pos + skip + text.length };
       pos += piece.length + 1;
       return cell;
     });

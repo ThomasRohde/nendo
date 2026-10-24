@@ -659,6 +659,14 @@ async page => {
   await page.keyboard.type(' Q');
   const spaced = { line: (await current()).body.split('\n')[0], field: (await editing())?.field };
   assert(spaced.line === '- QKeyZnote | a dark stage and one bright accent' && spaced.field === 'body', `A space typed before a cell's words must keep the cell in editing: ${JSON.stringify(spaced)}.`);
+  // A card heading deleted whole keeps its box in editing, and new words go in its place.
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Shift+End');
+  await page.keyboard.press('Delete');
+  await page.keyboard.type('Fresh');
+  const replaced = { line: (await current()).body.split('\n')[0], field: (await editing())?.field };
+  assert(replaced.line === '- Fresh | a dark stage and one bright accent' && replaced.field === 'body', `A cell emptied and typed into again must keep its place: ${JSON.stringify(replaced)}.`);
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+z');
   await openSlide(13);
   const tables = await current();
   const cell = await frame.evaluate(() => [...document.querySelectorAll('#stage .dk-t[data-field="body"]')].findIndex(b => b.textContent === 'any browser'));

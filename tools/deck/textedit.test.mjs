@@ -22,6 +22,9 @@ test('any runs written as inline Markdown read back as the same runs', () => {
   ];
   for (const runs of cases) assert.deepEqual(plain(inline(inlineMarkdown(runs))), runs, JSON.stringify(runs));
   assert.equal(inlineMarkdown([{ text: 'b', b: true }, { text: 'i', i: true }]), '**b**_i_');
+  // An address with brackets keeps them, as %28 and %29, and its words lose nothing.
+  const wiki = inline(inlineMarkdown([{ text: 'Function', link: 'https://en.wikipedia.org/wiki/Function_(mathematics)' }, { text: ' after' }]));
+  assert.deepEqual(plain(wiki), [{ text: 'Function', link: 'https://en.wikipedia.org/wiki/Function_%28mathematics%29' }, { text: ' after' }]);
 });
 
 test('body paragraphs written as Markdown read back the same: lists, levels, headings, empty lines', () => {
@@ -66,6 +69,12 @@ test('row cells and table cells say where each one lies in the body', () => {
   assert.equal(t.slice(read.at.head[1].from, read.at.head[1].to), 'B');
   assert.equal(t.slice(read.at.rows[0][1].from, read.at.rows[0][1].to), 'two');
   assert.equal(read.at.rows[1][1], null);
+  // A cell emptied by the stage keeps its place, so the box being edited is still found.
+  const emptied = c => [c.from, c.to];
+  assert.deepEqual(rowCells('-  | Beta')[0].map(emptied), [[2, 2], [5, 9]], 'an emptied first cell');
+  assert.deepEqual(rowCells('- a |  | c')[0].map(emptied), [[2, 3], [6, 6], [9, 10]], 'an emptied middle cell');
+  assert.deepEqual(rowCells('- a | ')[0].map(emptied), [[2, 3], [6, 6]], 'an emptied last cell');
+  assert.deepEqual(table('| A | B |\n|---|---|\n|  | x |').at.rows[0][0], { from: 22, to: 22 });
 });
 
 test('a format keeps only sizes and alignments that differ, and writes them in one order', () => {
