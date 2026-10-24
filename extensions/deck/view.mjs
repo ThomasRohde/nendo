@@ -192,13 +192,14 @@ function drawAll() {
   const d = currentDeck();
   $('start').hidden = !!d && !deck.starting;
   $('app').setAttribute('aria-busy', 'false');
-  $('deck-title').textContent = d ? v(d, F.deck.title) ?? 'Untitled deck' : 'Deck';
-  $('deck-count').textContent = d ? `${deck.slides.length} ${deck.slides.length === 1 ? 'slide' : 'slides'} · ${deck.theme.name}${deck.theme.brand ? ' · ' + deck.theme.brand.name : ''}` : 'No deck yet';
+  $('deck-count').textContent = d ? `${deck.slides.length} ${deck.slides.length === 1 ? 'slide' : 'slides'}` : 'No deck yet';
   // Slides a step or a paste moved slide from where they stood.
   const moved = deck.flip;
   deck.flip = null;
   drawSorter({ moved });
   drawGrid({ moved });
+  // The layouts first: the stage is sized to the height they leave it.
+  drawLayouts(currentSlide());
   drawStage({ ifChanged: true });
   drawInspector();
   drawVariants();
@@ -284,19 +285,26 @@ function drawStage({ ifChanged = false } = {}) {
   const slide = currentSlide();
   if (!slide) { drawn = null; stage.replaceChildren(); stage.style.width = '0px'; $('fit-warning').hidden = true; editor?.attach(); return; }
   const l = laid(slide);
-  const availW = wrap.clientWidth - 48, availH = wrap.clientHeight - 34;
+  // The row of layouts under the slide takes its height first.
+  const strip = $('layout-strip');
+  const availW = wrap.clientWidth - 48, availH = wrap.clientHeight - 34 - 12 - strip.offsetHeight;
   const scale = Math.max(0.1, Math.min(availW / l.W, availH / l.H));
   const pictures = l.items.filter(p => p.type === 'image').map(p => urlFor(p.src)).join('\n');
   if (ifChanged && drawn && drawn.l === l && drawn.scale === scale && drawn.pictures === pictures && stage.firstElementChild) return;
   drawn = { l, scale, pictures };
   stage.style.width = `${l.W * scale}px`; stage.style.height = `${l.H * scale}px`;
+  strip.style.width = `${Math.max(l.W * scale, Math.min(availW, 480))}px`;
   stage.innerHTML = slideHtml(l, { urlFor, className: 'scaled' });
   stage.firstElementChild.style.transform = `scale(${scale})`;
   deck.stageScale = scale;
   editor?.attach();
   const over = l.items.filter(p => p.type === 'text' && p.overflow && !p.ghost);
+  const boxes = over.map(p => p.role === 'body2' ? 'second column' : p.role).filter((x, i, a) => a.indexOf(x) === i).join(' and ');
   $('fit-warning').hidden = over.length === 0;
-  $('fit-warning').textContent = over.length ? `The ${over.map(p => p.role === 'body2' ? 'second column' : p.role).filter((x, i, a) => a.indexOf(x) === i).join(' and ')} is at its smallest size and still runs over. Shorten it, or split the slide.` : '';
+  $('fit-warning').textContent = over.length ? `The ${boxes} is at its smallest size and still runs over. Shorten it, or split the slide.` : '';
+  $('fit-card').classList.toggle('over', over.length > 0);
+  $('fit-text').textContent = over.length ? `The ${boxes} runs over` : 'Everything fits';
+  $('fit-layout').textContent = layoutOf(slide.layout).label;
 }
 
 let drawingInspector = false;
@@ -308,13 +316,19 @@ function drawInspector() {
       $(`pane-${tab}`).hidden = deck.tab !== tab;
     }
     const slide = currentSlide();
+    drawLayouts(slide);
     if (deck.tab === 'slide') drawSlidePane(slide);
     if (deck.tab === 'design') drawDesignPane();
     if (deck.tab === 'asks') drawAsksPane();
     const notes = $('notes');
     if (document.activeElement !== notes) notes.value = slide?.notes ?? '';
     notes.disabled = !slide;
+    countNotes();
   } finally { drawingInspector = false; }
+}
+function countNotes() {
+  const words = $('notes').value.trim().split(/\s+/).filter(Boolean).length;
+  $('notes-count').textContent = words ? `${words} ${words === 1 ? 'word' : 'words'}` : '';
 }
 
 const SAMPLE = {
@@ -328,27 +342,33 @@ const SAMPLE = {
   Closing: { title: 'Thank you', kicker: 'Questions' },
 };
 
+/** The row of layouts under the stage: each drawn with this slide's own title where it has one. */
+function drawLayouts(slide) {
+  const gallery = $('layouts');
+  const key = JSON.stringify([slide?.id ?? null, slide?.layout ?? null, deck.theme, slide?.title ?? null]);
+  if (gallery.dataset.key === key) return;
+  gallery.dataset.key = key;
+  if (!slide) { gallery.replaceChildren(); return; }
+  gallery.replaceChildren(...LAYOUTS.map(layout => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('role', 'option'); b.dataset.layout = layout.id;
+    b.setAttribute('aria-selected', String(layout.id === slide.layout));
+    b.title = `${layout.label}: ${layout.hint}`;
+    const sample = { ...SAMPLE[layout.id], layout: layout.id, image: null, chart: 'Column' };
+    if (slide.title && layout.uses.includes('title')) sample.title = slide.title;
+    const label = document.createElement('span'); label.textContent = layout.label;
+    b.append(scaled(layoutSlide(sample, deck.theme, { measure: canvasMeasure, number: null, editing: false }), 76), label);
+    return b;
+  }));
+  const chosen = gallery.querySelector('[aria-selected="true"]');
+  if (chosen) gallery.scrollLeft = Math.max(0, chosen.offsetLeft - (gallery.clientWidth - chosen.offsetWidth) / 2);
+}
+
 function drawSlidePane(slide) {
   const pane = $('pane-slide');
   pane.querySelectorAll('input,textarea,button,select').forEach(el => { el.disabled = !slide; });
+  drawDesignCard();
   if (!slide) return;
-  // The gallery shows each layout drawn with this slide's own words where it has them.
-  const gallery = $('layouts');
-  const key = JSON.stringify([slide.id, slide.layout, deck.theme, slide.title, slide.kicker]);
-  if (gallery.dataset.key !== key) {
-    gallery.dataset.key = key;
-    gallery.replaceChildren(...LAYOUTS.map(layout => {
-      const b = document.createElement('button');
-      b.type = 'button'; b.setAttribute('role', 'option'); b.dataset.layout = layout.id;
-      b.setAttribute('aria-selected', String(layout.id === slide.layout));
-      b.title = `${layout.label}: ${layout.hint}`;
-      const sample = { ...SAMPLE[layout.id], layout: layout.id, image: null, chart: 'Column' };
-      if (slide.title && layout.uses.includes('title')) sample.title = slide.title;
-      const label = document.createElement('span'); label.textContent = layout.label;
-      b.append(scaled(layoutSlide(sample, deck.theme, { measure: canvasMeasure, number: null, editing: false }), 84), label);
-      return b;
-    }));
-  }
   const layout = layoutOf(slide.layout);
   $('layout-hint').textContent = layout.hint;
   for (const field of pane.querySelectorAll('.field[data-uses]')) field.hidden = !layout.uses.includes(field.dataset.uses);
@@ -359,6 +379,21 @@ function drawSlidePane(slide) {
   segmented($('f-chart'), CHARTS.map(c => [c, c]), slide.chart, value => typed({ chart: value }));
   $('clear-image').hidden = !slide.image;
   $('pick-image').textContent = slide.image ? 'Change picture…' : 'Choose picture…';
+}
+
+function drawDesignCard() {
+  const d = currentDeck(), theme = deck.theme;
+  $('design-change').disabled = !d;
+  const brand = theme?.brand?.name ?? null;
+  const key = JSON.stringify([d?.recordId ?? null, v(d, F.deck.title), theme, deck.media.size]);
+  const host = $('design-thumb');
+  if (host.dataset.key === key) return;
+  host.dataset.key = key;
+  if (!d || !theme) { host.replaceChildren(); $('design-name').textContent = ''; $('design-note').textContent = ''; return; }
+  host.replaceChildren(scaled(layoutSlide({ layout: 'Title', title: v(d, F.deck.title) || 'Title', kicker: '', body: '', image: null }, theme, { measure: canvasMeasure, number: null, editing: false }), 64));
+  $('design-name').textContent = brand ?? theme.name;
+  const aspect = v(d, F.deck.aspect) ?? '16:9';
+  $('design-note').textContent = brand && brand !== theme.name ? `${theme.name} template · ${aspect}` : brand ? `Design · ${aspect}` : `Template · ${aspect}`;
 }
 
 function segmented(host, options, value, onPick) {
@@ -1496,7 +1531,7 @@ function select(id, { place = true, keep = false } = {}) {
   deck.slideId = id;
   if (!keep) { deck.selected = [id]; deck.anchor = id; }
   keepSelection();
-  drawSorter(); drawGrid(); drawStage(); drawInspector(); drawVariants(); declareToolbar();
+  drawSorter(); drawGrid(); drawLayouts(currentSlide()); drawStage(); drawInspector(); drawVariants(); declareToolbar();
   if (place && nendo.has('ui.setPlace')) nendo.ui.setPlace?.({ deck: deck.deckId, slide: id }, { label: `Slide ${deck.slides.findIndex(s => s.id === id) + 1}`, replace: true })?.catch?.(() => {});
 }
 
@@ -1667,9 +1702,9 @@ function toolbarItems() {
   const s = currentSlide();
   const items = [];
   if (deck.decks.length) items.push({ kind: 'select', id: 'deck', label: 'Deck', hideLabel: true, value: deck.deckId, options: deck.decks.slice(0, 64).map(x => ({ value: x.recordId, label: String(v(x, F.deck.title) ?? 'Untitled').slice(0, 80) })) });
-  items.push({ kind: 'button', id: 'new-deck', label: 'New deck', icon: 'plus' });
+  items.push({ kind: 'button', id: 'new-deck', label: 'New deck', icon: 'plus', iconOnly: true });
   items.push({ kind: 'separator' });
-  items.push({ kind: 'menu', id: 'add', label: 'Add slide', icon: 'layout', disabled: !d, items: LAYOUTS.map((l, i) => ({ id: `add.${i}`, label: l.label, detail: l.hint.slice(0, 120) })) });
+  items.push({ kind: 'menu', id: 'add', label: 'New slide', icon: 'layout', disabled: !d, items: LAYOUTS.map((l, i) => ({ id: `add.${i}`, label: l.label, detail: l.hint.slice(0, 120) })) });
   const picked = selectedSlides(), n = picked.length, of = n > 1 ? ` ${n} slides` : ' slide';
   const ids = deck.slides.map(x => x.id);
   const atStart = picked.every((x, k) => ids.indexOf(x.id) === k), atEnd = picked.every((x, k) => ids.indexOf(x.id) === ids.length - n + k);
@@ -1691,7 +1726,7 @@ function toolbarItems() {
     { kind: 'separator' },
     { id: 'slide.delete', label: `Delete${of}`, icon: 'trash', danger: true },
   ] });
-  items.push({ kind: 'toggle', id: 'view.sorter', label: 'Slide sorter', icon: 'layers', pressed: deck.sorter, disabled: !d });
+  items.push({ kind: 'toggle', id: 'view.sorter', label: 'Slide sorter', icon: 'layers', iconOnly: true, pressed: deck.sorter, disabled: !d });
   // Ctrl Z and Ctrl Y are the view's own keys, so they are not declared here: Nendo would take them first.
   const undoing = undoLabel(true), redoing = undoLabel(false);
   items.push({ kind: 'group', label: 'Undo and redo', items: [
@@ -1796,7 +1831,6 @@ function wire() {
     pasteSlides(payload);
   });
   $('grid-done').addEventListener('click', () => setSorter(false));
-  $('grid-sorter').addEventListener('click', () => setSorter(true));
   const zoom = value => {
     deck.zoom = Math.max(120, Math.min(420, Math.round(value / 10) * 10));
     try { localStorage.setItem('deck.zoom', String(deck.zoom)); } catch { /* the size is for this visit only */ }
@@ -1851,7 +1885,8 @@ function wire() {
     input.addEventListener('input', () => { if (!drawingInspector) typed({ [input.dataset.field]: input.value }); });
     input.addEventListener('blur', () => save.flush());
   }
-  $('notes').addEventListener('input', () => typed({ notes: $('notes').value }));
+  $('notes').addEventListener('input', () => { typed({ notes: $('notes').value }); countNotes(); });
+  $('design-change').addEventListener('click', () => { deck.tab = 'design'; drawInspector(); $('tab-design').focus(); });
   $('notes').addEventListener('blur', () => save.flush());
   $('f-hidden').addEventListener('change', () => setHidden($('f-hidden').checked));
   $('pick-image').addEventListener('click', () => $('image-file').click());

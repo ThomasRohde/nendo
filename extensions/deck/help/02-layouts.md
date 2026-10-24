@@ -1,6 +1,6 @@
 # Layouts
 
-A layout says what a slide shows and where. Choose one under **Layout** on the **Slide** tab; each picture there is drawn with your slide's own title. A layout uses only some of the fields, and the tab shows just those.
+A layout says what a slide shows and where. Choose one in the **Layout** row under the slide; each picture there is drawn with your slide's own title. A layout uses only some of the fields, and the **Slide** tab shows just those.
 
 ## The body is a small Markdown
 

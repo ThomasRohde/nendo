@@ -10,7 +10,7 @@ Deck has no agent of its own. It asks the agent you launched from Nendo's Agent 
 | **This slide** | Leaves the slide alone and writes one to three **variants** of it. Use it for "Make this punchier", "As big numbers", "Shorter". |
 | **Mission** | A ready-made job over the whole deck: tighten the story, write speaker notes, rewrite in the brand voice, make every slide fit, or plan the pictures. |
 
-Each ask is a record, written before the agent hears of it. The **Asks** tab lists them with their progress and the agent's reply. The ask bar shows the agent's last progress line while it works, and **Stop** ends its turn.
+Each ask is a record, written before the agent hears of it. The **Agent** tab lists them with their progress and the agent's reply. The ask bar shows the agent's last progress line while it works, and **Stop** ends its turn.
 
 ## Variants
 

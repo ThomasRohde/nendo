@@ -11,14 +11,10 @@
   <div id="own-toolbar" class="own-toolbar" role="toolbar" aria-label="Deck" hidden></div>
   <div id="app" aria-busy="true">
     <nav id="sorter" class="sorter" aria-label="Slides">
-      <header class="sorter-head">
-        <span class="mark" aria-hidden="true">D</span>
-        <div class="sorter-title"><strong id="deck-title">Deck</strong><small id="deck-count">Reading the file…</small></div>
-        <button id="grid-sorter" type="button" class="icon-button" title="Slide sorter: every slide at once" aria-label="Slide sorter"><span aria-hidden="true">▦</span></button>
-      </header>
       <ol id="slides" class="slides" role="listbox" aria-label="Slides" aria-multiselectable="true" tabindex="0"></ol>
       <div class="sorter-foot">
         <button id="add-slide" type="button" class="ghost-button">+ Slide</button>
+        <small id="deck-count" class="count" aria-live="polite">Reading the file…</small>
       </div>
     </nav>
 
@@ -31,26 +27,30 @@
       <div id="stage-wrap" class="stage-wrap">
         <div id="stage" class="stage" aria-label="Current slide"></div>
         <p id="fit-warning" class="fit-warning" role="status" hidden></p>
+        <div id="layout-strip" class="layout-strip">
+          <span id="layouts-label" class="strip-label">Layout</span>
+          <div id="layouts" class="layouts" role="listbox" aria-labelledby="layouts-label" aria-orientation="horizontal"></div>
+        </div>
       </div>
       <section id="variants" class="variants" aria-label="Variants from your agent" hidden></section>
       <div class="lower">
-        <label class="notes-label" for="notes">Speaker notes</label>
-        <textarea id="notes" class="notes" rows="3" placeholder="What you will say on this slide"></textarea>
+        <div class="notes-head"><label class="notes-label" for="notes">Speaker notes</label><small id="notes-count" class="count"></small></div>
+        <textarea id="notes" class="notes" rows="2" placeholder="What you will say on this slide"></textarea>
       </div>
       <form id="ask" class="ask" autocomplete="off" hidden>
         <div class="ask-scope" role="radiogroup" aria-label="What the agent works on">
           <button type="button" role="radio" data-scope="Whole deck" aria-checked="true">Whole deck</button>
           <button type="button" role="radio" data-scope="Selection" aria-checked="false">This slide</button>
-          <select id="mission" aria-label="Mission">
-            <option value="">Mission…</option>
-            <option value="Tighten the story">Tighten the story</option>
-            <option value="Write speaker notes">Write speaker notes</option>
-            <option value="Rewrite in the brand voice">Rewrite in the brand voice</option>
-            <option value="Make every slide fit">Make every slide fit</option>
-            <option value="Plan the pictures">Plan the pictures</option>
-          </select>
         </div>
-        <textarea id="ask-text" rows="1" placeholder="Ask your agent: “A 10-slide pitch for…”, “Make this punchier”"></textarea>
+        <textarea id="ask-text" rows="1" aria-label="Ask your agent" placeholder="Ask your agent: “Make this punchier”"></textarea>
+        <select id="mission" aria-label="Mission">
+          <option value="">Missions</option>
+          <option value="Tighten the story">Tighten the story</option>
+          <option value="Write speaker notes">Write speaker notes</option>
+          <option value="Rewrite in the brand voice">Rewrite in the brand voice</option>
+          <option value="Make every slide fit">Make every slide fit</option>
+          <option value="Plan the pictures">Plan the pictures</option>
+        </select>
         <button id="ask-send" type="submit" class="primary-button">Ask</button>
         <button id="ask-stop" type="button" class="ghost-button" hidden>Stop</button>
         <p id="ask-status" class="ask-status" role="status" aria-live="polite"></p>
@@ -72,12 +72,13 @@
       <div class="tabs" role="tablist">
         <button role="tab" id="tab-slide" aria-selected="true" aria-controls="pane-slide">Slide</button>
         <button role="tab" id="tab-design" aria-selected="false" aria-controls="pane-design">Design</button>
-        <button role="tab" id="tab-asks" aria-selected="false" aria-controls="pane-asks">Asks</button>
+        <button role="tab" id="tab-asks" aria-selected="false" aria-controls="pane-asks">Agent</button>
       </div>
       <section id="pane-slide" role="tabpanel" aria-labelledby="tab-slide" class="pane">
-        <h3>Layout</h3>
-        <div id="layouts" class="layouts" role="listbox" aria-label="Layouts"></div>
+        <div id="fit-card" class="fit-card" role="status"><span class="dot" aria-hidden="true"></span><span id="fit-text">Everything fits</span><span id="fit-layout" class="mono"></span></div>
         <p id="layout-hint" class="hint"></p>
+        <h3>Words</h3>
+        <p class="hint">You can also type on the slide.</p>
         <div class="field" data-uses="kicker"><label for="f-kicker">Kicker</label><input id="f-kicker" data-field="kicker" maxlength="200"></div>
         <div class="field" data-uses="title"><label for="f-title">Title</label><textarea id="f-title" data-field="title" rows="2"></textarea></div>
         <div class="field" data-uses="body"><label for="f-body" id="l-body">Body</label><textarea id="f-body" data-field="body" rows="8" spellcheck="true"></textarea></div>
@@ -92,7 +93,14 @@
           </div>
           <input id="f-imageAlt" data-field="imageAlt" placeholder="What the picture shows" aria-label="Picture text">
         </div>
-        <label class="check"><input id="f-hidden" type="checkbox"> Hide this slide when presenting</label>
+        <h3>Presenting</h3>
+        <label class="check switch"><input id="f-hidden" type="checkbox" role="switch"> Hide this slide when presenting</label>
+        <h3>Design</h3>
+        <div class="design-card">
+          <div id="design-thumb" class="design-thumb"></div>
+          <div class="design-name"><strong id="design-name"></strong><small id="design-note"></small></div>
+          <button id="design-change" type="button" class="ghost-button">Change</button>
+        </div>
       </section>
       <section id="pane-design" role="tabpanel" aria-labelledby="tab-design" class="pane" hidden>
         <h3>Designs</h3>
