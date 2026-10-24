@@ -111,6 +111,15 @@ const whole = (field, dialect, key = field, first = 0, single = false) => ({ fie
 const cell = (at, key, plain = false) => at ? { field: 'body', dialect: plain ? 'cellPlain' : 'cell', key, from: at.from, to: at.to } : null;
 /** Whether the stage is editing this cell, which keeps its box while it is empty. */
 const keeps = at => !!at && editing?.field === 'body' && editing.from === at.from;
+/**
+ * Boxes drawn side by side take the smallest size among them, so they read alike; a box the
+ * person sized in the slide's format keeps its own.
+ */
+function alike(boxes) {
+  const free = boxes.filter(p => !format[p.key]?.size);
+  const size = Math.min(...free.map(p => p.size));
+  free.forEach(p => { p.size = size; });
+}
 /** Whether a field has words, or is the one the stage is editing, which keeps its box while it is empty. */
 const shows = (g, field, value = g.slide[field]) => !!value || (editing?.field === field && editing.from === undefined);
 
@@ -415,7 +424,7 @@ const LAYOUT_FUNCTIONS = {
     const size = Math.min(bodySize(paragraphs(slide.body)), bodySize(paragraphs(slide.body2)), 26);
     const a = body(g, slide.body, X, top, w, H - top - 76, { size });
     const b = body(g, slide.body2, X + w + gap, top, w, H - top - 76, { size, role: 'body2' });
-    const both = Math.min(a.size, b.size); a.size = both; b.size = both;
+    alike([a, b]);
     g.items.push({ type: 'line', x1: X + w + gap / 2, y1: top + 4, x2: X + w + gap / 2, y2: H - 96, stroke: g.c.line, width: 1 });
   },
 
@@ -453,7 +462,7 @@ const LAYOUT_FUNCTIONS = {
       fit(p, g.measure, 14);
       g.items.push(p); fitted.push(p);
     });
-    const both = Math.min(...fitted.map(p => p.size)); fitted.forEach(p => { p.size = both; });
+    alike(fitted);
   },
 
   'Image left'(g) { imageSplit(g, 'left'); },

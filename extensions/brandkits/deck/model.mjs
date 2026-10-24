@@ -317,6 +317,8 @@ export function table(body) {
 // ---- Text format: size and alignment, per text box, kept on the slide as JSON. ------------------
 
 export const ALIGNS = ['left', 'center', 'right', 'justify'];
+/** The scales of a layout's size a slide's format keeps: a quarter to six times. */
+export const SCALE = { min: 0.25, max: 6 };
 /**
  * A slide's text format as {key: {size, align}}: `size` scales the layout's own size for that box
  * (1 is the layout's), `align` replaces its alignment. Anything else is dropped.
@@ -329,7 +331,7 @@ export function parseFormat(text) {
   for (const [key, value] of Object.entries(raw)) {
     if (!/^[a-z0-9.]{1,32}$/i.test(key) || !value || typeof value !== 'object') continue;
     const entry = {};
-    if (Number.isFinite(value.size) && value.size >= 0.25 && value.size <= 6 && Math.abs(value.size - 1) > 0.001) entry.size = Math.round(value.size * 1000) / 1000;
+    if (Number.isFinite(value.size) && value.size >= SCALE.min && value.size <= SCALE.max && Math.abs(value.size - 1) > 0.001) entry.size = Math.round(value.size * 1000) / 1000;
     if (ALIGNS.includes(value.align)) entry.align = value.align;
     if (Object.keys(entry).length) out[key] = entry;
   }
