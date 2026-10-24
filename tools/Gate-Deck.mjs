@@ -1131,6 +1131,20 @@ async page => {
   await frame.locator('#slides').focus();
   await page.keyboard.press('Control+z');
   await onScreenAndInFile(start, 'Back in its deck, Ctrl Z must take the delete back');
+  // Where Nendo will not take a delete back, the slide is made again by hand, naming its deck at the
+  // version the deck has now.
+  await thumb(2).click();
+  const goneTitle = await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, start[2]);
+  await page.keyboard.press('Delete');
+  await until(n => window.deck.slides.length === n - 1, n, 5000);
+  await page.evaluate(() => window.broker.fail('records.undo', { code: 'stale', message: 'The file changed since.' }, 1));
+  await page.keyboard.press('Control+z');
+  await until(n => window.deck.slides.length === n, n, 5000).catch(async () => {
+    throw Error(`Ctrl Z must make a deleted slide again where Nendo will not take the delete back: ${await frame.evaluate(() => String(window.deck.problem?.message ?? window.deck.problem ?? ''))}.`);
+  });
+  const remade = (await order())[2];
+  assert(remade !== start[2] && await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, remade) === goneTitle && (await lastBatch()).label === 'Undo Delete slide 3',
+    `A delete taken back by hand must make the slide again in its place, under a new ID: ${(await lastBatch()).label}.`);
   checks.push('steps keep their deck');
   }
 

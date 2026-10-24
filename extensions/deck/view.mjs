@@ -850,10 +850,13 @@ async function byHand(step, which, label) {
       continue;
     }
     if (now) continue;
-    // A deleted record's ID stays the file's, so the slide comes back under a new one.
+    // A deleted record's ID stays the file's, so the slide comes back under a new one, naming its
+    // deck at the version the deck has now; a deck that is gone takes no slide back.
+    const deckOf = want[F.slide.deck] ? await nendo.records.get(E.deck, want[F.slide.deck]).catch(() => null) : null;
+    if (want[F.slide.deck] && !deckOf) continue;
     const id = newId('slide');
     made.set(rec.id, id);
-    writes.push({ op: 'create', entityId: rec.entityId, recordId: id, values: want });
+    writes.push({ op: 'create', entityId: rec.entityId, recordId: id, values: want, ...(deckOf ? { targetVersions: { [F.slide.deck]: deckOf.version } } : {}) });
   }
   if (!writes.length) return null;
   const answer = await nendo.records.batch(writes, { label: label.slice(0, 80) });
