@@ -212,7 +212,14 @@ async page => {
     document.getElementById('inspector').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
   }, primary);
   await dropDesign('#2F6F8F');
-  await until(() => window.deck.theme.name === 'Aurora Test' && window.deck.theme.backgrounds.title?.fill?.type === 'linear', null, 8000);
+  // The import is a batch, a read and a put per picture, a reread and the deck's write, one after
+  // another: on a slow run that is more than eight seconds, so it gets the export's fifteen, and a
+  // timeout says how far it got.
+  await until(() => window.deck.theme.name === 'Aurora Test' && window.deck.theme.backgrounds.title?.fill?.type === 'linear', null, 15000).catch(async () => {
+    const at = await frame.evaluate(() => ({ theme: window.deck.theme?.name, problem: String(window.deck.problem?.message ?? window.deck.problem ?? ''), toast: document.querySelector('.toast, #toast')?.textContent ?? '' }));
+    const puts = await page.evaluate(() => window.broker.requests.filter(r => r.m === 'media.put' && r.p.base64 === undefined).length);
+    throw Error(`A dropped .deckdesign must become the deck's design: ${JSON.stringify({ ...at, mediaPuts: puts })}.`);
+  });
   await page.waitForFunction(() => window.broker.requests.filter(r => r.m === 'media.put' && r.p.base64 === undefined).length >= 6, null, { timeout: 8000 });
   const designTemplate = (await records('dk.template')).find(t => t.values['dk.template.source'] === 'Brandkits:k-aurora');
   const designKit = (await records('dk.brand')).find(b => b.values['dk.brand.name'] === 'Aurora Test');
