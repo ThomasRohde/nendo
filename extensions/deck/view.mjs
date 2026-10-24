@@ -272,7 +272,7 @@ function drawSlidePane(slide) {
   if (!slide) return;
   // The gallery shows each layout drawn with this slide's own words where it has them.
   const gallery = $('layouts');
-  const key = JSON.stringify([slide.id, slide.layout, deck.theme, slide.title, slide.kicker].map(String));
+  const key = JSON.stringify([slide.id, slide.layout, deck.theme, slide.title, slide.kicker]);
   if (gallery.dataset.key !== key) {
     gallery.dataset.key = key;
     gallery.replaceChildren(...LAYOUTS.map(layout => {

@@ -252,6 +252,17 @@ async page => {
   assert(drawn.first === 'background' && drawn.dark && drawn.bg === '#0B1622' && drawn.family === 'studio' && drawn.bars && drawn.logo?.src && drawn.logo.left && drawn.logo.low,
     `The design must draw its section picture, dark stage, chart colours and the mark at the bottom left: ${JSON.stringify(drawn)}.`);
   assert(drawn.designs === 1 && drawn.chosen === 'true' && drawn.templates === 6, `The design must show once, chosen, under Designs and not among the six templates: ${JSON.stringify(drawn)}.`);
+  // The Slide tab's layout gallery was drawn in the old look; it is drawn again in the design's.
+  await frame.click('#tab-slide');
+  const gallery = await frame.evaluate(async () => {
+    const { layoutSlide } = await import('./layout.mjs');
+    const { slideHtml } = await import('./render.mjs');
+    const want = document.createElement('div');
+    want.innerHTML = slideHtml(layoutSlide({ layout: 'Bullets', title: 'Title', kicker: '', body: '- Point' }, window.deck.theme));
+    return { want: want.firstElementChild.style.background, got: document.querySelector('#layouts [data-layout="Bullets"] .dk-slide')?.style.background };
+  });
+  assert(gallery.got && gallery.got === gallery.want, `The layout gallery must be drawn in the design the deck now uses: ${JSON.stringify(gallery)}.`);
+  await frame.click('#tab-design');
   await dropDesign('#3A86A8');
   await page.waitForFunction(id => window.broker.record('dk.brand', id)?.values['dk.brand.primary'] === '#3A86A8', designKit.recordId, { timeout: 8000 });
   const counts = [(await records('dk.template')).length, (await records('dk.brand')).length];
