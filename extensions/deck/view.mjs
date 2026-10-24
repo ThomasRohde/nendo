@@ -15,6 +15,8 @@ import { readDesignPackage, designValues, templateSpecFrom, brandSpecFrom, sourc
 import { differing, readDrafts, writeDrafts, sortDrafts, withoutWritten } from './drafts.mjs';
 import { installFocusRing } from './kit/nendo-view-kit.js';
 import { createStageEditor } from './stage-editor.mjs';
+import { moveBlock, nudge, ordersFor, pick as pickSlides } from './order.mjs';
+import { createSlideDrag, places, flip, ownMenu } from './arrange.mjs';
 
 const nendo = window.nendo;
 const $ = id => document.getElementById(id);
@@ -26,6 +28,8 @@ const deck = window.deck = {
   ready: false, decks: [], templates: [], brands: [], slides: [], asks: [], variants: [],
   deckId: null, slideId: null, scope: 'Whole deck', tab: 'slide', theme: null, media: new Map(),
   pending: new Map(), held: [], problem: null, toolbars: 0, exports: [], presenting: false, canAsk: false, chrome: false,
+  // The slides picked in the list or the sorter, in no order; the current slide is always one of them.
+  selected: [], anchor: null, sorter: false, zoom: 220, steps: { undo: [], redo: [] }, clipboard: null,
 };
 
 document.getElementById('slide-css').textContent = SLIDE_CSS;
@@ -51,8 +55,16 @@ const newId = prefix => `${prefix}-${(crypto.randomUUID?.() ?? Math.random().toS
 const today = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
 const v = (record, field) => record?.values?.[field] ?? null;
 const currentDeck = () => deck.decks.find(d => d.recordId === deck.deckId) ?? null;
-const visibleSlides = () => deck.slides;
 const currentSlide = () => deck.slides.find(s => s.id === deck.slideId) ?? deck.slides[0] ?? null;
+/** The picked slides in the deck's order: the current one at least. */
+const selectedSlides = () => deck.slides.filter(s => deck.selected.includes(s.id) || s.id === deck.slideId);
+/** Keeps the pick to slides still in the deck, with the current slide in it. */
+function keepSelection() {
+  const here = new Set(deck.slides.map(s => s.id));
+  deck.selected = deck.selected.filter(id => here.has(id));
+  if (deck.slideId && !deck.selected.includes(deck.slideId)) deck.selected = deck.selected.length ? [...deck.selected, deck.slideId] : [deck.slideId];
+  if (!here.has(deck.anchor)) deck.anchor = deck.slideId;
+}
 function debounce(fn, ms) { let t = null; const run = (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; run.flush = (...a) => { clearTimeout(t); return fn(...a); }; return run; }
 
 // ---- Reading the file --------------------------------------------------------------------------
@@ -91,6 +103,7 @@ async function load() {
     deck.slides = []; deck.asks = []; deck.variants = [];
   }
   if (!deck.slides.some(s => s.id === deck.slideId)) deck.slideId = deck.slides[0]?.id ?? null;
+  keepSelection();
   deck.theme = themeFor(currentDeck());
   await resolveMedia();
   await loadFonts(deck.theme);
@@ -181,7 +194,11 @@ function drawAll() {
   $('app').setAttribute('aria-busy', 'false');
   $('deck-title').textContent = d ? v(d, F.deck.title) ?? 'Untitled deck' : 'Deck';
   $('deck-count').textContent = d ? `${deck.slides.length} ${deck.slides.length === 1 ? 'slide' : 'slides'} · ${deck.theme.name}${deck.theme.brand ? ' · ' + deck.theme.brand.name : ''}` : 'No deck yet';
-  drawSorter();
+  // Slides a step or a paste moved slide from where they stood.
+  const moved = deck.flip;
+  deck.flip = null;
+  drawSorter({ moved });
+  drawGrid({ moved });
   drawStage({ ifChanged: true });
   drawInspector();
   drawVariants();
@@ -190,27 +207,72 @@ function drawAll() {
   declareToolbar();
 }
 
-function drawSorter() {
+/** One slide in the list or the sorter: its number, its drawing and what marks it. */
+function slideItem(slide, i, width, variants, where) {
+  const li = document.createElement('li');
+  li.setAttribute('role', 'option');
+  li.id = `${where}-${slide.id}`;
+  li.dataset.id = slide.id;
+  li.setAttribute('aria-selected', String(deck.selected.includes(slide.id)));
+  li.classList.toggle('current', slide.id === deck.slideId);
+  li.setAttribute('aria-label', `Slide ${i + 1}: ${slide.title || slide.layout}${slide.hidden ? ', hidden' : ''}`);
+  li.classList.toggle('hidden-slide', slide.hidden);
+  const count = variants.get(slide.id)?.length ?? 0;
+  li.classList.toggle('has-variants', count > 0);
+  const num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1);
+  const thumb = scaled(laid(slide, deck.theme, false), width);
+  if (count) thumb.dataset.variants = String(count);
+  li.append(num, thumb);
+  return li;
+}
+
+// A list being dragged in keeps what it shows, the lifted slides and the mark, until the drag ends.
+const drags = {};
+/** Draws the slide list. `moved` slides the slides from where they stood, and marks the ones that moved. */
+function drawSorter({ moved = null } = {}) {
   const list = $('slides');
+  if (drags.list?.active()) return;
   const width = Math.max(90, list.clientWidth - 34 || 150);
   const variantsBySlide = proposedBySlide();
+  const was = moved ? places(list) : null;
+  list.replaceChildren(...deck.slides.map((slide, i) => slideItem(slide, i, width, variantsBySlide, 'slide')));
+  list.setAttribute('aria-activedescendant', deck.slideId ? `slide-${deck.slideId}` : '');
+  if (was) flip(list, was, { moved });
+  const picked = deck.selected.length;
+  if (picked > 1) $('deck-count').textContent = `${picked} of ${deck.slides.length} slides selected`;
+  list.querySelector('li.current')?.scrollIntoView({ block: 'nearest' });
+}
+
+/** The slide sorter: every slide of the deck as a card on a grid, to see and rearrange the whole. */
+function drawGrid({ moved = null } = {}) {
+  const view = $('grid-view');
+  view.hidden = !deck.sorter || !currentDeck();
+  if (view.hidden) return;
+  const list = $('grid');
+  if (drags.grid?.active()) return;
+  const variantsBySlide = proposedBySlide();
+  const was = moved ? places(list) : null;
+  list.style.setProperty('--card', `${deck.zoom}px`);
   list.replaceChildren(...deck.slides.map((slide, i) => {
-    const li = document.createElement('li');
-    li.setAttribute('role', 'option');
-    li.dataset.id = slide.id;
-    li.setAttribute('aria-selected', String(slide.id === deck.slideId));
-    li.setAttribute('aria-label', `Slide ${i + 1}: ${slide.title || slide.layout}${slide.hidden ? ', hidden' : ''}`);
-    li.draggable = true;
-    li.classList.toggle('hidden-slide', slide.hidden);
-    const count = variantsBySlide.get(slide.id)?.length ?? 0;
-    li.classList.toggle('has-variants', count > 0);
-    const num = document.createElement('span'); num.className = 'num'; num.textContent = String(i + 1);
-    const thumb = scaled(laid(slide, deck.theme, false), width);
-    if (count) thumb.dataset.variants = String(count);
-    li.append(num, thumb);
+    const li = slideItem(slide, i, deck.zoom, variantsBySlide, 'card');
+    const name = document.createElement('span'); name.className = 'name'; name.textContent = slide.title || slide.layout;
+    li.append(name);
     return li;
   }));
-  list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  list.setAttribute('aria-activedescendant', deck.slideId ? `card-${deck.slideId}` : '');
+  if (was) flip(list, was, { moved });
+  const picked = deck.selected.length, hidden = deck.slides.filter(s => s.hidden).length;
+  $('grid-count').textContent = `${deck.slides.length} ${deck.slides.length === 1 ? 'slide' : 'slides'}${hidden ? `, ${hidden} hidden` : ''}${picked > 1 ? ` · ${picked} selected` : ''}`;
+  $('grid-zoom').value = String(deck.zoom);
+  list.querySelector('li.current')?.scrollIntoView({ block: 'nearest' });
+}
+/** Cards across one row of the sorter, for the arrow keys that go up and down. */
+function gridColumns() {
+  const items = [...$('grid').children];
+  if (items.length < 2) return 1;
+  const top = items[0].getBoundingClientRect().top;
+  const n = items.findIndex(el => Math.abs(el.getBoundingClientRect().top - top) > 4);
+  return n < 0 ? items.length : n;
 }
 
 let drawn = null;
@@ -496,7 +558,7 @@ function edit(changes, { now = false } = {}) {
   redrawSoon();
   if (now) save.flush(); else save();
 }
-const redrawSoon = debounce(() => { drawStage({ ifChanged: true }); drawSorter(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
+const redrawSoon = debounce(() => { drawStage({ ifChanged: true }); drawSorter(); drawGrid(); declareToolbar(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
 function drawSlidePaneQuiet() { const s = currentSlide(); if (s) { $('layout-hint').textContent = layoutOf(s.layout).hint; } }
 
 const conflict = error => !!error?.code && /version|conflict|stale/i.test(`${error.code} ${error.message}`);
@@ -688,68 +750,347 @@ function typeDeck(changes) {
   saveDeckTyping();
 }
 
-/** A new slide after the current one, ordered between its neighbours. */
-async function addSlide(layout = 'Bullets', values = {}) {
+// ---- Steps: what Ctrl Z takes back -------------------------------------------------------------
+// Adding, duplicating, pasting, moving, hiding, a layout and deleting each land as one batch, which
+// Nendo offers to undo in its notice and Ctrl Z takes back here (ADR-0023). The stage's typing has
+// its own steps (stage-editor.mjs); Ctrl Z takes whichever came last. Nendo refuses to take back a
+// batch whose slides changed since, such as a moved slide typed in afterwards, so each step also
+// keeps its slides' fields before and after: a refused step is put back by hand, as a new batch.
+
+const STEPS_KEPT = 100;
+let stepping = Promise.resolve();
+const ofSelection = () => ({ ids: selectedSlides().map(s => s.id), current: deck.slideId });
+
+/** Writes one step. `records` hold each slide's fields before and after it, null where there is none. */
+async function writeStep(label, writes, records, selection) {
+  const answer = await nendo.records.batch(writes, { label: label.slice(0, 80), offerUndo: true });
+  deck.steps.redo = [];
+  editor?.forgetRedo();
+  if (answer?.revision && nendo.has('records.undo')) {
+    deck.steps.undo.push({ label, deckId: deck.deckId, next: { method: 'undo', revision: answer.revision }, records, selection, at: Date.now() });
+    if (deck.steps.undo.length > STEPS_KEPT) deck.steps.undo.shift();
+  }
+  declareToolbar();
+  return answer;
+}
+
+/** The last step Ctrl Z (back) or Ctrl Y would take in the open deck: a step in another deck waits for it. */
+const topStep = back => (back ? deck.steps.undo : deck.steps.redo).findLast(step => step.deckId === deck.deckId) ?? null;
+
+/** Ctrl Z (back) or Ctrl Y: the stage's last change of words or the last step, whichever is later. True when there was one. */
+function undoAny(back) {
+  const top = topStep(back);
+  const words = editor?.peek(back) ?? null;
+  if (words !== null && (!top || words >= top.at)) { const done = editor.undo(back); declareToolbar(); return done; }
+  if (!top) return false;
+  takeStep(back);
+  return true;
+}
+const undoLabel = back => {
+  const top = topStep(back);
+  const words = editor?.peek(back) ?? null;
+  if (words !== null && (!top || words >= top.at)) return 'typing';
+  return top?.label ?? null;
+};
+
+function takeStep(back) {
+  const from = back ? deck.steps.undo : deck.steps.redo;
+  const step = topStep(back);
+  if (!step) return stepping;
+  from.splice(from.indexOf(step), 1);
+  declareToolbar();
+  stepping = stepping.then(async () => {
+    const name = `${back ? 'Undo' : 'Redo'} ${step.label}`;
+    try {
+      await flushAll();
+      try {
+        const answer = await nendo.records[step.next.method](step.next.revision);
+        step.next = { method: step.next.method === 'undo' ? 'redo' : 'undo', revision: answer.revision };
+      } catch {
+        const answer = await byHand(step, back ? 'before' : 'after', name);
+        if (answer?.revision) step.next = { method: 'undo', revision: answer.revision };
+      }
+      step.at = Date.now();
+      (back ? deck.steps.redo : deck.steps.undo).push(step);
+      const sel = step.selection?.[back ? 'before' : 'after'];
+      if (sel) { deck.selected = [...sel.ids]; deck.slideId = sel.current ?? deck.slideId; deck.anchor = deck.slideId; }
+      deck.flip = sel?.ids ?? [];
+      announce(`${name}.`);
+      await refresh();
+    } catch (error) {
+      from.push(step);
+      problem(error, `${name} did not work`);
+    }
+    declareToolbar();
+  });
+  return stepping;
+}
+
+/** A step put back by writing: fields as they were, a made slide deleted, a deleted one made again under a new ID. */
+async function byHand(step, which, label) {
+  const writes = [], made = new Map();
+  for (const rec of step.records) {
+    const want = rec[which], other = rec[which === 'before' ? 'after' : 'before'];
+    const now = await nendo.records.get(rec.entityId, rec.id);
+    if (want === null) { if (now) writes.push({ op: 'delete', entityId: rec.entityId, recordId: rec.id, version: now.version }); continue; }
+    if (other !== null) {
+      if (!now) continue;
+      const values = Object.fromEntries(Object.entries(want).filter(([f, x]) => (now.values?.[f] ?? null) !== (x ?? null)));
+      if (Object.keys(values).length) writes.push({ op: 'update', entityId: rec.entityId, recordId: rec.id, version: now.version, values });
+      continue;
+    }
+    if (now) continue;
+    // A deleted record's ID stays the file's, so the slide comes back under a new one.
+    const id = newId('slide');
+    made.set(rec.id, id);
+    writes.push({ op: 'create', entityId: rec.entityId, recordId: id, values: want });
+  }
+  if (!writes.length) return null;
+  const answer = await nendo.records.batch(writes, { label: label.slice(0, 80) });
+  for (const rec of step.records) rec.id = made.get(rec.id) ?? rec.id;
+  for (const sel of [step.selection?.before, step.selection?.after]) if (sel) { sel.ids = sel.ids.map(id => made.get(id) ?? id); sel.current = made.get(sel.current) ?? sel.current; }
+  return answer;
+}
+
+/** Said to a screen reader, and nowhere else. */
+function announce(text) {
+  const el = $('announce');
+  el.textContent = '';
+  requestAnimationFrame(() => { el.textContent = text; });
+}
+const slidesWord = n => n === 1 ? 'a slide' : `${n} slides`;
+
+// ---- Slides made, moved, hidden and deleted ----------------------------------------------------
+
+/**
+ * Makes slides from `list` (each the slide fields by their model names) to stand at `at` in the
+ * deck, as one step, and picks them. Slides around them are numbered again only when there is no
+ * room. A picture another file holds is left out when this file refuses it. Answers the new IDs.
+ */
+async function insertSlides(list, label, at) {
   await flushAll();
   const d = currentDeck();
-  if (!d) return;
-  const at = deck.slides.findIndex(s => s.id === deck.slideId);
-  const before = deck.slides[at] ?? deck.slides.at(-1), after = deck.slides[at + 1];
-  let order = (before?.order ?? 0) + 10;
-  const writes = [];
-  if (after && order >= after.order) {
-    if (after.order - before.order >= 2) order = Math.floor((before.order + after.order) / 2);
-    else {
-      // No room: number every slide again, in tens, in the same revision.
-      deck.slides.forEach((s, i) => { const o = (i + 1) * 10 + (i > at ? 10 : 0); if (o !== s.order) writes.push({ op: 'update', entityId: E.slide, recordId: s.id, version: s.record.version, values: { [F.slide.order]: o } }); });
-      order = (at + 2) * 10;
+  if (!d || !list.length || nendo.context?.readOnly) return [];
+  const fresh = list.map(values => ({ id: newId('slide'), values }));
+  const orders = ordersFor([...deck.slides.slice(0, at), ...fresh.map(f => ({ id: f.id, order: null })), ...deck.slides.slice(at)].map(s => ({ id: s.id, order: s.order ?? null })));
+  const write = withPictures => {
+    const writes = [], records = [];
+    for (const s of deck.slides) {
+      if (!orders.has(s.id)) continue;
+      writes.push({ op: 'update', entityId: E.slide, recordId: s.id, version: s.record.version, values: { [F.slide.order]: orders.get(s.id) } });
+      records.push({ entityId: E.slide, id: s.id, before: { [F.slide.order]: s.order }, after: { [F.slide.order]: orders.get(s.id) } });
     }
-  }
-  const id = newId('slide');
-  writes.push({ op: 'create', entityId: E.slide, recordId: id, values: { [F.slide.deck]: d.recordId, [F.slide.order]: order, [F.slide.layout]: layout, [F.slide.hidden]: false, ...toValues(values) }, targetVersions: { [F.slide.deck]: d.version } });
+    for (const f of fresh) {
+      const values = { [F.slide.deck]: d.recordId, [F.slide.order]: orders.get(f.id), [F.slide.hidden]: false, ...toValues(f.values) };
+      if (!withPictures) values[F.slide.image] = null;
+      writes.push({ op: 'create', entityId: E.slide, recordId: f.id, values, targetVersions: { [F.slide.deck]: d.version } });
+      records.push({ entityId: E.slide, id: f.id, before: null, after: values });
+    }
+    return writeStep(label, writes, records, { before: ofSelection(), after: { ids: fresh.map(f => f.id), current: fresh[0].id } });
+  };
   try {
-    await nendo.records.batch(writes, { label: `Add a ${layoutOf(layout).label} slide`, offerUndo: true });
-    deck.slideId = id;
-    await refresh();
-    deck.tab = 'slide'; drawInspector();
-    $('f-title').focus();
-  } catch (error) { problem(error, 'The slide could not be added'); }
+    try { await write(true); }
+    catch (error) {
+      // A picture copied from another file is not this file's to point at.
+      if (!fresh.some(f => f.values.image) || !/media/i.test(`${error?.code} ${error?.message}`)) throw error;
+      await write(false);
+      toast('The pictures stayed behind: they belong to another file. Put them in again on these slides.');
+    }
+  } catch (error) { problem(error, `${label} did not work`); return []; }
+  deck.selected = fresh.map(f => f.id); deck.slideId = fresh[0].id; deck.anchor = deck.slideId;
+  deck.flip = deck.selected;
+  await refresh();
+  announce(`${label}: ${fresh.length === 1 ? `slide ${deck.slides.findIndex(s => s.id === fresh[0].id) + 1}` : `slides ${at + 1} to ${at + fresh.length}`}.`);
+  return fresh.map(f => f.id);
 }
 
-async function duplicateSlide() {
-  const s = currentSlide(); if (!s) return;
-  const copy = Object.fromEntries(EDITABLE.filter(k => k !== 'hidden').map(k => [k, s[k] ?? '']));
-  await addSlide(s.layout, copy);
+/** A new slide after the current one. */
+async function addSlide(layout = 'Bullets', values = {}) {
+  const at = deck.slides.findIndex(s => s.id === deck.slideId) + 1 || deck.slides.length;
+  const made = await insertSlides([{ layout, ...values }], `Add a ${layoutOf(layout).label} slide`, at);
+  if (!made.length) return;
+  deck.tab = 'slide'; drawInspector();
+  if (!deck.sorter) $('f-title').focus();
 }
 
-async function deleteSlide() {
+/** The picked slides' fields, as a copy, a duplicate or a paste carries them. */
+const copyOf = s => Object.fromEntries(EDITABLE.map(k => [k, s[k] ?? (k === 'hidden' ? false : '')]));
+const afterPicked = () => { const picked = selectedSlides(); return picked.length ? deck.slides.indexOf(picked.at(-1)) + 1 : deck.slides.length; };
+
+/** The picked slides again, right after the last of them, picked in their place. */
+async function duplicateSlides() {
+  const picked = selectedSlides();
+  if (!picked.length) return;
+  await insertSlides(picked.map(s => ({ ...copyOf(s), hidden: false })), `Duplicate ${slidesWord(picked.length)}`, afterPicked());
+}
+
+/** Deletes the picked slides and their variants, as one step; the slide after them is current. */
+async function deleteSlides(verb = 'Delete') {
   await flushAll();
-  const s = currentSlide(); if (!s) return;
-  const at = deck.slides.indexOf(s);
-  const writes = deck.variants.filter(x => v(x, F.variant.slide) === s.id).map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
-  writes.push({ op: 'delete', entityId: E.slide, recordId: s.id, version: s.record.version });
+  const doomed = selectedSlides();
+  if (!doomed.length || nendo.context?.readOnly) return;
+  const gone = new Set(doomed.map(s => s.id));
+  const writes = deck.variants.filter(x => gone.has(v(x, F.variant.slide))).map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
+  for (const s of doomed) writes.push({ op: 'delete', entityId: E.slide, recordId: s.id, version: s.record.version });
+  const records = doomed.map(s => ({ entityId: E.slide, id: s.id, before: Object.fromEntries(Object.entries(s.record.values ?? {}).filter(([, x]) => x !== null && x !== undefined)), after: null }));
+  const first = deck.slides.indexOf(doomed[0]);
+  const label = doomed.length === 1 && verb === 'Delete' ? `Delete slide ${first + 1}` : `${verb} ${slidesWord(doomed.length)}`;
+  const next = deck.slides.slice(first).find(s => !gone.has(s.id)) ?? deck.slides.slice(0, first).reverse().find(s => !gone.has(s.id)) ?? null;
   try {
-    await nendo.records.batch(writes, { label: `Delete slide ${at + 1}`, offerUndo: true });
+    await writeStep(label, writes, records, { before: ofSelection(), after: { ids: next ? [next.id] : [], current: next?.id ?? null } });
     // Only a slide that is gone lets go of its typing; a refused delete keeps it.
-    deck.pending.delete(s.id);
+    for (const id of gone) deck.pending.delete(id);
     keepDrafts();
-    deck.slideId = deck.slides[at + 1]?.id ?? deck.slides[at - 1]?.id ?? null;
+    deck.slideId = next?.id ?? null; deck.selected = next ? [next.id] : []; deck.anchor = deck.slideId;
+    deck.flip = [];
     await refresh();
-  } catch (error) { problem(error, 'The slide could not be deleted'); }
+    announce(`${label}.`);
+  } catch (error) { problem(error, doomed.length === 1 ? 'The slide could not be deleted' : 'The slides could not be deleted'); }
 }
 
-async function moveSlide(from, to) {
+/**
+ * Puts the deck's slides in the order of `ids`, as one step. The list shows the new order at once
+ * and the file follows; only the slides whose order must change are written.
+ */
+async function arrange(ids, moved) {
+  if (nendo.context?.readOnly) return false;
   await flushAll();
-  if (to < 0 || to >= deck.slides.length || from === to) return;
-  const changes = reorder(deck.slides, from, to);
-  const writes = changes.map(c => ({ op: 'update', entityId: E.slide, recordId: c.id, version: deck.slides.find(s => s.id === c.id).record.version, values: { [F.slide.order]: c.order } }));
+  const was = deck.slides.map(s => s.id);
+  if (ids.length !== was.length || ids.every((id, i) => id === was[i])) return false;
+  const byId = new Map(deck.slides.map(s => [s.id, s]));
+  const orders = ordersFor(ids.map(id => ({ id, order: byId.get(id).order })));
+  const writes = [], records = [];
+  for (const [id, order] of orders) {
+    const s = byId.get(id);
+    writes.push({ op: 'update', entityId: E.slide, recordId: id, version: s.record.version, values: { [F.slide.order]: order } });
+    records.push({ entityId: E.slide, id, before: { [F.slide.order]: s.order }, after: { [F.slide.order]: order } });
+  }
+  const label = moved.length === 1 ? 'Move a slide' : `Move ${moved.length} slides`;
+  const selection = { before: ofSelection(), after: ofSelection() };
+  for (const [id, order] of orders) byId.get(id).order = order;
+  deck.slides = ids.map(id => byId.get(id));
+  drawSorter({ moved }); drawGrid({ moved }); drawStage({ ifChanged: true });
   try {
-    if (writes.length) await nendo.records.batch(writes, { label: 'Move a slide', offerUndo: true });
-    await refresh();
-  } catch (error) { problem(error, 'The slide could not be moved'); }
+    await writeStep(label, writes, records, selection);
+    const spots = moved.map(id => ids.indexOf(id) + 1).sort((a, b) => a - b);
+    announce(moved.length === 1 ? `Moved to slide ${spots[0]} of ${ids.length}.` : `${moved.length} slides moved to ${spots.join(', ')}.`);
+  } catch (error) { problem(error, moved.length === 1 ? 'The slide could not be moved' : 'The slides could not be moved'); }
+  // Drawn again from where the slides are on their way, so the slide into place goes on.
+  deck.flip = moved;
+  await refresh();
+  return true;
 }
 
-async function setHidden(hidden) { edit({ hidden }, { now: true }); }
+/** Moves the picked slides: one up or down each, to the start or the end, or by a row of the sorter. */
+function moveSelection(how) {
+  const ids = deck.slides.map(s => s.id), picked = selectedSlides().map(s => s.id);
+  if (!picked.length) return;
+  let next;
+  if (how === 'up' || how === 'down') next = nudge(ids, picked, how === 'up' ? -1 : 1);
+  else if (how === 'start') next = moveBlock(ids, picked, ids[0]);
+  else if (how === 'end') next = moveBlock(ids, picked, null);
+  else {
+    const rest = ids.filter(id => !picked.includes(id));
+    const to = Math.max(0, Math.min(rest.length, ids.indexOf(picked[0]) + how));
+    next = moveBlock(ids, picked, rest[to] ?? null);
+  }
+  return arrange(next, picked);
+}
+
+/** Hides the picked slides when presenting, or shows them again, as one step. */
+async function setHidden(hidden) {
+  if (nendo.context?.readOnly) return;
+  await flushAll();
+  const picked = selectedSlides().filter(s => s.hidden !== hidden);
+  if (!picked.length) { drawInspector(); return; }
+  const writes = picked.map(s => ({ op: 'update', entityId: E.slide, recordId: s.id, version: s.record.version, values: { [F.slide.hidden]: hidden } }));
+  const records = picked.map(s => ({ entityId: E.slide, id: s.id, before: { [F.slide.hidden]: s.hidden }, after: { [F.slide.hidden]: hidden } }));
+  try {
+    await writeStep(`${hidden ? 'Hide' : 'Show'} ${slidesWord(picked.length)}`, writes, records, { before: ofSelection(), after: ofSelection() });
+    await refresh();
+  } catch (error) { problem(error, 'The slide could not be hidden'); await refresh(); }
+}
+
+/** A layout for the picked slides, as one step. */
+async function setLayout(layout) {
+  if (nendo.context?.readOnly) return;
+  await flushAll();
+  const picked = selectedSlides().filter(s => s.layout !== layout);
+  if (!picked.length) return;
+  const writes = picked.map(s => ({ op: 'update', entityId: E.slide, recordId: s.id, version: s.record.version, values: { [F.slide.layout]: layout } }));
+  const records = picked.map(s => ({ entityId: E.slide, id: s.id, before: { [F.slide.layout]: s.layout }, after: { [F.slide.layout]: layout } }));
+  for (const s of picked) s.layout = layout;
+  laidCache.clear(); drawSorter(); drawGrid(); drawStage(); drawInspector();
+  try { await writeStep(picked.length === 1 ? `${layoutOf(layout).label} layout` : `${layoutOf(layout).label} layout on ${picked.length} slides`, writes, records, { before: ofSelection(), after: ofSelection() }); }
+  catch (error) { problem(error, 'The layout could not be changed'); }
+  await refresh();
+}
+
+// ---- Copy, cut and paste slides ----------------------------------------------------------------
+// The clipboard carries the slides as Deck's own type, read back by a paste in this deck, another
+// deck or another Deck file, and their words as plain text for anywhere else. Deck keeps its last
+// copy too, for Paste from a menu, where the browser does not hand a view the clipboard.
+
+const SLIDES_TYPE = 'application/x-nendo-deck-slides';
+const outline = slides => slides.map(s => [s.kicker, s.title, s.body, s.body2].filter(Boolean).join('\n')).join('\n\n');
+/** The slide list or the sorter has the keys, and no field or box of words. */
+const slidesFocused = () => !!document.activeElement?.closest?.('#slides, #grid') && !editor?.active();
+
+function copySlides() {
+  const picked = selectedSlides();
+  const payload = { format: 'nendo.deck-slides', version: 1, slides: picked.map(copyOf) };
+  const text = outline(picked) || picked.map(s => s.layout).join('\n');
+  deck.clipboard = { payload, text };
+  return { payload, text, count: picked.length };
+}
+function putOnClipboard(data) {
+  const { payload, text, count } = copySlides();
+  data.setData('text/plain', text);
+  data.setData(SLIDES_TYPE, JSON.stringify(payload));
+  return count;
+}
+/** Slides from Deck's own clipboard type, kept to what a slide can hold. */
+function readSlides(payload) {
+  if (payload?.format !== 'nendo.deck-slides' || !Array.isArray(payload.slides)) return [];
+  return payload.slides.slice(0, 100).filter(x => x && typeof x === 'object').map(x => {
+    const s = {};
+    for (const k of EDITABLE) {
+      const value = x[k];
+      if (k === 'hidden') s.hidden = value === true;
+      else if (k === 'layout') s.layout = LAYOUT_IDS.includes(value) ? value : 'Bullets';
+      else if (k === 'chart') s.chart = CHARTS.includes(value) ? value : '';
+      else s[k] = typeof value === 'string' ? value : '';
+    }
+    return s;
+  });
+}
+async function pasteSlides(payload) {
+  const list = readSlides(payload);
+  if (!list.length) { toast('The clipboard holds no slides. Copy slides in Deck first.'); return; }
+  await insertSlides(list, `Paste ${slidesWord(list.length)}`, afterPicked());
+}
+/** Copy, cut and paste from a menu: the browser's own command where it allows it, Deck's own copy where not. */
+async function clipboardCommand(action) {
+  window.focus();
+  (deck.sorter ? $('grid') : $('slides')).focus({ preventScroll: true });
+  let heard = false;
+  const hear = () => { heard = true; };
+  document.addEventListener(action, hear, true);
+  try { document.execCommand(action); } catch { /* refused: below */ }
+  document.removeEventListener(action, hear, true);
+  if (heard) return;
+  if (action === 'paste') {
+    let text = null;
+    try { text = await navigator.clipboard.readText(); } catch { /* not offered: Deck's own copy */ }
+    if (deck.clipboard && (text === null || text === deck.clipboard.text)) return pasteSlides(deck.clipboard.payload);
+    toast('Press Ctrl+V to paste slides here.');
+    return;
+  }
+  const { text, count } = copySlides();
+  try { await navigator.clipboard.writeText(text); } catch { /* Deck's own copy still pastes here */ }
+  if (action === 'cut') return deleteSlides('Cut');
+  toast(`Copied ${slidesWord(count)}.`);
+}
 
 // ---- Pictures ----------------------------------------------------------------------------------
 
@@ -1076,7 +1417,7 @@ function stopPresenting(index) {
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   const shown = deck.slides.filter(s => !s.hidden);
   if (Number.isInteger(index) && shown[index]) select(shown[index].id);
-  $('slides').focus();
+  (deck.sorter ? $('grid') : $('slides')).focus();
 }
 addEventListener('message', event => {
   if (event.source !== $('present-frame').contentWindow || !event.data) return;
@@ -1086,12 +1427,103 @@ document.addEventListener('fullscreenchange', () => { if (!document.fullscreenEl
 
 // ---- Selection, places, commands ---------------------------------------------------------------
 
-function select(id, { place = true } = {}) {
+/** Makes a slide the current one, on the stage; `keep` keeps the pick, otherwise it is this slide alone. */
+function select(id, { place = true, keep = false } = {}) {
   if (!deck.slides.some(s => s.id === id)) return;
   save.flush();
   deck.slideId = id;
-  drawSorter(); drawStage(); drawInspector(); drawVariants();
+  if (!keep) { deck.selected = [id]; deck.anchor = id; }
+  keepSelection();
+  drawSorter(); drawGrid(); drawStage(); drawInspector(); drawVariants(); declareToolbar();
   if (place && nendo.has('ui.setPlace')) nendo.ui.setPlace?.({ deck: deck.deckId, slide: id }, { label: `Slide ${deck.slides.findIndex(s => s.id === id) + 1}`, replace: true })?.catch?.(() => {});
+}
+
+/** A click on a slide: it alone, with Ctrl added or taken out, with Shift the run from the anchor. */
+function choose(id, e = {}) {
+  const r = pickSlides(deck.slides.map(s => s.id), selectedSlides().map(s => s.id), deck.anchor, id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey });
+  deck.selected = r.selected; deck.anchor = r.anchor;
+  select(r.current, { keep: true });
+}
+function selectAll() {
+  deck.selected = deck.slides.map(s => s.id);
+  select(deck.slideId ?? deck.slides[0]?.id, { keep: true });
+  announce(`All ${deck.slides.length} slides selected.`);
+}
+
+/** The slide sorter, over the whole view, or back to the slide on the stage. */
+function setSorter(on) {
+  deck.sorter = !!on && !!currentDeck();
+  drawGrid();
+  if (deck.sorter) $('grid').focus({ preventScroll: true });
+  else { drawStage(); drawSorter(); $('slides').focus({ preventScroll: true }); }
+  declareToolbar();
+}
+/** A slide opened from the sorter: back to the stage with it current. */
+function openFromSorter(id) { select(id); setSorter(false); }
+
+/** The keys of the slide list (`list`) and the sorter (`grid`), as PowerPoint's slide pane and sorter take them. */
+function slideKeys(e, where) {
+  const ids = deck.slides.map(s => s.id);
+  const ctrl = e.ctrlKey || e.metaKey, key = e.key;
+  if (!ids.length) { if (key === 'Enter' || (ctrl && /^m$/i.test(key))) { e.preventDefault(); addSlide('Title'); } return; }
+  const i = Math.max(0, ids.indexOf(deck.slideId));
+  const cols = where === 'grid' ? gridColumns() : 1;
+  const by = { ArrowDown: cols, ArrowUp: -cols, ArrowRight: 1, ArrowLeft: -1 }[key];
+  const to = n => ids[Math.max(0, Math.min(ids.length - 1, n))];
+  const extend = id => choose(id, { shiftKey: true, ctrlKey: false });
+  if (by !== undefined || key === 'Home' || key === 'End') {
+    e.preventDefault();
+    const start = key === 'Home' || (by !== undefined && by < 0);
+    if (ctrl && e.shiftKey) return moveSelection(start ? 'start' : 'end');
+    if (by !== undefined && ctrl) return moveSelection(Math.abs(by) === 1 ? (by < 0 ? 'up' : 'down') : by);
+    const target = by !== undefined ? to(i + by) : key === 'Home' ? ids[0] : ids.at(-1);
+    return e.shiftKey ? extend(target) : select(target);
+  }
+  if (ctrl && /^a$/i.test(key)) { e.preventDefault(); selectAll(); }
+  else if (ctrl && /^d$/i.test(key)) { e.preventDefault(); duplicateSlides(); }
+  else if (ctrl && /^m$/i.test(key)) { e.preventDefault(); addSlide(nextLayout()); }
+  else if (key === 'Delete' || key === 'Backspace') { e.preventDefault(); deleteSlides(); }
+  else if (key === 'Enter') { e.preventDefault(); if (where === 'grid') openFromSorter(deck.slideId); else addSlide(nextLayout()); }
+  else if (key === 'Escape' && where === 'grid') { e.preventDefault(); setSorter(false); }
+  else if (key === 'Escape' && deck.selected.length > 1) { e.preventDefault(); select(deck.slideId); }
+  else if (key === 'ContextMenu' || (e.shiftKey && key === 'F10')) {
+    e.preventDefault();
+    const list = where === 'grid' ? $('grid') : $('slides');
+    const r = (list.querySelector('li.current') ?? list).getBoundingClientRect();
+    slideMenu(r.left + Math.min(40, r.width / 2), r.top + Math.min(30, r.height / 2), true);
+  }
+}
+const nextLayout = () => currentSlide()?.layout === 'Section' || currentSlide()?.layout === 'Title' ? 'Bullets' : currentSlide()?.layout ?? 'Bullets';
+
+/** The slides' own menu, at a point in the view: Nendo's menu where it has one, the view's own where not. */
+async function slideMenu(x, y, onSlide) {
+  const picked = selectedSlides(), n = picked.length, ids = deck.slides.map(s => s.id);
+  const of = n > 1 ? ` ${n} slides` : ' slide';
+  const first = ids.indexOf(picked[0]?.id), last = ids.indexOf(picked.at(-1)?.id);
+  const atStart = picked.every((s, k) => ids.indexOf(s.id) === k), atEnd = picked.every((s, k) => ids.indexOf(s.id) === ids.length - n + k);
+  const readOnly = !!nendo.context?.readOnly;
+  const items = [{ id: 'slide.new', label: 'New slide', keys: 'Ctrl+M', disabled: readOnly }];
+  if (onSlide && n) items.push(
+    { id: 'slide.duplicate', label: `Duplicate${of}`, keys: 'Ctrl+D', disabled: readOnly },
+    { kind: 'separator' },
+    { id: 'slide.cut', label: 'Cut', keys: 'Ctrl+X', disabled: readOnly },
+    { id: 'slide.copy', label: 'Copy', keys: 'Ctrl+C' },
+    { id: 'slide.paste', label: 'Paste', keys: 'Ctrl+V', disabled: readOnly },
+    { kind: 'separator' },
+    { id: 'slide.hide', kind: 'check', label: `Hide${of}`, checked: picked.every(s => s.hidden), disabled: readOnly },
+    { kind: 'separator' },
+    { id: 'slide.top', label: 'Move to start', keys: 'Ctrl+Shift+ArrowUp', disabled: readOnly || atStart },
+    { id: 'slide.up', label: 'Move up', keys: 'Ctrl+ArrowUp', disabled: readOnly || first <= 0 && atStart },
+    { id: 'slide.down', label: 'Move down', keys: 'Ctrl+ArrowDown', disabled: readOnly || last >= ids.length - 1 && atEnd },
+    { id: 'slide.bottom', label: 'Move to end', keys: 'Ctrl+Shift+ArrowDown', disabled: readOnly || atEnd },
+    { kind: 'separator' },
+  );
+  else items.push({ id: 'slide.paste', label: 'Paste', keys: 'Ctrl+V', disabled: readOnly }, { kind: 'separator' });
+  items.push({ id: 'slide.all', label: 'Select all', keys: 'Ctrl+A', disabled: !ids.length }, { id: 'view.sorter', label: deck.sorter ? 'Back to the slide' : 'Slide sorter' });
+  if (onSlide && n) items.push({ kind: 'separator' }, { id: 'slide.delete', label: `Delete${of}`, danger: true, disabled: readOnly });
+  const shown = items.map(it => it.kind === 'separator' ? it : { ...it, ...(it.disabled ? { disabled: true } : {}) });
+  const answer = deck.chrome && nendo.has('ui.showMenu') ? await nendo.ui.showMenu(shown, { x, y }).catch(() => null) : { id: await ownMenu(shown, x, y) };
+  if (answer?.id) command(answer.id, answer.value ?? null);
 }
 
 async function openDeck(id) {
@@ -1149,11 +1581,17 @@ async function command(id, value) {
     if (id === 'new-deck') return showStart(true);
     if (id === 'add.default') return addSlide('Bullets');
     if (id.startsWith('add.')) return addSlide(LAYOUT_IDS[Number(id.slice(4))] ?? 'Bullets');
-    if (id === 'slide.duplicate') return duplicateSlide();
-    if (id === 'slide.delete') return deleteSlide();
-    if (id === 'slide.hide') return setHidden(!currentSlide()?.hidden);
-    if (id === 'slide.up') return moveSlide(deck.slides.indexOf(currentSlide()), deck.slides.indexOf(currentSlide()) - 1);
-    if (id === 'slide.down') return moveSlide(deck.slides.indexOf(currentSlide()), deck.slides.indexOf(currentSlide()) + 1);
+    if (id === 'slide.new') return addSlide(nextLayout());
+    if (id === 'slide.duplicate') return duplicateSlides();
+    if (id === 'slide.delete') return deleteSlides();
+    if (id === 'slide.hide') return setHidden(!selectedSlides().every(s => s.hidden));
+    if (id === 'slide.up' || id === 'slide.down') return moveSelection(id.slice(6));
+    if (id === 'slide.top') return moveSelection('start');
+    if (id === 'slide.bottom') return moveSelection('end');
+    if (id === 'slide.all') return selectAll();
+    if (id === 'slide.cut' || id === 'slide.copy' || id === 'slide.paste') return clipboardCommand(id.slice(6));
+    if (id === 'view.sorter') return setSorter(typeof value === 'boolean' ? value : !deck.sorter);
+    if (id === 'undo' || id === 'redo') return undoAny(id === 'undo');
     if (id === 'present') return present(false);
     if (id === 'present.here') return present(true);
     if (id === 'export.html') return exportHtml();
@@ -1170,14 +1608,33 @@ function toolbarItems() {
   items.push({ kind: 'button', id: 'new-deck', label: 'New deck', icon: 'plus' });
   items.push({ kind: 'separator' });
   items.push({ kind: 'menu', id: 'add', label: 'Add slide', icon: 'layout', disabled: !d, items: LAYOUTS.map((l, i) => ({ id: `add.${i}`, label: l.label, detail: l.hint.slice(0, 120) })) });
+  const picked = selectedSlides(), n = picked.length, of = n > 1 ? ` ${n} slides` : ' slide';
+  const ids = deck.slides.map(x => x.id);
+  const atStart = picked.every((x, k) => ids.indexOf(x.id) === k), atEnd = picked.every((x, k) => ids.indexOf(x.id) === ids.length - n + k);
+  // Ctrl C, X and V are the browser's own, so the clipboard keeps Deck's slides for another window;
+  // a declared key would be Nendo's, so the menu names them in its detail line instead.
   items.push({ kind: 'menu', id: 'slide', label: 'Slide', icon: 'more', disabled: !s, items: [
-    { id: 'slide.duplicate', label: 'Duplicate' },
-    { kind: 'check', id: 'slide.hide', label: 'Hide when presenting', checked: !!s?.hidden },
+    { id: 'slide.duplicate', label: `Duplicate${of}`, keys: 'Ctrl+D' },
+    { id: 'slide.cut', label: 'Cut', detail: 'Ctrl X in the slide list' },
+    { id: 'slide.copy', label: 'Copy', detail: 'Ctrl C in the slide list' },
+    { id: 'slide.paste', label: 'Paste', detail: 'Ctrl V in the slide list' },
+    { kind: 'check', id: 'slide.hide', label: 'Hide when presenting', checked: n > 0 && picked.every(x => x.hidden) },
     { kind: 'separator' },
-    { id: 'slide.up', label: 'Move up', icon: 'arrowUp' },
-    { id: 'slide.down', label: 'Move down', icon: 'arrowDown' },
+    { id: 'slide.top', label: 'Move to start', keys: 'Ctrl+Shift+ArrowUp', disabled: atStart },
+    { id: 'slide.up', label: 'Move up', icon: 'arrowUp', keys: 'Ctrl+ArrowUp', disabled: atStart },
+    { id: 'slide.down', label: 'Move down', icon: 'arrowDown', keys: 'Ctrl+ArrowDown', disabled: atEnd },
+    { id: 'slide.bottom', label: 'Move to end', keys: 'Ctrl+Shift+ArrowDown', disabled: atEnd },
     { kind: 'separator' },
-    { id: 'slide.delete', label: 'Delete slide', icon: 'trash', danger: true },
+    { id: 'slide.all', label: 'Select all slides' },
+    { kind: 'separator' },
+    { id: 'slide.delete', label: `Delete${of}`, icon: 'trash', danger: true },
+  ] });
+  items.push({ kind: 'toggle', id: 'view.sorter', label: 'Slide sorter', icon: 'layers', pressed: deck.sorter, disabled: !d });
+  // Ctrl Z and Ctrl Y are the view's own keys, so they are not declared here: Nendo would take them first.
+  const undoing = undoLabel(true), redoing = undoLabel(false);
+  items.push({ kind: 'group', label: 'Undo and redo', items: [
+    { kind: 'button', id: 'undo', label: undoing ? `Undo ${undoing}`.slice(0, 80) : 'Undo', icon: 'undo', iconOnly: true, disabled: !undoing },
+    { kind: 'button', id: 'redo', label: redoing ? `Redo ${redoing}`.slice(0, 80) : 'Redo', icon: 'redo', iconOnly: true, disabled: !redoing },
   ] });
   items.push({ kind: 'spacer' });
   items.push({ kind: 'menu', id: 'export', label: 'Export', icon: 'export', disabled: !s, items: [
@@ -1203,7 +1660,7 @@ function declareToolbar() {
   // Without Nendo's toolbar, the same controls in the view's own row.
   const bar = $('own-toolbar');
   bar.hidden = false; document.body.classList.add('has-own-toolbar');
-  bar.replaceChildren(...items.filter(i => i.kind !== 'separator').map(item => {
+  bar.replaceChildren(...items.flatMap(i => i.kind === 'group' ? i.items : [i]).filter(i => i.kind !== 'separator').map(item => {
     if (item.kind === 'spacer') { const s = document.createElement('span'); s.style.flex = '1'; return s; }
     if (item.kind === 'select') {
       const sel = document.createElement('select'); sel.setAttribute('aria-label', item.label);
@@ -1224,40 +1681,66 @@ function declareToolbar() {
 // ---- Events ------------------------------------------------------------------------------------
 
 function wire() {
-  const list = $('slides');
-  list.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (li) select(li.dataset.id); });
+  // The slide list and the sorter: a click picks, Ctrl and Shift pick more, a drag moves the pick,
+  // the keys move and pick as PowerPoint's do, and a right click opens the slides' menu.
+  const list = $('slides'), grid = $('grid');
+  for (const [el, where] of [[list, 'list'], [grid, 'grid']]) {
+    el.addEventListener('click', e => { const li = e.target.closest('li[data-id]'); if (li) choose(li.dataset.id, e); });
+    el.addEventListener('keydown', e => slideKeys(e, where));
+    el.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      const li = e.target.closest('li[data-id]');
+      if (li && !deck.selected.includes(li.dataset.id)) select(li.dataset.id);
+      else if (li && li.dataset.id !== deck.slideId) select(li.dataset.id, { keep: true });
+      el.focus({ preventScroll: true });
+      slideMenu(e.clientX, e.clientY, !!li);
+    });
+    drags[where] = createSlideDrag({
+      list: el, item: 'li[data-id]', grid: where === 'grid',
+      ended: () => queueMicrotask(() => { drawSorter(); drawGrid(); }),
+      readOnly: () => !!nendo.context?.readOnly,
+      ids: () => deck.slides.map(s => s.id),
+      // A press on a picked slide lifts the whole pick; on another, that slide alone.
+      lift: id => {
+        if (!deck.selected.includes(id)) select(id); else if (id !== deck.slideId) select(id, { keep: true });
+        return selectedSlides().map(s => s.id);
+      },
+      ghost: ids => scaled(laid(deck.slides.find(s => s.id === (ids.includes(deck.slideId) ? deck.slideId : ids[0])), deck.theme, false), 148),
+      drop: (ids, before, { copy }) => {
+        if (!copy) return arrange(moveBlock(deck.slides.map(s => s.id), ids, before), ids);
+        const at = before === null ? deck.slides.length : deck.slides.findIndex(s => s.id === before);
+        const copies = deck.slides.filter(s => ids.includes(s.id)).map(copyOf);
+        return insertSlides(copies, `Copy ${slidesWord(copies.length)}`, at);
+      },
+    });
+  }
   list.addEventListener('dblclick', e => { const li = e.target.closest('li[data-id]'); if (li) present(true); });
-  list.addEventListener('keydown', e => {
-    const i = deck.slides.findIndex(s => s.id === deck.slideId);
-    if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { e.preventDefault(); if (e.ctrlKey) moveSlide(i, i + 1); else select(deck.slides[Math.min(i + 1, deck.slides.length - 1)]?.id); }
-    else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { e.preventDefault(); if (e.ctrlKey) moveSlide(i, i - 1); else select(deck.slides[Math.max(i - 1, 0)]?.id); }
-    else if (e.key === 'Home') select(deck.slides[0]?.id);
-    else if (e.key === 'End') select(deck.slides.at(-1)?.id);
-    else if (e.key === 'Delete') deleteSlide();
-    else if (e.key === 'Enter') addSlide(currentSlide()?.layout === 'Section' ? 'Bullets' : currentSlide()?.layout ?? 'Bullets');
-    else if (e.key === 'd' && e.ctrlKey) { e.preventDefault(); duplicateSlide(); }
+  grid.addEventListener('dblclick', e => { const li = e.target.closest('li[data-id]'); if (li) openFromSorter(li.dataset.id); });
+  // Copy, cut and paste while the slide list or the sorter has the keys.
+  document.addEventListener('copy', e => { if (!slidesFocused() || !deck.slides.length) return; e.preventDefault(); const n = putOnClipboard(e.clipboardData); announce(`Copied ${slidesWord(n)}.`); });
+  document.addEventListener('cut', e => {
+    if (!slidesFocused() || !deck.slides.length || nendo.context?.readOnly) return;
+    e.preventDefault(); putOnClipboard(e.clipboardData); deleteSlides('Cut');
   });
-  // Drag a thumbnail to move the slide.
-  let dragging = null;
-  list.addEventListener('dragstart', e => { const li = e.target.closest('li[data-id]'); if (!li) return; dragging = li.dataset.id; li.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragging); });
-  list.addEventListener('dragover', e => {
-    if (!dragging) return;
+  document.addEventListener('paste', e => {
+    if (!slidesFocused() || nendo.context?.readOnly) return;
     e.preventDefault();
-    list.querySelectorAll('.drop-before').forEach(x => x.classList.remove('drop-before'));
-    const li = e.target.closest('li[data-id]'); if (li) li.classList.add('drop-before');
+    let payload = null;
+    try { payload = JSON.parse(e.clipboardData.getData(SLIDES_TYPE) || 'null'); } catch { payload = null; }
+    // A browser that drops the slides' own type still carries their words: Deck's own copy, if it is that one.
+    if (!payload && deck.clipboard && e.clipboardData.getData('text/plain') === deck.clipboard.text) payload = deck.clipboard.payload;
+    pasteSlides(payload);
   });
-  list.addEventListener('dragend', () => { dragging = null; list.querySelectorAll('.dragging,.drop-before').forEach(x => x.classList.remove('dragging', 'drop-before')); });
-  list.addEventListener('drop', e => {
-    if (!dragging) return;
-    e.preventDefault();
-    const li = e.target.closest('li[data-id]');
-    const from = deck.slides.findIndex(s => s.id === dragging);
-    let to = li ? deck.slides.findIndex(s => s.id === li.dataset.id) : deck.slides.length - 1;
-    // Before a thumbnail, a later one counts the moved slide out; below the list is simply the end.
-    if (li && to > from) to -= 1;
-    dragging = null;
-    moveSlide(from, to);
-  });
+  $('grid-done').addEventListener('click', () => setSorter(false));
+  $('grid-sorter').addEventListener('click', () => setSorter(true));
+  const zoom = value => {
+    deck.zoom = Math.max(120, Math.min(420, Math.round(value / 10) * 10));
+    try { localStorage.setItem('deck.zoom', String(deck.zoom)); } catch { /* the size is for this visit only */ }
+    drawGrid();
+  };
+  $('grid-zoom').addEventListener('input', () => zoom(Number($('grid-zoom').value)));
+  grid.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); zoom(deck.zoom - Math.sign(e.deltaY) * 20); }, { passive: false });
+  try { const kept = Number(localStorage.getItem('deck.zoom')); if (kept >= 120 && kept <= 420) deck.zoom = kept; } catch { /* the default size */ }
   $('add-slide').addEventListener('click', async e => {
     if (!deck.chrome || !nendo.has('ui.showMenu')) return addSlide('Bullets');
     const r = e.currentTarget.getBoundingClientRect();
@@ -1278,6 +1761,8 @@ function wire() {
     redraw: () => drawStage(),
     toast,
     readOnly: () => !!nendo.context?.readOnly,
+    // New words end what Ctrl Y could put back of the slides' own steps.
+    changed: () => { deck.steps.redo = []; },
   });
   stage.addEventListener('click', e => {
     if (e.target.closest('.dk-t[data-field]')) return;
@@ -1297,7 +1782,7 @@ function wire() {
 
   // The inspector.
   for (const tab of ['slide', 'design', 'asks']) $(`tab-${tab}`).addEventListener('click', () => { deck.tab = tab; drawInspector(); });
-  $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-layout]'); if (b) edit({ layout: b.dataset.layout }, { now: true }); });
+  $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-layout]'); if (b) setLayout(b.dataset.layout); });
   for (const input of document.querySelectorAll('#pane-slide [data-field]')) {
     input.addEventListener('input', () => { if (!drawingInspector) edit({ [input.dataset.field]: input.value }); });
     input.addEventListener('blur', () => save.flush());
@@ -1351,12 +1836,14 @@ function wire() {
 
   // Keys the view keeps for itself when no field has focus.
   addEventListener('keydown', e => {
-    if (deck.presenting) return;
+    if (deck.presenting || e.defaultPrevented) return;
     const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '') || !!document.activeElement?.isContentEditable;
     if (e.key === 'F5' && !deck.chrome) { e.preventDefault(); present(e.shiftKey); }
     if (typing) return;
-    // Ctrl Z and Ctrl Y outside a field take back the stage's last change of words, as PowerPoint's do.
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[zy]$/i.test(e.key)) { if (editor.undo(e.key.toLowerCase() === 'z' && !e.shiftKey)) e.preventDefault(); return; }
+    // Ctrl Z and Ctrl Y outside a field take back the last change, of words on the stage or of the
+    // slides themselves, as PowerPoint's do.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[zy]$/i.test(e.key)) { if (undoAny(e.key.toLowerCase() === 'z' && !e.shiftKey)) e.preventDefault(); return; }
+    if (e.key === 'Escape' && deck.sorter) { e.preventDefault(); setSorter(false); return; }
     if ((e.key === 'PageDown' || e.key === 'PageUp') && deck.slides.length) {
       e.preventDefault();
       const i = deck.slides.findIndex(s => s.id === deck.slideId);

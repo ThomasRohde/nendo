@@ -5,11 +5,21 @@
 | Key | What it does |
 | --- | --- |
 | `↑`, `↓` | The slide above or below |
-| `Ctrl` `↑`, `Ctrl` `↓` | Move the slide up or down |
+| `Shift` `↑`, `Shift` `↓`, `Shift` `Home`, `Shift` `End` | Select more slides |
+| `Ctrl` `A` | Select every slide |
+| `Ctrl` `↑`, `Ctrl` `↓` | Move the selected slides up or down |
+| `Ctrl` `Shift` `↑`, `Ctrl` `Shift` `↓` | Move the selected slides to the start or the end |
 | `Home`, `End` | The first or the last slide |
-| `Enter` | A new slide after this one, in the same layout |
-| `Ctrl` `D` | Duplicate the slide |
-| `Delete` | Delete the slide (Undo brings it back) |
+| `Enter`, `Ctrl` `M` | A new slide after this one, in the same layout |
+| `Ctrl` `D` | Duplicate the selected slides |
+| `Ctrl` `X`, `Ctrl` `C`, `Ctrl` `V` | Cut, copy and paste the selected slides |
+| `Delete` | Delete the selected slides |
+| `Shift` `F10`, the menu key | The slides' menu |
+| `Esc` | Keep only the current slide selected |
+
+## In the slide sorter
+
+The arrows go across and down the rows. `Ctrl` with an arrow moves the selected slides, by a place or by a row. `Enter` opens the current slide, and `Esc` goes back to it.
 
 ## In the words on a slide
 
@@ -39,4 +49,6 @@ Click any words on the slide to edit them where they are. Click to place the car
 | `Shift` `F5` | Present from this slide |
 | `Enter` in the ask bar | Send the ask; `Shift` `Enter` starts a new line |
 
-Every change is saved as you type. Nendo's own Undo takes back adding, moving, deleting and using variants as one step each.
+| `Ctrl` `Z`, `Ctrl` `Y` | Undo and redo the last change: words on a slide, or adding, moving, pasting, hiding and deleting slides |
+
+Every change is saved as you type. Nendo's own Undo also takes back adding, moving, deleting and using variants as one step each.
