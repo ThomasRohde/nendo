@@ -160,13 +160,19 @@ export function chartData(body) {
 }
 const unitOf = text => /%/.test(text) ? '%' : '';
 
-/** A tidy number for an axis or a label. */
-export function formatNumber(n, unit = '') {
+/** A tidy number for a label, or for an axis whose ticks are `step` apart. */
+export function formatNumber(n, unit = '', step = 0) {
   const abs = Math.abs(n);
+  // An axis says as many decimals as its step has; a value under one keeps two significant digits.
+  const places = step ? decimalsOf(step) : abs > 0 && abs < 1 ? Math.min(10, 1 - Math.floor(Math.log10(abs))) : abs < 10 ? 1 : 0;
   const text = abs >= 1e9 ? (n / 1e9).toFixed(abs >= 1e10 ? 0 : 1) + 'B' : abs >= 1e6 ? (n / 1e6).toFixed(abs >= 1e7 ? 0 : 1) + 'M'
-    : abs >= 1e4 ? (n / 1e3).toFixed(0) + 'k' : Number.isInteger(n) ? String(n) : n.toFixed(Math.abs(n) < 10 ? 1 : 0);
-  return text.replace(/\.0(?=[BMk]|$)/, '') + unit;
+    : abs >= 1e4 ? (n / 1e3).toFixed(0) + 'k' : Number.isInteger(n) ? String(n) : n.toFixed(places);
+  return text.replace(/(\.\d*?)0+(?=[BMk]|$)/, '$1').replace(/\.(?=[BMk]|$)/, '') + unit;
 }
+const decimalsOf = step => {
+  for (let d = 0; d < 10; d++) if (Math.abs(step * 10 ** d - Math.round(step * 10 ** d)) < 1e-6) return d;
+  return 10;
+};
 /** A nice upper bound and step for an axis from 0. */
 /** A signed axis from the data's least to its greatest value, always through zero, in tidy steps. */
 export function signedScale(values, ticks = 4) {

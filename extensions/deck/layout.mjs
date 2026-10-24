@@ -631,11 +631,11 @@ function drawChart(g, type, data, x, y, w, h) {
     if (horizontal) {
       const gx = px + frac(v) * pw;
       g.items.push({ type: 'line', x1: gx, y1: py, x2: gx, y2: py + ph, stroke: c.line, width: v === 0 ? 1.5 : 1, dash: v !== 0 });
-      if (scaled) g.items.push(text({ x: gx - 40, y: py + ph + 6, w: 80, h: 20, size: 13, font: g.fonts.body, color: muted, align: 'center', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
+      if (scaled) g.items.push(text({ x: gx - 40, y: py + ph + 6, w: 80, h: 20, size: 13, font: g.fonts.body, color: muted, align: 'center', text: formatNumber(v, data.unit, step), markdown: false, role: 'chart' }));
     } else {
       const gy = py + ph - frac(v) * ph;
       g.items.push({ type: 'line', x1: px, y1: gy, x2: px + pw, y2: gy, stroke: c.line, width: v === 0 ? 1.5 : 1, dash: v !== 0 });
-      g.items.push(text({ x: x, y: gy - 10, w: 36, h: 20, size: 13, font: g.fonts.body, color: muted, align: 'right', text: formatNumber(v, data.unit), markdown: false, role: 'chart' }));
+      g.items.push(text({ x: x, y: gy - 10, w: 36, h: 20, size: 13, font: g.fonts.body, color: muted, align: 'right', text: formatNumber(v, data.unit, step), markdown: false, role: 'chart' }));
     }
   }
   const n = data.labels.length, k = data.series.length;

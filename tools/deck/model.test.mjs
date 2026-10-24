@@ -76,6 +76,10 @@ test('a chart table with a head and no rows is no data', () => {
 
 test('numbers on axes are tidy', () => {
   assert.deepEqual([formatNumber(1500000), formatNumber(25000), formatNumber(3.25), formatNumber(40, '%')], ['1.5M', '25k', '3.3', '40%']);
+  // Small values keep the digits that tell them apart, and an axis says as many decimals as its step.
+  assert.deepEqual([formatNumber(0.01), formatNumber(0.02), formatNumber(-0.015), formatNumber(0.5)], ['0.01', '0.02', '-0.015', '0.5']);
+  assert.deepEqual([0, 0.25, 0.5, 1.25].map(v => formatNumber(v, '', 0.25)), ['0', '0.25', '0.5', '1.25']);
+  assert.deepEqual([0.1 + 0.2, 0.005 * 3].map(v => formatNumber(v, '', 0.005)), ['0.3', '0.015']);
   assert.deepEqual(niceScale(87), { max: 100, step: 25 });
   assert.deepEqual(niceScale(0), { max: 1, step: 0.25 });
 });

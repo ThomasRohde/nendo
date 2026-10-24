@@ -116,6 +116,17 @@ test('a table cell shrinks to its row, or says it overflows', () => {
   assert.equal(bad.length, 0, `cells taller than their row with no overflow: ${bad.map(p => `${Math.round(textHeight(p, approxMeasure))}/${p.h} at ${p.size}px`)}`);
 });
 
+test('a chart of small fractions labels them apart, not as nought', () => {
+  const theme = resolveTheme(TEMPLATES[0]);
+  for (const chart of ['Column', 'Bar']) {
+    const laid = layoutSlide({ layout: 'Chart', title: 'Small', body: '| Item | Share |\n|---|---:|\n| A | .01 |\n| B | .02 |', body2: '', chart, image: null }, theme, { measure: approxMeasure });
+    const words = laid.items.filter(p => p.role === 'chart').map(p => p.paragraphs?.map(q => q.runs.map(r => r.text).join('')).join('') ?? '');
+    const numbers = words.filter(t => /^[-\u2212]?\d[\d,.]*$/.test(t));
+    assert.ok(numbers.includes('0.01') && numbers.includes('0.02'), `${chart}: the values are labelled: ${numbers}`);
+    assert.equal(new Set(numbers.filter(t => t !== '0.01' && t !== '0.02')).size, numbers.filter(t => t !== '0.01' && t !== '0.02').length, `${chart}: axis ticks repeat: ${numbers}`);
+  }
+});
+
 test('bars of several columns say their numbers on the axis', () => {
   const theme = resolveTheme(TEMPLATES[0]);
   const laid = layoutSlide({ layout: 'Chart', title: 'Before and after', body: '| Team | Before | After |\n|---|---:|---:|\n| North | 100 | 300 |\n| South | 150 | 250 |', body2: '', chart: 'Bar', image: null }, theme, { measure: approxMeasure });
