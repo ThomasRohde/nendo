@@ -548,6 +548,10 @@ function kitPlain(m) {
 }
 const svgUrl = text => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
 
+const slideScale = new ResizeObserver(entries => {
+  for (const { target } of entries) { const inner = target.firstElementChild; if (inner) inner.style.transform = `scale(${target.clientWidth / Number(inner.dataset.w || 1280)})`; }
+});
+
 /** The four slides Deck would draw with this kit, and the choices beside them. */
 function slidesTile(m) {
   const kitPlainValues = kitPlain(m);
@@ -578,7 +582,9 @@ function slidesTile(m) {
     box.style.aspectRatio = `${laid.W} / ${laid.H}`;
     return box;
   });
-  requestAnimationFrame(() => { for (const box of document.querySelectorAll('.slide-shot')) { const inner = box.firstElementChild; if (inner) inner.style.transform = `scale(${box.clientWidth / Number(inner.dataset.w || 1280)})`; } });
+  // Each slide is drawn at its own size and scaled to its box, again whenever the box changes width.
+  slideScale.disconnect();
+  for (const box of shots) slideScale.observe(box);
 
   const select = (label, key, options, value, slot = null) => {
     const el = h('select', { 'aria-label': label, 'data-slide-choice': slot ? `bg:${slot}` : key, disabled: S.readOnly || undefined },

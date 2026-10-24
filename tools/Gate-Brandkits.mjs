@@ -39,6 +39,13 @@ async page => {
   assert(first.family === 'editorial', `A kit with no slide choices must start on the family its personality suggests: ${first.family}.`);
   assert(Math.abs(first.ratio - 16 / 9) < 0.02 && Math.abs(first.drawn - first.width) < 2 && first.width > 200, `Each slide must fill its 16:9 box: ${JSON.stringify(first)}.`);
   assert(first.text.includes(fixture.records.kit[0].values.kitTagline), 'The title slide must carry the kit\'s tagline.');
+  // The tile's grid goes to two columns below 1000 pixels: every slide is scaled to its new box.
+  await page.setViewportSize({ width: 900, height: 900 });
+  const resized = await until(() => [...document.querySelectorAll('.t-slides .slide-shot')].every(box => Math.abs(box.firstElementChild.getBoundingClientRect().width - box.getBoundingClientRect().width) < 2), null, 4000)
+    .then(() => true).catch(() => false);
+  const sizes = await frame.evaluate(() => [...document.querySelectorAll('.t-slides .slide-shot')].map(box => [Math.round(box.getBoundingClientRect().width), Math.round(box.firstElementChild.getBoundingClientRect().width)]));
+  assert(resized, `A slide must fill its box again when the window narrows: ${JSON.stringify(sizes)} (box, slide).`);
+  await page.setViewportSize({ width: 1440, height: 900 });
   checks.push('slides drawn');
 
   // 2. A choice is written to the kit as one step, and the slides are drawn again with it.
@@ -76,8 +83,15 @@ async page => {
   });
   await pick('bg:section', 'picture');
   await until(() => window.__fileAsked === 1).catch(() => { throw Error('Choosing a picture behind the section slides must ask for its file first.'); });
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
-  await frame.setInputFiles('input[type="file"][accept^="image/png"]', { name: 'harbour.png', mimeType: 'image/png', buffer: png });
+  // Made in the page: playwright-cli's run-code has no Node Buffer for setInputFiles.
+  await frame.evaluate(() => {
+    const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), c => c.charCodeAt(0));
+    const input = document.querySelector('input[type="file"][accept^="image/png"]');
+    const files = new DataTransfer();
+    files.items.add(new File([png], 'harbour.png', { type: 'image/png' }));
+    input.files = files.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await written(c => c.backgrounds?.section === 'picture', 'A picture put behind the section slides must be chosen once it is in the kit.');
   const put = await page.evaluate(() => window.broker.requests.filter(r => r.m === 'media.put' && r.p.base64 === undefined).map(r => ({ fieldId: r.p.fieldId, name: r.p.name, entityId: r.p.entityId })));
   assert(put.length === 1 && put[0].fieldId === 'kitSlideSection' && put[0].entityId === 'kit' && put[0].name === 'harbour.png', `The picture must be put once, into the kit's Section slide picture: ${JSON.stringify(put)}.`);
