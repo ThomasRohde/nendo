@@ -1,0 +1,7 @@
+[
+ { "operationType": "schema.addField", "payload": { "entityId": "kit", "fieldId": "kitSlides", "displayName": "Slides", "storageKind": "Text", "required": false, "presentation": "longText", "options": [] } },
+ { "operationType": "schema.addField", "payload": { "entityId": "kit", "fieldId": "kitSlideTitle", "displayName": "Title slide picture", "storageKind": "Text", "required": false, "presentation": "media", "options": [] } },
+ { "operationType": "schema.addField", "payload": { "entityId": "kit", "fieldId": "kitSlideSection", "displayName": "Section slide picture", "storageKind": "Text", "required": false, "presentation": "media", "options": [] } },
+ { "operationType": "schema.addField", "payload": { "entityId": "kit", "fieldId": "kitSlideClosing", "displayName": "Closing slide picture", "storageKind": "Text", "required": false, "presentation": "media", "options": [] } },
+ { "operationType": "schema.addField", "payload": { "entityId": "kit", "fieldId": "kitSlideContent", "displayName": "Other slides picture", "storageKind": "Text", "required": false, "presentation": "media", "options": [] } }
+]

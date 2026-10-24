@@ -48,7 +48,7 @@ change to the design is a proposal the person accepts.
 
 | Record type (entityId) | Fields (fieldId) |
 | --- | --- |
-| Kit (`kit`) | `kitName`, `kitBrief` (who it is for, what it does, the audience), `kitTagline`, `kitPersonality` (3 to 5 traits, comma-separated), `kitVoice`, `kitImagery`, `kitStatus` Draft / Working / Approved |
+| Kit (`kit`) | `kitName`, `kitBrief` (who it is for, what it does, the audience), `kitTagline`, `kitPersonality` (3 to 5 traits, comma-separated), `kitVoice`, `kitImagery`, `kitStatus` Draft / Working / Approved, `kitSlides` (the kit's slide design as JSON, below), `kitSlideTitle`, `kitSlideSection`, `kitSlideClosing`, `kitSlideContent` (the person's background pictures; never write them) |
 | Colour (`colour`) | `colourKit`, `colourName`, `colourHex` (`#RRGGBB`, upper case), `colourRole` Primary / Secondary / Accent / Neutral / Background / Text / Success / Warning / Danger / Info, `colourUsage` (one or two lines), `colourOrder` (1, 2, 3...) |
 | Typeface (`typeface`) | `typeKit`, `typeRole` Display / Heading / Body / Mono, `typeFamily`, `typeStack` (fallbacks), `typeWeight` (100 to 900), `typeSize` (px), `typeUsage` |
 | Logo (`logo`) | `logoKit`, `logoName`, `logoKind` Primary / Mark / Wordmark / Mono / Reversed, `logoSvg`, `logoUsage` (clear space, minimum size, what not to do), `logoOrder` |
@@ -84,6 +84,32 @@ Variant or sets one Applied or Rejected.
 
 A brief that names a website: if you can read it, take its colours, type and voice from
 it and say so in Progress; if you cannot, say so and draft from the words alone.
+
+## The kit's slides
+
+The view's **Slides** tile draws four slides in the kit's look, with the same engine Deck draws
+them with, and the person exports that look with **Export, then Deck design**. The choices live
+in `kitSlides` as one JSON object; a key left out is worked out from the kit (the family from
+`kitPersonality`, the colours from the roles, the type from the typefaces):
+
+```json
+{"family": "editorial", "mode": "light", "titleWeight": 600, "radius": 12, "kicker": "pill",
+ "placement": "bottom-left", "backgrounds": {"title": "role:primary", "section": "gradient:primary,secondary"}}
+```
+
+- `family`: keynote, editorial, swiss, boardroom, studio or minimal. `mode`: light or dark.
+- `titleWeight`: 300, 400, 600, 700 or 800. `radius`: 0, 4, 12 or 22. `kicker`: caps, italic,
+  mono or pill. `placement` (the logo): top-right, top-left, bottom-right, bottom-left or none.
+- `backgrounds` by kind of slide (`title`, `section`, `closing`, `content`): `role:<role>`
+  (primary, secondary, accent, background, ink), or `gradient:<role>,<role>`, or `picture`.
+  Leave a slot out for the family's own. Write `picture` only for a slot whose picture field
+  already holds the person's picture.
+
+An Ask about the slides ("make the title slides darker", "a calmer slide look") is answered
+like any other part of a kit with content: Variants, each one `update` of the kit that sets
+`kitSlides` to the whole new object. Keep the choices the request does not name. Check that
+the text colour on each background you choose reaches 4.5:1. The view previews the variant on
+the Slides tile. You never export: the Deck design file is the person's to download.
 
 ## The protocol
 

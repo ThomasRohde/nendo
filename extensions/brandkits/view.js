@@ -9,6 +9,12 @@ import {
 import { normalHex, ratio, shown, grade, inkOn } from './contrast.js';
 import { designBundle } from './design-bundle.js';
 import { zip } from './zip.js';
+import { kitDesign, readChoices, SLIDE_PICTURE_FIELDS, FAMILIES, BACKGROUNDS, PLACEMENTS, KICKERS, CORNERS, WEIGHTS } from './slides.js';
+import { layoutSlide } from './deck/layout.mjs';
+import { resolveTheme } from './deck/themes.mjs';
+import { slideHtml, SLIDE_CSS } from './deck/render.mjs';
+import { canvasMeasure } from './deck/measure.mjs';
+import { designSpecs, writeDesignPackage, designFileName } from './deck/design.mjs';
 
 const $ = id => document.getElementById(id);
 const EXAMPLE = 'A brand kit for a small coffee roaster in Aarhus';
@@ -32,6 +38,8 @@ const S = {
   known: null,                   // keys drawn so far, to fade in new ones
   references: {}, agent: null, note: null, busy: false, target: 'AA',
   variantErrors: new Map(),
+  slides: false,                 // the file has the kit's slide fields (kitSlides and its pictures)
+  media: new Map(),              // a picture's address → the URL an <img> shows it at
 };
 
 // ---------- records
@@ -44,6 +52,7 @@ const str = value => String(value ?? '');
 async function loadSchema() {
   const schema = await nendo.schema.describe();
   S.references = {};
+  S.slides = schema.entities.some(e => e.entityId === 'kit' && e.fields.some(f => f.fieldId === 'kitSlides'));
   for (const entity of schema.entities) {
     S.references[entity.entityId] = {};
     for (const field of entity.fields) if (field.reference) S.references[entity.entityId][field.fieldId] = field.reference.targetEntityId;
@@ -71,6 +80,9 @@ async function load() {
       .filter(v => (v.values.variantStatus ?? 'Proposed') === 'Proposed');
   }
   S.records = records;
+  if (current) await Promise.all(Object.values(SLIDE_PICTURE_FIELDS).map(f => current.values[f]).filter(a => a && !S.media.has(a)).map(async address => {
+    try { S.media.set(address, await nendo.media.urlFor(address)); } catch { S.media.set(address, null); }
+  }));
   for (const key of [...S.selection]) if (!records.has(key)) S.selection.delete(key);
   if (S.hover && !S.variants.some(v => v.recordId === S.hover.id)) S.hover = null;
 }
@@ -333,6 +345,8 @@ function paintBoard(host, m, marks) {
   contrast.append(toggle);
   grid.append(contrast);
 
+  if (S.slides) host.append(slidesTile(m));
+
   const valid = m.colours.filter(c => m.hexOf(c));
   if (S.matrix && valid.length >= 2) host.append(h('section', { class: 'matrix', 'aria-label': 'Contrast matrix' },
     h('div', { class: 'tile-head' }, h('h2', {}, 'Every colour on every surface'), h('span', {}, `target ${S.target}: text ${S.target === 'AAA' ? '7' : '4.5'}:1, large text and graphics ${S.target === 'AAA' ? '4.5' : '3'}:1`)),
@@ -518,6 +532,142 @@ async function newKit(name = 'Untitled kit') {
   } catch (error) { flash(error.message); return null; }
 }
 
+// ---------- slides: the kit as Deck draws it
+
+/** The kit as plain values, as slides.js reads it. */
+function kitPlain(m) {
+  const v = m.kit.values;
+  const pictures = {};
+  for (const [slot, field] of Object.entries(SLIDE_PICTURE_FIELDS)) if (v[field]) pictures[slot] = { address: v[field], type: 'image/png' };
+  return {
+    recordId: m.kit.recordId, version: m.kit.version, name: str(v.kitName), tagline: str(v.kitTagline), voice: str(v.kitVoice), personality: str(v.kitPersonality),
+    colours: m.colours.map(c => ({ role: str(c.values.colourRole), hex: m.hexOf(c) })),
+    typefaces: m.typefaces.map(t => ({ role: str(t.values.typeRole), family: str(t.values.typeFamily) })),
+    logos: m.logos.map(l => ({ kind: str(l.values.logoKind), svg: str(l.values.logoSvg) })), pictures,
+  };
+}
+const svgUrl = text => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+
+/** The four slides Deck would draw with this kit, and the choices beside them. */
+function slidesTile(m) {
+  const kitPlainValues = kitPlain(m);
+  const choices = readChoices(m.kit.values.kitSlides);
+  const { design, pictures, pictureSlots } = kitDesign(kitPlainValues, choices);
+  const urlOf = path => {
+    const slot = Object.keys(pictureSlots).find(s => pictureSlots[s] === path);
+    if (slot) return S.media.get(kitPlainValues.pictures[slot].address) ?? null;
+    return pictures.has(path) ? svgUrl(pictures.get(path)) : null;
+  };
+  const specs = designSpecs(design, urlOf);
+  const theme = resolveTheme(specs.template, specs.brand, { footer: str(m.kit.values.kitName), slideNumbers: true, aspect: '16:9' });
+  const v = m.kit.values;
+  const traits = str(v.kitPersonality).split(/[,;\n]/).map(t => t.trim()).filter(Boolean).slice(0, 3);
+  const examples = [
+    { layout: 'Title', kicker: str(v.kitName), title: str(v.kitTagline) || str(v.kitName) || 'Title', body: 'A deck in this kit' },
+    { layout: 'Section', kicker: '01', title: 'What we stand for', body: '' },
+    { layout: 'Cards', kicker: 'Our voice', title: 'How we sound', body: (traits.length ? traits : ['Clear', 'Kind', 'Exact']).map(t => `- ${t} | ${t} in every line we write.`).join('\n') },
+    { layout: 'Chart', kicker: 'Example', title: 'Numbers in our colours', body: '| Quarter | This year | Last year |\n| --- | --- | --- |\n| Q1 | 12 | 9 |\n| Q2 | 15 | 11 |\n| Q3 | 19 | 14 |\n| Q4 | 23 | 16 |', body2: '', chart: 'Column' },
+  ];
+  if (!document.getElementById('dk-slide-css')) document.head.append(h('style', { id: 'dk-slide-css' }, SLIDE_CSS));
+  const shots = examples.map((slide, i) => {
+    const laid = layoutSlide({ ...slide, notes: '', image: null }, theme, { measure: canvasMeasure, number: i + 1, editing: false });
+    const box = h('div', { class: 'slide-shot', 'aria-label': `${slide.layout} slide` });
+    box.innerHTML = slideHtml(laid, { urlFor: src => src });
+    const inner = box.firstElementChild;
+    if (inner) { inner.style.transformOrigin = '0 0'; inner.dataset.w = String(laid.W); }
+    box.style.aspectRatio = `${laid.W} / ${laid.H}`;
+    return box;
+  });
+  requestAnimationFrame(() => { for (const box of document.querySelectorAll('.slide-shot')) { const inner = box.firstElementChild; if (inner) inner.style.transform = `scale(${box.clientWidth / Number(inner.dataset.w || 1280)})`; } });
+
+  const select = (label, key, options, value, slot = null) => {
+    const el = h('select', { 'aria-label': label, 'data-slide-choice': slot ? `bg:${slot}` : key, disabled: S.readOnly || undefined },
+      options.map(([val, text]) => { const o = h('option', { value: String(val) }, text); if (String(val) === String(value)) o.selected = true; return o; }));
+    return h('label', { class: 'choice' }, h('span', {}, label), el);
+  };
+  const bg = slot => choices.backgrounds?.[slot] ?? 'family';
+  const controls = h('div', { class: 'slide-choices' },
+    select('Family', 'family', FAMILIES, design.template.family),
+    select('Stage', 'mode', [['light', 'Light'], ['dark', 'Dark']], design.template.mode),
+    select('Titles', 'titleWeight', [['', 'Family’s'], ...WEIGHTS], choices.titleWeight ?? ''),
+    select('Corners', 'radius', [['', 'Family’s'], ...CORNERS], choices.radius ?? ''),
+    select('Kicker', 'kicker', [['', 'Family’s'], ...KICKERS], choices.kicker ?? ''),
+    select('Logo', 'placement', PLACEMENTS, design.logos?.placement ?? 'top-right'),
+    ...[['title', 'Title slides'], ['section', 'Section slides'], ['closing', 'Closing slide'], ['content', 'Other slides']].map(([slot, label]) =>
+      select(label, null, [...BACKGROUNDS.map(([val, text]) => [val, val === 'picture' && kitPlainValues.pictures[slot] ? 'Picture' : text]),
+        ...(kitPlainValues.pictures[slot] ? [['picture-new', 'Another picture…']] : [])], bg(slot), slot)));
+  const note = `${templateLabel(design.template.family)} · ${design.template.mode === 'dark' ? 'dark' : 'light'} stage · Export → Deck design takes this look to Deck`;
+  const section = h('section', { class: 'tile t-slides slides', 'aria-label': 'Slides' },
+    h('div', { class: 'tile-head' }, h('h2', {}, 'Slides'), h('span', {}, note)),
+    h('div', { class: 'slide-row' }, shots), controls);
+  section.addEventListener('change', event => {
+    const el = event.target.closest('[data-slide-choice]');
+    if (el) chooseSlides(el.getAttribute('data-slide-choice'), el.value);
+  });
+  section.addEventListener('click', event => event.stopPropagation());
+  section.addEventListener('keydown', event => event.stopPropagation());
+  return section;
+}
+const templateLabel = id => FAMILIES.find(([f]) => f === id)?.[1] ?? 'Keynote';
+
+/**
+ * One choice on the Slides tile, written to the kit as one undoable step. A picture asks for its file
+ * first. Choices made in quick succession are written one after another, each on the kit as the last
+ * one left it, so the second is never refused for the version the first changed.
+ */
+let slideWrites = Promise.resolve();
+function chooseSlides(key, value) {
+  const k = kit();
+  if (!k || S.readOnly) return;
+  if (key.startsWith('bg:')) {
+    const slot = key.slice(3);
+    if (value === 'picture-new' || (value === 'picture' && !k.values[SLIDE_PICTURE_FIELDS[slot]])) { pickPicture(slot); return; }
+  }
+  slideWrites = slideWrites.then(() => writeSlideChoice(k.recordId, key, value)).catch(error => flash(error.message));
+}
+async function writeSlideChoice(recordId, key, value) {
+  const k = await nendo.records.get('kit', recordId);
+  const choices = readChoices(k.values.kitSlides);
+  if (key.startsWith('bg:')) {
+    const slot = key.slice(3);
+    choices.backgrounds = { ...(choices.backgrounds ?? {}) };
+    if (value === 'family') delete choices.backgrounds[slot]; else choices.backgrounds[slot] = value;
+  } else if (value === '') delete choices[key];
+  else choices[key] = ['titleWeight', 'radius'].includes(key) ? Number(value) : value;
+  await batch([{ op: 'update', entityId: 'kit', recordId: k.recordId, version: k.version, values: { kitSlides: JSON.stringify(choices) } }], `Slides: ${key.replace(/^bg:/, '')} for ${str(k.values.kitName)}`);
+}
+
+const pictureInput = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/svg+xml', hidden: true });
+document.body.append(pictureInput);
+let pictureSlot = null;
+function pickPicture(slot) { pictureSlot = slot; pictureInput.value = ''; pictureInput.click(); render(); }
+pictureInput.addEventListener('change', async () => {
+  const file = pictureInput.files[0], slot = pictureSlot;
+  const k = kit();
+  if (!file || !slot || !k) return;
+  if (file.size > 8 * 1024 * 1024) { flash('Pick a picture of at most 8 MB.'); return; }
+  try {
+    await nendo.media.put(file, { name: file.name, mediaType: file.type || 'image/png', record: { entityId: 'kit', recordId: k.recordId, version: k.version }, fieldId: SLIDE_PICTURE_FIELDS[slot] });
+    const fresh = await nendo.records.get('kit', k.recordId);
+    const choices = readChoices(fresh.values.kitSlides);
+    choices.backgrounds = { ...(choices.backgrounds ?? {}), [slot]: 'picture' };
+    await batch([{ op: 'update', entityId: 'kit', recordId: fresh.recordId, version: fresh.version, values: { kitSlides: JSON.stringify(choices) } }], `Slides: a picture behind ${slot} slides`);
+  } catch (error) { flash(error.message); }
+});
+
+/** The kit's Deck design, with its logos and pictures: the file Deck imports on its Design tab. */
+async function exportDeckDesign(m) {
+  const plain = kitPlain(m);
+  for (const [slot, p] of Object.entries(plain.pictures)) {
+    try { const blob = await nendo.media.read(p.address); p.blob = blob; p.type = blob.type || p.type; } catch { delete plain.pictures[slot]; }
+  }
+  const { design, pictures, pictureSlots } = kitDesign({ ...plain, exported: new Date().toISOString() }, readChoices(m.kit.values.kitSlides));
+  for (const [slot, path] of Object.entries(pictureSlots)) pictures.set(path, new Uint8Array(await plain.pictures[slot].blob.arrayBuffer()));
+  download(designFileName(design), new Blob([writeDesignPackage(design, pictures)], { type: 'application/zip' }));
+  S.note = { text: `Downloaded ${designFileName(design)}. In Deck, open the Design tab, choose Import from Brandkits… and pick it.`, reply: true };
+  drawAskBar();
+}
+
 // ---------- export
 
 function slug(text) { return str(text).toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-') || 'colour'; }
@@ -566,6 +716,7 @@ function runExport(id) {
   const base = slug(m.kit.values.kitName) || 'brand';
   if (id === 'export-css') download(`${base}.css`, exportCss(m), 'text/css');
   else if (id === 'export-tokens') download(`${base}.tokens.json`, exportTokens(m), 'application/json');
+  else if (id === 'export-deck-design') exportDeckDesign(m);
   else if (id === 'export-claude-design') {
     const bundle = designBundle(m, { css: exportCss(m), tokens: exportTokens(m), stackOf, weightOf, slug, isLogo: logo => Boolean(logoUrl(logo)) });
     download(`${bundle.root}-design-system.zip`, zip(bundle.files));
@@ -864,6 +1015,7 @@ async function toolbar() {
       { id: 'export-css', label: 'CSS custom properties', detail: 'Colours and type as --brand and --font variables' },
       { id: 'export-tokens', label: 'Design tokens (JSON)', detail: 'The W3C Design Tokens format' },
       { id: 'export-claude-design', label: 'Claude Design bundle (zip)', detail: 'Guidelines, tokens, logos and preview cards for /design-sync' },
+      { id: 'export-deck-design', label: 'Deck design', detail: 'The Slides look, logos and backgrounds, for Deck’s Design tab' },
       ...(logos.length ? [{ kind: 'separator' }, { kind: 'label', label: 'Logos as SVG' }] : []),
       ...logos.map(l => ({ id: `export-logo:${l.recordId}`.slice(0, 64), label: str(l.values.logoName).slice(0, 80) || 'Logo' })),
     ] });

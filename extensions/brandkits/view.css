@@ -180,6 +180,17 @@ button.primary:hover:not(:disabled) { background: var(--nendo-cobalt); filter: b
 button.linkish { margin-top: auto; align-self: flex-start; border: 0; background: none; padding: 0; color: var(--nendo-cobalt); }
 button.linkish:hover:not(:disabled) { background: none; text-decoration: underline; }
 
+/* Slides: the kit as Deck draws it, with the choices a Deck design carries */
+.slides { flex: none; overflow: visible; }
+.slide-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.slide-shot { position: relative; overflow: hidden; border-radius: 8px; box-shadow: 0 0 0 1px var(--nendo-line), 0 2px 10px var(--nendo-shadow); }
+.slide-shot > * { position: absolute; left: 0; top: 0; }
+.slide-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 12px; }
+.slide-choices .choice { display: grid; gap: 3px; min-width: 0; font-size: 12px; color: var(--nendo-muted); }
+.slide-choices select { min-width: 0; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--nendo-line-strong); background: var(--nendo-canvas); color: var(--nendo-ink); font: inherit; font-size: 13px; }
+@media (max-width: 1000px) { .slide-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .slide-row { grid-template-columns: minmax(0, 1fr); } }
+
 /* The full matrix, on request */
 .matrix { border-radius: 14px; padding: 14px 16px; background: var(--nendo-surface-raised); border: 1px solid var(--nendo-line); display: grid; gap: 10px; }
 .matrix-scroll { overflow-x: auto; }
