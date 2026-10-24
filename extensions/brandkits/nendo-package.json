@@ -1,0 +1,7 @@
+{
+  "packageId": "app.brandkits.view",
+  "title": "Brandkits",
+  "version": "1.2.0",
+  "entryPoint": "index.html",
+  "description": "Professional brand kits drawn as one brand board: colours with WCAG contrast worked out, type, logos, samples and voice, made with the person's own agent. Exports CSS, design tokens, logos and a Claude Design bundle."
+}
