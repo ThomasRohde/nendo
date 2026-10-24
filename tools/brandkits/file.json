@@ -1,0 +1,778 @@
+{
+ "schema": [
+  {
+   "entityId": "ask",
+   "displayName": "Ask",
+   "fields": [
+    {
+     "fieldId": "askAsked",
+     "displayName": "Asked",
+     "storageKind": "dateTime",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "askFinished",
+     "displayName": "Finished",
+     "storageKind": "dateTime",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "askKit",
+     "displayName": "Kit",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "kit",
+      "labelFieldId": "kitName"
+     }
+    },
+    {
+     "fieldId": "askProgress",
+     "displayName": "Progress",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "askReply",
+     "displayName": "Reply",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "askRequest",
+     "displayName": "Request",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "askScope",
+     "displayName": "Scope",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Whole kit",
+      "Selection"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "askSelection",
+     "displayName": "Selection",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "askState",
+     "displayName": "State",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Waiting",
+      "Working",
+      "Variants ready",
+      "Done",
+      "Failed",
+      "Cancelled"
+     ],
+     "reference": null
+    }
+   ]
+  },
+  {
+   "entityId": "colour",
+   "displayName": "Colour",
+   "fields": [
+    {
+     "fieldId": "colourHex",
+     "displayName": "Hex",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "colourKit",
+     "displayName": "Kit",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "kit",
+      "labelFieldId": "kitName"
+     }
+    },
+    {
+     "fieldId": "colourName",
+     "displayName": "Name",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "colourOrder",
+     "displayName": "Order",
+     "storageKind": "integer",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "colourRole",
+     "displayName": "Role",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Primary",
+      "Secondary",
+      "Accent",
+      "Neutral",
+      "Background",
+      "Text",
+      "Success",
+      "Warning",
+      "Danger",
+      "Info"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "colourUsage",
+     "displayName": "Usage",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    }
+   ]
+  },
+  {
+   "entityId": "kit",
+   "displayName": "Kit",
+   "fields": [
+    {
+     "fieldId": "kitBrief",
+     "displayName": "Brief",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "kitImagery",
+     "displayName": "Imagery",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "kitName",
+     "displayName": "Name",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "kitPersonality",
+     "displayName": "Personality",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "kitStatus",
+     "displayName": "Status",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Draft",
+      "Working",
+      "Approved"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "kitTagline",
+     "displayName": "Tagline",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "kitVoice",
+     "displayName": "Voice",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    }
+   ]
+  },
+  {
+   "entityId": "logo",
+   "displayName": "Logo",
+   "fields": [
+    {
+     "fieldId": "logoKind",
+     "displayName": "Kind",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Primary",
+      "Mark",
+      "Wordmark",
+      "Mono",
+      "Reversed"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "logoKit",
+     "displayName": "Kit",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "kit",
+      "labelFieldId": "kitName"
+     }
+    },
+    {
+     "fieldId": "logoName",
+     "displayName": "Name",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "logoOrder",
+     "displayName": "Order",
+     "storageKind": "integer",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "logoSvg",
+     "displayName": "SVG",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "logoUsage",
+     "displayName": "Usage",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    }
+   ]
+  },
+  {
+   "entityId": "sample",
+   "displayName": "Sample",
+   "fields": [
+    {
+     "fieldId": "sampleAccent",
+     "displayName": "Accent",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "colour",
+      "labelFieldId": "colourName"
+     }
+    },
+    {
+     "fieldId": "sampleAction",
+     "displayName": "Action",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "sampleBackground",
+     "displayName": "Background",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "colour",
+      "labelFieldId": "colourName"
+     }
+    },
+    {
+     "fieldId": "sampleBody",
+     "displayName": "Body",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "sampleHeadline",
+     "displayName": "Headline",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "sampleInk",
+     "displayName": "Ink",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "colour",
+      "labelFieldId": "colourName"
+     }
+    },
+    {
+     "fieldId": "sampleKind",
+     "displayName": "Kind",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Card",
+      "Social post",
+      "Button",
+      "Banner",
+      "Business card"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "sampleKit",
+     "displayName": "Kit",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "kit",
+      "labelFieldId": "kitName"
+     }
+    },
+    {
+     "fieldId": "sampleLogo",
+     "displayName": "Logo",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "logo",
+      "labelFieldId": "logoName"
+     }
+    },
+    {
+     "fieldId": "sampleName",
+     "displayName": "Name",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "sampleOrder",
+     "displayName": "Order",
+     "storageKind": "integer",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    }
+   ]
+  },
+  {
+   "entityId": "typeface",
+   "displayName": "Typeface",
+   "fields": [
+    {
+     "fieldId": "typeFamily",
+     "displayName": "Family",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "typeKit",
+     "displayName": "Kit",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "kit",
+      "labelFieldId": "kitName"
+     }
+    },
+    {
+     "fieldId": "typeRole",
+     "displayName": "Role",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Display",
+      "Heading",
+      "Body",
+      "Mono"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "typeSize",
+     "displayName": "Size",
+     "storageKind": "integer",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "typeStack",
+     "displayName": "Fallback stack",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "typeUsage",
+     "displayName": "Usage",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "typeWeight",
+     "displayName": "Weight",
+     "storageKind": "integer",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": null
+    }
+   ]
+  },
+  {
+   "entityId": "variant",
+   "displayName": "Variant",
+   "fields": [
+    {
+     "fieldId": "variantAsk",
+     "displayName": "Ask",
+     "storageKind": "reference",
+     "required": false,
+     "presentation": null,
+     "options": [],
+     "reference": {
+      "targetEntityId": "ask",
+      "labelFieldId": "askRequest"
+     }
+    },
+    {
+     "fieldId": "variantOperations",
+     "displayName": "Operations",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "longText",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "variantStatus",
+     "displayName": "Status",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleChoice",
+     "options": [
+      "Proposed",
+      "Applied",
+      "Rejected"
+     ],
+     "reference": null
+    },
+    {
+     "fieldId": "variantSummary",
+     "displayName": "Summary",
+     "storageKind": "text",
+     "required": false,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    },
+    {
+     "fieldId": "variantTitle",
+     "displayName": "Title",
+     "storageKind": "text",
+     "required": true,
+     "presentation": "singleLine",
+     "options": [],
+     "reference": null
+    }
+   ]
+  }
+ ],
+ "example": {
+  "kit": [
+   {
+    "recordId": "k-example-roaster",
+    "values": {
+     "kitName": "Example: Ember & Oak",
+     "kitBrief": "An example kit that shows how Brandkits works: a small coffee roaster in Aarhus that sells beans online and from one café. Its Accent fails contrast on the cream background, and one Ask waits with three warmer accents to choose from. Safe to delete.",
+     "kitTagline": "Roasted slow. Poured warm.",
+     "kitPersonality": "Warm, Crafted, Plain-spoken, Unhurried",
+     "kitVoice": "Warm, not sugary.\nCrafted, not precious.\nPlain-spoken, not blunt.\nUnhurried, not slow to answer.\nDo: name the farm, the roast date and the taste.\nDo: write like the person behind the counter.\nDon't: artisanal, curated, elevate.\nDon't: exclamation marks in headlines.",
+     "kitImagery": "Daylight photography in the roastery and the café: hands, sacks, steam, wood. Warm and slightly underexposed, never staged on white.\nIllustration is limited to the bean mark and simple line drawings of origins.",
+     "kitStatus": "Draft"
+    }
+   }
+  ],
+  "colour": [
+   {
+    "recordId": "c-ex-caramel",
+    "values": {
+     "colourName": "Ember",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#9A4F1E",
+     "colourRole": "Accent",
+     "colourUsage": "Buttons, prices and highlights.",
+     "colourOrder": 5
+    }
+   },
+   {
+    "recordId": "c-ex-cream",
+    "values": {
+     "colourName": "Cream",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#F6EDE0",
+     "colourRole": "Background",
+     "colourUsage": "Page and packaging background.",
+     "colourOrder": 1
+    }
+   },
+   {
+    "recordId": "c-ex-espresso",
+    "values": {
+     "colourName": "Espresso",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#2B1A12",
+     "colourRole": "Text",
+     "colourUsage": "Body text and headlines.",
+     "colourOrder": 2
+    }
+   },
+   {
+    "recordId": "c-ex-forest",
+    "values": {
+     "colourName": "Forest",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#2F4A3A",
+     "colourRole": "Secondary",
+     "colourUsage": "Origin labels and seasonal packaging.",
+     "colourOrder": 4
+    }
+   },
+   {
+    "recordId": "c-ex-oat",
+    "values": {
+     "colourName": "Oat",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#E4D5C1",
+     "colourRole": "Neutral",
+     "colourUsage": "Cards and dividers on cream.",
+     "colourOrder": 6
+    }
+   },
+   {
+    "recordId": "c-ex-roast",
+    "values": {
+     "colourName": "Brick",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#8B3A2B",
+     "colourRole": "Primary",
+     "colourUsage": "The logo, headers and the café sign.",
+     "colourOrder": 3
+    }
+   },
+   {
+    "recordId": "c-ex-steam",
+    "values": {
+     "colourName": "Steam",
+     "colourKit": "k-example-roaster",
+     "colourHex": "#8A7B6E",
+     "colourRole": "Neutral",
+     "colourUsage": "Captions and quiet labels, never body text.",
+     "colourOrder": 7
+    }
+   }
+  ],
+  "typeface": [
+   {
+    "recordId": "t-ex-body",
+    "values": {
+     "typeFamily": "Inter",
+     "typeKit": "k-example-roaster",
+     "typeRole": "Body",
+     "typeStack": "\"Segoe UI\", system-ui, sans-serif",
+     "typeWeight": 400,
+     "typeSize": 16,
+     "typeUsage": "Everything else: body, labels, buttons."
+    }
+   },
+   {
+    "recordId": "t-ex-heading",
+    "values": {
+     "typeFamily": "Fraunces",
+     "typeKit": "k-example-roaster",
+     "typeRole": "Heading",
+     "typeStack": "Georgia, serif",
+     "typeWeight": 600,
+     "typeSize": 30,
+     "typeUsage": "Headlines and the shop's product names."
+    }
+   }
+  ],
+  "logo": [
+   {
+    "recordId": "l-ex-mark",
+    "values": {
+     "logoName": "Bean mark",
+     "logoKit": "k-example-roaster",
+     "logoKind": "Mark",
+     "logoSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 80 80\"><circle cx=\"40\" cy=\"40\" r=\"38\" fill=\"#F6EDE0\" stroke=\"#6B3E26\" stroke-width=\"4\"/><g transform=\"translate(40 40) rotate(-28)\"><ellipse rx=\"17\" ry=\"25\" fill=\"#6B3E26\"/><path d=\"M0,-22 C-7,-8 7,8 0,22\" fill=\"none\" stroke=\"#F6EDE0\" stroke-width=\"3.5\" stroke-linecap=\"round\"/></g></svg>",
+     "logoUsage": "App icon, stamps and the cup sleeve. Smallest: 16 px.",
+     "logoOrder": 2
+    }
+   },
+   {
+    "recordId": "l-ex-primary",
+    "values": {
+     "logoName": "Ember & Oak",
+     "logoKit": "k-example-roaster",
+     "logoKind": "Primary",
+     "logoSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 300 80\"><g transform=\"translate(40 40) rotate(-28)\"><ellipse rx=\"17\" ry=\"25\" fill=\"#6B3E26\"/><path d=\"M0,-22 C-7,-8 7,8 0,22\" fill=\"none\" stroke=\"#F6EDE0\" stroke-width=\"3.5\" stroke-linecap=\"round\"/></g><text x=\"76\" y=\"44\" font-family=\"Fraunces, Georgia, serif\" font-size=\"30\" font-weight=\"600\" fill=\"#2B1A12\">Ember &amp; Oak</text><text x=\"77\" y=\"64\" font-family=\"Inter, Segoe UI, sans-serif\" font-size=\"11\" letter-spacing=\"3\" fill=\"#6B3E26\">COFFEE ROASTERS</text></svg>",
+     "logoUsage": "Clear space: the bean's height on every side. Smallest: 120 px wide. Never recolour the bean.",
+     "logoOrder": 1
+    }
+   }
+  ],
+  "sample": [
+   {
+    "recordId": "s-ex-button",
+    "values": {
+     "sampleName": "Shop button",
+     "sampleKit": "k-example-roaster",
+     "sampleKind": "Button",
+     "sampleHeadline": null,
+     "sampleBody": null,
+     "sampleAction": "Add to bag",
+     "sampleBackground": "c-ex-cream",
+     "sampleInk": "c-ex-espresso",
+     "sampleAccent": "c-ex-caramel",
+     "sampleLogo": null,
+     "sampleOrder": 3
+    }
+   },
+   {
+    "recordId": "s-ex-card",
+    "values": {
+     "sampleName": "New roast card",
+     "sampleKit": "k-example-roaster",
+     "sampleKind": "Card",
+     "sampleHeadline": "Ethiopia Guji, roasted Tuesday",
+     "sampleBody": "Peach, black tea and a little honey. Washed at the Hambela station, roasted light in our Aarhus roastery.",
+     "sampleAction": "Order beans",
+     "sampleBackground": "c-ex-cream",
+     "sampleInk": "c-ex-espresso",
+     "sampleAccent": "c-ex-caramel",
+     "sampleLogo": "l-ex-primary",
+     "sampleOrder": 1
+    }
+   },
+   {
+    "recordId": "s-ex-post",
+    "values": {
+     "sampleName": "Opening post",
+     "sampleKit": "k-example-roaster",
+     "sampleKind": "Social post",
+     "sampleHeadline": "The café opens at seven.",
+     "sampleBody": "Mejlgade 21. First cup is on us this week.",
+     "sampleAction": null,
+     "sampleBackground": "c-ex-roast",
+     "sampleInk": "c-ex-cream",
+     "sampleAccent": "c-ex-caramel",
+     "sampleLogo": "l-ex-mark",
+     "sampleOrder": 2
+    }
+   }
+  ],
+  "ask": [],
+  "variant": []
+ }
+}

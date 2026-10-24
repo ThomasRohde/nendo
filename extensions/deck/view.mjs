@@ -11,6 +11,7 @@ import { canvasMeasure, forgetMeasurements } from './measure.mjs';
 import { buildPptx } from './pptx.mjs';
 import { buildHtml } from './export-html.mjs';
 import { importBrandFile, kitValues } from './brand-import.mjs';
+import { readDesignPackage, designValues, templateSpecFrom, brandSpecFrom, sourceKey, IMAGE_FIELDS, SLOTS, DESIGN_EXTENSION } from './design.mjs';
 import { differing, readDrafts, writeDrafts, sortDrafts, withoutWritten } from './drafts.mjs';
 import { installFocusRing } from './kit/nendo-view-kit.js';
 import { createStageEditor } from './stage-editor.mjs';
@@ -103,27 +104,10 @@ function themeFor(record) {
     footer: v(record, F.deck.footer) ?? '', slideNumbers: v(record, F.deck.numbers) !== false, aspect: v(record, F.deck.aspect) ?? '16:9',
   });
 }
-export function templateSpec(record) {
-  if (!record) return TEMPLATES[0];
-  const fam = String(v(record, F.template.family) ?? 'Keynote').toLowerCase();
-  const hex = field => normalHex(v(record, field));
-  return {
-    id: record.recordId, family: fam, name: v(record, F.template.name) ?? 'Template',
-    colors: { bg: hex(F.template.background), surface: hex(F.template.surface), ink: hex(F.template.ink), muted: hex(F.template.muted),
-      primary: hex(F.template.primary), secondary: hex(F.template.secondary), accent: hex(F.template.accent) },
-    fonts: { heading: v(record, F.template.headingFont), body: v(record, F.template.bodyFont) },
-  };
-}
-export function brandSpec(record) {
-  if (!record) return null;
-  const colors = {};
-  for (const role of BRAND_ROLES) { const hex = normalHex(v(record, F.brand[role])); if (hex) colors[role] = hex; }
-  return {
-    name: v(record, F.brand.name) ?? 'Brand', colors,
-    fonts: { heading: v(record, F.brand.headingFont), body: v(record, F.brand.bodyFont), mono: v(record, F.brand.monoFont) },
-    logo: v(record, F.brand.logo), logoDark: v(record, F.brand.logoDark),
-  };
-}
+export const templateSpec = record => record ? templateSpecFrom(record.values, record.recordId) : TEMPLATES[0];
+export const brandSpec = record => record ? brandSpecFrom(record.values) : null;
+/** A Design is a Template that names its Brand kit: both came from one Brandkits export. */
+const designsOf = () => deck.templates.filter(t => v(t, F.template.brand) && deck.brands.some(b => b.recordId === v(t, F.template.brand)));
 
 /** Every picture address the deck draws, resolved once to a URL the stage can show. */
 async function resolveMedia() {
@@ -133,7 +117,8 @@ async function resolveMedia() {
   const brand = deck.theme?.brand;
   if (brand?.logo) addresses.add(brand.logo);
   if (brand?.logoDark) addresses.add(brand.logoDark);
-  for (const b of deck.brands) for (const f of [F.brand.logo, F.brand.logoDark]) if (v(b, f)) addresses.add(v(b, f));
+  for (const b of deck.brands) for (const f of [F.brand.logo, F.brand.logoDark, F.brand.mark]) if (v(b, f)) addresses.add(v(b, f));
+  for (const t of deck.templates) for (const f of Object.values(IMAGE_FIELDS)) if (v(t, f)) addresses.add(v(t, f));
   await Promise.all([...addresses].filter(a => !deck.media.has(a)).map(async address => {
     try { deck.media.set(address, await nendo.media.urlFor(address)); } catch { deck.media.set(address, null); }
   }));
@@ -287,7 +272,7 @@ function drawSlidePane(slide) {
   if (!slide) return;
   // The gallery shows each layout drawn with this slide's own words where it has them.
   const gallery = $('layouts');
-  const key = JSON.stringify([slide.id, slide.layout, deck.theme, slide.title, slide.kicker].map(String));
+  const key = JSON.stringify([slide.id, slide.layout, deck.theme, slide.title, slide.kicker]);
   if (gallery.dataset.key !== key) {
     gallery.dataset.key = key;
     gallery.replaceChildren(...LAYOUTS.map(layout => {
@@ -333,7 +318,24 @@ function drawDesignPane() {
   pane.querySelectorAll('input,textarea,button').forEach(el => { el.disabled = !d; });
   if (!d) return;
   const sample = currentSlide() ?? { layout: 'Title', title: v(d, F.deck.title) ?? 'Title', kicker: '', body: '' };
-  const tplKey = JSON.stringify([sample.id, sample.title, v(d, F.deck.template), v(d, F.deck.brand), v(d, F.deck.aspect), deck.templates.map(t => t.version), deck.brands.map(b => b.version)]);
+  const tplKey = JSON.stringify([sample.id, sample.title, v(d, F.deck.template), v(d, F.deck.brand), v(d, F.deck.aspect), deck.templates.map(t => t.version), deck.brands.map(b => b.version), deck.media.size]);
+  const designs = designsOf();
+  const designHost = $('designs');
+  $('designs-empty').hidden = designs.length > 0;
+  if (designHost.dataset.key !== tplKey) {
+    designHost.dataset.key = tplKey;
+    designHost.replaceChildren(...designs.map(t => {
+      const brand = deck.brands.find(b => b.recordId === v(t, F.template.brand));
+      const b = document.createElement('button');
+      b.type = 'button'; b.setAttribute('role', 'option'); b.dataset.design = t.recordId;
+      b.setAttribute('aria-selected', String(v(d, F.deck.template) === t.recordId && v(d, F.deck.brand) === brand.recordId));
+      const theme = resolveTheme(templateSpec(t), brandSpec(brand), { aspect: v(d, F.deck.aspect) ?? '16:9' });
+      const label = document.createElement('span'); label.textContent = v(t, F.template.name) ?? 'Design';
+      b.title = v(t, F.template.description) ?? '';
+      b.append(scaled(layoutSlide({ ...sample, layout: 'Title', title: sample.title || v(d, F.deck.title) || 'Title', image: null }, theme, { measure: canvasMeasure, number: 1, editing: false }), 130), label);
+      return b;
+    }));
+  }
   const gallery = $('templates');
   if (gallery.dataset.key !== tplKey) {
     gallery.dataset.key = tplKey;
@@ -371,7 +373,10 @@ function drawDesignPane() {
   $('d-numbers').checked = v(d, F.deck.numbers) !== false;
 }
 function templateRecordsOrBuiltIns() {
-  if (deck.templates.length) return deck.templates.map(r => ({ recordId: r.recordId, spec: templateSpec(r), description: v(r, F.template.description) }));
+  // A design's own template shows under Designs, beside its kit, not again among the templates.
+  const designs = new Set(designsOf().map(t => t.recordId));
+  const plain = deck.templates.filter(r => !designs.has(r.recordId));
+  if (plain.length) return plain.map(r => ({ recordId: r.recordId, spec: templateSpec(r), description: v(r, F.template.description) }));
   return TEMPLATES.map(t => ({ recordId: null, builtIn: true, spec: t, description: t.description }));
 }
 
@@ -767,6 +772,57 @@ async function putPicture(file, slide = currentSlide()) {
 }
 
 // ---- Brand kits --------------------------------------------------------------------------------
+
+/** A Deck design from Brandkits, or a brand kit's tokens, CSS, bundle or logo: each by its own reader. */
+function importDesignOrBrand(file) {
+  return String(file?.name ?? '').toLowerCase().endsWith(DESIGN_EXTENSION) ? importDesign(file) : importBrand(file);
+}
+
+/**
+ * A .deckdesign file becomes one Brand kit and one Template that names it: a Design. A second
+ * import of the same Brandkits kit updates both in place, so every deck that uses it follows.
+ * The records land in one revision; the pictures follow, one media write each.
+ */
+async function importDesign(file) {
+  try {
+    const { design, pictures } = await readDesignPackage(new Uint8Array(await file.arrayBuffer()), file.name);
+    const key = sourceKey(design);
+    const template = deck.templates.find(t => v(t, F.template.source) === key) ?? null;
+    const brand = template ? deck.brands.find(b => b.recordId === v(template, F.template.brand)) ?? null : null;
+    const values = designValues(design);
+    const brandId = brand?.recordId ?? newId('brand'), templateId = template?.recordId ?? newId('template');
+    const writes = [
+      brand ? { op: 'update', entityId: E.brand, recordId: brandId, version: brand.version, values: values.brand }
+        : { op: 'create', entityId: E.brand, recordId: brandId, values: values.brand },
+      template ? { op: 'update', entityId: E.template, recordId: templateId, version: template.version, values: { ...values.template, [F.template.brand]: brandId } }
+        : { op: 'create', entityId: E.template, recordId: templateId, values: { ...values.template, [F.template.brand]: brandId } },
+    ];
+    await nendo.records.batch(writes, { label: `Import the design ${design.name}`.slice(0, 80) });
+    const put = async (entityId, recordId, fieldId, path) => {
+      const fresh = await nendo.records.get(entityId, recordId);
+      const picture = path ? pictures.get(path) : null;
+      if (picture) await nendo.media.put(new Blob([picture.bytes], { type: picture.type }), { name: picture.name, mediaType: picture.type, record: { entityId, recordId, version: fresh.version }, fieldId });
+      else if (fresh.values?.[fieldId]) await nendo.records.update({ entityId, recordId, version: fresh.version }, { [fieldId]: null });
+    };
+    for (const [key, fieldId] of [['light', F.brand.logo], ['dark', F.brand.logoDark], ['mark', F.brand.mark]]) await put(E.brand, brandId, fieldId, design.logos?.[key]);
+    for (const slot of SLOTS) await put(E.template, templateId, IMAGE_FIELDS[slot], design.backgrounds?.[slot]?.kind === 'image' ? design.backgrounds[slot].src : null);
+    await refresh();
+    await useDesign(templateId, design.deck);
+    toast(`${design.name} is in as a design${template ? ', updated in place' : ''}: ${Object.keys(design.colors ?? {}).length} colours, ${pictures.size} ${pictures.size === 1 ? 'picture' : 'pictures'}.`);
+  } catch (error) { problem(error, 'The design could not be imported'); }
+}
+
+/** Puts a design on the deck: its template and its kit, and its footer and numbers where the deck has none. */
+async function useDesign(templateId, defaults = null) {
+  const d = currentDeck();
+  const t = deck.templates.find(x => x.recordId === templateId);
+  if (!d || !t) return;
+  const changes = { template: t.recordId, brand: v(t, F.template.brand) };
+  if (defaults?.footer && !v(d, F.deck.footer)) changes.footer = defaults.footer;
+  if (defaults?.slideNumbers === false && v(d, F.deck.numbers) !== false) changes.numbers = false;
+  if (v(d, F.deck.template) === changes.template && v(d, F.deck.brand) === changes.brand && Object.keys(changes).length === 2) return;
+  await editDeck(changes);
+}
 
 async function importBrand(file) {
   try {
@@ -1259,11 +1315,12 @@ function wire() {
     const b = e.target.closest('[data-brand]'); if (b) editDeck({ brand: b.dataset.brand || null });
   });
   $('import-brand').addEventListener('click', () => $('brand-file').click());
-  $('brand-file').addEventListener('change', () => { const f = $('brand-file').files[0]; $('brand-file').value = ''; if (f) importBrand(f); });
+  $('brand-file').addEventListener('change', () => { const f = $('brand-file').files[0]; $('brand-file').value = ''; if (f) importDesignOrBrand(f); });
+  $('designs').addEventListener('click', e => { const b = e.target.closest('[data-design]'); if (b) useDesign(b.dataset.design); });
   const inspector = $('inspector');
   inspector.addEventListener('dragover', e => { if (deck.tab === 'design' && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); inspector.classList.add('drop'); } });
   inspector.addEventListener('dragleave', () => inspector.classList.remove('drop'));
-  inspector.addEventListener('drop', e => { if (deck.tab !== 'design' || !e.dataTransfer.files.length) return; e.preventDefault(); inspector.classList.remove('drop'); importBrand(e.dataTransfer.files[0]); });
+  inspector.addEventListener('drop', e => { if (deck.tab !== 'design' || !e.dataTransfer.files.length) return; e.preventDefault(); inspector.classList.remove('drop'); importDesignOrBrand(e.dataTransfer.files[0]); });
   for (const input of document.querySelectorAll('[data-deck]')) input.addEventListener('input', () => typeDeck({ [input.dataset.deck]: input.value }));
   $('d-numbers').addEventListener('change', () => editDeck({ numbers: $('d-numbers').checked }));
   $('asks').addEventListener('click', e => {
@@ -1310,7 +1367,8 @@ function wire() {
   $('held-put').addEventListener('click', () => putHeldBack());
   $('held-discard').addEventListener('click', () => discardHeld());
 }
-const chosenStartTemplate = () => $('start-templates').dataset.chosen || deck.templates[0]?.recordId || null;
+// Unset, the choice is the first the screen shows, which is never a design's template.
+const chosenStartTemplate = () => $('start-templates').dataset.chosen || templateRecordsOrBuiltIns()[0]?.recordId || null;
 
 // ---- Start -------------------------------------------------------------------------------------
 

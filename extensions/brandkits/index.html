@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Brandkits</title>
+<link rel="stylesheet" href="view.css">
+<body>
+<header class="askbar">
+  <form id="askForm" class="ask-row" autocomplete="off">
+    <span id="chip" class="chip" hidden></span>
+    <input id="askInput" type="text" maxlength="600" aria-label="What should the agent make?" placeholder="Describe a brand in one line">
+    <button id="askSend" type="submit" class="primary">Send</button>
+    <button id="askStop" type="button" hidden>Stop</button>
+    <span id="agent" class="agent" hidden aria-live="polite"></span>
+  </form>
+  <div id="askStatus" class="ask-status" aria-live="polite" hidden></div>
+</header>
+<main id="stage" class="stage" tabindex="-1">
+  <div id="board" class="board"></div>
+  <section id="empty" class="empty" hidden></section>
+</main>
+<section id="variants" class="variants" hidden aria-label="Variants"></section>
+<script src="/_nendo/api.js"></script>
+<script type="module" src="view.js"></script>
+</body>
+</html>

@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { E, F, LAYOUT_IDS, CHARTS } from '../../extensions/deck/model.mjs';
 import { TEMPLATES } from '../../extensions/deck/themes.mjs';
+import { MODES, PLACEMENT_LABELS } from '../../extensions/deck/design.mjs';
 import { EXAMPLE_DECK, EXAMPLE_SLIDES } from './example.mjs';
 
 export const SURFACE = 'deck';
@@ -283,6 +284,13 @@ export const STAGES = {
     mutations: () => [{ description: 'Give Slides a text format', operations: [long(E.slide, F.slide.format, 'Text format')] }],
   },
 
+  design: {
+    title: 'Deck: designs from Brandkits, with their style, backgrounds and mark',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.schema(E.template)).fields.some(f => f.fieldId === F.template.source),
+    mutations: () => chunk(designOperations(), 'Designs from Brandkits'),
+  },
+
   search: {
     title: 'Deck: build the search index, so Find reads every slide',
     needs: ENTITIES,
@@ -300,7 +308,36 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format'];
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format', 'design'];
+
+/**
+ * A Template that names a Brand kit is a Design: the whole look one Brandkits export carries. Its
+ * style and backgrounds are JSON (design.mjs), its background pictures media, its source the kit it
+ * came from, so a second import updates it in place. The brand's mark is its small logo.
+ */
+function designOperations() {
+  const fields = [
+    choice(E.template, F.template.mode, 'Light or dark', MODES),
+    long(E.template, F.template.style, 'Style'),
+    long(E.template, F.template.backgrounds, 'Backgrounds'),
+    text(E.template, F.template.chart, 'Chart colours'),
+    choice(E.template, F.template.logoPlacement, 'Logo on content slides', Object.values(PLACEMENT_LABELS)),
+    picture(E.template, F.template.titleImage, 'Title background'),
+    picture(E.template, F.template.sectionImage, 'Section background'),
+    picture(E.template, F.template.closingImage, 'Closing background'),
+    picture(E.template, F.template.contentImage, 'Content background'),
+    reference(E.template, F.template.brand, 'Brand kit'),
+    bind(E.template, F.template.brand, E.brand, F.brand.name),
+    text(E.template, F.template.source, 'Designed from'),
+    picture(E.brand, F.brand.mark, 'Mark'),
+  ];
+  // The record pages show the new fields after the ones the screens stage placed there.
+  const node = (page, fieldId, position) => op('ui.addNode', { surfaceId: SURFACE, nodeId: `${page}.${fieldId}`, parentNodeId: page, kind: 'fieldBinding', position, properties: { fieldId } });
+  const templateFields = [F.template.brand, F.template.mode, F.template.logoPlacement, F.template.chart, F.template.titleImage, F.template.sectionImage,
+    F.template.closingImage, F.template.contentImage, F.template.style, F.template.backgrounds, F.template.source];
+  const screens = [...templateFields.map((fieldId, i) => node('dk.template.page', fieldId, 11 + i)), node('dk.brand.page', F.brand.mark, 15)];
+  return [...fields, ...screens];
+}
 
 /** Whether the file can be searched: the search read answers, rather than refusing for want of an index. */
 export async function hasSearchIndex(read) {
@@ -350,7 +387,7 @@ export function seedOperations() {
 // ---- What the fixture broker serves the view in tools/Review-Deck.ps1. -----------------------------
 
 export function fixture({ seeds = true } = {}) {
-  const schemaOps = STAGES.schema.mutations().flatMap(m => m.operations);
+  const schemaOps = [...STAGES.schema.mutations(), ...STAGES.design.mutations()].flatMap(m => m.operations);
   const entities = schemaOps.filter(o => o.operationType === 'schema.createEntity').map(o => ({ entityId: o.payload.entityId, displayName: o.payload.displayName, hierarchy: null, fields: [] }));
   const byId = Object.fromEntries(entities.map(e => [e.entityId, e]));
   for (const o of schemaOps) {

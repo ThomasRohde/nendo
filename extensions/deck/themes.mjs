@@ -114,11 +114,34 @@ export const templateById = id => TEMPLATES.find(t => t.id === id) ?? null;
 /** The roles a brand kit carries, in the order the Design tab lists them. */
 export const BRAND_ROLES = ['primary', 'secondary', 'accent', 'background', 'surface', 'ink', 'muted'];
 
+/** Where a brand's logo sits on content slides; Title and Closing slides place it themselves. */
+export const LOGO_PLACEMENTS = ['top-right', 'top-left', 'bottom-right', 'bottom-left', 'none'];
+
 /**
  * Resolves the theme a deck draws with.
- * template: a built-in template, or a Template record's fields as {family, name, fonts, colors}.
- * brand: null, or {name, colors: {role: hex}, fonts: {heading, body, mono}, logo, logoDark}.
+ * template: a built-in template, or a Template record's fields as {family, name, mode, fonts, colors,
+ *   style, backgrounds, chart, logoPlacement}; design.mjs says what a background is.
+ * brand: null, or {name, colors: {role: hex}, fonts: {heading, body, mono}, logo, logoDark, mark}.
  */
+/**
+ * The theme's colours read on another ground: a design's own background for one kind of slide. Every
+ * role worked out against the stage is worked out again against `bg`, with `ink` the text colour
+ * already chosen for it.
+ */
+export function colorsOn(colors, bg, ink = readableOn(bg, colors.ink, colors.bg)) {
+  if (bg === colors.bg) return colors;
+  const dark = isDark(bg);
+  const surface = dark === isDark(colors.bg) ? colors.surface : mix(bg, ink, 0.08);
+  return {
+    ...colors, bg, ink, surface,
+    muted: holdContrast(colors.muted, bg, 4.5),
+    accentText: holdContrast(colors.accent, bg, 3),
+    primaryText: holdContrast(colors.primary, bg, 3),
+    line: mix(bg, ink, dark ? 0.22 : 0.16),
+    onSurface: readableOn(surface, ink),
+  };
+}
+
 export function resolveTheme(template, brand = null, deck = {}) {
   const base = templateById(template?.family ?? template?.id) ?? TEMPLATES[0];
   const own = template ?? {};
@@ -129,11 +152,21 @@ export function resolveTheme(template, brand = null, deck = {}) {
     const b = clean(brand.colors ?? {});
     const background = b.background ?? (mode === 'dark' ? null : colors.bg);
     const ink = b.ink ?? null;
-    if (mode === 'dark') {
+    if (mode === 'dark' && background && isDark(background)) {
+      // A dark brand on a dark template: its own background is the stage.
+      colors.bg = background;
+      colors.surface = b.surface ?? mix(colors.bg, '#FFFFFF', 0.08);
+      if (ink) colors.ink = ink;
+    } else if (mode === 'dark') {
       // A dark template keeps its stage dark: the brand's ink (or its primary, darkened) is the stage.
       colors.bg = ink && isDark(ink) ? ink : mix(b.primary ?? colors.bg, '#000000', 0.82);
       colors.surface = mix(colors.bg, '#FFFFFF', 0.08);
       colors.ink = background && !isDark(background) ? background : '#F4F6FA';
+    } else if (background && isDark(background)) {
+      // A light template keeps its stage light: the brand's ink (or its primary, lightened) is the stage.
+      colors.bg = ink && !isDark(ink) ? ink : mix(b.primary ?? colors.primary, '#FFFFFF', 0.94);
+      colors.surface = mix(colors.bg, b.primary ?? colors.primary, 0.06);
+      colors.ink = background;
     } else {
       colors.bg = background ?? colors.bg;
       colors.surface = b.surface ?? mix(colors.bg, b.primary ?? colors.primary, 0.06);
@@ -155,11 +188,43 @@ export function resolveTheme(template, brand = null, deck = {}) {
   colors.onSurface = readableOn(colors.surface, colors.ink);
   return {
     id: own.id ?? base.id, name: own.name ?? base.name, family: base.id, mode,
-    fonts, colors, style: { ...base.style, ...(own.style ?? {}) },
-    brand: brand ? { name: brand.name ?? '', logo: brand.logo ?? null, logoDark: brand.logoDark ?? null } : null,
+    fonts, colors, style: { ...base.style, ...clean(own.style) },
+    backgrounds: resolveBackgrounds(own.backgrounds, colors),
+    chart: (own.chart ?? []).map(c => normalHex(c)).filter(Boolean).slice(0, 8),
+    logoPlacement: LOGO_PLACEMENTS.includes(own.logoPlacement) ? own.logoPlacement : 'top-right',
+    brand: brand ? { name: brand.name ?? '', logo: brand.logo ?? null, logoDark: brand.logoDark ?? null, mark: brand.mark ?? null } : null,
     footer: String(deck.footer ?? '').trim(), slideNumbers: deck.slideNumbers !== false,
     aspect: deck.aspect === '4:3' ? '4:3' : '16:9',
   };
+}
+/** A colour a background names: a role of the resolved theme, or a hex. */
+function roleColour(value, colors) {
+  if (value === 'background') return colors.bg;
+  if (['primary', 'secondary', 'accent', 'surface', 'ink', 'muted'].includes(value)) return colors[value];
+  return normalHex(value);
+}
+/**
+ * A design's backgrounds, per slide kind, as {fill, image, dark}: a fill is a colour or a linear
+ * gradient; a picture is drawn under its tint. A kind the design leaves out keeps the family's own.
+ */
+function resolveBackgrounds(backgrounds, colors) {
+  const out = {};
+  for (const [slot, b] of Object.entries(backgrounds ?? {})) {
+    if (!b || typeof b !== 'object') continue;
+    if (b.kind === 'role') {
+      const fill = roleColour(b.role, colors);
+      if (fill) out[slot] = { fill, dark: isDark(fill) };
+    } else if (b.kind === 'gradient') {
+      const stops = (b.stops ?? []).map(s => roleColour(s, colors)).filter(Boolean);
+      if (stops.length >= 2) out[slot] = { fill: { type: 'linear', angle: Number(b.angle) || 135, stops: stops.map((color, i) => ({ at: i / (stops.length - 1), color })) },
+        dark: isDark(mix(stops[0], stops.at(-1), 0.5)) };
+    } else if (b.kind === 'image' && b.src) {
+      const tint = roleColour(b.tint, colors) ?? '#000000';
+      const tintAlpha = Number.isFinite(Number(b.tintAlpha)) ? Math.min(1, Math.max(0, Number(b.tintAlpha))) : 0.35;
+      out[slot] = { fill: tint, image: b.src, tintAlpha, dark: typeof b.dark === 'boolean' ? b.dark : isDark(tint) };
+    }
+  }
+  return out;
 }
 function clean(map) {
   const out = {};

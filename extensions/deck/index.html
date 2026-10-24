@@ -83,15 +83,18 @@
         <label class="check"><input id="f-hidden" type="checkbox"> Hide this slide when presenting</label>
       </section>
       <section id="pane-design" role="tabpanel" aria-labelledby="tab-design" class="pane" hidden>
+        <h3>Designs</h3>
+        <div id="designs" class="templates" role="listbox" aria-label="Designs"></div>
+        <p id="designs-empty" class="hint">A design is a whole look from Brandkits: template, colours, type, logos and backgrounds. In Brandkits, choose Export, then Deck design, and import that file below.</p>
         <h3>Template</h3>
         <div id="templates" class="templates" role="listbox" aria-label="Templates"></div>
         <h3>Brand kit</h3>
         <div id="brands" class="brands" role="listbox" aria-label="Brand kits"></div>
         <div class="picture-row">
           <button id="import-brand" type="button" class="ghost-button">Import from Brandkits…</button>
-          <input id="brand-file" type="file" accept=".json,.css,.zip,.svg,.png,application/json,text/css,application/zip" hidden>
+          <input id="brand-file" type="file" accept=".deckdesign,.json,.css,.zip,.svg,.png,application/json,text/css,application/zip" hidden>
         </div>
-        <p class="hint">In Brandkits, choose Export, then the tokens, the CSS or the Claude Design bundle. Pick that file here, or drop it on this panel.</p>
+        <p class="hint">In Brandkits, choose Export, then Deck design for the whole look, or the tokens, the CSS or the Claude Design bundle for a brand kit only. Pick that file here, or drop it on this panel.</p>
         <h3>Deck</h3>
         <div class="field"><label for="d-title">Title</label><input id="d-title" data-deck="title"></div>
         <div class="field"><label for="d-subtitle">Subtitle</label><input id="d-subtitle" data-deck="subtitle"></div>

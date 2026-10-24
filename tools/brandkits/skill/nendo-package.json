@@ -1,0 +1,7 @@
+{
+  "packageId": "app.brandkits",
+  "title": "Working Brandkits",
+  "kind": "skill",
+  "version": "1.1.0",
+  "description": "How an agent drafts or reworks a brand kit, its slide look included: one Ask a message from the Brandkits view names, or \"tidy the kits\"."
+}
