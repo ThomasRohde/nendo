@@ -5,10 +5,11 @@ export const E = { deck: 'dk.deck', slide: 'dk.slide', template: 'dk.template', 
 export const F = {
   deck: { title: 'dk.deck.title', subtitle: 'dk.deck.subtitle', author: 'dk.deck.author', date: 'dk.deck.date', audience: 'dk.deck.audience',
     goal: 'dk.deck.goal', aspect: 'dk.deck.aspect', template: 'dk.deck.template', brand: 'dk.deck.brand', footer: 'dk.deck.footer',
-    numbers: 'dk.deck.numbers', status: 'dk.deck.status' },
+    numbers: 'dk.deck.numbers', status: 'dk.deck.status', transition: 'dk.deck.transition', minutes: 'dk.deck.minutes' },
   slide: { deck: 'dk.slide.deck', order: 'dk.slide.order', layout: 'dk.slide.layout', title: 'dk.slide.title', kicker: 'dk.slide.kicker',
     body: 'dk.slide.body', body2: 'dk.slide.body2', notes: 'dk.slide.notes', image: 'dk.slide.image', imageAlt: 'dk.slide.imageAlt',
-    chart: 'dk.slide.chart', hidden: 'dk.slide.hidden', format: 'dk.slide.format' },
+    chart: 'dk.slide.chart', hidden: 'dk.slide.hidden', format: 'dk.slide.format', build: 'dk.slide.build', transition: 'dk.slide.transition',
+    seconds: 'dk.slide.seconds' },
   template: { name: 'dk.template.name', family: 'dk.template.family', description: 'dk.template.description', headingFont: 'dk.template.headingFont',
     bodyFont: 'dk.template.bodyFont', background: 'dk.template.background', surface: 'dk.template.surface', ink: 'dk.template.ink',
     muted: 'dk.template.muted', primary: 'dk.template.primary', secondary: 'dk.template.secondary', accent: 'dk.template.accent',
@@ -51,6 +52,13 @@ export const LAYOUTS = [
 export const LAYOUT_IDS = LAYOUTS.map(l => l.id);
 export const layoutOf = id => LAYOUTS.find(l => l.id === id) ?? LAYOUTS[3];
 export const CHARTS = ['Column', 'Bar', 'Line', 'Doughnut'];
+/** How a slide comes on, in Present, the HTML file and PowerPoint. A slide's own `Deck` takes the deck's. */
+export const TRANSITIONS = ['None', 'Fade', 'Push', 'Zoom'];
+export const SLIDE_TRANSITIONS = ['Deck', ...TRANSITIONS];
+/** Whether a slide's points come one click at a time. */
+export const BUILDS = ['None', 'One by one'];
+/** The transition a slide plays: its own, or the deck's when it says `Deck`. */
+export const transitionOf = (slide, deckTransition) => TRANSITIONS.includes(slide?.transition) ? slide.transition : TRANSITIONS.includes(deckTransition) ? deckTransition : 'None';
 
 /** A Slide record's values as the plain slide the engine draws. */
 export function slideFrom(record) {
@@ -61,6 +69,8 @@ export function slideFrom(record) {
     title: str(v[F.slide.title]), kicker: str(v[F.slide.kicker]), body: str(v[F.slide.body]), body2: str(v[F.slide.body2]),
     notes: str(v[F.slide.notes]), image: v[F.slide.image] || null, imageAlt: str(v[F.slide.imageAlt]),
     chart: CHARTS.includes(v[F.slide.chart]) ? v[F.slide.chart] : 'Column', hidden: v[F.slide.hidden] === true, format: str(v[F.slide.format]),
+    build: BUILDS.includes(v[F.slide.build]) ? v[F.slide.build] : 'None', transition: SLIDE_TRANSITIONS.includes(v[F.slide.transition]) ? v[F.slide.transition] : 'Deck',
+    seconds: Number.isInteger(v[F.slide.seconds]) && v[F.slide.seconds] > 0 ? v[F.slide.seconds] : null,
     order: Number.isFinite(v[F.slide.order]) ? v[F.slide.order] : 0,
   };
 }

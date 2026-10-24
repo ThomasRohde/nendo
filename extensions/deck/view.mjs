@@ -3,13 +3,14 @@
 // same primitives from layout.mjs. The person's own agent writes whole decks, reworks one slide
 // as variants, or runs a mission, through nendo.assistant.ask; its work lands as records.
 
-import { E, F, LAYOUTS, LAYOUT_IDS, CHARTS, layoutOf, slideFrom, sortSlides, reorder } from './model.mjs';
+import { E, F, LAYOUTS, LAYOUT_IDS, CHARTS, TRANSITIONS, SLIDE_TRANSITIONS, BUILDS, transitionOf, layoutOf, slideFrom, sortSlides, reorder } from './model.mjs';
 import { TEMPLATES, resolveTheme, sizeOf, webFonts, BRAND_ROLES, normalHex } from './themes.mjs';
 import { layoutSlide } from './layout.mjs';
 import { slideHtml, SLIDE_CSS } from './render.mjs';
 import { canvasMeasure, forgetMeasurements } from './measure.mjs';
 import { buildPptx } from './pptx.mjs';
 import { buildHtml } from './export-html.mjs';
+import { checkDeck, lengthLine, spokenSeconds, clock } from './check.mjs';
 import { importBrandFile, kitValues } from './brand-import.mjs';
 import { readDesignPackage, designValues, templateSpecFrom, brandSpecFrom, sourceKey, IMAGE_FIELDS, SLOTS, DESIGN_EXTENSION } from './design.mjs';
 import { differing, readDrafts, writeDrafts, sortDrafts, withoutWritten } from './drafts.mjs';
@@ -162,7 +163,7 @@ function laid(slide, theme = deck.theme, editing = true, number = null) {
   const n = number ?? numberOf(slide);
   // The field being edited keeps its box while it is empty.
   const keep = editing ? editor?.keep() ?? null : null;
-  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, slide.notes, slide.format, n, editing, keep, theme]);
+  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, slide.notes, slide.format, slide.build, n, editing, keep, theme]);
   let hit = laidCache.get(key);
   if (!hit) {
     if (laidCache.size > 600) laidCache.clear();
@@ -205,6 +206,7 @@ function drawAll() {
   drawVariants();
   drawAsk();
   drawHeld();
+  drawRehearsed();
   declareToolbar();
 }
 
@@ -298,6 +300,7 @@ function drawStage({ ifChanged = false } = {}) {
   stage.firstElementChild.style.transform = `scale(${scale})`;
   deck.stageScale = scale;
   editor?.attach();
+  drawStepMarks(stage, slide, l);
   const over = l.items.filter(p => p.type === 'text' && p.overflow && !p.ghost);
   const boxes = over.map(p => p.role === 'body2' ? 'second column' : p.role).filter((x, i, a) => a.indexOf(x) === i).join(' and ');
   $('fit-warning').hidden = over.length === 0;
@@ -307,11 +310,31 @@ function drawStage({ ifChanged = false } = {}) {
   $('fit-layout').textContent = layoutOf(slide.layout).label;
 }
 
+/** On a slide that builds, a numbered mark beside the first thing each click brings on. */
+function drawStepMarks(stage, slide, l) {
+  stage.querySelector('.step-marks')?.remove();
+  if (slide.build !== 'One by one' || !l.steps) return;
+  const marks = document.createElement('div');
+  marks.className = 'step-marks'; marks.setAttribute('aria-hidden', 'true');
+  const origin = stage.getBoundingClientRect(), seen = new Set();
+  for (const el of stage.querySelectorAll('[data-step]')) {
+    const k = el.dataset.step;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const r = el.getBoundingClientRect();
+    const mark = document.createElement('span');
+    mark.className = 'step-mark'; mark.textContent = k;
+    mark.style.left = `${Math.max(22, r.left - origin.left)}px`; mark.style.top = `${Math.max(0, r.top - origin.top)}px`;
+    marks.append(mark);
+  }
+  stage.append(marks);
+}
+
 let drawingInspector = false;
 function drawInspector() {
   drawingInspector = true;
   try {
-    for (const tab of ['slide', 'design', 'asks']) {
+    for (const tab of ['slide', 'design', 'asks', 'check']) {
       $(`tab-${tab}`).setAttribute('aria-selected', String(deck.tab === tab));
       $(`pane-${tab}`).hidden = deck.tab !== tab;
     }
@@ -320,6 +343,7 @@ function drawInspector() {
     if (deck.tab === 'slide') drawSlidePane(slide);
     if (deck.tab === 'design') drawDesignPane();
     if (deck.tab === 'asks') drawAsksPane();
+    drawCheck();
     const notes = $('notes');
     if (document.activeElement !== notes) notes.value = slide?.notes ?? '';
     notes.disabled = !slide;
@@ -328,7 +352,42 @@ function drawInspector() {
 }
 function countNotes() {
   const words = $('notes').value.trim().split(/\s+/).filter(Boolean).length;
-  $('notes-count').textContent = words ? `${words} ${words === 1 ? 'word' : 'words'}` : '';
+  const said = spokenSeconds($('notes').value);
+  $('notes-count').textContent = words ? `${words} ${words === 1 ? 'word' : 'words'} · ${clock(said)}` : '';
+  $('notes-count').title = words ? `About ${clock(said)} to say, at 130 words a minute` : '';
+}
+
+/** The Check tab: what would trip the talk, and how long it runs. Its count shows on the tab. */
+function drawCheck() {
+  const d = currentDeck();
+  const result = checkDeck(deck.slides, { laid: s => laid(s, deck.theme, false), minutes: v(d, F.deck.minutes) });
+  deck.check = result;
+  const needs = result.issues.filter(x => x.level !== 'info').length;
+  $('check-count').textContent = needs ? String(needs) : '';
+  $('tab-check').setAttribute('aria-label', needs ? `Check, ${needs} to look at` : 'Check');
+  if (deck.tab !== 'check') return;
+  $('check-length').textContent = lengthLine(result);
+  $('check-rehearse').disabled = !result.shown;
+  $('check-none').hidden = result.issues.length > 0;
+  const order = { error: 0, warn: 1, info: 2 };
+  const list = [...result.issues].sort((a, b) => (a.number - b.number) || (order[a.level] - order[b.level]));
+  const key = JSON.stringify(list);
+  const host = $('check-list');
+  if (host.dataset.key === key) return;
+  host.dataset.key = key;
+  host.replaceChildren(...list.map(issue => {
+    const li = document.createElement('li');
+    li.className = issue.level;
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.slide = issue.slideId;
+    const dot = document.createElement('span'); dot.className = 'dot';
+    dot.setAttribute('aria-label', issue.level === 'error' ? 'Must fix' : issue.level === 'warn' ? 'Look at' : 'Note');
+    const num = document.createElement('span'); num.className = 'num'; num.textContent = String(issue.number);
+    const words = document.createElement('span'); words.textContent = issue.text;
+    b.append(dot, num, words);
+    li.append(b);
+    return li;
+  }));
 }
 
 const SAMPLE = {
@@ -377,6 +436,14 @@ function drawSlidePane(slide) {
   for (const input of pane.querySelectorAll('[data-field]')) if (document.activeElement !== input) input.value = slide[input.dataset.field] ?? '';
   $('f-hidden').checked = slide.hidden;
   segmented($('f-chart'), CHARTS.map(c => [c, c]), slide.chart, value => typed({ chart: value }));
+  const steps = laid(slide, deck.theme, false).steps;
+  segmented($('f-build'), [['None', 'All at once'], ['One by one', 'One by one']], slide.build, value => setSlides({ build: value }, value === 'None' ? 'All points at once' : 'Points one by one'));
+  $('build-hint').textContent = slide.build !== 'One by one' ? '' : steps ? `${steps} ${steps === 1 ? 'click' : 'clicks'} bring the points on, numbered on the slide.` : `The ${layoutOf(slide.layout).label} layout has nothing to bring on one by one.`;
+  const deckTransition = v(currentDeck(), F.deck.transition) ?? 'None';
+  segmented($('f-transition'), SLIDE_TRANSITIONS.map(x => [x, x]), slide.transition, value => setSlides({ transition: value }, value === 'Deck' ? 'The deck’s transition' : `${value} transition`));
+  $('f-transition').title = `Deck: the deck’s own transition, now ${deckTransition}. Set it on the Design tab.`;
+  const planned = deck.check?.seconds?.[deck.slides.filter(s => !s.hidden).findIndex(s => s.id === slide.id)];
+  $('slide-time').textContent = slide.hidden ? 'Hidden: Present leaves this slide out.' : slide.seconds ? `Rehearsed: ${clock(slide.seconds)} on this slide.` : planned ? `About ${clock(planned)} on this slide${slide.notes ? ', from the notes' : ''}. Rehearse to time it.` : '';
   $('clear-image').hidden = !slide.image;
   $('pick-image').textContent = slide.image ? 'Change picture…' : 'Choose picture…';
 }
@@ -468,6 +535,8 @@ function drawDesignPane() {
   for (const input of pane.querySelectorAll('[data-deck]')) if (document.activeElement !== input) input.value = v(d, F.deck[input.dataset.deck]) ?? '';
   segmented($('d-aspect'), [['16:9', 'Wide 16:9'], ['4:3', 'Standard 4:3']], v(d, F.deck.aspect) ?? '16:9', value => editDeck({ aspect: value }));
   $('d-numbers').checked = v(d, F.deck.numbers) !== false;
+  segmented($('d-transition'), TRANSITIONS.map(x => [x, x]), v(d, F.deck.transition) ?? 'None', value => editDeck({ transition: value }));
+  if (document.activeElement !== $('d-minutes')) $('d-minutes').value = v(d, F.deck.minutes) ?? '';
 }
 function templateRecordsOrBuiltIns() {
   // A design's own template shows under Designs, beside its kit, not again among the templates.
@@ -541,9 +610,9 @@ function drawVariants() {
     return card;
   }));
 }
-const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'imageAlt', 'hidden', 'format'];
-// A variant writes words, never a picture or a size: the pictures and the text format are the person's.
-const VARIANT_FIELDS = EDITABLE.filter(k => k !== 'image' && k !== 'format');
+const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'imageAlt', 'hidden', 'format', 'build', 'transition', 'seconds'];
+// A variant writes words and how they come on, never a picture, a size, a transition or a time: those are the person's.
+const VARIANT_FIELDS = EDITABLE.filter(k => !['image', 'format', 'transition', 'seconds'].includes(k));
 /** The slide fields a variant changes, by the slide model's names; anything else is dropped. */
 export function pick(changes) {
   const out = {};
@@ -552,6 +621,7 @@ export function pick(changes) {
     if (!VARIANT_FIELDS.includes(key)) continue;
     if (key === 'layout' && !LAYOUT_IDS.includes(value)) continue;
     if (key === 'chart' && !CHARTS.includes(value)) continue;
+    if (key === 'build' && !BUILDS.includes(value)) continue;
     out[key] = key === 'hidden' ? value === true : value === null ? '' : String(value);
   }
   return out;
@@ -578,7 +648,8 @@ function drawAsk() {
 // ---- Writing -----------------------------------------------------------------------------------
 
 const SLIDE_FIELD = { layout: F.slide.layout, title: F.slide.title, kicker: F.slide.kicker, body: F.slide.body, body2: F.slide.body2, notes: F.slide.notes,
-  chart: F.slide.chart, image: F.slide.image, imageAlt: F.slide.imageAlt, hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format };
+  chart: F.slide.chart, image: F.slide.image, imageAlt: F.slide.imageAlt, hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format,
+  build: F.slide.build, transition: F.slide.transition, seconds: F.slide.seconds };
 const toValues = changes => Object.fromEntries(Object.entries(changes).map(([k, val]) => [SLIDE_FIELD[k], val === '' ? null : val]));
 
 /** Typing changes the slide on screen at once and is saved after a pause. */
@@ -1101,6 +1172,23 @@ async function setHidden(hidden) {
   } catch (error) { problem(error, 'The slide could not be hidden'); await refresh(); }
 }
 
+/** Sets fields on every picked slide, such as how its points come on or its transition, as one step. */
+async function setSlides(changes, label) {
+  if (nendo.context?.readOnly) return;
+  await flushAll();
+  const keys = Object.keys(changes);
+  const picked = selectedSlides().filter(s => keys.some(k => s[k] !== changes[k]));
+  if (!picked.length) { drawInspector(); return; }
+  const values = toValues(changes);
+  const writes = picked.map(s => ({ op: 'update', entityId: E.slide, recordId: s.id, version: s.record.version, values }));
+  const records = picked.map(s => ({ entityId: E.slide, id: s.id, before: toValues(Object.fromEntries(keys.map(k => [k, s[k] ?? '']))), after: values }));
+  for (const s of picked) Object.assign(s, changes);
+  laidCache.clear(); drawStage(); drawSorter(); drawGrid(); drawInspector();
+  try { await writeStep(picked.length === 1 ? label : `${label} on ${picked.length} slides`, writes, records, { before: ofSelection(), after: ofSelection() }); }
+  catch (error) { problem(error, 'The slide could not be changed'); }
+  await refresh();
+}
+
 /** A layout for the picked slides, as one step. */
 async function setLayout(layout) {
   if (nendo.context?.readOnly) return;
@@ -1154,6 +1242,9 @@ function readSlides(payload) {
       if (k === 'hidden') s.hidden = value === true;
       else if (k === 'layout') s.layout = LAYOUT_IDS.includes(value) ? value : 'Bullets';
       else if (k === 'chart') s.chart = CHARTS.includes(value) ? value : '';
+      else if (k === 'build') s.build = BUILDS.includes(value) ? value : 'None';
+      else if (k === 'transition') s.transition = SLIDE_TRANSITIONS.includes(value) ? value : 'Deck';
+      else if (k === 'seconds') s.seconds = Number.isInteger(value) && value > 0 ? value : '';
       else s[k] = typeof value === 'string' ? value : '';
     }
     return s;
@@ -1427,7 +1518,7 @@ function addressesOf(laidSlides) {
 }
 const dataUrl = blob => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
 
-async function htmlDocument({ embedded = false, start = 0, leftOut = [] } = {}) {
+async function htmlDocument({ embedded = false, start = 0, leftOut = [], rehearse = false } = {}) {
   const d = currentDeck();
   const shown = deck.slides.filter(s => !s.hidden);
   const laidSlides = shown.map((s, i) => laid(s, deck.theme, false, i + 1));
@@ -1441,8 +1532,10 @@ async function htmlDocument({ embedded = false, start = 0, leftOut = [] } = {}) 
     else { urls.set(address, null); leftOut.push(address); }
   }
   const { W, H } = sizeOf(deck.theme.aspect);
-  return buildHtml({ title: v(d, F.deck.title) ?? 'Deck', author: v(d, F.deck.author) ?? '', W, H, theme: deck.theme, start, embedded,
-    slides: laidSlides.map((l, i) => ({ html: slideHtml(l, { urlFor: a => urls.get(a) ?? null }), notes: shown[i].notes, title: shown[i].title || shown[i].layout })) });
+  const deckTransition = v(d, F.deck.transition);
+  return buildHtml({ title: v(d, F.deck.title) ?? 'Deck', author: v(d, F.deck.author) ?? '', W, H, theme: deck.theme, start, embedded, rehearse, minutes: v(d, F.deck.minutes),
+    slides: laidSlides.map((l, i) => ({ html: slideHtml(l, { urlFor: a => urls.get(a) ?? null }), notes: shown[i].notes, title: shown[i].title || shown[i].layout,
+      steps: l.steps, transition: transitionOf(shown[i], deckTransition), seconds: shown[i].seconds })) });
 }
 
 function download(blob, name) {
@@ -1466,7 +1559,8 @@ async function exportHtml() {
 async function exportPptx() {
   await flushAll();
   toast('Making the PowerPoint file…');
-  const slides = deck.slides.map((s, i) => ({ laid: laid(s, deck.theme, false, numberOf(s)), hidden: s.hidden, i }));
+  const deckTransition = v(currentDeck(), F.deck.transition);
+  const slides = deck.slides.map((s, i) => ({ laid: laid(s, deck.theme, false, numberOf(s)), hidden: s.hidden, i, transition: transitionOf(s, deckTransition) }));
   const images = new Map(), missing = [];
   for (const address of addressesOf(slides.map(s => s.laid))) {
     try {
@@ -1493,13 +1587,15 @@ async function exportNotes() {
 }
 
 let presentUrl = null;
-async function present(fromHere = false) {
+/** Present, from the start or from this slide; a rehearsal starts the console's clock and keeps the time on each slide. */
+async function present(fromHere = false, { rehearse = false } = {}) {
   await flushAll();
   const shown = deck.slides.filter(s => !s.hidden);
   if (!shown.length) { toast('There is no slide to show: every slide is hidden.'); return; }
   const start = fromHere ? Math.max(0, shown.findIndex(s => s.id === deck.slideId)) : 0;
   if (presentUrl) URL.revokeObjectURL(presentUrl);
-  presentUrl = URL.createObjectURL(new Blob([await htmlDocument({ embedded: true, start })], { type: 'text/html' }));
+  deck.rehearsing = rehearse ? shown.map(s => s.id) : null;
+  presentUrl = URL.createObjectURL(new Blob([await htmlDocument({ embedded: true, start, rehearse })], { type: 'text/html' }));
   const overlay = $('present');
   overlay.hidden = false;
   deck.presenting = true;
@@ -1507,9 +1603,12 @@ async function present(fromHere = false) {
   overlay.requestFullscreen?.().catch(() => {});
   $('present-frame').addEventListener('load', () => $('present-frame').contentWindow?.focus(), { once: true });
 }
-function stopPresenting(index) {
+function stopPresenting(index, timings = null) {
   $('present').hidden = true;
   deck.presenting = false;
+  const ran = deck.rehearsing;
+  deck.rehearsing = null;
+  if (ran && Array.isArray(timings)) offerTimings(ran, timings);
   $('present-frame').src = 'about:blank';
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   const shown = deck.slides.filter(s => !s.hidden);
@@ -1518,8 +1617,37 @@ function stopPresenting(index) {
 }
 addEventListener('message', event => {
   if (event.source !== $('present-frame').contentWindow || !event.data) return;
-  if (event.data.deck === 'close') stopPresenting(event.data.index);
+  if (event.data.deck === 'close') stopPresenting(event.data.index, event.data.timings);
 });
+/**
+ * After a rehearsal: the time on each slide reached, offered to keep. A slide not reached keeps the
+ * time it had. Kept, they are one step, and the presenter view paces the talk by them.
+ */
+function offerTimings(ids, timings) {
+  const times = ids.map((id, i) => ({ id, seconds: Math.round(Number(timings[i]) || 0) })).filter(x => x.seconds >= 1 && deck.slides.some(s => s.id === x.id));
+  if (!times.length) { deck.timings = null; drawRehearsed(); return; }
+  const total = times.reduce((a, b) => a + b.seconds, 0);
+  const minutes = v(currentDeck(), F.deck.minutes);
+  deck.timings = { deckId: deck.deckId, times };
+  const of = minutes ? `, for a ${clock(minutes * 60)} talk` : '';
+  $('rehearsed-text').textContent = `You rehearsed for ${clock(total)} over ${times.length} ${times.length === 1 ? 'slide' : 'slides'}${of}. Keep the time on each slide? The presenter view then paces the talk by it.`;
+  drawRehearsed();
+}
+function drawRehearsed() { $('rehearsed').hidden = !deck.timings || deck.timings.deckId !== deck.deckId; }
+async function keepTimings() {
+  const kept = deck.timings;
+  deck.timings = null; drawRehearsed();
+  if (!kept || kept.deckId !== deck.deckId || nendo.context?.readOnly) return;
+  await flushAll();
+  const list = kept.times.map(x => ({ ...x, slide: deck.slides.find(s => s.id === x.id) })).filter(x => x.slide);
+  const writes = list.map(x => ({ op: 'update', entityId: E.slide, recordId: x.id, version: x.slide.record.version, values: { [F.slide.seconds]: x.seconds } }));
+  const records = list.map(x => ({ entityId: E.slide, id: x.id, before: { [F.slide.seconds]: x.slide.seconds ?? null }, after: { [F.slide.seconds]: x.seconds } }));
+  try {
+    await writeStep('Keep the rehearsal times', writes, records, { before: ofSelection(), after: ofSelection() });
+    announce(`Kept the times on ${slidesWord(list.length)}.`);
+  } catch (error) { problem(error, 'The times could not be kept'); }
+  await refresh();
+}
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && deck.presenting) { /* stays in the frame */ } });
 
 // ---- Selection, places, commands ---------------------------------------------------------------
@@ -1691,6 +1819,7 @@ async function command(id, value) {
     if (id === 'undo' || id === 'redo') return undoAny(id === 'undo');
     if (id === 'present') return present(false);
     if (id === 'present.here') return present(true);
+    if (id === 'present.rehearse') return present(false, { rehearse: true });
     if (id === 'export.html') return exportHtml();
     if (id === 'export.pptx') return exportPptx();
     if (id === 'export.notes') return exportNotes();
@@ -1739,6 +1868,7 @@ function toolbarItems() {
     { id: 'export.html', label: 'HTML (one file)', detail: 'Plays in any browser; P for presenter view, Ctrl P for PDF' },
     { id: 'export.notes', label: 'Speaker notes (.md)' },
   ] });
+  items.push({ kind: 'button', id: 'present.rehearse', label: 'Rehearse', disabled: !s });
   items.push({ kind: 'button', id: 'present.here', label: 'From this slide', icon: 'eye', disabled: !s, keys: 'Shift+F5' });
   items.push({ kind: 'button', id: 'present', label: 'Present', icon: 'eye', disabled: !s, keys: 'F5' });
   return items;
@@ -1879,7 +2009,15 @@ function wire() {
   new ResizeObserver(debounce(() => drawSorter(), 120)).observe($('slides'));
 
   // The inspector.
-  for (const tab of ['slide', 'design', 'asks']) $(`tab-${tab}`).addEventListener('click', () => { deck.tab = tab; drawInspector(); });
+  for (const tab of ['slide', 'design', 'asks', 'check']) $(`tab-${tab}`).addEventListener('click', () => { deck.tab = tab; drawInspector(); });
+  $('check-list').addEventListener('click', e => { const b = e.target.closest('[data-slide]'); if (b) select(b.dataset.slide); });
+  $('check-rehearse').addEventListener('click', () => present(false, { rehearse: true }));
+  $('rehearsed-keep').addEventListener('click', () => keepTimings());
+  $('rehearsed-discard').addEventListener('click', () => { deck.timings = null; drawRehearsed(); });
+  $('d-minutes').addEventListener('change', () => {
+    const n = Math.round(Number($('d-minutes').value));
+    editDeck({ minutes: Number.isFinite(n) && n > 0 ? Math.min(600, n) : '' });
+  });
   $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-layout]'); if (b) setLayout(b.dataset.layout); });
   for (const input of document.querySelectorAll('#pane-slide [data-field]')) {
     input.addEventListener('input', () => { if (!drawingInspector) typed({ [input.dataset.field]: input.value }); });

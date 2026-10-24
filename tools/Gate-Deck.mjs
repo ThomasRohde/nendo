@@ -511,6 +511,136 @@ async page => {
   assert(s.slides.findIndex(x => x.id === s.slideId) === 5, `Escape must bring the person back on the slide they presented to: ${s.slides.findIndex(x => x.id === s.slideId)}.`);
   checks.push('present');
 
+  // 19. Presenting: a slide's points come one click at a time, with the slide's own transition and
+  // the deck's, in Present and in PowerPoint; the console shows the slide in its shape, the next
+  // point, the notes and the pace against the talk's length; the laser follows the pointer; a
+  // rehearsal's times are kept as one step; and the Check tab sends the person to a slide.
+  const newestBatch = async () => (await requests('records.batch')).at(-1);
+  const cardsId = (await state()).slides.find(x => x.layout === 'Cards')?.id;
+  assert(cardsId, `A Cards slide to build: ${JSON.stringify((await state()).slides.map(x => x.layout))}.`);
+  await frame.locator(`#slides li[data-id="${cardsId}"]`).click();
+  await frame.click('#tab-slide');
+  await frame.locator('#f-build button', { hasText: 'One by one' }).click();
+  await until(id => window.deck.slides.find(s => s.id === id)?.build === 'One by one' && !!document.querySelector('#stage .step-mark'), cardsId);
+  let built = await record('dk.slide', cardsId);
+  assert(built.values['dk.slide.build'] === 'One by one' && (await newestBatch()).label === 'Points one by one' && (await newestBatch()).offerUndo === true,
+    `One by one must be written to the slide as one step Nendo offers to undo: ${JSON.stringify({ build: built.values['dk.slide.build'], label: (await newestBatch()).label })}.`);
+  const marks = await frame.evaluate(() => {
+    const stage = document.getElementById('stage').getBoundingClientRect();
+    const steps = [...new Set([...document.querySelectorAll('#stage [data-step]')].map(el => el.dataset.step))];
+    const shown = [...document.querySelectorAll('#stage .step-mark')].map(m => { const r = m.getBoundingClientRect(); return { k: m.textContent, inside: r.left >= stage.left - 1 && r.right <= stage.right + 1 && r.top >= stage.top - 1 }; });
+    return { steps, shown };
+  });
+  assert(marks.steps.length >= 2 && marks.shown.length === marks.steps.length && marks.shown.every((m, i) => m.k === marks.steps[i] && m.inside),
+    `The stage must mark each click's first point with its number, inside the slide: ${JSON.stringify(marks)}.`);
+  await frame.locator('#f-transition button', { hasText: 'Push' }).click();
+  await until(id => window.deck.slides.find(s => s.id === id)?.transition === 'Push', cardsId);
+  await frame.click('#tab-design');
+  await frame.locator('#d-transition button', { hasText: 'Fade' }).click();
+  await frame.fill('#d-minutes', '5');
+  await frame.locator('#d-minutes').press('Tab');
+  await page.waitForFunction(id => window.broker.record('dk.deck', id)?.values['dk.deck.minutes'] === 5 && window.broker.record('dk.deck', id)?.values['dk.deck.transition'] === 'Fade', deckRecord.recordId, { timeout: 5000 })
+    .catch(() => { throw Error('The deck\'s transition and talk length must be written to the deck: Fade and 5 minutes.'); });
+  await frame.click('#tab-slide');
+  await settle(400);
+
+  // Present from the built slide: a click brings the first point, and what comes later stays hidden.
+  await command('present.here');
+  await frame.waitForFunction(() => window.deck.presenting === true);
+  let show = frame.childFrames()[0];
+  await show.waitForFunction(() => !!window.deckPlayer, null, { timeout: 5000 });
+  const opacities = () => show.evaluate(() => {
+    const slide = [...document.querySelectorAll('#frame > .dk-slide')].find(s => !s.classList.contains('off'));
+    return [...slide.querySelectorAll('[data-step]')].map(el => ({ k: Number(el.dataset.step), o: Number(getComputedStyle(el).opacity) }));
+  });
+  const played = await show.evaluate(() => JSON.parse(document.getElementById('data').textContent));
+  const shownAt = await show.evaluate(() => window.deckPlayer.state().at);
+  assert(played.steps[shownAt] === marks.steps.length && played.transitions[shownAt] === 'Push' && played.transitions.filter((t, i) => i !== shownAt).every(t => t === 'Fade') && played.plan?.length === played.steps.length && Math.round(played.plan.reduce((a, b) => a + b, 0)) === 300,
+    `Present must carry the slide's clicks, its own transition and the deck's for the rest, and a plan as long as the talk: ${JSON.stringify({ steps: played.steps[shownAt], transitions: played.transitions, plan: played.plan })}.`);
+  await settle(600);
+  const hiddenFirst = await opacities();
+  assert(hiddenFirst.length > 0 && hiddenFirst.every(x => x.o === 0), `Before the first click no point may show: ${JSON.stringify(hiddenFirst)}.`);
+  await show.locator('body').press('ArrowRight');
+  await settle(700);
+  const afterClick = await opacities();
+  const state1 = await show.evaluate(() => window.deckPlayer.state());
+  assert(state1.at === shownAt && state1.shown === 1 && afterClick.every(x => (x.k <= 1) === (x.o === 1) && (x.k > 1) === (x.o === 0)),
+    `One click must bring on the first point and only it, on the same slide: ${JSON.stringify({ state: state1, afterClick })}.`);
+
+  // The console: the slide in its own shape, the next point, the notes, the pace.
+  await show.locator('body').press('p');
+  await settle(300);
+  const console1 = await show.evaluate(() => {
+    const now = document.getElementById('now').getBoundingClientRect(), next = document.getElementById('next-box').getBoundingClientRect();
+    const later = [...document.querySelectorAll('#now .thumb [data-step]')].map(el => ({ k: Number(el.dataset.step), hidden: el.classList.contains('dk-later') }));
+    return { shown: getComputedStyle(document.getElementById('console')).display, ratio: now.width / now.height, nextRatio: next.width / next.height, inView: now.bottom <= innerHeight && next.bottom <= innerHeight,
+      nextLabel: document.getElementById('next-label').textContent, pace: document.getElementById('pace').textContent, notes: document.getElementById('notes').textContent, later };
+  });
+  const wanted = 1280 / 720;
+  assert(console1.shown === 'grid' && Math.abs(console1.ratio - wanted) < 0.01 && Math.abs(console1.nextRatio - wanted) < 0.01 && console1.inView,
+    `The console must show this slide and the next in the slide's shape, inside the window: ${JSON.stringify(console1)}.`);
+  assert(/^Next: point 2 of \d+$/.test(console1.nextLabel) && /left of 5:00$/.test(console1.pace) && console1.later.every(x => x.hidden === x.k > 1),
+    `The console must name the next point, pace the talk against its five minutes, and show the slide as the audience sees it: ${JSON.stringify(console1)}.`);
+  // The laser follows the pointer over the console's slide, in the slide's own place.
+  await show.locator('body').press('l');
+  const nowBox = await show.locator('#now').boundingBox();
+  await page.mouse.move(nowBox.x + nowBox.width * 0.5, nowBox.y + nowBox.height * 0.25, { steps: 3 });
+  await settle(150);
+  const dot = await show.evaluate(() => { const d = document.getElementById('now-laser').getBoundingClientRect(), n = document.getElementById('now').getBoundingClientRect(); return { x: (d.left + d.width / 2 - n.left) / n.width, y: (d.top + d.height / 2 - n.top) / n.height, shown: getComputedStyle(document.getElementById('now-laser')).display }; });
+  assert(dot.shown === 'block' && Math.abs(dot.x - 0.5) < 0.01 && Math.abs(dot.y - 0.25) < 0.01, `The laser must stand where the pointer is on the slide: ${JSON.stringify(dot)}.`);
+  // Escape puts the laser down, then leaves the console, then ends the show on the slide it reached.
+  for (let i = 0; i < 3; i++) await show.locator('body').press('Escape');
+  await frame.waitForFunction(() => window.deck.presenting === false);
+
+  // PowerPoint: the slide's transition and its clicks.
+  const deckXml = await exported('export.pptx', 'pptx');
+  const builtIndex = (await state()).slides.findIndex(x => x.id === cardsId) + 1;
+  const builtXml = await frame.evaluate(async n => {
+    const { unzip } = await import('./zip.mjs');
+    const entry = unzip(new Uint8Array(await window.deck.lastExport.arrayBuffer())).find(e => e.name === `ppt/slides/slide${n}.xml`);
+    return new TextDecoder().decode(await entry.bytes());
+  }, builtIndex);
+  assert(deckXml.magic && /<p:transition spd="med"><p:push dir="l"\/><\/p:transition><p:timing>/.test(builtXml) && (builtXml.match(/<p:cond delay="indefinite"\/>/g) ?? []).length === marks.steps.length,
+    `The PowerPoint slide must push in and bring its points on a click each: ${JSON.stringify({ push: builtXml.includes('<p:push'), clicks: (builtXml.match(/<p:cond delay="indefinite"\/>/g) ?? []).length })}.`);
+
+  // A rehearsal: the console opens with its clock running, and Finish offers the times to keep.
+  await command('present.rehearse');
+  await frame.waitForFunction(() => window.deck.presenting === true);
+  show = frame.childFrames()[0];
+  await show.waitForFunction(() => !!window.deckPlayer && document.body.classList.contains('rehearse') && document.body.classList.contains('presenter'), null, { timeout: 5000 });
+  await settle(1600);
+  await show.locator('body').press('ArrowRight');
+  await settle(200);
+  await show.click('#c-end');
+  await frame.waitForFunction(() => window.deck.presenting === false && !document.getElementById('rehearsed').hidden, null, { timeout: 5000 })
+    .catch(() => { throw Error('Finishing a rehearsal must offer to keep its times.'); });
+  const offer = await frame.evaluate(() => ({ text: document.getElementById('rehearsed-text').textContent, times: window.deck.timings?.times }));
+  assert(/^You rehearsed for 0:0\d over 1 slide, for a 5:00 talk\./.test(offer.text) && offer.times?.length === 1 && offer.times[0].seconds >= 1,
+    `The offer must say how long the rehearsal ran, over the slides it reached: ${JSON.stringify(offer)}.`);
+  await frame.click('#rehearsed-keep');
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.seconds'] >= 1, offer.times[0].id, { timeout: 5000 })
+    .catch(() => { throw Error('Keep must write the time on the slide the rehearsal spent it on.'); });
+  assert((await newestBatch()).label === 'Keep the rehearsal times' && (await newestBatch()).offerUndo === true && (await newestBatch()).writes.length === 1,
+    `The times must be kept as one step: ${JSON.stringify(await newestBatch())}.`);
+  assert(await frame.evaluate(() => document.getElementById('rehearsed').hidden), 'The offer must close once the times are kept.');
+
+  // The Check tab: the length against the target, and a click on a finding goes to its slide.
+  await frame.click('#tab-check');
+  const check = await frame.evaluate(() => ({ length: document.getElementById('check-length').textContent, items: [...document.querySelectorAll('#check-list button')].map(b => ({ id: b.dataset.slide, text: b.textContent })),
+    count: document.getElementById('check-count').textContent }));
+  assert(/^About \d+:\d\d for a 5:00 talk: .+\(1 of \d+ slides rehearsed, the rest from the notes\)\.$/.test(check.length) && check.items.length > 0,
+    `The Check tab must weigh the talk's length against its target, from the rehearsal and the notes, and list what to look at: ${JSON.stringify(check)}.`);
+  const here = (await state()).slideId;
+  const target = check.items.find(x => x.id !== here) ?? check.items[0];
+  await frame.locator(`#check-list button[data-slide="${target.id}"]`).first().click();
+  assert((await state()).slideId === target.id, `A finding must open its slide: ${JSON.stringify({ wanted: target.id, at: (await state()).slideId })}.`);
+  // Back to all points at once, as the checks below were written for.
+  await frame.locator(`#slides li[data-id="${cardsId}"]`).click();
+  await frame.click('#tab-slide');
+  await frame.locator('#f-build button', { hasText: 'All at once' }).click();
+  await until(id => window.deck.slides.find(s => s.id === id)?.build === 'None' && !document.querySelector('#stage .step-mark'), cardsId);
+  checks.push('builds, transitions, console, rehearsal, check');
+
   // 12. The frame follows Nendo's theme, and the Ask button's text reads on its colour in both.
   const button = async () => frame.evaluate(async () => {
     const { contrast, normalHex } = await import('./themes.mjs');

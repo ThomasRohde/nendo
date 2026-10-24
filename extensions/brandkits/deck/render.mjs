@@ -16,8 +16,13 @@ export const SLIDE_CSS = `
 .dk-slide svg{left:0;top:0;overflow:visible;pointer-events:none}
 .dk-slide .dk-i{display:block;object-fit:cover}
 .dk-slide .dk-ghost{opacity:.38}
+.dk-slide [data-step]{transition:opacity .45s ease,transform .45s cubic-bezier(.2,.7,.2,1)}
+.dk-slide .dk-later{opacity:0!important;transform:translateY(14px)}
+.dk-slide svg.dk-later{transform:none}
 `;
 
+/** A primitive or a paragraph that comes on with a click carries that click's number. */
+const stepOf = x => x?.step ? ` data-step="${x.step}"` : '';
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const n = v => Math.round(v * 100) / 100;
 export function rgba(hex, alpha = 1) {
@@ -76,9 +81,9 @@ function textHtml(p, index) {
     }
     // An empty paragraph keeps its line, as the layout counted it, and a caret has somewhere to stand.
     const words = runs(para.runs);
-    return `<p style="${bits}">${mark}${words || '<br>'}</p>`;
+    return `<p${stepOf(para)} style="${bits}">${mark}${words || '<br>'}</p>`;
   }).join('');
-  return `<div class="dk-t${p.ghost ? ' dk-ghost' : ''}" data-role="${esc(p.role ?? '')}" data-i="${index}"${editAttributes(p)} style="${style}">${paras}</div>`;
+  return `<div class="dk-t${p.ghost ? ' dk-ghost' : ''}" data-role="${esc(p.role ?? '')}" data-i="${index}"${stepOf(p)}${editAttributes(p)} style="${style}">${paras}</div>`;
 }
 
 /** Where an editable box's words are in the slide, for the stage's editor (stage-editor.mjs). */
@@ -97,16 +102,16 @@ function shapeHtml(p, W, H) {
       const style = [`left:${n(p.x)}px`, `top:${n(p.y)}px`, `width:${n(p.w)}px`, `height:${n(p.h)}px`, `border-radius:${radius}`,
         `background:${cssFill(p.fill, p.alpha ?? 1, p.type)}`, p.stroke ? `box-shadow:0 0 0 ${n(p.strokeWidth ?? 1)}px ${rgba(p.stroke)} inset` : '',
         p.shadow ? 'box-shadow:0 14px 34px rgba(20,16,60,.10),0 2px 6px rgba(20,16,60,.06)' : ''].filter(Boolean).join(';');
-      return `<div class="dk-r" data-role="${esc(p.role ?? '')}" style="${style}"></div>`;
+      return `<div class="dk-r" data-role="${esc(p.role ?? '')}"${stepOf(p)} style="${style}"></div>`;
     }
     case 'line':
-      return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><line x1="${n(p.x1)}" y1="${n(p.y1)}" x2="${n(p.x2)}" y2="${n(p.y2)}" stroke="${rgba(p.stroke)}" stroke-width="${p.width ?? 1}"${p.dash ? ' stroke-dasharray="4 6"' : ''}/></svg>`;
+      return `<svg${stepOf(p)} width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><line x1="${n(p.x1)}" y1="${n(p.y1)}" x2="${n(p.x2)}" y2="${n(p.y2)}" stroke="${rgba(p.stroke)}" stroke-width="${p.width ?? 1}"${p.dash ? ' stroke-dasharray="4 6"' : ''}/></svg>`;
     case 'path': {
       const d = p.points.map(([x, y], i) => `${i ? 'L' : 'M'}${n(x)} ${n(y)}`).join(' ') + (p.closed ? ' Z' : '');
-      return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="${p.fill ? rgba(p.fill, p.alpha ?? 1) : 'none'}" stroke="${p.stroke ? rgba(p.stroke) : 'none'}" stroke-width="${p.width ?? 0}" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+      return `<svg${stepOf(p)} width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="${p.fill ? rgba(p.fill, p.alpha ?? 1) : 'none'}" stroke="${p.stroke ? rgba(p.stroke) : 'none'}" stroke-width="${p.width ?? 0}" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
     }
     case 'arc':
-      return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${arcPath(p)}" fill="${rgba(p.fill)}"/></svg>`;
+      return `<svg${stepOf(p)} width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><path d="${arcPath(p)}" fill="${rgba(p.fill)}"/></svg>`;
     default: return '';
   }
 }
@@ -121,13 +126,18 @@ function imageHtml(p, urlFor) {
   const url = urlFor(p.src);
   const position = p.fit === 'contain' ? (p.align === 'right' ? 'right center' : p.align === 'center' ? 'center' : 'left center') : 'center';
   const style = `left:${n(p.x)}px;top:${n(p.y)}px;width:${n(p.w)}px;height:${n(p.h)}px;object-fit:${p.fit};object-position:${position};border-radius:${n(p.radius ?? 0)}px`;
-  if (!url) return `<div class="dk-r" data-role="${esc(p.role ?? '')}" style="${style};background:rgba(127,127,127,.18)"></div>`;
-  return `<img class="dk-i" data-role="${esc(p.role ?? '')}" src="${esc(url)}" alt="${esc(p.alt ?? '')}" draggable="false" style="${style}">`;
+  if (!url) return `<div class="dk-r" data-role="${esc(p.role ?? '')}"${stepOf(p)} style="${style};background:rgba(127,127,127,.18)"></div>`;
+  return `<img class="dk-i" data-role="${esc(p.role ?? '')}"${stepOf(p)} src="${esc(url)}" alt="${esc(p.alt ?? '')}" draggable="false" style="${style}">`;
 }
 
 /** The slide as an HTML string, `W` × `H` pixels; scale it with CSS. urlFor maps a media address to a URL. */
 export function slideHtml(laid, { urlFor = src => src, className = '' } = {}) {
   const { W, H } = laid;
   const parts = laid.items.map((p, i) => p.type === 'text' ? textHtml(p, i) : p.type === 'image' ? imageHtml(p, urlFor) : shapeHtml(p, W, H));
-  return `<div class="dk-slide ${className}" style="width:${W}px;height:${H}px;background:${cssFill(laid.background)}">${parts.join('')}</div>`;
+  return `<div class="dk-slide ${className}" data-steps="${laid.steps ?? 0}" style="width:${W}px;height:${H}px;background:${cssFill(laid.background)}">${parts.join('')}</div>`;
+}
+
+/** Shows a drawn slide as it stands after `shown` clicks: what comes later is hidden, and fades in when it comes. */
+export function showSteps(slideElement, shown) {
+  for (const el of slideElement.querySelectorAll('[data-step]')) el.classList.toggle('dk-later', Number(el.dataset.step) > shown);
 }
