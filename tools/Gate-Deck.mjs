@@ -110,6 +110,33 @@ async page => {
   assert(over.length === 0, `Every example slide must fit: ${over.join(', ')}.`);
   checks.push('every example slide fits');
 
+  // 18. Stage first: the layouts are a row right under the slide, as wide as it, and the slide is
+  // sized to the height the row leaves it, so neither runs past the centre: in a window where the
+  // width sizes the slide, a narrow tall one, and a wide short one where the height does. The row
+  // stays while another tab of the inspector is open.
+  const stageFirst = () => frame.evaluate(() => {
+    const r = id => document.getElementById(id).getBoundingClientRect();
+    const stage = r('stage'), strip = r('layout-strip'), wrap = r('stage-wrap');
+    return { gap: strip.top - stage.bottom, left: Math.abs(strip.left - stage.left), width: Math.abs(strip.width - stage.width), below: wrap.bottom - strip.bottom,
+      stageW: stage.width, shape: stage.width / stage.height, inInspector: !!document.getElementById('layouts').closest('#inspector'), fit: document.getElementById('fit-text').textContent, layout: document.getElementById('fit-layout').textContent };
+  });
+  for (const size of [{ width: 1440, height: 900 }, { width: 1160, height: 1280 }, { width: 1600, height: 760 }]) {
+    await page.setViewportSize(size);
+    await settle(300);
+    const m = await stageFirst();
+    assert(m.gap >= 0 && m.gap <= 24, `The layouts must sit right under the slide at ${size.width}×${size.height}: ${m.gap.toFixed(1)} px between them.`);
+    assert(m.below >= 0, `The slide and its layouts must fit the centre at ${size.width}×${size.height}: the row runs ${(-m.below).toFixed(1)} px past it.`);
+    assert(Math.abs(m.shape - 16 / 9) < 0.01, `The slide must keep 16:9 over its layouts at ${size.width}×${size.height}: ${m.shape.toFixed(3)}.`);
+    assert(m.stageW < 480 || (m.left <= 1 && m.width <= 1), `The row of layouts must be as wide as the slide at ${size.width}×${size.height}: ${JSON.stringify(m)}.`);
+    assert(!m.inInspector && m.fit === 'Everything fits' && m.layout === 'Closing', `The Slide tab must say the slide fits and name its layout: ${JSON.stringify(m)}.`);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await frame.click('#tab-design');
+  assert(await frame.locator('#layouts').isVisible() && await frame.locator('#design-name').isHidden(), 'The layouts must stay under the slide while the Design tab is open.');
+  await frame.click('#tab-slide');
+  assert(await frame.locator('#design-name').textContent() === 'Keynote', `The Slide tab must name the deck's design: ${await frame.locator('#design-name').textContent()}.`);
+  checks.push('stage first');
+
   // 4. Typing is the slide at once and a save after a pause, with the version it read.
   await frame.evaluate(() => document.querySelectorAll('#slides li')[4].click());
   const slide5 = (await state()).slideId;

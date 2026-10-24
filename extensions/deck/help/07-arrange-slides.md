@@ -18,7 +18,7 @@ The keys move them too: `Ctrl` `↑` and `Ctrl` `↓` one place, `Ctrl` `Shift` 
 
 ## The slide sorter
 
-The grid button above the slides, or **Slide sorter** in the toolbar, shows every slide at once. Drag, select, cut, copy and paste as in the list. **Size**, or `Ctrl` and the mouse wheel, makes the slides larger or smaller. Double-click a slide or press `Enter` to open it; `Esc` goes back.
+**Slide sorter** in the toolbar shows every slide at once. Drag, select, cut, copy and paste as in the list. **Size**, or `Ctrl` and the mouse wheel, makes the slides larger or smaller. Double-click a slide or press `Enter` to open it; `Esc` goes back.
 
 ## The slides' menu
 
