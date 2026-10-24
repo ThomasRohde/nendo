@@ -16,6 +16,7 @@
 
 import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat } from './model.mjs';
 import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast } from './themes.mjs';
+import { slotOf } from './design.mjs';
 
 /** A measurer for node and for tests: close to Segoe UI's widths, and the same on every machine. */
 export function approxMeasure(text, { size, weight = 400, font = '' }) {
@@ -172,10 +173,22 @@ function background(g, feature, kind) {
       deco.push({ type: 'ellipse', x: -W * 0.2, y: H * 0.62, w: W * 0.45, h: W * 0.45, fill: { type: 'radial', stops: [{ at: 0, color: c.secondary, alpha: 0.12 }, { at: 1, color: c.secondary, alpha: 0 }] } });
     }
   }
-  const base = typeof fill === 'string' ? fill : fill.stops[0].color;
-  const dark = isDark(typeof fill === 'string' ? fill : mix(fill.stops[0].color, fill.stops.at(-1).color, 0.5));
+  let dark = isDark(typeof fill === 'string' ? fill : mix(fill.stops[0].color, fill.stops.at(-1).color, 0.5));
+  // A design's own background for this kind of slide replaces the family's fill and decorations.
+  const own = theme.backgrounds?.[slotOf(kind)];
+  if (own) {
+    deco.length = 0;
+    fill = own.fill; dark = own.dark;
+    if (own.image) {
+      deco.push({ type: 'image', x: 0, y: 0, w: W, h: H, src: own.image, fit: 'cover', role: 'background', alt: '' });
+      if (own.tintAlpha > 0) deco.push({ type: 'rect', x: 0, y: 0, w: W, h: H, fill: own.fill, alpha: own.tintAlpha, role: 'background' });
+    }
+  }
+  let base = typeof fill === 'string' ? fill : fill.stops[0].color;
+  // Under a picture the tint may be faint: text is set for the darkness the design declares.
+  if (own?.image && isDark(base) !== dark) base = dark ? '#111111' : '#FFFFFF';
   g.items.push(...deco);
-  const onFill = base !== c.bg;
+  const onFill = base !== c.bg || dark !== isDark(c.bg);
   return {
     fill, dark,
     ink: onFill ? readableOn(base, '#FFFFFF', c.ink, c.bg) : c.ink,
@@ -193,23 +206,39 @@ function chrome(g, feature, kind) {
   const imageSide = kind === 'Image left' ? 'left' : kind === 'Image right' ? 'right' : null;
   const left = imageSide === 'left' ? W * 0.5 + 56 : X, right = imageSide === 'right' ? W * 0.5 - 56 : W - X;
   if (showFooter && fam === 'editorial' && !feature) g.items.push({ type: 'line', x1: left, y1: H - 54, x2: right, y2: H - 54, stroke: c.line, width: 1 });
-  if (showFooter && theme.footer) g.items.push(text({ x: left, y: H - 44, w: (right - left) * 0.7, h: 18, size: 12, font: g.fonts.body, color: ink, text: theme.footer, markdown: false, role: 'footer' }));
+  const fl = footerRoom(theme, 'left'), fr = footerRoom(theme, 'right');
+  if (showFooter && theme.footer) g.items.push(text({ x: left + fl, y: H - 44, w: (right - left) * 0.7 - fl, h: 18, size: 12, font: g.fonts.body, color: ink, text: theme.footer, markdown: false, role: 'footer' }));
   if (showFooter && theme.slideNumbers && ctx.number) {
     const label = fam === 'minimal' ? String(ctx.number).padStart(2, '0') : String(ctx.number);
-    g.items.push(text({ x: right - 80, y: H - 44, w: 80, h: 18, size: 12, align: 'right', font: fam === 'minimal' ? g.fonts.mono : g.fonts.body,
+    g.items.push(text({ x: right - 80 - fr, y: H - 44, w: 80, h: 18, size: 12, align: 'right', font: fam === 'minimal' ? g.fonts.mono : g.fonts.body,
       weight: fam === 'swiss' ? 700 : 400, color: ink, text: label, markdown: false, role: 'number' }));
   }
   const brand = theme.brand;
-  if (brand && (brand.logo || brand.logoDark)) {
+  const place = theme.logoPlacement ?? 'top-right';
+  if (brand && (brand.logo || brand.logoDark) && place !== 'none') {
     const src = g.bg.dark ? (brand.logoDark ?? brand.logo) : (brand.logo ?? brand.logoDark);
     if (kind === 'Title' || kind === 'Closing') {
       const center = kind === 'Closing' && fam !== 'swiss';
       g.items.push({ type: 'image', x: center ? W / 2 - 110 : X, y: kind === 'Closing' ? H - 150 : 56, w: 220, h: 56, src, fit: 'contain', align: center ? 'center' : 'left', role: 'logo', alt: `${brand.name} logo` });
     } else if (kind !== 'Full image' && kind !== 'Section') {
-      const rightEdge = imageSide === 'right' ? W * 0.5 - 56 : W - X;
-      g.items.push({ type: 'image', x: rightEdge - 150, y: 40, w: 150, h: 28, src, fit: 'contain', align: 'right', role: 'logo', alt: `${brand.name} logo` });
+      // Content slides carry the small mark when the brand has one, else the logo.
+      const mark = brand.mark ?? null;
+      const w = mark ? 40 : 150, h = mark ? 40 : 28;
+      const [vertical, side] = place.split('-');
+      const x = side === 'left' ? left : (imageSide === 'right' ? W * 0.5 - 56 : W - X) - w;
+      const y = vertical === 'top' ? 40 - (mark ? 6 : 0) : H - 46 - (h - 18) / 2 - (mark ? 6 : 0);
+      g.items.push({ type: 'image', x, y, w, h, src: mark ?? src, fit: 'contain', align: side, role: 'logo', alt: `${brand.name} logo` });
     }
   }
+}
+
+/** Whether a content slide's logo sits at its top right, where the header leaves room for it. */
+export const logoAtTopRight = theme => !!(theme.brand?.logo || theme.brand?.logoDark) && (theme.logoPlacement ?? 'top-right') === 'top-right';
+/** The room the footer leaves at its left and right for a logo placed beside it. */
+function footerRoom(theme, side) {
+  if (!(theme.brand?.logo || theme.brand?.logoDark)) return 0;
+  if ((theme.logoPlacement ?? 'top-right') !== `bottom-${side}`) return 0;
+  return (theme.brand.mark ? 40 : 150) + 20;
 }
 
 // ---- Shared pieces -----------------------------------------------------------------------------
@@ -255,7 +284,7 @@ function title(g, value, x, y, w, h, opts = {}) {
 function header(g, opts = {}) {
   const { X, W, c, theme, slide } = g;
   // The top-right logo (chrome) sits at the right of this header, however wide it is given.
-  const logo = !!(theme.brand?.logo || theme.brand?.logoDark);
+  const logo = logoAtTopRight(theme);
   const x = opts.x ?? X, w = (opts.w ?? W - 2 * X) - (logo ? 170 : 0);
   const fam = theme.family;
   let y = 52;
@@ -630,14 +659,14 @@ function columnWidths(t, total, measure, size, font) {
 /** Charts are drawn as shapes, so they look the same in the stage, the HTML and PowerPoint. */
 function drawChart(g, type, data, x, y, w, h) {
   const { c } = g;
-  const palette = [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.45)];
+  const palette = g.theme.chart?.length ? g.theme.chart : [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.45)];
   const ink = g.bg.ink, muted = g.bg.muted;
   // A doughnut shows one column, its first, and names its parts beside it: no series legend above.
   const legend = data.series.length > 1 && type !== 'Doughnut';
   if (legend) {
     let lx = x;
     data.series.forEach((s, i) => {
-      g.items.push({ type: 'rect', x: lx, y: y + 4, w: 14, h: 14, fill: palette[i % 4], radius: 3 });
+      g.items.push({ type: 'rect', x: lx, y: y + 4, w: 14, h: 14, fill: palette[i % palette.length], radius: 3 });
       g.items.push(text({ x: lx + 22, y: y, w: 220, h: 22, size: 15, font: g.fonts.body, color: muted, text: s.name, markdown: false, role: 'chart' }));
       lx += 40 + g.measure(s.name, { size: 15, font: g.fonts.body });
     });
@@ -648,7 +677,8 @@ function drawChart(g, type, data, x, y, w, h) {
     const values = data.series[0].values.map(v => Math.max(0, v)), total = values.reduce((a, b) => a + b, 0), share = total || 1;
     const r = Math.min(h, w * 0.5) / 2, cx = x + r + 10, cy = y + h / 2;
     let at = 0;
-    const colours = values.map((_, i) => [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.5), mix(c.accent, c.bg, 0.5), mix(c.secondary, c.bg, 0.5)][i % 6]);
+    const parts = g.theme.chart?.length ? g.theme.chart : [c.primary, c.accent, c.secondary, mix(c.primary, c.bg, 0.5), mix(c.accent, c.bg, 0.5), mix(c.secondary, c.bg, 0.5)];
+    const colours = values.map((_, i) => parts[i % parts.length]);
     values.forEach((v, i) => {
       const sweep = v / share * 360;
       if (sweep > 0) g.items.push({ type: 'arc', cx, cy, r, inner: r * 0.58, start: at, end: at + Math.min(sweep, 359.99), fill: colours[i] });
@@ -695,9 +725,9 @@ function drawChart(g, type, data, x, y, w, h) {
     data.labels.forEach((label, i) => g.items.push(text({ x: px + i * dx - 60, y: py + ph + 10, w: 120, h: 22, size: 15, font: g.fonts.body, color: muted, align: 'center', text: label, markdown: false, role: 'chart' })));
     data.series.forEach((s, j) => {
       const points = s.values.map((v, i) => [px + i * dx, py + ph - frac(v) * ph]);
-      g.items.push({ type: 'path', points, closed: false, stroke: palette[j % 4], width: 4 });
+      g.items.push({ type: 'path', points, closed: false, stroke: palette[j % palette.length], width: 4 });
       points.forEach(([cx, cy], i) => {
-        g.items.push({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % 4], stroke: g.bg.fill === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 });
+        g.items.push({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.fill === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 });
         if (k === 1) g.items.push(text({ x: cx - 50, y: cy - 34, w: 100, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(s.values[i], data.unit), markdown: false, role: 'chart' }));
       });
     });
@@ -710,7 +740,7 @@ function drawChart(g, type, data, x, y, w, h) {
     data.series.forEach((s, j) => {
       // Each bar runs from nought to its value, either way.
       const v = s.values[i], zero = frac(0), end = frac(v), len = Math.abs(end - zero) * (horizontal ? pw : ph);
-      const fill = palette[j % 4];
+      const fill = palette[j % palette.length];
       if (horizontal) {
         const by = py + i * band + (band - inner) / 2 + j * barW, from = px + Math.min(zero, end) * pw;
         g.items.push({ type: 'rect', x: from, y: by, w: Math.max(len, 1), h: barW - 3, fill, radius: Math.min(4, g.s.radius) });

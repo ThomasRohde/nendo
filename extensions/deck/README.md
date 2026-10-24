@@ -12,8 +12,8 @@ package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
 | --- | --- |
 | Decks (`dk.deck`) | Title, subtitle, author, date, audience, goal, shape (16:9 or 4:3), template, brand kit, footer, slide numbers, status |
 | Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, chart kind, hidden, text format (JSON) |
-| Templates (`dk.template`) | A family's shapes with its own fonts and seven colours; six are seeds |
-| Brand kits (`dk.brand`) | Seven colour roles, three fonts, logo and logo on dark (media fields), voice, tagline, the imported tokens |
+| Templates (`dk.template`) | A family's shapes with its own fonts and seven colours; six are seeds. A Design's template also holds light or dark, a style, per-kind backgrounds (four background pictures as media), chart colours, the logo's place, its Brand kit and the kit it came from |
+| Brand kits (`dk.brand`) | Seven colour roles, three fonts, logo, logo on dark and mark (media fields), voice, tagline, the imported tokens |
 | Asks (`dk.ask`) | One request to the person's agent: scope, request, selection, status, progress, reply |
 | Variants (`dk.variant`) | Another version of one slide from an ask: label, the slide fields it sets as JSON, why, status |
 
@@ -65,6 +65,18 @@ The text menu is the view's own, not `nendo.ui.showMenu`, which has no submenus 
 slide's text format field (`dk.slide.format`) keeps a size and an alignment for each box by its
 key, such as `{"title":{"size":1.25},"body.0":{"align":"center"}}`; the size scales the layout's own,
 so a box still shrinks to fit, and the PowerPoint export carries both. A variant never sets it.
+
+## Designs
+
+A Design is the whole look of one Brandkits kit: a Template whose `dk.template.brand` names its
+Brand kit. Brandkits exports it as a `.deckdesign` file, a zip of `design.json` (format
+`nendo.deck-design`, version 1; `design.mjs` says every field) with the logos and the background
+pictures. Both apps read and write it with the same `design.mjs`, and Brandkits draws its preview
+with the same layout engine, so what Brandkits shows is what Deck draws. Deck refuses a newer
+version in a sentence, and a second import of the same kit (by `dk.template.source`) updates both
+records in place. The records land in one revision and the pictures follow as media. A background
+names its colours by role, so it follows the kit; a picture background is drawn first, under its
+tint, and says whether it is dark, which sets the text on it.
 
 ## Brand kits
 

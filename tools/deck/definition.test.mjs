@@ -10,7 +10,8 @@ import { TEMPLATES } from '../../extensions/deck/themes.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '..', '..');
 const read = file => fs.readFile(path.join(repo, file), 'utf8');
-const schemaOps = () => STAGES.schema.mutations().flatMap(m => m.operations);
+// Every stage that declares fields: the record types, and the fields later stages add to them.
+const schemaOps = () => [...STAGES.schema.mutations(), ...STAGES.design.mutations()].flatMap(m => m.operations);
 const fieldOf = id => schemaOps().find(o => o.operationType === 'schema.addField' && o.payload.fieldId === id)?.payload;
 
 test('each stage fits a change set, and each mutation a call', async () => {
@@ -29,7 +30,7 @@ test('every field the view and the skill name is declared, with the choices the 
   assert.deepEqual(fieldOf(F.slide.layout).options, LAYOUT_IDS);
   assert.deepEqual(fieldOf(F.slide.chart).options, CHARTS);
   assert.deepEqual(fieldOf(F.template.family).options, FAMILIES);
-  for (const id of [F.slide.image, F.brand.logo, F.brand.logoDark]) assert.equal(fieldOf(id).presentation, 'media', id);
+  for (const id of [F.slide.image, F.brand.logo, F.brand.logoDark, F.brand.mark, F.template.titleImage, F.template.sectionImage, F.template.closingImage, F.template.contentImage]) assert.equal(fieldOf(id).presentation, 'media', id);
   const view = await read('extensions/deck/view.mjs');
   for (const word of [...view.matchAll(/'(Waiting|Working|Done|Failed|Cancelled|Proposed|Used|Dismissed|Whole deck|Selection|Mission)'/g)].map(m => m[1]))
     assert.ok([...ASK_STATUS, ...VARIANT_STATUS, ...ASK_SCOPES].includes(word), word);

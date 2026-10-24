@@ -43,12 +43,31 @@ array of `{fieldId, op, value}`; put `cursor` before `limit`. A deck's slides:
 | --- | --- | --- |
 | Deck (`dk.deck`) | One talk | `dk.deck.title`, `.subtitle`, `.author`, `.date`, `.audience`, `.goal`, `.aspect` (16:9, 4:3), `.template`, `.brand`, `.footer`, `.numbers`, `.status` (Draft, Ready, Presented) |
 | Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.chart` (Column, Bar, Line, Doughnut), `.hidden`, `.format` (the person's; never write it) |
-| Template (`dk.template`) | A look: fonts and seven colours | Read only for you |
-| Brand kit (`dk.brand`) | Colours, fonts, logo and voice from Brandkits | Read `dk.brand.voice` and `.tagline`; do not write |
+| Template (`dk.template`) | A look: family, fonts, seven colours; a Design's also its style and backgrounds | Read `dk.template.name`, `.description`, `.family`, `.mode`, `.brand`; do not write |
+| Brand kit (`dk.brand`) | Colours, fonts, logo and voice from Brandkits | Read `dk.brand.name`, `.voice` and `.tagline`; do not write |
 | Ask (`dk.ask`) | A request from the view | `dk.ask.deck`, `.scope` (Whole deck, Selection, Mission), `.request`, `.selection`, `.status`, `.progress`, `.reply`, `.made` |
 | Variant (`dk.variant`) | Another version of one slide | `dk.variant.ask`, `.slide`, `.label`, `.changes`, `.rationale`, `.status` |
 
-Never write `dk.template`, `dk.brand`, `dk.slide.image` or the record types themselves.
+Never write `dk.template`, `dk.brand`, `dk.slide.image` or the record types themselves. A deck's
+look is the two references `dk.deck.template` and `dk.deck.brand`, which you may set (below).
+
+## The deck's look
+
+A **Design** is a Template whose `dk.template.brand` names a Brand kit: the whole look of one kit,
+imported from a Brandkits export. When the Ask asks for a design, a template, a brand or a new look:
+
+1. Read every Template and Brand kit in this file. You cannot reach any other file, Brandkits.nendo
+   included, and you never make a design yourself.
+2. Pick the one that fits the request: by name first, else by the deck's audience and goal and the
+   design's `dk.template.description`. Prefer a Design over a Template on its own.
+3. Set `dk.deck.template` to the Template, and `dk.deck.brand` to its `dk.template.brand` (or to
+   null for a Template that is not a Design). Each reference needs its target's version.
+4. Say in the Reply which one you picked and why, in one sentence.
+
+If the file holds no Design or kit that fits ("the nendo kit" and none is named so), set the Ask
+Failed and reply: "That design is not in this file. In Brandkits, choose Export, then Deck design,
+and import the file on Deck's Design tab; then ask again." Never pick one that does not match a
+name the person gave.
 
 ## The layouts
 

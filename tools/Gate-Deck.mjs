@@ -194,6 +194,67 @@ async page => {
   assert(lost.length === 0 && (await records('dk.brand')).length === 1, `An import again must keep what its file does not hold: ${JSON.stringify(lost.map(k => [k, again.values[k]]))}.`);
   checks.push('brand kit import');
 
+  // 7b. A Deck design from Brandkits becomes a Design (a Template naming its Brand kit) the deck uses,
+  // with its backgrounds, mark, chart colours and logo place; a second import updates it in place.
+  const footerBefore = (await records('dk.deck'))[0].values['dk.deck.footer'];
+  const dropDesign = primary => frame.evaluate(async primary => {
+    const { writeDesignPackage } = await import('./design.mjs');
+    const svg = fill => `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="50"><rect width="200" height="50" fill="${fill}"/></svg>`;
+    const design = { format: 'nendo.deck-design', version: 1, name: 'Aurora Test', tagline: 'Made for the long night.', source: { app: 'Brandkits', kit: 'k-aurora' },
+      template: { family: 'studio', mode: 'dark', style: { radius: 4, kicker: 'caps' } },
+      colors: { primary, secondary: '#14324A', accent: '#7CF2B0', background: '#0B1622', surface: '#13222F', ink: '#EAF2F7', muted: '#93A7B6' },
+      chart: ['#E8C26A', '#C0392B'], fonts: { heading: 'Space Grotesk', body: 'Inter' },
+      logos: { light: 'logos/logo.svg', dark: 'logos/logo-dark.svg', mark: 'logos/mark.svg', placement: 'bottom-left' },
+      backgrounds: { title: { kind: 'gradient', stops: ['primary', 'background'] }, section: { kind: 'image', src: 'backgrounds/section.svg', tint: 'background', tintAlpha: 0.4, dark: true } },
+      deck: { footer: 'Aurora footer', slideNumbers: true } };
+    const pictures = new Map([['logos/logo.svg', svg('#2F6F8F')], ['logos/logo-dark.svg', svg('#FFFFFF')], ['logos/mark.svg', svg('#7CF2B0')], ['backgrounds/section.svg', svg('#0B1622')]]);
+    const data = new DataTransfer(); data.items.add(new File([writeDesignPackage(design, pictures)], 'Aurora Test.deckdesign', { type: 'application/zip' }));
+    document.getElementById('inspector').dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+  }, primary);
+  await dropDesign('#2F6F8F');
+  await until(() => window.deck.theme.name === 'Aurora Test' && window.deck.theme.backgrounds.title?.fill?.type === 'linear', null, 8000);
+  await page.waitForFunction(() => window.broker.requests.filter(r => r.m === 'media.put' && r.p.base64 === undefined).length >= 6, null, { timeout: 8000 });
+  const designTemplate = (await records('dk.template')).find(t => t.values['dk.template.source'] === 'Brandkits:k-aurora');
+  const designKit = (await records('dk.brand')).find(b => b.values['dk.brand.name'] === 'Aurora Test');
+  assert(designTemplate && designKit && designTemplate.values['dk.template.brand'] === designKit.recordId, 'A design must land as a Template that names its Brand kit.');
+  const onDeck = (await records('dk.deck'))[0].values;
+  assert(onDeck['dk.deck.template'] === designTemplate.recordId && onDeck['dk.deck.brand'] === designKit.recordId, 'The deck on screen must use the design it imported.');
+  assert(onDeck['dk.deck.footer'] === footerBefore, 'A design\'s footer must not replace the footer the deck has.');
+  const designPictures = (await commits()).filter(c => c.recordId === designKit.recordId || c.recordId === designTemplate.recordId).map(c => `${c.fieldId} ${c.name}`).sort();
+  assert(JSON.stringify(designPictures) === JSON.stringify(['dk.brand.logo logo.svg', 'dk.brand.logoDark logo-dark.svg', 'dk.brand.mark mark.svg', 'dk.template.sectionImage section.svg']),
+    `A design's logos, mark and background picture must go into their media fields: ${JSON.stringify(designPictures)}.`);
+  // The fixture answers a media put with its address and leaves the field as it was, where Nendo
+  // sets it; the records are read here with the addresses the puts answered, as Nendo would hold them.
+  const addressOf = async (recordId, fieldId) => {
+    const at = (await commits()).findIndex(c => c.recordId === recordId && c.fieldId === fieldId);
+    return (await page.evaluate(() => window.broker.mediaPuts))[at]?.address;
+  };
+  const held = { template: { ...designTemplate.values, 'dk.template.sectionImage': await addressOf(designTemplate.recordId, 'dk.template.sectionImage') },
+    kit: { ...designKit.values, 'dk.brand.logo': await addressOf(designKit.recordId, 'dk.brand.logo'), 'dk.brand.mark': await addressOf(designKit.recordId, 'dk.brand.mark') } };
+  const drawn = await frame.evaluate(async held => {
+    const { layoutSlide } = await import('./layout.mjs');
+    const { templateSpecFrom, brandSpecFrom } = await import('./design.mjs');
+    const { resolveTheme } = await import('./themes.mjs');
+    const t = resolveTheme(templateSpecFrom(held.template), brandSpecFrom(held.kit), { aspect: '16:9', footer: 'Footer' });
+    const section = layoutSlide({ layout: 'Section', title: 'Two', kicker: '02', body: '' }, t);
+    const chart = layoutSlide({ layout: 'Chart', title: 'Sales', kicker: '', body: '| Q | A |\n| --- | --- |\n| 1 | 3 |\n| 2 | 5 |', body2: '', chart: 'Column' }, t, { number: 3 });
+    const logo = chart.items.find(i => i.role === 'logo');
+    return { first: section.items[0].role, dark: section.dark, bg: t.colors.bg, family: t.family, bars: chart.items.some(i => i.fill === '#E8C26A'), logo: logo && { src: logo.src === t.brand.mark, left: logo.x < 200, low: logo.y > 600 },
+      designs: document.querySelectorAll('#designs button').length, chosen: document.querySelector('#designs button')?.getAttribute('aria-selected'), templates: document.querySelectorAll('#templates button').length };
+  }, held);
+  assert(drawn.first === 'background' && drawn.dark && drawn.bg === '#0B1622' && drawn.family === 'studio' && drawn.bars && drawn.logo?.src && drawn.logo.left && drawn.logo.low,
+    `The design must draw its section picture, dark stage, chart colours and the mark at the bottom left: ${JSON.stringify(drawn)}.`);
+  assert(drawn.designs === 1 && drawn.chosen === 'true' && drawn.templates === 6, `The design must show once, chosen, under Designs and not among the six templates: ${JSON.stringify(drawn)}.`);
+  await dropDesign('#3A86A8');
+  await page.waitForFunction(id => window.broker.record('dk.brand', id)?.values['dk.brand.primary'] === '#3A86A8', designKit.recordId, { timeout: 8000 });
+  const counts = [(await records('dk.template')).length, (await records('dk.brand')).length];
+  assert(counts[0] === 7 && counts[1] === 2, `A design imported again must update its two records in place: ${JSON.stringify(counts)} templates and kits.`);
+  // Back to the template and kit the checks below were written for.
+  await frame.click('#templates [data-template="dk.template.keynote"]');
+  await frame.click(`#brands [data-brand="${kit.recordId}"]`);
+  await until(id => window.deck.theme.name === 'Keynote' && window.deck.theme.brand?.name === 'Northwind', null, 8000);
+  checks.push('design import');
+
   // 8. An ask is a record first, then a message that names the skill, with the ask and deck as context.
   await frame.click('#tab-slide');
   await frame.evaluate(() => document.querySelectorAll('#slides li')[4].click());
