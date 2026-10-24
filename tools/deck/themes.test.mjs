@@ -44,6 +44,18 @@ test('a kit sets the colours and fonts; a dark template keeps its dark stage', (
   assert.equal(dark.colors.primary, '#0B6E4F');
 });
 
+test('a light template keeps its light stage under a dark kit', () => {
+  const black = KITS[3];
+  for (const template of TEMPLATES.filter(t => t.mode === 'light')) {
+    const { colors } = resolveTheme(template, black);
+    assert.ok(contrast(colors.bg, '#FFFFFF') < 2, `${template.id} keeps a light stage under a dark kit: ${colors.bg}`);
+    assert.equal(colors.ink, '#000000', `${template.id} writes in the kit's background colour`);
+  }
+  // A kit with no light colour of its own stands on its primary, lightened.
+  const { colors } = resolveTheme(TEMPLATES[1], { colors: { primary: '#0B6E4F', background: '#111111', ink: '#222222' } });
+  assert.ok(contrast(colors.bg, '#FFFFFF') < 1.2, `a stage from the primary: ${colors.bg}`);
+});
+
 test('a template record overrides its family; fonts not on the machine come from the web', () => {
   const theme = resolveTheme({ id: 'mine', family: 'swiss', name: 'Mine', colors: { primary: '#123456', bg: '' }, fonts: { heading: 'Space Grotesk' } });
   assert.equal(theme.family, 'swiss');

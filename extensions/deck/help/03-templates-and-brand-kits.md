@@ -39,7 +39,7 @@ A kit's logo shows large on the title and closing slides and small at the top of
 
 ## Colours stay legible
 
-A brand's colours can clash with a template: dark text on a dark stage, or a pale accent on white. Deck checks each colour against the slide behind it and darkens or lightens it until it can be read. A dark template keeps its dark stage and uses the kit's colours as accents.
+A brand's colours can clash with a template: dark text on a dark stage, or a pale accent on white. Deck checks each colour against the slide behind it and darkens or lightens it until it can be read. A dark template keeps its dark stage and a light template its light one, and the kit's colours become accents.
 
 ## Fonts
 

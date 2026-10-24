@@ -38,7 +38,8 @@ fonts the opening machine has. Charts are drawn as shapes, not as PowerPoint cha
 same reason.
 
 `themes.mjs` resolves a template, a brand kit and the deck's options into one theme. A kit's colours
-replace the template's; a dark template keeps its dark stage and takes the kit's colours as accents.
+replace the template's; a dark template keeps its dark stage and a light template its light one, and
+the kit's colours become accents.
 Every role is then checked against what it sits on and moved until it reads: text 7:1 on the
 background, muted text 4.5:1, a colour used as text 3:1, text on the primary 4.5:1.
 `tools/deck/themes.test.mjs` holds every template to that with kits made to break it.

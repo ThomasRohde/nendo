@@ -162,6 +162,11 @@ export function resolveTheme(template, brand = null, deck = {}) {
       colors.bg = ink && isDark(ink) ? ink : mix(b.primary ?? colors.bg, '#000000', 0.82);
       colors.surface = mix(colors.bg, '#FFFFFF', 0.08);
       colors.ink = background && !isDark(background) ? background : '#F4F6FA';
+    } else if (background && isDark(background)) {
+      // A light template keeps its stage light: the brand's ink (or its primary, lightened) is the stage.
+      colors.bg = ink && !isDark(ink) ? ink : mix(b.primary ?? colors.primary, '#FFFFFF', 0.94);
+      colors.surface = mix(colors.bg, b.primary ?? colors.primary, 0.06);
+      colors.ink = background;
     } else {
       colors.bg = background ?? colors.bg;
       colors.surface = b.surface ?? mix(colors.bg, b.primary ?? colors.primary, 0.06);

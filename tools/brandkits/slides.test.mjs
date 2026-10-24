@@ -66,6 +66,18 @@ test('what Brandkits exports, Deck reads and draws as Brandkits previewed it', a
   assert.equal(layoutSlide(slide, resolveTheme(imported.template, imported.brand)).items[0].src, 'url:backgrounds/section.png');
 });
 
+test('Light and Dark choose the stage, whatever the kit\'s own background', () => {
+  const night = { ...EMBER, colours: [{ role: 'Background', hex: '#111111' }, { role: 'Text', hex: '#EEEEEE' }, { role: 'Primary', hex: '#C2410C' }] };
+  const stage = mode => {
+    const { template, brand, deck } = designSpecs(kitDesign(night, { family: 'minimal', mode }).design, p => `url:${p}`);
+    return resolveTheme(template, brand, deck).colors;
+  };
+  const light = stage('light'), dark = stage('dark');
+  assert.ok(!isDark(light.bg), `Light gives a light stage: ${light.bg}`);
+  assert.ok(isDark(dark.bg), `Dark gives a dark stage: ${dark.bg}`);
+  assert.ok(contrast(light.ink, light.bg) >= 7, `text on the light stage: ${light.ink} on ${light.bg}`);
+});
+
 test('a picture behind a kind of slide keeps a white title readable, on a light stage or a dark one', () => {
   for (const mode of ['light', 'dark']) {
     const { design } = kitDesign({ ...EMBER, pictures: { section: { type: 'image/png' } } }, { mode, backgrounds: { section: 'picture' } });
