@@ -7,18 +7,22 @@
 
 import { SLIDE_CSS } from './render.mjs';
 import { webFonts } from './themes.mjs';
+import { spokenSeconds, DEFAULT_SECONDS } from './check.mjs';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 // JSON in a script element: never let the text close the element.
 const json = value => JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 
-/** How long a slide's plan is, in seconds, for each shown slide: rehearsed times, fitted to the target length when there is one. */
-export function planOf(seconds, minutes) {
-  const known = seconds.filter(s => Number.isFinite(s) && s > 0);
+/**
+ * How long a slide's plan is, in seconds, for each shown slide: its rehearsed time, else the time
+ * its notes take to say, else the Check tab's default, fitted to the target length when there is
+ * one. No rehearsal, no notes and no target is no plan.
+ */
+export function planOf(seconds, minutes, notes = []) {
+  const said = seconds.map((s, i) => Number.isFinite(s) && s > 0 ? s : spokenSeconds(notes[i]));
   const target = Number.isFinite(minutes) && minutes > 0 ? minutes * 60 : null;
-  if (!known.length && !target) return null;
-  const average = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 1;
-  const base = seconds.map(s => Number.isFinite(s) && s > 0 ? s : average);
+  if (!said.some(s => s) && !target) return null;
+  const base = said.map(s => s ?? DEFAULT_SECONDS);
   const sum = base.reduce((a, b) => a + b, 0) || 1;
   return target ? base.map(s => s * target / sum) : base;
 }
@@ -34,7 +38,7 @@ export function buildHtml({ title, author = '', W, H, slides, theme, start = 0, 
   const primary = theme.colors.primary;
   const data = {
     notes: slides.map(s => s.notes ?? ''), titles: slides.map(s => s.title ?? ''), steps: slides.map(s => s.steps ?? 0),
-    transitions: slides.map(s => s.transition ?? 'None'), plan: planOf(slides.map(s => s.seconds ?? null), minutes),
+    transitions: slides.map(s => s.transition ?? 'None'), plan: planOf(slides.map(s => s.seconds ?? null), minutes, slides.map(s => s.notes)),
     start, embedded, rehearse, deck: title,
   };
   return `<!doctype html>
@@ -249,9 +253,13 @@ function player(W, H) {
     const t = data.transitions[i] || 'None';
     return reduced && t !== 'None' ? 'Fade' : t;
   };
+  // The end of the transition still running: a turn settles it before it starts its own, so the
+  // last one's late callback cannot hide the slide a quick turn back has brought in again.
+  let settle = null;
   /** Turns to slide i with `count` points showing; `dir` is 1 forward, -1 back, 0 a jump. */
   function go(i, count, dir) {
     i = Math.min(Math.max(0, i), n - 1);
+    if (settle) settle();
     const from = slides[at], to = slides[i];
     frame.getAnimations({ subtree: true }).forEach(a => a.finish());
     if (to !== from) {
@@ -259,9 +267,11 @@ function player(W, H) {
       to.classList.remove('off');
       const kind = kindOf(dir < 0 ? at : i);
       const time = { duration: kind === 'Push' ? 560 : 460, easing: 'cubic-bezier(.2,.7,.2,1)' };
-      const done = () => { from.classList.add('off'); from.style.zIndex = ''; to.style.zIndex = ''; };
+      let over = false;
+      const done = () => { if (over) return; over = true; settle = null; from.classList.add('off'); from.style.zIndex = ''; to.style.zIndex = ''; };
       if (kind === 'None' || !to.animate) done();
       else {
+        settle = done;
         from.style.zIndex = 1; to.style.zIndex = 2;
         let anim;
         if (kind === 'Fade') anim = to.animate([{ opacity: 0 }, { opacity: 1 }], time);

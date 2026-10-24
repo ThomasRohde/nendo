@@ -588,6 +588,18 @@ async page => {
   await settle(150);
   const dot = await show.evaluate(() => { const d = document.getElementById('now-laser').getBoundingClientRect(), n = document.getElementById('now').getBoundingClientRect(); return { x: (d.left + d.width / 2 - n.left) / n.width, y: (d.top + d.height / 2 - n.top) / n.height, shown: getComputedStyle(document.getElementById('now-laser')).display }; });
   assert(dot.shown === 'block' && Math.abs(dot.x - 0.5) < 0.01 && Math.abs(dot.y - 0.25) < 0.01, `The laser must stand where the pointer is on the slide: ${JSON.stringify(dot)}.`);
+  // On to the next slide and straight back, inside one transition: the slide turned back to must
+  // stay in view once the first transition's end has come and gone.
+  const turnedBack = await show.evaluate(async () => {
+    const p = window.deckPlayer, from = p.state().at;
+    while (p.state().at === from) p.press('ArrowRight');
+    p.press('ArrowLeft');
+    await new Promise(r => setTimeout(r, 900));
+    const s = p.state(), slide = document.querySelectorAll('#frame > .dk-slide')[s.at];
+    return { from, at: s.at, off: slide.classList.contains('off'), others: [...document.querySelectorAll('#frame > .dk-slide')].filter(x => !x.classList.contains('off')).length };
+  });
+  assert(turnedBack.at === turnedBack.from && !turnedBack.off && turnedBack.others === 1,
+    `A quick turn back must leave its slide, and only it, in view: ${JSON.stringify(turnedBack)}.`);
   // Escape puts the laser down, then leaves the console, then ends the show on the slide it reached.
   for (let i = 0; i < 3; i++) await show.locator('body').press('Escape');
   await frame.waitForFunction(() => window.deck.presenting === false);
@@ -609,8 +621,6 @@ async page => {
   show = frame.childFrames()[0];
   await show.waitForFunction(() => !!window.deckPlayer && document.body.classList.contains('rehearse') && document.body.classList.contains('presenter'), null, { timeout: 5000 });
   await settle(1600);
-  await show.locator('body').press('ArrowRight');
-  await settle(200);
   await show.click('#c-end');
   await frame.waitForFunction(() => window.deck.presenting === false && !document.getElementById('rehearsed').hidden, null, { timeout: 5000 })
     .catch(() => { throw Error('Finishing a rehearsal must offer to keep its times.'); });

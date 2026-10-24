@@ -4,7 +4,7 @@ import { layoutSlide, approxMeasure } from '../../extensions/deck/layout.mjs';
 import { slideHtml } from '../../extensions/deck/render.mjs';
 import { buildPptx } from '../../extensions/deck/pptx.mjs';
 import { buildHtml, planOf } from '../../extensions/deck/export-html.mjs';
-import { checkDeck, lengthLine, spokenSeconds, wordsOf, clock, SLIDE_WORDS } from '../../extensions/deck/check.mjs';
+import { checkDeck, lengthLine, spokenSeconds, wordsOf, clock, SLIDE_WORDS, DEFAULT_SECONDS } from '../../extensions/deck/check.mjs';
 import { slideFrom, transitionOf, F } from '../../extensions/deck/model.mjs';
 import { unzip } from '../../extensions/deck/zip.mjs';
 import { TEMPLATES, resolveTheme } from '../../extensions/deck/themes.mjs';
@@ -84,7 +84,11 @@ test('the plan: rehearsed times fitted to the target, the notes where there is n
   assert.deepEqual(planOf([null, null], 2), [60, 60]);
   assert.deepEqual(planOf([30, 90], null), [30, 90]);
   assert.deepEqual(planOf([30, 90], 4), [60, 180]);
-  assert.deepEqual(planOf([40, null], null), [40, 40], 'a slide with no time takes the average');
+  const words = n => Array.from({ length: n }, () => 'word').join(' ');
+  assert.deepEqual(planOf([null, null], 4, [words(130), words(390)]), [60, 180], 'the notes weigh the slides');
+  assert.deepEqual(planOf([null, null], null, [words(130), '']), [60, DEFAULT_SECONDS], 'notes make a plan without a target');
+  assert.deepEqual(planOf([40, null], null, ['', words(130)]), [40, 60], 'a rehearsed time wins, the notes fill the rest');
+  assert.equal(planOf([null, null], null, ['', '']), null, 'empty notes, no plan');
 });
 
 test('the HTML file carries the steps, the transitions, the plan, and a rehearsal opens on the console', () => {
