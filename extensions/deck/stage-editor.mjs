@@ -11,7 +11,7 @@
 // the selection is put back where the paragraphs say.
 
 import * as T from './textedit.mjs';
-import { parseFormat, formatText, safeLink, mergeRuns, run } from './model.mjs';
+import { parseFormat, formatText, safeLink, mergeRuns, run, SCALE } from './model.mjs';
 
 /** PowerPoint's font sizes, in points. */
 export const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96, 112, 128, 144];
@@ -359,15 +359,20 @@ export function createStageEditor(host) {
   }
   /** The size the box is drawn at, which is smaller when its words are shrunk to fit. */
   const drawnSize = () => Number(boxFor(session)?.dataset.size ?? 0) * PT;
+  /** The sizes in points the box can take: those within the scales a slide's format keeps. */
+  function sizes() {
+    const points = Number(boxFor(session)?.dataset.base) * PT;
+    return points > 0 ? SIZES.filter(x => x >= points * SCALE.min - 0.01 && x <= points * SCALE.max + 0.01) : [];
+  }
   function sizeTo(points) {
     const base = Number(boxFor(session)?.dataset.base);
     if (!session || !(base > 0) || !(points > 0)) return;
-    const scale = points / PT / base;
+    const scale = Math.min(SCALE.max, Math.max(SCALE.min, points / PT / base));
     setFormat({ size: Math.abs(scale - 1) < 0.005 ? undefined : Math.round(scale * 1000) / 1000 });
   }
   function grow(direction) {
-    const now = Math.round(setSize() * 2) / 2;
-    const next = direction > 0 ? SIZES.find(x => x > now + 0.01) : [...SIZES].reverse().find(x => x < now - 0.01);
+    const now = Math.round(setSize() * 2) / 2, all = sizes();
+    const next = direction > 0 ? all.find(x => x > now + 0.01) : [...all].reverse().find(x => x < now - 0.01);
     if (next) sizeTo(next);
   }
   const align = value => setFormat({ align: value });
@@ -572,7 +577,7 @@ export function createStageEditor(host) {
         { id: 'size.reset', label: 'The layout’s size', disabled: !formatOf()[session.key]?.size },
         { kind: 'separator' },
         ...(drawn && drawn < now - 0.25 ? [{ kind: 'label', label: `Shrunk to ${drawn} pt to fit` }] : []),
-        ...SIZES.filter(x => x >= 10).map(x => ({ id: `size.${x}`, kind: 'radio', label: `${x}`, checked: Math.abs(x - now) < 0.26 })),
+        ...sizes().filter(x => x >= 10).map(x => ({ id: `size.${x}`, kind: 'radio', label: `${x}`, checked: Math.abs(x - now) < 0.26 })),
       ] },
       { id: 'align', kind: 'sub', label: 'Alignment', items: ALIGN_LABELS.map(([value, label, keys]) => ({ id: `align.${value}`, kind: 'radio', label, keys, checked: aligned === value })) },
       { id: 'list', kind: 'sub', label: 'Bullets and numbering', disabled: !lists, items: [
@@ -647,7 +652,7 @@ export function createStageEditor(host) {
     const size = document.createElement('select');
     size.className = 'tx-size'; size.title = 'Font size'; size.setAttribute('aria-label', 'Font size'); size.tabIndex = -1;
     const now = Math.round(setSize() * 2) / 2;
-    const options = [...new Set([...SIZES, now])].sort((a, b) => a - b);
+    const options = [...new Set([...sizes(), now])].sort((a, b) => a - b);
     for (const x of options) size.append(new Option(String(x), String(x), false, Math.abs(x - now) < 0.01));
     size.addEventListener('change', () => { const value = Number(size.value); closeMenu(true); sizeTo(value); });
     const kind = kindState(), aligned = alignState();

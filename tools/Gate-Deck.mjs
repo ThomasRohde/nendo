@@ -648,6 +648,13 @@ async page => {
   await page.keyboard.press('Escape');
   const ended = await frame.evaluate(() => ({ session: window.deck.stageEditor(), editable: document.querySelectorAll('#stage [contenteditable="true"]').length }));
   assert(!ended.session?.field && ended.editable === 0, `Escape must end the editing: ${JSON.stringify(ended)}.`);
+  // Smaller, pressed past the smallest size a slide keeps, stops there rather than going back to the layout's.
+  await clickAt(TITLE, 2);
+  for (let i = 0; i < 30; i++) await page.keyboard.press('Control+BracketLeft');
+  const smallest = await frame.evaluate(() => ({ format: window.deck.slides.find(x => x.id === window.deck.slideId).format}));
+  const titleScale = JSON.parse(smallest.format || '{}').title?.size;
+  assert(titleScale >= 0.25 && titleScale < 0.35, `Smaller pressed many times must stop at the smallest size the slide keeps: ${JSON.stringify(smallest.format)}.`);
+  await page.keyboard.press('Escape');
   // A card's heading and a table's cell are edited on their own; the rest of the line stays as it was.
   await openSlide(12);
   const cards = await current();
