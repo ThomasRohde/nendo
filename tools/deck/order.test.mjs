@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { moveBlock, nudge, ordersFor, pick } from '../../extensions/deck/order.mjs';
+import { moveBlock, nudge, ordersFor, pick, aimGrid } from '../../extensions/deck/order.mjs';
 
 const ids = ['a', 'b', 'c', 'd', 'e', 'f'];
 const tens = list => list.map((id, i) => ({ id, order: (i + 1) * 10 }));
@@ -72,4 +72,22 @@ test('a click picks one, Ctrl toggles, Shift runs from the anchor, and the last 
   assert.deepEqual(pick(ids, ['b'], 'b', 'e', { shift: true }), { selected: ['b', 'c', 'd', 'e'], anchor: 'b', current: 'e' });
   assert.deepEqual(pick(ids, ['e'], 'e', 'b', { shift: true }), { selected: ['b', 'c', 'd', 'e'], anchor: 'e', current: 'b' });
   assert.deepEqual(pick(ids, ['a'], 'a', 'a', { ctrl: true }), { selected: ['a'], anchor: 'a', current: 'a' });
+});
+
+test('a drop in a grid aims at the nearest row, also in the gap between two rows', () => {
+  // Three rows of three 100 x 100 cards, 18 apart.
+  const boxes = [];
+  for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++)
+    boxes.push({ id: `r${row}c${col}`, left: col * 118, top: row * 118, width: 100, bottom: row * 118 + 100 });
+  assert.equal(aimGrid(boxes, 10, 50), 'r0c0');
+  assert.equal(aimGrid(boxes, 140, 160), 'r1c1');
+  // Past the last card of a row: before the first card of the next row.
+  assert.equal(aimGrid(boxes, 330, 50), 'r1c0');
+  // In the gap, outside any margin: the nearer row, never the last.
+  assert.equal(aimGrid(boxes, 140, 109), 'r0c1');
+  assert.equal(aimGrid(boxes, 140, 110), 'r1c1');
+  // Above the first row and below the last.
+  assert.equal(aimGrid(boxes, 10, -40), 'r0c0');
+  assert.equal(aimGrid(boxes, 330, 400), null);
+  assert.equal(aimGrid([], 0, 0), null);
 });

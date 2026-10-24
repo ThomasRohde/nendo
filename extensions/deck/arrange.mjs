@@ -3,7 +3,7 @@
 // edge, and the drop moves them as one block. Ctrl held at the drop copies them instead; Escape
 // puts them back. The same drag runs down the slide list and across the sorter's grid.
 
-import { moveBlock } from './order.mjs';
+import { moveBlock, aimGrid as aimBoxes } from './order.mjs';
 
 const EDGE = 40, SPEED = 16, THRESHOLD = 5;
 const reduced = () => matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -120,20 +120,7 @@ export function createSlideDrag({ list, item = '[data-id]', grid = false, ids, l
     return null;
   }
   function aimGrid(els) {
-    // Rows by their top; the row under the pointer, or the nearest one above or below.
-    const rows = [];
-    for (const el of els) {
-      const r = el.getBoundingClientRect();
-      const row = rows.find(x => Math.abs(x.top - r.top) < 4);
-      if (row) { row.els.push({ el, r }); row.bottom = Math.max(row.bottom, r.bottom); } else rows.push({ top: r.top, bottom: r.bottom, els: [{ el, r }] });
-    }
-    if (!rows.length) return null;
-    let row = rows.find(x => drag.y >= x.top - 8 && drag.y <= x.bottom + 8);
-    if (!row) row = drag.y < rows[0].top ? rows[0] : rows.at(-1);
-    const hit = row.els.find(({ r }) => drag.x < r.left + r.width / 2);
-    if (hit) return hit.el.dataset.id;
-    const next = rows[rows.indexOf(row) + 1];
-    return next ? next.els[0].el.dataset.id : null;
+    return aimBoxes(els.map(el => { const r = el.getBoundingClientRect(); return { id: el.dataset.id, left: r.left, top: r.top, width: r.width, bottom: r.bottom }; }), drag.x, drag.y);
   }
   const gapY = els => els.length > 1 ? Math.max(2, els[1].getBoundingClientRect().top - els[0].getBoundingClientRect().bottom) : 8;
   const gapX = els => {

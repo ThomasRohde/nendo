@@ -87,6 +87,26 @@ function risingRun(orders) {
 }
 
 /** The ids a click picks: one, a Ctrl click's toggle, or a Shift click's run from the anchor. */
+/**
+ * The card a drop at (x, y) in a grid of cards lands before, or null for the end. The pointer's row is
+ * the nearest one, so a pointer in the gap between two rows aims at one of those two. Boxes are in
+ * reading order: { id, left, top, width, bottom }.
+ */
+export function aimGrid(boxes, x, y) {
+  const rows = [];
+  for (const b of boxes) {
+    const row = rows.find(r => Math.abs(r.top - b.top) < 4);
+    if (row) { row.boxes.push(b); row.bottom = Math.max(row.bottom, b.bottom); } else rows.push({ top: b.top, bottom: b.bottom, boxes: [b] });
+  }
+  if (!rows.length) return null;
+  const away = r => y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+  const row = rows.reduce((near, r) => away(r) < away(near) ? r : near);
+  const hit = row.boxes.find(b => x < b.left + b.width / 2);
+  if (hit) return hit.id;
+  const next = rows[rows.indexOf(row) + 1];
+  return next ? next.boxes[0].id : null;
+}
+
 export function pick(ids, selected, anchor, id, { ctrl = false, shift = false } = {}) {
   if (shift && anchor !== null && ids.includes(anchor)) {
     const [a, b] = [ids.indexOf(anchor), ids.indexOf(id)].sort((x, y) => x - y);
