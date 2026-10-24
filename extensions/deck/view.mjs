@@ -356,7 +356,7 @@ function drawSlidePane(slide) {
   $('l-body2').textContent = slide.layout === 'Chart' ? 'Takeaway' : 'Right';
   for (const input of pane.querySelectorAll('[data-field]')) if (document.activeElement !== input) input.value = slide[input.dataset.field] ?? '';
   $('f-hidden').checked = slide.hidden;
-  segmented($('f-chart'), CHARTS.map(c => [c, c]), slide.chart, value => edit({ chart: value }));
+  segmented($('f-chart'), CHARTS.map(c => [c, c]), slide.chart, value => typed({ chart: value }));
   $('clear-image').hidden = !slide.image;
   $('pick-image').textContent = slide.image ? 'Change picture…' : 'Choose picture…';
 }
@@ -557,6 +557,12 @@ function edit(changes, { now = false } = {}) {
   keepDrafts();
   redrawSoon();
   if (now) save.flush(); else save();
+}
+/** Typing in the inspector is a new change: it ends what Ctrl Y could put back. */
+function typed(changes, options) {
+  deck.steps.redo = [];
+  editor?.forgetRedo();
+  edit(changes, options);
 }
 const redrawSoon = debounce(() => { drawStage({ ifChanged: true }); drawSorter(); drawGrid(); declareToolbar(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
 function drawSlidePaneQuiet() { const s = currentSlide(); if (s) { $('layout-hint').textContent = layoutOf(s.layout).hint; } }
@@ -1796,15 +1802,15 @@ function wire() {
   for (const tab of ['slide', 'design', 'asks']) $(`tab-${tab}`).addEventListener('click', () => { deck.tab = tab; drawInspector(); });
   $('layouts').addEventListener('click', e => { const b = e.target.closest('[data-layout]'); if (b) setLayout(b.dataset.layout); });
   for (const input of document.querySelectorAll('#pane-slide [data-field]')) {
-    input.addEventListener('input', () => { if (!drawingInspector) edit({ [input.dataset.field]: input.value }); });
+    input.addEventListener('input', () => { if (!drawingInspector) typed({ [input.dataset.field]: input.value }); });
     input.addEventListener('blur', () => save.flush());
   }
-  $('notes').addEventListener('input', () => edit({ notes: $('notes').value }));
+  $('notes').addEventListener('input', () => typed({ notes: $('notes').value }));
   $('notes').addEventListener('blur', () => save.flush());
   $('f-hidden').addEventListener('change', () => setHidden($('f-hidden').checked));
   $('pick-image').addEventListener('click', () => $('image-file').click());
   $('image-file').addEventListener('change', () => { const f = $('image-file').files[0]; $('image-file').value = ''; if (f) putPicture(f); });
-  $('clear-image').addEventListener('click', () => edit({ image: '' }, { now: true }));
+  $('clear-image').addEventListener('click', () => typed({ image: '' }, { now: true }));
   $('templates').addEventListener('click', e => { const b = e.target.closest('[data-template]'); if (b && b.dataset.template) editDeck({ template: b.dataset.template }); });
   $('brands').addEventListener('click', e => {
     const open = e.target.closest('[data-open]');

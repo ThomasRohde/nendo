@@ -1001,6 +1001,21 @@ async page => {
   assert(p.current === start[10], `After a delete the slide after the deleted ones must be current: ${start.indexOf(p.current)}.`);
   await page.keyboard.press('Control+z');
   await onScreenAndInFile(start, 'Ctrl Z must bring both deleted slides back where they stood');
+  // Words typed in the inspector after that end the redo: Ctrl Y must not delete the slides again.
+  const typedIn = (await picked()).current;
+  const oldTitle = await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, typedIn);
+  await frame.fill('#f-title', 'Typed after the undo');
+  await frame.evaluate(() => document.activeElement.blur());
+  await until(id => !window.deck.pending.has(id), typedIn, 5000);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+y');
+  await settle(500);
+  assert((await frame.evaluate(id => window.deck.slides.find(s => s.id === id)?.title ?? null, typedIn)) === 'Typed after the undo' && (await order()).length === n,
+    `Ctrl Y after new typing must not put back the delete: ${JSON.stringify({ slides: (await order()).length, batch: (await lastBatch()).label })}.`);
+  await thumb(start.indexOf(typedIn)).click();
+  await frame.fill('#f-title', oldTitle);
+  await frame.evaluate(() => document.activeElement.blur());
+  await until(id => !window.deck.pending.has(id), typedIn, 5000);
   checks.push('copy by drag, delete');
 
   // The slides' menu: a right click on a picked slide keeps the pick, and Hide hides both in one step.
