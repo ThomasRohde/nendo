@@ -956,6 +956,25 @@ async page => {
   await onScreenAndInFile([...start.slice(0, 7), ...pasted, ...start.slice(7)], 'Two Ctrl Z must take back the second paste and the cut, and the cut slides come back under their own IDs');
   await page.keyboard.press('Control+z');
   await onScreenAndInFile(start, 'A third Ctrl Z must take back the first paste');
+  // A paste reads at most 100 slides, so cut and copy refuse a bigger pick before anything is deleted.
+  assert(n * 8 > 100, `The example needs more than 12 slides for the cut limit check: ${n}.`);
+  await thumb(0).click();
+  for (const size of [n * 2, n * 4, n * 8]) {
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Control+d');
+    await until(size => window.deck.slides.length === size, size, 10000).catch(() => { throw Error(`Ctrl A and Ctrl D must grow the deck to ${size} slides.`); });
+  }
+  const before = (await requests('records.batch')).length;
+  await frame.evaluate(() => { window.__cut = ''; document.addEventListener('cut', e => { window.__cut = e.clipboardData.getData('application/x-nendo-deck-slides'); }); });
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+x');
+  await settle(400);
+  const refused = await frame.evaluate(() => ({ slides: window.deck.slides.length, copied: window.__cut, toast: document.getElementById('toast').textContent }));
+  assert(refused.slides === n * 8 && (await requests('records.batch')).length === before && !refused.copied && /up to 100 slides/.test(refused.toast),
+    `Ctrl X on more than 100 slides must delete nothing, copy nothing and say why: ${JSON.stringify({ ...refused, batches: (await requests('records.batch')).length - before })}.`);
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Three Ctrl Z must take back the three duplicates');
+  await thumb(0).click();
   checks.push('cut, copy, paste');
 
   // Ctrl held at the drop copies the slide there; Delete takes a pick out in one step, and Ctrl Z

@@ -1032,19 +1032,24 @@ async function setLayout(layout) {
 // copy too, for Paste from a menu, where the browser does not hand a view the clipboard.
 
 const SLIDES_TYPE = 'application/x-nendo-deck-slides';
+// A paste reads at most this many slides, so cut and copy refuse a bigger pick before deleting any.
+const CLIPBOARD_MOST = 100;
 const outline = slides => slides.map(s => [s.kicker, s.title, s.body, s.body2].filter(Boolean).join('\n')).join('\n\n');
 /** The slide list or the sorter has the keys, and no field or box of words. */
 const slidesFocused = () => !!document.activeElement?.closest?.('#slides, #grid') && !editor?.active();
 
 function copySlides() {
   const picked = selectedSlides();
+  if (picked.length > CLIPBOARD_MOST) { toast(`Cut and copy take up to ${CLIPBOARD_MOST} slides at a time, and ${picked.length} are picked. Pick fewer slides.`); return null; }
   const payload = { format: 'nendo.deck-slides', version: 1, slides: picked.map(copyOf) };
   const text = outline(picked) || picked.map(s => s.layout).join('\n');
   deck.clipboard = { payload, text };
   return { payload, text, count: picked.length };
 }
 function putOnClipboard(data) {
-  const { payload, text, count } = copySlides();
+  const copied = copySlides();
+  if (!copied) return 0;
+  const { payload, text, count } = copied;
   data.setData('text/plain', text);
   data.setData(SLIDES_TYPE, JSON.stringify(payload));
   return count;
@@ -1052,7 +1057,7 @@ function putOnClipboard(data) {
 /** Slides from Deck's own clipboard type, kept to what a slide can hold. */
 function readSlides(payload) {
   if (payload?.format !== 'nendo.deck-slides' || !Array.isArray(payload.slides)) return [];
-  return payload.slides.slice(0, 100).filter(x => x && typeof x === 'object').map(x => {
+  return payload.slides.slice(0, CLIPBOARD_MOST).filter(x => x && typeof x === 'object').map(x => {
     const s = {};
     for (const k of EDITABLE) {
       const value = x[k];
@@ -1086,7 +1091,9 @@ async function clipboardCommand(action) {
     toast('Press Ctrl+V to paste slides here.');
     return;
   }
-  const { text, count } = copySlides();
+  const copied = copySlides();
+  if (!copied) return;
+  const { text, count } = copied;
   try { await navigator.clipboard.writeText(text); } catch { /* Deck's own copy still pastes here */ }
   if (action === 'cut') return deleteSlides('Cut');
   toast(`Copied ${slidesWord(count)}.`);
@@ -1717,10 +1724,10 @@ function wire() {
   list.addEventListener('dblclick', e => { const li = e.target.closest('li[data-id]'); if (li) present(true); });
   grid.addEventListener('dblclick', e => { const li = e.target.closest('li[data-id]'); if (li) openFromSorter(li.dataset.id); });
   // Copy, cut and paste while the slide list or the sorter has the keys.
-  document.addEventListener('copy', e => { if (!slidesFocused() || !deck.slides.length) return; e.preventDefault(); const n = putOnClipboard(e.clipboardData); announce(`Copied ${slidesWord(n)}.`); });
+  document.addEventListener('copy', e => { if (!slidesFocused() || !deck.slides.length) return; e.preventDefault(); const n = putOnClipboard(e.clipboardData); if (n) announce(`Copied ${slidesWord(n)}.`); });
   document.addEventListener('cut', e => {
     if (!slidesFocused() || !deck.slides.length || nendo.context?.readOnly) return;
-    e.preventDefault(); putOnClipboard(e.clipboardData); deleteSlides('Cut');
+    e.preventDefault(); if (putOnClipboard(e.clipboardData)) deleteSlides('Cut');
   });
   document.addEventListener('paste', e => {
     if (!slidesFocused() || nendo.context?.readOnly) return;

@@ -14,7 +14,7 @@ The keys move them too: `Ctrl` `↑` and `Ctrl` `↓` one place, `Ctrl` `Shift` 
 
 ## Cut, copy and paste
 
-`Ctrl` `X`, `Ctrl` `C` and `Ctrl` `V` in the slide list cut, copy and paste the selected slides. They paste after the selected slides, into this deck or another deck, also in another Deck file. A picture stays behind when it belongs to another file. Copied slides also paste as text in other programs: the kicker, title and body of each.
+`Ctrl` `X`, `Ctrl` `C` and `Ctrl` `V` in the slide list cut, copy and paste the selected slides. They paste after the selected slides, into this deck or another deck, also in another Deck file. A picture stays behind when it belongs to another file. Copied slides also paste as text in other programs: the kicker, title and body of each. Cut and copy take up to 100 slides at a time.
 
 ## The slide sorter
 

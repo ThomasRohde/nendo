@@ -84,7 +84,8 @@ and writes only the others, into the gaps between, ten apart where they fit, so 
 writes one order; only a gap too narrow numbers every slide again. Copy puts the picked slides on
 the clipboard as Deck's own type (`application/x-nendo-deck-slides`, format `nendo.deck-slides`
 version 1, every slide field by its model name) and their words as plain text; a paste in any deck,
-in this file or another, makes them after the pick. A picture another file holds is not this file's
+in this file or another, makes them after the pick. A paste reads at most 100 slides, so cut and
+copy refuse a bigger pick and say so before anything is deleted. A picture another file holds is not this file's
 to point at: when the file refuses one, the slides are pasted without their pictures, and the view
 says so. A menu's Copy and Paste reach the clipboard where the browser allows it, and Deck's own
 last copy where not. The slides' menu is Nendo's (`nendo.ui.showMenu`), and the view's own where the
