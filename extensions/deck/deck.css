@@ -63,6 +63,36 @@ body.has-own-toolbar #app { height: calc(100vh - 45px); }
 .stage .scaled { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .stage [data-role="title"], .stage [data-role="kicker"], .stage [data-role="body"], .stage [data-role="body2"] { cursor: text; }
 .stage [data-role]:not([data-role=""]):hover { outline: 1px dashed rgba(127, 127, 127, .6); outline-offset: 4px; }
+.stage .dk-t[data-field] { cursor: text; }
+/* The box being edited: the browser's caret and selection in it, a border as PowerPoint draws one,
+   and spaces kept as typed, so the caret moves over each one. Bullets are drawn, never typed. */
+.stage .dk-t.editing { outline: 2px dashed var(--accent); outline-offset: 6px; white-space: pre-wrap; caret-color: currentColor; }
+.stage .dk-t.editing:focus { outline-style: solid; }
+.stage .dk-t.editing:focus-visible { outline-offset: 6px; }
+.stage .dk-b { user-select: none; }
+
+/* The text menu: a mini toolbar over a menu, in the panel of Nendo's own menus. */
+.tx-popup { position: fixed; inset: auto; z-index: 50; }
+.tx-popup > .tx-bar, .tx-popup > .tx-menu { position: relative; }
+.tx-popup, .tx-sub { left: 0; top: 0; }
+.tx-bar { display: flex; align-items: center; gap: 2px; margin-bottom: 4px; padding: 4px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--raised); box-shadow: var(--shadow); }
+.tx-bar button { min-width: 28px; height: 28px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); cursor: pointer; font-size: 13px; }
+.tx-bar button:hover { background: var(--soft); }
+.tx-bar button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
+.tx-bar button:disabled { opacity: .4; cursor: default; }
+.tx-bar .tx-b { font-weight: 700; } .tx-bar .tx-i { font-style: italic; font-family: Georgia, serif; } .tx-bar .tx-u { text-decoration: underline; }
+.tx-bar .tx-size { width: 58px; height: 28px; margin: 0 2px 0 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel); }
+.tx-menu { min-width: 236px; max-height: calc(100vh - 70px); overflow-y: auto; padding: 4px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--raised); box-shadow: var(--shadow); }
+.tx-sub { position: fixed; min-width: 200px; z-index: 51; }
+.tx-menu > button { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; width: 100%; padding: 5px 10px 5px 6px; border: 0; border-radius: 5px; background: transparent; color: var(--ink); text-align: left; cursor: default; }
+.tx-menu > button:hover, .tx-menu > button:focus { background: var(--soft); outline: none; }
+.tx-menu > button:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.tx-menu > button[aria-disabled="true"] { color: var(--muted); opacity: .55; }
+.tx-menu > button[aria-expanded="true"] { background: var(--soft); }
+.tx-mark { color: var(--accent); text-align: center; font-weight: 700; }
+.tx-keys { color: var(--muted); font-size: 12px; white-space: pre; }
+.tx-sep { height: 1px; margin: 4px 6px; background: var(--line); }
+.tx-label { padding: 4px 10px 4px 32px; color: var(--muted); font-size: 12px; }
 .stage.drop { box-shadow: 0 0 0 3px var(--accent); }
 .fit-warning { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); margin: 0; padding: 2px 10px; border-radius: 10px; background: var(--soft); color: var(--warning); font-size: 12px; white-space: nowrap; }
 .lower { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 4px 24px 8px; }

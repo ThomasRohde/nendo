@@ -161,6 +161,7 @@ export const STAGES = {
         text(E.slide, F.slide.imageAlt, 'Picture text'),
         choice(E.slide, F.slide.chart, 'Chart', CHARTS),
         boolean(E.slide, F.slide.hidden, 'Hidden', true),
+        long(E.slide, F.slide.format, 'Text format'),
       ] },
       { description: 'Create Asks and Variants', operations: [
         op('schema.createEntity', { entityId: E.ask, displayName: 'Asks' }),
@@ -275,6 +276,13 @@ export const STAGES = {
     mutations: () => chunk(seedRecords().map(r => op('data.setKeptInNewFiles', { entityId: r.entityId, recordId: r.recordId, kept: true })), 'Keep the seeds in a new file'),
   },
 
+  format: {
+    title: 'Deck: a text format on each slide, for the size and alignment set on the stage',
+    needs: ENTITIES,
+    appliedWhen: async read => (await read.schema(E.slide)).fields.some(f => f.fieldId === F.slide.format),
+    mutations: () => [{ description: 'Give Slides a text format', operations: [long(E.slide, F.slide.format, 'Text format')] }],
+  },
+
   search: {
     title: 'Deck: build the search index, so Find reads every slide',
     needs: ENTITIES,
@@ -292,7 +300,7 @@ const TONES = [
   [E.brand, F.brand.source, [['Brandkits', 'orange'], ['By hand', 'grey']]],
 ];
 
-export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search'];
+export const STAGE_ORDER = ['schema', 'colour', 'screens', 'view', 'skill', 'seed', 'keep', 'search', 'format'];
 
 /** Whether the file can be searched: the search read answers, rather than refusing for want of an index. */
 export async function hasSearchIndex(read) {

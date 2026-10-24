@@ -11,7 +11,7 @@ package up to this folder with `upgrade`; `tools/Review-Deck.ps1` is its lane.
 | Record type | What it holds |
 | --- | --- |
 | Decks (`dk.deck`) | Title, subtitle, author, date, audience, goal, shape (16:9 or 4:3), template, brand kit, footer, slide numbers, status |
-| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, chart kind, hidden |
+| Slides (`dk.slide`) | Deck, order, layout, title, kicker, body and body 2 (Markdown), speaker notes, picture (a media field), picture text, chart kind, hidden, text format (JSON) |
 | Templates (`dk.template`) | A family's shapes with its own fonts and seven colours; six are seeds |
 | Brand kits (`dk.brand`) | Seven colour roles, three fonts, logo and logo on dark (media fields), voice, tagline, the imported tokens |
 | Asks (`dk.ask`) | One request to the person's agent: scope, request, selection, status, progress, reply |
@@ -42,6 +42,29 @@ replace the template's; a dark template keeps its dark stage and takes the kit's
 Every role is then checked against what it sits on and moved until it reads: text 7:1 on the
 background, muted text 4.5:1, a colour used as text 3:1, text on the primary 4.5:1.
 `tools/deck/themes.test.mjs` holds every template to that with kits made to break it.
+
+## Words edited on the stage
+
+Every text box the layout draws from a field says where its words come from (`data-field`,
+`data-dialect`, `data-key`, and the paragraphs or the place in the body it covers), so the stage
+edits them where they stand, as PowerPoint does. `stage-editor.mjs` makes the box under the pointer
+`contenteditable`, so the browser draws the caret and the selection, and takes every change itself:
+each `beforeinput` is prevented and applied to the box's paragraphs (`textedit.mjs`, pure), the
+paragraphs are written back to the field as Markdown, and the slide is drawn again with the caret
+where it was. An input method's text is settled when it ends. A title takes marks and one line per
+paragraph; a kicker, a big number and a timeline's "when" take plain words; a cell of a `- a | b`
+row or a Markdown table is edited on its own and the rest of its line stays as it was.
+
+The Markdown the stage writes reads back as the same words: `**bold**`, `_italic_`, `<u>underline</u>`,
+a backslash before a mark character typed as itself, `<br>` for an empty paragraph, and a lone `-`
+or `1.` for an empty item. Undo and redo are the stage's own, per slide, with typing in one place as
+one step; Nendo's Undo still takes back a slide's add, move and delete. Copy writes plain text and
+HTML; paste reads HTML from Word, PowerPoint, Google Docs and the web for its marks and lists.
+
+The text menu is the view's own, not `nendo.ui.showMenu`, which has no submenus or toolbar. The
+slide's text format field (`dk.slide.format`) keeps a size and an alignment for each box by its
+key, such as `{"title":{"size":1.25},"body.0":{"align":"center"}}`; the size scales the layout's own,
+so a box still shrinks to fit, and the PowerPoint export carries both. A variant never sets it.
 
 ## Brand kits
 
@@ -86,5 +109,8 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
   package's storage on the device with the version it was typed over (`drafts.mjs`). When the view
   starts again it saves what meets that version, and holds what meets a newer one under a notice:
   Put mine back writes it over the change, Discard mine drops it.
+- `Ctrl` `B` is Nendo's own key and never reaches the view, so Bold is in the text menu and its
+  toolbar but has no key inside Nendo. Font, colour and highlight are the template's and the brand
+  kit's, not a box's own; the text menu sets bold, italic, underline, size, alignment and lists.
 - A Markdown link keeps its address, on the stage and in both exports, only for `http:`, `https:`
   and `mailto:`; any other link is shown as its words alone, so nothing in a slide runs in the view's frame.

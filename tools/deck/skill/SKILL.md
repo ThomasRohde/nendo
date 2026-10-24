@@ -42,7 +42,7 @@ array of `{fieldId, op, value}`; put `cursor` before `limit`. A deck's slides:
 | Record type (entityId) | What it is | Fields (fieldId) |
 | --- | --- | --- |
 | Deck (`dk.deck`) | One talk | `dk.deck.title`, `.subtitle`, `.author`, `.date`, `.audience`, `.goal`, `.aspect` (16:9, 4:3), `.template`, `.brand`, `.footer`, `.numbers`, `.status` (Draft, Ready, Presented) |
-| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.chart` (Column, Bar, Line, Doughnut), `.hidden` |
+| Slide (`dk.slide`) | One slide of a deck | `dk.slide.deck`, `.order` (whole number; slides sort by it), `.layout`, `.title`, `.kicker`, `.body`, `.body2`, `.notes`, `.image`, `.imageAlt`, `.chart` (Column, Bar, Line, Doughnut), `.hidden`, `.format` (the person's; never write it) |
 | Template (`dk.template`) | A look: fonts and seven colours | Read only for you |
 | Brand kit (`dk.brand`) | Colours, fonts, logo and voice from Brandkits | Read `dk.brand.voice` and `.tagline`; do not write |
 | Ask (`dk.ask`) | A request from the view | `dk.ask.deck`, `.scope` (Whole deck, Selection, Mission), `.request`, `.selection`, `.status`, `.progress`, `.reply`, `.made` |
@@ -54,7 +54,10 @@ Never write `dk.template`, `dk.brand`, `dk.slide.image` or the record types them
 
 Pick the layout that fits the point. Each one reads only some fields; the rest are ignored. The body
 is a small Markdown: `- ` bullets (two spaces before the dash for a second level), `1. ` numbers,
-`### ` a heading, `**bold**`, `*italic*`, `` `code` ``. A bar `|` splits a line into parts.
+`### ` a heading, `**bold**`, `*italic*`, `<u>underline</u>`, `` `code` ``. A bar `|` splits a line
+into parts. A backslash keeps a mark character as itself (`\*`). The person's own editing may leave
+`<br>` (an empty line) or a lone `-` (an empty bullet); keep them unless the slide's words change.
+`.format` is the person's sizes and alignments for the slide's text boxes: never write it.
 
 | Layout | Reads | The body |
 | --- | --- | --- |
