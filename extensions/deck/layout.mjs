@@ -10,10 +10,11 @@
 //   arc             {cx, cy, r, inner, start, end, fill}   degrees, 0 at the top, clockwise
 //   image           {x, y, w, h, src, fit: cover|contain, align, radius, alt}
 //   text            {x, y, w, h, font, size, weight, italic, color, align, valign, lineHeight,
-//                    tracking, caps, paragraphs: [{runs, bullet, number, level, heading}], role}
+//                    tracking, caps, paragraphs: [{runs, bullet, number, level, heading}], role,
+//                    key, and while editing `edit`: where its words are in the slide (below)}
 // A fill is a colour or {type: linear|radial, angle, stops: [{at, color, alpha}]}.
 
-import { paragraphs, rows, table, chartData, formatNumber, signedScale, inline, plainText } from './model.mjs';
+import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat } from './model.mjs';
 import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast } from './themes.mjs';
 
 /** A measurer for node and for tests: close to Segoe UI's widths, and the same on every machine. */
@@ -81,14 +82,53 @@ export function fit(p, measure, min = 14) {
   return h;
 }
 
-/** A text primitive from plain text or from parsed paragraphs. */
-function text(spec) {
-  const paragraphs = spec.paragraphs ?? String(spec.text ?? '').split('\n').map(line => ({ runs: spec.markdown === false ? [{ text: line }] : inline(line), level: 0 }));
-  return { type: 'text', ...DEFAULTS, ...spec, paragraphs, text: undefined };
-}
+// The slide being laid out: its text format, and whether the stage is editing it. Set by layoutSlide
+// for the length of one synchronous call, so text() need not be handed them by every layout.
+let format = {}, editing = null;
 
-/** Lays out one slide. ctx: {measure, number, total, editing, deck} */
+/**
+ * A text primitive from plain text or from parsed paragraphs. `src` says where its words are in
+ * the slide, {field, dialect, key, first | from, to}: the stage edits them in place, and `key`
+ * names the box in the slide's text format, whose size scales the layout's and whose alignment
+ * replaces it.
+ */
+function text(spec) {
+  const { src, ...rest } = spec;
+  const paragraphs = rest.paragraphs ?? String(rest.text ?? '').split('\n').map(line => ({ runs: rest.markdown === false ? [{ text: line }] : inline(line), level: 0 }));
+  const p = { type: 'text', ...DEFAULTS, ...rest, paragraphs, text: undefined };
+  if (!src) return p;
+  const style = format[src.key];
+  p.key = src.key;
+  if (style?.size) p.size = Math.max(6, p.size * style.size);
+  if (style?.align) p.align = style.align;
+  if (editing) p.edit = { ...src, base: rest.size };
+  return p;
+}
+/** Where a whole field's words are: a title's lines, a kicker's plain words, or a body's paragraphs from `first`. */
+const whole = (field, dialect, key = field, first = 0, single = false) => ({ field, dialect, key, first, single });
+/** Where one cell of a row or a table is in the body. */
+const cell = (at, key, plain = false) => at ? { field: 'body', dialect: plain ? 'cellPlain' : 'cell', key, from: at.from, to: at.to } : null;
+/** Whether the stage is editing this cell, which keeps its box while it is empty. */
+const keeps = at => !!at && editing?.field === 'body' && editing.from === at.from;
+/**
+ * Boxes drawn side by side take the smallest size among them, so they read alike; a box the
+ * person sized in the slide's format keeps its own.
+ */
+function alike(boxes) {
+  const free = boxes.filter(p => !format[p.key]?.size);
+  const size = Math.min(...free.map(p => p.size));
+  free.forEach(p => { p.size = size; });
+}
+/** Whether a field has words, or is the one the stage is editing, which keeps its box while it is empty. */
+const shows = (g, field, value = g.slide[field]) => !!value || (editing?.field === field && editing.from === undefined);
+
+/** Lays out one slide. ctx: {measure, number, total, editing, keep}; keep names the field the stage edits, {field, from}. */
 export function layoutSlide(slide, theme, ctx = {}) {
+  format = parseFormat(slide.format);
+  editing = ctx.editing ? ctx.keep ?? {} : null;
+  try { return layoutWith(slide, theme, ctx); } finally { format = {}; editing = null; }
+}
+function layoutWith(slide, theme, ctx) {
   const measure = ctx.measure ?? approxMeasure;
   const { W, H } = sizeOf(theme.aspect);
   const c = theme.colors, s = theme.style;
@@ -176,31 +216,36 @@ function chrome(g, feature, kind) {
 
 /** The kicker above a title, in the template's manner. Answers its bottom edge. */
 function kicker(g, value, x, y, w, opts = {}) {
-  if (!value) return y;
+  if (!shows(g, 'kicker', value)) return y;
   const { s, measure } = g;
   const color = opts.color ?? g.bg.accent;
+  const src = whole('kicker', 'plain');
   if (s.kicker === 'pill' && !opts.plain) {
-    const p = text({ x: x + 14, y: y + 5, w: w - 28, h: 20, size: 14, weight: 600, font: g.fonts.body, color: opts.onFeature ? g.bg.ink : g.c.primaryText, text: value, markdown: false, role: 'kicker' });
-    const tw = Math.min(w - 28, measure(value, { size: 14, weight: 600, font: g.fonts.body }) + 4);
-    p.w = tw + 8;
-    g.items.push({ type: 'rect', x, y, w: tw + 36, h: 30, radius: 15, fill: opts.onFeature ? '#FFFFFF' : g.c.primary, alpha: opts.onFeature ? 0.2 : 0.12 });
+    const p = text({ x: x + 14, y: y + 5, w: w - 28, h: 20, size: 14, weight: 600, font: g.fonts.body, color: opts.onFeature ? g.bg.ink : g.c.primaryText, text: value, markdown: false, role: 'kicker', src });
+    const k = p.size / 14;
+    p.h = 20 * k;
+    const tw = Math.min(w - 28 * k, Math.max(measure(value, { size: p.size, weight: 600, font: g.fonts.body }), editing ? p.size : 0) + 4 * k);
+    p.w = tw + 8 * k;
+    g.items.push({ type: 'rect', x, y, w: tw + 36 * k, h: 30 * k, radius: 15 * k, fill: opts.onFeature ? '#FFFFFF' : g.c.primary, alpha: opts.onFeature ? 0.2 : 0.12 });
+    p.x = x + 14 * k; p.y = y + 5 * k;
     g.items.push(p);
-    return y + 30;
+    return y + 30 * k;
   }
   const spec = s.kicker === 'italic' ? { size: 20, italic: true, font: g.fonts.heading, weight: 400 }
     : s.kicker === 'mono' ? { size: 14, font: g.fonts.mono, weight: 400, tracking: 0.04 }
       : { size: 14, weight: 700, tracking: 0.14, caps: true, font: g.fonts.body };
-  const p = text({ x, y, w, h: spec.size * 1.4, color, text: value, markdown: false, role: 'kicker', ...spec, ...(opts.spec ?? {}) });
+  const p = text({ x, y, w, h: spec.size * 1.4, color, text: value, markdown: false, role: 'kicker', ...spec, ...(opts.spec ?? {}), src });
+  p.h = p.size * 1.4;
   fit(p, measure, 11);
   g.items.push(p);
-  return y + spec.size * 1.4;
+  return y + p.h;
 }
 
 function title(g, value, x, y, w, h, opts = {}) {
   const { s, measure } = g;
   const p = text({ x, y, w, h, size: opts.size ?? 44, weight: opts.weight ?? s.titleWeight, font: g.fonts.heading, color: opts.color ?? g.bg.ink,
     lineHeight: opts.lineHeight ?? 1.08, tracking: s.titleTracking, text: value || (g.ctx.editing ? 'Title' : ''), markdown: true, role: 'title',
-    align: opts.align ?? 'left', valign: opts.valign ?? 'top', ghost: !value && g.ctx.editing });
+    align: opts.align ?? 'left', valign: opts.valign ?? 'top', ghost: !value && g.ctx.editing, src: whole('title', 'lines') });
   const used = fit(p, measure, opts.min ?? 26);
   g.items.push(p);
   return used;
@@ -219,7 +264,7 @@ function header(g, opts = {}) {
   if (fam === 'minimal') g.items.push({ type: 'line', x1: x, y1: 36, x2: x + (opts.w ?? W - 2 * X), y2: 36, stroke: c.line, width: 1 });
   if (fam === 'swiss') y = 60;
   const ky = kicker(g, slide.kicker, x, y, w);
-  const ty = slide.kicker ? ky + 8 : y;
+  const ty = ky > y ? ky + 8 : y;
   const used = title(g, slide.title, x, ty, w, opts.titleH ?? 108, { size: opts.titleSize ?? (fam === 'swiss' ? 46 : 42), min: 24 });
   let bottom = ty + Math.max(used, 46);
   if (fam === 'editorial') g.items.push({ type: 'line', x1: x, y1: bottom + 18, x2: x + (opts.w ?? W - 2 * X), y2: bottom + 18, stroke: c.ink, width: 1.25 });
@@ -230,7 +275,8 @@ function header(g, opts = {}) {
 function body(g, value, x, y, w, h, opts = {}) {
   const paras = paragraphs(value).map(p => ({ ...p, bullet: p.bullet ?? (opts.bullets ? 'bullet' : null) }));
   const p = text({ x, y, w, h, size: opts.size ?? bodySize(paras), font: g.fonts.body, color: opts.color ?? g.bg.ink, lineHeight: 1.3, paragraphs: paras.length ? paras : [{ runs: [{ text: g.ctx.editing ? 'Text' : '' }], level: 0 }],
-    bulletChar: g.s.bullet, bulletColor: opts.bulletColor ?? g.bg.accent, role: opts.role ?? 'body', valign: opts.valign ?? 'top', align: opts.align ?? 'left', ghost: !paras.length && g.ctx.editing });
+    bulletChar: g.s.bullet, bulletColor: opts.bulletColor ?? g.bg.accent, role: opts.role ?? 'body', valign: opts.valign ?? 'top', align: opts.align ?? 'left', ghost: !paras.length && g.ctx.editing,
+    src: whole(opts.role ?? 'body', 'blocks') });
   fit(p, g.measure, opts.min ?? 15);
   g.items.push(p);
   return p;
@@ -277,7 +323,7 @@ const LAYOUT_FUNCTIONS = {
       g.items.push({ type: 'rect', x: X, y: 96, w: 96, h: 96, fill: c.primary });
       kicker(g, slide.kicker, X, H - 318, w);
       title(g, slide.title, X, H - 284, w, 196, { size: 76, min: 40, lineHeight: 1.0 });
-      if (slide.body) body(g, slide.body, X, H - 82, w, 40, { size: 18, color: g.bg.muted, min: 13 });
+      if (shows(g, 'body')) body(g, slide.body, X, H - 82, w, 40, { size: 18, color: g.bg.muted, min: 13 });
       return;
     }
     if (fam === 'editorial') {
@@ -285,7 +331,7 @@ const LAYOUT_FUNCTIONS = {
       g.items.push({ type: 'line', x1: X, y1: 70, x2: W - X, y2: 70, stroke: c.ink, width: 0.75 });
       kicker(g, slide.kicker, X, 196, W - 2 * X, { spec: { align: 'center' } });
       title(g, slide.title, X + 60, 240, W - 2 * X - 120, 230, { size: 68, min: 36, align: 'center', lineHeight: 1.05 });
-      if (slide.body) body(g, slide.body, X, H - 150, W - 2 * X, 60, { size: 20, color: g.bg.muted, align: 'center', min: 13 });
+      if (shows(g, 'body')) body(g, slide.body, X, H - 150, W - 2 * X, 60, { size: 20, color: g.bg.muted, align: 'center', min: 13 });
       g.items.push({ type: 'line', x1: W / 2 - 40, y1: H - 176, x2: W / 2 + 40, y2: H - 176, stroke: c.primary, width: 2 });
       return;
     }
@@ -293,7 +339,7 @@ const LAYOUT_FUNCTIONS = {
       kicker(g, slide.kicker, X, H * 0.30, w);
       title(g, slide.title, X, H * 0.30 + 34, w * 0.86, 230, { size: 72, min: 36, lineHeight: 1.04 });
       g.items.push({ type: 'line', x1: X, y1: H - 120, x2: W - X, y2: H - 120, stroke: c.line, width: 1 });
-      if (slide.body) body(g, slide.body, X, H - 104, w, 50, { size: 18, color: g.bg.muted, min: 13 });
+      if (shows(g, 'body')) body(g, slide.body, X, H - 104, w, 50, { size: 18, color: g.bg.muted, min: 13 });
       return;
     }
     // keynote, boardroom, studio: title low on the left, on the stage or the fill.
@@ -301,7 +347,7 @@ const LAYOUT_FUNCTIONS = {
     kicker(g, slide.kicker, X, top - 44, w, { onFeature: fam === 'studio' });
     const used = title(g, slide.title, X, top, w, 230, { size: fam === 'boardroom' ? 56 : 70, min: 34, lineHeight: 1.04 });
     if (fam === 'keynote') g.items.push({ type: 'rect', x: X, y: top + used + 30, w: 72, h: 6, fill: c.accent, radius: 3 });
-    if (slide.body) body(g, slide.body, X, top + used + (fam === 'keynote' ? 58 : 36), w * 0.8, 90, { size: 22, color: g.bg.muted, min: 14 });
+    if (shows(g, 'body')) body(g, slide.body, X, top + used + (fam === 'keynote' ? 58 : 36), w * 0.8, 90, { size: 22, color: g.bg.muted, min: 14 });
   },
 
   Section(g) {
@@ -310,17 +356,17 @@ const LAYOUT_FUNCTIONS = {
     const number = slide.kicker || '';
     if (fam === 'editorial' || fam === 'minimal' || fam === 'swiss') {
       const numberColor = fam === 'swiss' ? g.bg.ink : fam === 'editorial' ? holdContrast(c.accent, g.bg.fill, 3) : c.accentText;
-      if (number) g.items.push(text({ x: X, y: H * 0.22, w: 360, h: 220, size: fam === 'minimal' ? 140 : 190, weight: fam === 'swiss' ? 700 : 300, font: fam === 'minimal' ? g.fonts.mono : g.fonts.heading,
-        color: numberColor, text: number, markdown: false, lineHeight: 1, role: 'kicker', tracking: -0.04 }));
-      const tx = number ? X + 400 : X;
+      if (shows(g, 'kicker')) g.items.push(text({ x: X, y: H * 0.22, w: 360, h: 220, size: fam === 'minimal' ? 140 : 190, weight: fam === 'swiss' ? 700 : 300, font: fam === 'minimal' ? g.fonts.mono : g.fonts.heading,
+        color: numberColor, text: number, markdown: false, lineHeight: 1, role: 'kicker', tracking: -0.04, src: whole('kicker', 'plain') }));
+      const tx = shows(g, 'kicker') ? X + 400 : X;
       const used = title(g, slide.title, tx, H * 0.36, W - tx - X, 200, { size: 56, min: 30, lineHeight: 1.05 });
-      if (slide.body) body(g, slide.body, tx, H * 0.36 + used + 24, W - tx - X, 100, { size: 22, color: g.bg.muted, min: 14 });
+      if (shows(g, 'body')) body(g, slide.body, tx, H * 0.36 + used + 24, W - tx - X, 100, { size: 22, color: g.bg.muted, min: 14 });
       return;
     }
-    if (number) kicker(g, number, X, H * 0.34 - 40, W - 2 * X, { onFeature: fam === 'studio' });
+    kicker(g, number, X, H * 0.34 - 40, W - 2 * X, { onFeature: fam === 'studio' });
     const used = title(g, slide.title, X, H * 0.34, W - 2 * X - 120, 200, { size: 60, min: 32, lineHeight: 1.05 });
     if (fam === 'keynote') g.items.push({ type: 'rect', x: X, y: H * 0.34 + used + 28, w: 72, h: 6, fill: c.accent, radius: 3 });
-    if (slide.body) body(g, slide.body, X, H * 0.34 + used + 56, W - 2 * X - 200, 100, { size: 22, color: g.bg.muted, min: 14 });
+    if (shows(g, 'body')) body(g, slide.body, X, H * 0.34 + used + 56, W - 2 * X - 200, 100, { size: 22, color: g.bg.muted, min: 14 });
   },
 
   Statement(g) {
@@ -328,7 +374,7 @@ const LAYOUT_FUNCTIONS = {
     const fam = theme.family;
     if (fam === 'editorial' || fam === 'swiss' || fam === 'minimal' || fam === 'boardroom') g.items.push({ type: 'rect', x: X, y: H * 0.26, w: fam === 'minimal' ? 24 : 56, h: fam === 'minimal' ? 2 : 6, fill: c.primary });
     const ky = kicker(g, slide.kicker, X, H * 0.26 + 22, W - 2 * X);
-    title(g, slide.title, X, (slide.kicker ? ky : H * 0.26 + 22) + 14, W - 2 * X - 80, H * 0.5, { size: 60, min: 30, lineHeight: 1.1, weight: Math.max(theme.style.titleWeight, fam === 'minimal' ? 300 : 500) });
+    title(g, slide.title, X, ky + 14, W - 2 * X - 80, H * 0.5, { size: 60, min: 30, lineHeight: 1.1, weight: Math.max(theme.style.titleWeight, fam === 'minimal' ? 300 : 500) });
   },
 
   Bullets(g) {
@@ -344,7 +390,7 @@ const LAYOUT_FUNCTIONS = {
     const size = Math.min(bodySize(paragraphs(slide.body)), bodySize(paragraphs(slide.body2)), 26);
     const a = body(g, slide.body, X, top, w, H - top - 76, { size });
     const b = body(g, slide.body2, X + w + gap, top, w, H - top - 76, { size, role: 'body2' });
-    const both = Math.min(a.size, b.size); a.size = both; b.size = both;
+    alike([a, b]);
     g.items.push({ type: 'line', x1: X + w + gap / 2, y1: top + 4, x2: X + w + gap / 2, y2: H - 96, stroke: g.c.line, width: 1 });
   },
 
@@ -365,23 +411,24 @@ const LAYOUT_FUNCTIONS = {
         if (fam !== 'swiss' && fam !== 'minimal' && fam !== 'editorial') {
           g.items.push({ type: 'rect', x, y: top, w, h: 64, fill: colour, radius: g.s.radius });
           if (g.s.radius) g.items.push({ type: 'rect', x, y: top + 40, w, h: 24, fill: colour });
-          const band = text({ x: x + 24, y: top + 16, w: w - 48, h: 34, size: 24, weight: 600, font: g.fonts.heading, color: readableOn(colour, '#FFFFFF', c.ink), paragraphs: [{ runs: head.runs, level: 0 }], role });
+          const band = text({ x: x + 24, y: top + 16, w: w - 48, h: 34, size: 24, weight: 600, font: g.fonts.heading, color: readableOn(colour, '#FFFFFF', c.ink), paragraphs: [{ runs: head.runs, level: 0 }], role, src: whole(role, 'blocks', `${role}.head`, 0, true) });
           fit(band, g.measure, 14);
           g.items.push(band);
           y = top + 88;
         } else {
-          const heading = text({ x: inner.x, y, w: inner.w, h: 36, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), paragraphs: [{ runs: head.runs, level: 0 }], role });
+          const heading = text({ x: inner.x, y, w: inner.w, h: 36, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), paragraphs: [{ runs: head.runs, level: 0 }], role, src: whole(role, 'blocks', `${role}.head`, 0, true) });
           fit(heading, g.measure, 14);
           g.items.push(heading);
           y += 50;
         }
       }
       const p = text({ x: inner.x, y, w: inner.w, h: top + h - y - 22, size: 22, font: g.fonts.body, color: fam === 'swiss' || fam === 'minimal' || fam === 'editorial' ? g.bg.ink : c.onSurface, lineHeight: 1.3,
-        paragraphs: paras.map(p => ({ ...p, bullet: p.bullet ?? 'bullet' })), bulletChar: g.s.bullet, bulletColor: holdContrast(colour, c.surface, 3), role });
+        paragraphs: paras.length || !editing ? paras.map(p => ({ ...p, bullet: p.bullet ?? 'bullet' })) : [{ runs: [{ text: '' }], level: 0 }], bulletChar: g.s.bullet, bulletColor: holdContrast(colour, c.surface, 3), role,
+        src: whole(role, 'blocks', role, head ? 1 : 0) });
       fit(p, g.measure, 14);
       g.items.push(p); fitted.push(p);
     });
-    const both = Math.min(...fitted.map(p => p.size)); fitted.forEach(p => { p.size = both; });
+    alike(fitted);
   },
 
   'Image left'(g) { imageSplit(g, 'left'); },
@@ -392,7 +439,7 @@ const LAYOUT_FUNCTIONS = {
     picture(g, 0, 0, W, H);
     g.items.push({ type: 'rect', x: 0, y: H * 0.38, w: W, h: H * 0.62, fill: { type: 'linear', angle: 180, stops: [{ at: 0, color: '#000000', alpha: 0 }, { at: 1, color: '#000000', alpha: 0.72 }] } });
     const ky = kicker(g, slide.kicker, X, H - 210, W - 2 * X, { color: '#FFFFFF', plain: true });
-    title(g, slide.title, X, slide.kicker ? ky + 8 : H - 200, W - 2 * X - 160, 150, { size: 52, min: 28, color: '#FFFFFF', valign: 'top' });
+    title(g, slide.title, X, ky > H - 210 ? ky + 8 : H - 200, W - 2 * X - 160, 150, { size: 52, min: 28, color: '#FFFFFF', valign: 'top' });
   },
 
   Quote(g) {
@@ -400,20 +447,21 @@ const LAYOUT_FUNCTIONS = {
     const fam = theme.family;
     g.items.push(text({ x: X - 8, y: 40, w: 200, h: 200, size: 220, font: fam === 'swiss' ? g.fonts.heading : 'Georgia', weight: 700, color: g.bg.accent, text: '“', markdown: false, lineHeight: 1, role: 'deco' }));
     const p = text({ x: X + 40, y: 170, w: W - 2 * X - 120, h: H - 330, size: 46, weight: fam === 'swiss' ? 700 : 400, font: g.fonts.heading, italic: fam === 'editorial', color: g.bg.ink, lineHeight: 1.18,
-      tracking: theme.style.titleTracking, paragraphs: paragraphs(slide.body).map(p => ({ ...p, bullet: null })), role: 'body', valign: 'middle' });
-    if (!p.paragraphs.length) p.paragraphs = [{ runs: [{ text: g.ctx.editing ? 'The quote' : '' }], level: 0 }];
+      tracking: theme.style.titleTracking, paragraphs: paragraphs(slide.body).map(p => ({ ...p, bullet: null })), role: 'body', valign: 'middle', src: whole('body', 'blocks') });
+    if (!p.paragraphs.length) { p.paragraphs = [{ runs: [{ text: g.ctx.editing ? 'The quote' : '' }], level: 0 }]; p.ghost = !!g.ctx.editing; }
     fit(p, g.measure, 24);
     g.items.push(p);
-    if (slide.kicker) {
+    if (shows(g, 'kicker')) {
       g.items.push({ type: 'rect', x: X + 40, y: H - 132, w: 40, h: 3, fill: c.primary });
-      g.items.push(text({ x: X + 96, y: H - 146, w: W - 2 * X - 140, h: 30, size: 20, font: g.fonts.body, weight: 600, color: g.bg.muted, text: slide.kicker, role: 'kicker' }));
+      g.items.push(text({ x: X + 96, y: H - 146, w: W - 2 * X - 140, h: 30, size: 20, font: g.fonts.body, weight: 600, color: g.bg.muted, text: slide.kicker, markdown: false, role: 'kicker', src: whole('kicker', 'plain') }));
     }
   },
 
   'Big numbers'(g) {
     const { W, H, X, slide, c, theme } = g;
     const top = header(g);
-    const items = rows(slide.body).slice(0, 4);
+    const at = rowCells(slide.body).slice(0, 4);
+    const items = at.map(r => r.map(x => x.text));
     const list = items.length ? items : g.ctx.editing ? [['42%', 'What it counts'], ['3×', 'What it counts'], ['12', 'What it counts']] : [];
     const n = Math.max(1, list.length), gap = 32, w = (W - 2 * X - gap * (n - 1)) / n, h = Math.min(320, H - top - 90);
     const valueSize = n <= 2 ? 120 : n === 3 ? 96 : 80;
@@ -423,10 +471,10 @@ const LAYOUT_FUNCTIONS = {
       const inner = card(g, x, top, w, h, { accent: i === 0 ? c.primary : c.line });
       const onSurface = ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.ink : c.onSurface;
       const v = text({ x: inner.x, y: inner.y, w: inner.w, h: valueSize * 1.1, size: valueSize, weight: 700, font: g.fonts.heading, tracking: -0.03, lineHeight: 1,
-        color: holdContrast(i % 2 ? c.accent : c.primary, ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.fill : c.surface, 3), text: value ?? '', markdown: false, role: 'body', ghost: !items.length });
+        color: holdContrast(i % 2 ? c.accent : c.primary, ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.fill : c.surface, 3), text: value ?? '', markdown: false, role: 'body', ghost: !items.length, src: cell(at[i]?.[0], 'body.0', true) });
       values.push(v); g.items.push(v);
-      g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 14, w: inner.w, h: 64, size: 22, weight: 600, font: g.fonts.body, color: onSurface, text: label ?? '', role: 'body', lineHeight: 1.2 }));
-      if (note) g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 84, w: inner.w, h: inner.h - valueSize * 1.1 - 84, size: 16, font: g.fonts.body, color: ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.muted : mix(onSurface, c.surface, 0.3), text: note, role: 'body', lineHeight: 1.3 }));
+      g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 14, w: inner.w, h: 64, size: 22, weight: 600, font: g.fonts.body, color: onSurface, text: label ?? '', role: 'body', lineHeight: 1.2, src: cell(at[i]?.[1], 'body.1') }));
+      if (note || keeps(at[i]?.[2])) g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 84, w: inner.w, h: inner.h - valueSize * 1.1 - 84, size: 16, font: g.fonts.body, color: ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.muted : mix(onSurface, c.surface, 0.3), text: note, role: 'body', lineHeight: 1.3, src: cell(at[i]?.[2], 'body.2') }));
     });
     for (const v of values) fit(v, g.measure, 36);
     const shared = Math.min(...values.map(v => v.size)); values.forEach(v => { v.size = shared; });
@@ -435,7 +483,8 @@ const LAYOUT_FUNCTIONS = {
   Agenda(g) {
     const { W, H, X, slide, c } = g;
     const top = header(g);
-    const items = rows(slide.body).slice(0, 10);
+    const at = rowCells(slide.body).slice(0, 10);
+    const items = at.map(r => r.map(x => x.text));
     const cols = items.length > 5 ? 2 : 1;
     const per = Math.ceil(items.length / cols) || 1;
     const colW = (W - 2 * X - (cols - 1) * 56) / cols;
@@ -444,9 +493,9 @@ const LAYOUT_FUNCTIONS = {
       const col = Math.floor(i / per), row = i % per;
       const x = X + col * (colW + 56), y = top + row * rowH;
       g.items.push(text({ x, y, w: 64, h: rowH, size: Math.min(34, rowH * 0.55), weight: 700, font: g.fonts.heading, color: g.bg.accent, text: String(i + 1).padStart(2, '0'), markdown: false, role: 'body', lineHeight: 1 }));
-      const t = text({ x: x + 76, y: y + 2, w: colW - 76, h: rowH * 0.5, size: Math.min(26, rowH * 0.36), weight: 600, font: g.fonts.body, color: g.bg.ink, text: item, role: 'body', lineHeight: 1.15 });
+      const t = text({ x: x + 76, y: y + 2, w: colW - 76, h: rowH * 0.5, size: Math.min(26, rowH * 0.36), weight: 600, font: g.fonts.body, color: g.bg.ink, text: item, role: 'body', lineHeight: 1.15, src: cell(at[i][0], 'body.0') });
       fit(t, g.measure, 15); g.items.push(t);
-      if (note) g.items.push(text({ x: x + 76, y: y + rowH * 0.42, w: colW - 76, h: rowH * 0.45, size: Math.min(17, rowH * 0.24), font: g.fonts.body, color: g.bg.muted, text: note, role: 'body' }));
+      if (note || keeps(at[i][1])) g.items.push(text({ x: x + 76, y: y + rowH * 0.42, w: colW - 76, h: rowH * 0.45, size: Math.min(17, rowH * 0.24), font: g.fonts.body, color: g.bg.muted, text: note, role: 'body', src: cell(at[i][1], 'body.1') }));
       if (row < per - 1) g.items.push({ type: 'line', x1: x + 76, y1: y + rowH - 8, x2: x + colW, y2: y + rowH - 8, stroke: c.line, width: 1 });
     });
   },
@@ -454,25 +503,27 @@ const LAYOUT_FUNCTIONS = {
   Timeline(g) {
     const { W, H, X, slide, c } = g;
     const top = header(g);
-    const items = rows(slide.body).slice(0, 6);
+    const at = rowCells(slide.body).slice(0, 6);
+    const items = at.map(r => r.map(x => x.text));
     const n = Math.max(items.length, 1);
     const lineY = top + 92, stepW = (W - 2 * X) / n;
     g.items.push({ type: 'line', x1: X, y1: lineY, x2: W - X, y2: lineY, stroke: c.line, width: 3 });
     items.forEach(([when, what, detail], i) => {
       const x = X + i * stepW, cx = x + 12;
       const colour = i === n - 1 ? c.accent : c.primary;
-      g.items.push(text({ x, y: lineY - 64, w: stepW - 20, h: 40, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), text: when ?? '', markdown: false, role: 'body', lineHeight: 1.1 }));
+      g.items.push(text({ x, y: lineY - 64, w: stepW - 20, h: 40, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), text: when ?? '', markdown: false, role: 'body', lineHeight: 1.1, src: cell(at[i][0], 'body.0', true) }));
       g.items.push({ type: 'ellipse', x: cx - 12, y: lineY - 12, w: 24, h: 24, fill: colour, stroke: g.bg.fill === c.bg ? c.bg : null, strokeWidth: 4 });
-      const t = text({ x, y: lineY + 34, w: stepW - 28, h: 64, size: 22, weight: 600, font: g.fonts.body, color: g.bg.ink, text: what ?? '', role: 'body', lineHeight: 1.2 });
+      const t = text({ x, y: lineY + 34, w: stepW - 28, h: 64, size: 22, weight: 600, font: g.fonts.body, color: g.bg.ink, text: what ?? '', role: 'body', lineHeight: 1.2, src: cell(at[i][1], 'body.1') });
       fit(t, g.measure, 14); g.items.push(t);
-      if (detail) { const d = text({ x, y: lineY + 104, w: stepW - 28, h: H - lineY - 190, size: 16, font: g.fonts.body, color: g.bg.muted, text: detail, role: 'body', lineHeight: 1.35 }); fit(d, g.measure, 12); g.items.push(d); }
+      if (detail || keeps(at[i][2])) { const d = text({ x, y: lineY + 104, w: stepW - 28, h: H - lineY - 190, size: 16, font: g.fonts.body, color: g.bg.muted, text: detail, role: 'body', lineHeight: 1.35, src: cell(at[i][2], 'body.2') }); fit(d, g.measure, 12); g.items.push(d); }
     });
   },
 
   Cards(g) {
     const { W, H, X, slide, c, theme } = g;
     const top = header(g);
-    const items = rows(slide.body).slice(0, 6);
+    const at = rowCells(slide.body).slice(0, 6);
+    const items = at.map(r => r.map(x => x.text));
     const n = Math.max(items.length, 1);
     const cols = n <= 3 ? n : n === 4 ? 2 : 3, rowsN = Math.ceil(n / cols), gap = 28;
     const w = (W - 2 * X - gap * (cols - 1)) / cols, h = (H - top - 80 - gap * (rowsN - 1)) / rowsN;
@@ -484,9 +535,9 @@ const LAYOUT_FUNCTIONS = {
       const inner = card(g, x, y, w, h, { accentBar: !flat && theme.family === 'boardroom', accent });
       if (!flat && theme.family !== 'boardroom') g.items.push({ type: 'ellipse', x: inner.x, y: inner.y, w: 14, h: 14, fill: accent });
       const off = !flat && theme.family !== 'boardroom' ? 28 : 0;
-      const hp = text({ x: inner.x, y: inner.y + off, w: inner.w, h: 64, size: 24, weight: 700, font: g.fonts.heading, color: flat ? g.bg.ink : c.onSurface, text: head ?? '', role: 'body', lineHeight: 1.15 });
+      const hp = text({ x: inner.x, y: inner.y + off, w: inner.w, h: 64, size: 24, weight: 700, font: g.fonts.heading, color: flat ? g.bg.ink : c.onSurface, text: head ?? '', role: 'body', lineHeight: 1.15, src: cell(at[i][0], 'body.0') });
       heads.push(hp); g.items.push(hp);
-      const dp = text({ x: inner.x, y: inner.y + off + 70, w: inner.w, h: inner.h - off - 70, size: 18, font: g.fonts.body, color: flat ? g.bg.muted : mix(c.onSurface, c.surface, 0.25), text: detail ?? '', role: 'body', lineHeight: 1.35 });
+      const dp = text({ x: inner.x, y: inner.y + off + 70, w: inner.w, h: inner.h - off - 70, size: 18, font: g.fonts.body, color: flat ? g.bg.muted : mix(c.onSurface, c.surface, 0.25), text: detail ?? '', role: 'body', lineHeight: 1.35, src: cell(at[i][1], 'body.1') });
       texts.push(dp); g.items.push(dp);
     });
     for (const p of heads) fit(p, g.measure, 15);
@@ -511,13 +562,13 @@ const LAYOUT_FUNCTIONS = {
     t.rows.forEach((_, r) => { if (r % 2 === 1) g.items.push({ type: 'rect', x: X, y: top + (r + 1) * rowH, w: W - 2 * X, h: rowH, fill: c.surface }); });
     if (!headFill) g.items.push({ type: 'line', x1: X, y1: top + rowH, x2: W - X, y2: top + rowH, stroke: c.ink, width: 1.5 });
     g.items.push({ type: 'line', x1: X, y1: top + rowsN * rowH, x2: W - X, y2: top + rowsN * rowH, stroke: c.line, width: 1 });
-    t.head.forEach((cell, i) => {
+    t.head.forEach((name, i) => {
       const align = t.align[i] ?? 'left';
-      const head = text({ x: x + 14, y: top, w: widths[i] - 28, h: rowH, size, weight: 700, font: g.fonts.body, color: headFill ? c.onPrimary : g.bg.ink, text: cell, valign: 'middle', align, role: 'body', lineHeight: 1.15 });
+      const head = text({ x: x + 14, y: top, w: widths[i] - 28, h: rowH, size, weight: 700, font: g.fonts.body, color: headFill ? c.onPrimary : g.bg.ink, text: name, valign: 'middle', align, role: 'body', lineHeight: 1.15, src: cell(t.at?.head[i], `body.c${i}`) });
       fit(head, g.measure, 11);
       g.items.push(head);
       t.rows.forEach((row, r) => {
-        const p = text({ x: x + 14, y: top + (r + 1) * rowH, w: widths[i] - 28, h: rowH, size, font: g.fonts.body, color: r % 2 === 1 ? c.onSurface : g.bg.ink, text: row[i], valign: 'middle', align, role: 'body', lineHeight: 1.15, weight: i === 0 ? 600 : 400 });
+        const p = text({ x: x + 14, y: top + (r + 1) * rowH, w: widths[i] - 28, h: rowH, size, font: g.fonts.body, color: r % 2 === 1 ? c.onSurface : g.bg.ink, text: row[i], valign: 'middle', align, role: 'body', lineHeight: 1.15, weight: i === 0 ? 600 : 400, src: cell(t.at?.rows[r][i], `body.c${i}`) });
         fit(p, g.measure, 11);
         g.items.push(p);
       });
@@ -529,13 +580,13 @@ const LAYOUT_FUNCTIONS = {
     const { W, H, X, slide, c } = g;
     const top = header(g);
     const data = chartData(slide.body) ?? (g.ctx.editing ? { labels: ['A', 'B', 'C', 'D'], series: [{ name: 'Series', values: [3, 5, 4, 7] }], unit: '' } : null);
-    const takeaway = slide.body2?.trim();
+    const takeaway = !!slide.body2?.trim() || shows(g, 'body2', '');
     const chartW = takeaway ? (W - 2 * X) * 0.64 : W - 2 * X;
     if (data) drawChart(g, slide.chart, data, X, top, chartW, H - top - 84);
     if (takeaway) {
       const x = X + chartW + 48, w = W - X - x;
       g.items.push({ type: 'rect', x, y: top + 8, w: 6, h: 64, fill: c.accent });
-      body(g, takeaway, x + 26, top, w - 26, H - top - 90, { size: 26, role: 'body2', min: 15 });
+      body(g, slide.body2, x + 26, top, w - 26, H - top - 90, { size: 26, role: 'body2', min: 15 });
     }
   },
 
@@ -544,13 +595,13 @@ const LAYOUT_FUNCTIONS = {
     const fam = theme.family;
     const center = fam !== 'swiss';
     const ky = kicker(g, slide.kicker, X, H * 0.26, W - 2 * X, { onFeature: fam === 'studio', spec: center ? { align: 'center' } : {} });
-    if (center && theme.style.kicker === 'pill' && slide.kicker) {
+    if (center && theme.style.kicker === 'pill' && ky > H * 0.26) {
       // A pill is drawn from its left edge; centre the pill and its words together.
       const pill = g.items.at(-2), words = g.items.at(-1);
       const shift = (W - pill.w) / 2 - pill.x; pill.x += shift; words.x += shift;
     }
-    const used = title(g, slide.title || (g.ctx.editing ? '' : ''), X, (slide.kicker ? ky : H * 0.26) + 16, W - 2 * X, 200, { size: 76, min: 36, align: center ? 'center' : 'left', lineHeight: 1.04 });
-    if (slide.body) body(g, slide.body, center ? X + 120 : X, (slide.kicker ? ky : H * 0.26) + used + 52, W - 2 * X - (center ? 240 : 0), 160, { size: 22, color: g.bg.muted, align: center ? 'center' : 'left', min: 14 });
+    const used = title(g, slide.title, X, ky + 16, W - 2 * X, 200, { size: 76, min: 36, align: center ? 'center' : 'left', lineHeight: 1.04 });
+    if (shows(g, 'body')) body(g, slide.body, center ? X + 120 : X, ky + used + 52, W - 2 * X - (center ? 240 : 0), 160, { size: 22, color: g.bg.muted, align: center ? 'center' : 'left', min: 14 });
   },
 };
 

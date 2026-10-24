@@ -508,7 +508,209 @@ async page => {
   assert(waited >= 700, `Opening another deck must wait for the slide's save in flight: it opened after ${waited} ms of a 900 ms write.`);
   checks.push('saves wait, deck typing stays with its deck');
 
-  // 15. A file with no deck opens on the start screen; its six templates fit the width.
+  // 15. Words are edited where they stand on the slide, as in PowerPoint: a click puts the caret
+  // between two letters, typing goes in there, a selection is replaced, undo takes it back, marks,
+  // lists and levels follow the keys, the right-click menu sets alignment, size and bullets, the
+  // clipboard carries marks both ways, and a cell of a row or a table is edited on its own.
+  await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await frame.evaluate(() => localStorage.clear());
+  await ready();
+  const at = await page.locator('iframe').first().boundingBox();
+  /** The page point inside character `index` of the words of the box `selector`; `side` is how far across it. */
+  const charPoint = (selector, index, side = 0.5) => frame.evaluate(({ selector, index, side }) => {
+    const box = document.querySelector(selector);
+    const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+    let left = index;
+    while (walk.nextNode()) {
+      const node = walk.currentNode;
+      if (node.parentElement.closest('.dk-b')) continue;
+      if (left < node.length) { const r = document.createRange(); r.setStart(node, left); r.setEnd(node, left + 1); const b = r.getBoundingClientRect(); return { x: b.left + b.width * side, y: b.top + b.height / 2 }; }
+      left -= node.length;
+    }
+    return null;
+  }, { selector, index, side });
+  const clickAt = async (selector, index, side = 0.5, options = {}) => {
+    const point = await charPoint(selector, index, side);
+    assert(point, `The stage must draw the words of ${selector}.`);
+    await page.mouse.click(at.x + point.x, at.y + point.y, options);
+  };
+  const editing = () => frame.evaluate(() => window.deck.stageEditor());
+  const current = () => frame.evaluate(() => { const s = window.deck.slides.find(x => x.id === window.deck.slideId); return { id: s.id, title: s.title, body: s.body, format: s.format }; });
+  const openSlide = async n => { await frame.evaluate(n => document.querySelectorAll('#slides li')[n].click(), n); await until(n => window.deck.slideId === window.deck.slides[n].id, n); };
+  const TITLE = '#stage .dk-t[data-field="title"]', BODY = '#stage .dk-t[data-field="body"]';
+  await openSlide(4);
+  const bullets = await current();
+  assert(bullets.title === 'Short lines read faster than paragraphs', `The fifth example slide must be the Bullets slide: ${JSON.stringify(bullets.title)}.`);
+  // A click between "Short" and " lines" puts the caret there, and a letter typed goes in there.
+  await clickAt(TITLE, 4, 0.9);
+  const placed = await editing();
+  assert(placed?.field === 'title' && placed.sel.focus.o === 5, `A click inside the title must put the caret between the letters clicked: ${JSON.stringify(placed && { field: placed.field, sel: placed.sel })}.`);
+  await page.keyboard.type('X');
+  assert((await current()).title === 'ShortX lines read faster than paragraphs', `A letter typed must go in where the caret is, not at the end: ${JSON.stringify((await current()).title)}.`);
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'ShortX lines read faster than paragraphs', bullets.id, { timeout: 5000 })
+    .catch(() => { throw Error('Words typed on the stage must be saved after a pause.'); });
+  // Shift and an arrow select; typing replaces the selection; undo and redo step through it.
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowRight');
+  const selected = await editing();
+  assert(selected.sel.anchor.o === 6 && selected.sel.focus.o === 9, `Shift and an arrow must select letters: ${JSON.stringify(selected.sel)}.`);
+  await page.keyboard.type('Y');
+  assert((await current()).title === 'ShortXYnes read faster than paragraphs', `Typing must replace the selection: ${JSON.stringify((await current()).title)}.`);
+  await page.keyboard.press('Control+z');
+  const undone = await editing();
+  assert((await current()).title === 'ShortX lines read faster than paragraphs' && undone.sel.anchor.o === 6 && undone.sel.focus.o === 9,
+    `Ctrl Z must take the typing back and select what it replaced: ${JSON.stringify([(await current()).title, undone.sel])}.`);
+  await page.keyboard.press('Control+y');
+  assert((await current()).title === 'ShortXYnes read faster than paragraphs', `Ctrl Y must put the typing back: ${JSON.stringify((await current()).title)}.`);
+  // A double click selects a word; Ctrl I and Ctrl U mark it.
+  const word = await charPoint(TITLE, 12);
+  await page.mouse.dblclick(at.x + word.x, at.y + word.y);
+  const doubled = await editing();
+  // Windows takes the space after the word in too, as PowerPoint does there; the marks leave it out.
+  assert(doubled.sel.anchor.o === 11 && (doubled.sel.focus.o === 15 || doubled.sel.focus.o === 16), `A double click must select the word: ${JSON.stringify(doubled.sel)}.`);
+  // Where the double click left the space out, Shift and an arrow take it in, so both ways mark "read " below.
+  if (doubled.sel.focus.o === 15) await page.keyboard.press('Shift+ArrowRight');
+  await page.keyboard.press('Control+i');
+  await page.keyboard.press('Control+u');
+  assert((await current()).title === 'ShortXYnes _<u>read</u>_ faster than paragraphs', `Ctrl I and Ctrl U must mark the selected word: ${JSON.stringify((await current()).title)}.`);
+  // The body: Enter makes the next bullet, Tab takes it a level in, Backspace at its start takes the level, then the bullet, then joins.
+  await clickAt(BODY, 10);
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('New point');
+  const [first, ...others] = bullets.body.split('\n'), lines = n => (async () => (await current()).body.split('\n').slice(0, n).join('\n'))();
+  assert(await lines(3) === [first, '- New point', others[0]].join('\n'), `Enter at the end of a bullet must make the next one: ${JSON.stringify((await current()).body)}.`);
+  await page.keyboard.press('Tab');
+  assert(await lines(3) === [first, '  - New point', others[0]].join('\n'), `Tab must take a bullet a level in: ${JSON.stringify((await current()).body)}.`);
+  await page.keyboard.press('Home');
+  const steps = [];
+  for (let i = 0; i < 3; i++) { await page.keyboard.press('Backspace'); steps.push(await lines(3)); }
+  assert(JSON.stringify(steps) === JSON.stringify([[first, '- New point', others[0]], [first, 'New point', others[0]], [`${first}New point`, ...others.slice(0, 2)]].map(l => l.join('\n'))),
+    `Backspace at a bullet's start must take its level, then its bullet, then join it to the line above: ${JSON.stringify(steps)}.`);
+  // Six changes: Enter, the typing, Tab and three Backspaces.
+  for (let i = 0; i < 6; i++) await page.keyboard.press('Control+z');
+  assert((await current()).body === bullets.body, `Undo must take the body back to what it was: ${JSON.stringify((await current()).body)}.`);
+  // The right-click menu: PowerPoint's items, and its submenus work from the keyboard.
+  await clickAt(BODY, 3, 0.5, { button: 'right' });
+  const menu = await frame.evaluate(() => ({ items: [...document.querySelectorAll('.tx-popup .tx-menu > [role^="menuitem"] .tx-text')].map(b => b.textContent), bar: [...document.querySelectorAll('.tx-popup .tx-bar [aria-label]')].map(b => b.getAttribute('aria-label')) }));
+  assert(JSON.stringify(menu.items) === JSON.stringify(['Cut', 'Copy', 'Paste', 'Paste as plain text', 'Bold', 'Italic', 'Underline', 'Font size', 'Alignment', 'Bullets and numbering', 'Select all']) && menu.bar.includes('Font size') && menu.bar.includes('Bold'),
+    `A right click on words must open the text menu and the mini toolbar: ${JSON.stringify(menu)}.`);
+  for (let i = 0; i < 12 && !/^Alignment/.test(await frame.evaluate(() => document.activeElement?.textContent ?? '')); i++) await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  const centred = await frame.evaluate(() => ({ format: window.deck.slides.find(x => x.id === window.deck.slideId).format, align: getComputedStyle(document.querySelector('#stage .dk-t[data-field="body"]')).textAlign, open: !!document.querySelector('.tx-popup') }));
+  assert(centred.format === '{"body":{"align":"center"}}' && centred.align === 'center' && !centred.open, `Alignment, Centre, picked from the keyboard must centre the body: ${JSON.stringify(centred)}.`);
+  await clickAt(BODY, 3, 0.5, { button: 'right' });
+  await frame.selectOption('.tx-popup .tx-size', '32');
+  const sized = await frame.evaluate(() => ({ format: JSON.parse(window.deck.slides.find(x => x.id === window.deck.slideId).format), size: document.querySelector('#stage .dk-t[data-field="body"]').dataset.size }));
+  assert(Math.abs(Number(sized.size) * 0.75 - 32) < 0.05 && sized.format.body.align === 'center', `32 pt from the mini toolbar must draw the body at 32 pt and keep its alignment: ${JSON.stringify(sized)}.`);
+  await clickAt(BODY, 3, 0.5, { button: 'right' });
+  await frame.locator('.tx-popup .tx-menu > button', { hasText: 'Bullets and numbering' }).hover();
+  await frame.locator('.tx-popup .tx-sub > button', { hasText: 'Numbering' }).click();
+  assert((await current()).body.startsWith(`1. ${first.slice(2)}\n`), `Numbering from the menu must number the paragraph: ${JSON.stringify((await current()).body)}.`);
+  // The clipboard: a copy carries plain text and HTML with the marks; a paste of HTML keeps its bold.
+  await clickAt(TITLE, 2);
+  await page.keyboard.press('Control+a');
+  const copied = await frame.evaluate(() => {
+    const data = new DataTransfer();
+    document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('copy', { clipboardData: data, bubbles: true, cancelable: true }));
+    return { plain: data.getData('text/plain'), html: data.getData('text/html') };
+  });
+  assert(copied.plain === 'ShortXYnes read faster than paragraphs' && copied.html.includes('<em><u>read</u></em>'), `A copy must carry the words and their marks: ${JSON.stringify(copied)}.`);
+  await clickAt(BODY, 4, 0.9);
+  const pasted = await frame.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/html', '<meta charset="utf-8"><p><b>Pasted</b> words</p>');
+    data.setData('text/plain', 'Pasted words');
+    document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    return window.deck.slides.find(x => x.id === window.deck.slideId).body.split('\n')[0];
+  });
+  assert(pasted === `1. Write**Pasted** words${first.slice(7)}`, `A paste must go in at the caret with its bold: ${JSON.stringify(pasted)}.`);
+  // A space before a paragraph's words is not kept, and the caret stays before the words it shows.
+  await page.keyboard.press('Control+Home');
+  await page.keyboard.type(' ');
+  const lead = await editing();
+  assert(lead.text[0] === `Write**Pasted** words${first.slice(7)}`.replace('**Pasted**', 'Pasted') && lead.sel.focus.o === 0,
+    `A space typed before a paragraph's words must leave the words and the caret as the box shows them: ${JSON.stringify({ text: lead.text[0].slice(0, 20), sel: lead.sel })}.`);
+  // A list from Word, its words wrapped in paragraphs, pasted over the whole body stays a list.
+  await page.keyboard.press('Control+a');
+  const list = await frame.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/html', '<ul><li><p>First</p></li><li><p><b>Second</b></p></li></ul>');
+    data.setData('text/plain', 'First\nSecond');
+    document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    return window.deck.slides.find(x => x.id === window.deck.slideId).body;
+  });
+  assert(list === '- First\n- **Second**', `A pasted list must keep its bullets, also when its items wrap their words in paragraphs: ${JSON.stringify(list)}.`);
+  // A copied word with its space after it pastes with the space.
+  await page.keyboard.press('Home');
+  const spacedPaste = await frame.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/html', '<p>Big </p>');
+    data.setData('text/plain', 'Big ');
+    document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    return window.deck.slides.find(x => x.id === window.deck.slideId).body;
+  });
+  assert(spacedPaste === '- First\n- Big **Second**', `A paste must keep the space at the end of what was copied: ${JSON.stringify(spacedPaste)}.`);
+  // Escape ends the editing; the box is drawn as words again.
+  await page.keyboard.press('Escape');
+  const ended = await frame.evaluate(() => ({ session: window.deck.stageEditor(), editable: document.querySelectorAll('#stage [contenteditable="true"]').length }));
+  assert(!ended.session?.field && ended.editable === 0, `Escape must end the editing: ${JSON.stringify(ended)}.`);
+  // Larger, pressed past the largest size a slide keeps, stops there rather than going back to the layout's.
+  await clickAt('#stage .dk-t[data-field="kicker"]', 2);
+  const scales = [];
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('Control+BracketRight');
+    scales.push(await frame.evaluate(() => JSON.parse(window.deck.slides.find(x => x.id === window.deck.slideId).format || '{}').kicker?.size ?? 1));
+  }
+  assert(scales.every((s, i) => s >= (scales[i - 1] ?? 1)) && scales.at(-1) > 4 && scales.at(-1) <= 6,
+    `Larger pressed many times must step up and stop at the largest size the slide keeps, never back to the layout's: ${JSON.stringify(scales)}.`);
+  await page.keyboard.press('Escape');
+  // A card's heading and a table's cell are edited on their own; the rest of the line stays as it was.
+  await openSlide(12);
+  const cards = await current();
+  await clickAt('#stage .dk-t[data-key="body.0"]', 2, 0.9);
+  await page.keyboard.type('Z');
+  const card = (await current()).body.split('\n');
+  assert(card[0] === '- KeyZnote | a dark stage and one bright accent' && card.slice(1).join('\n') === cards.body.split('\n').slice(1).join('\n'), `Typing in a card's heading must change that cell only: ${JSON.stringify(card[0])}.`);
+  await page.keyboard.press('Home');
+  await page.keyboard.type(' Q');
+  const spaced = { line: (await current()).body.split('\n')[0], field: (await editing())?.field };
+  assert(spaced.line === '- QKeyZnote | a dark stage and one bright accent' && spaced.field === 'body', `A space typed before a cell's words must keep the cell in editing: ${JSON.stringify(spaced)}.`);
+  // A card heading deleted whole keeps its box in editing, and new words go in its place.
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Shift+End');
+  await page.keyboard.press('Delete');
+  await page.keyboard.type('Fresh');
+  const replaced = { line: (await current()).body.split('\n')[0], field: (await editing())?.field };
+  assert(replaced.line === '- Fresh | a dark stage and one bright accent' && replaced.field === 'body', `A cell emptied and typed into again must keep its place: ${JSON.stringify(replaced)}.`);
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+z');
+  await openSlide(13);
+  const tables = await current();
+  const cell = await frame.evaluate(() => [...document.querySelectorAll('#stage .dk-t[data-field="body"]')].findIndex(b => b.textContent === 'any browser'));
+  assert(cell >= 0, 'The table slide must draw the cell "any browser" as words of the body.');
+  await frame.evaluate(i => [...document.querySelectorAll('#stage .dk-t[data-field="body"]')][i].setAttribute('data-probe', 'cell'), cell);
+  await clickAt('#stage [data-probe="cell"]', 2, 0.9);
+  await page.keyboard.type('!');
+  const table = (await current()).body.split('\n');
+  assert(table[2] === '| HTML | any! browser | sharing a link or a file |' && table.filter((_, i) => i !== 2).join('\n') === tables.body.split('\n').filter((_, i) => i !== 2).join('\n'),
+    `Typing in a table cell must change that cell only: ${JSON.stringify(table[2])}.`);
+  await page.keyboard.press('Escape');
+  await command('slide.delete');
+  await until(id => !window.deck.slides.some(s => s.id === id) && !!window.deck.slideId, tables.id);
+  const left = await current();
+  await frame.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('Control+z');
+  await settle(300);
+  // The deleted slide's changes are passed over; the one before them, on the Cards slide, is taken back.
+  const after = await frame.evaluate(({ left, cards }) => ({ left: window.deck.slides.find(s => s.id === left), cards: window.deck.slides.find(s => s.id === cards).body.split('\n')[0], on: window.deck.slideId }), { left: left.id, cards: cards.id });
+  assert(after.left.body === left.body && after.left.title === left.title && after.cards === '- KeyZnote | a dark stage and one bright accent' && after.on === cards.id,
+    `Ctrl Z after the edited slide is deleted must change no other slide, and take back the last change on a slide still there: ${JSON.stringify({ was: left.body.slice(0, 50), now: after.left.body.slice(0, 50), cards: after.cards, on: after.on })}.`);
+  checks.push('words edited on the stage');
+
+  // 16. A file with no deck opens on the start screen; its six templates fit the width.
   await page.evaluate(empty => { window.broker.setFixture(empty); window.broker.remount(); }, empty);
   await page.waitForTimeout(300);
   frame = await mounted();

@@ -48,6 +48,7 @@ function runs(list) {
     if (r.code) html = `<code>${html}</code>`;
     if (r.b) html = `<strong>${html}</strong>`;
     if (r.i) html = `<em>${html}</em>`;
+    if (r.u) html = `<u>${html}</u>`;
     if (r.link) html = `<a href="${esc(r.link)}" target="_blank" rel="noopener">${html}</a>`;
     if (r.color) html = `<span style="color:${rgba(r.color)}">${html}</span>`;
     return html;
@@ -71,11 +72,21 @@ function textHtml(p, index) {
       number = para.bullet === 'number' ? (para.number ?? number + 1) : number;
       const char = para.bullet === 'number' ? `${number}.` : (para.level > 0 ? '–' : p.bulletChar ?? '•');
       const left = para.level > 0 ? bulletIndent(p, { ...para, level: para.level - 1 }) : 0;
-      mark = `<span class="dk-b" style="left:${n(left)}px;color:${rgba(p.bulletColor ?? p.color)};${para.bullet === 'number' ? 'font-weight:700;' : ''}${char === '■' ? 'font-size:.6em;top:.42em;' : ''}">${esc(char)}</span>`;
+      mark = `<span class="dk-b"${p.edit ? ' contenteditable="false"' : ''} style="left:${n(left)}px;color:${rgba(p.bulletColor ?? p.color)};${para.bullet === 'number' ? 'font-weight:700;' : ''}${char === '■' ? 'font-size:.6em;top:.42em;' : ''}">${esc(char)}</span>`;
     }
-    return `<p style="${bits}">${mark}${runs(para.runs)}</p>`;
+    // An empty paragraph keeps its line, as the layout counted it, and a caret has somewhere to stand.
+    const words = runs(para.runs);
+    return `<p style="${bits}">${mark}${words || '<br>'}</p>`;
   }).join('');
-  return `<div class="dk-t${p.ghost ? ' dk-ghost' : ''}" data-role="${esc(p.role ?? '')}" data-i="${index}" style="${style}">${paras}</div>`;
+  return `<div class="dk-t${p.ghost ? ' dk-ghost' : ''}" data-role="${esc(p.role ?? '')}" data-i="${index}"${editAttributes(p)} style="${style}">${paras}</div>`;
+}
+
+/** Where an editable box's words are in the slide, for the stage's editor (stage-editor.mjs). */
+function editAttributes(p) {
+  const e = p.edit;
+  if (!e) return '';
+  const place = e.from === undefined ? ` data-first="${e.first}"${e.single ? ' data-single=""' : ''}` : ` data-from="${e.from}" data-to="${e.to}"`;
+  return ` data-field="${esc(e.field)}" data-dialect="${esc(e.dialect)}" data-key="${esc(e.key)}" data-base="${n(e.base)}" data-size="${n(p.size)}"${place}`;
 }
 
 function shapeHtml(p, W, H) {

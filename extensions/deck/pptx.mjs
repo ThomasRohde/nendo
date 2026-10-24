@@ -92,7 +92,7 @@ function picture(p, id, name, ctx) {
 function textBox(p, id, name, ctx) {
   if (p.paragraphs.every(para => para.runs.every(r => !r.text)) || p.ghost) return '';
   const anchor = p.valign === 'middle' ? 'ctr' : p.valign === 'bottom' ? 'b' : 't';
-  const algn = p.align === 'center' ? 'ctr' : p.align === 'right' ? 'r' : 'l';
+  const algn = p.align === 'center' ? 'ctr' : p.align === 'right' ? 'r' : p.align === 'justify' ? 'just' : 'l';
   let number = 0;
   const paras = p.paragraphs.map((para, i) => {
     const scale = para.heading ? 1 : para.level > 0 ? 0.86 : 1;
@@ -112,7 +112,7 @@ function textBox(p, id, name, ctx) {
       const face = r.code ? 'Consolas' : p.font;
       // A link keeps its address: the run points at the slide's relationship for it.
       const link = r.link && ctx?.link ? ctx.link(r.link) : null;
-      const attrs = `lang="en-US" sz="${pt100(size)}"${bold ? ' b="1"' : ' b="0"'}${r.i || p.italic ? ' i="1"' : ''}${link ? ' u="sng"' : ''}${p.caps ? ' cap="all"' : ''}${p.tracking ? ` spc="${Math.round(p.tracking * size * 0.75 * 100)}"` : ''} dirty="0"`;
+      const attrs = `lang="en-US" sz="${pt100(size)}"${bold ? ' b="1"' : ' b="0"'}${r.i || p.italic ? ' i="1"' : ''}${link || r.u ? ' u="sng"' : ''}${p.caps ? ' cap="all"' : ''}${p.tracking ? ` spc="${Math.round(p.tracking * size * 0.75 * 100)}"` : ''} dirty="0"`;
       return `<a:r><a:rPr ${attrs}>${fill(r.color ?? p.color)}<a:latin typeface="${esc(face)}"/><a:cs typeface="${esc(face)}"/>${link ? `<a:hlinkClick r:id="${link}"/>` : ''}</a:rPr><a:t>${esc(r.text)}</a:t></a:r>`;
     }).join('');
     return `<a:p>${pPr}${runs}<a:endParaRPr lang="en-US" sz="${pt100(size)}" dirty="0"/></a:p>`;

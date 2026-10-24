@@ -13,6 +13,7 @@ import { buildHtml } from './export-html.mjs';
 import { importBrandFile, kitValues } from './brand-import.mjs';
 import { differing, readDrafts, writeDrafts, sortDrafts, withoutWritten } from './drafts.mjs';
 import { installFocusRing } from './kit/nendo-view-kit.js';
+import { createStageEditor } from './stage-editor.mjs';
 
 const nendo = window.nendo;
 const $ = id => document.getElementById(id);
@@ -20,6 +21,7 @@ const SKILL = 'skill://dev.nendo.deck/deck/SKILL.md';
 
 // Everything the probes read is on window.deck.
 const deck = window.deck = {
+  stageEditor: () => editor?.state() ?? null,
   ready: false, decks: [], templates: [], brands: [], slides: [], asks: [], variants: [],
   deckId: null, slideId: null, scope: 'Whole deck', tab: 'slide', theme: null, media: new Map(),
   pending: new Map(), held: [], problem: null, toolbars: 0, exports: [], presenting: false, canAsk: false, chrome: false,
@@ -156,13 +158,17 @@ document.fonts?.addEventListener?.('loadingdone', () => { forgetMeasurements(); 
 // ---- Drawing -----------------------------------------------------------------------------------
 
 const laidCache = new Map();
+// Words are edited in place on the stage (stage-editor.mjs); it is made in wire().
+let editor = null;
 function laid(slide, theme = deck.theme, editing = true, number = null) {
   const n = number ?? numberOf(slide);
-  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, slide.notes, n, editing, theme]);
+  // The field being edited keeps its box while it is empty.
+  const keep = editing ? editor?.keep() ?? null : null;
+  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, slide.notes, slide.format, n, editing, keep, theme]);
   let hit = laidCache.get(key);
   if (!hit) {
     if (laidCache.size > 600) laidCache.clear();
-    hit = layoutSlide(slide, theme, { measure: canvasMeasure, number: n, total: deck.slides.length, editing });
+    hit = layoutSlide(slide, theme, { measure: canvasMeasure, number: n, total: deck.slides.length, editing, keep });
     laidCache.set(key, hit);
   }
   return hit;
@@ -191,7 +197,7 @@ function drawAll() {
   $('deck-title').textContent = d ? v(d, F.deck.title) ?? 'Untitled deck' : 'Deck';
   $('deck-count').textContent = d ? `${deck.slides.length} ${deck.slides.length === 1 ? 'slide' : 'slides'} · ${deck.theme.name}${deck.theme.brand ? ' · ' + deck.theme.brand.name : ''}` : 'No deck yet';
   drawSorter();
-  drawStage();
+  drawStage({ ifChanged: true });
   drawInspector();
   drawVariants();
   drawAsk();
@@ -222,17 +228,25 @@ function drawSorter() {
   list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
 }
 
-function drawStage() {
+let drawn = null;
+/** Draws the current slide on the stage. `ifChanged` keeps a stage that already shows the same drawing, so a pointer dragging a selection over it keeps its hold. */
+function drawStage({ ifChanged = false } = {}) {
   const stage = $('stage'), wrap = $('stage-wrap');
+  // An input method composing in a box owns its words until it ends (stage-editor.mjs).
+  if (editor?.composing()) return;
   const slide = currentSlide();
-  if (!slide) { stage.replaceChildren(); stage.style.width = '0px'; $('fit-warning').hidden = true; return; }
+  if (!slide) { drawn = null; stage.replaceChildren(); stage.style.width = '0px'; $('fit-warning').hidden = true; editor?.attach(); return; }
   const l = laid(slide);
   const availW = wrap.clientWidth - 48, availH = wrap.clientHeight - 34;
   const scale = Math.max(0.1, Math.min(availW / l.W, availH / l.H));
+  const pictures = l.items.filter(p => p.type === 'image').map(p => urlFor(p.src)).join('\n');
+  if (ifChanged && drawn && drawn.l === l && drawn.scale === scale && drawn.pictures === pictures && stage.firstElementChild) return;
+  drawn = { l, scale, pictures };
   stage.style.width = `${l.W * scale}px`; stage.style.height = `${l.H * scale}px`;
   stage.innerHTML = slideHtml(l, { urlFor, className: 'scaled' });
   stage.firstElementChild.style.transform = `scale(${scale})`;
   deck.stageScale = scale;
+  editor?.attach();
   const over = l.items.filter(p => p.type === 'text' && p.overflow && !p.ghost);
   $('fit-warning').hidden = over.length === 0;
   $('fit-warning').textContent = over.length ? `The ${over.map(p => p.role === 'body2' ? 'second column' : p.role).filter((x, i, a) => a.indexOf(x) === i).join(' and ')} is at its smallest size and still runs over. Shorten it, or split the slide.` : '';
@@ -425,9 +439,9 @@ function drawVariants() {
     return card;
   }));
 }
-const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'imageAlt', 'hidden'];
-// A variant writes words, never a picture: the pictures in a slide are the person's.
-const VARIANT_FIELDS = EDITABLE.filter(k => k !== 'image');
+const EDITABLE = ['layout', 'title', 'kicker', 'body', 'body2', 'notes', 'chart', 'image', 'imageAlt', 'hidden', 'format'];
+// A variant writes words, never a picture or a size: the pictures and the text format are the person's.
+const VARIANT_FIELDS = EDITABLE.filter(k => k !== 'image' && k !== 'format');
 /** The slide fields a variant changes, by the slide model's names; anything else is dropped. */
 export function pick(changes) {
   const out = {};
@@ -462,7 +476,7 @@ function drawAsk() {
 // ---- Writing -----------------------------------------------------------------------------------
 
 const SLIDE_FIELD = { layout: F.slide.layout, title: F.slide.title, kicker: F.slide.kicker, body: F.slide.body, body2: F.slide.body2, notes: F.slide.notes,
-  chart: F.slide.chart, image: F.slide.image, imageAlt: F.slide.imageAlt, hidden: F.slide.hidden, order: F.slide.order };
+  chart: F.slide.chart, image: F.slide.image, imageAlt: F.slide.imageAlt, hidden: F.slide.hidden, order: F.slide.order, format: F.slide.format };
 const toValues = changes => Object.fromEntries(Object.entries(changes).map(([k, val]) => [SLIDE_FIELD[k], val === '' ? null : val]));
 
 /** Typing changes the slide on screen at once and is saved after a pause. */
@@ -477,7 +491,7 @@ function edit(changes, { now = false } = {}) {
   redrawSoon();
   if (now) save.flush(); else save();
 }
-const redrawSoon = debounce(() => { drawStage(); drawSorter(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
+const redrawSoon = debounce(() => { drawStage({ ifChanged: true }); drawSorter(); if (deck.tab !== 'slide' || !document.activeElement?.dataset?.field) drawInspector(); else drawSlidePaneQuiet(); }, 60);
 function drawSlidePaneQuiet() { const s = currentSlide(); if (s) { $('layout-hint').textContent = layoutOf(s.layout).hint; } }
 
 const conflict = error => !!error?.code && /version|conflict|stale/i.test(`${error.code} ${error.message}`);
@@ -1195,9 +1209,22 @@ function wire() {
     if (picked?.id) command(picked.id); else if (picked === null) { /* dismissed */ }
   });
 
-  // The stage: a click on text goes to its field; a picture dropped on it goes into the slide.
+  // The stage: words are edited where they stand (stage-editor.mjs). A click on a picture picks
+  // one, and on words drawn from a table, such as a chart's, goes to the field they come from.
   const stage = $('stage');
+  editor = createStageEditor({
+    stage,
+    slide: () => currentSlide(),
+    write: (field, value) => { edit({ [field]: value }); drawStage(); },
+    selectSlide: id => select(id),
+    hasSlide: id => deck.slides.some(s => s.id === id),
+    ended: ({ quiet }) => { save.flush(); if (!quiet) drawStage(); },
+    redraw: () => drawStage(),
+    toast,
+    readOnly: () => !!nendo.context?.readOnly,
+  });
   stage.addEventListener('click', e => {
+    if (e.target.closest('.dk-t[data-field]')) return;
     const role = e.target.closest('[data-role]')?.dataset.role;
     const field = { title: 'f-title', kicker: 'f-kicker', body: 'f-body', body2: 'f-body2', image: 'pick-image', hint: 'pick-image' }[role];
     if (!field) return;
@@ -1268,9 +1295,11 @@ function wire() {
   // Keys the view keeps for itself when no field has focus.
   addEventListener('keydown', e => {
     if (deck.presenting) return;
-    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '');
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName ?? '') || !!document.activeElement?.isContentEditable;
     if (e.key === 'F5' && !deck.chrome) { e.preventDefault(); present(e.shiftKey); }
     if (typing) return;
+    // Ctrl Z and Ctrl Y outside a field take back the stage's last change of words, as PowerPoint's do.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && /^[zy]$/i.test(e.key)) { if (editor.undo(e.key.toLowerCase() === 'z' && !e.shiftKey)) e.preventDefault(); return; }
     if ((e.key === 'PageDown' || e.key === 'PageUp') && deck.slides.length) {
       e.preventDefault();
       const i = deck.slides.findIndex(s => s.id === deck.slideId);

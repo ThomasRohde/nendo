@@ -11,6 +11,25 @@
 | `Ctrl` `D` | Duplicate the slide |
 | `Delete` | Delete the slide (Undo brings it back) |
 
+## In the words on a slide
+
+Click any words on the slide to edit them where they are. Click to place the caret, drag or double-click to select, and type. A right-click, `Shift` `F10` or the menu key opens the text menu: cut, copy, paste, bold, italic, underline, font size, alignment, and bullets and numbering, with the same commands in a small toolbar above it.
+
+| Key | What it does |
+| --- | --- |
+| `←` `→` `↑` `↓`, `Home`, `End` | Move the caret; with `Shift`, select |
+| `Ctrl` `A` | Select all the words in the box |
+| `Enter` | A new paragraph; in a list, the next bullet. In a title, a new line |
+| `Tab`, `Shift` `Tab` | A bullet one level in or out |
+| `Backspace` at the start of a bullet | Takes its level, then its bullet, then joins it to the line above |
+| `Ctrl` `Z`, `Ctrl` `Y` | Undo and redo the typing, also after you leave the box |
+| `Ctrl` `X`, `Ctrl` `C`, `Ctrl` `V` | Cut, copy and paste, with bold, italic, underline and lists |
+| `Ctrl` `Shift` `V` | Paste as plain text |
+| `Ctrl` `I`, `Ctrl` `U` | Italic, underline. Bold is in the text menu: `Ctrl` `B` is Nendo's own key |
+| `Ctrl` `L`, `Ctrl` `E`, `Ctrl` `R`, `Ctrl` `J` | Align left, centre, right, justify |
+| `Ctrl` `]`, `Ctrl` `[` | Larger or smaller text |
+| `Esc` | Stop editing the words |
+
 ## Anywhere in Deck
 
 | Key | What it does |

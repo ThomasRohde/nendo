@@ -8,7 +8,7 @@ export const F = {
     numbers: 'dk.deck.numbers', status: 'dk.deck.status' },
   slide: { deck: 'dk.slide.deck', order: 'dk.slide.order', layout: 'dk.slide.layout', title: 'dk.slide.title', kicker: 'dk.slide.kicker',
     body: 'dk.slide.body', body2: 'dk.slide.body2', notes: 'dk.slide.notes', image: 'dk.slide.image', imageAlt: 'dk.slide.imageAlt',
-    chart: 'dk.slide.chart', hidden: 'dk.slide.hidden' },
+    chart: 'dk.slide.chart', hidden: 'dk.slide.hidden', format: 'dk.slide.format' },
   template: { name: 'dk.template.name', family: 'dk.template.family', description: 'dk.template.description', headingFont: 'dk.template.headingFont',
     bodyFont: 'dk.template.bodyFont', background: 'dk.template.background', surface: 'dk.template.surface', ink: 'dk.template.ink',
     muted: 'dk.template.muted', primary: 'dk.template.primary', secondary: 'dk.template.secondary', accent: 'dk.template.accent' },
@@ -57,7 +57,7 @@ export function slideFrom(record) {
     layout: LAYOUT_IDS.includes(v[F.slide.layout]) ? v[F.slide.layout] : 'Bullets',
     title: str(v[F.slide.title]), kicker: str(v[F.slide.kicker]), body: str(v[F.slide.body]), body2: str(v[F.slide.body2]),
     notes: str(v[F.slide.notes]), image: v[F.slide.image] || null, imageAlt: str(v[F.slide.imageAlt]),
-    chart: CHARTS.includes(v[F.slide.chart]) ? v[F.slide.chart] : 'Column', hidden: v[F.slide.hidden] === true,
+    chart: CHARTS.includes(v[F.slide.chart]) ? v[F.slide.chart] : 'Column', hidden: v[F.slide.hidden] === true, format: str(v[F.slide.format]),
     order: Number.isFinite(v[F.slide.order]) ? v[F.slide.order] : 0,
   };
 }
@@ -76,31 +76,125 @@ export function reorder(slides, fromIndex, toIndex) {
 }
 
 // ---- Text: a small Markdown, enough for slides. ------------------------------------------------
+// The stage edits this text in place (stage-editor.mjs), so every reader here has a writer that
+// gives back the same words and marks: inline/inlineMarkdown, paragraphs/blocksMarkdown.
 
 /** A link goes to the web or to mail; a `javascript:` or other address would run in the view's frame. */
 export const safeLink = address => /^(?:https?:\/\/|mailto:)/i.test(String(address ?? '')) ? String(address) : null;
 
-/** Inline marks: **bold**, *italic* or _italic_, `code`, [text](link). Returns runs. */
-export function inline(text) {
-  const runs = [];
-  const pattern = /(\*\*([^*]+)\*\*|__([^_]+)__|\*([^*\s][^*]*)\*|_([^_\s][^_]*)_|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\))/g;
-  let at = 0, m;
-  const plain = s => { if (s) runs.push({ text: s }); };
-  while ((m = pattern.exec(text)) !== null) {
-    plain(text.slice(at, m.index));
-    if (m[2] ?? m[3]) runs.push({ text: m[2] ?? m[3], b: true });
-    else if (m[4] ?? m[5]) runs.push({ text: m[4] ?? m[5], i: true });
-    else if (m[6]) runs.push({ text: m[6], code: true });
-    else if (m[7]) runs.push(safeLink(m[8]) ? { text: m[7], link: m[8] } : { text: m[7] });
-    at = pattern.lastIndex;
+const PUNCTUATION = /[!-/:-@[-`{-~]/;
+const MARK_KEYS = ['b', 'i', 'u', 'code', 'link'];
+const sameMarks = (a, b) => MARK_KEYS.every(k => (a[k] ?? null) === (b[k] ?? null));
+/** A run with only the marks it has: no key is ever present and false. */
+export function run(text, marks = {}) {
+  const r = { text };
+  for (const k of MARK_KEYS) if (marks[k]) r[k] = marks[k];
+  return r;
+}
+/** Runs with neighbours of the same marks joined and empty ones dropped. */
+export function mergeRuns(runs) {
+  const out = [];
+  for (const r of runs) {
+    if (!r.text) continue;
+    const last = out.at(-1);
+    if (last && sameMarks(last, r)) last.text += r.text; else out.push(run(r.text, r));
   }
-  plain(text.slice(at));
+  return out;
+}
+
+/** Where `delimiter` next closes in `text` from `at`, stepping over escapes, code spans and doubled marks. */
+function closing(text, at, delimiter) {
+  for (let j = at; j < text.length; j++) {
+    const ch = text[j];
+    if (ch === '\\' && PUNCTUATION.test(text[j + 1] ?? '')) { j++; continue; }
+    if (ch === '`' && delimiter !== '`') { const end = text.indexOf('`', j + 1); if (end > j + 1) { j = end; continue; } }
+    if (!text.startsWith(delimiter, j)) continue;
+    // A single * or _ never closes on half of a doubled one: that is bold inside the italic.
+    if (delimiter.length === 1 && (delimiter === '*' || delimiter === '_') && text[j + 1] === delimiter) { j++; continue; }
+    return j;
+  }
+  return -1;
+}
+
+function parseInline(text, marks, out) {
+  let plain = '';
+  const flush = () => { if (plain) { out.push(run(plain, marks)); plain = ''; } };
+  for (let i = 0; i < text.length;) {
+    const ch = text[i];
+    if (ch === '\\' && PUNCTUATION.test(text[i + 1] ?? '')) { plain += text[i + 1]; i += 2; continue; }
+    if (ch === '`') {
+      const end = text.indexOf('`', i + 1);
+      if (end > i + 1) { flush(); out.push(run(text.slice(i + 1, end), { ...marks, code: true })); i = end + 1; continue; }
+    }
+    const tags = [['***', { b: true, i: true }], ['**', { b: true }], ['__', { b: true }], ['<u>', { u: true }, '</u>'], ['*', { i: true }], ['_', { i: true }]];
+    let taken = false;
+    for (const [open, add, close = open] of tags) {
+      if (!text.startsWith(open, i)) continue;
+      const from = i + open.length;
+      // A lone * before a space is a times sign or a star, not italic.
+      if (open === '*' && /\s/.test(text[from] ?? ' ')) continue;
+      const end = closing(text, from, close);
+      if (end <= from) continue;
+      flush();
+      parseInline(text.slice(from, end), { ...marks, ...add }, out);
+      i = end + close.length; taken = true; break;
+    }
+    if (taken) continue;
+    if (ch === '[') {
+      const end = closing(text, i + 1, ']');
+      const m = end > i + 1 ? /^\(([^)\s]+)\)/.exec(text.slice(end + 1)) : null;
+      if (m) {
+        flush();
+        const link = safeLink(m[1]);
+        parseInline(text.slice(i + 1, end), link ? { ...marks, link } : marks, out);
+        i = end + 1 + m[0].length; continue;
+      }
+    }
+    plain += ch; i++;
+  }
+  flush();
+}
+
+/**
+ * Inline marks: **bold**, *italic* or _italic_, <u>underline</u>, `code` and [text](link), nested
+ * as deep as they go; a backslash keeps the punctuation after it as itself. Returns runs.
+ */
+export function inline(text) {
+  const out = [];
+  parseInline(String(text ?? ''), {}, out);
+  const runs = mergeRuns(out);
   return runs.length ? runs : [{ text: '' }];
+}
+
+/** Text with every character a mark could take escaped, so it reads back as the same words. */
+function escapeText(text) {
+  return text.replace(/[\\`*_[\]]/g, '\\$&').replace(/<(?=\/?u>|br>)/gi, '\\<');
+}
+const OPEN = { link: () => '[', b: () => '**', i: () => '_', u: () => '<u>' };
+const CLOSE = { link: r => `](${r.link.replace(/[()\s]/g, ch => `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`)})`, b: () => '**', i: () => '_', u: () => '</u>' };
+const NESTING = ['link', 'b', 'i', 'u'];
+/** Runs as inline Markdown that `inline` reads back as the same runs. */
+export function inlineMarkdown(runs) {
+  let out = '';
+  const open = [];
+  const wants = (r, k) => k === 'link' ? r.link ?? null : !!r[k];
+  for (const r of mergeRuns(runs)) {
+    // Close from the inside out until every mark still open is one this run keeps, as it is.
+    let keep = 0;
+    while (keep < open.length && wants(r, open[keep].k) && (open[keep].k !== 'link' || open[keep].link === r.link)) keep++;
+    while (open.length > keep) { const m = open.pop(); out += CLOSE[m.k](m); }
+    for (const k of NESTING) if (wants(r, k) && !open.some(m => m.k === k)) { out += OPEN[k](r); open.push({ k, link: r.link }); }
+    // Code cannot hold a backtick; such a run keeps its words and loses the mark.
+    out += r.code && !r.text.includes('`') ? `\`${r.text}\`` : escapeText(r.text);
+  }
+  while (open.length) { const m = open.pop(); out += CLOSE[m.k](m); }
+  return out;
 }
 
 /**
  * Paragraphs of a body: bullets (- or *), numbers (1.), ### headings and plain lines. A plain
- * line directly under another plain line continues it, as Markdown does.
+ * line directly under another plain line continues it, as Markdown does. A lone `<br>` is an
+ * empty paragraph, and a lone marker an empty item, so a writer can keep an empty line.
  */
 export function paragraphs(body) {
   const out = [];
@@ -108,12 +202,14 @@ export function paragraphs(body) {
   for (const raw of String(body ?? '').replace(/\r\n?/g, '\n').split('\n')) {
     if (!raw.trim()) { previousPlain = false; continue; }
     const indent = raw.match(/^\s*/)[0].replace(/\t/g, '  ').length;
-    const line = raw.trim();
+    // What follows the marker keeps its trailing spaces: the stage types into them.
+    const line = raw.trimStart();
     let m;
-    if ((m = /^#{1,6}\s+(.*)$/.exec(line))) { out.push({ runs: inline(m[1]), heading: true, level: 0 }); previousPlain = false; continue; }
-    if ((m = /^[-*•]\s+(.*)$/.exec(line))) { out.push({ runs: inline(m[1]), bullet: 'bullet', level: indent >= 2 ? 1 : 0 }); previousPlain = false; continue; }
-    if ((m = /^(\d+)[.)]\s+(.*)$/.exec(line))) { out.push({ runs: inline(m[2]), bullet: 'number', number: Number(m[1]), level: indent >= 2 ? 1 : 0 }); previousPlain = false; continue; }
-    if (previousPlain && out.length) { out[out.length - 1].runs.push({ text: ' ' }, ...inline(line)); continue; }
+    if (/^<br>\s*$/i.test(line)) { out.push({ runs: [{ text: '' }], level: 0 }); previousPlain = false; continue; }
+    if ((m = /^#{1,6}(?:\s+(.*)|\s*)$/.exec(line))) { out.push({ runs: inline(m[1] ?? ''), heading: true, level: 0 }); previousPlain = false; continue; }
+    if ((m = /^[-*•](?:\s+(.*)|\s*)$/.exec(line))) { out.push({ runs: inline(m[1] ?? ''), bullet: 'bullet', level: indent >= 2 ? 1 : 0 }); previousPlain = false; continue; }
+    if ((m = /^(\d+)[.)](?:\s+(.*)|\s*)$/.exec(line))) { out.push({ runs: inline(m[2] ?? ''), bullet: 'number', number: Number(m[1]), level: indent >= 2 ? 1 : 0 }); previousPlain = false; continue; }
+    if (previousPlain && out.length) { out[out.length - 1].runs = mergeRuns([...out[out.length - 1].runs, { text: ' ' }, ...inline(line)]); continue; }
     out.push({ runs: inline(line), level: 0 });
     previousPlain = true;
   }
@@ -121,24 +217,128 @@ export function paragraphs(body) {
 }
 export const plainText = runs => runs.map(r => r.text).join('');
 
-/** Lines of the form `- a | b | c`, as arrays of trimmed cells; plain lines count too. */
-export function rows(body) {
-  return String(body ?? '').replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).filter(Boolean)
-    .filter(l => !/^#{1,6}\s/.test(l))
-    .map(l => l.replace(/^([-*•]|\d+[.)])\s+/, '').split('|').map(c => c.trim()));
+/**
+ * Paragraphs ({kind: plain|bullet|number|heading, level, runs}) as the body Markdown that
+ * `paragraphs` reads back the same. Numbers count on from the first of each list.
+ */
+export function blocksMarkdown(paras) {
+  if (paras.length === 1 && paras[0].kind === 'plain' && !plainText(paras[0].runs)) return '';
+  const lines = [];
+  let previous = null;
+  const counters = [0, 0];
+  paras.forEach(para => {
+    const content = inlineMarkdown(para.runs);
+    const level = para.level > 0 ? 1 : 0, pad = level ? '  ' : '';
+    if (para.kind !== 'number') counters[level] = 0;
+    if (level === 0 && para.kind !== 'number') counters[1] = 0;
+    let line;
+    if (para.kind === 'bullet') line = `${pad}-${content ? ` ${content}` : ''}`;
+    else if (para.kind === 'number') {
+      counters[level] = counters[level] ? counters[level] + 1 : (para.number ?? 1);
+      line = `${pad}${counters[level]}.${content ? ` ${content}` : ''}`;
+    } else if (para.kind === 'heading') line = `###${content ? ` ${content}` : ''}`;
+    else if (!content) line = '<br>';
+    else {
+      // A plain line that starts like a marker keeps it as words.
+      line = content.replace(/^\s+/, '').replace(/^([-+]|#{1,6})(?=\s|$)/, '\\$1').replace(/^(\d+)([.)])(?=\s|$)/, '$1\\$2');
+      if (previous === 'plain') lines.push('');
+    }
+    lines.push(line);
+    previous = para.kind === 'plain' && content ? 'plain' : para.kind;
+  });
+  return lines.join('\n');
 }
 
-/** A Markdown table: {head, rows}; null when the body holds none. */
+/** Lines of runs (a title) as Markdown, one paragraph to a line. */
+export const linesMarkdown = paras => paras.length === 1 && !plainText(paras[0].runs) ? '' : paras.map(p => inlineMarkdown(p.runs)).join('\n');
+
+/** Lines of the form `- a | b | c`, as cells {text, from, to} with each cell's place in the body. */
+export function rowCells(body) {
+  const out = [];
+  let at = 0;
+  for (const raw of String(body ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    const start = at;
+    at += raw.length + 1;
+    if (!raw.trim() || /^#{1,6}\s/.test(raw.trim())) continue;
+    // The line keeps its trailing spaces, so an empty last cell keeps the space after its bar.
+    const line = raw.trimStart();
+    const marker = /^([-*•]|\d+[.)])\s/.exec(line)?.[0] ?? '';
+    let pos = start + (raw.length - line.length) + marker.length;
+    out.push(line.slice(marker.length).split('|').map((piece, i) => {
+      const lead = piece.length - piece.trimStart().length, text = piece.trim();
+      // An empty cell stays where its words were: after its marker, or after the one space past its bar.
+      const skip = text ? lead : Math.min(lead, i ? 1 : 0);
+      const cell = { text, from: pos + skip, to: pos + skip + text.length };
+      pos += piece.length + 1;
+      return cell;
+    }));
+  }
+  return out;
+}
+/** Lines of the form `- a | b | c`, as arrays of trimmed cells; plain lines count too. */
+export const rows = body => rowCells(body).map(r => r.map(c => c.text));
+
+/** A Markdown table: {head, rows, align, at}; null when the body holds none. `at` places each cell in the body. */
 export function table(body) {
-  const lines = String(body ?? '').replace(/\r\n?/g, '\n').split('\n').map(l => l.trim()).filter(l => l.startsWith('|') || /\|/.test(l));
+  let offset = 0;
+  const lines = [];
+  for (const raw of String(body ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    const line = raw.trim();
+    if (line.startsWith('|') || /\|/.test(line)) lines.push({ line, start: offset + (raw.length - raw.trimStart().length) });
+    offset += raw.length + 1;
+  }
   if (lines.length < 2) return null;
-  const cells = line => line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+  const cells = ({ line, start }) => {
+    let pos = start, inner = line;
+    if (inner.startsWith('|')) { inner = inner.slice(1); pos += 1; }
+    if (inner.endsWith('|')) inner = inner.slice(0, -1);
+    return inner.split('|').map(piece => {
+      const lead = piece.length - piece.trimStart().length, text = piece.trim();
+      const skip = text ? lead : Math.min(lead, 1);
+      const cell = { text, from: pos + skip, to: pos + skip + text.length };
+      pos += piece.length + 1;
+      return cell;
+    });
+  };
   const separator = /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$/;
   const head = cells(lines[0]);
-  const rest = lines.slice(1).filter(l => !separator.test(l)).map(cells);
-  const align = separator.test(lines[1] ?? '') ? cells(lines[1]).map(c => c.endsWith(':') && c.startsWith(':') ? 'center' : c.endsWith(':') ? 'right' : 'left') : head.map(() => 'left');
+  const rest = lines.slice(1).filter(l => !separator.test(l.line)).map(cells);
+  const align = separator.test(lines[1]?.line ?? '') ? cells(lines[1]).map(({ text: c }) => c.endsWith(':') && c.startsWith(':') ? 'center' : c.endsWith(':') ? 'right' : 'left') : head.map(() => 'left');
   const width = head.length;
-  return { head, rows: rest.map(r => Array.from({ length: width }, (_, i) => r[i] ?? '')), align };
+  return {
+    head: head.map(c => c.text), rows: rest.map(r => Array.from({ length: width }, (_, i) => r[i]?.text ?? '')), align,
+    at: { head: head.map(({ from, to }) => ({ from, to })), rows: rest.map(r => Array.from({ length: width }, (_, i) => r[i] ? { from: r[i].from, to: r[i].to } : null)) },
+  };
+}
+
+// ---- Text format: size and alignment, per text box, kept on the slide as JSON. ------------------
+
+export const ALIGNS = ['left', 'center', 'right', 'justify'];
+/** The scales of a layout's size a slide's format keeps: a quarter to six times. */
+export const SCALE = { min: 0.25, max: 6 };
+/**
+ * A slide's text format as {key: {size, align}}: `size` scales the layout's own size for that box
+ * (1 is the layout's), `align` replaces its alignment. Anything else is dropped.
+ */
+export function parseFormat(text) {
+  let raw = null;
+  try { raw = typeof text === 'string' && text.trim() ? JSON.parse(text) : (typeof text === 'object' ? text : null); } catch { raw = null; }
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  for (const [key, value] of Object.entries(raw)) {
+    if (!/^[a-z0-9.]{1,32}$/i.test(key) || !value || typeof value !== 'object') continue;
+    const entry = {};
+    if (Number.isFinite(value.size) && value.size >= SCALE.min && value.size <= SCALE.max && Math.abs(value.size - 1) > 0.001) entry.size = Math.round(value.size * 1000) / 1000;
+    if (ALIGNS.includes(value.align)) entry.align = value.align;
+    if (Object.keys(entry).length) out[key] = entry;
+  }
+  return out;
+}
+/** A format as the slide keeps it: JSON, or '' when nothing differs from the layout. */
+export function formatText(format) {
+  const clean = parseFormat(format);
+  const keys = Object.keys(clean).sort();
+  return keys.length ? JSON.stringify(Object.fromEntries(keys.map(k => [k, clean[k]]))) : '';
 }
 
 /** A number in a cell: 1,234.5 or 12% or €3.4m; null when the cell is no number. */

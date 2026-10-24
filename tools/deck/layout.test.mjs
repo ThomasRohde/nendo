@@ -146,6 +146,21 @@ test('a long comparison heading shrinks to its band, or says it overflows', () =
   }
 });
 
+test('a column the person sized keeps its size; the other column keeps its own', () => {
+  const theme = resolveTheme(TEMPLATES[0]);
+  const sizes = format => {
+    const laid = layoutSlide({ layout: 'Two columns', title: 'T', body: '- Short', body2: '- Short too', image: null, chart: 'Column', format }, theme, { measure: approxMeasure });
+    const at = role => laid.items.find(p => p.type === 'text' && p.role === role).size;
+    return [at('body'), at('body2')];
+  };
+  const [plain] = sizes('');
+  assert.deepEqual(sizes('{"body":{"size":1.5}}'), [plain * 1.5, plain], 'larger');
+  assert.deepEqual(sizes('{"body":{"size":0.5}}'), [plain * 0.5, plain], 'smaller, and the other column stays');
+  const comparison = layoutSlide({ layout: 'Comparison', title: 'T', body: '- One', body2: '- Two', image: null, chart: 'Column', format: '{"body2":{"size":0.5}}' }, theme, { measure: approxMeasure });
+  const [left, right] = ['body', 'body2'].map(role => comparison.items.filter(p => p.type === 'text' && p.role === role).at(-1).size);
+  assert.equal(right * 2, left);
+});
+
 test('fit shrinks text to its box, and says when it cannot', () => {
   const long = { type: 'text', x: 0, y: 0, w: 300, h: 60, size: 40, weight: 400, font: 'Segoe UI', lineHeight: 1.2, paragraphs: [{ runs: [{ text: 'word '.repeat(40) }], level: 0 }] };
   fit(long, approxMeasure, 14);
