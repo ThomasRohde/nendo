@@ -339,8 +339,16 @@ async page => {
   const htmlSlides = (html.text.match(/class="dk-slide/g) ?? []).length;
   assert(html.name.endsWith('.html') && htmlSlides === exampleSlides && !/<script[^>]+src=/i.test(html.text) && !/<link[^>]+stylesheet[^>]+href="(?!https:\/\/fonts\.googleapis\.com)/i.test(html.text),
     `The HTML file must hold every slide and load no script or stylesheet of its own from elsewhere: ${htmlSlides} slides.`);
+  // The notes file, too, carries the deck's typing from the pause before its save.
+  await frame.click('#tab-design');
+  await frame.fill('#d-title', 'Typed before the notes');
   const notes = await exported('export.notes', 'md');
   assert(notes.name.endsWith('notes.md') && (notes.text.match(/^## /gm) ?? []).length === exampleSlides, 'The notes file must have one section per shown slide.');
+  assert(notes.text.startsWith('# Typed before the notes') && notes.name === 'Typed before the notes - notes.md',
+    `The notes file must carry the deck's typing: ${JSON.stringify({ name: notes.name, head: notes.text.split('\n')[0] })}.`);
+  await frame.fill('#d-title', 'Typed just before export');
+  await page.waitForFunction(id => window.broker.record('dk.deck', id)?.values['dk.deck.title'] === 'Typed just before export', deckRecord.recordId, { timeout: 5000 });
+  await frame.click('#tab-slide');
   checks.push('exports');
 
   // 11. Present plays the same deck in a frame and Escape hands back the slide it reached.

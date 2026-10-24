@@ -969,7 +969,8 @@ async function exportPptx() {
   download(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' }), fileName('pptx'));
   if (missing.length) toast(`${missing.length} picture${missing.length > 1 ? 's are' : ' is'} linked, not in the file, so PowerPoint leaves ${missing.length > 1 ? 'them' : 'it'} out.`);
 }
-function exportNotes() {
+async function exportNotes() {
+  await flushAll();
   const d = currentDeck();
   const lines = [`# ${v(d, F.deck.title) ?? 'Deck'}`, ''];
   deck.slides.filter(s => !s.hidden).forEach((s, i) => { lines.push(`## ${i + 1}. ${s.title || s.layout}`, '', s.notes || '_No notes._', ''); });
