@@ -57,6 +57,7 @@ test('rows split on bars; tables keep their width and alignment', () => {
 
 test('chart data reads numbers out of cells', () => {
   assert.deepEqual([numberIn('€3,400.5m'), numberIn('12%'), numberIn('n/a')], [3400.5, 12, null]);
+  assert.deepEqual([numberIn('.5'), numberIn('-.25'), numberIn('-0.5'), numberIn('$.75')], [0.5, -0.25, -0.5, 0.75]);
   const d = chartData('| Quarter | Sales | Cost |\n| --- | --- | --- |\n| Q1 | 10% | 4 |\n| Q2 | 12% | x |');
   assert.deepEqual(d, { labels: ['Q1', 'Q2'], series: [{ name: 'Sales', values: [10, 12] }, { name: 'Cost', values: [4, 0] }], unit: '%' });
   assert.equal(chartData('| one |\n| --- |\n| a |'), null);

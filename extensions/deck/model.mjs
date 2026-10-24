@@ -143,7 +143,8 @@ export function table(body) {
 
 /** A number in a cell: 1,234.5 or 12% or €3.4m; null when the cell is no number. */
 export function numberIn(cell) {
-  const m = /-?\d[\d,]*(\.\d+)?/.exec(String(cell ?? '').replace(/\s/g, ''));
+  // A leading point is a fraction: .5 and -.25, never 5 and 25.
+  const m = /-?(?:\d[\d,]*(?:\.\d+)?|\.\d+)/.exec(String(cell ?? '').replace(/\s/g, ''));
   if (!m) return null;
   const n = Number(m[0].replace(/,/g, ''));
   return Number.isFinite(n) ? n : null;
