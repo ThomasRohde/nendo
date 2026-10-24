@@ -48,7 +48,6 @@ Click any words on the slide to edit them where they are. Click to place the car
 | `F5` | Present from the first slide |
 | `Shift` `F5` | Present from this slide |
 | `Enter` in the ask bar | Send the ask; `Shift` `Enter` starts a new line |
-
 | `Ctrl` `Z`, `Ctrl` `Y` | Undo and redo the last change: words on a slide, or adding, moving, pasting, hiding and deleting slides |
 
 Every change is saved as you type. Nendo's own Undo also takes back adding, moving, deleting and using variants as one step each.
