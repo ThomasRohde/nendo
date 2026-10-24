@@ -466,6 +466,9 @@ async page => {
   const [audienceWindow] = await Promise.all([page.context().waitForEvent('page', { timeout: 5000 }),
     page.evaluate(() => document.querySelector('iframe[name="hashcheck"]').contentDocument.getElementById('c-audience').click())]);
   await audienceWindow.waitForFunction(() => !!window.deckPlayer, null, { timeout: 5000 });
+  // As soon as its player is ready the audience window is where the talk is, not after a guessed delay.
+  const synced = await audienceWindow.waitForFunction(() => window.deckPlayer.state().at === 1, null, { timeout: 150 }).then(() => true, () => false);
+  assert(synced, `The audience window must take the talk's place as soon as its player is ready: ${JSON.stringify(await audienceWindow.evaluate(() => window.deckPlayer.state().at))}.`);
   const talkBefore = await talkState();
   const audienceBox = await audienceWindow.locator('#frame').boundingBox();
   await audienceWindow.mouse.click(audienceBox.x + audienceBox.width * 0.75, audienceBox.y + audienceBox.height / 2);

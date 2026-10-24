@@ -422,7 +422,6 @@ function player(W, H) {
     if (!w) { $('pace').textContent = 'The browser kept the window from opening. Allow pop-ups for this file and try again.'; return; }
     peer = w;
     presenter(true);
-    setTimeout(tell, 600);
   }
   addEventListener('message', e => {
     const m = e.data;
@@ -434,6 +433,8 @@ function player(W, H) {
       laser = m.laser; ink.set(at, m.ink || []);
       draw(false);
     } else if (!audience && peer && e.source === peer && m.deck === 'key') press(m.key);
+    // The audience window says when its player is ready, however long its fonts took, and is told where the talk is.
+    else if (!audience && peer && e.source === peer && m.deck === 'ready') tell();
     else if (data.embedded && e.source === parent && m.deck === 'go') jump(m.index);
   });
 
@@ -532,5 +533,6 @@ function player(W, H) {
   if (data.rehearse) presenter(true);
   if (document.fonts) document.fonts.ready.then(fit);
   window.deckPlayer = { state: () => ({ at, shown, ended, cover, tool, total, spent: [...spent], presenter: body.classList.contains('presenter') }), press };
+  if (audience && peer) try { peer.postMessage({ deck: 'ready' }, '*'); } catch { /* the console has gone */ }
   window.focus();
 }
