@@ -136,8 +136,3 @@ export function slideHtml(laid, { urlFor = src => src, className = '' } = {}) {
   const parts = laid.items.map((p, i) => p.type === 'text' ? textHtml(p, i) : p.type === 'image' ? imageHtml(p, urlFor) : shapeHtml(p, W, H));
   return `<div class="dk-slide ${className}" data-steps="${laid.steps ?? 0}" style="width:${W}px;height:${H}px;background:${cssFill(laid.background)}">${parts.join('')}</div>`;
 }
-
-/** Shows a drawn slide as it stands after `shown` clicks: what comes later is hidden, and fades in when it comes. */
-export function showSteps(slideElement, shown) {
-  for (const el of slideElement.querySelectorAll('[data-step]')) el.classList.toggle('dk-later', Number(el.dataset.step) > shown);
-}
