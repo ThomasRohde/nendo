@@ -68,7 +68,7 @@ function shape(p, id, ctx) {
       return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${esc(name)}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(p.cx - p.r, p.cy - p.r, 2 * p.r, 2 * p.r)}${geometry('blockArc', adj)}${fill(p.fill)}<a:ln><a:noFill/></a:ln></p:spPr></p:sp>`;
     }
     case 'image': return picture(p, id, name, ctx);
-    case 'text': return textBox(p, id, name);
+    case 'text': return textBox(p, id, name, ctx);
     default: return '';
   }
 }
@@ -89,7 +89,7 @@ function picture(p, id, name, ctx) {
   return `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${esc(name)}" descr="${esc(p.alt ?? '')}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${image.rel}"/>${crop}<a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr>${xfrm(x, y, w, h)}${geom}</p:spPr></p:pic>`;
 }
 
-function textBox(p, id, name) {
+function textBox(p, id, name, ctx) {
   if (p.paragraphs.every(para => para.runs.every(r => !r.text)) || p.ghost) return '';
   const anchor = p.valign === 'middle' ? 'ctr' : p.valign === 'bottom' ? 'b' : 't';
   const algn = p.align === 'center' ? 'ctr' : p.align === 'right' ? 'r' : 'l';
@@ -110,8 +110,10 @@ function textBox(p, id, name) {
     const runs = para.runs.filter(r => r.text).map(r => {
       const bold = r.b || para.heading || p.weight >= 600;
       const face = r.code ? 'Consolas' : p.font;
-      const attrs = `lang="en-US" sz="${pt100(size)}"${bold ? ' b="1"' : ' b="0"'}${r.i || p.italic ? ' i="1"' : ''}${p.caps ? ' cap="all"' : ''}${p.tracking ? ` spc="${Math.round(p.tracking * size * 0.75 * 100)}"` : ''} dirty="0"`;
-      return `<a:r><a:rPr ${attrs}>${fill(r.color ?? p.color)}<a:latin typeface="${esc(face)}"/><a:cs typeface="${esc(face)}"/></a:rPr><a:t>${esc(r.text)}</a:t></a:r>`;
+      // A link keeps its address: the run points at the slide's relationship for it.
+      const link = r.link && ctx?.link ? ctx.link(r.link) : null;
+      const attrs = `lang="en-US" sz="${pt100(size)}"${bold ? ' b="1"' : ' b="0"'}${r.i || p.italic ? ' i="1"' : ''}${link ? ' u="sng"' : ''}${p.caps ? ' cap="all"' : ''}${p.tracking ? ` spc="${Math.round(p.tracking * size * 0.75 * 100)}"` : ''} dirty="0"`;
+      return `<a:r><a:rPr ${attrs}>${fill(r.color ?? p.color)}<a:latin typeface="${esc(face)}"/><a:cs typeface="${esc(face)}"/>${link ? `<a:hlinkClick r:id="${link}"/>` : ''}</a:rPr><a:t>${esc(r.text)}</a:t></a:r>`;
     }).join('');
     return `<a:p>${pPr}${runs}<a:endParaRPr lang="en-US" sz="${pt100(size)}" dirty="0"/></a:p>`;
   }).join('');
@@ -170,7 +172,7 @@ function masterXml() {
 }
 const layoutXml = () => `${XML}<p:sldLayout ${NS} type="blank" preserve="1"><p:cSld name="Blank"><p:spTree>${group}</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`;
 
-const rels = list => `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${esc(target)}"/>`).join('')}</Relationships>`;
+const rels = list => `${XML}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${list.map(([id, type, target, mode]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${esc(target)}"${mode ? ` TargetMode="${mode}"` : ''}/>`).join('')}</Relationships>`;
 
 /**
  * Builds the .pptx bytes.
@@ -190,8 +192,11 @@ export function buildPptx({ deck = {}, theme, slides, images = new Map(), now = 
   slides.forEach((slide, i) => {
     const n = i + 1;
     const slideRels = [['rId1', 'slideLayout', '../slideLayouts/slideLayout1.xml'], ['rId2', 'notesSlide', `../notesSlides/notesSlide${n}.xml`]];
-    const byPath = new Map();
-    const ctx = { image: src => {
+    const byPath = new Map(), byLink = new Map();
+    const ctx = { link: url => {
+      if (!byLink.has(url)) { const rel = `rId${slideRels.length + 1}`; slideRels.push([rel, 'hyperlink', url, 'External']); byLink.set(url, rel); }
+      return byLink.get(url);
+    }, image: src => {
       const m = used(src);
       if (!m) return null;
       if (!byPath.has(m.path)) { const rel = `rId${slideRels.length + 1}`; slideRels.push([rel, 'image', `../${m.path}`]); byPath.set(m.path, rel); }

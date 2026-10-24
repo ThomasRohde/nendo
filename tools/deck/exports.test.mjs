@@ -60,6 +60,18 @@ test('the PowerPoint package: every slide, its notes, the theme, pictures, and h
   }
 });
 
+test('the PowerPoint package keeps a link\'s address', async () => {
+  const theme = resolveTheme(TEMPLATES[0], null, { aspect: '16:9', footer: '' });
+  const laid = layoutSlide({ layout: 'Bullets', title: 'Links', body: '- Read [the report](https://example.com/report?a=1&b=2)\n- And [the report](https://example.com/report?a=1&b=2) again', body2: '', chart: 'Column', image: null }, theme, { measure: approxMeasure, number: 1 });
+  const entries = unzip(buildPptx({ deck: { title: 'Links', author: 'A' }, theme, slides: [{ laid, hidden: false, notes: '' }], images: new Map(), now: new Date('2026-10-23T12:00:00Z') }));
+  const slide = await text(entries.find(e => e.name === 'ppt/slides/slide1.xml'));
+  const rels = await text(entries.find(e => e.name === 'ppt/slides/_rels/slide1.xml.rels'));
+  const ids = [...slide.matchAll(/<a:hlinkClick r:id="(rId\d+)"\/>/g)].map(m => m[1]);
+  assert.equal(ids.length, 2, `two linked runs: ${ids}`);
+  assert.equal(new Set(ids).size, 1, 'one relationship for one address');
+  assert.ok(rels.includes(`<Relationship Id="${ids[0]}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/report?a=1&amp;b=2" TargetMode="External"/>`), rels);
+});
+
 test('the HTML file: every slide, starting where asked, with its notes, and script text kept inert', () => {
   const { theme, slides } = deckOf(TEMPLATES[0]);
   const html = buildHtml({ title: 'Deck </script><b>', author: 'A', W: 1280, H: 720, theme, start: 2,

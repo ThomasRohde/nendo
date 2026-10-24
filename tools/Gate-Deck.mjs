@@ -520,6 +520,23 @@ async page => {
   await frame.fill('#start-name', 'A blank deck');
   await frame.click('#start-blank');
   await frame.waitForFunction(() => window.deck.decks.length === 1 && window.deck.slides.length === 1 && document.getElementById('start').hidden);
+  // Deck typing queued behind a slow write stays with its deck when a new deck is made and typed in.
+  const blank = await frame.evaluate(() => window.deck.deckId);
+  await frame.click('#tab-design');
+  await page.evaluate(() => window.broker.hold('records.update', 1500));
+  await frame.fill('#d-goal', 'First goal, out');
+  await settle(900);
+  await frame.fill('#d-goal', 'First goal, queued');
+  await command('new-deck');
+  await frame.fill('#start-name', 'A second blank deck');
+  await frame.click('#start-blank');
+  await frame.waitForFunction(id => window.deck.decks.length === 2 && window.deck.deckId !== id && document.getElementById('start').hidden, blank, { timeout: 8000 });
+  const made = await frame.evaluate(() => window.deck.deckId);
+  await frame.click('#tab-design');
+  await frame.fill('#d-goal', 'Second goal');
+  await settle(3000);
+  const goals = [(await record('dk.deck', blank)).values['dk.deck.goal'], (await record('dk.deck', made)).values['dk.deck.goal']];
+  assert(goals[0] === 'First goal, queued' && goals[1] === 'Second goal', `Deck typing queued behind a write must stay with its deck when a new deck is made: ${JSON.stringify(goals)}.`);
   checks.push('start screen');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);

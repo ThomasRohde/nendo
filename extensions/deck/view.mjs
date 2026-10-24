@@ -545,7 +545,7 @@ function draftEntries() {
   const entries = [...deck.pending].filter(([, p]) => Object.keys(p.values).length)
     .map(([id, p]) => ({ entityId: E.slide, recordId: id, version: p.version, values: toValues(p.values) }));
   // Deck typing on its way to the file stays kept until it lands: a frame may end before the answer.
-  for (const typed of [deckSaving, deckTyping]) if (typed) entries.push({ entityId: E.deck, recordId: typed.id, version: typed.version, values: deckValues(typed.changes) });
+  for (const typed of [deckSaving, ...deckQueued, deckTyping]) if (typed) entries.push({ entityId: E.deck, recordId: typed.id, version: typed.version, values: deckValues(typed.changes) });
   // Held first, so the newer typing on the same record wins when both come back.
   return [...deck.held, ...entries];
 }
@@ -633,22 +633,28 @@ async function editDeck(changes, id = deck.deckId) {
 }
 // Typing in the deck's own fields gathers under the deck it was typed in: a second field in the
 // pause never drops the first, and a deck opened before the pause never takes the other's words.
-// One deck write is out at a time; typing made meanwhile waits for it, and a flush waits for both.
+// One deck write is out at a time; typing made meanwhile waits for it, and a flush waits for all.
+// Typing for a deck left while a write was out waits in deckQueued, apart from the next deck's.
 let deckTyping = null, deckSaving = null, deckWriting = null;
+const deckQueued = [];
 const saveDeckTyping = debounce(() => {
-  if (deckWriting) return deckWriting.then(() => deckTyping ? saveDeckTyping.flush() : undefined);
-  if (!deckTyping) return Promise.resolve();
+  if (deckWriting) return deckWriting.then(() => deckTyping || deckQueued.length ? saveDeckTyping.flush() : undefined);
+  if (!deckTyping && !deckQueued.length) return Promise.resolve();
   deckWriting = writeDeckTyping().finally(() => { deckWriting = null; });
-  return deckWriting;
+  // The queue only shrinks, so this ends; a refused write goes back to deckTyping and waits for more typing.
+  return deckWriting.then(() => deckQueued.length ? saveDeckTyping.flush() : undefined);
 }, 700);
 async function writeDeckTyping() {
-  const typed = deckTyping;
-  deckTyping = null; deckSaving = typed;
+  const typed = deckQueued.length ? deckQueued.shift() : deckTyping;
+  if (typed === deckTyping) deckTyping = null;
+  deckSaving = typed;
   const landed = await editDeck(typed.changes, typed.id);
   deckSaving = null;
   if (!landed) {
     // Refused: the typing stays, under newer typing on the same deck, or held for another deck's.
-    if (!deckTyping || deckTyping.id === typed.id) deckTyping = { ...typed, changes: { ...typed.changes, ...(deckTyping?.changes ?? {}) } };
+    const queued = deckQueued.find(q => q.id === typed.id);
+    if (queued) queued.changes = { ...typed.changes, ...queued.changes };
+    else if (!deckTyping || deckTyping.id === typed.id) deckTyping = { ...typed, changes: { ...typed.changes, ...(deckTyping?.changes ?? {}) } };
     else deck.held.push({ entityId: E.deck, recordId: typed.id, version: typed.version, values: deckValues(typed.changes) });
   }
   keepDrafts();
@@ -656,7 +662,8 @@ async function writeDeckTyping() {
 function typeDeck(changes) {
   const d = currentDeck();
   if (!d || nendo.context?.readOnly) return;
-  if (deckTyping && deckTyping.id !== d.recordId) saveDeckTyping.flush();
+  // Typing for another deck never merges into this one's: it waits for its own write.
+  if (deckTyping && deckTyping.id !== d.recordId) { deckQueued.push(deckTyping); deckTyping = null; saveDeckTyping.flush(); }
   deckTyping = { id: d.recordId, version: deckTyping?.version ?? d.version, changes: { ...(deckTyping?.changes ?? {}), ...changes } };
   keepDrafts();
   saveDeckTyping();
@@ -1027,6 +1034,7 @@ async function openDeck(id) {
 }
 
 async function createDeck({ title, about = '', templateId = null, agent = false }) {
+  await flushAll();
   const id = newId('deck');
   const tpl = deck.templates.find(t => t.recordId === templateId) ?? null;
   const brand = deck.brands.find(b => b.recordId === v(currentDeck(), F.deck.brand)) ?? null;

@@ -86,5 +86,5 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
   package's storage on the device with the version it was typed over (`drafts.mjs`). When the view
   starts again it saves what meets that version, and holds what meets a newer one under a notice:
   Put mine back writes it over the change, Discard mine drops it.
-- A Markdown link keeps its address only for `http:`, `https:` and `mailto:`; any other link is
-  shown as its words alone, so nothing in a slide runs in the view's frame.
+- A Markdown link keeps its address, on the stage and in both exports, only for `http:`, `https:`
+  and `mailto:`; any other link is shown as its words alone, so nothing in a slide runs in the view's frame.
