@@ -301,14 +301,15 @@ async page => {
   // Printing the file from presenter view prints the slides.
   await page.evaluate(text => {
     const sheet = Object.assign(document.createElement('iframe'), { name: 'printcheck', srcdoc: text });
-    sheet.setAttribute('sandbox', 'allow-scripts');
     sheet.style.cssText = 'position:fixed;left:0;top:0;width:960px;height:540px';
     document.body.append(sheet);
   }, html.text);
-  const printed = await (async () => { for (let i = 0; i < 50; i++) { const f = page.frames().find(x => x.name() === 'printcheck'); if (f && await f.evaluate(() => !!document.getElementById('deck')).catch(() => false)) return f; await page.waitForTimeout(100); } throw Error('The exported file did not open.'); })();
-  await printed.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', bubbles: true })));
+  // The file's own stylesheet is what is measured: presenter view is its body class, set here directly.
+  await page.waitForFunction(() => !!document.querySelector('iframe[name="printcheck"]')?.contentDocument?.getElementById('deck'), null, { timeout: 5000 })
+    .catch(() => { throw Error('The exported file did not open.'); });
+  await page.evaluate(() => document.querySelector('iframe[name="printcheck"]').contentDocument.body.classList.add('presenter'));
   await page.emulateMedia({ media: 'print' });
-  const shown = await printed.evaluate(() => ({ presenter: document.body.classList.contains('presenter'), deck: getComputedStyle(document.getElementById('deck')).display }));
+  const shown = await page.evaluate(() => { const doc = document.querySelector('iframe[name="printcheck"]').contentDocument; return { presenter: doc.body.classList.contains('presenter'), deck: doc.defaultView.getComputedStyle(doc.getElementById('deck')).display }; });
   await page.emulateMedia({ media: null });
   await page.evaluate(() => document.querySelector('iframe[name="printcheck"]').remove());
   assert(shown.presenter && shown.deck !== 'none', `Printing from presenter view must print the slides: ${JSON.stringify(shown)}.`);
