@@ -175,6 +175,27 @@ export function setMark(doc, a, b, mark, on) {
   return out;
 }
 
+/**
+ * The part of a selection a mark takes: without the spaces at its ends, which a double click on
+ * Windows takes in with the word. A selection of spaces alone stays as it is.
+ */
+export function inward(doc, a, b) {
+  [a, b] = ordered(a, b);
+  let s = { ...a }, e = { ...b };
+  const at = pos => textOf(doc[pos.p])[pos.o];
+  for (;;) {
+    if (s.p < e.p && s.o >= lengthOf(doc[s.p])) s = { p: s.p + 1, o: 0 };
+    else if (cmp(s, e) < 0 && /\s/.test(at(s) ?? '')) s = { p: s.p, o: s.o + 1 };
+    else break;
+  }
+  for (;;) {
+    if (e.p > s.p && e.o === 0) e = { p: e.p - 1, o: lengthOf(doc[e.p - 1]) };
+    else if (cmp(s, e) < 0 && /\s/.test(textOf(doc[e.p])[e.o - 1] ?? '')) e = { p: e.p, o: e.o - 1 };
+    else break;
+  }
+  return cmp(s, e) < 0 ? [s, e] : [a, b];
+}
+
 const WORD = /[\p{L}\p{N}_'’-]/u;
 /** The word the caret stands inside, as PowerPoint's Bold takes it; null at a word's edge or in a space. */
 export function wordAt(doc, pos) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inline, inlineMarkdown, paragraphs, blocksMarkdown, linesMarkdown, rowCells, rows, table, parseFormat, formatText } from '../../extensions/deck/model.mjs';
-import { readDoc, writeDoc, conform, slice, remove, insert, split, typed, marksAt, hasMark, setMark, wordAt, setKind, shiftLevel, toPlain, toHtml, clampPos, textOf } from '../../extensions/deck/textedit.mjs';
+import { readDoc, writeDoc, conform, slice, remove, insert, split, typed, marksAt, hasMark, setMark, wordAt, inward, setKind, shiftLevel, toPlain, toHtml, clampPos, textOf } from '../../extensions/deck/textedit.mjs';
 
 const plain = runs => runs.map(r => ({ text: r.text, ...(r.b ? { b: true } : {}), ...(r.i ? { i: true } : {}), ...(r.u ? { u: true } : {}), ...(r.code ? { code: true } : {}), ...(r.link ? { link: r.link } : {}) }));
 
@@ -124,6 +124,10 @@ test('bold, italic and underline on a selection, a word, or across paragraphs', 
   const under = setMark(bold, { p: 0, o: 2 }, { p: 1, o: 1 }, 'u', true);
   assert.equal(writeDoc('blocks', under), '- **re<u>ad</u>**<u> faster</u>\n- <u>t</u>wo');
   assert.equal(writeDoc('blocks', setMark(under, { p: 0, o: 0 }, { p: 1, o: 3 }, 'u', false)), '- **read** faster\n- two');
+  // A double click on Windows takes the space after the word; a mark leaves it out.
+  assert.deepEqual(inward(doc, { p: 0, o: 0 }, { p: 0, o: 5 }), [{ p: 0, o: 0 }, { p: 0, o: 4 }]);
+  assert.deepEqual(inward(doc, { p: 1, o: 0 }, { p: 0, o: 4 }), [{ p: 0, o: 5 }, { p: 0, o: 11 }], 'from a space through the next paragraph start');
+  assert.deepEqual(inward(doc, { p: 0, o: 4 }, { p: 0, o: 5 }), [{ p: 0, o: 4 }, { p: 0, o: 5 }], 'spaces alone stay selected');
 });
 
 test('bullets, numbering and levels; a title or a cell takes what fits it', () => {

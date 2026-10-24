@@ -307,7 +307,7 @@ export function createStageEditor(host) {
       const word = T.wordAt(session.doc, a);
       if (!word) { const m = session.marks ?? T.marksAt(session.doc, a); session.marks = { ...m, [mark]: !m[mark] }; return; }
       [a, b] = word;
-    }
+    } else [a, b] = T.inward(session.doc, a, b);
     const on = !T.hasMark(session.doc, a, b, mark);
     commit(T.setMark(session.doc, a, b, mark, on), session.sel, 'format');
   }
@@ -319,7 +319,7 @@ export function createStageEditor(host) {
       if (!word) return !!(session.marks ?? T.marksAt(session.doc, a))[mark];
       return !!T.hasMark(session.doc, word[0], word[1], mark);
     }
-    return !!T.hasMark(session.doc, a, b, mark);
+    return !!T.hasMark(session.doc, ...T.inward(session.doc, a, b), mark);
   }
   const listable = () => T.listed(session.dialect) && !session.single;
   /** The paragraphs the selection touches, as one kind when they share it. */

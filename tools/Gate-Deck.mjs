@@ -567,7 +567,10 @@ async page => {
   const word = await charPoint(TITLE, 12);
   await page.mouse.dblclick(at.x + word.x, at.y + word.y);
   const doubled = await editing();
-  assert(doubled.sel.anchor.o === 11 && doubled.sel.focus.o === 15, `A double click must select the word: ${JSON.stringify(doubled.sel)}.`);
+  // Windows takes the space after the word in too, as PowerPoint does there; the marks leave it out.
+  assert(doubled.sel.anchor.o === 11 && (doubled.sel.focus.o === 15 || doubled.sel.focus.o === 16), `A double click must select the word: ${JSON.stringify(doubled.sel)}.`);
+  // Where the double click left the space out, Shift and an arrow take it in, so both ways mark "read " below.
+  if (doubled.sel.focus.o === 15) await page.keyboard.press('Shift+ArrowRight');
   await page.keyboard.press('Control+i');
   await page.keyboard.press('Control+u');
   assert((await current()).title === 'ShortXYnes _<u>read</u>_ faster than paragraphs', `Ctrl I and Ctrl U must mark the selected word: ${JSON.stringify((await current()).title)}.`);
