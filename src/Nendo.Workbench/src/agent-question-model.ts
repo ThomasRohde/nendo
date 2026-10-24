@@ -43,7 +43,7 @@ function control(entryId: string, field: AgentQuestionField): string {
  */
 export function questionMarkup(entry: AgentTranscriptEntry, agentName: string, key: string): string {
   const fields = entry.fields ?? [];
-  const head = `<div class="chat-question-head">${icon('help')}<strong>${escapeHtml(`${agentName} asks${entry.title === null ? '' : `: ${entry.title}`}`)}</strong></div>${entry.text === '' ? '' : `<p class="chat-plain">${escapeHtml(entry.text)}</p>`}`;
+  const head = `<div class="chat-question-head">${icon('help')}<strong>${escapeHtml(`${agentName} asks${entry.title === null ? '' : `: ${entry.title}`}`)}</strong></div>${entry.text === '' ? '' : `<p class="chat-question-message">${escapeHtml(entry.text)}</p>`}`;
   if (entry.status !== 'waiting')
     return `<section class="chat-question is-done" data-item="${key}">${head}<p class="chat-question-answer">${escapeHtml(entry.answer ?? entry.status ?? '')}</p></section>`;
   const showable = fields.every((field) => field.type !== 'unsupported');

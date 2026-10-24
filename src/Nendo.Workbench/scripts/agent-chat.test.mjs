@@ -385,6 +385,8 @@ test('the agent\'s question is a card with its fields, and the answer read from 
   assert.match(card, /<form class="chat-question" data-item="e1" data-question="e1"/);
   assert.match(card, /data-question-field="count" type="number" step="1" min="1" max="10"/);
   assert.match(card, /Never type a password/);
+  // The owner saw the agent's words in the monospace box tool output uses.
+  assert.match(card, /<p class="chat-question-message">Tell me\.<\/p>/, 'the agent\'s message is not drawn as its words');
   assert.ok(!card.includes('<img src=x'), card);
   const chat = emptyChat();
   mergeChat(chat, { ...view(), entries: [entry] }, 'k1');

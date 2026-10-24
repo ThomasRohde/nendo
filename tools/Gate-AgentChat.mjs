@@ -438,6 +438,10 @@ async page => {
   await until(() => document.querySelector('form.chat-question [data-question-field="name"]') !== null, null, 'the question card', 6000);
   await until(() => document.querySelector('#chat-state-label')?.textContent === 'Waiting for you', null, 'the tab to say the agent waits for the person', 3000)
     .catch(async () => { throw Error(`with a question open the tab says "${await text('#chat-state-label')}".`); });
+  // The agent's words read as prose, in the font of its messages, not the monospace of tool output.
+  const fonts = await page.evaluate(() => ({ question: getComputedStyle(document.querySelector('form.chat-question .chat-question-head + p')).fontFamily,
+    agent: getComputedStyle(document.querySelector('.chat-agent')).fontFamily }));
+  assert(fonts.question === fonts.agent, `the question's words are set in ${fonts.question}, the agent's messages in ${fonts.agent}.`);
   await page.click('form.chat-question button[type="submit"]');
   await until(() => { const error = document.querySelector('form.chat-question .chat-question-error'); return error !== null && !error.hidden && error.textContent.includes('Name needs an answer'); },
     null, 'the missing answer said on the card', 3000);

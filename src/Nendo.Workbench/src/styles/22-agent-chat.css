@@ -649,6 +649,11 @@
   margin: 0;
 }
 
+/* The agent's words: read as prose, not as a tool's output; its line breaks kept. */
+.chat-question-message {
+  white-space: pre-wrap;
+}
+
 .chat-question-row {
   display: grid;
   grid-template-columns: minmax(120px, 200px) minmax(0, 1fr);
