@@ -183,16 +183,9 @@ export function createStageEditor(host) {
   /** The paragraphs as the field's words: written, drawn, and kept for Undo. */
   function commit(doc, sel, label) {
     const s = session;
-    if (s.from !== undefined) {
-      // A cell is read trimmed, so a space before its words is not kept: its box would not show it,
-      // and the cell would no longer start where its box says.
-      const lead = T.textOf(doc[0]).length - T.textOf(doc[0]).trimStart().length;
-      if (lead) {
-        doc = T.remove(doc, { p: 0, o: 0 }, { p: 0, o: lead }).doc;
-        const back = pos => ({ p: pos.p, o: Math.max(0, pos.o - lead) });
-        sel = { anchor: back(sel.anchor), focus: back(sel.focus) };
-      }
-    }
+    // A space before a paragraph's words is not kept: the field drops it, the box would not show
+    // it, and a cell would no longer start where its box says.
+    ({ doc, sel } = T.trimLeads(doc, sel));
     const text = T.writeDoc(s.dialect, doc);
     const value = s.from === undefined ? text : s.value.slice(0, s.from) + text + s.value.slice(s.to);
     const before = { value: s.value, sel: s.sel, to: s.to };
@@ -756,7 +749,7 @@ export function createStageEditor(host) {
     let current = null;
     const open = (kind = 'plain', level = 0) => { current = { kind, level, runs: [] }; out.push(current); };
     const BLOCK = /^(P|DIV|H[1-6]|LI|TR|BLOCKQUOTE|PRE|SECTION|ARTICLE|HEADER|FOOTER|TABLE|DT|DD)$/;
-    const walk = (node, marks, depth, listKind) => {
+    const walk = (node, marks, depth, listKind, item = null) => {
       for (const child of node.childNodes) {
         if (child.nodeType === 3) {
           const t = child.data.replace(/\s+/g, ' ');
@@ -776,10 +769,12 @@ export function createStageEditor(host) {
         if (/^(CODE|KBD|SAMP)$/.test(tag)) m.code = true;
         if (tag === 'A') { const link = safeLink(child.getAttribute('href')); if (link) m.link = link; }
         if (tag === 'UL' || tag === 'OL') { current = null; walk(child, m, depth + 1, tag === 'OL' ? 'number' : 'bullet'); current = null; continue; }
+        // Word and Google Docs wrap a list item's words in a paragraph: they stay the item's.
+        if (item && current === item && !T.textOf(item) && /^(P|DIV)$/.test(tag)) { walk(child, m, depth, listKind, item); continue; }
         if (BLOCK.test(tag)) {
           const kind = tag === 'LI' ? listKind ?? 'bullet' : /^H[1-6]$/.test(tag) ? 'heading' : 'plain';
           open(kind, tag === 'LI' ? Math.min(1, Math.max(depth - 1, /margin-left:\s*[1-9]/.test(style) ? 1 : 0)) : 0);
-          walk(child, m, depth, listKind);
+          walk(child, m, depth, listKind, tag === 'LI' ? current : null);
           current = null;
           continue;
         }

@@ -132,6 +132,22 @@ export function insert(doc, pos, paras) {
   return { doc: out, at: { p: pos.p + rest.length, o: end } };
 }
 
+/**
+ * Paragraphs without the spaces before their words, and the selection moved with them. A field
+ * keeps no such space (a body or a cell is read trimmed), so the words being edited keep none either.
+ */
+export function trimLeads(doc, sel) {
+  let out = doc;
+  const shift = { ...sel };
+  doc.forEach((p, i) => {
+    const text = textOf(p), lead = text.length - text.trimStart().length;
+    if (!lead) return;
+    out = remove(out, { p: i, o: 0 }, { p: i, o: lead }).doc;
+    for (const k of ['anchor', 'focus']) if (shift[k].p === i) shift[k] = { p: i, o: Math.max(0, shift[k].o - lead) };
+  });
+  return { doc: out, sel: shift };
+}
+
 /** Words typed as paragraphs with the given marks: a line break starts a new paragraph. */
 export const typed = (text, marks = {}) => normal(text).split('\n').map(line => para('plain', 0, line ? [run(line, marks)] : []));
 

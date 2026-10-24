@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inline, inlineMarkdown, paragraphs, blocksMarkdown, linesMarkdown, rowCells, rows, table, parseFormat, formatText } from '../../extensions/deck/model.mjs';
-import { readDoc, writeDoc, conform, slice, remove, insert, split, typed, marksAt, hasMark, setMark, wordAt, inward, setKind, shiftLevel, toPlain, toHtml, clampPos, textOf } from '../../extensions/deck/textedit.mjs';
+import { readDoc, writeDoc, conform, slice, remove, insert, split, typed, marksAt, hasMark, setMark, wordAt, inward, trimLeads, setKind, shiftLevel, toPlain, toHtml, clampPos, textOf } from '../../extensions/deck/textedit.mjs';
 
 const plain = runs => runs.map(r => ({ text: r.text, ...(r.b ? { b: true } : {}), ...(r.i ? { i: true } : {}), ...(r.u ? { u: true } : {}), ...(r.code ? { code: true } : {}), ...(r.link ? { link: r.link } : {}) }));
 
@@ -90,6 +90,11 @@ test('insert anywhere: in the middle of a word, across marks, and as several par
   assert.equal(writeDoc('blocks', insert(readDoc('blocks', ''), { p: 0, o: 0 }, list).doc), '- First\n- Second', 'an empty paragraph takes the pasted bullet');
   assert.equal(writeDoc('blocks', insert(readDoc('blocks', ''), { p: 0, o: 0 }, list.slice(0, 1)).doc), '- First');
   assert.equal(writeDoc('blocks', insert(readDoc('blocks', '-'), { p: 0, o: 0 }, typed('a')).doc), '- a', 'typing keeps an empty bullet');
+  // A space typed before a paragraph's words goes, and the caret stays before them.
+  const spaced = insert(readDoc('blocks', 'Alpha\n\n- Beta'), { p: 1, o: 0 }, typed('  '));
+  const trimmed = trimLeads(spaced.doc, { anchor: spaced.at, focus: { p: 0, o: 3 } });
+  assert.deepEqual([trimmed.doc.map(textOf), trimmed.sel], [['Alpha', 'Beta'], { anchor: { p: 1, o: 0 }, focus: { p: 0, o: 3 } }]);
+  assert.equal(writeDoc('blocks', trimmed.doc), 'Alpha\n- Beta');
 });
 
 test('delete anywhere: inside a paragraph, and across paragraphs, which join', () => {

@@ -628,6 +628,22 @@ async page => {
     return window.deck.slides.find(x => x.id === window.deck.slideId).body.split('\n')[0];
   });
   assert(pasted === `1. Write**Pasted** words${first.slice(7)}`, `A paste must go in at the caret with its bold: ${JSON.stringify(pasted)}.`);
+  // A space before a paragraph's words is not kept, and the caret stays before the words it shows.
+  await page.keyboard.press('Control+Home');
+  await page.keyboard.type(' ');
+  const lead = await editing();
+  assert(lead.text[0] === `Write**Pasted** words${first.slice(7)}`.replace('**Pasted**', 'Pasted') && lead.sel.focus.o === 0,
+    `A space typed before a paragraph's words must leave the words and the caret as the box shows them: ${JSON.stringify({ text: lead.text[0].slice(0, 20), sel: lead.sel })}.`);
+  // A list from Word, its words wrapped in paragraphs, pasted over the whole body stays a list.
+  await page.keyboard.press('Control+a');
+  const list = await frame.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/html', '<ul><li><p>First</p></li><li><p><b>Second</b></p></li></ul>');
+    data.setData('text/plain', 'First\nSecond');
+    document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    return window.deck.slides.find(x => x.id === window.deck.slideId).body;
+  });
+  assert(list === '- First\n- **Second**', `A pasted list must keep its bullets, also when its items wrap their words in paragraphs: ${JSON.stringify(list)}.`);
   // Escape ends the editing; the box is drawn as words again.
   await page.keyboard.press('Escape');
   const ended = await frame.evaluate(() => ({ session: window.deck.stageEditor(), editable: document.querySelectorAll('#stage [contenteditable="true"]').length }));
