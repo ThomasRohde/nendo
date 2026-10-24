@@ -81,7 +81,10 @@ drop to copy, and `Esc` to put them back. A drop moves the pick as one block in 
 
 A slide's place is its integer order. `ordersFor` keeps the longest run of orders that still rise
 and writes only the others, into the gaps between, ten apart where they fit, so a move of one slide
-writes one order; only a gap too narrow numbers every slide again. Copy puts the picked slides on
+writes one order. A gap too narrow takes in its nearest kept neighbours until the slides fit, so a
+paste of 100 slides between two others writes about 110 orders. One step is one `records.batch`, at
+most 200 writes: a paste that would need more says so and writes nothing. A step keeps the deck it
+changed, so `Ctrl` `Z` in another deck leaves it alone. Copy puts the picked slides on
 the clipboard as Deck's own type (`application/x-nendo-deck-slides`, format `nendo.deck-slides`
 version 1, every slide field by its model name) and their words as plain text; a paste in any deck,
 in this file or another, makes them after the pick. A paste reads at most 100 slides, so cut and

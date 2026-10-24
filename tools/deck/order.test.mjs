@@ -40,14 +40,14 @@ test('a move writes the order of the moved slides only, in the gap where they la
   assert.ok(rising(applied(toStart, startWrites)) && [...startWrites.values()].every(o => o > 0));
 });
 
-test('new slides take orders in the gap after the current one; no room numbers every slide again', () => {
+test('new slides take orders in the gap after the current one; no room takes in a neighbour', () => {
   const list = [{ id: 'a', order: 10 }, { id: 'new1', order: null }, { id: 'new2', order: null }, { id: 'b', order: 20 }];
   const writes = ordersFor(list);
   assert.deepEqual([...writes], [['new1', 13], ['new2', 16]]);
   const tight = [{ id: 'a', order: 10 }, { id: 'n', order: null }, { id: 'b', order: 11 }, { id: 'c', order: 12 }];
   const again = ordersFor(tight);
-  assert.deepEqual([...again], [['n', 20], ['b', 30], ['c', 40]]);
-  assert.ok(rising(applied(tight, again)));
+  assert.equal(again.size, 2, `a narrow gap takes in the one neighbour that makes room: ${JSON.stringify([...again])}`);
+  assert.ok(rising(applied(tight, again)) && [...again.values()].every(o => o > 0));
   assert.deepEqual([...ordersFor([{ id: 'x', order: null }, { id: 'y', order: null }])], [['x', 10], ['y', 20]]);
 });
 
@@ -90,4 +90,15 @@ test('a drop in a grid aims at the nearest row, also in the gap between two rows
   assert.equal(aimGrid(boxes, 10, -40), 'r0c0');
   assert.equal(aimGrid(boxes, 330, 400), null);
   assert.equal(aimGrid([], 0, 0), null);
+});
+
+test('many slides pasted between two others write them and a few neighbours, within one batch', () => {
+  const deck = Array.from({ length: 128 }, (_, i) => ({ id: `s${i}`, order: (i + 1) * 10 }));
+  const pasted = Array.from({ length: 100 }, (_, i) => ({ id: `p${i}`, order: null }));
+  const list = [deck[0], ...pasted, ...deck.slice(1)];
+  const writes = ordersFor(list);
+  const after = applied(list, writes);
+  assert.ok(rising(after) && after.every(s => Number.isInteger(s.order) && s.order > 0));
+  // 100 new slides and the eleven after them that make room: far under the 200 writes of a batch.
+  assert.ok(writes.size <= 120, `a paste of 100 after the first of 128 slides writes ${writes.size} orders`);
 });

@@ -1105,6 +1105,33 @@ async page => {
   const chromeLater = await page.evaluate(() => window.broker.chromeRefusals);
   assert(chromeLater.length === 0, `Nendo must accept every toolbar and menu the view declared: ${JSON.stringify(chromeLater)}.`);
   checks.push('slide sorter');
+
+  // A step keeps the deck it changed, though another deck opens while its batch is out: Ctrl Z there
+  // leaves this deck alone, and back here it takes the delete back.
+  await page.evaluate(id => {
+    const d = window.broker.record('dk.deck', id);
+    window.broker.put('dk.deck', { ...d, recordId: 'dk.deck.other', version: 1, values: { ...d.values, 'dk.deck.title': 'Other deck' } });
+    window.broker.pushChanges();
+  }, deckId);
+  await until(() => window.deck.decks.length === 2, null, 5000);
+  await thumb(1).click();
+  await page.evaluate(() => window.broker.hold('records.batch', 900));
+  await page.keyboard.press('Delete');
+  await page.evaluate(() => window.broker.pushPlace({ deck: 'dk.deck.other' }));
+  await until(() => window.deck.deckId === 'dk.deck.other', null, 5000);
+  await until(() => window.deck.steps.undo.at(-1)?.label === 'Delete slide 2', null, 5000).catch(() => { throw Error('The delete must land as a step.'); });
+  const stepDeck = await frame.evaluate(() => window.deck.steps.undo.at(-1).deckId);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await settle(400);
+  const stillGone = !(await fileOrder()).includes(start[1]);
+  assert(stepDeck === deckId && stillGone, `A step must keep the deck it changed, and Ctrl Z in another deck must leave it: ${JSON.stringify({ stepDeck, stillGone })}.`);
+  await page.evaluate(id => window.broker.pushPlace({ deck: id }), deckId);
+  await until(id => window.deck.deckId === id && window.deck.slides.length > 0, deckId, 5000);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Back in its deck, Ctrl Z must take the delete back');
+  checks.push('steps keep their deck');
   }
 
   // 16. A file with no deck opens on the start screen; its six templates fit the width.

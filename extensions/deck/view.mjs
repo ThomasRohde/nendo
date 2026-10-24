@@ -764,16 +764,20 @@ function typeDeck(changes) {
 // keeps its slides' fields before and after: a refused step is put back by hand, as a new batch.
 
 const STEPS_KEPT = 100;
+// records.batch takes at most this many writes.
+const BATCH_MOST = 200;
 let stepping = Promise.resolve();
 const ofSelection = () => ({ ids: selectedSlides().map(s => s.id), current: deck.slideId });
 
 /** Writes one step. `records` hold each slide's fields before and after it, null where there is none. */
 async function writeStep(label, writes, records, selection) {
+  // The deck the step changed, though another deck may be open by the time the batch lands.
+  const deckId = deck.deckId;
   const answer = await nendo.records.batch(writes, { label: label.slice(0, 80), offerUndo: true });
   deck.steps.redo = [];
   editor?.forgetRedo();
   if (answer?.revision && nendo.has('records.undo')) {
-    deck.steps.undo.push({ label, deckId: deck.deckId, next: { method: 'undo', revision: answer.revision }, records, selection, at: Date.now() });
+    deck.steps.undo.push({ label, deckId, next: { method: 'undo', revision: answer.revision }, records, selection, at: Date.now() });
     if (deck.steps.undo.length > STEPS_KEPT) deck.steps.undo.shift();
   }
   declareToolbar();
@@ -892,6 +896,7 @@ async function insertSlides(list, label, at) {
       writes.push({ op: 'create', entityId: E.slide, recordId: f.id, values, targetVersions: { [F.slide.deck]: d.version } });
       records.push({ entityId: E.slide, id: f.id, before: null, after: values });
     }
+    if (writes.length > BATCH_MOST) throw Object.assign(Error(`It would change ${writes.length} slides at once, and one change holds at most ${BATCH_MOST}. Put fewer slides, or put them at the end.`), { code: 'too_many' });
     return writeStep(label, writes, records, { before: ofSelection(), after: { ids: fresh.map(f => f.id), current: fresh[0].id } });
   };
   try {
@@ -903,6 +908,7 @@ async function insertSlides(list, label, at) {
       toast('The pictures stayed behind: they belong to another file. Put them in again on these slides.');
     }
   } catch (error) { problem(error, `${label} did not work`); return []; }
+  if (deck.deckId !== d.recordId) { await refresh(); return fresh.map(f => f.id); }
   deck.selected = fresh.map(f => f.id); deck.slideId = fresh[0].id; deck.anchor = deck.slideId;
   deck.flip = deck.selected;
   await refresh();
@@ -945,12 +951,13 @@ async function deleteSlides(verb = 'Delete', ids = null) {
   const first = deck.slides.indexOf(doomed[0]);
   const label = doomed.length === 1 && verb === 'Delete' ? `Delete slide ${first + 1}` : `${verb} ${slidesWord(doomed.length)}`;
   const next = deck.slides.slice(first).find(s => !gone.has(s.id)) ?? deck.slides.slice(0, first).reverse().find(s => !gone.has(s.id)) ?? null;
+  const from = deck.deckId;
   try {
     await writeStep(label, writes, records, { before: ofSelection(), after: { ids: next ? [next.id] : [], current: next?.id ?? null } });
     // Only a slide that is gone lets go of its typing; a refused delete keeps it.
     for (const id of gone) deck.pending.delete(id);
     keepDrafts();
-    deck.slideId = next?.id ?? null; deck.selected = next ? [next.id] : []; deck.anchor = deck.slideId;
+    if (deck.deckId === from) { deck.slideId = next?.id ?? null; deck.selected = next ? [next.id] : []; deck.anchor = deck.slideId; }
     deck.flip = [];
     await refresh();
     announce(`${label}.`);

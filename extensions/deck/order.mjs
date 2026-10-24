@@ -34,23 +34,35 @@ export function nudge(ids, moving, delta) {
 /**
  * The orders to write so `list` ({id, order}, order null for a slide not yet made) reads in the
  * order given. The longest run of orders already rising stays as it is; the other slides go in the
- * gaps between, ten apart where there is room. Where a gap is too narrow every slide is numbered
- * again in tens. Answers a Map of id to order for each slide whose order must be written.
+ * gaps between, ten apart where there is room. A gap too narrow takes in its kept neighbours, the
+ * side that adds more room first, until the slides fit: a paste of many slides between two others
+ * writes the slides and a few neighbours, not the whole deck. Answers a Map of id to order for each
+ * slide whose order must be written, its value changed.
  */
 export function ordersFor(list) {
   const keep = risingRun(list.map(s => Number.isInteger(s.order) ? s.order : null));
+  // The order each slide has once the windows so far are written; a slide a window took in is no
+  // longer kept, and the next window stands between the kept slides that are left.
+  const order = list.map(s => s.order);
+  const at = x => x >= 0 && x < list.length ? order[x] : null;
+  const keptAfter = x => { for (let y = x + 1; y < list.length; y++) if (keep.has(y)) return y; return list.length; };
+  const keptBefore = x => { for (let y = x - 1; y >= 0; y--) if (keep.has(y)) return y; return -1; };
   const out = new Map();
   let i = 0;
   while (i < list.length) {
     if (keep.has(i)) { i++; continue; }
-    let j = i;
-    while (j < list.length && !keep.has(j)) j++;
-    const lo = i > 0 ? list[i - 1].order : null, hi = j < list.length ? list[j].order : null, k = j - i;
-    const placed = fill(lo, hi, k);
-    if (!placed) return renumber(list);
-    for (let n = 0; n < k; n++) out.set(list[i + n].id, placed[n]);
-    i = j;
+    // The window [a, b) is written; a - 1 and b are the kept slides it stands between.
+    let a = i, b = keptAfter(i - 1), placed;
+    while (!(placed = fill(at(a - 1), at(b), b - a))) {
+      const right = keptAfter(b), left = keptBefore(a - 1) + 1;
+      const gainRight = right === list.length ? Infinity : at(right) - at(b);
+      const gainLeft = left === 0 ? at(a - 1) : at(a - 1) - at(left - 1);
+      if (a === 0 || gainRight >= gainLeft) { keep.delete(b); b = right; } else { keep.delete(a - 1); a = left; }
+    }
+    for (let n = a; n < b; n++) { order[n] = placed[n - a]; out.set(list[n].id, placed[n - a]); }
+    i = b;
   }
+  for (const [id, value] of out) if (list.find(s => s.id === id).order === value) out.delete(id);
   return out;
 }
 
@@ -63,12 +75,6 @@ function fill(lo, hi, k) {
   const step = Math.min(10, Math.floor((hi - floor) / (k + 1)));
   if (step < 1) return null;
   return Array.from({ length: k }, (_, n) => floor + (n + 1) * step);
-}
-
-function renumber(list) {
-  const out = new Map();
-  list.forEach((s, i) => { if (s.order !== (i + 1) * 10) out.set(s.id, (i + 1) * 10); });
-  return out;
 }
 
 /** The indexes of the longest strictly rising run of known orders (patience sorting). */
