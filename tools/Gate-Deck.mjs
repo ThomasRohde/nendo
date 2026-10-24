@@ -143,6 +143,8 @@ async page => {
   const pictureCommit = (await commits()).find(c => c.recordId === pictureSlide);
   assert(pictureCommit && pictureCommit.entityId === 'dk.slide' && pictureCommit.fieldId === 'dk.slide.image' && pictureCommit.mediaType === 'image/png',
     `A dropped picture must be put into dk.slide.image of the slide on the stage: ${JSON.stringify(pictureCommit)}.`);
+  const pictureCommits = (await commits()).filter(c => c.recordId === pictureSlide).length;
+  assert(pictureCommits === 1, `A picture dropped on the stage must be put once: ${pictureCommits} times.`);
   checks.push('picture');
 
   // 7. A Claude Design bundle from Brandkits dropped on the Design tab becomes a brand kit the deck uses.
@@ -269,10 +271,15 @@ async page => {
       const { unzip } = await import('./zip.mjs');
       const entries = unzip(bytes);
       const presentation = new TextDecoder().decode(await entries.find(e => e.name === 'ppt/presentation.xml').bytes());
-      return { name: window.deck.exports.at(-1).name, magic: bytes[0] === 0x50 && bytes[1] === 0x4b, names: entries.map(e => e.name), size: /<p:sldSz cx="(\d+)" cy="(\d+)"/.exec(presentation)?.slice(1) };
+      const notes = (await Promise.all(entries.filter(e => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(e.name)).map(async e => new TextDecoder().decode(await e.bytes())))).join('\n');
+      return { name: window.deck.exports.at(-1).name, magic: bytes[0] === 0x50 && bytes[1] === 0x4b, names: entries.map(e => e.name), size: /<p:sldSz cx="(\d+)" cy="(\d+)"/.exec(presentation)?.slice(1), notes };
     }, name);
   };
+  // Notes changed after the thumbnails were drawn go into the PowerPoint file as they are now.
+  await frame.fill('#notes', 'Notes typed after the thumbnails');
+  await settle(1200);
   const pptx = await exported('export.pptx', 'pptx');
+  assert(pptx.notes.includes('Notes typed after the thumbnails'), 'The PowerPoint file must carry the notes as they are now, not as they were when the slide was last drawn.');
   const slideParts = pptx.names.filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).length;
   const noteParts = pptx.names.filter(n => /^ppt\/notesSlides\/notesSlide\d+\.xml$/.test(n)).length;
   assert(pptx.magic && pptx.name.endsWith('.pptx') && slideParts === exampleSlides && noteParts === exampleSlides && pptx.names.includes('[Content_Types].xml')

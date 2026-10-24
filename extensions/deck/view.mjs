@@ -158,7 +158,7 @@ document.fonts?.addEventListener?.('loadingdone', () => { forgetMeasurements(); 
 const laidCache = new Map();
 function laid(slide, theme = deck.theme, editing = true, number = null) {
   const n = number ?? numberOf(slide);
-  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, n, editing, theme]);
+  const key = JSON.stringify([slide.layout, slide.title, slide.kicker, slide.body, slide.body2, slide.image, slide.chart, slide.imageAlt, slide.notes, n, editing, theme]);
   let hit = laidCache.get(key);
   if (!hit) {
     if (laidCache.size > 600) laidCache.clear();
@@ -1184,7 +1184,7 @@ function wire() {
     deck.tab = 'slide'; drawInspector();
     const el = $(field); if (!el.closest('[hidden]')) { el.focus(); if (field === 'pick-image') $('image-file').click(); }
   });
-  for (const target of [stage, $('stage-wrap')]) {
+  for (const target of [$('stage-wrap')]) {
     target.addEventListener('dragover', e => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); stage.classList.add('drop'); } });
     target.addEventListener('dragleave', () => stage.classList.remove('drop'));
     target.addEventListener('drop', e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); stage.classList.remove('drop'); putPicture(e.dataTransfer.files[0]); });
