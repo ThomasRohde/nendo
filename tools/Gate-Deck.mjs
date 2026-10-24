@@ -1040,6 +1040,24 @@ async page => {
   await onScreenAndInFile(start, 'Ctrl Z must put back a move whose slide was typed in since');
   assert((await requests('records.undo')).length === undosBefore + 1 && (await lastBatch()).label === 'Undo Move a slide' && (await record('dk.slide', written)).values['dk.slide.title'] === 'Typed after the move',
     `A move Nendo refuses to take back must be put back by a batch of its own, and keep the typing: ${(await lastBatch()).label}.`);
+  // Cut from a menu, where the browser will not cut, copies the pick and deletes what it copied, also
+  // when the pick changes while the clipboard write is out.
+  await frame.evaluate(() => {
+    window.__execCommand = document.execCommand; document.execCommand = () => false;
+    window.__writes = []; navigator.clipboard.writeText = text => new Promise(resolve => window.__writes.push({ text, resolve }));
+  });
+  await thumb(5).click();
+  await command('slide.cut');
+  await until(() => window.__writes.length === 1, null, 5000).catch(() => { throw Error('Cut from a menu must write the pick to the clipboard.'); });
+  await thumb(6).click();
+  await frame.evaluate(() => { window.__writes[0].resolve(); document.execCommand = window.__execCommand; delete navigator.clipboard.writeText; });
+  await until(n => window.deck.slides.length === n - 1, n, 5000).catch(() => { throw Error('Cut from a menu must delete the slide it copied.'); });
+  const afterCut = await order();
+  assert(!afterCut.includes(start[5]) && afterCut.includes(start[6]),
+    `Cut must delete the slides it copied, not a pick made while it waited: ${JSON.stringify({ copiedGone: !afterCut.includes(start[5]), newPickKept: afterCut.includes(start[6]) })}.`);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z must bring back the slide a menu Cut took');
   checks.push('slides menu, undo by hand');
 
   // The slide sorter: every slide on a grid; the arrows go across and down its rows, Ctrl and an arrow

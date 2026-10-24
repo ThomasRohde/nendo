@@ -924,10 +924,13 @@ async function duplicateSlides() {
   await insertSlides(picked.map(s => ({ ...copyOf(s), hidden: false })), `Duplicate ${slidesWord(picked.length)}`, afterPicked());
 }
 
-/** Deletes the picked slides and their variants, as one step; the slide after them is current. */
-async function deleteSlides(verb = 'Delete') {
+/**
+ * Deletes the picked slides and their variants, as one step; the slide after them is current. A cut
+ * names the slides it copied, so a pick changed while it waits never deletes slides it did not copy.
+ */
+async function deleteSlides(verb = 'Delete', ids = null) {
   await flushAll();
-  const doomed = selectedSlides();
+  const doomed = ids ? deck.slides.filter(s => ids.includes(s.id)) : selectedSlides();
   if (!doomed.length || nendo.context?.readOnly) return;
   const gone = new Set(doomed.map(s => s.id));
   const writes = deck.variants.filter(x => gone.has(v(x, F.variant.slide))).map(x => ({ op: 'delete', entityId: E.variant, recordId: x.recordId, version: x.version }));
@@ -1044,7 +1047,7 @@ function copySlides() {
   const payload = { format: 'nendo.deck-slides', version: 1, slides: picked.map(copyOf) };
   const text = outline(picked) || picked.map(s => s.layout).join('\n');
   deck.clipboard = { payload, text };
-  return { payload, text, count: picked.length };
+  return { payload, text, count: picked.length, ids: picked.map(s => s.id) };
 }
 function putOnClipboard(data) {
   const copied = copySlides();
@@ -1093,9 +1096,9 @@ async function clipboardCommand(action) {
   }
   const copied = copySlides();
   if (!copied) return;
-  const { text, count } = copied;
+  const { text, count, ids } = copied;
   try { await navigator.clipboard.writeText(text); } catch { /* Deck's own copy still pastes here */ }
-  if (action === 'cut') return deleteSlides('Cut');
+  if (action === 'cut') return deleteSlides('Cut', ids);
   toast(`Copied ${slidesWord(count)}.`);
 }
 
@@ -1727,7 +1730,9 @@ function wire() {
   document.addEventListener('copy', e => { if (!slidesFocused() || !deck.slides.length) return; e.preventDefault(); const n = putOnClipboard(e.clipboardData); if (n) announce(`Copied ${slidesWord(n)}.`); });
   document.addEventListener('cut', e => {
     if (!slidesFocused() || !deck.slides.length || nendo.context?.readOnly) return;
-    e.preventDefault(); if (putOnClipboard(e.clipboardData)) deleteSlides('Cut');
+    e.preventDefault();
+    const ids = selectedSlides().map(s => s.id);
+    if (putOnClipboard(e.clipboardData)) deleteSlides('Cut', ids);
   });
   document.addEventListener('paste', e => {
     if (!slidesFocused() || nendo.context?.readOnly) return;
