@@ -636,6 +636,10 @@ async page => {
   await page.keyboard.type('Z');
   const card = (await current()).body.split('\n');
   assert(card[0] === '- KeyZnote | a dark stage and one bright accent' && card.slice(1).join('\n') === cards.body.split('\n').slice(1).join('\n'), `Typing in a card's heading must change that cell only: ${JSON.stringify(card[0])}.`);
+  await page.keyboard.press('Home');
+  await page.keyboard.type(' Q');
+  const spaced = { line: (await current()).body.split('\n')[0], field: (await editing())?.field };
+  assert(spaced.line === '- QKeyZnote | a dark stage and one bright accent' && spaced.field === 'body', `A space typed before a cell's words must keep the cell in editing: ${JSON.stringify(spaced)}.`);
   await openSlide(13);
   const tables = await current();
   const cell = await frame.evaluate(() => [...document.querySelectorAll('#stage .dk-t[data-field="body"]')].findIndex(b => b.textContent === 'any browser'));
@@ -647,6 +651,16 @@ async page => {
   assert(table[2] === '| HTML | any! browser | sharing a link or a file |' && table.filter((_, i) => i !== 2).join('\n') === tables.body.split('\n').filter((_, i) => i !== 2).join('\n'),
     `Typing in a table cell must change that cell only: ${JSON.stringify(table[2])}.`);
   await page.keyboard.press('Escape');
+  await command('slide.delete');
+  await until(id => !window.deck.slides.some(s => s.id === id) && !!window.deck.slideId, tables.id);
+  const left = await current();
+  await frame.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press('Control+z');
+  await settle(300);
+  // The deleted slide's changes are passed over; the one before them, on the Cards slide, is taken back.
+  const after = await frame.evaluate(({ left, cards }) => ({ left: window.deck.slides.find(s => s.id === left), cards: window.deck.slides.find(s => s.id === cards).body.split('\n')[0], on: window.deck.slideId }), { left: left.id, cards: cards.id });
+  assert(after.left.body === left.body && after.left.title === left.title && after.cards === '- KeyZnote | a dark stage and one bright accent' && after.on === cards.id,
+    `Ctrl Z after the edited slide is deleted must change no other slide, and take back the last change on a slide still there: ${JSON.stringify({ was: left.body.slice(0, 50), now: after.left.body.slice(0, 50), cards: after.cards, on: after.on })}.`);
   checks.push('words edited on the stage');
 
   // 16. A file with no deck opens on the start screen; its six templates fit the width.

@@ -111,10 +111,14 @@ export function marksAt(doc, pos) {
   return { b: !!r?.b, i: !!r?.i, u: !!r?.u };
 }
 
-/** Puts paragraphs in at a position: the first joins the paragraph there, the last takes what followed. */
+/**
+ * Puts paragraphs in at a position: the first joins the paragraph there, the last takes what
+ * followed. An empty paragraph takes the first one's bullet, number or heading as well.
+ */
 export function insert(doc, pos, paras) {
   if (!paras.length) return { doc, at: pos };
   const out = copy(doc);
+  if (!lengthOf(out[pos.p]) && paras[0].kind && paras[0].kind !== 'plain') { out[pos.p].kind = paras[0].kind; out[pos.p].level = paras[0].level ?? 0; delete out[pos.p].number; }
   const [before, after] = splitRuns(out[pos.p].runs, pos.o);
   if (paras.length === 1) {
     out[pos.p].runs = mergeRuns([...before, ...paras[0].runs, ...after]);

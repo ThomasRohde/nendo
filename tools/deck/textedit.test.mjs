@@ -86,6 +86,10 @@ test('insert anywhere: in the middle of a word, across marks, and as several par
   const many = insert(readDoc('blocks', '- ab'), { p: 0, o: 1 }, typed('1\n2'));
   assert.equal(writeDoc('blocks', many.doc), '- a1\n2b');
   assert.deepEqual(many.at, { p: 1, o: 1 });
+  const list = readDoc('blocks', '- First\n- Second');
+  assert.equal(writeDoc('blocks', insert(readDoc('blocks', ''), { p: 0, o: 0 }, list).doc), '- First\n- Second', 'an empty paragraph takes the pasted bullet');
+  assert.equal(writeDoc('blocks', insert(readDoc('blocks', ''), { p: 0, o: 0 }, list.slice(0, 1)).doc), '- First');
+  assert.equal(writeDoc('blocks', insert(readDoc('blocks', '-'), { p: 0, o: 0 }, typed('a')).doc), '- a', 'typing keeps an empty bullet');
 });
 
 test('delete anywhere: inside a paragraph, and across paragraphs, which join', () => {

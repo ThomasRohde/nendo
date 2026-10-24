@@ -1217,6 +1217,7 @@ function wire() {
     slide: () => currentSlide(),
     write: (field, value) => { edit({ [field]: value }); drawStage(); },
     selectSlide: id => select(id),
+    hasSlide: id => deck.slides.some(s => s.id === id),
     ended: ({ quiet }) => { save.flush(); if (!quiet) drawStage(); },
     redraw: () => drawStage(),
     toast,

@@ -157,7 +157,7 @@ export function createStageEditor(host) {
       // The field changed under the box: Undo, the inspector, the agent. Read it again.
       readField(session, value, box);
       session.sel = { anchor: clamp(session.sel.anchor), focus: clamp(session.sel.focus) };
-    } else if (session.from !== undefined) session.to = Number(box.dataset.to);
+    }
     prepare(box);
     if (session.focused) {
       if (document.activeElement !== box) box.focus({ preventScroll: true });
@@ -183,6 +183,16 @@ export function createStageEditor(host) {
   /** The paragraphs as the field's words: written, drawn, and kept for Undo. */
   function commit(doc, sel, label) {
     const s = session;
+    if (s.from !== undefined) {
+      // A cell is read trimmed, so a space before its words is not kept: its box would not show it,
+      // and the cell would no longer start where its box says.
+      const lead = T.textOf(doc[0]).length - T.textOf(doc[0]).trimStart().length;
+      if (lead) {
+        doc = T.remove(doc, { p: 0, o: 0 }, { p: 0, o: lead }).doc;
+        const back = pos => ({ p: pos.p, o: Math.max(0, pos.o - lead) });
+        sel = { anchor: back(sel.anchor), focus: back(sel.focus) };
+      }
+    }
     const text = T.writeDoc(s.dialect, doc);
     const value = s.from === undefined ? text : s.value.slice(0, s.from) + text + s.value.slice(s.to);
     const before = { value: s.value, sel: s.sel, to: s.to };
@@ -204,12 +214,20 @@ export function createStageEditor(host) {
     if (undo.length > 300) undo.shift();
     redo.length = 0;
   }
-  /** Ctrl Z (back) and Ctrl Y: the slide's words as they were, and the selection with them. */
+  /**
+   * Ctrl Z (back) and Ctrl Y: the slide's words as they were, and the selection with them. Only a
+   * slide of the open deck is stepped; a change to one in another deck, or deleted, waits.
+   */
   function step(back) {
-    const entry = (back ? undo : redo).pop();
-    if (!entry) return false;
-    (back ? redo : undo).push(entry);
+    const stack = back ? undo : redo;
+    let at = stack.length - 1;
+    while (at >= 0 && !host.hasSlide(stack[at].slideId)) at--;
+    if (at < 0) return false;
+    const entry = stack[at];
     if (host.slide()?.id !== entry.slideId) host.selectSlide(entry.slideId);
+    if (host.slide()?.id !== entry.slideId) return false;
+    stack.splice(at, 1);
+    (back ? redo : undo).push(entry);
     const value = back ? entry.before : entry.after;
     if (session && session.slideId === entry.slideId && session.field === entry.field && session.from === entry.from) {
       if (session.from !== undefined) session.to = back ? entry.toBefore : entry.toAfter;
