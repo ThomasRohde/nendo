@@ -807,6 +807,23 @@ async page => {
   await settle(3000);
   const goals = [(await record('dk.deck', blank)).values['dk.deck.goal'], (await record('dk.deck', made)).values['dk.deck.goal']];
   assert(goals[0] === 'First goal, queued' && goals[1] === 'Second goal', `Deck typing queued behind a write must stay with its deck when a new deck is made: ${JSON.stringify(goals)}.`);
+  // A file whose only template is a design's shows the six built-in templates, the first chosen, and a
+  // deck made from that screen takes the first of them, not the design hidden under Designs.
+  const designOnly = JSON.parse(JSON.stringify(empty));
+  const seed = (entityId, recordId, values) => ({ entityId, recordId, version: 1, values, labels: {}, exact: {}, calculated: {} });
+  designOnly.records['dk.brand'] = [seed('dk.brand', 'brand-only', { 'dk.brand.name': 'Only Kit' })];
+  designOnly.records['dk.template'] = [seed('dk.template', 'template-only', { 'dk.template.name': 'Only Design', 'dk.template.family': 'swiss', 'dk.template.brand': 'brand-only', 'dk.template.source': 'Brandkits:k-only' })];
+  await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, designOnly);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  const offered = await frame.evaluate(() => [...document.querySelectorAll('#start-templates button')].map(b => ({ id: b.dataset.template, chosen: b.getAttribute('aria-selected') })));
+  assert(offered.length === 6 && offered.every(b => b.id === '') && offered[0].chosen === 'true', `With only a design in the file, the start screen must offer the six built-in templates, the first chosen: ${JSON.stringify(offered)}.`);
+  await frame.fill('#start-name', 'From the start screen');
+  await frame.click('#start-blank');
+  await frame.waitForFunction(() => window.deck.decks.length === 1 && document.getElementById('start').hidden, null, { timeout: 8000 });
+  const startedOn = await frame.evaluate(() => window.deck.decks[0].values['dk.deck.template'] ?? null);
+  assert(startedOn === null, `A deck made with the first built-in template chosen must not take the design's template: ${startedOn}.`);
   checks.push('start screen');
 
   assert(errors.length === 0, `Browser exceptions: ${JSON.stringify(errors)}`);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { kitDesign, kitRoles, familyFor, readChoices } from '../../extensions/brandkits/slides.js';
 import { writeDesignPackage } from '../../extensions/brandkits/deck/design.mjs';
 import { readDesignPackage, designSpecs } from '../../extensions/deck/design.mjs';
-import { resolveTheme } from '../../extensions/deck/themes.mjs';
+import { resolveTheme, contrast, mix, isDark } from '../../extensions/deck/themes.mjs';
 import { layoutSlide } from '../../extensions/deck/layout.mjs';
 import { FILE, EXAMPLE_KIT } from './definition.mjs';
 
@@ -64,4 +64,18 @@ test('what Brandkits exports, Deck reads and draws as Brandkits previewed it', a
   const slide = { layout: 'Section', title: 'What we stand for', kicker: '01', body: '' };
   assert.deepEqual(layoutSlide(slide, resolveTheme(imported.template, imported.brand)), layoutSlide(slide, resolveTheme(preview.template, preview.brand)));
   assert.equal(layoutSlide(slide, resolveTheme(imported.template, imported.brand)).items[0].src, 'url:backgrounds/section.png');
+});
+
+test('a picture behind a kind of slide keeps a white title readable, on a light stage or a dark one', () => {
+  for (const mode of ['light', 'dark']) {
+    const { design } = kitDesign({ ...EMBER, pictures: { section: { type: 'image/png' } } }, { mode, backgrounds: { section: 'picture' } });
+    const { template, brand, deck } = designSpecs(design, p => `url:${p}`);
+    const laid = layoutSlide({ layout: 'Section', title: 'What we stand for', kicker: '01', body: '' }, resolveTheme(template, brand, deck));
+    const tint = laid.items.find(i => i.type === 'rect' && i.role === 'background');
+    const title = laid.items.find(i => i.role === 'title');
+    assert.ok(isDark(tint.fill), `the tint is dark on a ${mode} stage: ${tint.fill}`);
+    // The worst picture is white: the title must still read at 3:1 on the tint over it.
+    const ratio = contrast(title.color, mix('#FFFFFF', tint.fill, tint.alpha));
+    assert.ok(ratio >= 3, `on a ${mode} stage the title reads at ${ratio.toFixed(2)}:1 over a white picture`);
+  }
 });

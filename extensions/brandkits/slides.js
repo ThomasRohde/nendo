@@ -106,8 +106,12 @@ export function kitDesign(kit, choices = {}) {
       const type = kit.pictures?.[slot]?.type;
       if (!type) continue;
       const path = `backgrounds/${slot}.${type === 'image/svg+xml' ? 'svg' : type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'}`;
-      const tint = colors.ink && isDark(colors.ink) ? 'ink' : 'primary';
-      backgrounds[slot] = { kind: 'image', src: path, tint, tintAlpha: 0.45, dark: true };
+      // The tint is a colour, not a role: a dark stage turns a light kit's text colour light, and white
+      // titles sit on this tint whatever the stage. At 0.6 the darkest colour keeps a white title at 3:1 even
+      // over a white picture.
+      const tint = [colors.ink, colors.secondary, colors.primary].filter(Boolean).sort((a, b) => contrast(a, '#FFFFFF') - contrast(b, '#FFFFFF')).at(-1);
+      const shade = tint && isDark(tint) ? tint : '#111111';
+      backgrounds[slot] = { kind: 'image', src: path, tint: shade, tintAlpha: 0.6, dark: true };
       pictureSlots[slot] = path;
     } else {
       const b = background(choice);

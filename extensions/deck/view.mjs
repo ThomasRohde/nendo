@@ -1367,7 +1367,8 @@ function wire() {
   $('held-put').addEventListener('click', () => putHeldBack());
   $('held-discard').addEventListener('click', () => discardHeld());
 }
-const chosenStartTemplate = () => $('start-templates').dataset.chosen || deck.templates[0]?.recordId || null;
+// Unset, the choice is the first the screen shows, which is never a design's template.
+const chosenStartTemplate = () => $('start-templates').dataset.chosen || templateRecordsOrBuiltIns()[0]?.recordId || null;
 
 // ---- Start -------------------------------------------------------------------------------------
 
