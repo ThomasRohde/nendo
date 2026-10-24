@@ -15,7 +15,7 @@
 // A fill is a colour or {type: linear|radial, angle, stops: [{at, color, alpha}]}.
 
 import { paragraphs, rows, rowCells, table, chartData, formatNumber, signedScale, inline, plainText, parseFormat } from './model.mjs';
-import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast } from './themes.mjs';
+import { sizeOf, fontStack, mix, isDark, readableOn, holdContrast, colorsOn } from './themes.mjs';
 import { slotOf } from './design.mjs';
 
 /** A measurer for node and for tests: close to Segoe UI's widths, and the same on every machine. */
@@ -129,6 +129,8 @@ function layoutWith(slide, theme, ctx) {
   const kind = slide.layout;
   const feature = ['Title', 'Section', 'Closing', 'Statement'].includes(kind) ? kind : null;
   g.bg = background(g, feature, kind);
+  // On a design's own background the layouts read the theme's colours as worked out for that ground.
+  if (theme.backgrounds?.[slotOf(kind)] && kind !== 'Full image') g.c = colorsOn(c, g.bg.base, g.bg.ink);
   const draw = LAYOUT_FUNCTIONS[kind] ?? LAYOUT_FUNCTIONS.Bullets;
   draw(g);
   chrome(g, feature, kind);

@@ -123,6 +123,25 @@ export const LOGO_PLACEMENTS = ['top-right', 'top-left', 'bottom-right', 'bottom
  *   style, backgrounds, chart, logoPlacement}; design.mjs says what a background is.
  * brand: null, or {name, colors: {role: hex}, fonts: {heading, body, mono}, logo, logoDark, mark}.
  */
+/**
+ * The theme's colours read on another ground: a design's own background for one kind of slide. Every
+ * role worked out against the stage is worked out again against `bg`, with `ink` the text colour
+ * already chosen for it.
+ */
+export function colorsOn(colors, bg, ink = readableOn(bg, colors.ink, colors.bg)) {
+  if (bg === colors.bg) return colors;
+  const dark = isDark(bg);
+  const surface = dark === isDark(colors.bg) ? colors.surface : mix(bg, ink, 0.08);
+  return {
+    ...colors, bg, ink, surface,
+    muted: holdContrast(colors.muted, bg, 4.5),
+    accentText: holdContrast(colors.accent, bg, 3),
+    primaryText: holdContrast(colors.primary, bg, 3),
+    line: mix(bg, ink, dark ? 0.22 : 0.16),
+    onSurface: readableOn(surface, ink),
+  };
+}
+
 export function resolveTheme(template, brand = null, deck = {}) {
   const base = templateById(template?.family ?? template?.id) ?? TEMPLATES[0];
   const own = template ?? {};

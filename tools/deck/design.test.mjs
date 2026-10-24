@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeDesign, readDesignPackage, writeDesignPackage, designSpecs, designValues, templateSpecFrom, brandSpecFrom, IMAGE_FIELDS, sourceKey, designFileName } from '../../extensions/deck/design.mjs';
-import { resolveTheme } from '../../extensions/deck/themes.mjs';
+import { resolveTheme, contrast, mix } from '../../extensions/deck/themes.mjs';
 import { layoutSlide } from '../../extensions/deck/layout.mjs';
 import { F } from '../../extensions/deck/model.mjs';
 
@@ -116,6 +116,30 @@ test('text on a gradient background keeps the contrast it has on the same colour
   ]) {
     const colours = theme => layoutSlide(slide, theme).items.filter(i => i.type === 'text').map(i => i.color);
     assert.deepEqual(colours(gradient), colours(flat), `${slide.layout}: the text on the gradient takes the colours it takes on the flat fill`);
+  }
+});
+
+test('on a design\'s own dark ground a light theme\'s colours are read again for that ground', () => {
+  const ember = { primary: '#8B3A2B', secondary: '#2F4A3A', accent: '#9A4F1E', background: '#F6EDE0', ink: '#2B1A12', surface: '#E4D5C1' };
+  const { template, brand, deck } = designSpecs(normalizeDesign({ ...NORRSKEN, template: { family: 'editorial', mode: 'light', style: { kicker: 'pill' } }, colors: ember,
+    logos: {}, backgrounds: { content: { kind: 'role', role: 'ink' } } }), p => p);
+  const theme = resolveTheme(template, brand, deck);
+  const ground = theme.colors.ink;
+  for (const slide of [
+    { layout: 'Bullets', title: 'What we heard', kicker: 'Findings', body: '- One\n- Two' },
+    { layout: 'Cards', title: 'Three ideas', kicker: 'Ideas', body: '- One | a\n- Two | b\n- Three | c' },
+    { layout: 'Timeline', title: 'How it went', kicker: 'Story', body: '- 2024 | Pilot | one team\n- 2025 | Rollout | every team' },
+  ]) {
+    const laid = layoutSlide(slide, theme);
+    assert.equal(laid.background, ground);
+    // Text straight on the ground, the pill's label on its tint included, reads at 3:1 at least.
+    const pill = laid.items.find(i => i.type === 'rect' && i.radius && i.alpha === 0.12);
+    for (const t of laid.items.filter(i => i.type === 'text' && i.paragraphs.some(p => p.runs.some(r => r.text)))) {
+      const under = t.role === 'kicker' && pill ? mix(ground, pill.fill, pill.alpha) : ground;
+      const onCard = laid.items.some(i => i.type === 'rect' && !i.alpha && i.fill !== ground && t.x >= i.x && t.y >= i.y && t.x + t.w <= i.x + i.w + 1 && t.y + t.h <= i.y + i.h + 1);
+      if (onCard) continue;
+      assert.ok(contrast(t.color, under) >= 3, `${slide.layout}: the ${t.role} reads at ${contrast(t.color, under).toFixed(2)}:1 on its ground`);
+    }
   }
 });
 
