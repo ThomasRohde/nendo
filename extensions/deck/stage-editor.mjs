@@ -389,7 +389,7 @@ export function createStageEditor(host) {
     return true;
   }
   function pasteData(html, text) {
-    let paras = html ? fromHtml(html) : [];
+    let paras = html ? T.withEdges(fromHtml(html), text) : [];
     if (!paras.length && text) paras = T.typed(text);
     if (!paras.length) return;
     if (!T.marked(session.dialect)) paras = paras.map(p => ({ ...p, runs: [{ text: T.textOf(p) }] }));

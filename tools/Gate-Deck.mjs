@@ -644,6 +644,16 @@ async page => {
     return window.deck.slides.find(x => x.id === window.deck.slideId).body;
   });
   assert(list === '- First\n- **Second**', `A pasted list must keep its bullets, also when its items wrap their words in paragraphs: ${JSON.stringify(list)}.`);
+  // A copied word with its space after it pastes with the space.
+  await page.keyboard.press('Home');
+  const spacedPaste = await frame.evaluate(() => {
+    const data = new DataTransfer();
+    data.setData('text/html', '<p>Big </p>');
+    data.setData('text/plain', 'Big ');
+    document.querySelector('#stage .dk-t.editing').dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+    return window.deck.slides.find(x => x.id === window.deck.slideId).body;
+  });
+  assert(spacedPaste === '- First\n- Big **Second**', `A paste must keep the space at the end of what was copied: ${JSON.stringify(spacedPaste)}.`);
   // Escape ends the editing; the box is drawn as words again.
   await page.keyboard.press('Escape');
   const ended = await frame.evaluate(() => ({ session: window.deck.stageEditor(), editable: document.querySelectorAll('#stage [contenteditable="true"]').length }));

@@ -152,6 +152,20 @@ export function trimLeads(doc, sel) {
   return { doc: out, sel: shift };
 }
 
+/**
+ * Pasted paragraphs with the spaces the plain text of the same copy has at its start and end, which
+ * an HTML reading drops: a copied "hello " pastes as "hello ", not "hello".
+ */
+export function withEdges(paras, text) {
+  const plain = normal(text).replace(/\n+$/, '');
+  if (!paras.length || !plain) return paras;
+  const lead = /^[ \t\u00a0]*/.exec(plain)[0], trail = /[ \t\u00a0]*$/.exec(plain)[0];
+  const out = copy(paras), first = out[0], last = out.at(-1);
+  if (lead && !textOf(first).startsWith(lead)) first.runs = mergeRuns([run(lead, first.runs[0] ?? {}), ...first.runs]);
+  if (trail && !textOf(last).endsWith(trail)) last.runs = mergeRuns([...last.runs, run(trail, last.runs.at(-1) ?? {})]);
+  return out;
+}
+
 /** Words typed as paragraphs with the given marks: a line break starts a new paragraph. */
 export const typed = (text, marks = {}) => normal(text).split('\n').map(line => para('plain', 0, line ? [run(line, marks)] : []));
 
