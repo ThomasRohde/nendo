@@ -100,6 +100,13 @@ test('a chart slide draws each kind from its table', () => {
   }
 });
 
+test('a word wider than its box breaks across lines, as the renderer breaks it', () => {
+  const title = { type: 'text', x: 0, y: 0, w: 1120, h: 110, size: 42, weight: 700, font: 'Segoe UI', lineHeight: 1.1, paragraphs: [{ runs: [{ text: 'https://example.com/' + 'a'.repeat(280) }], level: 0 }] };
+  assert.ok(wrap(title, approxMeasure)[0].lines > 1, `an unbroken 300-character title wraps to ${wrap(title, approxMeasure)[0].lines} line`);
+  fit(title, approxMeasure, 14);
+  assert.ok(title.size < 42 || title.overflow === true, `it shrinks or says it overflows: size ${title.size}, overflow ${title.overflow}`);
+});
+
 test('fit shrinks text to its box, and says when it cannot', () => {
   const long = { type: 'text', x: 0, y: 0, w: 300, h: 60, size: 40, weight: 400, font: 'Segoe UI', lineHeight: 1.2, paragraphs: [{ runs: [{ text: 'word '.repeat(40) }], level: 0 }] };
   fit(long, approxMeasure, 14);

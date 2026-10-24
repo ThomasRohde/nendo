@@ -51,7 +51,11 @@ export function wrap(p, measure) {
       const font = word.code ? 'Consolas' : p.font;
       const ww = measure(word.text, { size, weight: word.weight, font }) + (p.tracking ?? 0) * size * word.text.length;
       if (/^\s+$/.test(word.text)) { line += ww; continue; }
-      if (line > 0 && line + ww > width) { lines++; line = ww; } else line += ww;
+      if (ww > width) {
+        const parts = Math.ceil(ww / width);
+        lines += (line > 0 ? 1 : 0) + parts - 1;
+        line = ww - (parts - 1) * width;
+      } else if (line > 0 && line + ww > width) { lines++; line = ww; } else line += ww;
     }
     out.push({ lines, size, height: lines * size * (p.lineHeight ?? 1.2), space: paraSpace(p, para) });
   }

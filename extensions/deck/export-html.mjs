@@ -58,7 +58,7 @@ body.help #help{display:block}
   @page{size:${W}px ${H}px;margin:0}
   html,body{overflow:visible;height:auto;background:none}
   #bar,#progress,#presenter,#grid,#help{display:none!important}
-  #deck{position:static;display:block}
+  #deck,body.presenter #deck{position:static;display:block}
   #frame{transform:none!important;box-shadow:none;width:auto;height:auto}
   #frame>.dk-slide{position:relative;opacity:1!important;page-break-after:always;break-after:page}
 }

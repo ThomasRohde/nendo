@@ -298,6 +298,20 @@ async page => {
   const html = await exported('export.html', 'html');
   assert(html.text.includes('<title>Typed just before export</title>') && html.name === 'Typed just before export.html',
     `An export made in the pause must carry the deck's typing: ${JSON.stringify({ name: html.name, title: /<title>([^<]*)/.exec(html.text)?.[1] })}.`);
+  // Printing the file from presenter view prints the slides.
+  await page.evaluate(text => {
+    const sheet = Object.assign(document.createElement('iframe'), { name: 'printcheck', srcdoc: text });
+    sheet.setAttribute('sandbox', 'allow-scripts');
+    sheet.style.cssText = 'position:fixed;left:0;top:0;width:960px;height:540px';
+    document.body.append(sheet);
+  }, html.text);
+  const printed = await (async () => { for (let i = 0; i < 50; i++) { const f = page.frames().find(x => x.name() === 'printcheck'); if (f && await f.evaluate(() => !!document.getElementById('deck')).catch(() => false)) return f; await page.waitForTimeout(100); } throw Error('The exported file did not open.'); })();
+  await printed.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'p', bubbles: true })));
+  await page.emulateMedia({ media: 'print' });
+  const shown = await printed.evaluate(() => ({ presenter: document.body.classList.contains('presenter'), deck: getComputedStyle(document.getElementById('deck')).display }));
+  await page.emulateMedia({ media: null });
+  await page.evaluate(() => document.querySelector('iframe[name="printcheck"]').remove());
+  assert(shown.presenter && shown.deck !== 'none', `Printing from presenter view must print the slides: ${JSON.stringify(shown)}.`);
   // An export made while the deck's write is out waits for its answer.
   await page.evaluate(() => window.broker.hold('records.update', 1500));
   await frame.fill('#d-title', 'Typed while its save is out');
@@ -394,6 +408,24 @@ async page => {
   assert(refused.pending && refused.kept, `A refused save must keep the typing: ${JSON.stringify(refused)}.`);
   await frame.fill('#f-title', 'Refused once, then saved');
   await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Refused once, then saved', heldSlide, { timeout: 5000 });
+  // A view opened read-only leaves typing kept from before on the device, for the next writable start.
+  await page.evaluate(() => window.broker.fail('records.update', { code: 'busy', message: 'The file is busy.' }));
+  await frame.fill('#f-title', 'Kept over a read-only start');
+  await settle(1200);
+  const readOnly = await frame.evaluate(async () => {
+    window.deck.pending.clear();
+    window.nendo.context.readOnly = true;
+    window.dispatchEvent(new Event('pagehide'));
+    await new Promise(r => setTimeout(r, 300));
+    // The frame stays read-only until it ends; the next one starts writable.
+    return { kept: Object.keys(localStorage).some(k => k.startsWith('deck.drafts.')) };
+  });
+  assert(readOnly.kept, 'A view opened read-only must leave the typing kept on the device.');
+  await page.evaluate(() => window.broker.remount());
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  await page.waitForFunction(id => window.broker.record('dk.slide', id)?.values['dk.slide.title'] === 'Kept over a read-only start', heldSlide, { timeout: 5000 });
   checks.push('typing kept over a remount');
 
   // 14. Opening another deck waits for the slide's save in flight, and typing in the deck's own

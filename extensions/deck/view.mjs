@@ -542,6 +542,7 @@ function draftEntries() {
   return [...deck.held, ...entries];
 }
 function keepDrafts() {
+  if (nendo.context?.readOnly) return;
   try {
     const text = writeDrafts(draftEntries());
     if (text) localStorage.setItem(draftKey(), text); else localStorage.removeItem(draftKey());
