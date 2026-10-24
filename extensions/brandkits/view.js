@@ -646,17 +646,24 @@ pictureInput.addEventListener('change', async () => {
   const k = kit();
   if (!file || !slot || !k) return;
   if (file.size > 8 * 1024 * 1024) { flash('Pick a picture of at most 8 MB.'); return; }
-  try {
-    await nendo.media.put(file, { name: file.name, mediaType: file.type || 'image/png', record: { entityId: 'kit', recordId: k.recordId, version: k.version }, fieldId: SLIDE_PICTURE_FIELDS[slot] });
+  const put = slideWrites.then(async () => {
+    const now = await nendo.records.get('kit', k.recordId);
+    await nendo.media.put(file, { name: file.name, mediaType: file.type || 'image/png', record: { entityId: 'kit', recordId: now.recordId, version: now.version }, fieldId: SLIDE_PICTURE_FIELDS[slot] });
     const fresh = await nendo.records.get('kit', k.recordId);
     const choices = readChoices(fresh.values.kitSlides);
     choices.backgrounds = { ...(choices.backgrounds ?? {}), [slot]: 'picture' };
     await batch([{ op: 'update', entityId: 'kit', recordId: fresh.recordId, version: fresh.version, values: { kitSlides: JSON.stringify(choices) } }], `Slides: a picture behind ${slot} slides`);
-  } catch (error) { flash(error.message); }
+  });
+  // The picture joins the queue of slide writes, so a choice or an export after it waits for it.
+  slideWrites = put.catch(error => flash(error.message));
 });
 
 /** The kit's Deck design, with its logos and pictures: the file Deck imports on its Design tab. */
 async function exportDeckDesign(m) {
+  // A choice still being written, or a picture still being put, belongs in the file: wait for it,
+  // then read the kit as it now stands rather than as the board last drew it.
+  await slideWrites;
+  try { m = { ...m, kit: await nendo.records.get('kit', m.kit.recordId) }; } catch (error) { flash(error.message); return; }
   const plain = kitPlain(m);
   for (const [slot, p] of Object.entries(plain.pictures)) {
     try { const blob = await nendo.media.read(p.address); p.blob = blob; p.type = blob.type || p.type; } catch { delete plain.pictures[slot]; }

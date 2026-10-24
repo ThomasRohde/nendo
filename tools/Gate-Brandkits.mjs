@@ -68,9 +68,16 @@ async page => {
   checks.push('choices written');
 
   // 3. A picture behind a kind of slide is asked for first, put in the kit's field for it, then chosen.
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser', { timeout: 8000 }), pick('bg:section', 'picture')]);
+  // A real file chooser is a modal that stops playwright-cli's run-code, so the view's click on its
+  // picture input is counted instead, and the file is set on that input as the chooser would.
+  await frame.evaluate(() => {
+    const click = HTMLInputElement.prototype.click;
+    HTMLInputElement.prototype.click = function () { if (this.type === 'file') { window.__fileAsked = (window.__fileAsked ?? 0) + 1; return; } return click.call(this); };
+  });
+  await pick('bg:section', 'picture');
+  await until(() => window.__fileAsked === 1).catch(() => { throw Error('Choosing a picture behind the section slides must ask for its file first.'); });
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
-  await chooser.setFiles({ name: 'harbour.png', mimeType: 'image/png', buffer: png });
+  await frame.setInputFiles('input[type="file"][accept^="image/png"]', { name: 'harbour.png', mimeType: 'image/png', buffer: png });
   await written(c => c.backgrounds?.section === 'picture', 'A picture put behind the section slides must be chosen once it is in the kit.');
   const put = await page.evaluate(() => window.broker.requests.filter(r => r.m === 'media.put' && r.p.base64 === undefined).map(r => ({ fieldId: r.p.fieldId, name: r.p.name, entityId: r.p.entityId })));
   assert(put.length === 1 && put[0].fieldId === 'kitSlideSection' && put[0].entityId === 'kit' && put[0].name === 'harbour.png', `The picture must be put once, into the kit's Section slide picture: ${JSON.stringify(put)}.`);
@@ -85,6 +92,9 @@ async page => {
   });
   const toolbar = await page.evaluate(() => JSON.stringify(window.broker.toolbar ?? window.broker.lastToolbar ?? null));
   assert(!toolbar || toolbar === 'null' || toolbar.includes('export-deck-design'), 'The Export menu must offer the Deck design.');
+  // A choice still being written when Export is chosen belongs in the file: Nendo answers its write late.
+  await page.evaluate(() => window.broker.hold('records.batch', 1500, 1));
+  await pick('mode', 'dark');
   await command('export-deck-design');
   await until(() => window.__lastName?.endsWith('.deckdesign'));
   const exported = await frame.evaluate(async () => {
@@ -93,7 +103,8 @@ async page => {
     return { name: window.__lastName, design, pictures: [...pictures.keys()].sort() };
   });
   const d = exported.design;
-  assert(exported.name === 'Example Ember & Oak.deckdesign', `The file must be named for the kit: ${exported.name}.`);
+  assert(d.template.mode === 'dark', `The export must wait for the choice still being written (a dark stage): ${d.template.mode}.`);
+    assert(exported.name === 'Example Ember & Oak.deckdesign', `The file must be named for the kit: ${exported.name}.`);
   assert(d.template.family === 'studio' && d.template.style.radius === 12 && d.logos.placement === 'bottom-left' && d.backgrounds.title.role === 'secondary',
     `The design must carry the choices made on the Slides tile: ${JSON.stringify({ template: d.template, logos: d.logos, backgrounds: d.backgrounds })}.`);
   assert(d.source.app === 'Brandkits' && d.source.kit === kitId && d.colors.primary && d.fonts.heading, `The design must name its kit and carry its roles and fonts: ${JSON.stringify(d.source)}.`);

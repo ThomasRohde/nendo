@@ -101,6 +101,24 @@ test('a logo at the top keeps clear of the kicker and title, and a mark alone is
   }
 });
 
+test('text on a gradient background keeps the contrast it has on the same colour as a flat fill', () => {
+  // A white-to-white gradient is white: every text colour must come out as on white.
+  const sunny = { primary: '#F2C230', secondary: '#F7D560', accent: '#E8B400', background: '#FFFFFF', ink: '#1A1A1A' };
+  const look = content => {
+    const { template, brand, deck } = designSpecs(normalizeDesign({ ...NORRSKEN, template: { family: 'minimal', mode: 'light' }, colors: sunny, logos: {}, backgrounds: { content } }), p => p);
+    return resolveTheme(template, brand, deck);
+  };
+  const flat = look({ kind: 'role', role: 'background' }), gradient = look({ kind: 'gradient', angle: 135, stops: ['background', 'background'] });
+  for (const slide of [
+    { layout: 'Timeline', title: 'How it went', kicker: '', body: '- 2024 | Pilot | one team\n- 2025 | Rollout | every team' },
+    { layout: 'Comparison', title: 'Before and after', kicker: '', body: '### Before\n- Slow', body2: '### After\n- Fast' },
+    { layout: 'Agenda', title: 'Today', kicker: '', body: '- One | note\n- Two | note' },
+  ]) {
+    const colours = theme => layoutSlide(slide, theme).items.filter(i => i.type === 'text').map(i => i.color);
+    assert.deepEqual(colours(gradient), colours(flat), `${slide.layout}: the text on the gradient takes the colours it takes on the flat fill`);
+  }
+});
+
 test('a design kept as Deck records draws the same as the design itself', () => {
   const design = normalizeDesign(NORRSKEN);
   const values = designValues(design);

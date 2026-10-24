@@ -151,7 +151,7 @@ function background(g, feature, kind) {
   const fam = theme.family;
   let fill = c.bg;
   const deco = [];
-  if (kind === 'Full image') return { fill: '#000000', dark: true, ink: '#FFFFFF', muted: '#E6E6E6', accent: '#FFFFFF' };
+  if (kind === 'Full image') return { fill: '#000000', base: '#000000', dark: true, ink: '#FFFFFF', muted: '#E6E6E6', accent: '#FFFFFF' };
   if (fam === 'keynote') {
     if (feature) {
       deco.push({ type: 'ellipse', x: W * 0.52, y: H * 0.18, w: W * 0.9, h: H * 1.5, fill: { type: 'radial', stops: [{ at: 0, color: c.primary, alpha: 0.55 }, { at: 1, color: c.primary, alpha: 0 }] } });
@@ -189,8 +189,9 @@ function background(g, feature, kind) {
   if (own?.image && isDark(base) !== dark) base = dark ? '#111111' : '#FFFFFF';
   g.items.push(...deco);
   const onFill = base !== c.bg || dark !== isDark(c.bg);
+  // `base` is the ground as one colour, for contrast: a gradient's first stop, or what a picture's text is set on.
   return {
-    fill, dark,
+    fill, dark, base,
     ink: onFill ? readableOn(base, '#FFFFFF', c.ink, c.bg) : c.ink,
     muted: onFill ? mix(readableOn(base, '#FFFFFF', c.ink, c.bg), base, 0.28) : c.muted,
     accent: onFill ? (fam === 'swiss' || fam === 'studio' ? readableOn(base, '#FFFFFF') : holdContrast(c.accent, base, 3)) : c.accentText,
@@ -386,7 +387,7 @@ const LAYOUT_FUNCTIONS = {
     const fam = theme.family;
     const number = slide.kicker || '';
     if (fam === 'editorial' || fam === 'minimal' || fam === 'swiss') {
-      const numberColor = fam === 'swiss' ? g.bg.ink : fam === 'editorial' ? holdContrast(c.accent, g.bg.fill, 3) : c.accentText;
+      const numberColor = fam === 'swiss' ? g.bg.ink : fam === 'editorial' ? holdContrast(c.accent, g.bg.base, 3) : c.accentText;
       if (shows(g, 'kicker')) g.items.push(text({ x: X, y: H * 0.22, w: 360, h: 220, size: fam === 'minimal' ? 140 : 190, weight: fam === 'swiss' ? 700 : 300, font: fam === 'minimal' ? g.fonts.mono : g.fonts.heading,
         color: numberColor, text: number, markdown: false, lineHeight: 1, role: 'kicker', tracking: -0.04, src: whole('kicker', 'plain') }));
       const tx = shows(g, 'kicker') ? X + 400 : X;
@@ -447,7 +448,7 @@ const LAYOUT_FUNCTIONS = {
           g.items.push(band);
           y = top + 88;
         } else {
-          const heading = text({ x: inner.x, y, w: inner.w, h: 36, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), paragraphs: [{ runs: head.runs, level: 0 }], role, src: whole(role, 'blocks', `${role}.head`, 0, true) });
+          const heading = text({ x: inner.x, y, w: inner.w, h: 36, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.base, 3), paragraphs: [{ runs: head.runs, level: 0 }], role, src: whole(role, 'blocks', `${role}.head`, 0, true) });
           fit(heading, g.measure, 14);
           g.items.push(heading);
           y += 50;
@@ -502,7 +503,7 @@ const LAYOUT_FUNCTIONS = {
       const inner = card(g, x, top, w, h, { accent: i === 0 ? c.primary : c.line });
       const onSurface = ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.ink : c.onSurface;
       const v = text({ x: inner.x, y: inner.y, w: inner.w, h: valueSize * 1.1, size: valueSize, weight: 700, font: g.fonts.heading, tracking: -0.03, lineHeight: 1,
-        color: holdContrast(i % 2 ? c.accent : c.primary, ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.fill : c.surface, 3), text: value ?? '', markdown: false, role: 'body', ghost: !items.length, src: cell(at[i]?.[0], 'body.0', true) });
+        color: holdContrast(i % 2 ? c.accent : c.primary, ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.base : c.surface, 3), text: value ?? '', markdown: false, role: 'body', ghost: !items.length, src: cell(at[i]?.[0], 'body.0', true) });
       values.push(v); g.items.push(v);
       g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 14, w: inner.w, h: 64, size: 22, weight: 600, font: g.fonts.body, color: onSurface, text: label ?? '', role: 'body', lineHeight: 1.2, src: cell(at[i]?.[1], 'body.1') }));
       if (note || keeps(at[i]?.[2])) g.items.push(text({ x: inner.x, y: inner.y + valueSize * 1.1 + 84, w: inner.w, h: inner.h - valueSize * 1.1 - 84, size: 16, font: g.fonts.body, color: ['swiss', 'minimal', 'editorial'].includes(theme.family) ? g.bg.muted : mix(onSurface, c.surface, 0.3), text: note, role: 'body', lineHeight: 1.3, src: cell(at[i]?.[2], 'body.2') }));
@@ -542,8 +543,8 @@ const LAYOUT_FUNCTIONS = {
     items.forEach(([when, what, detail], i) => {
       const x = X + i * stepW, cx = x + 12;
       const colour = i === n - 1 ? c.accent : c.primary;
-      g.items.push(text({ x, y: lineY - 64, w: stepW - 20, h: 40, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.fill, 3), text: when ?? '', markdown: false, role: 'body', lineHeight: 1.1, src: cell(at[i][0], 'body.0', true) }));
-      g.items.push({ type: 'ellipse', x: cx - 12, y: lineY - 12, w: 24, h: 24, fill: colour, stroke: g.bg.fill === c.bg ? c.bg : null, strokeWidth: 4 });
+      g.items.push(text({ x, y: lineY - 64, w: stepW - 20, h: 40, size: 26, weight: 700, font: g.fonts.heading, color: holdContrast(colour, g.bg.base, 3), text: when ?? '', markdown: false, role: 'body', lineHeight: 1.1, src: cell(at[i][0], 'body.0', true) }));
+      g.items.push({ type: 'ellipse', x: cx - 12, y: lineY - 12, w: 24, h: 24, fill: colour, stroke: g.bg.base === c.bg ? c.bg : null, strokeWidth: 4 });
       const t = text({ x, y: lineY + 34, w: stepW - 28, h: 64, size: 22, weight: 600, font: g.fonts.body, color: g.bg.ink, text: what ?? '', role: 'body', lineHeight: 1.2, src: cell(at[i][1], 'body.1') });
       fit(t, g.measure, 14); g.items.push(t);
       if (detail || keeps(at[i][2])) { const d = text({ x, y: lineY + 104, w: stepW - 28, h: H - lineY - 190, size: 16, font: g.fonts.body, color: g.bg.muted, text: detail, role: 'body', lineHeight: 1.35, src: cell(at[i][2], 'body.2') }); fit(d, g.measure, 12); g.items.push(d); }
@@ -729,7 +730,7 @@ function drawChart(g, type, data, x, y, w, h) {
       const points = s.values.map((v, i) => [px + i * dx, py + ph - frac(v) * ph]);
       g.items.push({ type: 'path', points, closed: false, stroke: palette[j % palette.length], width: 4 });
       points.forEach(([cx, cy], i) => {
-        g.items.push({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.fill === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 });
+        g.items.push({ type: 'ellipse', x: cx - 6, y: cy - 6, w: 12, h: 12, fill: palette[j % palette.length], stroke: g.bg.base === c.bg ? c.bg : '#FFFFFF', strokeWidth: 2 });
         if (k === 1) g.items.push(text({ x: cx - 50, y: cy - 34, w: 100, h: 22, size: 15, weight: 700, font: g.fonts.body, color: ink, align: 'center', text: formatNumber(s.values[i], data.unit), markdown: false, role: 'chart' }));
       });
     });

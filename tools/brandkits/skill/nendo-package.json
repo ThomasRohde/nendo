@@ -3,5 +3,5 @@
   "title": "Working Brandkits",
   "kind": "skill",
   "version": "1.1.0",
-  "description": "How an agent works the Brandkits file: Asks from the Brandkits view for a whole kit or one part of it, answered with records or with Variants the person picks from, the kit's slide look, and the help page."
+  "description": "How an agent drafts or reworks a brand kit, its slide look included: one Ask a message from the Brandkits view names, or \"tidy the kits\"."
 }
