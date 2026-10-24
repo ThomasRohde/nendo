@@ -446,6 +446,36 @@ async page => {
   const html = await exported('export.html', 'html');
   assert(html.text.includes('<title>Typed just before export</title>') && html.name === 'Typed just before export.html',
     `An export made in the pause must carry the deck's typing: ${JSON.stringify({ name: html.name, title: /<title>([^<]*)/.exec(html.text)?.[1] })}.`);
+  // The file opened at #2 shows slide 2, and only it. A click in its audience window turns the talk
+  // in the console that drives it, so the two never part.
+  const fileUrl = await page.evaluate(text => {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/html' }));
+    const file = Object.assign(document.createElement('iframe'), { name: 'hashcheck', src: url + '#2' });
+    file.style.cssText = 'position:fixed;left:0;top:0;width:1280px;height:800px';
+    document.body.append(file);
+    return url;
+  }, html.text);
+  await page.waitForFunction(() => !!document.querySelector('iframe[name="hashcheck"]')?.contentWindow?.deckPlayer, null, { timeout: 5000 })
+    .catch(() => { throw Error('The exported file did not open at #2.'); });
+  const talkState = () => page.evaluate(() => document.querySelector('iframe[name="hashcheck"]').contentWindow.deckPlayer.state());
+  const atTwo = await page.evaluate(() => {
+    const doc = document.querySelector('iframe[name="hashcheck"]').contentDocument;
+    return { at: doc.defaultView.deckPlayer.state().at, inView: [...doc.querySelectorAll('#frame > .dk-slide')].flatMap((s, i) => s.classList.contains('off') ? [] : [i]) };
+  });
+  assert(atTwo.at === 1 && atTwo.inView.length === 1 && atTwo.inView[0] === 1, `The file opened at #2 must show slide 2 and only it: ${JSON.stringify(atTwo)}.`);
+  const [audienceWindow] = await Promise.all([page.context().waitForEvent('page', { timeout: 5000 }),
+    page.evaluate(() => document.querySelector('iframe[name="hashcheck"]').contentDocument.getElementById('c-audience').click())]);
+  await audienceWindow.waitForFunction(() => !!window.deckPlayer, null, { timeout: 5000 });
+  const talkBefore = await talkState();
+  const audienceBox = await audienceWindow.locator('#frame').boundingBox();
+  await audienceWindow.mouse.click(audienceBox.x + audienceBox.width * 0.75, audienceBox.y + audienceBox.height / 2);
+  await page.waitForFunction(b => { const s = document.querySelector('iframe[name="hashcheck"]').contentWindow.deckPlayer.state(); return s.at * 1000 + s.shown > b.at * 1000 + b.shown; }, talkBefore, { timeout: 3000 }).catch(() => {});
+  await settle(300);
+  const talkAfter = await talkState(), audienceAfter = await audienceWindow.evaluate(() => window.deckPlayer.state());
+  assert(talkAfter.at * 1000 + talkAfter.shown > talkBefore.at * 1000 + talkBefore.shown && audienceAfter.at === talkAfter.at && audienceAfter.shown === talkAfter.shown,
+    `A click in the audience window must turn the talk in the console, and both must show the same place: ${JSON.stringify({ talkBefore, talkAfter, audienceAfter })}.`);
+  await audienceWindow.close();
+  await page.evaluate(url => { document.querySelector('iframe[name="hashcheck"]').remove(); URL.revokeObjectURL(url); }, fileUrl);
   // Printing the file from presenter view prints the slides.
   await page.evaluate(text => {
     const sheet = Object.assign(document.createElement('iframe'), { name: 'printcheck', srcdoc: text });

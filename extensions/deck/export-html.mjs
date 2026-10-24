@@ -488,17 +488,24 @@ function player(W, H) {
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
-    if (audience && peer && !peer.closed) { e.preventDefault(); try { peer.postMessage({ deck: 'key', key: e.key }, '*'); } catch { /* gone */ } return; }
+    if (relay(e.key)) { e.preventDefault(); return; }
     if (press(e.key)) e.preventDefault();
   });
+  /** In the audience window a key, click or swipe goes to the console, which holds where the talk is. */
+  function relay(key) {
+    if (!audience || !peer || peer.closed) return false;
+    try { peer.postMessage({ deck: 'key', key }, '*'); } catch { /* gone */ }
+    return true;
+  }
+  const turn = dir => { if (relay(dir > 0 ? 'ArrowRight' : 'ArrowLeft')) return; if (dir > 0) forward(); else back(); };
 
-  frame.addEventListener('click', e => { if (tool === 'pen' || e.target.closest('a')) return; if (e.clientX < innerWidth / 4) back(); else forward(); });
+  frame.addEventListener('click', e => { if (tool === 'pen' || e.target.closest('a')) return; turn(e.clientX < innerWidth / 4 ? -1 : 1); });
   $('now').addEventListener('click', () => { if (tool !== 'pen') forward(); });
   pointing(frame); pointing($('now'));
   let touch = null;
   addEventListener('touchstart', e => { touch = e.touches[0].clientX; }, { passive: true });
-  addEventListener('touchend', e => { if (touch === null || tool === 'pen') return; const dx = e.changedTouches[0].clientX - touch; if (Math.abs(dx) > 40) { if (dx < 0) forward(); else back(); } touch = null; });
-  $('prev').onclick = back; $('next').onclick = forward;
+  addEventListener('touchend', e => { if (touch === null || tool === 'pen') return; const dx = e.changedTouches[0].clientX - touch; if (Math.abs(dx) > 40) turn(dx < 0 ? 1 : -1); touch = null; });
+  $('prev').onclick = () => turn(-1); $('next').onclick = () => turn(1);
   $('b-grid').onclick = grid; $('c-grid').onclick = grid; $('b-full').onclick = full;
   $('b-laser').onclick = $('c-laser').onclick = () => useTool('laser');
   $('b-pen').onclick = $('c-pen').onclick = () => useTool('pen');
@@ -516,8 +523,9 @@ function player(W, H) {
   setNotes(notesSize);
   addEventListener('resize', () => { fit(); if (body.classList.contains('presenter')) drawConsole(); });
 
-  // Every slide starts with its points hidden, as it will be when the talk reaches it.
-  slides.forEach(s => showSteps(s, 0, true));
+  // Every slide starts with its points hidden, as it will be when the talk reaches it, and only the
+  // slide the talk opens on (the address's, when it names one) is in view.
+  slides.forEach((s, i) => { showSteps(s, 0, true); s.classList.toggle('off', i !== at); });
   fit(); draw(false);
   if (data.rehearse) presenter(true);
   if (document.fonts) document.fonts.ready.then(fit);
