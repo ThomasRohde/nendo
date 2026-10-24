@@ -104,11 +104,15 @@ export function remove(doc, a, b) {
   return { doc: out, at: a };
 }
 
-/** The marks a character typed at `pos` takes: those of the one before it, or at a paragraph's start the one after. */
+/**
+ * The marks a character typed at `pos` takes: bold, italic and underline of the one before it, or
+ * at a paragraph's start the one after; a link or code only inside it, as PowerPoint extends a link.
+ */
 export function marksAt(doc, pos) {
   const [before, after] = splitRuns(doc[pos.p].runs, pos.o);
-  const r = before.at(-1) ?? after[0];
-  return { b: !!r?.b, i: !!r?.i, u: !!r?.u };
+  const r = before.at(-1) ?? after[0], next = after[0];
+  const inside = k => before.length && next && r[k] && r[k] === next[k] ? { [k]: r[k] } : {};
+  return { b: !!r?.b, i: !!r?.i, u: !!r?.u, ...inside('link'), ...inside('code') };
 }
 
 /**

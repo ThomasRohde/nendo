@@ -92,6 +92,11 @@ test('insert anywhere: in the middle of a word, across marks, and as several par
   assert.deepEqual(one.at, { p: 0, o: 4 });
   const marked = insert(doc, { p: 0, o: 8 }, typed('Y', marksAt(doc, { p: 0, o: 8 })));
   assert.equal(writeDoc('lines', marked.doc), 'Short **liYnes**');
+  // Inside a link or code the letter keeps it; at its end it does not.
+  const link = readDoc('lines', '[hello](https://example.com) and `code`');
+  assert.equal(writeDoc('lines', insert(link, { p: 0, o: 2 }, typed('X', marksAt(link, { p: 0, o: 2 }))).doc), '[heXllo](https://example.com) and `code`');
+  assert.equal(writeDoc('lines', insert(link, { p: 0, o: 5 }, typed('X', marksAt(link, { p: 0, o: 5 }))).doc), '[hello](https://example.com)X and `code`');
+  assert.equal(writeDoc('lines', insert(link, { p: 0, o: 12 }, typed('X', marksAt(link, { p: 0, o: 12 }))).doc), '[hello](https://example.com) and `coXde`');
   const many = insert(readDoc('blocks', '- ab'), { p: 0, o: 1 }, typed('1\n2'));
   assert.equal(writeDoc('blocks', many.doc), '- a1\n2b');
   assert.deepEqual(many.at, { p: 1, o: 1 });
