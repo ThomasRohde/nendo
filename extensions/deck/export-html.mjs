@@ -102,7 +102,8 @@ ${slides.map((s, i) => s.html.replace('class="dk-slide ', `class="dk-slide ${i =
     $('count').textContent = (at + 1) + ' / ' + n;
     $('pcount').textContent = 'Slide ' + (at + 1) + ' of ' + n;
     $('progress').style.width = (n > 1 ? at / (n - 1) * 100 : 100) + '%';
-    if (push !== false && !data.embedded) history.replaceState(null, '', '#' + (at + 1));
+    // The address keeps the slide where it can; a copy shown from text (srcdoc) has no address of its own.
+    if (push !== false && !data.embedded) try { history.replaceState(null, '', '#' + (at + 1)); } catch { /* no address to keep */ }
     if (document.body.classList.contains('presenter')) presenter();
     if (data.embedded) parent.postMessage({ deck: 'at', index: at }, '*');
   }
@@ -135,6 +136,7 @@ ${slides.map((s, i) => s.html.replace('class="dk-slide ', `class="dk-slide ${i =
   addEventListener('keydown', e => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     const k = e.key;
+    if ((k === ' ' || k === 'Enter') && e.target.closest && e.target.closest('button, a, input, select, textarea')) return;
     if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n'].includes(k)) { e.preventDefault(); show(at + 1); }
     else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); show(at - 1); }
     else if (k === 'Home') show(0); else if (k === 'End') show(n - 1);

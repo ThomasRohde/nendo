@@ -509,9 +509,12 @@ const LAYOUT_FUNCTIONS = {
     g.items.push({ type: 'line', x1: X, y1: top + rowsN * rowH, x2: W - X, y2: top + rowsN * rowH, stroke: c.line, width: 1 });
     t.head.forEach((cell, i) => {
       const align = t.align[i] ?? 'left';
-      g.items.push(text({ x: x + 14, y: top, w: widths[i] - 28, h: rowH, size, weight: 700, font: g.fonts.body, color: headFill ? c.onPrimary : g.bg.ink, text: cell, valign: 'middle', align, role: 'body', lineHeight: 1.15 }));
+      const head = text({ x: x + 14, y: top, w: widths[i] - 28, h: rowH, size, weight: 700, font: g.fonts.body, color: headFill ? c.onPrimary : g.bg.ink, text: cell, valign: 'middle', align, role: 'body', lineHeight: 1.15 });
+      fit(head, g.measure, 11);
+      g.items.push(head);
       t.rows.forEach((row, r) => {
         const p = text({ x: x + 14, y: top + (r + 1) * rowH, w: widths[i] - 28, h: rowH, size, font: g.fonts.body, color: r % 2 === 1 ? c.onSurface : g.bg.ink, text: row[i], valign: 'middle', align, role: 'body', lineHeight: 1.15, weight: i === 0 ? 600 : 400 });
+        fit(p, g.measure, 11);
         g.items.push(p);
       });
       x += widths[i];

@@ -53,7 +53,7 @@ function fromPairs(pairs, kit) {
     }
   }
   // A kit that names no roles: its first colours are its primary, secondary and accent.
-  for (const role of ['primary', 'secondary', 'accent']) if (!colors[role] && loose.length) colors[role] = loose.shift();
+  if (!Object.keys(colors).length) for (const role of ['primary', 'secondary', 'accent']) if (loose.length) colors[role] = loose.shift();
   Object.assign(kit.colors, Object.fromEntries(Object.entries(colors).filter(([r]) => !kit.colors[r])));
   for (const [slot, family] of Object.entries(fonts)) kit.fonts[slot] ??= family;
 }

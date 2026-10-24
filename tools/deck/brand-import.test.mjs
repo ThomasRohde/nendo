@@ -58,6 +58,14 @@ test('a kit names only the fields its file holds, so an import again keeps the r
   assert.deepEqual(kitValues(full), { source: 'Brandkits', name: 'Harbour', voice: 'Plain.', tagline: 'Out to sea', tokens: '{}', headingFont: 'Inter', bodyFont: 'Inter', primary: '#0B6E4F', ink: '#111111' });
 });
 
+test('a kit that names its roles gets no others from its loose colours', () => {
+  const kit = parseTokensJson(JSON.stringify({ name: 'Existing', colors: { primary: '#112233', border: '#dddddd' } }));
+  assert.deepEqual(kit.colors, { primary: '#112233' }, `colours: ${JSON.stringify(kit.colors)}`);
+  const loose = parseTokensJson(JSON.stringify({ name: 'Loose', palette: { one: '#112233', two: '#445566' } }));
+  assert.equal(loose.colors.primary, '#112233');
+  assert.equal(loose.colors.secondary, '#445566');
+});
+
 test('a single logo, and a file that is no kit', async () => {
   const logo = await importBrandFile(file('acme-white.png', new Uint8Array([137, 80, 78, 71])));
   assert.deepEqual(Object.keys(logo.logos), ['dark']);

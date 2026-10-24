@@ -305,8 +305,19 @@ async page => {
     document.body.append(sheet);
   }, html.text);
   // The file's own stylesheet is what is measured: presenter view is its body class, set here directly.
-  await page.waitForFunction(() => !!document.querySelector('iframe[name="printcheck"]')?.contentDocument?.getElementById('deck'), null, { timeout: 5000 })
+  await page.waitForFunction(() => !!document.querySelector('iframe[name="printcheck"]')?.contentDocument?.getElementById('count')?.textContent, null, { timeout: 5000 })
     .catch(() => { throw Error('The exported file did not open.'); });
+  // Enter on a focused player button is that button's, not the next slide's.
+  const pressed = await page.evaluate(() => {
+    const doc = document.querySelector('iframe[name="printcheck"]').contentDocument;
+    doc.getElementById('next').click();
+    const before = doc.getElementById('count').textContent;
+    const prev = doc.getElementById('prev');
+    prev.focus();
+    prev.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    return { before, after: doc.getElementById('count').textContent };
+  });
+  assert(pressed.before === pressed.after, `Enter on a focused player button must not turn the slide: ${pressed.before} became ${pressed.after}.`);
   await page.evaluate(() => document.querySelector('iframe[name="printcheck"]').contentDocument.body.classList.add('presenter'));
   await page.emulateMedia({ media: 'print' });
   const shown = await page.evaluate(() => { const doc = document.querySelector('iframe[name="printcheck"]').contentDocument; return { presenter: doc.body.classList.contains('presenter'), deck: doc.defaultView.getComputedStyle(doc.getElementById('deck')).display }; });

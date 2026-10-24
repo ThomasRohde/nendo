@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { layoutSlide, approxMeasure, fit, wrap } from '../../extensions/deck/layout.mjs';
+import { layoutSlide, approxMeasure, fit, wrap, textHeight } from '../../extensions/deck/layout.mjs';
 import { LAYOUTS, CHARTS } from '../../extensions/deck/model.mjs';
 import { TEMPLATES, resolveTheme } from '../../extensions/deck/themes.mjs';
 import { slideHtml } from '../../extensions/deck/render.mjs';
@@ -105,6 +105,15 @@ test('a word wider than its box breaks across lines, as the renderer breaks it',
   assert.ok(wrap(title, approxMeasure)[0].lines > 1, `an unbroken 300-character title wraps to ${wrap(title, approxMeasure)[0].lines} line`);
   fit(title, approxMeasure, 14);
   assert.ok(title.size < 42 || title.overflow === true, `it shrinks or says it overflows: size ${title.size}, overflow ${title.overflow}`);
+});
+
+test('a table cell shrinks to its row, or says it overflows', () => {
+  const theme = resolveTheme(TEMPLATES[0]);
+  const long = 'A long description that runs on and on, well past what one row of a table can hold at its size, '.repeat(3);
+  const laid = layoutSlide({ layout: 'Table', title: 'Terms', body: `| Term | Meaning |\n|---|---|\n| One | ${long} |\n| Two | Short |`, body2: '', image: null, chart: 'Column' }, theme, { measure: approxMeasure });
+  const cells = laid.items.filter(p => p.role === 'body' && p.type === 'text');
+  const bad = cells.filter(p => textHeight(p, approxMeasure) > p.h + 0.5 && !p.overflow);
+  assert.equal(bad.length, 0, `cells taller than their row with no overflow: ${bad.map(p => `${Math.round(textHeight(p, approxMeasure))}/${p.h} at ${p.size}px`)}`);
 });
 
 test('fit shrinks text to its box, and says when it cannot', () => {
