@@ -14,8 +14,9 @@
       <header class="sorter-head">
         <span class="mark" aria-hidden="true">D</span>
         <div class="sorter-title"><strong id="deck-title">Deck</strong><small id="deck-count">Reading the file…</small></div>
+        <button id="grid-sorter" type="button" class="icon-button" title="Slide sorter: every slide at once" aria-label="Slide sorter"><span aria-hidden="true">▦</span></button>
       </header>
-      <ol id="slides" class="slides" role="listbox" aria-label="Slides" tabindex="0"></ol>
+      <ol id="slides" class="slides" role="listbox" aria-label="Slides" aria-multiselectable="true" tabindex="0"></ol>
       <div class="sorter-foot">
         <button id="add-slide" type="button" class="ghost-button">+ Slide</button>
       </div>
@@ -55,6 +56,17 @@
         <p id="ask-status" class="ask-status" role="status" aria-live="polite"></p>
       </form>
     </main>
+
+    <section id="grid-view" class="grid-view" aria-labelledby="grid-title" hidden>
+      <header class="grid-head">
+        <h2 id="grid-title">Slide sorter</h2>
+        <small id="grid-count"></small>
+        <span class="grid-hint">Drag to move, Ctrl to copy · Ctrl+arrows move · Enter opens</span>
+        <label class="grid-zoom"><span>Size</span><input id="grid-zoom" type="range" min="120" max="420" step="10" value="220" aria-label="Size of the slides"></label>
+        <button id="grid-done" type="button" class="ghost-button">Back to the slide</button>
+      </header>
+      <ol id="grid" class="grid" role="listbox" aria-label="All slides" aria-multiselectable="true" tabindex="0"></ol>
+    </section>
 
     <aside id="inspector" class="inspector" aria-label="Inspector">
       <div class="tabs" role="tablist">
@@ -133,6 +145,7 @@
 
   <div id="present" class="present" hidden><iframe id="present-frame" title="Presenting" allow="fullscreen"></iframe></div>
   <p id="toast" class="toast" role="status" aria-live="polite"></p>
+  <p id="announce" class="sr-only" aria-live="polite"></p>
   <script src="/_nendo/api.js"></script>
   <script type="module" src="view.mjs"></script>
 </body>

@@ -13,7 +13,7 @@ Deck makes slides. You write the words; the layout places them and the template 
 
 | Place | What it is for |
 | --- | --- |
-| **Slides**, on the left | Every slide in order. Drag one to move it. A purple number on a slide counts the variants your agent wrote for it. |
+| **Slides**, on the left | Every slide in order. Drag slides to move them, select more with `Ctrl` or `Shift`, and right-click for the slides' menu. The grid button above them opens the slide sorter. A purple number on a slide counts the variants your agent wrote for it. |
 | **The stage**, in the middle | The slide as it will look. Click words to edit them where they are; right-click for the text menu. Drop a picture on it to put the picture in the slide. |
 | **Speaker notes**, under the stage | What you will say. Presenter view shows them; PowerPoint keeps them. |
 | **The ask bar**, at the bottom | Ask your agent for work on the whole deck, on this slide, or a mission. |

@@ -67,6 +67,43 @@ slide's text format field (`dk.slide.format`) keeps a size and an alignment for 
 key, such as `{"title":{"size":1.25},"body.0":{"align":"center"}}`; the size scales the layout's own,
 so a box still shrinks to fit, and the PowerPoint export carries both. A variant never sets it.
 
+## Slides arranged
+
+The slide list and the slide sorter (a grid of every slide over the whole view) take the same
+gestures, as PowerPoint's slide pane and sorter do. A click picks a slide; `Ctrl` adds or takes one
+out and `Shift` picks the run from the anchor (`order.mjs` `pick`); the current slide is always in
+the pick. `arrange.mjs` drags with the pointer rather than the browser's drag and drop, so it draws
+its own: the picked slides lifted, a stack with their count under the pointer, a line (a bar in the
+sorter) where they will land, scrolling while the pointer is near the list's edge, `Ctrl` at the
+drop to copy, and `Esc` to put them back. A drop moves the pick as one block in its own order
+(`moveBlock`); `Ctrl` and an arrow steps each picked slide over its neighbour (`nudge`), and with
+`Shift` to the start or the end. The list shows the new order at once and the slides slide into it.
+
+A slide's place is its integer order. `ordersFor` keeps the longest run of orders that still rise
+and writes only the others, into the gaps between, ten apart where they fit, so a move of one slide
+writes one order. A gap too narrow takes in its nearest kept neighbours until the slides fit, so a
+paste of 100 slides between two others writes about 110 orders. One step is one `records.batch`, at
+most 200 writes: a paste that would need more says so and writes nothing. A step keeps the deck it
+changed, so `Ctrl` `Z` in another deck leaves it alone. Copy puts the picked slides on
+the clipboard as Deck's own type (`application/x-nendo-deck-slides`, format `nendo.deck-slides`
+version 1, every slide field by its model name) and their words as plain text; a paste in any deck,
+in this file or another, makes them after the pick. A paste reads at most 100 slides, so cut and
+copy refuse a bigger pick and say so before anything is deleted. A picture another file holds is not this file's
+to point at: when the file refuses one, the slides are pasted without their pictures, and the view
+says so. A menu's Copy and Paste reach the clipboard where the browser allows it, and Deck's own
+last copy where not. The slides' menu is Nendo's (`nendo.ui.showMenu`), and the view's own where the
+frame has none.
+
+Adding, duplicating, pasting, moving, hiding, a layout and deleting are each one batch, which
+Nendo's notice offers to undo, and one step of the view's own undo, which Ctrl Z and Ctrl Y walk
+together with the stage's typing, the later first. A step is taken back through `records.undo` and
+`records.redo`; Nendo refuses one whose slides changed since, such as a moved slide typed in
+afterwards, so each step also keeps the fields it wrote before and after, and a refused step is put
+back by a batch of its own. A slide deleted and made again that way comes back under a new ID, since
+a deleted record's ID stays the file's, with its variants made again on it in the same batch; every
+kept step, and the stage's typing steps, then name the slide by its new ID. A step in another deck
+waits until that deck is open.
+
 ## Designs
 
 A Design is the whole look of one Brandkits kit: a Template whose `dk.template.brand` names its
@@ -122,6 +159,11 @@ export reads each embedded picture with `nendo.media.read`, and draws an SVG or 
   package's storage on the device with the version it was typed over (`drafts.mjs`). When the view
   starts again it saves what meets that version, and holds what meets a newer one under a notice:
   Put mine back writes it over the change, Discard mine drops it.
+- Ctrl X, C and V are the browser's own in the slide list, so they are not declared as Nendo keys;
+  from Nendo's row and the slides' menu they reach the clipboard only where the browser lets a
+  view, and otherwise paste Deck's own last copy. A slide pasted from another file loses its
+  picture. Undo walks one view visit: a frame mounted again starts with no steps, and Nendo's
+  History still has every batch.
 - `Ctrl` `B` is Nendo's own key and never reaches the view, so Bold is in the text menu and its
   toolbar but has no key inside Nendo. Font, colour and highlight are the template's and the brand
   kit's, not a box's own; the text menu sets bold, italic, underline, size, alignment and lists.

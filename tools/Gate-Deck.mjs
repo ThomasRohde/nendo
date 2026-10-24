@@ -35,6 +35,48 @@ async page => {
   const settle = (ms = 600) => page.waitForTimeout(ms);
   const until = (fn, arg, ms = 5000) => frame.waitForFunction(fn, arg, { timeout: ms });
   const exampleSlides = fixture.records['dk.slide'].length;
+  /**
+   * A slide dragged with the pointer, as a person drags it: pressed, moved past the threshold, and
+   * dropped before another (by index), or past the end (null), which it reaches only by holding the
+   * pointer at the list's foot until the list has scrolled there. `ctrl` copies; `list` is the slide
+   * list or the sorter. Answers what the view said while the slide was in the air.
+   */
+  const dragSlide = async (fromIndex, beforeIndex, { ctrl = false, list = '#slides', release = true } = {}) => {
+    const item = i => frame.locator(`${list} li[data-id]`).nth(i);
+    // Slides still sliding into place from the last move are measured where they come to rest.
+    await frame.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => null))));
+    // A redraw still on its way may scroll the list back to the current slide: the slide is pressed
+    // once it stays in view.
+    let from = null;
+    for (let i = 0; i < 20; i++) {
+      await item(fromIndex).evaluate(el => el.scrollIntoView({ block: 'center' }));
+      await page.waitForTimeout(80);
+      from = await item(fromIndex).boundingBox();
+      const shown = await frame.locator(list).boundingBox();
+      if (from && from.y >= shown.y && from.y + from.height <= shown.y + shown.height) break;
+    }
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(from.x + from.width / 2 + 3, from.y + from.height / 2 + 9, { steps: 3 });
+    const box = await frame.locator(list).boundingBox();
+    if (beforeIndex === null) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height - 3, { steps: 4 });
+      await frame.waitForFunction(sel => { const l = document.querySelector(sel); return l.scrollTop + l.clientHeight >= l.scrollHeight - 1; }, list, { timeout: 8000 })
+        .catch(() => { throw Error('Holding a dragged slide at the foot of the list must scroll the list to its end.'); });
+      await page.mouse.move(box.x + box.width / 2 + 2, box.y + box.height - 4);
+    } else {
+      let to = null;
+      for (let i = 0; i < 20 && !to; i++) { await item(beforeIndex).evaluate(el => el.scrollIntoView({ block: 'center' })); to = await item(beforeIndex).boundingBox(); }
+      await page.mouse.move(to.x + to.width * (list === '#grid' ? 0.2 : 0.5), to.y + to.height * (list === '#grid' ? 0.5 : 0.25), { steps: 5 });
+    }
+    if (ctrl) await page.keyboard.down('Control');
+    const air = await frame.evaluate(() => ({ drag: { ...window.deck.drag }, mark: !!document.querySelector('.drop-mark:not([hidden])'), ghost: document.querySelector('.drag-ghost .ghost-count')?.textContent ?? null,
+      copy: !!document.querySelector('.drag-ghost.copy'), lifted: document.querySelectorAll('li.lifted').length }));
+    if (!release) return air;
+    await page.mouse.up();
+    if (ctrl) await page.keyboard.up('Control');
+    return air;
+  };
 
   // 1. Mounted: the example's slides in order, Nendo's rules accept the toolbar, Add is the view's.
   assert(await frame.locator('#slides li').count() === exampleSlides, `The slide list must show the ${exampleSlides} example slides.`);
@@ -112,17 +154,13 @@ async page => {
   await command('slide.delete');
   await until(n => window.deck.slides.length === n, exampleSlides, 3000)
     .catch(async () => { throw Error(`A delete right after typing must delete on the first press: ${(await state()).slides.length} slides, not ${exampleSlides}.`); });
-  // A thumbnail dropped below the list goes to the end, then back before the second.
+  // A thumbnail dragged with the pointer to the list's foot scrolls the list and goes to the end,
+  // then back before the second.
   const moved = (await state()).slides[1].id;
-  const drag = (fromIndex, beforeIndex) => frame.evaluate(({ fromIndex, beforeIndex }) => {
-    const list = document.getElementById('slides'), items = list.querySelectorAll('li[data-id]'), dt = new DataTransfer();
-    items[fromIndex].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
-    (beforeIndex === null ? list : items[beforeIndex]).dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
-  }, { fromIndex, beforeIndex });
-  await drag(1, null);
+  await dragSlide(1, null);
   await until(id => window.deck.slides.at(-1)?.id === id, moved, 3000)
     .catch(async () => { const order = (await state()).slides.map(x => x.id); throw Error(`A slide dropped below the list must go to the end: it is at ${order.indexOf(moved) + 1} of ${order.length}.`); });
-  await drag(exampleSlides - 1, 1);
+  await dragSlide(exampleSlides - 1, 1);
   await until(id => window.deck.slides[1]?.id === id, moved, 3000);
   const batches = await requests('records.batch');
   assert(batches.length >= 3 && batches.slice(-3).every(b => b.offerUndo === true && typeof b.label === 'string'), 'Add, move and delete must each be a labelled batch that offers Undo.');
@@ -265,6 +303,10 @@ async page => {
   await frame.click('#tab-design');
   await dropDesign('#3A86A8');
   await page.waitForFunction(id => window.broker.record('dk.brand', id)?.values['dk.brand.primary'] === '#3A86A8', designKit.recordId, { timeout: 8000 });
+  // The import ends by putting the design on the deck, after its pictures: a template or kit chosen
+  // before then is put back by it, so the checks go on once the import says it is done.
+  await until(() => /updated in place/.test(document.getElementById('toast').textContent), null, 15000)
+    .catch(() => { throw Error('A design imported again must say it was updated in place.'); });
   const counts = [(await records('dk.template')).length, (await records('dk.brand')).length];
   assert(counts[0] === 7 && counts[1] === 2, `A design imported again must update its two records in place: ${JSON.stringify(counts)} templates and kits.`);
   // Back to the template and kit the checks below were written for.
@@ -781,13 +823,349 @@ async page => {
   await until(id => !window.deck.slides.some(s => s.id === id) && !!window.deck.slideId, tables.id);
   const left = await current();
   await frame.evaluate(() => document.activeElement?.blur());
+  // One Ctrl Z for the slides and the words: the delete first, the slide back under its own ID with
+  // the cell typed in it, then that typing, then the change before it on the Cards slide.
+  await page.keyboard.press('Control+z');
+  await until(id => window.deck.slides.some(s => s.id === id) && window.deck.slideId === id, tables.id, 5000)
+    .catch(() => { throw Error('Ctrl Z after a delete must bring the deleted slide back, under its own ID, as the current slide.'); });
+  const back = await current();
+  assert(back.body.split('\n')[2] === '| HTML | any! browser | sharing a link or a file |', `The slide Ctrl Z brings back must hold what was typed in it: ${JSON.stringify(back.body.split('\n')[2])}.`);
+  await page.keyboard.press('Control+z');
+  await until(id => window.deck.slides.find(s => s.id === id)?.body.split('\n')[2] === '| HTML | any browser | sharing a link or a file |', tables.id, 3000)
+    .catch(async () => { throw Error(`The next Ctrl Z must take back the typing on the slide that came back: ${JSON.stringify((await current()).body.split('\n')[2])}.`); });
   await page.keyboard.press('Control+z');
   await settle(300);
-  // The deleted slide's changes are passed over; the one before them, on the Cards slide, is taken back.
   const after = await frame.evaluate(({ left, cards }) => ({ left: window.deck.slides.find(s => s.id === left), cards: window.deck.slides.find(s => s.id === cards).body.split('\n')[0], on: window.deck.slideId }), { left: left.id, cards: cards.id });
   assert(after.left.body === left.body && after.left.title === left.title && after.cards === '- KeyZnote | a dark stage and one bright accent' && after.on === cards.id,
-    `Ctrl Z after the edited slide is deleted must change no other slide, and take back the last change on a slide still there: ${JSON.stringify({ was: left.body.slice(0, 50), now: after.left.body.slice(0, 50), cards: after.cards, on: after.on })}.`);
+    `The Ctrl Z after those must change no other slide, and take back the change before them on the Cards slide: ${JSON.stringify({ was: left.body.slice(0, 50), now: after.left.body.slice(0, 50), cards: after.cards, on: after.on })}.`);
   checks.push('words edited on the stage');
+
+  // 17. Slides rearranged as in PowerPoint, on the example deck again: a click picks, Ctrl and Shift
+  // pick more; a drag moves the pick as one block with a mark where it lands, Ctrl copies; the keys
+  // move it; cut, copy and paste carry slides; the slides' menu, the sorter's grid; and Ctrl Z and
+  // Ctrl Y take each of these back and forth, by hand where Nendo refuses.
+  await page.evaluate(fixture => { window.broker.setFixture(fixture); window.broker.remount(); }, fixture);
+  await page.waitForTimeout(300);
+  frame = await mounted();
+  await ready();
+  // Its own block: the names below are this check's.
+  {
+  const order = () => frame.evaluate(() => window.deck.slides.map(s => s.id));
+  const picked = () => frame.evaluate(() => ({ selected: window.deck.slides.filter(s => window.deck.selected.includes(s.id)).map(s => s.id), current: window.deck.slideId }));
+  const deckId = await frame.evaluate(() => window.deck.deckId);
+  const fileOrder = async () => (await records('dk.slide')).filter(r => r.values['dk.slide.deck'] === deckId)
+    .sort((a, b) => a.values['dk.slide.order'] - b.values['dk.slide.order'] || a.recordId.localeCompare(b.recordId)).map(r => r.recordId);
+  const lastBatch = async () => (await requests('records.batch')).at(-1);
+  const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const onScreenAndInFile = async (want, what) => {
+    await until(want => JSON.stringify(window.deck.slides.map(s => s.id)) === JSON.stringify(want), want, 5000)
+      .catch(async () => { throw Error(`${what}: the list shows ${JSON.stringify((await order()).map(id => want.indexOf(id)))}.`); });
+    // The list moves at once; the file follows when the batch lands.
+    for (let i = 0; i < 50 && !same(await fileOrder(), want); i++) await page.waitForTimeout(100);
+    const file = await fileOrder();
+    assert(same(file, want), `${what}: the file's orders read ${JSON.stringify(file.map(id => want.indexOf(id)))}.`);
+  };
+  const thumb = i => frame.locator('#slides li[data-id]').nth(i);
+  const start = await order();
+  const n = start.length;
+
+  // Clicks pick: one, Ctrl adds, Shift runs from the anchor.
+  await thumb(1).click();
+  await thumb(3).click({ modifiers: ['Control'] });
+  let p = await picked();
+  assert(same(p.selected, [start[1], start[3]]) && p.current === start[3], `Ctrl and a click must add a slide to the pick: ${JSON.stringify(p)}.`);
+  assert(await frame.locator('#slides li[aria-selected="true"]').count() === 2, 'The list must mark both picked slides.');
+  // The pick, dragged by one of its slides, lands as one block before the first slide: two orders written.
+  const air = await dragSlide(3, 0, { release: false });
+  assert(air.drag.active && same(air.drag.ids, [start[1], start[3]]) && air.mark && air.lifted === 2 && air.ghost === '2',
+    `A drag must lift the whole pick, show the count under the pointer and a mark where it lands: ${JSON.stringify(air)}.`);
+  // A change to the file heard mid-drag waits: a redraw would drop the lifted slides and the mark.
+  await page.evaluate(() => window.broker.pushChanges());
+  await settle(600);
+  const held = await frame.evaluate(() => ({ mark: !!document.querySelector('.drop-mark:not([hidden])'), lifted: document.querySelectorAll('#slides li.lifted').length }));
+  assert(held.mark && held.lifted === 2, `A change heard during a drag must leave the lifted slides and the mark in place: ${JSON.stringify(held)}.`);
+  await page.mouse.up();
+  const moved2 = [start[1], start[3], start[0], start[2], ...start.slice(4)];
+  await onScreenAndInFile(moved2, 'Two picked slides dragged before the first must stand first, in their order');
+  const moveBatch = await lastBatch();
+  assert(moveBatch.label === 'Move 2 slides' && moveBatch.offerUndo === true && moveBatch.writes.length === 2,
+    `A move must be one labelled batch that writes only the orders that must change: ${JSON.stringify({ label: moveBatch.label, writes: moveBatch.writes.length })}.`);
+  // A drop where the block already stands writes nothing.
+  const quiet = (await requests('records.batch')).length;
+  const still = await dragSlide(0, 2);
+  await settle(300);
+  assert(!still.mark && (await requests('records.batch')).length === quiet && same(await order(), moved2), `A pick dropped where it stands must show no mark and write nothing: ${JSON.stringify(still)}.`);
+  // Ctrl Z and Ctrl Y, with the list holding the keys.
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z must put the moved slides back');
+  await page.keyboard.press('Control+y');
+  await onScreenAndInFile(moved2, 'Ctrl Y must move them again');
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z again must put them back again');
+  assert((await requests('records.undo')).length >= 2 && (await requests('records.redo')).length >= 1, 'Ctrl Z and Ctrl Y must take the step back through Nendo\'s own undo and redo.');
+  checks.push('pick and drag');
+
+  // Keys: Shift and an arrow pick a run, Ctrl and an arrow move it, Ctrl Shift and an arrow to the end.
+  await thumb(2).click();
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Shift+ArrowDown');
+  p = await picked();
+  assert(same(p.selected, start.slice(2, 5)) && p.current === start[4], `Shift and an arrow must pick a run of slides: ${JSON.stringify(p.selected.map(id => start.indexOf(id)))}.`);
+  await page.keyboard.press('Control+ArrowUp');
+  await onScreenAndInFile([start[0], start[2], start[3], start[4], start[1], ...start.slice(5)], 'Ctrl Up must move the picked run up one place');
+  await page.keyboard.press('Control+Shift+ArrowDown');
+  const atEnd = [start[0], start[1], ...start.slice(5), start[2], start[3], start[4]];
+  await onScreenAndInFile(atEnd, 'Ctrl Shift Down must move the pick to the end');
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Two Ctrl Z must take both moves back');
+  await page.keyboard.press('Escape');
+  p = await picked();
+  assert(p.selected.length === 1, `Escape in the list must leave the current slide alone picked: ${p.selected.length}.`);
+  checks.push('keys move slides');
+
+  // Copy and paste with the keys: the clipboard carries Deck's own type and the words; the paste lands
+  // after the pick, as copies, picked.
+  await frame.evaluate(() => {
+    window.__copied = null;
+    document.addEventListener('copy', e => { window.__copied = { slides: e.clipboardData.getData('application/x-nendo-deck-slides'), text: e.clipboardData.getData('text/plain'), kept: e.defaultPrevented }; });
+  });
+  await thumb(5).click();
+  await thumb(6).click({ modifiers: ['Shift'] });
+  await page.keyboard.press('Control+c');
+  const copied = await frame.evaluate(() => window.__copied);
+  const carried = JSON.parse(copied?.slides || 'null');
+  const titles = await frame.evaluate(ids => ids.map(id => window.deck.slides.find(s => s.id === id).title), [start[5], start[6]]);
+  assert(copied?.kept && carried?.format === 'nendo.deck-slides' && same(carried.slides.map(s => s.title), titles) && copied.text.includes(titles[0]),
+    `Ctrl C in the list must put the picked slides on the clipboard as Deck's slides and as words: ${JSON.stringify({ copied: !!copied, kept: copied?.kept, format: carried?.format })}.`);
+  await page.keyboard.press('Control+v');
+  await until(n => window.deck.slides.length === n, n + 2, 5000).catch(() => { throw Error('Ctrl V in the list must paste the two copied slides.'); });
+  let now = await order();
+  const pasted = now.slice(7, 9);
+  p = await picked();
+  const pastedTitles = await frame.evaluate(ids => ids.map(id => window.deck.slides.find(s => s.id === id)?.title), pasted);
+  assert(same(pastedTitles, titles) && !start.includes(pasted[0]) && same(p.selected, pasted) && (await lastBatch()).label === 'Paste 2 slides',
+    `The paste must land right after the pick as new slides, picked: ${JSON.stringify({ pastedTitles, picked: p.selected.map(id => now.indexOf(id)) })}.`);
+  assert(same(await fileOrder(), now), 'The pasted slides must stand in the file where the list shows them.');
+  // Cut takes the pick out in one step; a paste at the start puts it there.
+  await page.keyboard.press('Control+x');
+  await until(n => window.deck.slides.length === n, n, 5000);
+  assert((await lastBatch()).label === 'Cut 2 slides', `Ctrl X must cut the pick as one step: ${(await lastBatch()).label}.`);
+  await thumb(0).click();
+  await page.keyboard.press('Control+v');
+  await until(n => window.deck.slides.length === n, n + 2, 5000);
+  now = await order();
+  assert(same(await frame.evaluate(ids => ids.map(id => window.deck.slides.find(s => s.id === id).title), now.slice(1, 3)), titles), 'A cut pasted after the first slide must stand second and third.');
+  for (let i = 0; i < 2; i++) await page.keyboard.press('Control+z');
+  await onScreenAndInFile([...start.slice(0, 7), ...pasted, ...start.slice(7)], 'Two Ctrl Z must take back the second paste and the cut, and the cut slides come back under their own IDs');
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'A third Ctrl Z must take back the first paste');
+  // A paste reads at most 100 slides, so cut and copy refuse a bigger pick before anything is deleted.
+  assert(n * 8 > 100, `The example needs more than 12 slides for the cut limit check: ${n}.`);
+  await thumb(0).click();
+  for (const size of [n * 2, n * 4, n * 8]) {
+    await page.keyboard.press('Control+a');
+    await page.keyboard.press('Control+d');
+    await until(size => window.deck.slides.length === size, size, 10000).catch(() => { throw Error(`Ctrl A and Ctrl D must grow the deck to ${size} slides.`); });
+  }
+  const before = (await requests('records.batch')).length;
+  await frame.evaluate(() => { window.__cut = ''; document.addEventListener('cut', e => { window.__cut = e.clipboardData.getData('application/x-nendo-deck-slides'); }); });
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+x');
+  await settle(400);
+  const refused = await frame.evaluate(() => ({ slides: window.deck.slides.length, copied: window.__cut, toast: document.getElementById('toast').textContent }));
+  assert(refused.slides === n * 8 && (await requests('records.batch')).length === before && !refused.copied && /up to 100 slides/.test(refused.toast),
+    `Ctrl X on more than 100 slides must delete nothing, copy nothing and say why: ${JSON.stringify({ ...refused, batches: (await requests('records.batch')).length - before })}.`);
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Three Ctrl Z must take back the three duplicates');
+  await thumb(0).click();
+  checks.push('cut, copy, paste');
+
+  // Ctrl held at the drop copies the slide there; Delete takes a pick out in one step, and Ctrl Z
+  // brings it back.
+  const copyAir = await dragSlide(0, 2, { ctrl: true });
+  assert(copyAir.copy, 'Ctrl held during a drag must show the copy mark.');
+  await until(n => window.deck.slides.length === n, n + 1, 5000).catch(() => { throw Error('A drag with Ctrl held must copy the slide.'); });
+  now = await order();
+  const firstTitle = await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, start[0]);
+  assert(same(now.filter(id => id !== now[2]), start) && await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, now[2]) === firstTitle && (await lastBatch()).label === 'Copy a slide',
+    `A Ctrl drag must put a copy where it was dropped and leave the slide where it was: ${JSON.stringify(now.map(id => start.indexOf(id)))}.`);
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z must take the copy back');
+  await thumb(8).click();
+  await thumb(9).click({ modifiers: ['Control'] });
+  await page.keyboard.press('Delete');
+  await until(n => window.deck.slides.length === n, n - 2, 5000).catch(() => { throw Error('Delete in the list must delete both picked slides.'); });
+  assert((await lastBatch()).label === 'Delete 2 slides', `Delete must take the pick out in one step: ${(await lastBatch()).label}.`);
+  p = await picked();
+  assert(p.current === start[10], `After a delete the slide after the deleted ones must be current: ${start.indexOf(p.current)}.`);
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z must bring both deleted slides back where they stood');
+  // Words typed in the inspector after that end the redo: Ctrl Y must not delete the slides again.
+  const typedIn = (await picked()).current;
+  const oldTitle = await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, typedIn);
+  await frame.fill('#f-title', 'Typed after the undo');
+  await frame.evaluate(() => document.activeElement.blur());
+  await until(id => !window.deck.pending.has(id), typedIn, 5000);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+y');
+  await settle(500);
+  assert((await frame.evaluate(id => window.deck.slides.find(s => s.id === id)?.title ?? null, typedIn)) === 'Typed after the undo' && (await order()).length === n,
+    `Ctrl Y after new typing must not put back the delete: ${JSON.stringify({ slides: (await order()).length, batch: (await lastBatch()).label })}.`);
+  await thumb(start.indexOf(typedIn)).click();
+  await frame.fill('#f-title', oldTitle);
+  await frame.evaluate(() => document.activeElement.blur());
+  await until(id => !window.deck.pending.has(id), typedIn, 5000);
+  checks.push('copy by drag, delete');
+
+  // The slides' menu: a right click on a picked slide keeps the pick, and Hide hides both in one step.
+  await thumb(3).click();
+  await thumb(4).click({ modifiers: ['Shift'] });
+  await page.evaluate(() => window.broker.pickNext({ id: 'slide.hide', value: true }));
+  await thumb(4).click({ button: 'right' });
+  await until(ids => ids.every(id => window.deck.slides.find(s => s.id === id)?.hidden), [start[3], start[4]], 5000)
+    .catch(() => { throw Error('Hide from the slides\' menu must hide every picked slide.'); });
+  const menu = await page.evaluate(() => window.broker.menus.at(-1));
+  const menuIds = menu.items.map(it => it.id).filter(Boolean);
+  assert(['slide.new', 'slide.duplicate', 'slide.cut', 'slide.copy', 'slide.paste', 'slide.hide', 'slide.top', 'slide.up', 'slide.down', 'slide.bottom', 'slide.delete'].every(id => menuIds.includes(id))
+    && menu.items.find(it => it.id === 'slide.delete').label === 'Delete 2 slides', `The slides' menu must offer the slide commands, named for the pick: ${JSON.stringify(menu.items.map(it => it.label))}.`);
+  assert((await lastBatch()).label === 'Hide 2 slides', `Hide must be one step for the pick: ${(await lastBatch()).label}.`);
+  // A layout picked with two slides picked goes on both in one step.
+  await frame.click('#tab-slide');
+  await frame.click('#layouts [data-layout="Statement"]');
+  await until(ids => ids.every(id => window.deck.slides.find(s => s.id === id)?.layout === 'Statement'), [start[3], start[4]], 5000)
+    .catch(() => { throw Error('A layout picked with two slides picked must go on both.'); });
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
+  await until(ids => ids.every(id => !window.deck.slides.find(s => s.id === id)?.hidden), [start[3], start[4]], 5000);
+  // A move Nendo will not take back, because a slide it moved was typed in since, is put back by hand.
+  await thumb(2).click();
+  await command('slide.down');
+  await onScreenAndInFile([start[0], start[1], start[3], start[2], ...start.slice(4)], 'Move down must move the current slide');
+  // The slide whose order the move wrote, typed in: its version is no longer the one the move left.
+  const written = (await lastBatch()).writes[0].recordId;
+  await thumb(start.indexOf(written) === 2 ? 3 : 2).click();
+  await frame.fill('#f-title', 'Typed after the move');
+  await frame.evaluate(() => document.activeElement.blur());
+  await until(id => !window.deck.pending.has(id), written, 5000);
+  const undosBefore = (await requests('records.undo')).length;
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z must put back a move whose slide was typed in since');
+  assert((await requests('records.undo')).length === undosBefore + 1 && (await lastBatch()).label === 'Undo Move a slide' && (await record('dk.slide', written)).values['dk.slide.title'] === 'Typed after the move',
+    `A move Nendo refuses to take back must be put back by a batch of its own, and keep the typing: ${(await lastBatch()).label}.`);
+  // Cut from a menu, where the browser will not cut, copies the pick and deletes what it copied, also
+  // when the pick changes while the clipboard write is out.
+  await frame.evaluate(() => {
+    window.__execCommand = document.execCommand; document.execCommand = () => false;
+    window.__writes = []; navigator.clipboard.writeText = text => new Promise(resolve => window.__writes.push({ text, resolve }));
+  });
+  await thumb(5).click();
+  await command('slide.cut');
+  await until(() => window.__writes.length === 1, null, 5000).catch(() => { throw Error('Cut from a menu must write the pick to the clipboard.'); });
+  await thumb(6).click();
+  await frame.evaluate(() => { window.__writes[0].resolve(); document.execCommand = window.__execCommand; delete navigator.clipboard.writeText; });
+  await until(n => window.deck.slides.length === n - 1, n, 5000).catch(() => { throw Error('Cut from a menu must delete the slide it copied.'); });
+  const afterCut = await order();
+  assert(!afterCut.includes(start[5]) && afterCut.includes(start[6]),
+    `Cut must delete the slides it copied, not a pick made while it waited: ${JSON.stringify({ copiedGone: !afterCut.includes(start[5]), newPickKept: afterCut.includes(start[6]) })}.`);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z must bring back the slide a menu Cut took');
+  checks.push('slides menu, undo by hand');
+
+  // The slide sorter: every slide on a grid; the arrows go across and down its rows, Ctrl and an arrow
+  // moves, a drag shows a bar between cards, Enter goes back to the stage on the slide.
+  await command('view.sorter', true);
+  await until(n => !document.getElementById('grid-view').hidden && document.querySelectorAll('#grid li[data-id]').length === n && document.activeElement?.id === 'grid', n, 3000)
+    .catch(() => { throw Error('The slide sorter must open over the view, with every slide and the keys.'); });
+  await page.waitForFunction(() => window.broker.toolbars.at(-1).items.find(it => it.id === 'view.sorter')?.pressed === true, null, { timeout: 3000 })
+    .catch(() => { throw Error('Nendo\'s row must show the slide sorter pressed while it is open.'); });
+  const cols = await frame.evaluate(() => { const items = [...document.querySelectorAll('#grid li')]; const top = items[0].getBoundingClientRect().top; return items.filter(el => Math.abs(el.getBoundingClientRect().top - top) < 4).length; });
+  assert(cols >= 3, `The sorter must lay the slides out in rows: ${cols} across.`);
+  await frame.locator('#grid li[data-id]').nth(0).click();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowDown');
+  p = await picked();
+  assert(p.current === start[1 + cols], `Right and Down in the sorter must go one card across and one row down: slide ${start.indexOf(p.current) + 1}, not ${2 + cols}.`);
+  await page.keyboard.press('Control+ArrowUp');
+  const rowUp = [...start]; rowUp.splice(1 + cols, 1); rowUp.splice(1, 0, start[1 + cols]);
+  await onScreenAndInFile(rowUp, 'Ctrl Up in the sorter must move the slide up a row');
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z in the sorter must put it back');
+  const gridAir = await dragSlide(0, 3, { list: '#grid' });
+  assert(gridAir.mark && await frame.evaluate(() => !document.querySelector('.drop-mark')), 'A drag in the sorter must show its mark while dragging, and take it away at the drop.');
+  await onScreenAndInFile([start[1], start[2], start[0], ...start.slice(3)], 'A card dropped before the fourth must stand third');
+  await page.keyboard.press('Enter');
+  await until(id => document.getElementById('grid-view').hidden && window.deck.slideId === id && document.activeElement?.id === 'slides', start[0], 3000)
+    .catch(() => { throw Error('Enter in the sorter must go back to the stage on the current slide.'); });
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Ctrl Z back on the stage must take back the sorter\'s move');
+  const chromeLater = await page.evaluate(() => window.broker.chromeRefusals);
+  assert(chromeLater.length === 0, `Nendo must accept every toolbar and menu the view declared: ${JSON.stringify(chromeLater)}.`);
+  checks.push('slide sorter');
+
+  // A step keeps the deck it changed, though another deck opens while its batch is out: Ctrl Z there
+  // leaves this deck alone, and back here it takes the delete back.
+  await page.evaluate(id => {
+    const d = window.broker.record('dk.deck', id);
+    window.broker.put('dk.deck', { ...d, recordId: 'dk.deck.other', version: 1, values: { ...d.values, 'dk.deck.title': 'Other deck' } });
+    window.broker.pushChanges();
+  }, deckId);
+  await until(() => window.deck.decks.length === 2, null, 5000);
+  await thumb(1).click();
+  await page.evaluate(() => window.broker.hold('records.batch', 900));
+  await page.keyboard.press('Delete');
+  await page.evaluate(() => window.broker.pushPlace({ deck: 'dk.deck.other' }));
+  await until(() => window.deck.deckId === 'dk.deck.other', null, 5000);
+  await until(() => window.deck.steps.undo.at(-1)?.label === 'Delete slide 2', null, 5000).catch(() => { throw Error('The delete must land as a step.'); });
+  const stepDeck = await frame.evaluate(() => window.deck.steps.undo.at(-1).deckId);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await settle(400);
+  const stillGone = !(await fileOrder()).includes(start[1]);
+  assert(stepDeck === deckId && stillGone, `A step must keep the deck it changed, and Ctrl Z in another deck must leave it: ${JSON.stringify({ stepDeck, stillGone })}.`);
+  await page.evaluate(id => window.broker.pushPlace({ deck: id }), deckId);
+  await until(id => window.deck.deckId === id && window.deck.slides.length > 0, deckId, 5000);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Control+z');
+  await onScreenAndInFile(start, 'Back in its deck, Ctrl Z must take the delete back');
+  // Where Nendo will not take a delete back, the slide is made again by hand, naming its deck at the
+  // version the deck has now, with the agent's variants on it; an earlier step on the slide follows
+  // it to its new ID.
+  await thumb(2).click();
+  await page.evaluate(({ deckId, slideId }) => {
+    window.broker.put('dk.ask', { entityId: 'dk.ask', recordId: 'dk.ask.arrange', version: 1, labels: {}, exact: {}, calculated: {},
+      values: { 'dk.ask.deck': deckId, 'dk.ask.request': 'Shorter', 'dk.ask.scope': 'Selection', 'dk.ask.status': 'Done', 'dk.ask.made': '2026-10-24T09:00:00Z' } });
+    window.broker.put('dk.variant', { entityId: 'dk.variant', recordId: 'dk.variant.arrange', version: 1, labels: {}, exact: {}, calculated: {},
+      values: { 'dk.variant.ask': 'dk.ask.arrange', 'dk.variant.slide': slideId, 'dk.variant.label': 'Shorter', 'dk.variant.changes': '{"title":"Short"}', 'dk.variant.status': 'Proposed' } });
+    window.broker.pushChanges();
+  }, { deckId, slideId: start[2] });
+  await until(() => window.deck.variants.length === 1, null, 5000);
+  await command('slide.hide');
+  await until(id => window.deck.slides.find(s => s.id === id)?.hidden === true, start[2], 5000);
+  const goneTitle = await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, start[2]);
+  await frame.locator('#slides').focus();
+  await page.keyboard.press('Delete');
+  await until(n => window.deck.slides.length === n - 1, n, 5000);
+  await page.evaluate(() => window.broker.fail('records.undo', { code: 'stale', message: 'The file changed since.' }, 1));
+  await page.keyboard.press('Control+z');
+  await until(n => window.deck.slides.length === n, n, 5000).catch(async () => {
+    throw Error(`Ctrl Z must make a deleted slide again where Nendo will not take the delete back: ${await frame.evaluate(() => String(window.deck.problem?.message ?? window.deck.problem ?? ''))}.`);
+  });
+  const remade = (await order())[2];
+  assert(remade !== start[2] && await frame.evaluate(id => window.deck.slides.find(s => s.id === id).title, remade) === goneTitle && (await lastBatch()).label === 'Undo Delete slide 3',
+    `A delete taken back by hand must make the slide again in its place, under a new ID: ${(await lastBatch()).label}.`);
+  const variantsBack = (await records('dk.variant')).filter(r => r.values['dk.variant.slide'] === remade).length;
+  assert(variantsBack === 1, `A delete taken back by hand must bring back the slide's variants with it: ${variantsBack} on the new slide.`);
+  await page.evaluate(() => window.broker.fail('records.undo', { code: 'stale', message: 'The file changed since.' }, 1));
+  await page.keyboard.press('Control+z');
+  await settle(400);
+  const hiddenAfter = (await records('dk.slide')).find(r => r.recordId === remade)?.values['dk.slide.hidden'];
+  assert(hiddenAfter === false, `Ctrl Z after a slide came back under a new ID must take back the hide made before its delete: hidden is ${hiddenAfter}.`);
+  checks.push('steps keep their deck');
+  }
 
   // 16. A file with no deck opens on the start screen; its six templates fit the width.
   await page.evaluate(empty => { window.broker.setFixture(empty); window.broker.remount(); }, empty);

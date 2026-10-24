@@ -202,10 +202,18 @@ export function createStageEditor(host) {
     // last letter left the caret, with no selection to replace.
     const goesOn = () => T.same(entry.selBefore.anchor, last.selAfter.focus) && T.same(entry.selBefore.focus, last.selAfter.focus);
     if (entry.label === 'typing' && last?.label === 'typing' && goesOn() && last.slideId === entry.slideId && last.field === entry.field && last.from === entry.from && now - last.time < 2000) {
-      Object.assign(last, { after: entry.after, selAfter: entry.selAfter, toAfter: entry.toAfter, time: now });
-    } else undo.push({ ...entry, time: now });
+      Object.assign(last, { after: entry.after, selAfter: entry.selAfter, toAfter: entry.toAfter, time: now, at: now });
+    } else undo.push({ ...entry, time: now, at: now });
     if (undo.length > 300) undo.shift();
     redo.length = 0;
+    // A new change of words ends what the view's own steps could redo, as one Ctrl Y would.
+    host.changed?.();
+  }
+  /** The top step Ctrl Z (back) or Ctrl Y would take, of a slide still in the deck. */
+  function top(back) {
+    const stack = back ? undo : redo;
+    for (let at = stack.length - 1; at >= 0; at--) if (host.hasSlide(stack[at].slideId)) return stack[at];
+    return null;
   }
   /**
    * Ctrl Z (back) and Ctrl Y: the slide's words as they were, and the selection with them. Only a
@@ -220,6 +228,7 @@ export function createStageEditor(host) {
     if (host.slide()?.id !== entry.slideId) host.selectSlide(entry.slideId);
     if (host.slide()?.id !== entry.slideId) return false;
     stack.splice(at, 1);
+    entry.at = Date.now();
     (back ? redo : undo).push(entry);
     const value = back ? entry.before : entry.after;
     if (session && session.slideId === entry.slideId && session.field === entry.field && session.from === entry.from) {
@@ -803,6 +812,12 @@ export function createStageEditor(host) {
     active: () => !!session,
     /** Ctrl Z and Ctrl Y when no field has focus: the stage's last change of words. */
     undo: back => step(back),
+    /** When the step Ctrl Z (back) or Ctrl Y would take landed where it is, so the view can weigh it against its own; null for none. */
+    peek: back => top(back)?.at ?? null,
+    /** A slide was added, moved or deleted: the words' redo goes, as a new change of words ends it. */
+    forgetRedo: () => { redo.length = 0; },
+    /** A slide came back under a new ID: the typing steps on it follow it there. */
+    renamed: (from, to) => { for (const entry of [...undo, ...redo]) if (entry.slideId === from) entry.slideId = to; },
     /** What the probes read: the box, its paragraphs and the selection as the page holds it now. */
     state: () => (readSelection(), session) ? { field: session.field, dialect: session.dialect, key: session.key, from: session.from, value: session.value, sel: session.sel,
       text: session.doc.map(T.textOf), kinds: session.doc.map(p => p.kind), marks: session.marks, undo: undo.length, redo: redo.length, menu: !!menu } : { undo: undo.length, redo: redo.length, menu: !!menu },
