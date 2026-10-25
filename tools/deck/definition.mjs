@@ -447,6 +447,8 @@ export const exampleSlideId = n => `dk.slide.example-${String(n).padStart(2, '0'
  * number and field, with the words they held. The tour stage writes the seed's words over them only
  * where the file still holds these, so a slide the person has rewritten keeps their words.
  */
+/** The example slides the tour adds: Title only, Picture grid, Process and Cycle. */
+const TOUR_SLIDES = [17, 18, 19, 20];
 const TOUR_WORDS = [
   [1, F.slide.body, 'Seventeen layouts, six templates, your brand'],
   [11, F.slide.body, '- 17 | layouts | from title to closing\n- 6 | templates | each with its own decorations\n- 2 | exports | HTML and PowerPoint'],
@@ -458,11 +460,13 @@ const TOUR_WORDS = [
 
 /**
  * What brings an older file's example deck up to this one, given every slide the file holds and the
- * example deck. An example slide the person moved to another deck is theirs there, and not made again. A seed slide it lacks is made, kept in new files, and placed just after the
- * slide it follows in the seed, wherever the person has put that one; with no room there, it goes at
- * the end. The slides already there keep their places. A file without the example deck gets nothing.
- * The old words of TOUR_WORDS take the seed's. Nothing else is written: not the notes, the
- * pictures, the order the person gave a slide, or a slide of their own.
+ * example deck. A TOUR_SLIDES slide the file lacks is made, kept in new files, and placed just after
+ * the nearest slide before it in the seed that the deck still holds, wherever the person has put that
+ * one; with no room there, it goes at the end. An older example slide the person deleted stays
+ * deleted, and one moved to another deck is theirs there. The slides already there keep their
+ * places. A file without the example deck gets nothing. The old words of TOUR_WORDS take the seed's.
+ * Nothing else is written: not the notes, the pictures, the order the person gave a slide, or a slide
+ * of their own.
  */
 export function tourOperations(slides, deck) {
   if (!deck) return [];
@@ -474,10 +478,11 @@ export function tourOperations(slides, deck) {
   const orders = new Map(seeds.filter(r => held.has(r.recordId)).map(r => [r.recordId, held.get(r.recordId).values[F.slide.order]]));
   const taken = slides.map(s => s.values[F.slide.order]).filter(Number.isInteger);
   seeds.forEach((r, k) => {
-    if (anywhere.has(r.recordId)) return;
+    if (!TOUR_SLIDES.includes(Number(r.recordId.slice(-2))) || anywhere.has(r.recordId)) return;
     // Halfway from the slide it follows to the next slide in the deck, or ten past that slide when
     // nothing follows it; before every slide when it follows none.
-    const anchor = k > 0 ? orders.get(seeds[k - 1].recordId) : null;
+    const before = seeds.slice(0, k).reverse().find(x => orders.has(x.recordId));
+    const anchor = before ? orders.get(before.recordId) : null;
     const next = anchor === null ? Math.min(...taken) : Math.min(...taken.filter(o => o > anchor));
     let order = anchor === null ? (Number.isFinite(next) ? next - 10 : 10)
       : !Number.isFinite(next) ? anchor + 10 : next - anchor >= 2 ? Math.floor((anchor + next) / 2) : null;

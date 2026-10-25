@@ -180,6 +180,17 @@ test('the tour stage leaves an example slide the person moved to another deck', 
   assert.ok(orderOf(18) > orderOf(9) && orderOf(18) < orderOf(10));
 });
 
+test('the tour stage leaves an older example slide the person deleted, and follows the slide before it', () => {
+  // Full image deleted, Image right moved to another deck: Picture grid follows Bullets' run, after Two columns' and Comparison's.
+  const file = olderFile().filter(s => s.recordId !== exampleSlideId(9));
+  file.find(s => s.recordId === exampleSlideId(8)).values[F.slide.deck] = 'dk.deck.mine';
+  const ops = tourOperations(file, DECK);
+  assert.deepEqual(ops.filter(o => o.operationType === 'data.createRecord').map(o => o.payload.recordId), [17, 18, 19, 20].map(exampleSlideId));
+  const after = play(file, ops);
+  const orderOf = n => after.find(s => s.recordId === exampleSlideId(n)).values[F.slide.order];
+  assert.ok(Number.isInteger(orderOf(18)) && orderOf(18) > orderOf(7) && orderOf(18) < orderOf(10), `Picture grid at ${orderOf(18)}`);
+});
+
 test('the tour stage leaves words the person rewrote', () => {
   const file = olderFile();
   file.find(s => s.recordId === exampleSlideId(11)).values[F.slide.body] = '- 3 | teams | mine';
