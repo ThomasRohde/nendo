@@ -99,6 +99,9 @@ body.rehearse #console .rec{display:flex}
 #console .now,#console .next{position:relative;overflow:hidden;background:${esc(bg)};border-radius:8px;flex:none}
 #console .next{aspect-ratio:${W}/${H};width:100%}
 #console .now{margin:0 auto}
+#now-cover{position:absolute;inset:0;z-index:5;display:none;place-items:center;text-align:center;padding:12px;font-size:15px}
+body.black #now-cover{display:grid;background:rgba(0,0,0,.9);color:#bbb}
+body.white #now-cover{display:grid;background:rgba(255,255,255,.92);color:#444}
 #console .strip{flex:none;display:flex;gap:8px;overflow-x:auto;padding:4px 2px 6px;margin-top:auto}
 #console .strip button{all:unset;cursor:pointer;flex:none;position:relative;width:112px;aspect-ratio:${W}/${H};border-radius:4px;overflow:hidden;background:${esc(bg)};outline:2px solid transparent;outline-offset:1px}
 #console .strip button.here{outline-color:${esc(primary)}}
@@ -153,7 +156,7 @@ ${embedded ? '' : '<button id="c-audience" title="Open the slides in a window of
 <button id="c-end">${rehearse ? 'Finish rehearsal' : embedded ? 'End' : 'Close console'}</button>
 </div>
 </div>
-<div class="main"><div class="label"><span>Now <span id="now-step"></span></span></div><div class="now" id="now"><canvas class="ink" id="now-ink" aria-hidden="true"></canvas><div class="laser-dot" id="now-laser"></div></div><nav class="strip" id="strip" aria-label="Go to a slide"></nav></div>
+<div class="main"><div class="label"><span>Now <span id="now-step"></span></span></div><div class="now" id="now"><canvas class="ink" id="now-ink" aria-hidden="true"></canvas><div class="laser-dot" id="now-laser"></div><div id="now-cover" role="status"></div></div><nav class="strip" id="strip" aria-label="Go to a slide"></nav></div>
 <div class="side"><div class="label"><span id="next-label">Next</span></div><div class="next" id="next-box"></div>
 <div class="label"><span>Notes</span><span><button id="n-smaller" title="Smaller notes">A&#8722;</button><button id="n-larger" title="Larger notes">A+</button></span></div><div class="notes" id="notes"></div></div>
 </section>
@@ -330,6 +333,8 @@ function player(W, H) {
     $('notes').textContent = notes || 'No notes for this slide.';
     $('notes').classList.toggle('empty', !notes);
     $('c-black').setAttribute('aria-pressed', String(cover === 'black'));
+    // The console stands where the slides would be, so it shows what the audience sees instead.
+    $('now-cover').textContent = cover ? 'The audience sees a ' + cover + ' screen. Press ' + (cover === 'black' ? 'B' : 'W') + ' to show the slide again.' : '';
     drawTime();
   }
 

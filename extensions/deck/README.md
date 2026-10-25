@@ -153,7 +153,8 @@ by its address, and one linked from a folder on the computer is left out, which 
 - **The presenter console** (`P`): this slide as the audience sees it, the next point or slide,
   the notes with their own size, a strip of slides, the talk's clock with pause and reset, the
   slide's own time, the time of day, and the pace against the talk's length. Laser (`L`), pen
-  (`D`, `E` clears), black (`B`) and white (`W`) reach the audience. A number and Enter goes to a
+  (`D`, `E` clears), black (`B`) and white (`W`) reach the audience; the console's slide shows a
+  black or white screen as a notice over it. A number and Enter goes to a
   slide; `G` opens a grid, `F` full screen, `#N` in the address a slide.
 - **The audience window.** In the HTML file opened in a browser, the console opens the slides in a
   second window and keeps both in step; keys pressed in either drive the talk.
